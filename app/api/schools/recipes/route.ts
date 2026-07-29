@@ -561,7 +561,30 @@ export async function POST(request: NextRequest) {
       if (Number.isFinite(w) && w >= 1 && w <= 5) weekday = w;
     }
 
-    const recipeRow = {
+    // Always keep weekday in metadata so assignment works even without column migration
+    let existingMeta: Record<string, unknown> = {};
+    const existingId = body.id ? Number(body.id) : null;
+    if (existingId && Number.isFinite(existingId)) {
+      const { data: prev } = await supabase
+        .from('nsnp_recipes')
+        .select('metadata')
+        .eq('id', existingId)
+        .eq('agency_profile_id', companyId)
+        .maybeSingle();
+      if (prev?.metadata && typeof prev.metadata === 'object') {
+        existingMeta = { ...(prev.metadata as Record<string, unknown>) };
+      }
+    }
+    if (weekday != null) {
+      existingMeta.weekday = weekday;
+      existingMeta.meal_weekday = weekday;
+    } else {
+      delete existingMeta.weekday;
+      delete existingMeta.meal_weekday;
+    }
+    existingMeta.meal_type = String(body.meal_type || 'lunch');
+
+    const recipeRow: Record<string, unknown> = {
       agency_profile_id: companyId,
       name,
       meal_type: String(body.meal_type || 'lunch'),
@@ -571,6 +594,7 @@ export async function POST(request: NextRequest) {
       portion_learners: Number(body.portion_learners || 1) || 1,
       active: body.active !== false,
       notes: body.notes || null,
+      metadata: existingMeta,
       updated_at: new Date().toISOString(),
     };
 
@@ -581,8 +605,8 @@ export async function POST(request: NextRequest) {
         .update(recipeRow)
         .eq('id', recipeId)
         .eq('agency_profile_id', companyId);
-      // Retry without weekday if column not migrated yet
-      if (error && /weekday/i.test(error.message)) {
+      // Retry without weekday column if not migrated (metadata still holds it)
+      if (error && /weekday|column|schema cache/i.test(error.message || '')) {
         const { weekday: _w, ...withoutWeekday } = recipeRow;
         void _w;
         const retry = await supabase
@@ -591,9 +615,6 @@ export async function POST(request: NextRequest) {
           .eq('id', recipeId)
           .eq('agency_profile_id', companyId);
         error = retry.error;
-        if (!error) {
-          // still ok — weekday needs migration 20260729_nsnp_recipe_weekday.sql
-        }
       }
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 400 });
@@ -605,7 +626,7 @@ export async function POST(request: NextRequest) {
         .insert(recipeRow)
         .select('id')
         .single();
-      if (error && /weekday/i.test(error.message)) {
+      if (error && /weekday|column|schema cache/i.test(error.message || '')) {
         const { weekday: _w, ...withoutWeekday } = recipeRow;
         void _w;
         const retry = await supabase
@@ -683,16 +704,22 @@ async function loadRecipes(
     if (/does not exist|schema cache/i.test(error.message)) return [];
     return [];
   }
+  const recipeWeekday = (r: Record<string, unknown>) => {
+    if (r.weekday != null && Number(r.weekday) >= 1 && Number(r.weekday) <= 5) {
+      return Number(r.weekday);
+    }
+    const meta =
+      r.metadata && typeof r.metadata === 'object'
+        ? (r.metadata as Record<string, unknown>)
+        : {};
+    const m = Number(meta.weekday ?? meta.meal_weekday);
+    if (Number.isFinite(m) && m >= 1 && m <= 5) return m;
+    return 99;
+  };
   // Sort in app: weekday Mon–Fri, then breakfast before lunch
   recipes = [...(recipes || [])].sort((a, b) => {
-    const wa =
-      a.weekday != null && Number(a.weekday) >= 1 && Number(a.weekday) <= 5
-        ? Number(a.weekday)
-        : 99;
-    const wb =
-      b.weekday != null && Number(b.weekday) >= 1 && Number(b.weekday) <= 5
-        ? Number(b.weekday)
-        : 99;
+    const wa = recipeWeekday(a as Record<string, unknown>);
+    const wb = recipeWeekday(b as Record<string, unknown>);
     if (wa !== wb) return wa - wb;
     const ma =
       String(a.meal_type || '').toLowerCase() === 'breakfast' ? 0 : 1;
@@ -729,17 +756,28 @@ async function loadRecipes(
     byRecipe.set(rid, arr);
   }
   return (recipes || []).map((r) => {
-    const wd =
-      r.weekday != null && r.weekday !== ''
-        ? Number(r.weekday)
-        : null;
+    const meta =
+      r.metadata && typeof r.metadata === 'object'
+        ? (r.metadata as Record<string, unknown>)
+        : {};
+    // Prefer real column; fall back to metadata (pre-migration environments)
+    let wd: number | null = null;
+    if (r.weekday != null && r.weekday !== '') {
+      const n = Number(r.weekday);
+      if (Number.isFinite(n) && n >= 1 && n <= 5) wd = n;
+    }
+    if (wd == null) {
+      const fromMeta = Number(meta.weekday ?? meta.meal_weekday);
+      if (Number.isFinite(fromMeta) && fromMeta >= 1 && fromMeta <= 5) {
+        wd = fromMeta;
+      }
+    }
     return {
       id: Number(r.id),
       agency_profile_id: Number(r.agency_profile_id),
       name: String(r.name),
-      meal_type: String(r.meal_type || 'lunch'),
-      weekday:
-        wd != null && Number.isFinite(wd) && wd >= 1 && wd <= 5 ? wd : null,
+      meal_type: String(r.meal_type || meta.meal_type || 'lunch'),
+      weekday: wd,
       dish_code: r.dish_code != null ? String(r.dish_code) : null,
       description: r.description != null ? String(r.description) : null,
       portion_learners: Number(r.portion_learners || 1),

@@ -30,7 +30,11 @@ import {
   SchoolsHeader,
   SchoolsPage,
 } from '@/components/schools/SchoolsShell';
-import { SCHOOL_WEEK_DAYS } from '@/lib/schools/meal-guide';
+import {
+  SCHOOL_WEEK_DAYS,
+  productsForMealHint,
+  type MealTypeKey,
+} from '@/lib/schools/meal-guide';
 
 type Product = {
   id: number;
@@ -38,6 +42,16 @@ type Product = {
   brand_name: string;
   category?: string | null;
   uom?: string | null;
+  for_breakfast?: boolean;
+  for_lunch?: boolean;
+};
+
+const WEEKDAY_LABEL: Record<number, string> = {
+  1: 'Monday',
+  2: 'Tuesday',
+  3: 'Wednesday',
+  4: 'Thursday',
+  5: 'Friday',
 };
 
 type BomLine = {
@@ -223,13 +237,18 @@ function Inner() {
     return [...set].sort();
   }, [products, budgets]);
 
-  const openNew = () => {
+  const openNew = (slot?: { weekday: number; meal: MealTypeKey }) => {
     setEditId(null);
     setName('');
-    setMealType('lunch');
-    setWeekday('1');
+    setMealType(slot?.meal || 'lunch');
+    setWeekday(slot?.weekday != null ? String(slot.weekday) : '1');
     setDescription('');
     setBomLines([]);
+    setProductId('');
+    if (slot) {
+      const dayName = WEEKDAY_LABEL[slot.weekday] || `Day ${slot.weekday}`;
+      setName(`${dayName} ${slot.meal === 'breakfast' ? 'Breakfast' : 'Lunch'}`);
+    }
   };
 
   const openEdit = (r: Recipe) => {
@@ -255,6 +274,47 @@ function Inner() {
     );
     setTab('recipes');
   };
+
+  /** Click a week-grid cell: edit first recipe there, or start a new one for that slot */
+  const selectWeekSlot = (day: number, meal: MealTypeKey) => {
+    setWeekday(String(day));
+    setMealType(meal);
+    const hit = recipes.find(
+      (r) =>
+        Number(r.weekday) === day &&
+        String(r.meal_type || '').toLowerCase() === meal
+    );
+    if (hit) openEdit(hit);
+    else openNew({ weekday: day, meal });
+  };
+
+  const slotRecipes = (day: number, meal: MealTypeKey) =>
+    recipes.filter(
+      (r) =>
+        Number(r.weekday) === day &&
+        String(r.meal_type || '').toLowerCase() === meal
+    );
+
+  const selectedSlotLabel = useMemo(() => {
+    const d = weekday === '' ? null : Number(weekday);
+    const dayName =
+      d != null && WEEKDAY_LABEL[d] ? WEEKDAY_LABEL[d] : 'No day selected';
+    const meal =
+      mealType === 'breakfast'
+        ? 'Breakfast'
+        : mealType === 'lunch'
+          ? 'Lunch'
+          : mealType;
+    return { dayName, meal, day: d };
+  }, [weekday, mealType]);
+
+  /** Catalogue products for the selected meal only (breakfast/lunch tags) */
+  const mealProducts = useMemo(() => {
+    const meal = (
+      mealType === 'breakfast' ? 'breakfast' : 'lunch'
+    ) as MealTypeKey;
+    return productsForMealHint(products, meal) as Product[];
+  }, [products, mealType]);
 
   /** Group recipes Mon→Fri, breakfast then lunch within each day */
   const recipesByWeekday = useMemo(() => {
@@ -302,7 +362,9 @@ function Inner() {
   }, [recipes]);
 
   const addBomLine = () => {
-    const prod = products.find((p) => p.id === Number(productId));
+    const prod =
+      mealProducts.find((p) => p.id === Number(productId)) ||
+      products.find((p) => p.id === Number(productId));
     if (!prod) return toast.error('Select an approved catalogue product');
     const qty = Number(qtyPer);
     if (!(qty > 0)) return toast.error('Qty per learner portion must be > 0');
@@ -337,7 +399,13 @@ function Inner() {
   const saveRecipe = async () => {
     if (!canEdit) return;
     if (!name.trim()) return toast.error('Recipe name required');
-    if (!bomLines.length) return toast.error('Add BOM lines from catalogue');
+    if (weekday === '' || !Number(weekday)) {
+      return toast.error('Pick a weekday on the week planner (Mon–Fri)');
+    }
+    if (mealType !== 'breakfast' && mealType !== 'lunch') {
+      return toast.error('Pick Breakfast or Lunch');
+    }
+    if (!bomLines.length) return toast.error('Add at least one BOM product line');
     setSaving(true);
     try {
       const res = await fetch('/api/schools/recipes', {
@@ -349,7 +417,7 @@ function Inner() {
           id: editId,
           name: name.trim(),
           meal_type: mealType,
-          weekday: weekday === '' ? null : Number(weekday),
+          weekday: Number(weekday),
           description: description || null,
           portion_learners: 1,
           lines: bomLines.map((l) => ({
@@ -363,9 +431,16 @@ function Inner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Save failed');
-      toast.success(data.message || 'Recipe saved');
-      openNew();
+      const dayName = WEEKDAY_LABEL[Number(weekday)] || weekday;
+      toast.success(
+        data.message ||
+          `Saved · ${dayName} ${mealType === 'breakfast' ? 'Breakfast' : 'Lunch'}`
+      );
+      // Stay on same slot so user can refine; refresh list
       void load();
+      if (data.recipe?.id) {
+        setEditId(Number(data.recipe.id));
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Save failed');
     } finally {
@@ -546,100 +621,279 @@ function Inner() {
           <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
         </div>
       ) : tab === 'recipes' && canEdit ? (
-        <div className="grid lg:grid-cols-5 gap-4">
-          <div className="lg:col-span-2 space-y-3">
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-black">
-                  {editId ? `Edit recipe #${editId}` : 'New recipe BOM'}
+        <div className="space-y-4">
+          {/* ── Week planner: click a cell to set day + meal ─────────── */}
+          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+            <div className="px-4 py-3 border-b flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-black inline-flex items-center gap-2">
+                  <Utensils className="w-4 h-4 text-[#0077b6]" />
+                  Week planner · assign BOM to a day &amp; meal
                 </p>
-                {editId ? (
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Click a cell (e.g. <strong>Tue · Breakfast</strong>) to create
+                  or edit that recipe. Filled cells already have a BOM.
+                </p>
+              </div>
+              <span className="text-[11px] font-semibold text-slate-500">
+                {recipes.length} recipe{recipes.length === 1 ? '' : 's'} ·{' '}
+                {recipesByWeekday.unassigned.length} unassigned
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-sm border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    <th className="px-3 py-2 text-left w-28">Meal</th>
+                    {SCHOOL_WEEK_DAYS.map((d) => (
+                      <th key={d.day} className="px-2 py-2 text-center">
+                        <span className="inline-flex flex-col items-center">
+                          <span className="text-slate-900 font-black text-xs">
+                            {d.short}
+                          </span>
+                          <span className="font-semibold normal-case tracking-normal text-slate-400">
+                            {d.label}
+                          </span>
+                        </span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(['breakfast', 'lunch'] as MealTypeKey[]).map((meal) => {
+                    const isB = meal === 'breakfast';
+                    return (
+                      <tr key={meal} className="border-t border-slate-100">
+                        <td
+                          className={`px-3 py-2 font-black text-xs uppercase ${
+                            isB ? 'text-amber-800' : 'text-sky-800'
+                          }`}
+                        >
+                          <span className="inline-flex items-center gap-1.5">
+                            {isB ? (
+                              <Coffee className="w-3.5 h-3.5" />
+                            ) : (
+                              <Sun className="w-3.5 h-3.5" />
+                            )}
+                            {isB ? 'Breakfast' : 'Lunch'}
+                          </span>
+                        </td>
+                        {SCHOOL_WEEK_DAYS.map((d) => {
+                          const list = slotRecipes(d.day, meal);
+                          const selected =
+                            String(weekday) === String(d.day) &&
+                            mealType === meal;
+                          const has = list.length > 0;
+                          return (
+                            <td key={`${d.day}-${meal}`} className="p-1.5 align-top">
+                              <button
+                                type="button"
+                                onClick={() => selectWeekSlot(d.day, meal)}
+                                className={`w-full min-h-[4.5rem] rounded-2xl border-2 px-2 py-2 text-left transition-all ${
+                                  selected
+                                    ? isB
+                                      ? 'border-amber-500 bg-amber-50 ring-2 ring-amber-200'
+                                      : 'border-sky-500 bg-sky-50 ring-2 ring-sky-200'
+                                    : has
+                                      ? isB
+                                        ? 'border-amber-200 bg-amber-50/60 hover:border-amber-400'
+                                        : 'border-sky-200 bg-sky-50/60 hover:border-sky-400'
+                                      : 'border-dashed border-slate-200 bg-slate-50/50 hover:border-[#00b4d8] hover:bg-sky-50/40'
+                                }`}
+                              >
+                                {has ? (
+                                  <div className="space-y-1">
+                                    {list.map((r) => (
+                                      <div key={r.id}>
+                                        <p className="text-[11px] font-bold text-slate-900 leading-snug line-clamp-2">
+                                          {r.name}
+                                        </p>
+                                        <p className="text-[10px] text-slate-500">
+                                          {(r.lines || []).length} product
+                                          {(r.lines || []).length === 1
+                                            ? ''
+                                            : 's'}
+                                        </p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-[11px] font-semibold text-slate-400 text-center py-2">
+                                    + Add
+                                  </p>
+                                )}
+                              </button>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {recipesByWeekday.unassigned.length > 0 ? (
+              <div className="px-4 py-3 border-t border-amber-100 bg-amber-50/50">
+                <p className="text-[11px] font-bold text-amber-950 mb-2">
+                  Unassigned recipes — open one and pick a week cell, then save
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {recipesByWeekday.unassigned.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => openEdit(r)}
+                      className="rounded-full border border-amber-200 bg-white px-3 py-1 text-[11px] font-bold text-amber-950 hover:bg-amber-100"
+                    >
+                      {r.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          {/* ── Recipe editor for the selected slot ─────────────────── */}
+          <div className="grid lg:grid-cols-5 gap-4">
+            <div className="lg:col-span-3 rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 space-y-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-black">
+                    {editId ? 'Edit recipe BOM' : 'New recipe BOM'}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Slot selected from the week planner above
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <span
+                    className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-black ${
+                      mealType === 'breakfast'
+                        ? 'bg-amber-100 border-amber-300 text-amber-950'
+                        : 'bg-sky-100 border-sky-300 text-sky-950'
+                    }`}
+                  >
+                    {selectedSlotLabel.dayName} · {selectedSlotLabel.meal}
+                  </span>
+                  {editId ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        openNew({
+                          weekday: Number(weekday) || 1,
+                          meal: (mealType === 'breakfast'
+                            ? 'breakfast'
+                            : 'lunch') as MealTypeKey,
+                        })
+                      }
+                      className="text-[11px] font-bold text-slate-500 px-2 py-1"
+                    >
+                      Clear · new on this slot
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Big day + meal buttons (in case user wants to change without grid) */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  1 · When is this meal served?
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {SCHOOL_WEEK_DAYS.map((d) => {
+                    const on = String(weekday) === String(d.day);
+                    return (
+                      <button
+                        key={d.day}
+                        type="button"
+                        onClick={() => setWeekday(String(d.day))}
+                        className={`min-w-[3.25rem] rounded-xl border px-2.5 py-2 text-xs font-black transition-colors ${
+                          on
+                            ? 'border-[#0077b6] bg-[#0077b6] text-white'
+                            : 'border-slate-200 bg-white text-slate-700 hover:border-sky-300'
+                        }`}
+                      >
+                        {d.short}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={openNew}
-                    className="text-[11px] font-bold text-slate-500"
+                    onClick={() => setMealType('breakfast')}
+                    className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-black ${
+                      mealType === 'breakfast'
+                        ? 'border-amber-500 bg-amber-100 text-amber-950'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-amber-300'
+                    }`}
                   >
-                    New
+                    <Coffee className="w-3.5 h-3.5" /> Breakfast
                   </button>
-                ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setMealType('lunch')}
+                    className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-black ${
+                      mealType === 'lunch'
+                        ? 'border-sky-500 bg-sky-100 text-sky-950'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300'
+                    }`}
+                  >
+                    <Sun className="w-3.5 h-3.5" /> Lunch
+                  </button>
+                </div>
               </div>
+
               <label className="block text-xs">
                 <span className="text-[10px] font-bold uppercase text-slate-400">
-                  Recipe name *
+                  2 · Recipe name *
                 </span>
                 <input
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Sample samp & beans lunch"
+                  placeholder="e.g. Fortified maize porridge"
                 />
               </label>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="block text-xs">
-                  <span className="text-[10px] font-bold uppercase text-slate-400">
-                    Weekday
-                  </span>
-                  <select
-                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold"
-                    value={weekday}
-                    onChange={(e) => setWeekday(e.target.value)}
-                  >
-                    <option value="1">Monday</option>
-                    <option value="2">Tuesday</option>
-                    <option value="3">Wednesday</option>
-                    <option value="4">Thursday</option>
-                    <option value="5">Friday</option>
-                    <option value="">Unassigned</option>
-                  </select>
-                </label>
-                <label className="block text-xs">
-                  <span className="text-[10px] font-bold uppercase text-slate-400">
-                    Meal type
-                  </span>
-                  <select
-                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold"
-                    value={mealType}
-                    onChange={(e) => setMealType(e.target.value)}
-                  >
-                    <option value="breakfast">Breakfast</option>
-                    <option value="lunch">Lunch</option>
-                  </select>
-                </label>
-              </div>
               <label className="block text-xs">
                 <span className="text-[10px] font-bold uppercase text-slate-400">
-                  Description
+                  Description (optional)
                 </span>
                 <input
                   className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Prep notes for schools / kitchens"
                 />
               </label>
 
-              <div className="border-t pt-3 space-y-2">
+              <div className="border-t pt-4 space-y-3">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    BOM line — quantity per 1 learner portion
+                    3 · BOM ingredients (qty per 1 learner)
                   </p>
                   <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                    Enter how much product one learner needs for one serving of
-                    this recipe. Total per learner = Qty × (1 + Wastage % /
-                    100).
+                    Products listed match your catalogue tags for{' '}
+                    <strong>{selectedSlotLabel.meal}</strong>. Total per learner
+                    = Qty × (1 + Wastage % / 100).
                   </p>
                 </div>
 
                 <label className="block text-xs">
                   <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    Approved product (catalogue)
+                    Approved product
                   </span>
                   <select
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
                     value={productId}
                     onChange={(e) => setProductId(e.target.value)}
                   >
-                    <option value="">Select NSNP approved product…</option>
-                    {products.map((p) => (
+                    <option value="">
+                      {mealProducts.length
+                        ? `Select ${selectedSlotLabel.meal.toLowerCase()} product…`
+                        : 'No products tagged for this meal — tag them on Approved foods'}
+                    </option>
+                    {mealProducts.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.brand_name} — {p.name}
                         {p.category ? ` · ${p.category}` : ''}
@@ -655,46 +909,40 @@ function Inner() {
                       Qty per 1 learner
                     </span>
                     <input
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold tabular-nums"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-bold tabular-nums"
                       value={qtyPer}
                       onChange={(e) => setQtyPer(e.target.value)}
                       placeholder="e.g. 0.08"
                       inputMode="decimal"
                     />
-                    <span className="block mt-0.5 text-[10px] text-slate-400">
-                      Net amount in product UOM (kg, L, etc.)
-                    </span>
                   </label>
                   <label className="block text-xs">
                     <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                       Wastage %
                     </span>
                     <input
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm tabular-nums"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm tabular-nums"
                       value={wastage}
                       onChange={(e) => setWastage(e.target.value)}
                       placeholder="e.g. 5"
                       inputMode="decimal"
                     />
-                    <span className="block mt-0.5 text-[10px] text-slate-400">
-                      Extra allowance (0 = no waste)
-                    </span>
                   </label>
                 </div>
 
                 {(() => {
                   const q = Number(qtyPer);
                   const w = Number(wastage) || 0;
-                  const prod = products.find(
+                  const prod = mealProducts.find(
                     (p) => p.id === Number(productId)
                   );
-                  if (!(q > 0)) return null;
+                  if (!(q > 0) || !prod) return null;
                   const total = Math.round(q * (1 + w / 100) * 1e6) / 1e6;
                   return (
                     <p className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
                       Total per 1 learner (incl. wastage):{' '}
                       <span className="font-black tabular-nums">
-                        {total} {prod?.uom || 'uom'}
+                        {total} {prod.uom || 'uom'}
                       </span>
                     </p>
                   );
@@ -703,10 +951,10 @@ function Inner() {
                 <button
                   type="button"
                   onClick={addBomLine}
-                  className="btn-secondary !py-2 !px-3 text-xs w-full"
+                  className="btn-secondary !py-2.5 !px-3 text-xs w-full"
                 >
                   <Plus className="w-3.5 h-3.5 inline mr-1" />
-                  Add catalogue product to BOM
+                  Add product to BOM
                 </button>
               </div>
 
@@ -716,10 +964,10 @@ function Inner() {
                     <span className="col-span-5">Product</span>
                     <span className="col-span-2 text-right">Qty / learner</span>
                     <span className="col-span-2 text-right">Wastage %</span>
-                    <span className="col-span-2 text-right">Total / learner</span>
+                    <span className="col-span-2 text-right">Total</span>
                     <span className="col-span-1" />
                   </div>
-                  <ul className="text-xs max-h-48 overflow-y-auto divide-y divide-slate-50">
+                  <ul className="text-xs max-h-56 overflow-y-auto divide-y divide-slate-50">
                     {bomLines.map((l, i) => {
                       const q = Number(l.qty_per_portion) || 0;
                       const w = Number(l.wastage_pct) || 0;
@@ -728,7 +976,7 @@ function Inner() {
                       return (
                         <li
                           key={l.approved_product_id}
-                          className="grid grid-cols-12 gap-1 px-2 py-1.5 items-center"
+                          className="grid grid-cols-12 gap-1 px-2 py-2 items-center"
                         >
                           <span className="col-span-5 min-w-0 truncate">
                             <strong>{l.brand_name}</strong> {l.product_name}
@@ -762,129 +1010,76 @@ function Inner() {
                     })}
                   </ul>
                 </div>
-              ) : null}
+              ) : (
+                <p className="text-xs text-slate-400 text-center py-2">
+                  No ingredients yet — add catalogue products above.
+                </p>
+              )}
 
               <button
                 type="button"
                 disabled={saving}
                 onClick={() => void saveRecipe()}
-                className="btn-primary !py-2.5 !px-4 text-sm w-full inline-flex items-center justify-center gap-2"
+                className="btn-primary !py-3 !px-4 text-sm w-full inline-flex items-center justify-center gap-2"
               >
                 {saving ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Save className="w-4 h-4" />
                 )}
-                Save recipe BOM
+                Save · {selectedSlotLabel.dayName} {selectedSlotLabel.meal}
               </button>
             </div>
-          </div>
 
-          <div className="lg:col-span-3 rounded-3xl border border-slate-200 bg-white overflow-hidden">
-            <div className="px-4 py-3 border-b text-sm font-black flex flex-wrap items-center justify-between gap-2">
-              <span className="inline-flex items-center gap-2">
-                <Utensils className="w-4 h-4 text-[#0077b6]" />
-                Saved recipes ({recipes.length})
-              </span>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Mon–Fri · breakfast then lunch
-              </span>
-            </div>
-            {recipes.length === 0 ? (
-              <p className="px-4 py-12 text-center text-slate-500 text-sm">
-                No recipes yet. Create a BOM using approved catalogue products.
-                Assign a weekday so the weekly menu groups correctly.
-              </p>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {recipesByWeekday.days.map((day) => {
-                  const dayRecipes = [
-                    ...day.breakfast,
-                    ...day.lunch,
-                    ...day.other,
-                  ];
-                  return (
-                    <section key={day.day} className="bg-white">
-                      <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-2 sticky top-0">
-                        <p className="text-sm font-black text-slate-900">
-                          <span className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-sky-100 text-sky-900 text-xs font-black mr-2">
-                            {day.short}
-                          </span>
-                          {day.label}
-                        </p>
-                        <span className="text-[11px] font-semibold text-slate-500 tabular-nums">
-                          {dayRecipes.length} recipe
-                          {dayRecipes.length === 1 ? '' : 's'}
-                          {day.breakfast.length || day.lunch.length
-                            ? ` · ${day.breakfast.length}B / ${day.lunch.length}L`
-                            : ''}
-                        </span>
-                      </div>
-                      {dayRecipes.length === 0 ? (
-                        <p className="px-4 py-3 text-xs text-slate-400 italic">
-                          No recipes for {day.label} yet
-                        </p>
-                      ) : (
-                        <div className="divide-y divide-slate-50">
-                          {day.breakfast.length > 0 ? (
-                            <MealGroup
-                              label="Breakfast"
-                              icon="breakfast"
-                              recipes={day.breakfast}
-                              editId={editId}
-                              onEdit={openEdit}
-                              onDelete={deleteRecipe}
-                            />
-                          ) : null}
-                          {day.lunch.length > 0 ? (
-                            <MealGroup
-                              label="Lunch"
-                              icon="lunch"
-                              recipes={day.lunch}
-                              editId={editId}
-                              onEdit={openEdit}
-                              onDelete={deleteRecipe}
-                            />
-                          ) : null}
-                          {day.other.length > 0 ? (
-                            <MealGroup
-                              label="Other meals"
-                              icon="lunch"
-                              recipes={day.other}
-                              editId={editId}
-                              onEdit={openEdit}
-                              onDelete={deleteRecipe}
-                            />
-                          ) : null}
-                        </div>
-                      )}
-                    </section>
-                  );
-                })}
-                {recipesByWeekday.unassigned.length > 0 ? (
-                  <section className="bg-amber-50/40">
-                    <div className="px-4 py-2.5 border-b border-amber-100 flex items-center justify-between">
-                      <p className="text-sm font-black text-amber-950">
-                        Unassigned weekday
-                      </p>
-                      <span className="text-[11px] text-amber-800 font-semibold">
-                        {recipesByWeekday.unassigned.length} · set weekday on
-                        edit
-                      </span>
-                    </div>
-                    <MealGroup
-                      label="Any day"
-                      icon="lunch"
-                      recipes={recipesByWeekday.unassigned}
-                      editId={editId}
-                      onEdit={openEdit}
-                      onDelete={deleteRecipe}
-                      bare
-                    />
-                  </section>
-                ) : null}
+            {/* Side list of all recipes for this week */}
+            <div className="lg:col-span-2 rounded-3xl border border-slate-200 bg-white overflow-hidden max-h-[40rem] overflow-y-auto">
+              <div className="px-4 py-3 border-b text-sm font-black sticky top-0 bg-white z-10">
+                All recipes ({recipes.length})
               </div>
-            )}
+              {recipes.length === 0 ? (
+                <p className="px-4 py-10 text-center text-slate-500 text-sm">
+                  Click a week cell to start your first BOM.
+                </p>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {recipesByWeekday.days.map((day) => {
+                    const dayRecipes = [
+                      ...day.breakfast,
+                      ...day.lunch,
+                      ...day.other,
+                    ];
+                    if (!dayRecipes.length) return null;
+                    return (
+                      <section key={day.day}>
+                        <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-black uppercase text-slate-500">
+                          {day.label}
+                        </div>
+                        {day.breakfast.length > 0 ? (
+                          <MealGroup
+                            label="Breakfast"
+                            icon="breakfast"
+                            recipes={day.breakfast}
+                            editId={editId}
+                            onEdit={openEdit}
+                            onDelete={deleteRecipe}
+                          />
+                        ) : null}
+                        {day.lunch.length > 0 ? (
+                          <MealGroup
+                            label="Lunch"
+                            icon="lunch"
+                            recipes={day.lunch}
+                            editId={editId}
+                            onEdit={openEdit}
+                            onDelete={deleteRecipe}
+                          />
+                        ) : null}
+                      </section>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       ) : tab === 'budgets' && canEdit ? (
