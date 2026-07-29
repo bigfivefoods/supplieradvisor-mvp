@@ -269,6 +269,115 @@ export async function filterApprovedProductIds(
 }
 
 /**
+ * DBE menu authoring: product must belong to the department catalogue
+ * (active or inactive). Putting a product on the mandated menu re-activates it
+ * so schools/SPs can order it. Returns bad ids with display names.
+ */
+export async function validateMenuProductsForAgency(
+  supabase: SupabaseClient,
+  agencyProfileId: number,
+  productIds: number[]
+): Promise<{
+  ok: boolean;
+  bad: Array<{ id: number; label: string }>;
+  reactivated: number[];
+  byId: Map<number, Record<string, unknown>>;
+}> {
+  const ids = [
+    ...new Set(
+      productIds.map(Number).filter((n) => Number.isFinite(n) && n > 0)
+    ),
+  ];
+  if (!ids.length) {
+    return { ok: true, bad: [], reactivated: [], byId: new Map() };
+  }
+
+  const { data: rows, error } = await supabase
+    .from('nsnp_approved_products')
+    .select('id, name, brand_name, agency_profile_id, active')
+    .in('id', ids)
+    .limit(ids.length + 10);
+
+  if (error) {
+    // Soft fallback to active-only filter
+    const byActive = await filterApprovedProductIds(
+      supabase,
+      agencyProfileId,
+      ids
+    );
+    const bad = ids
+      .filter((id) => !byActive.has(id))
+      .map((id) => ({ id, label: String(id) }));
+    return {
+      ok: bad.length === 0,
+      bad,
+      reactivated: [],
+      byId: byActive,
+    };
+  }
+
+  const byId = new Map<number, Record<string, unknown>>();
+  const ownedIds = new Set<number>();
+  const inactiveOwned: number[] = [];
+
+  for (const r of rows || []) {
+    const id = Number(r.id);
+    const agency = r.agency_profile_id != null ? Number(r.agency_profile_id) : null;
+    // Accept department-owned products; national rows only if agency has none owned yet
+    if (agency === agencyProfileId) {
+      ownedIds.add(id);
+      byId.set(id, r as Record<string, unknown>);
+      if (r.active === false) inactiveOwned.push(id);
+    }
+  }
+
+  // If agency catalogue is empty, allow national seed ids as transitional
+  if (!ownedIds.size) {
+    const { count } = await supabase
+      .from('nsnp_approved_products')
+      .select('id', { count: 'exact', head: true })
+      .eq('agency_profile_id', agencyProfileId);
+    if (!count) {
+      for (const r of rows || []) {
+        const id = Number(r.id);
+        if (r.agency_profile_id == null) {
+          ownedIds.add(id);
+          byId.set(id, r as Record<string, unknown>);
+        }
+      }
+    }
+  }
+
+  const bad = ids
+    .filter((id) => !ownedIds.has(id))
+    .map((id) => {
+      const row = (rows || []).find((r) => Number(r.id) === id);
+      const name = row
+        ? `${row.brand_name ? `${row.brand_name} · ` : ''}${row.name || id}`
+        : String(id);
+      return { id, label: name };
+    });
+
+  // Menu inclusion means these foods are approved for programme use
+  let reactivated: number[] = [];
+  if (inactiveOwned.length) {
+    const { error: actErr } = await supabase
+      .from('nsnp_approved_products')
+      .update({ active: true, updated_at: new Date().toISOString() })
+      .in('id', inactiveOwned)
+      .eq('agency_profile_id', agencyProfileId);
+    if (!actErr) reactivated = inactiveOwned;
+  }
+
+  return {
+    ok: bad.length === 0,
+    bad,
+    reactivated,
+    byId,
+  };
+}
+
+/**
  * Ensure national NSNP seed rows exist (agency_profile_id null).
  * Idempotent by name+brand.
  */

@@ -6,8 +6,8 @@ import {
 } from '@/lib/auth/api-auth';
 import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
 import {
-  filterApprovedProductIds,
   resolveCatalogueContext,
+  validateMenuProductsForAgency,
 } from '@/lib/schools/approved-catalogue';
 import {
   loadMandatedMenu,
@@ -186,21 +186,25 @@ export async function POST(request: NextRequest) {
     const productIds = [
       ...new Set(items.flatMap((it) => it.approved_product_ids || [])),
     ];
+    let reactivatedIds: number[] = [];
     if (productIds.length) {
-      const byId = await filterApprovedProductIds(
+      const check = await validateMenuProductsForAgency(
         supabase,
         companyId,
         productIds
       );
-      const bad = productIds.filter((id) => !byId.has(id));
-      if (bad.length) {
+      if (!check.ok) {
         return NextResponse.json(
           {
-            error: `Menu products must be on your approved foods list: ${bad.join(', ')}`,
+            error: `Menu products must be on your department approved list: ${check.bad
+              .map((b) => b.label)
+              .join('; ')}`,
+            bad_product_ids: check.bad.map((b) => b.id),
           },
           { status: 400 }
         );
       }
+      reactivatedIds = check.reactivated;
     }
 
     // Deactivate previous mandated menus when publishing active
@@ -274,8 +278,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       menu: { ...data, items: parseMenuItems(data.items) },
+      reactivated_product_ids: reactivatedIds,
       message:
-        'Department menu published. Associated schools and SPs see it live and are rated on adherence.',
+        reactivatedIds.length > 0
+          ? `Department menu published. ${reactivatedIds.length} catalogue product(s) re-activated because they are on the menu. Schools and SPs see it live.`
+          : 'Department menu published. Associated schools and SPs see it live and are rated on adherence.',
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -317,26 +324,30 @@ export async function PATCH(request: NextRequest) {
     if (body.description !== undefined) patch.description = body.description;
     if (body.cycle_days != null) patch.cycle_days = Number(body.cycle_days);
     if (body.mandatory != null) patch.mandatory = Boolean(body.mandatory);
+    let reactivatedIds: number[] = [];
     if (Array.isArray(body.items)) {
       const items = parseMenuItems(body.items);
       const productIds = [
         ...new Set(items.flatMap((it) => it.approved_product_ids || [])),
       ];
       if (productIds.length) {
-        const byId = await filterApprovedProductIds(
+        const check = await validateMenuProductsForAgency(
           supabase,
           companyId,
           productIds
         );
-        const bad = productIds.filter((pid) => !byId.has(pid));
-        if (bad.length) {
+        if (!check.ok) {
           return NextResponse.json(
             {
-              error: `Menu products must be on your approved list: ${bad.join(', ')}`,
+              error: `Menu products must be on your department approved list: ${check.bad
+                .map((b) => b.label)
+                .join('; ')}`,
+              bad_product_ids: check.bad.map((b) => b.id),
             },
             { status: 400 }
           );
         }
+        reactivatedIds = check.reactivated;
       }
       patch.items = items;
     }
@@ -366,7 +377,11 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({
       success: true,
       menu: { ...data, items: parseMenuItems(data.items) },
-      message: 'Menu updated — schools and SPs see changes live',
+      reactivated_product_ids: reactivatedIds,
+      message:
+        reactivatedIds.length > 0
+          ? `Menu updated — ${reactivatedIds.length} catalogue product(s) re-activated (on menu = approved for programme). Schools and SPs see changes live.`
+          : 'Menu updated — schools and SPs see changes live',
     });
   } catch (e: unknown) {
     return NextResponse.json(
