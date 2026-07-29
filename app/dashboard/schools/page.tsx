@@ -198,6 +198,45 @@ function Inner() {
             >
               SLA scores
             </Link>
+            <Link
+              href="/dashboard/schools/wholesalers"
+              className="btn-secondary !py-2.5 !px-4 text-sm min-h-[44px] inline-flex items-center gap-1.5 border-amber-200 bg-amber-50 text-amber-950"
+            >
+              Invite wholesalers
+            </Link>
+          </div>
+        </div>
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 mb-6">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            Source stock · wholesalers
+          </p>
+          <h3 className="text-base font-black text-slate-900 mt-0.5">
+            Invite your food suppliers onto the platform
+          </h3>
+          <p className="text-sm text-slate-600 mt-1 max-w-2xl">
+            Schools order from you. You buy from wholesalers. Invite them so they
+            can receive POs and send quotes — even if they never join, you keep a
+            supplier book entry for offline follow-up.
+          </p>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <Link
+              href="/dashboard/schools/wholesalers"
+              className="btn-primary !py-2 !px-3 text-xs"
+            >
+              Invite wholesaler
+            </Link>
+            <Link
+              href="/dashboard/suppliers/po"
+              className="btn-secondary !py-2 !px-3 text-xs"
+            >
+              Raise PO
+            </Link>
+            <Link
+              href="/dashboard/suppliers/network"
+              className="btn-secondary !py-2 !px-3 text-xs"
+            >
+              Supplier book
+            </Link>
           </div>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
