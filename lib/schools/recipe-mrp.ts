@@ -47,11 +47,14 @@ export type SchoolLearners = {
   isp_profile_ids?: number[];
 };
 
-/** Count feeding days (weekdays by default) inclusive */
+/** Count feeding days (weekdays by default) inclusive.
+ *  When `feedingDates` is provided (from DBE calendar), only those dates count.
+ */
 export function countFeedingDays(
   from: string,
   to: string,
-  includeWeekends = false
+  includeWeekends = false,
+  feedingDates?: Set<string> | null
 ): number {
   const a = new Date(`${from.slice(0, 10)}T12:00:00`);
   const b = new Date(`${to.slice(0, 10)}T12:00:00`);
@@ -59,8 +62,15 @@ export function countFeedingDays(
   let n = 0;
   const d = new Date(a);
   while (d <= b) {
-    const day = d.getDay();
-    if (includeWeekends || (day !== 0 && day !== 6)) n += 1;
+    if (feedingDates) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      if (feedingDates.has(`${y}-${m}-${day}`)) n += 1;
+    } else {
+      const day = d.getDay();
+      if (includeWeekends || (day !== 0 && day !== 6)) n += 1;
+    }
     d.setDate(d.getDate() + 1);
   }
   return n;
@@ -227,6 +237,8 @@ export type ProgrammePlan = {
   period_from: string;
   period_to: string;
   feeding_days: number;
+  /** true when day count came from published/draft DBE calendar */
+  feeding_days_from_calendar?: boolean;
   total_learners: number;
   total_meals: number;
   school_count: number;
@@ -249,11 +261,14 @@ export type ProgrammePlan = {
 /**
  * Build full programme plan from recipes + schedule frequency + schools.
  * recipeSchedule: list of { recipe, servesPerWeek }
+ * Prefer DBE feeding calendar dates when provided.
  */
 export function buildProgrammePlan(opts: {
   period_from: string;
   period_to: string;
   includeWeekends?: boolean;
+  /** ISO dates that are feeding days (from nsnp_feeding_calendar_days) */
+  feedingDates?: Set<string> | null;
   recipes: Array<{ recipe: Recipe; servesPerWeek: number }>;
   schools: SchoolLearners[];
   /** isp_profile_id → display name */
@@ -263,7 +278,8 @@ export function buildProgrammePlan(opts: {
   const feeding_days = countFeedingDays(
     opts.period_from,
     opts.period_to,
-    opts.includeWeekends
+    opts.includeWeekends,
+    opts.feedingDates
   );
 
   const priceByCategory = new Map<string, number>();
@@ -415,6 +431,7 @@ export function buildProgrammePlan(opts: {
     period_from: opts.period_from,
     period_to: opts.period_to,
     feeding_days,
+    feeding_days_from_calendar: Boolean(opts.feedingDates),
     total_learners: opts.schools.reduce((n, s) => n + s.learners, 0),
     total_meals:
       Math.round(

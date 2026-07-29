@@ -115,6 +115,15 @@ export const PROCESS_STEPS: ProcessStep[] = [
     agency: false,
   },
   {
+    id: 'feeding_calendar',
+    stage: 'catalogue',
+    label: 'Feeding calendar',
+    href: '/dashboard/schools/feeding-calendar',
+    desc: 'DBE year/term feeding days — cascades to schools & SPs',
+    school: true,
+    agency: true,
+  },
+  {
     id: 'isps',
     stage: 'supply',
     label: 'SPs',

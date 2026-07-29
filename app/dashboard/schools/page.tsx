@@ -401,6 +401,11 @@ function Inner() {
               desc: 'Honest scores — menu & feeding completeness',
             },
             {
+              href: '/dashboard/schools/feeding-calendar',
+              label: 'Feeding calendar',
+              desc: 'Annual feeding days per month & term — schools & SPs',
+            },
+            {
               href: '/dashboard/schools/recipes',
               label: 'Recipes · MPS / MRP',
               desc: 'BOM from catalogue · meals & product requirements',

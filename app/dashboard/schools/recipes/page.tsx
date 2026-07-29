@@ -77,6 +77,7 @@ type Budget = {
 
 type Plan = {
   feeding_days: number;
+  feeding_days_from_calendar?: boolean;
   total_learners: number;
   total_meals: number;
   school_count: number;
@@ -985,7 +986,11 @@ function Inner() {
             <>
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
                 <Stat
-                  label="Feeding days"
+                  label={
+                    plan.feeding_days_from_calendar
+                      ? 'Feeding days (calendar)'
+                      : 'Feeding days (weekdays)'
+                  }
                   value={String(plan.feeding_days)}
                   icon={Calculator}
                 />
@@ -1014,11 +1019,21 @@ function Inner() {
                 />
               </div>
 
-              <div className="rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-3 text-sm text-sky-950">
-                <strong>How it works:</strong> Recipe BOM qty per learner ×
-                school NSNP learners × feeding days in period = product MRP.
-                SPs see the sum of schools they supply. Category budgets use
-                unit prices for cost estimates.
+              <div className="rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-3 text-sm text-sky-950 flex flex-wrap items-center justify-between gap-2">
+                <p>
+                  <strong>How it works:</strong> Recipe BOM qty per learner ×
+                  school NSNP learners × feeding days
+                  {plan.feeding_days_from_calendar
+                    ? ' from the DBE feeding calendar'
+                    : ' (weekday estimate — set a feeding calendar for exact days)'}{' '}
+                  = product MRP. SPs see the sum of schools they supply.
+                </p>
+                <Link
+                  href="/dashboard/schools/feeding-calendar"
+                  className="text-xs font-bold text-[#0077b6] hover:underline shrink-0"
+                >
+                  Feeding calendar →
+                </Link>
               </div>
 
               <div className="grid lg:grid-cols-2 gap-4">

@@ -278,6 +278,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Prefer DBE feeding calendar day flags for accurate MPS day counts
+    const feedingDates = await loadFeedingDateSet(
+      supabase,
+      agencyProfileId,
+      from,
+      to,
+      role === 'agency'
+    );
+
     const plan = buildProgrammePlan({
       period_from: from,
       period_to: to,
@@ -285,6 +294,7 @@ export async function GET(request: NextRequest) {
       schools: schoolLearners,
       ispNames,
       budgets,
+      feedingDates,
     });
 
     // For school/SP return scoped plan detail
@@ -342,10 +352,13 @@ export async function GET(request: NextRequest) {
       programme_plan: role === 'agency' ? plan : undefined,
       model: {
         description:
-          'Recipe BOM (qty per learner) × school NSNP learners × feeding days (MPS meals) → product MRP. SP sees sum of their schools. Category budgets compare estimated cost.',
+          'Recipe BOM (qty per learner) × school NSNP learners × feeding days from DBE calendar (or weekdays if no calendar) → product MRP. SP sees sum of their schools. Category budgets compare estimated cost.',
         portion_basis: 'qty_per_portion is per 1 learner meal portion',
         learner_field:
           'final_nsnp_approved_enrol → nsnp_eligible → enrolled',
+        feeding_days_source: feedingDates
+          ? 'dbe_feeding_calendar'
+          : 'weekday_fallback',
       },
     });
   } catch (e: unknown) {
@@ -354,6 +367,46 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/** Load feeding ISO dates from DBE calendar covering [from,to]. */
+async function loadFeedingDateSet(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  agencyProfileId: number,
+  from: string,
+  to: string,
+  agencyCanUseDraft: boolean
+): Promise<Set<string> | null> {
+  const years = new Set<number>();
+  years.add(Number(from.slice(0, 4)));
+  years.add(Number(to.slice(0, 4)));
+  const set = new Set<string>();
+  let found = false;
+  for (const year of years) {
+    if (!Number.isFinite(year)) continue;
+    const { data: cal, error } = await supabase
+      .from('nsnp_feeding_calendars')
+      .select('id, status')
+      .eq('agency_profile_id', agencyProfileId)
+      .eq('year', year)
+      .limit(1)
+      .maybeSingle();
+    if (error || !cal) continue;
+    if (!agencyCanUseDraft && String(cal.status) !== 'published') continue;
+    found = true;
+    const { data: days } = await supabase
+      .from('nsnp_feeding_calendar_days')
+      .select('feed_date, is_feeding')
+      .eq('calendar_id', Number(cal.id))
+      .eq('is_feeding', true)
+      .gte('feed_date', from.slice(0, 10))
+      .lte('feed_date', to.slice(0, 10))
+      .limit(400);
+    for (const d of days || []) {
+      set.add(String(d.feed_date).slice(0, 10));
+    }
+  }
+  return found ? set : null;
 }
 
 export async function POST(request: NextRequest) {
