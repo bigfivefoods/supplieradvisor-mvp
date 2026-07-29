@@ -708,10 +708,18 @@ export function salesContractorInviteEmailHtml(params: {
           <li>All customer data saved under ${escape(companyName)} (POPIA)</li>
         </ul>
       </div>
-      <div style="text-align:center;margin:28px 0 20px;">
+      <div style="text-align:center;margin:28px 0 16px;">
         <a href="${inviteLink}" style="background:linear-gradient(135deg,#f59e0b,#ea580c);color:#fff;padding:16px 36px;border-radius:9999px;text-decoration:none;font-weight:800;font-size:16px;display:inline-block;box-shadow:0 10px 30px rgba(234,88,12,.35);">
           Join the sales team →
         </a>
+      </div>
+      <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:14px;padding:14px 16px;margin:0 0 16px;">
+        <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#c2410c;">
+          Your join link
+        </p>
+        <p style="margin:0;font-size:12px;line-height:1.5;word-break:break-all;">
+          <a href="${inviteLink}" style="color:#ea580c;font-weight:600;">${inviteLink}</a>
+        </p>
       </div>
       <p style="color:#94a3b8;font-size:12px;line-height:1.6;margin:0;text-align:center;">
         Link expires in 14 days · Secure sign-in required · Portal subscription via Paystack

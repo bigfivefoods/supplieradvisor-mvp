@@ -151,7 +151,17 @@ function TeamInner() {
             'Invite failed'
         );
       }
-      toast.success(data.message || 'Invitation sent via email');
+      const link = String(data.inviteLink || data.joinUrl || '');
+      if (link) setLastInviteLink(link);
+      toast.success(
+        data.message ||
+          'Invitation sent via email with join link'
+      );
+      if (link) {
+        toast.message('Join link is in the email — you can also copy it below', {
+          duration: 6000,
+        });
+      }
       const { toastGoldenPathFromResponse } = await import(
         '@/lib/onboarding/toast-client'
       );
@@ -304,16 +314,32 @@ function TeamInner() {
             {lastInviteLink && (
               <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2.5 space-y-2">
                 <p className="text-[11px] text-sky-900 font-semibold">
-                  Share this link if email is delayed
+                  Join link (also in the invite email)
                 </p>
-                <p className="text-[10px] font-mono text-sky-800 break-all">{lastInviteLink}</p>
-                <button
-                  type="button"
-                  onClick={() => void copyLink(lastInviteLink)}
-                  className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
-                >
-                  <Copy className="w-3 h-3" /> Copy link
-                </button>
+                <p className="text-[10px] font-mono text-sky-800 break-all">
+                  {lastInviteLink}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void copyLink(lastInviteLink)}
+                    className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+                  >
+                    <Copy className="w-3 h-3" /> Copy join link
+                  </button>
+                  <a
+                    href={lastInviteLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center"
+                  >
+                    Open join page
+                  </a>
+                </div>
+                <p className="text-[10px] text-sky-800/80">
+                  Share this URL with the person if their email is delayed or
+                  filtered.
+                </p>
               </div>
             )}
           </div>

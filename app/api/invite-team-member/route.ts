@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { getAppUrl, getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
-import { buildTeamInviteLink, teamInviteEmailHtml } from '@/lib/invites/email';
+import {
+  buildTeamInviteLink,
+  teamInviteEmailHtml,
+  teamInviteEmailText,
+} from '@/lib/invites/email';
 import { INVITE_EXPIRY_DAYS } from '@/lib/auth/identity';
 import { assertCanManageTeam } from '@/lib/business/access';
 import {
@@ -203,6 +207,8 @@ export async function POST(request: NextRequest) {
     }
 
     const inviteLink = buildTeamInviteLink(token);
+    // Fallback path also accepted by /onboarding?invite=&kind=team
+    const inviteLinkAlt = `${getAppUrl()}/onboarding?invite=${encodeURIComponent(token)}&kind=team`;
     const roleLabel =
       TEAM_ROLE_OPTIONS.find((r) => r.value === role)?.label || role;
     const inviterName =
@@ -232,9 +238,29 @@ export async function POST(request: NextRequest) {
           invitedBy: inviterName,
           inviteLink,
         });
+    const emailText = isSalesContractor
+      ? [
+          `Hello${name ? ` ${name}` : ''},`,
+          '',
+          `${inviterName} invited you to the customer sales team at ${displayCompany}.`,
+          '',
+          'Open this join link to accept (expires in 14 days):',
+          inviteLink,
+          '',
+          'Sign in with this same email address.',
+          '',
+          '— SupplierAdvisor',
+        ].join('\n')
+      : teamInviteEmailText({
+          inviteeName: name || null,
+          companyName: displayCompany,
+          role: roleLabel,
+          invitedBy: inviterName,
+          inviteLink,
+        });
     const emailSubject = isSalesContractor
-      ? `Join the ${displayCompany} sales team — commission ${ratesLabel} (personal sales only)`
-      : `Join ${displayCompany} on SupplierAdvisor`;
+      ? `Join the ${displayCompany} sales team — your join link inside`
+      : `Join ${displayCompany} on SupplierAdvisor — your join link inside`;
 
     try {
       const { data: emailData, error: emailError } = await resend.emails.send({
@@ -243,6 +269,8 @@ export async function POST(request: NextRequest) {
         to: normalizedEmail,
         subject: emailSubject,
         html: emailHtml,
+        // Plain text ensures the join URL is always deliverable
+        text: emailText,
         tags: [
           { name: 'type', value: isSalesContractor ? 'sales_contractor_invite' : 'team_invite' },
           { name: 'company_id', value: String(companyId) },
@@ -312,14 +340,17 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Invitation sent to ${normalizedEmail}`,
+      message: `Invitation sent to ${normalizedEmail} with join link`,
       inviteLink,
+      inviteLinkAlt,
+      joinUrl: inviteLink,
       expiresAt,
       memberId,
       role,
       emailId,
       from: getResendFrom(),
       goldenPath,
+      tip: 'The email includes a button and a copy-paste join link. You can also share inviteLink if the email is delayed.',
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';

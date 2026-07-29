@@ -7,7 +7,17 @@ export function businessInviteEmailHtml(params: {
   inviteLink: string;
   roleLabel?: string;
 }) {
-  const { inviteeName, businessName, invitedBy, inviteLink, roleLabel } = params;
+  const inviteeName = params.inviteeName
+    ? escapeHtml(String(params.inviteeName))
+    : null;
+  const businessName = escapeHtml(String(params.businessName));
+  const invitedBy = escapeHtml(String(params.invitedBy));
+  const roleLabel = params.roleLabel
+    ? escapeHtml(String(params.roleLabel))
+    : null;
+  // Safe for href + visible text (token is our UUID)
+  const inviteLink = String(params.inviteLink || '').trim();
+  const inviteLinkAttr = escapeHtml(inviteLink);
   return `
 <!DOCTYPE html>
 <html>
@@ -15,7 +25,7 @@ export function businessInviteEmailHtml(params: {
   <div style="max-width:620px;margin:32px auto;background:#fff;border-radius:20px;overflow:hidden;border:1px solid #e2e8f0;">
     <div style="background:linear-gradient(135deg,#00b4d8 0%,#0077b6 100%);padding:36px 40px;color:#fff;text-align:center;">
       <div style="font-size:13px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.9;margin-bottom:8px;">SupplierAdvisor®</div>
-      <h1 style="margin:0;font-size:26px;font-weight:800;letter-spacing:-0.5px;">You're invited</h1>
+      <h1 style="margin:0;font-size:26px;font-weight:800;letter-spacing:-0.5px;">You're invited to join</h1>
     </div>
     <div style="padding:36px 40px;">
       <p style="color:#334155;font-size:16px;line-height:1.7;margin:0 0 18px;">
@@ -26,18 +36,25 @@ export function businessInviteEmailHtml(params: {
         ${roleLabel ? `you as <strong>${roleLabel}</strong> at` : ''}
         <strong>${businessName}</strong> to join SupplierAdvisor — the verified supply-chain platform.
       </p>
-      <p style="color:#334155;font-size:16px;line-height:1.7;margin:0 0 28px;">
-        Click below to create your secure account (email verification, Google, Apple, or wallet) and accept this invitation. The link expires in 14 days.
+      <p style="color:#334155;font-size:16px;line-height:1.7;margin:0 0 20px;">
+        Use the button or the join link below to create your secure account (email code, Google, Apple, or wallet) and accept this invitation. The link expires in 14 days.
       </p>
-      <div style="text-align:center;margin:28px 0 32px;">
-        <a href="${inviteLink}" style="background:#00b4d8;color:#fff;padding:16px 40px;border-radius:9999px;text-decoration:none;font-weight:700;font-size:16px;display:inline-block;">
-          Accept invitation →
+      <div style="text-align:center;margin:24px 0 20px;">
+        <a href="${inviteLinkAttr}" style="background:#00b4d8;color:#fff;padding:16px 40px;border-radius:9999px;text-decoration:none;font-weight:700;font-size:16px;display:inline-block;">
+          Accept invitation &amp; join →
         </a>
       </div>
-      <p style="color:#64748b;font-size:13px;line-height:1.6;margin:0;">
-        If the button doesn't work, paste this link into your browser:<br/>
-        <a href="${inviteLink}" style="color:#00b4d8;word-break:break-all;">${inviteLink}</a>
-      </p>
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:14px;padding:16px 18px;margin:0 0 8px;">
+        <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#0369a1;">
+          Your join link
+        </p>
+        <p style="margin:0;font-size:13px;line-height:1.55;word-break:break-all;">
+          <a href="${inviteLinkAttr}" style="color:#0077b6;font-weight:600;">${inviteLinkAttr}</a>
+        </p>
+        <p style="margin:10px 0 0;font-size:12px;color:#64748b;line-height:1.5;">
+          Copy and paste this link into your browser if the button does not open.
+        </p>
+      </div>
     </div>
     <div style="background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;text-align:center;">
       SupplierAdvisor® · Verified. Transparent. Accelerating humanity.
@@ -45,6 +62,31 @@ export function businessInviteEmailHtml(params: {
   </div>
 </body>
 </html>`;
+}
+
+/** Plain-text body so join link always arrives even if HTML is stripped. */
+export function businessInviteEmailText(params: {
+  inviteeName?: string | null;
+  businessName: string;
+  invitedBy: string;
+  inviteLink: string;
+  roleLabel?: string;
+}): string {
+  const name = params.inviteeName ? String(params.inviteeName).trim() : '';
+  const role = params.roleLabel ? String(params.roleLabel).trim() : '';
+  const link = String(params.inviteLink || '').trim();
+  return [
+    `Hello${name ? ` ${name}` : ''},`,
+    '',
+    `${params.invitedBy} has invited you${role ? ` as ${role}` : ''} at ${params.businessName} to join SupplierAdvisor.`,
+    '',
+    'Open this join link to accept the invitation (expires in 14 days):',
+    link,
+    '',
+    'Sign in with the same email this invitation was sent to.',
+    '',
+    '— SupplierAdvisor',
+  ].join('\n');
 }
 
 export function teamInviteEmailHtml(params: {
@@ -63,12 +105,34 @@ export function teamInviteEmailHtml(params: {
   });
 }
 
+export function teamInviteEmailText(params: {
+  inviteeName?: string | null;
+  companyName: string;
+  role: string;
+  invitedBy?: string | null;
+  inviteLink: string;
+}) {
+  return businessInviteEmailText({
+    inviteeName: params.inviteeName,
+    businessName: params.companyName,
+    invitedBy: params.invitedBy || 'Your team',
+    inviteLink: params.inviteLink,
+    roleLabel: params.role,
+  });
+}
+
 export function buildBusinessInviteLink(token: string) {
   return `${getAppUrl()}/onboarding?invite=${encodeURIComponent(token)}`;
 }
 
+/**
+ * Team member join link.
+ * Primary path: /onboarding/team?invite=
+ * Also accepted: /onboarding?invite=&kind=team
+ */
 export function buildTeamInviteLink(token: string) {
-  return `${getAppUrl()}/onboarding/team?invite=${encodeURIComponent(token)}`;
+  const t = encodeURIComponent(token);
+  return `${getAppUrl()}/onboarding/team?invite=${t}`;
 }
 
 export function buildContractorInviteLink(token: string) {
