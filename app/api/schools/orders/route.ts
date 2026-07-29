@@ -226,6 +226,56 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/**
+ * Next PO number for a school on a given order date.
+ * Format: YYYY-MM-DD-NSNP-PO-{n}  e.g. 2026-07-29-NSNP-PO-1
+ * n = 1, 2, 3… for that school that day (counts how many POs raised).
+ */
+async function nextDailySchoolPoNumber(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  schoolProfileId: number,
+  orderDate: string
+): Promise<string> {
+  const day = orderDate.slice(0, 10);
+  const prefix = `${day}-NSNP-PO-`;
+
+  // Prefer rows for this school on this order_date
+  const { data: byDate } = await supabase
+    .from('school_purchase_orders')
+    .select('po_number')
+    .eq('school_profile_id', schoolProfileId)
+    .eq('order_date', day)
+    .limit(500);
+
+  // Also scan any po_numbers already using the prefix (defensive)
+  const { data: byPrefix } = await supabase
+    .from('school_purchase_orders')
+    .select('po_number')
+    .eq('school_profile_id', schoolProfileId)
+    .like('po_number', `${prefix}%`)
+    .limit(500);
+
+  let max = 0;
+  const seen = new Set<string>();
+  for (const row of [...(byDate || []), ...(byPrefix || [])]) {
+    const n = String(row.po_number || '');
+    if (seen.has(n)) continue;
+    seen.add(n);
+    if (n.startsWith(prefix)) {
+      const seq = Number(n.slice(prefix.length));
+      if (Number.isFinite(seq) && seq > max) max = seq;
+    } else {
+      // Old or other format on same day still counts as a PO that day
+      max = Math.max(max, seen.size);
+    }
+  }
+
+  // If we only saw non-prefix numbers, max may equal count; use max of seq and count
+  const count = seen.size;
+  const next = Math.max(max, count) + 1;
+  return `${prefix}${next}`;
+}
+
 /** Resolve SP display name + CSD by company profile_id or nsnp_isp_profiles.id */
 async function resolveIspParty(
   supabase: ReturnType<typeof getSupabaseServer>,
