@@ -148,6 +148,49 @@ function Inner() {
     void load();
   }, [load]);
 
+  // Kitchen stock suggested PO lines (sessionStorage from /schools/kitchen)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('suggested') !== '1') return;
+      const raw = sessionStorage.getItem('nsnp_kitchen_suggested_po');
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Array<{
+        approved_product_id?: number;
+        product_name?: string;
+        brand_name?: string;
+        qty?: number;
+        uom?: string;
+        unit_price?: number;
+      }>;
+      if (!Array.isArray(parsed) || !parsed.length) return;
+      const next: Line[] = parsed
+        .filter((l) => Number(l.approved_product_id) > 0 && Number(l.qty) > 0)
+        .map((l) => ({
+          approved_product_id: Number(l.approved_product_id),
+          product_name: String(l.product_name || 'Product'),
+          brand_name: String(l.brand_name || ''),
+          qty: Number(l.qty),
+          unit_price: Number(l.unit_price) || 0,
+          uom: String(l.uom || 'kg'),
+        }));
+      if (!next.length) return;
+      setLines(next);
+      setShowForm(true);
+      sessionStorage.removeItem('nsnp_kitchen_suggested_po');
+      toast.success(
+        `Loaded ${next.length} suggested line(s) from kitchen stock cover — review qty & SP, then submit`
+      );
+      // clean query param without reload
+      const url = new URL(window.location.href);
+      url.searchParams.delete('suggested');
+      window.history.replaceState({}, '', url.pathname + url.search);
+    } catch {
+      /* soft */
+    }
+  }, []);
+
   const menuProducts = useMemo(() => {
     if (!menuProductIds.length) return [] as Product[];
     const set = new Set(menuProductIds);

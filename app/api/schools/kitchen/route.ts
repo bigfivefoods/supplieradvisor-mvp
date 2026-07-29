@@ -8,8 +8,23 @@ import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
 import type { ReceiptLine } from '@/lib/schools/types';
 import {
   filterApprovedProductIds,
+  loadApprovedProducts,
   resolveCatalogueContext,
 } from '@/lib/schools/approved-catalogue';
+import {
+  buildKitchenStockPlan,
+  normalizeCoverPolicy,
+  policyFromSchool,
+  type StockCoverPolicy,
+} from '@/lib/schools/kitchen-stock-plan';
+import {
+  schoolLearnerCount,
+  type Recipe,
+  type RecipeLine,
+} from '@/lib/schools/recipe-mrp';
+
+export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   try {
@@ -58,18 +73,76 @@ export async function GET(request: NextRequest) {
         .limit(50),
     ]);
 
+    const policy = policyFromSchool(school as Record<string, unknown>);
+    const learners = schoolLearnerCount(school as Record<string, unknown>);
+
+    // Demand plan from DBE recipes
+    const catalogue = await resolveCatalogueContext(supabase, companyId, {
+      schoolProfileId: Number(school.id),
+    });
+    const recipes = catalogue.agencyProfileId
+      ? await loadAgencyRecipes(supabase, catalogue.agencyProfileId)
+      : [];
+    const products = await loadApprovedProducts(
+      supabase,
+      catalogue.agencyProfileId,
+      { activeOnly: true, includeNationalFallback: !catalogue.agencyProfileId }
+    );
+
+    const onHandByProduct = new Map<number, number>();
+    for (const s of stockRes.data || []) {
+      const pid = Number(s.approved_product_id);
+      if (Number.isFinite(pid)) {
+        onHandByProduct.set(pid, Number(s.qty_on_hand || 0));
+      }
+    }
+
+    const stockPlan = buildKitchenStockPlan({
+      recipes,
+      learners,
+      policy,
+      onHandByProduct,
+      catalogue: (products || []).map((p) => ({
+        id: Number(p.id),
+        name: String(p.name),
+        brand_name: p.brand_name != null ? String(p.brand_name) : null,
+        category: p.category != null ? String(p.category) : null,
+        uom: p.uom != null ? String(p.uom) : null,
+      })),
+    });
+
+    const planByPid = new Map(
+      stockPlan.products.map((p) => [p.approved_product_id, p])
+    );
+
     const stock = (stockRes.data || []).map((s) => {
       const onHand = Number(s.qty_on_hand || 0);
+      const planRow = planByPid.get(Number(s.approved_product_id));
+      // Prefer explicit reorder_level; else demand-based cover threshold
       const reorder =
-        s.reorder_level != null ? Number(s.reorder_level) : null;
+        s.reorder_level != null && s.reorder_level !== ''
+          ? Number(s.reorder_level)
+          : planRow && planRow.reorder_level > 0
+            ? planRow.reorder_level
+            : null;
       const low =
-        reorder != null && Number.isFinite(reorder) && onHand <= reorder;
+        (reorder != null && Number.isFinite(reorder) && onHand <= reorder) ||
+        planRow?.status === 'reorder' ||
+        planRow?.status === 'critical';
       return {
         ...s,
         reorder_level: reorder,
         min_level: s.min_level != null ? Number(s.min_level) : null,
-        target_level: s.target_level != null ? Number(s.target_level) : null,
+        target_level:
+          s.target_level != null
+            ? Number(s.target_level)
+            : planRow?.target_qty ?? null,
         low_stock: low,
+        daily_usage: planRow?.daily_usage ?? 0,
+        days_on_hand: planRow?.days_on_hand ?? null,
+        suggested_order_qty: planRow?.suggested_order_qty ?? 0,
+        cover_status: planRow?.status || 'no_demand',
+        cover_message: planRow?.message || null,
       };
     });
     const lowStock = stock.filter((s) => s.low_stock);
@@ -81,6 +154,10 @@ export async function GET(request: NextRequest) {
       lowStock,
       receipts: receiptsRes.data || [],
       openOrders: ordersRes.data || [],
+      cover_policy: policy,
+      learners,
+      stock_plan: stockPlan,
+      recipes_count: recipes.length,
       warning:
         stockRes.error?.message ||
         receiptsRes.error?.message ||
@@ -371,6 +448,103 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // School cover policy: how many days of stock to hold
+    if (
+      body.action === 'set_cover_policy' ||
+      body.action === 'set_stock_cover'
+    ) {
+      const policy = normalizeCoverPolicy({
+        cover_days: body.cover_days,
+        reorder_cover_days: body.reorder_cover_days,
+        lead_time_days: body.lead_time_days,
+      });
+      const meta =
+        school.metadata && typeof school.metadata === 'object'
+          ? { ...(school.metadata as Record<string, unknown>) }
+          : {};
+      meta.kitchen_stock_cover_days = policy.cover_days;
+      meta.kitchen_reorder_cover_days = policy.reorder_cover_days;
+      meta.kitchen_lead_time_days = policy.lead_time_days;
+
+      const patch: Record<string, unknown> = {
+        kitchen_stock_cover_days: policy.cover_days,
+        kitchen_reorder_cover_days: policy.reorder_cover_days,
+        kitchen_lead_time_days: policy.lead_time_days,
+        metadata: meta,
+        updated_at: new Date().toISOString(),
+      };
+      let { data, error: uErr } = await supabase
+        .from('school_profiles')
+        .update(patch)
+        .eq('id', schoolId)
+        .select('*')
+        .single();
+      if (
+        uErr &&
+        /kitchen_stock_cover|kitchen_reorder|kitchen_lead|column/i.test(
+          uErr.message
+        )
+      ) {
+        const soft = {
+          metadata: meta,
+          updated_at: new Date().toISOString(),
+        };
+        const retry = await supabase
+          .from('school_profiles')
+          .update(soft)
+          .eq('id', schoolId)
+          .select('*')
+          .single();
+        data = retry.data;
+        uErr = retry.error;
+      }
+      if (uErr) {
+        return NextResponse.json({ error: uErr.message }, { status: 400 });
+      }
+
+      // Optionally recompute & write levels from demand
+      if (body.apply_levels !== false) {
+        await applyDemandLevels(supabase, companyId, schoolId, school, policy);
+      }
+
+      return NextResponse.json({
+        success: true,
+        cover_policy: policy,
+        school: data,
+        message: `Hold ${policy.cover_days} days of stock · reorder at ${policy.reorder_cover_days} days cover`,
+      });
+    }
+
+    // Write reorder/target levels from menu demand × cover days
+    if (
+      body.action === 'apply_suggested_levels' ||
+      body.action === 'apply_cover_levels'
+    ) {
+      const policy = normalizeCoverPolicy({
+        cover_days: body.cover_days ?? policyFromSchool(school as Record<string, unknown>).cover_days,
+        reorder_cover_days:
+          body.reorder_cover_days ??
+          policyFromSchool(school as Record<string, unknown>).reorder_cover_days,
+        lead_time_days:
+          body.lead_time_days ??
+          policyFromSchool(school as Record<string, unknown>).lead_time_days,
+      });
+      const result = await applyDemandLevels(
+        supabase,
+        companyId,
+        schoolId,
+        school,
+        policy
+      );
+      return NextResponse.json({
+        success: true,
+        cover_policy: policy,
+        updated: result.updated,
+        plan: result.plan,
+        message: `Applied cover levels for ${result.updated} product(s) from menu demand`,
+      });
+    }
+
     // Set inventory levels (on-hand + reorder/min/target) for catalogue foods
     if (
       body.action === 'set_levels' ||
@@ -584,4 +758,169 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+async function loadAgencyRecipes(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  agencyProfileId: number
+): Promise<Recipe[]> {
+  const { data: recipes, error } = await supabase
+    .from('nsnp_recipes')
+    .select('*')
+    .eq('agency_profile_id', agencyProfileId)
+    .eq('active', true)
+    .limit(200);
+  if (error || !recipes?.length) return [];
+  const ids = recipes.map((r) => Number(r.id));
+  const { data: lines } = await supabase
+    .from('nsnp_recipe_lines')
+    .select('*')
+    .in('recipe_id', ids)
+    .order('sort_order');
+  const byRecipe = new Map<number, RecipeLine[]>();
+  for (const l of lines || []) {
+    const rid = Number(l.recipe_id);
+    const arr = byRecipe.get(rid) || [];
+    arr.push({
+      approved_product_id: l.approved_product_id
+        ? Number(l.approved_product_id)
+        : null,
+      product_name: String(l.product_name),
+      brand_name: l.brand_name != null ? String(l.brand_name) : null,
+      category: l.category != null ? String(l.category) : 'other',
+      qty_per_portion: Number(l.qty_per_portion),
+      uom: String(l.uom || 'kg'),
+      wastage_pct: Number(l.wastage_pct || 0),
+    });
+    byRecipe.set(rid, arr);
+  }
+  return recipes.map((r) => {
+    const wd =
+      r.weekday != null && r.weekday !== '' ? Number(r.weekday) : null;
+    return {
+      id: Number(r.id),
+      agency_profile_id: Number(r.agency_profile_id),
+      name: String(r.name),
+      meal_type: String(r.meal_type || 'lunch'),
+      weekday:
+        wd != null && Number.isFinite(wd) && wd >= 1 && wd <= 5 ? wd : null,
+      portion_learners: Number(r.portion_learners || 1),
+      active: r.active !== false,
+      lines: byRecipe.get(Number(r.id)) || [],
+    };
+  });
+}
+
+async function applyDemandLevels(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  companyId: number,
+  schoolId: number,
+  school: Record<string, unknown>,
+  policy: StockCoverPolicy
+): Promise<{ updated: number; plan: ReturnType<typeof buildKitchenStockPlan> }> {
+  const learners = schoolLearnerCount(school);
+  const catalogue = await resolveCatalogueContext(supabase, companyId, {
+    schoolProfileId: schoolId,
+  });
+  const recipes = catalogue.agencyProfileId
+    ? await loadAgencyRecipes(supabase, catalogue.agencyProfileId)
+    : [];
+  const { data: stockRows } = await supabase
+    .from('school_kitchen_stock')
+    .select('approved_product_id, qty_on_hand')
+    .eq('school_profile_id', schoolId)
+    .limit(500);
+  const onHand = new Map<number, number>();
+  for (const s of stockRows || []) {
+    const pid = Number(s.approved_product_id);
+    if (Number.isFinite(pid)) onHand.set(pid, Number(s.qty_on_hand || 0));
+  }
+  const products = await loadApprovedProducts(supabase, catalogue.agencyProfileId, {
+    activeOnly: true,
+  });
+  const plan = buildKitchenStockPlan({
+    recipes,
+    learners,
+    policy,
+    onHandByProduct: onHand,
+    catalogue: products.map((p) => ({
+      id: Number(p.id),
+      name: String(p.name),
+      brand_name: p.brand_name != null ? String(p.brand_name) : null,
+      category: p.category != null ? String(p.category) : null,
+      uom: p.uom != null ? String(p.uom) : null,
+    })),
+  });
+
+  let updated = 0;
+  for (const p of plan.products) {
+    if (!(p.daily_usage > 0) && !(p.qty_on_hand > 0)) continue;
+    const { data: existing } = await supabase
+      .from('school_kitchen_stock')
+      .select('id, qty_on_hand')
+      .eq('school_profile_id', schoolId)
+      .eq('approved_product_id', p.approved_product_id)
+      .maybeSingle();
+
+    const patch: Record<string, unknown> = {
+      product_name: p.product_name,
+      brand_name: p.brand_name || '',
+      uom: p.uom,
+      reorder_level: p.reorder_level,
+      target_level: p.target_qty,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (existing?.id) {
+      const { error } = await supabase
+        .from('school_kitchen_stock')
+        .update(patch)
+        .eq('id', existing.id);
+      if (!error) updated += 1;
+      else if (/reorder_level|target_level|column/i.test(error.message)) {
+        await supabase
+          .from('school_kitchen_stock')
+          .update({
+            product_name: p.product_name,
+            brand_name: p.brand_name || '',
+            uom: p.uom,
+            metadata: {
+              reorder_level: p.reorder_level,
+              target_level: p.target_qty,
+              cover_days: policy.cover_days,
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existing.id);
+        updated += 1;
+      }
+    } else if (p.daily_usage > 0) {
+      const insertRow: Record<string, unknown> = {
+        school_profile_id: schoolId,
+        profile_id: companyId,
+        approved_product_id: p.approved_product_id,
+        product_name: p.product_name,
+        brand_name: p.brand_name || '',
+        qty_on_hand: 0,
+        uom: p.uom,
+        reorder_level: p.reorder_level,
+        target_level: p.target_qty,
+      };
+      const { error } = await supabase
+        .from('school_kitchen_stock')
+        .insert(insertRow);
+      if (!error) updated += 1;
+      else if (/reorder_level|target_level|column/i.test(error.message)) {
+        delete insertRow.reorder_level;
+        delete insertRow.target_level;
+        insertRow.metadata = {
+          reorder_level: p.reorder_level,
+          target_level: p.target_qty,
+        };
+        await supabase.from('school_kitchen_stock').insert(insertRow);
+        updated += 1;
+      }
+    }
+  }
+  return { updated, plan };
 }
