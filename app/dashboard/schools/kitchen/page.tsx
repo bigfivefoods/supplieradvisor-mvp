@@ -313,9 +313,19 @@ function Inner() {
     );
   }, [selectedPo]);
 
+  /** Lines with a positive suggested PO qty (may include ok items topping up to target) */
   const suggestedLines = useMemo(
     () =>
       (stockPlan?.products || []).filter((p) => p.suggested_order_qty > 0),
+    [stockPlan]
+  );
+
+  /** Products flagged reorder/critical — always orderable even if suggest was rounded to 0 */
+  const reorderPlanLines = useMemo(
+    () =>
+      (stockPlan?.products || []).filter(
+        (p) => p.status === 'reorder' || p.status === 'critical'
+      ),
     [stockPlan]
   );
 
@@ -461,33 +471,51 @@ function Inner() {
   };
 
   const orderSuggested = (onlyReorder = false) => {
+    // Banner "at reorder" uses status; must not require suggested_order_qty > 0 only
+    // (whole-UOM rounding can zero suggest while days-left still flags reorder).
     const source = onlyReorder
-      ? suggestedLines.filter(
-          (p) => p.status === 'reorder' || p.status === 'critical'
-        )
-      : suggestedLines;
+      ? reorderPlanLines
+      : suggestedLines.length
+        ? suggestedLines
+        : reorderPlanLines;
     if (!source.length) {
       return toast.message(
         onlyReorder
-          ? 'Nothing at reorder point right now'
+          ? 'Nothing at reorder point right now — refresh after saving cover/levels'
           : 'No suggested order qty — check cover days and menu recipes'
       );
     }
-    const payload = source.map((p) => ({
-      approved_product_id: p.approved_product_id,
-      product_name: p.product_name,
-      brand_name: p.brand_name,
-      qty: roundStockQty(p.suggested_order_qty, p.uom, 'ceil'),
-      uom: p.uom,
-      unit_price: 0,
-    }));
+    const payload = source
+      .map((p) => {
+        let qty = Number(p.suggested_order_qty) || 0;
+        if (!(qty > 0) && (p.status === 'reorder' || p.status === 'critical')) {
+          // Fall back: top up to target, or at least 1 whole UOM
+          const gap = Math.max(0, Number(p.target_qty) - Number(p.qty_on_hand));
+          qty = roundStockQty(gap > 0 ? gap : 1, p.uom, 'ceil') || 1;
+        }
+        qty = roundStockQty(qty, p.uom, 'ceil') || 0;
+        return {
+          approved_product_id: p.approved_product_id,
+          product_name: p.product_name,
+          brand_name: p.brand_name,
+          qty,
+          uom: p.uom,
+          unit_price: 0,
+        };
+      })
+      .filter((l) => l.qty > 0);
+    if (!payload.length) {
+      return toast.message(
+        'Could not compute order quantities — check on-hand levels and cover days'
+      );
+    }
     try {
       sessionStorage.setItem(SUGGESTED_PO_KEY, JSON.stringify(payload));
     } catch {
       /* soft */
     }
     toast.success(
-      `${payload.length} line(s) ready on Orders — review qty then submit to SP`
+      `${payload.length} line(s) ready on Orders — review qty, delivery date & SP, then submit`
     );
     window.location.href = '/dashboard/schools/orders?suggested=1';
   };

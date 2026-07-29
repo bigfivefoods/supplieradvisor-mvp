@@ -350,6 +350,30 @@ export function buildKitchenStockPlan(opts: {
       message = 'On hand but no recipe demand this week';
     }
 
+    // Reorder/critical must always produce a buy qty — whole-UOM rounding can
+    // make target − on-hand collapse to 0 while still below reorder cover.
+    if (
+      daily > 0 &&
+      (status === 'reorder' || status === 'critical') &&
+      !(suggested > 0)
+    ) {
+      const toTarget = Math.max(0, target_qty - qty);
+      const minBuy = roundStockQty(
+        Math.max(daily * policy.reorder_cover_days, daily),
+        uom,
+        'ceil'
+      );
+      suggested = Math.max(
+        1,
+        roundStockQty(toTarget, uom, 'ceil') || 0,
+        minBuy || 0
+      );
+      message =
+        status === 'critical'
+          ? `Only ~${days_on_hand} day(s) left — suggested order ${suggested} ${uom}`
+          : `At/below ${policy.reorder_cover_days}-day reorder cover — suggested order ${suggested} ${uom}`;
+    }
+
     products.push({
       ...d,
       daily_usage: dailyDisplay,
