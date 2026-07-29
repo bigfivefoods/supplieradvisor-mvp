@@ -15,8 +15,10 @@ export const maxDuration = 60;
 /**
  * PEU / monitor visits + day plans
  *
- * GET  ?companyId=&mode=agency|school|plan|report|schools|calendar
- * POST action: log_visit | complete_visit | create_plan | cancel_plan | notify_plan
+ * GET  ?companyId=&mode=agency|school|plan|report|schools|calendar|day_pack
+ *      day_pack&date=YYYY-MM-DD&format=pdf → printable circuit day pack
+ * POST action: log_visit | complete_visit | create_plan | cancel_plan |
+ *              reschedule_visit | reschedule_day | reassign_visitor | reassign_day
  * PATCH update planned visit / cancel
  */
 export async function GET(request: NextRequest) {
@@ -413,6 +415,131 @@ export async function GET(request: NextRequest) {
           visits: '/dashboard/schools/visits',
         },
       });
+    }
+
+    // ── Printable day pack for a circuit date ────────────────────────
+    if (mode === 'day_pack') {
+      const agency = await getAgencyRegistration(supabase, companyId);
+      if (!agency) {
+        return NextResponse.json(
+          { error: 'DBE / PEU only', success: false },
+          { status: 403 }
+        );
+      }
+      const date = String(sp.get('date') || today()).slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return NextResponse.json(
+          { error: 'date required (YYYY-MM-DD)' },
+          { status: 400 }
+        );
+      }
+      const { data: rows } = await supabase
+        .from('nsnp_peu_visits')
+        .select('*')
+        .eq('agency_profile_id', companyId)
+        .or(`planned_date.eq.${date},visit_date.eq.${date}`)
+        .in('status', ['planned', 'in_progress', 'completed'])
+        .order('status', { ascending: true })
+        .limit(100);
+
+      const ids = [
+        ...new Set(
+          (rows || []).map((v) => Number(v.school_profile_id)).filter(Boolean)
+        ),
+      ];
+      const schools = ids.length
+        ? await fetchByIds(
+            supabase,
+            'school_profiles',
+            'id, school_name, emis_number, natemis, district, circuit, principal_name, principal_phone, school_phone, local_municipality, quintile, phase, learner_count_enrolled, learner_count_nsnp_eligible, final_nsnp_approved_enrol',
+            ids
+          ).catch(() =>
+            fetchByIds(
+              supabase,
+              'school_profiles',
+              'id, school_name, emis_number, district, principal_name, principal_phone',
+              ids
+            )
+          )
+        : [];
+      const byId = new Map(
+        schools.map((s) => [Number(s.id), s as Record<string, unknown>])
+      );
+
+      const str = (v: unknown) =>
+        v != null && String(v).trim() ? String(v) : null;
+      const num = (v: unknown) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+      };
+
+      const stops = (rows || []).map((v, i) => {
+        const s = byId.get(Number(v.school_profile_id));
+        return {
+          order: i + 1,
+          visit_id: Number(v.id),
+          status: str(v.status) || undefined,
+          visitor_name: str(v.visitor_name),
+          school_name:
+            str(s?.school_name) || `School ${v.school_profile_id}`,
+          emis: str(s?.emis_number) || str(s?.natemis),
+          district: str(s?.district) || str(v.district),
+          circuit: str(s?.circuit) || str(v.circuit),
+          municipality: str(s?.local_municipality),
+          principal: str(s?.principal_name),
+          phone: str(s?.principal_phone) || str(s?.school_phone),
+          learners:
+            num(s?.final_nsnp_approved_enrol) ??
+            num(s?.learner_count_nsnp_eligible) ??
+            num(s?.learner_count_enrolled),
+          phase: str(s?.phase),
+          quintile: s?.quintile != null ? (s.quintile as number | string) : null,
+          notes: str(v.notes),
+        };
+      });
+
+      const { data: ag } = await supabase
+        .from('nsnp_agency_profiles')
+        .select('agency_name, province')
+        .eq('profile_id', companyId)
+        .maybeSingle();
+
+      const pack = {
+        date,
+        agency_name: str(ag?.agency_name) || 'DBE / PEU',
+        province: str(ag?.province),
+        stop_count: stops.length,
+        visitors: [
+          ...new Set(
+            stops
+              .map((s) => (s.visitor_name ? String(s.visitor_name) : ''))
+              .filter(Boolean)
+          ),
+        ],
+        stops,
+        generated_at: new Date().toISOString(),
+      };
+
+      const format = String(sp.get('format') || 'json').toLowerCase();
+      if (format === 'pdf' || format === 'print' || format === 'download') {
+        const { buildVisitDayPackPdf, visitDayPackFilename } = await import(
+          '@/lib/schools/visit-day-pack-pdf'
+        );
+        const pdf = await buildVisitDayPackPdf(pack);
+        const filename = visitDayPackFilename(date);
+        const disposition =
+          format === 'download' ? 'attachment' : 'inline';
+        return new NextResponse(new Uint8Array(pdf), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `${disposition}; filename="${filename}"`,
+            'Cache-Control': 'no-store',
+          },
+        });
+      }
+
+      return NextResponse.json({ success: true, pack });
     }
 
     // ── Day plans (grouped planned visits) ───────────────────────────
@@ -946,6 +1073,195 @@ export async function POST(request: NextRequest) {
         message: `Visit logged · score ${overall}${
           riadIds.length ? ` · ${riadIds.length} RIAD linked` : ''
         }`,
+      });
+    }
+
+    // ── Reschedule one planned visit (drag between days) ─────────────
+    if (action === 'reschedule_visit' || action === 'move_visit') {
+      const agency = await getAgencyRegistration(supabase, companyId);
+      if (!agency) {
+        return NextResponse.json(
+          { error: 'Only DBE/PEU can reschedule visits' },
+          { status: 403 }
+        );
+      }
+      const visitId = Number(body.visit_id);
+      const newDate = String(body.plan_date || body.planned_date || body.date || '').slice(
+        0,
+        10
+      );
+      if (!Number.isFinite(visitId) || !/^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
+        return NextResponse.json(
+          { error: 'visit_id and plan_date required' },
+          { status: 400 }
+        );
+      }
+      const { data: existing } = await supabase
+        .from('nsnp_peu_visits')
+        .select('id, status, school_profile_id, school_company_id, visitor_name, metadata')
+        .eq('id', visitId)
+        .eq('agency_profile_id', companyId)
+        .maybeSingle();
+      if (!existing) {
+        return NextResponse.json({ error: 'Visit not found' }, { status: 404 });
+      }
+      if (!['planned', 'in_progress'].includes(String(existing.status))) {
+        return NextResponse.json(
+          { error: 'Only planned visits can be moved' },
+          { status: 400 }
+        );
+      }
+      const meta =
+        existing.metadata && typeof existing.metadata === 'object'
+          ? { ...(existing.metadata as Record<string, unknown>) }
+          : {};
+      meta.rescheduled_at = new Date().toISOString();
+      meta.rescheduled_by = gate.userId || null;
+      const notify = Boolean(body.notify_schools ?? body.notify_school);
+      const patch: Record<string, unknown> = {
+        planned_date: newDate,
+        visit_date: newDate,
+        metadata: meta,
+        updated_at: new Date().toISOString(),
+      };
+      if (notify) {
+        patch.notify_school = true;
+        patch.notified_at = new Date().toISOString();
+      }
+      const { data: updated, error } = await supabase
+        .from('nsnp_peu_visits')
+        .update(patch)
+        .eq('id', visitId)
+        .select('*')
+        .single();
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      if (notify && existing.school_company_id) {
+        await logNsnpEvent(supabase, {
+          companyId,
+          targetCompanyId: Number(existing.school_company_id),
+          schoolProfileId: Number(existing.school_profile_id),
+          kind: 'peu_visit_rescheduled',
+          title: `PEU visit moved to ${newDate}`,
+          body: `${existing.visitor_name || 'Department monitors'} rescheduled your visit.`,
+          href: '/dashboard/schools/visits',
+          metadata: { visit_id: visitId, plan_date: newDate },
+        });
+      }
+      return NextResponse.json({
+        success: true,
+        visit: updated,
+        message: `Visit moved to ${newDate}`,
+      });
+    }
+
+    // ── Move all planned stops on a day to another day ───────────────
+    if (action === 'reschedule_day' || action === 'move_day') {
+      const agency = await getAgencyRegistration(supabase, companyId);
+      if (!agency) {
+        return NextResponse.json(
+          { error: 'Only DBE/PEU can reschedule' },
+          { status: 403 }
+        );
+      }
+      const fromDate = String(body.from_date || body.from || '').slice(0, 10);
+      const toDate = String(body.to_date || body.to || body.plan_date || '').slice(
+        0,
+        10
+      );
+      if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(fromDate) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(toDate)
+      ) {
+        return NextResponse.json(
+          { error: 'from_date and to_date required' },
+          { status: 400 }
+        );
+      }
+      const { data: moved, error } = await supabase
+        .from('nsnp_peu_visits')
+        .update({
+          planned_date: toDate,
+          visit_date: toDate,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('agency_profile_id', companyId)
+        .eq('status', 'planned')
+        .eq('planned_date', fromDate)
+        .select('id');
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      return NextResponse.json({
+        success: true,
+        moved: (moved || []).length,
+        from_date: fromDate,
+        to_date: toDate,
+        message: `Moved ${(moved || []).length} planned stop(s) ${fromDate} → ${toDate}`,
+      });
+    }
+
+    // ── Bulk reassign visitor on planned stops ───────────────────────
+    if (
+      action === 'reassign_visitor' ||
+      action === 'reassign_day' ||
+      action === 'assign_visitor'
+    ) {
+      const agency = await getAgencyRegistration(supabase, companyId);
+      if (!agency) {
+        return NextResponse.json(
+          { error: 'Only DBE/PEU can reassign visitors' },
+          { status: 403 }
+        );
+      }
+      const visitorName = String(body.visitor_name || '').trim();
+      if (!visitorName) {
+        return NextResponse.json(
+          { error: 'visitor_name required' },
+          { status: 400 }
+        );
+      }
+      const visitIds: number[] = (
+        Array.isArray(body.visit_ids) ? body.visit_ids : []
+      )
+        .map((n: unknown) => Number(n))
+        .filter((n: number) => Number.isFinite(n));
+      const planDate = body.plan_date
+        ? String(body.plan_date).slice(0, 10)
+        : body.date
+          ? String(body.date).slice(0, 10)
+          : null;
+
+      let q = supabase
+        .from('nsnp_peu_visits')
+        .update({
+          visitor_name: visitorName,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('agency_profile_id', companyId)
+        .in('status', ['planned', 'in_progress']);
+
+      if (visitIds.length) {
+        q = q.in('id', visitIds);
+      } else if (planDate && /^\d{4}-\d{2}-\d{2}$/.test(planDate)) {
+        q = q.eq('planned_date', planDate);
+      } else {
+        return NextResponse.json(
+          { error: 'visit_ids or plan_date required' },
+          { status: 400 }
+        );
+      }
+
+      const { data: updated, error } = await q.select('id');
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      return NextResponse.json({
+        success: true,
+        assigned: (updated || []).length,
+        visitor_name: visitorName,
+        message: `Assigned ${visitorName} to ${(updated || []).length} stop(s)`,
       });
     }
 

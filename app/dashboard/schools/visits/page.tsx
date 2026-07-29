@@ -15,12 +15,15 @@ import {
   ChevronRight,
   ClipboardCheck,
   ExternalLink,
+  GripVertical,
   Loader2,
   MapPin,
   Plus,
+  Printer,
   RefreshCw,
   Search,
   Upload,
+  UserCog,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -108,6 +111,10 @@ function AgencyVisits({ companyId }: { companyId: number }) {
   const [selectedDate, setSelectedDate] = useState(() =>
     new Date().toISOString().slice(0, 10)
   );
+  const [bulkVisitor, setBulkVisitor] = useState('');
+  const [selectedVisitIds, setSelectedVisitIds] = useState<number[]>([]);
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<number | null>(null);
 
   // Smart school filter
   const [schools, setSchools] = useState<SchoolOpt[]>([]);
@@ -268,6 +275,7 @@ function AgencyVisits({ companyId }: { companyId: number }) {
   useEffect(() => {
     // Keep plan form date in sync with calendar selection
     setPlanDate(selectedDate);
+    setSelectedVisitIds([]);
   }, [selectedDate]);
 
   useEffect(() => {
@@ -486,6 +494,90 @@ function AgencyVisits({ companyId }: { companyId: number }) {
     window.location.href = `/dashboard/schools/monitoring?peuVisitId=${peuVisitId}`;
   };
 
+  const printDayPack = (date?: string) => {
+    const d = date || selectedDate;
+    window.open(
+      `/api/schools/visits?companyId=${companyId}&mode=day_pack&date=${d}&format=pdf`,
+      '_blank',
+      'noopener,noreferrer'
+    );
+  };
+
+  const rescheduleVisit = async (
+    visitId: number,
+    newDate: string,
+    notify = false
+  ) => {
+    try {
+      const res = await fetch('/api/schools/visits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          companyId,
+          action: 'reschedule_visit',
+          visit_id: visitId,
+          plan_date: newDate,
+          notify_schools: notify,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Move failed');
+      toast.success(data.message || `Moved to ${newDate}`);
+      setSelectedDate(newDate);
+      void loadCalendar();
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Move failed');
+    }
+  };
+
+  const reassignVisitor = async (opts?: {
+    visitIds?: number[];
+    date?: string;
+  }) => {
+    const name = bulkVisitor.trim() || planVisitor.trim();
+    if (!name) {
+      return toast.error('Enter visitor / PEU officer name first');
+    }
+    setSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        companyId,
+        action: 'reassign_visitor',
+        visitor_name: name,
+      };
+      // Prefer explicit args: selected IDs vs whole day must not clash
+      if (opts?.visitIds?.length) body.visit_ids = opts.visitIds;
+      else if (opts?.date) body.plan_date = opts.date;
+      else if (selectedVisitIds.length) body.visit_ids = selectedVisitIds;
+      else body.plan_date = selectedDate;
+
+      const res = await fetch('/api/schools/visits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Reassign failed');
+      toast.success(data.message || 'Visitor assigned');
+      setSelectedVisitIds([]);
+      void loadCalendar();
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleSelectVisit = (id: number) => {
+    setSelectedVisitIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
   const monthGrid = useMemo(() => {
     const first = new Date(viewYear, viewMonth - 1, 1, 12, 0, 0);
     const startPad = (first.getDay() + 6) % 7; // Monday-first
@@ -507,6 +599,13 @@ function AgencyVisits({ companyId }: { companyId: number }) {
         monitoring?: Array<Record<string, unknown>>;
       }
     | undefined;
+
+  const selectAllPlannedOnDay = () => {
+    const ids = (selectedCell?.planned || [])
+      .map((v) => Number(v.id))
+      .filter((n) => Number.isFinite(n));
+    setSelectedVisitIds(ids);
+  };
 
   const shiftMonth = (delta: number) => {
     let m = viewMonth + delta;
@@ -674,6 +773,7 @@ function AgencyVisits({ companyId }: { companyId: number }) {
                 const isToday =
                   c.date === new Date().toISOString().slice(0, 10);
                 const hasTrip = p + d + mon > 0;
+                const isDrop = dragOverDate === c.date;
                 return (
                   <button
                     key={c.date}
@@ -682,9 +782,32 @@ function AgencyVisits({ companyId }: { companyId: number }) {
                       setSelectedDate(c.date!);
                       setPlanDate(c.date!);
                     }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      setDragOverDate(c.date);
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverDate === c.date) setDragOverDate(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDragOverDate(null);
+                      const id = Number(
+                        e.dataTransfer.getData('text/peu-visit-id') ||
+                          e.dataTransfer.getData('text/plain')
+                      );
+                      if (!Number.isFinite(id) || !c.date) return;
+                      // Planned list is for selectedDate — dropping on same day is a no-op
+                      if (c.date === selectedDate) return;
+                      void rescheduleVisit(id, c.date, false);
+                    }}
                     className={`min-h-[72px] border-b border-r border-slate-100 p-1.5 text-left transition-colors ${
-                      isSel
-                        ? 'bg-sky-100 ring-2 ring-inset ring-[#00b4d8]'
+                      isDrop
+                        ? 'bg-sky-200 ring-2 ring-inset ring-sky-500'
+                        : isSel
+                          ? 'bg-sky-100 ring-2 ring-inset ring-[#00b4d8]'
                         : hasTrip
                           ? 'bg-amber-50/50 hover:bg-amber-50'
                           : 'hover:bg-slate-50'
@@ -746,6 +869,14 @@ function AgencyVisits({ companyId }: { companyId: number }) {
                 >
                   <Plus className="w-3.5 h-3.5" /> Plan schools this day
                 </button>
+                <button
+                  type="button"
+                  onClick={() => printDayPack(selectedDate)}
+                  className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+                  title="Print circuit day pack PDF"
+                >
+                  <Printer className="w-3.5 h-3.5" /> Print day pack
+                </button>
                 <Link
                   href={`/dashboard/schools/monitoring`}
                   className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
@@ -753,53 +884,127 @@ function AgencyVisits({ companyId }: { companyId: number }) {
                   <ClipboardCheck className="w-3.5 h-3.5" /> Full form
                 </Link>
               </div>
+              <p className="text-[10px] text-slate-500 mt-2">
+                Tip: drag a planned school onto another calendar day to
+                reschedule.
+              </p>
+            </div>
+
+            {/* Bulk reassign */}
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 space-y-2">
+              <p className="text-[10px] font-bold uppercase text-slate-400 flex items-center gap-1">
+                <UserCog className="w-3.5 h-3.5" /> Bulk reassign visitor
+              </p>
+              <input
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                placeholder="PEU officer name"
+                value={bulkVisitor}
+                onChange={(e) => setBulkVisitor(e.target.value)}
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void reassignVisitor({ date: selectedDate })}
+                  className="btn-secondary !py-1.5 !px-3 text-xs"
+                >
+                  Assign all on this day
+                </button>
+                <button
+                  type="button"
+                  disabled={saving || !selectedVisitIds.length}
+                  onClick={() =>
+                    void reassignVisitor({ visitIds: selectedVisitIds })
+                  }
+                  className="btn-primary !py-1.5 !px-3 text-xs disabled:opacity-40"
+                >
+                  Assign selected ({selectedVisitIds.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={selectAllPlannedOnDay}
+                  className="text-xs font-bold text-[#0077b6] underline"
+                >
+                  Select all planned
+                </button>
+              </div>
             </div>
 
             <div className="rounded-3xl border border-amber-100 bg-amber-50/40 overflow-hidden">
               <div className="px-4 py-2.5 border-b border-amber-100 text-xs font-bold uppercase text-amber-900">
                 Planned · {selectedCell?.planned?.length || 0}
               </div>
-              <ul className="max-h-48 overflow-y-auto divide-y divide-amber-100/80">
+              <ul className="max-h-56 overflow-y-auto divide-y divide-amber-100/80">
                 {(selectedCell?.planned || []).length === 0 ? (
                   <li className="px-4 py-6 text-sm text-slate-500 text-center">
                     No schools planned — click Plan schools this day
                   </li>
                 ) : (
-                  (selectedCell?.planned || []).map((v) => (
-                    <li
-                      key={String(v.id)}
-                      className="px-4 py-2.5 flex flex-wrap items-center justify-between gap-2"
-                    >
-                      <div className="min-w-0">
-                        <p className="font-semibold text-sm truncate">
-                          {String(v.school_name || v.school_profile_id)}
-                        </p>
-                        <p className="text-[11px] text-slate-500">
-                          {v.visitor_name
-                            ? String(v.visitor_name)
-                            : 'Unassigned officer'}
-                          {v.district ? ` · ${String(v.district)}` : ''}
-                        </p>
-                      </div>
-                      <div className="flex gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => openMonitoring(Number(v.id))}
-                          className="rounded-lg bg-violet-600 text-white text-[10px] font-bold px-2 py-1.5 inline-flex items-center gap-1"
-                        >
-                          Monitoring form
-                          <ExternalLink className="w-3 h-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => startPlanned(v)}
-                          className="rounded-lg border border-slate-200 bg-white text-[10px] font-bold px-2 py-1.5"
-                        >
-                          Quick pack
-                        </button>
-                      </div>
-                    </li>
-                  ))
+                  (selectedCell?.planned || []).map((v) => {
+                    const vid = Number(v.id);
+                    const checked = selectedVisitIds.includes(vid);
+                    return (
+                      <li
+                        key={String(v.id)}
+                        draggable
+                        onDragStart={(e) => {
+                          setDraggingId(vid);
+                          e.dataTransfer.setData(
+                            'text/peu-visit-id',
+                            String(vid)
+                          );
+                          e.dataTransfer.setData('text/plain', String(vid));
+                          e.dataTransfer.effectAllowed = 'move';
+                        }}
+                        onDragEnd={() => {
+                          setDraggingId(null);
+                          setDragOverDate(null);
+                        }}
+                        className={`px-3 py-2.5 flex flex-wrap items-center justify-between gap-2 cursor-grab active:cursor-grabbing ${
+                          draggingId === vid ? 'opacity-50' : ''
+                        } ${checked ? 'bg-amber-100/80' : ''}`}
+                      >
+                        <div className="flex items-start gap-2 min-w-0">
+                          <GripVertical className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                          <input
+                            type="checkbox"
+                            className="mt-1"
+                            checked={checked}
+                            onChange={() => toggleSelectVisit(vid)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm truncate">
+                              {String(v.school_name || v.school_profile_id)}
+                            </p>
+                            <p className="text-[11px] text-slate-500">
+                              {v.visitor_name
+                                ? String(v.visitor_name)
+                                : 'Unassigned officer'}
+                              {v.district ? ` · ${String(v.district)}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openMonitoring(vid)}
+                            className="rounded-lg bg-violet-600 text-white text-[10px] font-bold px-2 py-1.5 inline-flex items-center gap-1"
+                          >
+                            Monitoring form
+                            <ExternalLink className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => startPlanned(v)}
+                            className="rounded-lg border border-slate-200 bg-white text-[10px] font-bold px-2 py-1.5"
+                          >
+                            Quick pack
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })
                 )}
               </ul>
             </div>
