@@ -58,6 +58,9 @@ export async function GET(request: NextRequest) {
     if (view === 'path' || view === 'home') {
       return NextResponse.json(await pathView(supabase, companyId, role));
     }
+    if (view === 'today') {
+      return NextResponse.json(await todayBoardView(supabase, companyId, role));
+    }
     if (view === 'fulfil') {
       if (role !== 'isp') {
         return NextResponse.json(
@@ -145,6 +148,7 @@ export async function GET(request: NextRequest) {
       role,
       views: [
         'path',
+        'today',
         'fulfil',
         'exceptions',
         'districts',
@@ -162,6 +166,115 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/** Priority 1 — School / SP / DBE "Today" board */
+async function todayBoardView(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  companyId: number,
+  role: 'school' | 'isp' | 'agency'
+) {
+  if (role === 'school') {
+    const { school } = await getOrCreateSchoolProfile(supabase, companyId);
+    if (!school) {
+      return { success: false, error: 'School profile required' };
+    }
+    const { buildSchoolTodayBoard } = await import(
+      '@/lib/schools/today-board'
+    );
+    const board = await buildSchoolTodayBoard(supabase, {
+      companyId,
+      schoolProfileId: Number(school.id),
+      schoolName: String(school.school_name || ''),
+    });
+    const path = buildGoldenPath(
+      'school',
+      await gatherCounts(supabase, companyId, 'school')
+    );
+    return { success: true, role, board, path };
+  }
+
+  if (role === 'isp') {
+    // Compact SP today from fulfil queue signals
+    const fulfil = await fulfilView(supabase, companyId);
+    const queue = (fulfil.queue || []) as Array<Record<string, unknown>>;
+    const cards = [
+      {
+        id: 'need_dn',
+        severity: 'high' as const,
+        title: `${fulfil.summary?.need_dn ?? 0} PO(s) need DN`,
+        href: '/dashboard/schools/ops',
+        cta: 'Fulfil queue',
+        count: Number(fulfil.summary?.need_dn || 0),
+      },
+      {
+        id: 'late',
+        severity: 'critical' as const,
+        title: `${fulfil.summary?.late ?? 0} late vs required date`,
+        href: '/dashboard/schools/orders',
+        cta: 'SP inbox',
+        count: Number(fulfil.summary?.late || 0),
+      },
+      {
+        id: 'at_risk',
+        severity: 'medium' as const,
+        title: `${fulfil.summary?.at_risk ?? 0} at OTIF risk`,
+        href: '/dashboard/schools/ops',
+        cta: 'Open queue',
+        count: Number(fulfil.summary?.at_risk || 0),
+      },
+    ].filter((c) => (c.count || 0) > 0);
+    return {
+      success: true,
+      role,
+      board: {
+        date: today(),
+        cards:
+          cards.length > 0
+            ? cards
+            : [
+                {
+                  id: 'clear',
+                  severity: 'done' as const,
+                  title: 'No urgent fulfil items',
+                  href: '/dashboard/schools/ops',
+                  cta: 'Fulfil queue',
+                },
+              ],
+        summary: fulfil.summary,
+        next: cards[0] || null,
+        open_queue: queue.length,
+      },
+      path: fulfil.path,
+    };
+  }
+
+  // agency
+  const ex = await exceptionsView(supabase, companyId);
+  const list = (ex.exceptions || []) as Array<Record<string, unknown>>;
+  const cards = list.slice(0, 8).map((e, i) => ({
+    id: `ex-${i}`,
+    severity: String(e.severity || 'medium') as
+      | 'critical'
+      | 'high'
+      | 'medium'
+      | 'low',
+    title: String(e.title || e.kind),
+    detail: e.kind ? String(e.kind).replace(/_/g, ' ') : undefined,
+    href: String(e.href || '/dashboard/schools/ops'),
+    cta: 'Open',
+  }));
+  return {
+    success: true,
+    role,
+    board: {
+      date: today(),
+      cards,
+      summary: ex.summary,
+      next: cards[0] || null,
+    },
+    path: ex.path,
+  };
 }
 
 function today() {

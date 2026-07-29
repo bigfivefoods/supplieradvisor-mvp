@@ -786,11 +786,17 @@ function SchoolOps({
         >
           <Wallet className="w-3.5 h-3.5" /> Claims
         </Link>
+        <Link
+          href="/dashboard/schools/claims"
+          className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+        >
+          One-click claim
+        </Link>
         <button
           type="button"
           disabled={busy}
           onClick={onAuditPdf}
-          className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+          className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
         >
           <Download className="w-3.5 h-3.5" /> Audit pack PDF
         </button>

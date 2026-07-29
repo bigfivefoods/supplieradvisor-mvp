@@ -34,6 +34,7 @@ import {
 import type { SchoolReadiness } from '@/lib/schools/process';
 import GoldenPathStrip from '@/components/schools/GoldenPathStrip';
 import NsnpSystemFlow from '@/components/schools/NsnpSystemFlow';
+import SchoolTodayBoard from '@/components/schools/SchoolTodayBoard';
 
 export default function SchoolsHubPage() {
   return (
@@ -450,6 +451,11 @@ function Inner() {
               desc: 'BOM from catalogue · meals & product requirements',
             },
             {
+              href: '/dashboard/schools/approved-list?demo=1',
+              label: 'Demo seed (API)',
+              desc: 'POST /api/schools/demo-seed from DBE company for training catalogue',
+            },
+            {
               href: '/dashboard/schools/monitoring',
               label: 'NSNP Monitoring Tool',
               desc: 'Field worker form · KPI · RKMP · health & gardens',
@@ -527,6 +533,9 @@ function Inner() {
           How the system works
         </a>
       </div>
+
+      {/* Priority 1 — Today board */}
+      <SchoolTodayBoard companyId={companyId} />
 
       {/* Hero — ops first so principals act in seconds */}
       <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden flex flex-col sm:flex-row mb-4">

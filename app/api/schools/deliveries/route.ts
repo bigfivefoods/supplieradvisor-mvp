@@ -846,6 +846,11 @@ export async function POST(request: NextRequest) {
       // School receive → post GRN into kitchen stock (approved brands only)
       let grn: Record<string, unknown> | null = null;
       let prizeDelta: Record<string, unknown> | null = null;
+      let backorder: Awaited<
+        ReturnType<
+          typeof import('@/lib/schools/po-backorder').applyPoBackorderAfterGrn
+        >
+      > = null;
       if (isReceive) {
         grn = await postGrnFromDelivery(supabase, updated, companyId, gate.userId);
         if (grn?.id) {
@@ -855,18 +860,32 @@ export async function POST(request: NextRequest) {
             .eq('id', id);
           updated.grn_receipt_id = grn.id;
         }
-        // Update PO status
+        // Priority 2 — partial GRN → remaining backorder on PO
         if (updated.po_id) {
-          await supabase
-            .from('school_purchase_orders')
-            .update({
-              status: 'received',
-              delivery_status: 'received',
-              received_at: now,
-              received_pct: 100,
-              updated_at: now,
-            })
-            .eq('id', updated.po_id);
+          const { applyPoBackorderAfterGrn } = await import(
+            '@/lib/schools/po-backorder'
+          );
+          backorder = await applyPoBackorderAfterGrn(supabase, {
+            poId: Number(updated.po_id),
+            now,
+          });
+          if (backorder && !backorder.fully_received) {
+            await logNsnpEvent(supabase, {
+              companyId,
+              targetCompanyId: Number(d.isp_profile_id),
+              schoolProfileId: Number(d.school_profile_id),
+              kind: 'po_backorder',
+              title: 'Partial GRN — remaining qty still due',
+              body: `${backorder.backorder_lines.length} line(s) remaining (${backorder.received_pct}% received) on PO #${updated.po_id}`,
+              href: '/dashboard/schools/orders',
+              metadata: {
+                po_id: updated.po_id,
+                delivery_id: id,
+                backorder_lines: backorder.backorder_lines,
+                received_pct: backorder.received_pct,
+              },
+            });
+          }
         }
 
         const { livePrizeSnapshot, formatPrizeDelta } = await import(
@@ -922,19 +941,43 @@ export async function POST(request: NextRequest) {
           metadata: { delivery_id: d.id, action },
         });
       }
+      let backorderOut: {
+        fully_received: boolean;
+        received_pct: number;
+        backorder_lines: Array<Record<string, unknown>>;
+        po_status: string;
+      } | null = null;
+      if (isReceive && backorder) {
+        backorderOut = {
+          fully_received: backorder.fully_received,
+          received_pct: backorder.received_pct,
+          backorder_lines:
+            backorder.backorder_lines as unknown as Array<
+              Record<string, unknown>
+            >,
+          po_status: backorder.po_status,
+        };
+      }
       if (isReceive) {
         await logNsnpEvent(supabase, {
           companyId,
           targetCompanyId: Number(d.isp_profile_id),
           schoolProfileId: Number(d.school_profile_id),
           kind: 'delivery_received',
-          title: 'School received your delivery',
-          body: `Delivery ${d.delivery_number || d.id} confirmed into kitchen stock`,
+          title:
+            backorderOut && !backorderOut.fully_received
+              ? 'Partial school GRN — backorder remaining'
+              : 'School received your delivery',
+          body:
+            backorderOut && !backorderOut.fully_received
+              ? `Delivery ${d.delivery_number || d.id} — ${backorderOut.received_pct}% of PO received; remaining lines still due`
+              : `Delivery ${d.delivery_number || d.id} confirmed into kitchen stock`,
           href: '/dashboard/schools/deliveries',
           metadata: {
             delivery_id: d.id,
             grn_id: grn?.id,
             prize_delta: prizeDelta?.delta ?? null,
+            backorder: backorderOut,
           },
         });
       }
@@ -1013,9 +1056,13 @@ export async function POST(request: NextRequest) {
 
       let message: string | undefined;
       if (isReceive) {
-        message = grn
-          ? `Received — kitchen GRN posted. ${String(prizeDelta?.message || '')}`
-          : 'Delivery received';
+        if (backorderOut && !backorderOut.fully_received) {
+          message = `Partial GRN — ${backorderOut.received_pct}% of PO received; ${backorderOut.backorder_lines.length} line(s) still due from SP. ${String(prizeDelta?.message || '')}`;
+        } else {
+          message = grn
+            ? `Received — kitchen GRN posted. ${String(prizeDelta?.message || '')}`
+            : 'Delivery received';
+        }
       } else if (action === 'dispatch') {
         message = matching?.summary.clean
           ? 'Dispatched — matching report clean so far (await school GRN)'
@@ -1035,6 +1082,7 @@ export async function POST(request: NextRequest) {
         prize: prizeDelta,
         pod_warning: podWarning,
         matching,
+        backorder: backorderOut,
         message,
       });
     }

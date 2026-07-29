@@ -218,6 +218,112 @@ export async function GET(request: NextRequest) {
                   ? `Approved foods ${approvedBrandPct}% — need ≥${CLAIM_APPROVED_MIN_PCT}% for full claim submit (order only from department list)`
                   : null;
 
+    // Priority 3 — three-way match cleanliness for one-click claim
+    let matchSummary: {
+      pos: number;
+      matched: number;
+      partial: number;
+      gaps: number;
+      funding_path_ready: boolean;
+      clean: boolean;
+    } | null = null;
+    try {
+      const { data: posMatch } = await supabase
+        .from('school_purchase_orders')
+        .select('id')
+        .eq('school_profile_id', schoolId)
+        .gte('order_date', from)
+        .lte('order_date', to)
+        .limit(100);
+      const poIds = (posMatch || []).map((p) => Number(p.id));
+      let matched = 0;
+      let partial = 0;
+      let gaps = 0;
+      if (poIds.length) {
+        const { data: dels } = await supabase
+          .from('school_nsnp_deliveries')
+          .select('id, po_id, status, metadata')
+          .eq('school_profile_id', schoolId)
+          .in('po_id', poIds.slice(0, 100))
+          .limit(100);
+        const { data: grns } = await supabase
+          .from('school_kitchen_receipts')
+          .select('id, po_id, compliance_ok')
+          .eq('school_profile_id', schoolId)
+          .in('po_id', poIds.slice(0, 100))
+          .limit(100);
+        const delByPo = new Map<
+          number,
+          { metadata?: unknown; status?: string }
+        >();
+        for (const d of dels || []) {
+          if (d.po_id) {
+            delByPo.set(Number(d.po_id), {
+              metadata: d.metadata,
+              status: d.status != null ? String(d.status) : undefined,
+            });
+          }
+        }
+        const grnByPo = new Map<number, { compliance_ok?: boolean | null }>();
+        for (const g of grns || []) {
+          if (g.po_id) {
+            grnByPo.set(Number(g.po_id), {
+              compliance_ok: g.compliance_ok as boolean | null | undefined,
+            });
+          }
+        }
+        for (const id of poIds) {
+          const d = delByPo.get(id);
+          const g = grnByPo.get(id);
+          const hasPod = Boolean(
+            (d?.metadata as { has_pod_photo?: boolean } | undefined)
+              ?.has_pod_photo
+          );
+          const dnOk = Boolean(d);
+          const grnOk = Boolean(g);
+          const grnClean = g ? g.compliance_ok !== false : false;
+          const score =
+            (dnOk ? 1 : 0) +
+            (hasPod ? 1 : 0) +
+            (grnOk ? 1 : 0) +
+            (grnClean ? 1 : 0);
+          if (score >= 4) matched += 1;
+          else if (score >= 2) partial += 1;
+          else gaps += 1;
+        }
+      }
+      const clean =
+        poIds.length === 0
+          ? true
+          : matched === poIds.length && gaps === 0;
+      matchSummary = {
+        pos: poIds.length,
+        matched,
+        partial,
+        gaps,
+        funding_path_ready: clean && daysFed > 0 && mealsServed > 0,
+        clean,
+      };
+    } catch {
+      matchSummary = null;
+    }
+
+    const baseSubmitReady =
+      Boolean(agencyLink) &&
+      mealsServed > 0 &&
+      daysFed > 0 &&
+      !periodLocked &&
+      !agencyClaimsLocked &&
+      approvedBrandPct >= CLAIM_APPROVED_MIN_PCT &&
+      !approvedBlocked;
+
+    const matchBlocks =
+      matchSummary &&
+      matchSummary.pos > 0 &&
+      !matchSummary.clean
+        ? `Three-way match not clean (${matchSummary.matched}/${matchSummary.pos} matched, ${matchSummary.gaps} gap(s)) — fix POD/GRN first`
+        : null;
+
     const pack = {
       school_name: school.school_name,
       emis: school.emis_number,
@@ -246,15 +352,11 @@ export async function GET(request: NextRequest) {
       approved_min_pct: CLAIM_APPROVED_MIN_PCT,
       incentive_note: approvedIncentive.incentive_note,
       policy: SCHOOL_APPROVED_INCENTIVE_COPY,
-      submit_ready:
-        Boolean(agencyLink) &&
-        mealsServed > 0 &&
-        daysFed > 0 &&
-        !periodLocked &&
-        !agencyClaimsLocked &&
-        approvedBrandPct >= CLAIM_APPROVED_MIN_PCT &&
-        !approvedBlocked,
-      submit_block_reason: submitBlock,
+      match: matchSummary,
+      match_clean: matchSummary?.clean ?? null,
+      one_click_ready: baseSubmitReady && (matchSummary?.clean !== false),
+      submit_ready: baseSubmitReady && !matchBlocks,
+      submit_block_reason: submitBlock || matchBlocks,
     };
 
     return NextResponse.json({
@@ -310,6 +412,12 @@ export async function POST(request: NextRequest) {
     }
     const pack = json.pack as Record<string, unknown>;
 
+    // Priority 3 — one-click from clean match still requires declaration
+    const oneClick =
+      body.action === 'one_click' ||
+      body.action === 'submit_from_match' ||
+      body.one_click === true;
+
     if (pack.submit_ready === false) {
       return NextResponse.json(
         {
@@ -317,6 +425,23 @@ export async function POST(request: NextRequest) {
             String(pack.submit_block_reason) ||
             'Claim not ready — need active DBE association and at least one feeding day with meals served',
           pack,
+        },
+        { status: 400 }
+      );
+    }
+
+    if (
+      oneClick &&
+      pack.match &&
+      typeof pack.match === 'object' &&
+      (pack.match as { clean?: boolean }).clean === false
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'One-click claim blocked — three-way match is not clean for this period',
+          pack,
+          match: pack.match,
         },
         { status: 400 }
       );

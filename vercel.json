@@ -71,6 +71,14 @@
     {
       "path": "/api/system/claim-sla-cron",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/schools/otif-alerts/cron",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/schools/otif-alerts/cron",
+      "schedule": "0 14 * * *"
     }
   ]
 }

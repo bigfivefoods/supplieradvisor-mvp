@@ -35,6 +35,7 @@ function Inner() {
   const [history, setHistory] = useState<Array<Record<string, unknown>>>([]);
   const [declaration, setDeclaration] = useState(false);
   const [declarationName, setDeclarationName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -46,6 +47,7 @@ function Inner() {
       });
       const res = await fetch(`/api/schools/claims?${params}`, {
         cache: 'no-store',
+        credentials: 'same-origin',
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
@@ -62,17 +64,35 @@ function Inner() {
     void load();
   }, [load]);
 
-  const submit = async () => {
+  const match = (pack?.match || null) as {
+    pos?: number;
+    matched?: number;
+    partial?: number;
+    gaps?: number;
+    clean?: boolean;
+    funding_path_ready?: boolean;
+  } | null;
+  const oneClickReady = Boolean(pack?.one_click_ready);
+
+  const submit = async (oneClick = false) => {
     if (!declaration || declarationName.trim().length < 2) {
       toast.error(
         'Tick the declaration and type the principal / claim officer full name'
       );
       return;
     }
+    if (oneClick && match && match.clean === false) {
+      toast.error(
+        'One-click blocked — fix three-way match (POD / GRN) first'
+      );
+      return;
+    }
+    setSubmitting(true);
     try {
       const res = await fetch('/api/schools/claims', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({
           companyId,
           from: period.from,
@@ -80,18 +100,24 @@ function Inner() {
           status: 'submitted',
           declaration: true,
           declaration_name: declarationName.trim(),
+          action: oneClick ? 'one_click' : 'submit',
+          one_click: oneClick,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
       toast.success(
         data.message ||
-          'Claim submitted to DBE — awaits email approval before payment'
+          (oneClick
+            ? 'One-click claim submitted from clean match — DBE email approval next'
+            : 'Claim submitted to DBE — awaits email approval before payment')
       );
       setDeclaration(false);
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -247,6 +273,56 @@ function Inner() {
             ) : null}
           </div>
 
+          {/* Priority 3 — three-way match + one-click claim */}
+          <div
+            className={`rounded-2xl border px-4 py-4 mb-4 ${
+              match?.clean
+                ? 'border-emerald-200 bg-emerald-50/60'
+                : match && match.pos
+                  ? 'border-amber-200 bg-amber-50/60'
+                  : 'border-slate-200 bg-slate-50'
+            }`}
+          >
+            <p className="text-sm font-bold text-slate-900">
+              Three-way match · PO · DN · POD · GRN
+            </p>
+            {match ? (
+              <div className="mt-2 flex flex-wrap gap-3 text-sm">
+                <span className="font-black tabular-nums">
+                  {Number(match.matched || 0)}/{Number(match.pos || 0)} matched
+                </span>
+                <span className="text-slate-600">
+                  Partial {Number(match.partial || 0)} · Gaps{' '}
+                  {Number(match.gaps || 0)}
+                </span>
+                <span
+                  className={`text-xs font-black uppercase rounded-full px-2 py-0.5 ${
+                    match.clean
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-amber-100 text-amber-900'
+                  }`}
+                >
+                  {match.clean ? 'Clean' : 'Not clean'}
+                </span>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 mt-1">
+                Match status unavailable for this period.
+              </p>
+            )}
+            <p className="text-xs text-slate-600 mt-2">
+              {oneClickReady
+                ? 'One-click ready — declare and submit when match + feed days + approved brands are OK.'
+                : 'Fix short/over GRNs, missing POD, or off-catalogue lines before one-click claim.'}{' '}
+              <Link
+                href="/dashboard/schools/ops"
+                className="font-bold underline"
+              >
+                Supply ops
+              </Link>
+            </p>
+          </div>
+
           {pack.submit_block_reason ? (
             <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-3">
               {String(pack.submit_block_reason)}
@@ -283,18 +359,39 @@ function Inner() {
             </label>
           </div>
 
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={
-              pack.submit_ready === false ||
-              !declaration ||
-              declarationName.trim().length < 2
-            }
-            className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-2 mb-8 disabled:opacity-40"
-          >
-            <FileText className="w-4 h-4" /> Submit claim pack to DBE
-          </button>
+          <div className="flex flex-wrap gap-2 mb-8">
+            <button
+              type="button"
+              onClick={() => void submit(true)}
+              disabled={
+                !oneClickReady ||
+                pack.submit_ready === false ||
+                !declaration ||
+                declarationName.trim().length < 2 ||
+                submitting
+              }
+              className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-2 disabled:opacity-40 min-h-[44px]"
+              title="Requires clean three-way match + feed days + approved brands"
+            >
+              <FileText className="w-4 h-4" />
+              {submitting
+                ? 'Submitting…'
+                : 'One-click claim from clean match'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void submit(false)}
+              disabled={
+                pack.submit_ready === false ||
+                !declaration ||
+                declarationName.trim().length < 2 ||
+                submitting
+              }
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2 disabled:opacity-40 min-h-[44px]"
+            >
+              Submit claim pack to DBE
+            </button>
+          </div>
 
           {history.length > 0 ? (
             <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
