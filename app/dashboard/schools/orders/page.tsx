@@ -380,9 +380,9 @@ function Inner() {
               Wholesale supply model
             </p>
             <p className="text-[13px] mt-0.5">
-              School PO (approved catalogue only) with a required delivery date
-              → you buy from wholesalers → create DN &amp; dispatch with photo
-              POD by that date → school posts GRN → learners fed.
+              School PO → you fulfil (DN + POD) → school GRN. When received, the
+              action shows <strong>Fulfilled</strong> with that order&apos;s
+              OTIFEF and the school&apos;s rating of you.
             </p>
           </div>
         </div>
@@ -398,7 +398,7 @@ function Inner() {
           </div>
         ) : (
           <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
-            <table className="w-full text-sm min-w-[720px]">
+            <table className="w-full text-sm min-w-[960px]">
               <thead>
                 <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
                   <th className="px-4 py-3">PO</th>
@@ -408,6 +408,8 @@ function Inner() {
                   <th className="px-3 py-3">Lines</th>
                   <th className="px-3 py-3">Total</th>
                   <th className="px-3 py-3">Status</th>
+                  <th className="px-3 py-3">OTIFEF</th>
+                  <th className="px-3 py-3">Rating</th>
                   <th className="px-3 py-3 text-right">Action</th>
                 </tr>
               </thead>
@@ -420,21 +422,49 @@ function Inner() {
                     ? String(o.expected_date).slice(0, 10)
                     : '—';
                   const today = new Date().toISOString().slice(0, 10);
+                  const status = String(o.status || '').toLowerCase();
+                  const fulfilled = Boolean(
+                    o.fulfilled ??
+                      ['received', 'partially_received', 'closed', 'complete'].includes(
+                        status
+                      )
+                  );
                   const late =
                     req !== '—' &&
                     req < today &&
-                    !['received', 'cancelled', 'closed'].includes(
-                      String(o.status || '')
-                    );
+                    !fulfilled &&
+                    !['cancelled'].includes(status);
+                  const otifef =
+                    o.order_otifef_pct != null
+                      ? Number(o.order_otifef_pct)
+                      : fulfilled && o.sp_otifef_pct != null
+                        ? Number(o.sp_otifef_pct)
+                        : null;
+                  const rating =
+                    o.school_rating != null
+                      ? Number(o.school_rating)
+                      : fulfilled && o.sp_avg_rating != null
+                        ? Number(o.sp_avg_rating)
+                        : null;
                   return (
                     <tr
                       key={String(o.id)}
                       className={`border-b border-slate-50 ${
-                        late ? 'bg-rose-50/50' : 'hover:bg-amber-50/40'
+                        fulfilled
+                          ? 'bg-emerald-50/40'
+                          : late
+                            ? 'bg-rose-50/50'
+                            : 'hover:bg-amber-50/40'
                       }`}
                     >
                       <td className="px-4 py-2.5 font-bold">
-                        {String(o.po_number || o.id)}
+                        <button
+                          type="button"
+                          onClick={() => openPo(Number(o.id))}
+                          className="text-left hover:text-[#0077b6] hover:underline"
+                        >
+                          {String(o.po_number || o.id)}
+                        </button>
                       </td>
                       <td className="px-3 py-2.5">
                         {String(o.school_name || o.school_profile_id)}
@@ -455,22 +485,96 @@ function Inner() {
                             Late
                           </span>
                         ) : null}
+                        {o.received_at ? (
+                          <span className="block text-[9px] text-emerald-700 font-bold">
+                            Received {String(o.received_at).slice(0, 10)}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="px-3 py-2.5 tabular-nums">{lineCount}</td>
                       <td className="px-3 py-2.5 tabular-nums">
                         {formatMoney(Number(o.total_amount || 0))}
                       </td>
                       <td className="px-3 py-2.5">
-                        <span className="text-[10px] font-bold uppercase rounded-full bg-slate-100 px-2 py-0.5">
-                          {String(o.status)}
+                        <span
+                          className={`text-[10px] font-bold uppercase rounded-full px-2 py-0.5 border ${
+                            fulfilled
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                              : 'bg-slate-100 border-slate-200 text-slate-600'
+                          }`}
+                        >
+                          {fulfilled ? 'received' : String(o.status)}
                         </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-xs">
+                        {fulfilled || otifef != null ? (
+                          <div>
+                            <span className="font-black tabular-nums text-sky-900">
+                              {otifef != null ? `${otifef}%` : '—'}
+                            </span>
+                            {fulfilled ? (
+                              <span className="block text-[9px] text-slate-500 leading-tight mt-0.5">
+                                {o.order_on_time === true
+                                  ? 'On-time'
+                                  : o.order_on_time === false
+                                    ? 'Late'
+                                    : 'OT'}
+                                {' · '}
+                                {o.order_in_full === true
+                                  ? 'In-full'
+                                  : o.order_in_full === false
+                                    ? 'Short'
+                                    : 'IF'}
+                                {' · '}
+                                {o.order_error_free === true
+                                  ? 'Error-free'
+                                  : o.order_error_free === false
+                                    ? 'Issues'
+                                    : 'EF'}
+                              </span>
+                            ) : o.sp_otifef_pct != null ? (
+                              <span className="block text-[9px] text-slate-400">
+                                SP avg
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-xs">
+                        {rating != null ? (
+                          <span className="inline-flex items-center gap-0.5 font-black text-amber-700 tabular-nums">
+                            <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                            {rating.toFixed(1)}
+                          </span>
+                        ) : fulfilled ? (
+                          <span className="text-[10px] text-slate-400">
+                            Awaiting school
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         <div className="inline-flex flex-col items-end gap-0.5">
+                          {fulfilled ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-black text-emerald-800 bg-emerald-100 border border-emerald-200 rounded-full px-2.5 py-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Fulfilled
+                            </span>
+                          ) : (
+                            <Link
+                              href="/dashboard/schools/ops"
+                              className="text-xs font-bold text-amber-900 bg-amber-100 border border-amber-200 rounded-full px-2.5 py-1 hover:bg-amber-200 inline-flex items-center gap-1"
+                            >
+                              Fulfil <ArrowRight className="w-3 h-3" />
+                            </Link>
+                          )}
                           <button
                             type="button"
                             onClick={() => openPo(Number(o.id))}
-                            className="text-xs font-bold text-[#0077b6] hover:underline inline-flex items-center gap-1"
+                            className="text-[10px] font-bold text-[#0077b6] hover:underline inline-flex items-center gap-1"
                           >
                             <ExternalLink className="w-3 h-3" /> Open PDF
                           </button>
@@ -481,13 +585,13 @@ function Inner() {
                             }
                             className="text-[10px] font-bold text-slate-600 hover:underline inline-flex items-center gap-1"
                           >
-                            <Printer className="w-3 h-3" /> Download / print
+                            <Printer className="w-3 h-3" /> Download
                           </button>
                           <Link
-                            href="/dashboard/schools/ops"
-                            className="text-[10px] font-bold text-amber-800 hover:underline inline-flex items-center gap-1"
+                            href="/dashboard/schools/isp-sla"
+                            className="text-[10px] font-bold text-slate-500 hover:underline"
                           >
-                            Fulfil <ArrowRight className="w-3 h-3" />
+                            OTIFEF scores
                           </Link>
                         </div>
                       </td>
