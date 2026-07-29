@@ -18,6 +18,8 @@ import {
   Utensils,
   ArrowRight,
   ShoppingCart,
+  ExternalLink,
+  Printer,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -80,6 +82,20 @@ function Inner() {
   const [catalogueLabel, setCatalogueLabel] = useState(
     'department approved list'
   );
+
+  const openPo = (orderId: number, print = false) => {
+    const params = new URLSearchParams({
+      companyId: String(companyId),
+      id: String(orderId),
+      format: 'print',
+    });
+    if (print) params.set('autoprint', '1');
+    window.open(
+      `/api/schools/orders?${params}`,
+      '_blank',
+      'noopener,noreferrer'
+    );
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -449,17 +465,25 @@ function Inner() {
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         <div className="inline-flex flex-col items-end gap-0.5">
+                          <button
+                            type="button"
+                            onClick={() => openPo(Number(o.id), false)}
+                            className="text-xs font-bold text-[#0077b6] hover:underline inline-flex items-center gap-1"
+                          >
+                            <ExternalLink className="w-3 h-3" /> Open PO
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openPo(Number(o.id), true)}
+                            className="text-[10px] font-bold text-slate-600 hover:underline inline-flex items-center gap-1"
+                          >
+                            <Printer className="w-3 h-3" /> Print
+                          </button>
                           <Link
                             href="/dashboard/schools/ops"
-                            className="text-xs font-bold text-amber-800 hover:underline inline-flex items-center gap-1"
+                            className="text-[10px] font-bold text-amber-800 hover:underline inline-flex items-center gap-1"
                           >
                             Fulfil <ArrowRight className="w-3 h-3" />
-                          </Link>
-                          <Link
-                            href="/dashboard/schools/sp-orders-report"
-                            className="text-[10px] font-bold text-slate-500 hover:underline"
-                          >
-                            Full report
                           </Link>
                         </div>
                       </td>
@@ -792,7 +816,7 @@ function Inner() {
         </div>
       ) : (
         <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
-          <table className="w-full text-sm min-w-[800px]">
+          <table className="w-full text-sm min-w-[880px]">
             <thead>
               <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
                 <th className="px-4 py-3">PO</th>
@@ -802,6 +826,7 @@ function Inner() {
                 <th className="px-3 py-3">Lines</th>
                 <th className="px-3 py-3">Total</th>
                 <th className="px-3 py-3">Status</th>
+                <th className="px-3 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -810,17 +835,25 @@ function Inner() {
                   ? (o.lines as unknown[]).length
                   : 0;
                 const spName =
+                  o.isp_name ||
                   links.find(
                     (l) =>
                       Number(l.isp_profile_id) === Number(o.isp_profile_id)
-                  )?.display_name || o.isp_profile_id;
+                  )?.display_name ||
+                  o.isp_profile_id;
                 return (
                   <tr
                     key={String(o.id)}
                     className="border-b border-slate-50 hover:bg-sky-50/40"
                   >
                     <td className="px-4 py-2.5 font-bold">
-                      {String(o.po_number || o.id)}
+                      <button
+                        type="button"
+                        onClick={() => openPo(Number(o.id), false)}
+                        className="text-left hover:text-[#0077b6] hover:underline"
+                      >
+                        {String(o.po_number || o.id)}
+                      </button>
                     </td>
                     <td className="px-3 py-2.5 text-xs">
                       {String(o.order_date || '—').slice(0, 10)}
@@ -839,6 +872,24 @@ function Inner() {
                       <span className="text-[10px] font-bold uppercase rounded-full bg-slate-100 px-2 py-0.5">
                         {String(o.status)}
                       </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <div className="inline-flex flex-wrap justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openPo(Number(o.id), false)}
+                          className="text-[11px] font-bold text-[#0077b6] px-2 py-1 rounded-lg border border-sky-200 bg-sky-50 hover:bg-sky-100 inline-flex items-center gap-1"
+                        >
+                          <ExternalLink className="w-3 h-3" /> Open
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openPo(Number(o.id), true)}
+                          className="text-[11px] font-bold text-slate-700 px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 inline-flex items-center gap-1"
+                        >
+                          <Printer className="w-3 h-3" /> Print
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

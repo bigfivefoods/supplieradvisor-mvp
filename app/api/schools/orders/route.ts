@@ -10,14 +10,22 @@ import {
   filterApprovedProductIds,
   resolveCatalogueContext,
 } from '@/lib/schools/approved-catalogue';
+import {
+  buildSchoolPoHtml,
+  type PoDocumentInput,
+  type PoParty,
+} from '@/lib/schools/po-document';
 
 /**
  * School NSNP POs — every line must be on the approved product list.
  * GET: schools see their POs; SPs see orders placed on them (wholesale supply inbox).
+ *      ?id= · single PO detail with school + SP parties
+ *      ?id=&format=print · printable HTML (open/print)
  */
 export async function GET(request: NextRequest) {
   try {
-    const companyId = Number(request.nextUrl.searchParams.get('companyId'));
+    const sp = request.nextUrl.searchParams;
+    const companyId = Number(sp.get('companyId'));
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
@@ -27,6 +35,36 @@ export async function GET(request: NextRequest) {
     if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
+    const orderId = sp.get('id') ? Number(sp.get('id')) : null;
+    const format = String(sp.get('format') || 'json').toLowerCase();
+
+    // Single PO detail / print
+    if (orderId && Number.isFinite(orderId)) {
+      const detail = await loadPoDetail(supabase, companyId, orderId);
+      if (!detail.ok) {
+        return NextResponse.json(
+          { error: detail.error },
+          { status: detail.status }
+        );
+      }
+      if (format === 'print' || format === 'html') {
+        const html = buildSchoolPoHtml(detail.doc);
+        return new NextResponse(html, {
+          headers: {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-store',
+          },
+        });
+      }
+      return NextResponse.json({
+        success: true,
+        role: detail.role,
+        order: detail.order,
+        school: detail.school,
+        isp: detail.isp,
+        agency_name: detail.agency_name,
+      });
+    }
 
     // SP inbox: POs where this company is the service provider
     const { data: ispRow } = await supabase
@@ -70,6 +108,7 @@ export async function GET(request: NextRequest) {
         school_name:
           nameMap.get(Number(o.school_profile_id)) ||
           `School ${o.school_profile_id}`,
+        isp_name: String(ispRow.trading_name || 'Your SP'),
         role: 'isp',
       }));
       return NextResponse.json({
@@ -98,10 +137,56 @@ export async function GET(request: NextRequest) {
     if (oErr) {
       return NextResponse.json({ error: oErr.message }, { status: 400 });
     }
+
+    // Enrich SP display names for school list
+    const ispIds = [
+      ...new Set(
+        (data || [])
+          .map((o) => Number(o.isp_profile_id))
+          .filter((n) => Number.isFinite(n) && n > 0)
+      ),
+    ];
+    const ispNames = new Map<number, string>();
+    if (ispIds.length) {
+      const { data: isps } = await supabase
+        .from('nsnp_isp_profiles')
+        .select('profile_id, trading_name')
+        .in('profile_id', ispIds);
+      for (const i of isps || []) {
+        ispNames.set(
+          Number(i.profile_id),
+          String(i.trading_name || `SP ${i.profile_id}`)
+        );
+      }
+      const missing = ispIds.filter((id) => !ispNames.has(id));
+      if (missing.length) {
+        const { data: profs } = await supabase
+          .from('profiles')
+          .select('id, trading_name, legal_name')
+          .in('id', missing);
+        for (const p of profs || []) {
+          ispNames.set(
+            Number(p.id),
+            String(p.trading_name || p.legal_name || `SP ${p.id}`)
+          );
+        }
+      }
+    }
+
+    const orders = (data || []).map((o) => ({
+      ...o,
+      isp_name:
+        ispNames.get(Number(o.isp_profile_id)) ||
+        (o.isp_profile_id ? `SP ${o.isp_profile_id}` : '—'),
+      school_name: String(
+        (school as { school_name?: string }).school_name || 'School'
+      ),
+    }));
+
     return NextResponse.json({
       success: true,
       role: 'school',
-      orders: data || [],
+      orders,
       process:
         'Order only DBE-approved products from your linked SP. The SP sources from wholesalers and delivers to your school with POD.',
     });
@@ -111,6 +196,197 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+async function loadPoDetail(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  companyId: number,
+  orderId: number
+): Promise<
+  | {
+      ok: true;
+      role: 'school' | 'isp';
+      order: Record<string, unknown>;
+      school: PoParty;
+      isp: PoParty;
+      agency_name: string | null;
+      doc: PoDocumentInput;
+    }
+  | { ok: false; error: string; status: number }
+> {
+  const { data: order, error } = await supabase
+    .from('school_purchase_orders')
+    .select('*')
+    .eq('id', orderId)
+    .maybeSingle();
+  if (error || !order) {
+    return { ok: false, error: error?.message || 'PO not found', status: 404 };
+  }
+
+  const schoolProfileId = Number(order.school_profile_id);
+  const ispProfileId = Number(order.isp_profile_id);
+  const ownerProfileId = Number(order.profile_id);
+
+  // Access: school company, school profile company, or SP on the PO
+  let role: 'school' | 'isp' = 'school';
+  const isOwner = ownerProfileId === companyId;
+  const isSp = ispProfileId === companyId;
+  if (!isOwner && !isSp) {
+    // School might match via school_profiles.profile_id
+    const { data: sch } = await supabase
+      .from('school_profiles')
+      .select('id, profile_id')
+      .eq('id', schoolProfileId)
+      .maybeSingle();
+    if (!sch || Number(sch.profile_id) !== companyId) {
+      return { ok: false, error: 'Not authorised for this PO', status: 403 };
+    }
+  }
+  if (isSp && !isOwner) role = 'isp';
+
+  const { data: schoolRow } = await supabase
+    .from('school_profiles')
+    .select(
+      'id, school_name, emis_number, district, province, address, contact_name, contact_phone, contact_email, profile_id, primary_agency_profile_id'
+    )
+    .eq('id', schoolProfileId)
+    .maybeSingle();
+
+  let schoolParty: PoParty = {
+    name: String(schoolRow?.school_name || `School ${schoolProfileId}`),
+    emis_number: schoolRow?.emis_number != null ? String(schoolRow.emis_number) : null,
+    district: schoolRow?.district != null ? String(schoolRow.district) : null,
+    province: schoolRow?.province != null ? String(schoolRow.province) : null,
+    address: schoolRow?.address != null ? String(schoolRow.address) : null,
+    contact_name:
+      schoolRow?.contact_name != null ? String(schoolRow.contact_name) : null,
+    contact_phone:
+      schoolRow?.contact_phone != null ? String(schoolRow.contact_phone) : null,
+    contact_email:
+      schoolRow?.contact_email != null ? String(schoolRow.contact_email) : null,
+  };
+
+  // Fallback school contacts from company profile
+  if (schoolRow?.profile_id) {
+    const { data: spProf } = await supabase
+      .from('profiles')
+      .select('trading_name, legal_name, city, province, phone, email, address')
+      .eq('id', Number(schoolRow.profile_id))
+      .maybeSingle();
+    if (spProf) {
+      if (!schoolParty.contact_phone && spProf.phone) {
+        schoolParty.contact_phone = String(spProf.phone);
+      }
+      if (!schoolParty.contact_email && spProf.email) {
+        schoolParty.contact_email = String(spProf.email);
+      }
+      if (!schoolParty.address && spProf.address) {
+        schoolParty.address = String(spProf.address);
+      }
+      if (!schoolParty.province && spProf.province) {
+        schoolParty.province = String(spProf.province);
+      }
+    }
+  }
+
+  let ispParty: PoParty = {
+    name: ispProfileId ? `SP ${ispProfileId}` : 'Service provider',
+  };
+  if (ispProfileId) {
+    const { data: isp } = await supabase
+      .from('nsnp_isp_profiles')
+      .select(
+        'profile_id, trading_name, contact_name, contact_phone, contact_email, csd_number, province, district'
+      )
+      .eq('profile_id', ispProfileId)
+      .maybeSingle();
+    const { data: ispProf } = await supabase
+      .from('profiles')
+      .select('trading_name, legal_name, city, province, phone, email, address')
+      .eq('id', ispProfileId)
+      .maybeSingle();
+    ispParty = {
+      name: String(
+        isp?.trading_name ||
+          ispProf?.trading_name ||
+          ispProf?.legal_name ||
+          `SP ${ispProfileId}`
+      ),
+      trading_name: ispProf?.trading_name != null ? String(ispProf.trading_name) : null,
+      csd_number: isp?.csd_number != null ? String(isp.csd_number) : null,
+      district: isp?.district != null ? String(isp.district) : null,
+      province:
+        isp?.province != null
+          ? String(isp.province)
+          : ispProf?.province != null
+            ? String(ispProf.province)
+            : null,
+      address: ispProf?.address != null ? String(ispProf.address) : null,
+      contact_name:
+        isp?.contact_name != null
+          ? String(isp.contact_name)
+          : null,
+      contact_phone:
+        isp?.contact_phone != null
+          ? String(isp.contact_phone)
+          : ispProf?.phone != null
+            ? String(ispProf.phone)
+            : null,
+      contact_email:
+        isp?.contact_email != null
+          ? String(isp.contact_email)
+          : ispProf?.email != null
+            ? String(ispProf.email)
+            : null,
+    };
+  }
+
+  let agency_name: string | null = null;
+  const agencyId = schoolRow?.primary_agency_profile_id
+    ? Number(schoolRow.primary_agency_profile_id)
+    : null;
+  if (agencyId) {
+    const { data: ag } = await supabase
+      .from('nsnp_agency_profiles')
+      .select('agency_name')
+      .eq('profile_id', agencyId)
+      .maybeSingle();
+    if (ag?.agency_name) agency_name = String(ag.agency_name);
+  }
+  if (!agency_name) {
+    const cat = await resolveCatalogueContext(supabase, companyId, {
+      schoolProfileId,
+    });
+    agency_name = cat.agencyName;
+  }
+
+  const lines = Array.isArray(order.lines) ? order.lines : [];
+  const doc: PoDocumentInput = {
+    po_number: String(order.po_number || `PO-${order.id}`),
+    status: String(order.status || 'submitted'),
+    order_date: order.order_date != null ? String(order.order_date) : null,
+    expected_date:
+      order.expected_date != null ? String(order.expected_date) : null,
+    currency: order.currency != null ? String(order.currency) : 'ZAR',
+    total_amount:
+      order.total_amount != null ? Number(order.total_amount) : null,
+    notes: order.notes != null ? String(order.notes) : null,
+    compliance_ok: order.compliance_ok !== false,
+    lines: lines as PoDocumentInput['lines'],
+    school: schoolParty,
+    isp: ispParty,
+    agency_name,
+  };
+
+  return {
+    ok: true,
+    role,
+    order: order as Record<string, unknown>,
+    school: schoolParty,
+    isp: ispParty,
+    agency_name,
+    doc,
+  };
 }
 
 export async function POST(request: NextRequest) {
