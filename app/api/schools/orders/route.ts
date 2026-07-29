@@ -247,23 +247,38 @@ async function loadPoDetail(
   const { data: schoolRow } = await supabase
     .from('school_profiles')
     .select(
-      'id, school_name, emis_number, district, province, address, contact_name, contact_phone, contact_email, profile_id, primary_agency_profile_id'
+      'id, school_name, emis_number, district, province, address, city, principal_name, principal_phone, principal_email, nsnp_coordinator_name, nsnp_coordinator_email, profile_id, primary_agency_profile_id'
     )
     .eq('id', schoolProfileId)
     .maybeSingle();
+
+  const schoolAddress = [schoolRow?.address, schoolRow?.city]
+    .filter(Boolean)
+    .map(String)
+    .join(', ');
 
   let schoolParty: PoParty = {
     name: String(schoolRow?.school_name || `School ${schoolProfileId}`),
     emis_number: schoolRow?.emis_number != null ? String(schoolRow.emis_number) : null,
     district: schoolRow?.district != null ? String(schoolRow.district) : null,
     province: schoolRow?.province != null ? String(schoolRow.province) : null,
-    address: schoolRow?.address != null ? String(schoolRow.address) : null,
+    address: schoolAddress || null,
     contact_name:
-      schoolRow?.contact_name != null ? String(schoolRow.contact_name) : null,
+      schoolRow?.principal_name != null
+        ? String(schoolRow.principal_name)
+        : schoolRow?.nsnp_coordinator_name != null
+          ? String(schoolRow.nsnp_coordinator_name)
+          : null,
     contact_phone:
-      schoolRow?.contact_phone != null ? String(schoolRow.contact_phone) : null,
+      schoolRow?.principal_phone != null
+        ? String(schoolRow.principal_phone)
+        : null,
     contact_email:
-      schoolRow?.contact_email != null ? String(schoolRow.contact_email) : null,
+      schoolRow?.principal_email != null
+        ? String(schoolRow.principal_email)
+        : schoolRow?.nsnp_coordinator_email != null
+          ? String(schoolRow.nsnp_coordinator_email)
+          : null,
   };
 
   // Fallback school contacts from company profile
