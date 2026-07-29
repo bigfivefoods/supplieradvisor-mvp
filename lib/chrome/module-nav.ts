@@ -646,6 +646,20 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Supply',
       },
       {
+        name: 'SP OTIFEF',
+        href: '/dashboard/schools/isp-sla',
+        desc: 'On-time · in-full · error-free',
+        group: 'School',
+        section: 'Supply',
+      },
+      {
+        name: 'Rate SP & food',
+        href: '/dashboard/schools/ratings',
+        desc: 'Rate suppliers · meal feedback',
+        group: 'School',
+        section: 'Supply',
+      },
+      {
         name: 'Orders',
         href: '/dashboard/schools/orders',
         desc: 'Purchase orders',
