@@ -6,14 +6,20 @@ import PDFDocument from 'pdfkit';
 export type PoParty = {
   name: string;
   trading_name?: string | null;
+  legal_name?: string | null;
   emis_number?: string | null;
+  /** National EMIS (NATEMIS) — school registry */
+  natemis?: string | null;
   district?: string | null;
   province?: string | null;
   address?: string | null;
   contact_name?: string | null;
   contact_phone?: string | null;
   contact_email?: string | null;
+  /** Central Supplier Database number — SP */
   csd_number?: string | null;
+  /** school | isp — controls which registry numbers are emphasised */
+  kind?: 'school' | 'isp';
 };
 
 export type PoLine = {
@@ -66,12 +72,37 @@ function plain(s: unknown): string {
 }
 
 function partyLines(p: PoParty): string[] {
-  const out: string[] = [plain(p.name) || '—'];
-  if (p.trading_name && p.trading_name !== p.name) {
+  // Prefer trading / display name as first line (service provider name on PO)
+  const displayName =
+    plain(p.name) ||
+    plain(p.trading_name) ||
+    plain(p.legal_name) ||
+    '—';
+  const out: string[] = [displayName];
+  if (p.legal_name && plain(p.legal_name) !== displayName) {
+    out.push(`Legal: ${plain(p.legal_name)}`);
+  } else if (
+    p.trading_name &&
+    plain(p.trading_name) !== displayName &&
+    plain(p.trading_name)
+  ) {
     out.push(`t/a ${plain(p.trading_name)}`);
   }
-  if (p.emis_number) out.push(`EMIS: ${plain(p.emis_number)}`);
-  if (p.csd_number) out.push(`CSD: ${plain(p.csd_number)}`);
+  // School: NATEMIS first (national number), then local EMIS if different
+  if (p.kind === 'school' || p.natemis || p.emis_number) {
+    if (p.natemis) out.push(`NATEMIS: ${plain(p.natemis)}`);
+    if (p.emis_number && plain(p.emis_number) !== plain(p.natemis || '')) {
+      out.push(`EMIS: ${plain(p.emis_number)}`);
+    }
+  }
+  // SP: CSD number is required on official PO
+  if (p.kind === 'isp' || p.csd_number) {
+    out.push(
+      p.csd_number
+        ? `CSD NUMBER: ${plain(p.csd_number)}`
+        : 'CSD NUMBER: —'
+    );
+  }
   const loc = [p.district, p.province].filter(Boolean).map(plain).join(', ');
   if (loc) out.push(loc);
   if (p.address) out.push(plain(p.address));
@@ -210,10 +241,12 @@ export async function buildSchoolPoPdf(doc: PoDocumentInput): Promise<Buffer> {
       return h;
     };
 
-    const h1 = partyBox('SCHOOL (BUYER)', doc.school, MARGIN, y);
+    const schoolParty: PoParty = { ...doc.school, kind: 'school' };
+    const ispParty: PoParty = { ...doc.isp, kind: 'isp' };
+    const h1 = partyBox('SCHOOL (BUYER)', schoolParty, MARGIN, y);
     const h2 = partyBox(
       'SERVICE PROVIDER (SUPPLIER)',
-      doc.isp,
+      ispParty,
       MARGIN + colW + 12,
       y
     );
@@ -399,23 +432,26 @@ export async function buildSchoolPoPdf(doc: PoDocumentInput): Promise<Buffer> {
 }
 
 function partyBlock(title: string, p: PoParty): string {
+  const kinded: PoParty = {
+    ...p,
+    kind: p.kind || (title.toLowerCase().includes('service') ? 'isp' : 'school'),
+  };
+  const body = partyLines(kinded);
+  const [name, ...rest] = body;
   const lines: string[] = [];
   lines.push(`<div class="party-title">${esc(title)}</div>`);
-  lines.push(`<div class="party-name">${esc(p.name || '—')}</div>`);
-  if (p.trading_name && p.trading_name !== p.name) {
-    lines.push(`<div class="muted">t/a ${esc(p.trading_name)}</div>`);
-  }
-  if (p.emis_number) lines.push(`<div>EMIS: ${esc(p.emis_number)}</div>`);
-  if (p.csd_number) lines.push(`<div>CSD: ${esc(p.csd_number)}</div>`);
-  if (p.district || p.province) {
+  lines.push(`<div class="party-name">${esc(name || '—')}</div>`);
+  for (const line of rest) {
+    const isKey =
+      line.startsWith('NATEMIS:') ||
+      line.startsWith('CSD NUMBER:') ||
+      line.startsWith('EMIS:');
     lines.push(
-      `<div>${esc([p.district, p.province].filter(Boolean).join(', '))}</div>`
+      isKey
+        ? `<div class="id-line">${esc(line)}</div>`
+        : `<div>${esc(line)}</div>`
     );
   }
-  if (p.address) lines.push(`<div>${esc(p.address)}</div>`);
-  if (p.contact_name) lines.push(`<div>Contact: ${esc(p.contact_name)}</div>`);
-  if (p.contact_phone) lines.push(`<div>Tel: ${esc(p.contact_phone)}</div>`);
-  if (p.contact_email) lines.push(`<div>Email: ${esc(p.contact_email)}</div>`);
   return `<div class="party">${lines.join('')}</div>`;
 }
 
@@ -519,6 +555,7 @@ export function buildSchoolPoHtml(doc: PoDocumentInput): string {
       margin-bottom: 4px;
     }
     .party-name { font-size: 15px; font-weight: 800; margin-bottom: 4px; }
+    .id-line { font-weight: 800; font-size: 12px; color: #0f172a; margin-top: 2px; }
     .muted { color: var(--muted); font-size: 12px; }
     table.lines {
       width: 100%;

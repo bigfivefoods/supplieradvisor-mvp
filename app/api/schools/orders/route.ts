@@ -257,22 +257,45 @@ async function loadPoDetail(
   }
   if (isSp && !isOwner) role = 'isp';
 
-  const { data: schoolRow } = await supabase
-    .from('school_profiles')
-    .select(
-      'id, school_name, emis_number, district, province, address, city, principal_name, principal_phone, principal_email, nsnp_coordinator_name, nsnp_coordinator_email, profile_id, primary_agency_profile_id'
-    )
-    .eq('id', schoolProfileId)
-    .maybeSingle();
+  let schoolRow: Record<string, unknown> | null = null;
+  {
+    const full = await supabase
+      .from('school_profiles')
+      .select(
+        'id, school_name, emis_number, natemis, district, province, address, city, principal_name, principal_phone, principal_email, nsnp_coordinator_name, nsnp_coordinator_email, profile_id, primary_agency_profile_id'
+      )
+      .eq('id', schoolProfileId)
+      .maybeSingle();
+    if (full.error && /natemis|column/i.test(full.error.message)) {
+      const soft = await supabase
+        .from('school_profiles')
+        .select(
+          'id, school_name, emis_number, district, province, address, city, principal_name, principal_phone, principal_email, nsnp_coordinator_name, nsnp_coordinator_email, profile_id, primary_agency_profile_id'
+        )
+        .eq('id', schoolProfileId)
+        .maybeSingle();
+      schoolRow = (soft.data as Record<string, unknown>) || null;
+    } else {
+      schoolRow = (full.data as Record<string, unknown>) || null;
+    }
+  }
 
   const schoolAddress = [schoolRow?.address, schoolRow?.city]
     .filter(Boolean)
     .map(String)
     .join(', ');
 
+  const natemisVal =
+    schoolRow?.natemis != null && String(schoolRow.natemis).trim()
+      ? String(schoolRow.natemis).trim()
+      : null;
+
   let schoolParty: PoParty = {
+    kind: 'school',
     name: String(schoolRow?.school_name || `School ${schoolProfileId}`),
-    emis_number: schoolRow?.emis_number != null ? String(schoolRow.emis_number) : null,
+    emis_number:
+      schoolRow?.emis_number != null ? String(schoolRow.emis_number) : null,
+    natemis: natemisVal,
     district: schoolRow?.district != null ? String(schoolRow.district) : null,
     province: schoolRow?.province != null ? String(schoolRow.province) : null,
     address: schoolAddress || null,
@@ -318,30 +341,74 @@ async function loadPoDetail(
   }
 
   let ispParty: PoParty = {
-    name: ispProfileId ? `SP ${ispProfileId}` : 'Service provider',
+    kind: 'isp',
+    name: ispProfileId ? `Service provider ${ispProfileId}` : 'Service provider',
   };
   if (ispProfileId) {
-    const { data: isp } = await supabase
-      .from('nsnp_isp_profiles')
-      .select(
-        'profile_id, trading_name, contact_name, contact_phone, contact_email, csd_number, province, district'
-      )
-      .eq('profile_id', ispProfileId)
-      .maybeSingle();
+    // Prefer full SP registry row (name + CSD)
+    let isp: Record<string, unknown> | null = null;
+    {
+      const { data } = await supabase
+        .from('nsnp_isp_profiles')
+        .select(
+          'profile_id, trading_name, contact_name, contact_phone, contact_email, csd_number, province, district, metadata'
+        )
+        .eq('profile_id', ispProfileId)
+        .maybeSingle();
+      isp = data as Record<string, unknown> | null;
+    }
     const { data: ispProf } = await supabase
       .from('profiles')
-      .select('trading_name, legal_name, city, province, phone, email, address')
+      .select(
+        'trading_name, legal_name, city, province, phone, email, address, contact_name, contact_phone'
+      )
       .eq('id', ispProfileId)
       .maybeSingle();
+
+    const meta =
+      isp?.metadata && typeof isp.metadata === 'object'
+        ? (isp.metadata as Record<string, unknown>)
+        : {};
+    const metaName = [
+      meta.trading_name,
+      meta.name,
+      meta.registered_name,
+      meta.company_name,
+    ]
+      .map((v) => (v != null ? String(v).trim() : ''))
+      .find((v) => v.length > 0);
+
+    const spName =
+      [
+        isp?.trading_name,
+        ispProf?.trading_name,
+        ispProf?.legal_name,
+        metaName,
+      ]
+        .map((v) => (v != null ? String(v).trim() : ''))
+        .find((v) => v.length > 0) || `Service provider ${ispProfileId}`;
+
+    const csdRaw =
+      isp?.csd_number != null
+        ? String(isp.csd_number).trim()
+        : meta.csd_number != null
+          ? String(meta.csd_number).trim()
+          : meta.csd != null
+            ? String(meta.csd).trim()
+            : '';
+
     ispParty = {
-      name: String(
-        isp?.trading_name ||
-          ispProf?.trading_name ||
-          ispProf?.legal_name ||
-          `SP ${ispProfileId}`
-      ),
-      trading_name: ispProf?.trading_name != null ? String(ispProf.trading_name) : null,
-      csd_number: isp?.csd_number != null ? String(isp.csd_number) : null,
+      kind: 'isp',
+      name: spName,
+      trading_name:
+        isp?.trading_name != null
+          ? String(isp.trading_name)
+          : ispProf?.trading_name != null
+            ? String(ispProf.trading_name)
+            : null,
+      legal_name:
+        ispProf?.legal_name != null ? String(ispProf.legal_name) : null,
+      csd_number: csdRaw || null,
       district: isp?.district != null ? String(isp.district) : null,
       province:
         isp?.province != null
@@ -353,13 +420,17 @@ async function loadPoDetail(
       contact_name:
         isp?.contact_name != null
           ? String(isp.contact_name)
-          : null,
+          : ispProf?.contact_name != null
+            ? String(ispProf.contact_name)
+            : null,
       contact_phone:
         isp?.contact_phone != null
           ? String(isp.contact_phone)
           : ispProf?.phone != null
             ? String(ispProf.phone)
-            : null,
+            : ispProf?.contact_phone != null
+              ? String(ispProf.contact_phone)
+              : null,
       contact_email:
         isp?.contact_email != null
           ? String(isp.contact_email)
@@ -401,8 +472,8 @@ async function loadPoDetail(
     notes: order.notes != null ? String(order.notes) : null,
     compliance_ok: order.compliance_ok !== false,
     lines: lines as PoDocumentInput['lines'],
-    school: schoolParty,
-    isp: ispParty,
+    school: { ...schoolParty, kind: 'school' },
+    isp: { ...ispParty, kind: 'isp' },
     agency_name,
   };
 
