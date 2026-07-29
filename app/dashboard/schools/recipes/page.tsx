@@ -158,9 +158,11 @@ function Inner() {
   const [wastage, setWastage] = useState('5');
 
   // Budget editor
+  const [bEditId, setBEditId] = useState<number | null>(null);
   const [bCategory, setBCategory] = useState('');
   const [bAmount, setBAmount] = useState('');
   const [bPrice, setBPrice] = useState('');
+  const [bUom, setBUom] = useState('kg');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -333,6 +335,37 @@ function Inner() {
     }
   };
 
+  const clearBudgetForm = () => {
+    setBEditId(null);
+    setBCategory('');
+    setBAmount('');
+    setBPrice('');
+    setBUom('kg');
+  };
+
+  const openEditBudget = (b: Budget) => {
+    setBEditId(b.id ?? null);
+    setBCategory(b.category || '');
+    setBAmount(String(b.budget_amount_zar ?? ''));
+    setBPrice(
+      b.unit_price_zar != null && b.unit_price_zar !== undefined
+        ? String(b.unit_price_zar)
+        : ''
+    );
+    setBUom(b.uom || 'kg');
+    // Keep the row’s period so Update does not rewrite dates to the slicer range
+    if (b.period_from && b.period_to) {
+      setPeriod((prev) => ({
+        ...prev,
+        from: b.period_from,
+        to: b.period_to,
+        label: `${b.period_from} → ${b.period_to}`,
+        preset: 'custom',
+      }));
+    }
+    setTab('budgets');
+  };
+
   const saveBudget = async () => {
     if (!canEdit) return;
     if (!bCategory.trim()) return toast.error('Category required');
@@ -344,25 +377,46 @@ function Inner() {
         body: JSON.stringify({
           companyId,
           action: 'save_budget',
+          id: bEditId || undefined,
           category: bCategory.trim(),
           period_from: period.from,
           period_to: period.to,
           budget_amount_zar: Number(bAmount) || 0,
           unit_price_zar: bPrice === '' ? null : Number(bPrice),
-          uom: 'kg',
+          uom: bUom.trim() || 'kg',
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Save failed');
-      toast.success('Category budget saved');
-      setBCategory('');
-      setBAmount('');
-      setBPrice('');
+      toast.success(bEditId ? 'Category budget updated' : 'Category budget saved');
+      clearBudgetForm();
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Save failed');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const deleteBudget = async (id: number) => {
+    if (!confirm('Delete this category budget?')) return;
+    try {
+      const res = await fetch('/api/schools/recipes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          action: 'delete_budget',
+          id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Delete failed');
+      toast.success('Budget deleted');
+      if (bEditId === id) clearBudgetForm();
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Delete failed');
     }
   };
 
@@ -703,69 +757,153 @@ function Inner() {
         </div>
       ) : tab === 'budgets' && canEdit ? (
         <div className="space-y-4">
-          <div className="rounded-3xl border border-slate-200 bg-white p-4 grid sm:grid-cols-4 gap-2 items-end">
-            <label className="text-xs sm:col-span-1">
-              <span className="text-[10px] font-bold uppercase text-slate-400">
-                Category
-              </span>
-              <input
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                list="cat-list"
-                value={bCategory}
-                onChange={(e) => setBCategory(e.target.value)}
-                placeholder="e.g. maize_meal"
-              />
-              <datalist id="cat-list">
-                {categories.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
-            </label>
-            <label className="text-xs">
-              <span className="text-[10px] font-bold uppercase text-slate-400">
-                Budget (R)
-              </span>
-              <input
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                value={bAmount}
-                onChange={(e) => setBAmount(e.target.value)}
-              />
-            </label>
-            <label className="text-xs">
-              <span className="text-[10px] font-bold uppercase text-slate-400">
-                Est. unit price (R)
-              </span>
-              <input
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                value={bPrice}
-                onChange={(e) => setBPrice(e.target.value)}
-                placeholder="For MRP cost"
-              />
-            </label>
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => void saveBudget()}
-              className="btn-primary !py-2 !px-3 text-xs"
-            >
-              Save budget
-            </button>
+          <div className="mb-2">
+            <PeriodSlicer value={period} onChange={setPeriod} />
+          </div>
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-black">
+                {bEditId
+                  ? `Edit category budget #${bEditId}`
+                  : 'New category budget'}
+              </p>
+              {bEditId ? (
+                <button
+                  type="button"
+                  onClick={clearBudgetForm}
+                  className="text-[11px] font-bold text-slate-500 hover:text-slate-800"
+                >
+                  Cancel edit · new
+                </button>
+              ) : null}
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-2 items-end">
+              <label className="text-xs lg:col-span-1">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Category
+                </span>
+                <input
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  list="cat-list"
+                  value={bCategory}
+                  onChange={(e) => setBCategory(e.target.value)}
+                  placeholder="e.g. maize_meal, cereal"
+                />
+                <datalist id="cat-list">
+                  {categories.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
+              </label>
+              <label className="text-xs">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Budget amount (R)
+                </span>
+                <input
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold tabular-nums"
+                  value={bAmount}
+                  onChange={(e) => setBAmount(e.target.value)}
+                  placeholder="e.g. 50000"
+                  inputMode="decimal"
+                />
+                <span className="block mt-0.5 text-[10px] text-slate-400">
+                  Total R for this category in the period
+                </span>
+              </label>
+              <label className="text-xs">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Est. unit price
+                </span>
+                <div className="flex rounded-xl border border-slate-200 overflow-hidden bg-white focus-within:ring-2 focus-within:ring-sky-200">
+                  <span className="px-2.5 py-2 text-xs font-black text-slate-500 bg-slate-50 border-r border-slate-200">
+                    R
+                  </span>
+                  <input
+                    className="min-w-0 flex-1 px-2 py-2 text-sm tabular-nums outline-none"
+                    value={bPrice}
+                    onChange={(e) => setBPrice(e.target.value)}
+                    placeholder="e.g. 90"
+                    inputMode="decimal"
+                  />
+                  <span className="px-2.5 py-2 text-xs font-black text-sky-800 bg-sky-50 border-l border-slate-200 whitespace-nowrap">
+                    / {bUom || 'kg'}
+                  </span>
+                </div>
+                <span className="block mt-0.5 text-[10px] text-slate-400">
+                  Rand per unit · MRP cost = qty × this price
+                </span>
+              </label>
+              <label className="text-xs">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Price unit (per …)
+                </span>
+                <select
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold"
+                  value={bUom}
+                  onChange={(e) => setBUom(e.target.value)}
+                >
+                  <option value="kg">per kg (R / kg)</option>
+                  <option value="g">per g (R / g)</option>
+                  <option value="L">per L (R / L)</option>
+                  <option value="ml">per ml (R / ml)</option>
+                  <option value="unit">per unit (R / unit)</option>
+                  <option value="tin">per tin (R / tin)</option>
+                  <option value="bag">per bag (R / bag)</option>
+                  <option value="pack">per pack (R / pack)</option>
+                </select>
+                <span className="block mt-0.5 text-[10px] text-slate-400">
+                  Must match BOM line UOM for costing
+                </span>
+              </label>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void saveBudget()}
+                className="btn-primary !py-2.5 !px-3 text-xs inline-flex items-center justify-center gap-1"
+              >
+                {saving ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Save className="w-3.5 h-3.5" />
+                )}
+                {bEditId ? 'Update budget' : 'Save budget'}
+              </button>
+            </div>
+            {bPrice !== '' && Number(bPrice) > 0 ? (
+              <p className="text-[11px] font-semibold text-sky-900 bg-sky-50 border border-sky-100 rounded-xl px-3 py-2">
+                Preview — estimated unit price:{' '}
+                <span className="font-black tabular-nums">
+                  {formatMoney(Number(bPrice))}/{bUom || 'kg'}
+                </span>
+                {bCategory ? (
+                  <>
+                    {' '}
+                    for category <span className="font-black">“{bCategory}”</span>
+                  </>
+                ) : null}
+                <span className="block mt-0.5 font-normal text-sky-800/80">
+                  Example: 100 {bUom || 'kg'} × {formatMoney(Number(bPrice))}/
+                  {bUom || 'kg'} = {formatMoney(100 * Number(bPrice))}
+                </span>
+              </p>
+            ) : null}
           </div>
           <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[640px]">
               <thead>
                 <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
                   <th className="px-4 py-2">Category</th>
                   <th className="px-3 py-2">Period</th>
-                  <th className="px-3 py-2">Budget</th>
-                  <th className="px-3 py-2">Unit price</th>
+                  <th className="px-3 py-2">Budget (R)</th>
+                  <th className="px-3 py-2">Est. unit price (R / UOM)</th>
+                  <th className="px-3 py-2 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {budgets.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={4}
+                      colSpan={5}
                       className="px-4 py-10 text-center text-slate-500"
                     >
                       No category budgets for this period.
@@ -773,18 +911,50 @@ function Inner() {
                   </tr>
                 ) : (
                   budgets.map((b) => (
-                    <tr key={b.id} className="border-b border-slate-50">
+                    <tr
+                      key={b.id}
+                      className={`border-b border-slate-50 ${
+                        bEditId === b.id ? 'bg-sky-50/60' : ''
+                      }`}
+                    >
                       <td className="px-4 py-2 font-semibold">{b.category}</td>
                       <td className="px-3 py-2 text-xs">
                         {b.period_from} → {b.period_to}
                       </td>
-                      <td className="px-3 py-2 tabular-nums">
+                      <td className="px-3 py-2 tabular-nums font-bold">
                         {formatMoney(b.budget_amount_zar)}
                       </td>
                       <td className="px-3 py-2 tabular-nums text-xs">
-                        {b.unit_price_zar != null
-                          ? `${formatMoney(b.unit_price_zar)}/${b.uom || 'kg'}`
-                          : '—'}
+                        {b.unit_price_zar != null ? (
+                          <span className="font-semibold">
+                            {formatMoney(b.unit_price_zar)}
+                            <span className="text-slate-500 font-bold">
+                              /{b.uom || 'kg'}
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">— (no unit price)</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <div className="inline-flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEditBudget(b)}
+                            className="text-[11px] font-bold text-[#0077b6] px-2 py-1 hover:underline"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              b.id != null && void deleteBudget(b.id)
+                            }
+                            className="text-[11px] font-bold text-rose-600 px-2 py-1 hover:underline"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
