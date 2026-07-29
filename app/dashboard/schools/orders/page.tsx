@@ -74,13 +74,13 @@ function Inner() {
   const [price, setPrice] = useState('0');
   const [ispId, setIspId] = useState('');
   const [notes, setNotes] = useState('');
-  const [expectedDate, setExpectedDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 3);
-    return d.toISOString().slice(0, 10);
-  });
+  /** Required for OTIF on-time — school must set consciously (no silent default) */
+  const [expectedDate, setExpectedDate] = useState('');
   const [lines, setLines] = useState<Line[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const minDeliveryDate = useMemo(() => {
+    return new Date().toISOString().slice(0, 10);
+  }, []);
   const [catalogueLabel, setCatalogueLabel] = useState(
     'department approved list'
   );
@@ -292,9 +292,14 @@ function Inner() {
         'Select a service provider (preferred SPs listed first)'
       );
     }
-    if (!expectedDate) {
+    if (!expectedDate || !/^\d{4}-\d{2}-\d{2}$/.test(expectedDate)) {
       return toast.error(
-        'Set the required delivery date — your SP must see this on their orders report'
+        'Set the required delivery date — used for SP on-time (OTIF) scoring'
+      );
+    }
+    if (expectedDate < minDeliveryDate) {
+      return toast.error(
+        'Delivery date cannot be in the past — pick today or a future date'
       );
     }
     if (lines.some((l) => !l.approved_product_id)) {
@@ -787,48 +792,63 @@ function Inner() {
             />
           </div>
           <div className="grid sm:grid-cols-2 gap-2">
-            <select
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              value={ispId}
-              onChange={(e) => setIspId(e.target.value)}
-              required
-            >
-              <option value="">Service provider (required)…</option>
-              {links.map((l) => {
-                const badge = l.preferred
-                  ? '★ Preferred'
-                  : l.incentive_badge
-                    ? String(l.incentive_badge).split('·')[0].trim()
-                    : 'Active';
-                return (
-                  <option
-                    key={String(l.id)}
-                    value={String(l.isp_profile_id)}
-                  >
-                    {badge} · {String(l.display_name || l.isp_profile_id)}
-                    {l.incentive_score != null
-                      ? ` (${Number(l.incentive_score).toFixed(0)}%)`
-                      : ''}
-                  </option>
-                );
-              })}
-            </select>
             <label className="block text-xs">
               <span className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
-                Required delivery date *
+                Service provider *
+              </span>
+              <select
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                value={ispId}
+                onChange={(e) => setIspId(e.target.value)}
+                required
+              >
+                <option value="">Select SP…</option>
+                {links.map((l) => {
+                  const badge = l.preferred
+                    ? '★ Preferred'
+                    : l.incentive_badge
+                      ? String(l.incentive_badge).split('·')[0].trim()
+                      : 'Active';
+                  return (
+                    <option
+                      key={String(l.id)}
+                      value={String(l.isp_profile_id)}
+                    >
+                      {badge} · {String(l.display_name || l.isp_profile_id)}
+                      {l.incentive_score != null
+                        ? ` (${Number(l.incentive_score).toFixed(0)}%)`
+                        : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+            <label className="block text-xs">
+              <span className="block text-[10px] font-bold uppercase text-sky-800 mb-1">
+                Required delivery date * · OTIF on-time
               </span>
               <input
                 type="date"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold"
+                className={`w-full rounded-xl border px-3 py-2 text-sm font-bold ${
+                  expectedDate
+                    ? 'border-sky-300 bg-sky-50/50'
+                    : 'border-amber-300 bg-amber-50 ring-1 ring-amber-200'
+                }`}
                 value={expectedDate}
+                min={minDeliveryDate}
                 onChange={(e) => setExpectedDate(e.target.value)}
                 required
               />
             </label>
           </div>
-          <p className="text-[11px] text-slate-500 -mt-1">
-            The SP sees this required date on their orders report and must
-            source from wholesalers in time.
+          <p
+            className={`text-[11px] -mt-1 ${
+              expectedDate ? 'text-slate-500' : 'text-amber-800 font-semibold'
+            }`}
+          >
+            {expectedDate
+              ? 'SP must deliver by this date — used for On-Time in OTIFEF scoring.'
+              : 'Pick a delivery date (today or later). Without it the PO cannot be sent — On-Time metric needs this.'}
           </p>
           <input
             className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"

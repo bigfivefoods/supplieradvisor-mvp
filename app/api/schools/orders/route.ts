@@ -958,17 +958,31 @@ export async function POST(request: NextRequest) {
 
     const total = lines.reduce((s, l) => s + l.qty * l.unit_price, 0);
 
-    // Required delivery date — SP must see this on their orders report
-    let expectedDate =
-      body.expected_date != null && String(body.expected_date).trim()
-        ? String(body.expected_date).slice(0, 10)
-        : null;
+    // Required delivery date — OTIF on-time metric for SP
+    const expectedRaw =
+      body.expected_date != null ? String(body.expected_date).trim() : '';
+    const expectedDate = /^\d{4}-\d{2}-\d{2}$/.test(expectedRaw)
+      ? expectedRaw.slice(0, 10)
+      : null;
     if (!expectedDate) {
       return NextResponse.json(
         {
           error:
-            'Required delivery date is mandatory so your service provider can plan wholesale sourcing and delivery.',
+            'Required delivery date is mandatory (YYYY-MM-DD). It drives SP On-Time scoring (OTIFEF) and appears on the SP orders report.',
           hard_block: true,
+          field: 'expected_date',
+        },
+        { status: 400 }
+      );
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    if (expectedDate < today) {
+      return NextResponse.json(
+        {
+          error:
+            'Required delivery date cannot be in the past — choose today or a future date for on-time planning.',
+          hard_block: true,
+          field: 'expected_date',
         },
         { status: 400 }
       );
