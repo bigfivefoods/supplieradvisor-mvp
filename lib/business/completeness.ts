@@ -115,13 +115,66 @@ export function computeProfileCompleteness(
 }
 
 /**
+ * School workspaces must not appear on the public B2B directory.
+ * DBE / PEU (government_education) and NSNP SPs remain eligible.
+ */
+export function isSchoolDirectoryEntity(
+  p: Record<string, unknown> | null | undefined
+): boolean {
+  if (!p) return false;
+
+  const settings =
+    p.settings && typeof p.settings === 'object'
+      ? (p.settings as Record<string, unknown>)
+      : {};
+  const metadata =
+    p.metadata && typeof p.metadata === 'object'
+      ? (p.metadata as Record<string, unknown>)
+      : {};
+
+  const raws: unknown[] = [
+    p.business_type,
+    p.org_type,
+    p.category,
+    p.entity_kind,
+    settings.entity_kind,
+    settings.org_type,
+    settings.business_type,
+    metadata.entity_kind,
+    metadata.org_type,
+    metadata.business_type,
+  ];
+
+  for (const raw of raws) {
+    if (raw == null || raw === '') continue;
+    const t = String(raw)
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '_');
+    // Explicit school markers only — never treat DBE/PEU as schools
+    if (
+      t === 'school' ||
+      t === 'school_nsnp' ||
+      t === 'education' ||
+      t === 'primary_school' ||
+      t === 'secondary_school' ||
+      t === 'combined_school'
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Whether a company should appear in public directory / discover.
  *
  * Rules (lenient enough for real multi-company networks):
  *  1. Must have a trading or legal name
  *  2. Must not explicitly opt out (is_discoverable === false)
- *  3. Registered workspaces (active business_users) always qualify
- *  4. Else: completeness ≥ 25% OR has country / email / industry
+ *  3. Schools are never listed (DBE/PEU and normal companies stay)
+ *  4. Registered workspaces (active business_users) always qualify
+ *  5. Else: completeness ≥ 25% OR has country / email / industry
  */
 export function isEligibleForDiscovery(
   p: Record<string, unknown> | null | undefined,
@@ -139,6 +192,15 @@ export function isEligibleForDiscovery(
     };
   }
 
+  // Schools are programme participants, not public B2B listings (keep DBE)
+  if (isSchoolDirectoryEntity(p)) {
+    return {
+      ok: false,
+      reason: 'Schools are not listed in the public directory',
+      completeness,
+    };
+  }
+
   const name = String(p.trading_name || p.legal_name || '').trim();
   if (name.length < 2) {
     return {
@@ -148,7 +210,7 @@ export function isEligibleForDiscovery(
     };
   }
 
-  // Active company workspaces always appear (unless opted out)
+  // Active company workspaces always appear (unless opted out / school)
   if (opts?.isRegistered === true) {
     return { ok: true, completeness };
   }

@@ -23,13 +23,16 @@ export type PublicCompanyRow = {
   updated_at: string | null;
   settings?: unknown;
   is_buyer?: boolean | null;
+  business_type?: string | null;
+  org_type?: string | null;
+  category?: string | null;
 };
 
 const SELECT_FULL =
-  'id, trading_name, legal_name, industry, city, country, province, logo_url, short_description, verification_status, trust_score, is_discoverable, email, registration_number, updated_at, settings, is_buyer';
+  'id, trading_name, legal_name, industry, city, country, province, logo_url, short_description, verification_status, trust_score, is_discoverable, email, registration_number, updated_at, settings, is_buyer, business_type, org_type, category';
 
 const SELECT_MIN =
-  'id, trading_name, legal_name, industry, city, country, logo_url, short_description, verification_status, is_discoverable, email, updated_at';
+  'id, trading_name, legal_name, industry, city, country, logo_url, short_description, verification_status, is_discoverable, email, updated_at, business_type, org_type';
 
 /**
  * Fetch every named profile (paginated), then filter with isEligibleForDiscovery.
@@ -97,6 +100,10 @@ export async function loadAllPublicCompanyRows(
       updated_at: p.updated_at != null ? String(p.updated_at) : null,
       settings: p.settings,
       is_buyer: p.is_buyer != null ? Boolean(p.is_buyer) : null,
+      business_type:
+        p.business_type != null ? String(p.business_type) : null,
+      org_type: p.org_type != null ? String(p.org_type) : null,
+      category: p.category != null ? String(p.category) : null,
     }))
     .filter((c) => Number.isFinite(c.id) && c.id > 0);
 }

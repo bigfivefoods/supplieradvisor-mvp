@@ -102,11 +102,15 @@ export async function loadDirectory(
 }> {
   const rows = await loadAllPublicCompanyRows();
   // Map through discovery filter again in case completeness rules change
+  // (schools already excluded via isEligibleForDiscovery / loadAllPublicCompanyRows)
   const eligible = rows
     .filter((r) =>
       isEligibleForDiscovery({
         ...r,
         is_discoverable: r.is_discoverable,
+        business_type: r.business_type,
+        org_type: r.org_type,
+        category: r.category,
       } as Record<string, unknown>).ok
     )
     .map(rowToDirCompany)
