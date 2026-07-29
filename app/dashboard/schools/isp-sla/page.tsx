@@ -15,6 +15,7 @@ import {
   SchoolsHeader,
   SchoolsPage,
 } from '@/components/schools/SchoolsShell';
+import { useProgrammeRole } from '@/lib/schools/useProgrammeRole';
 
 export default function IspSlaPage() {
   return (
@@ -26,6 +27,8 @@ export default function IspSlaPage() {
 
 function Inner() {
   const companyId = getSelectedCompanyId()!;
+  const programme = useProgrammeRole();
+  const isSchool = programme.role === 'school';
   const [period, setPeriod] = useState<PeriodSlicerValue>(() =>
     initialPeriodSlicerValue('ytd', 3)
   );
@@ -61,20 +64,36 @@ function Inner() {
     void load();
   }, [load]);
 
+  const headerMode =
+    programme.role === 'sp'
+      ? 'isp'
+      : programme.role === 'department'
+        ? 'agency'
+        : 'school';
+
   return (
     <SchoolsPage>
       <SchoolsHeader
         title="SP SLA · OTIFEF"
         titleAccent="On-Time · In-Full · Error-Free"
-        description="Objective delivery metrics for service providers. Schools rate SPs and food under Rate SP & food. Preferred SPs stay on-catalogue and deliver on time."
+        mode={headerMode}
+        description={
+          isSchool
+            ? 'Objective delivery metrics for service providers. Schools rate SPs and food under Rate SP & food. Preferred SPs stay on-catalogue and deliver on time.'
+            : programme.role === 'sp'
+              ? 'Your objective On-Time · In-Full · Error-Free delivery scores. Schools submit subjective ratings from their kitchen profile (not from this SP workspace).'
+              : 'Objective delivery metrics for service providers on the programme. Subjective Rate SP & food is school-only.'
+        }
         action={
           <div className="flex gap-2">
-            <Link
-              href="/dashboard/schools/ratings"
-              className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
-            >
-              <Star className="w-3.5 h-3.5" /> Rate SP / food
-            </Link>
+            {isSchool ? (
+              <Link
+                href="/dashboard/schools/ratings"
+                className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              >
+                <Star className="w-3.5 h-3.5" /> Rate SP / food
+              </Link>
+            ) : null}
             <button
               type="button"
               onClick={() => void load()}

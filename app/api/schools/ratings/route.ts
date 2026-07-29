@@ -5,14 +5,52 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
+import { resolveProgrammeRole } from '@/lib/schools/programme-role';
 
 export const runtime = 'nodejs';
 
 /**
- * School ratings:
+ * School-only ratings (not SP / DBE workspace):
  * GET  ?companyId=&view=isp|food|all
  * POST action: rate_isp | rate_food | delete_isp_rating | delete_food_rating
+ *
+ * Service providers are rated *by* schools — they must not submit from the SP profile.
  */
+async function requireSchoolRater(companyId: number) {
+  const supabase = getSupabaseServer();
+  const roleInfo = await resolveProgrammeRole(supabase, companyId);
+  if (roleInfo.role !== 'school') {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        {
+          error:
+            'Rate SP & food is only available on a school profile. Service providers cannot rate themselves from the SP workspace.',
+          role: roleInfo.role,
+          school_only: true,
+        },
+        { status: 403 }
+      ),
+    };
+  }
+  const { school, error } = await getOrCreateSchoolProfile(supabase, companyId);
+  if (error || !school) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: error || 'School profile required to rate SPs and food' },
+        { status: 503 }
+      ),
+    };
+  }
+  return {
+    ok: true as const,
+    supabase,
+    school,
+    schoolId: Number(school.id),
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const sp = request.nextUrl.searchParams;
@@ -25,12 +63,9 @@ export async function GET(request: NextRequest) {
     });
     if (!gate.ok) return gate.response;
 
-    const supabase = getSupabaseServer();
-    const { school, error } = await getOrCreateSchoolProfile(supabase, companyId);
-    if (error || !school) {
-      return NextResponse.json({ error: error || 'No school' }, { status: 503 });
-    }
-    const schoolId = Number(school.id);
+    const schoolGate = await requireSchoolRater(companyId);
+    if (!schoolGate.ok) return schoolGate.response;
+    const { supabase, schoolId } = schoolGate;
     const view = String(sp.get('view') || 'all');
 
     // Linked SPs for rating dropdown
@@ -74,6 +109,7 @@ export async function GET(request: NextRequest) {
 
     let isp_ratings: unknown[] = [];
     let food_ratings: unknown[] = [];
+    let schemaMissing = false;
 
     if (view === 'isp' || view === 'all') {
       const { data, error: rErr } = await supabase
@@ -82,13 +118,19 @@ export async function GET(request: NextRequest) {
         .eq('school_profile_id', schoolId)
         .order('created_at', { ascending: false })
         .limit(100);
-      if (rErr && !/does not exist|schema cache/i.test(rErr.message)) {
-        return NextResponse.json({ error: rErr.message }, { status: 400 });
+      if (rErr) {
+        if (/does not exist|schema cache|Could not find the table/i.test(rErr.message)) {
+          schemaMissing = true;
+        } else {
+          return NextResponse.json({ error: rErr.message }, { status: 400 });
+        }
+      } else {
+        isp_ratings = (data || []).map((r) => ({
+          ...r,
+          isp_name:
+            ispNames[Number(r.isp_profile_id)] || `SP ${r.isp_profile_id}`,
+        }));
       }
-      isp_ratings = (data || []).map((r) => ({
-        ...r,
-        isp_name: ispNames[Number(r.isp_profile_id)] || `SP ${r.isp_profile_id}`,
-      }));
     }
 
     if (view === 'food' || view === 'all') {
@@ -98,10 +140,15 @@ export async function GET(request: NextRequest) {
         .eq('school_profile_id', schoolId)
         .order('feed_date', { ascending: false })
         .limit(100);
-      if (fErr && !/does not exist|schema cache/i.test(fErr.message)) {
-        return NextResponse.json({ error: fErr.message }, { status: 400 });
+      if (fErr) {
+        if (/does not exist|schema cache|Could not find the table/i.test(fErr.message)) {
+          schemaMissing = true;
+        } else {
+          return NextResponse.json({ error: fErr.message }, { status: 400 });
+        }
+      } else {
+        food_ratings = data || [];
       }
-      food_ratings = data || [];
     }
 
     const linked_isps = ispIds.map((id) => ({
@@ -109,16 +156,25 @@ export async function GET(request: NextRequest) {
       name: ispNames[id] || `SP ${id}`,
     }));
 
+    // Only warn about migration when tables are actually missing — not when empty
+    if (schemaMissing) {
+      return NextResponse.json(
+        {
+          error:
+            'Ratings tables are not installed yet. Apply supabase/migrations/20260729_school_sp_otifef_ratings.sql in the Supabase SQL Editor, then retry.',
+          schema_missing: true,
+        },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
       schoolId,
       linked_isps,
       isp_ratings,
       food_ratings,
-      message:
-        isp_ratings.length === 0 && food_ratings.length === 0
-          ? 'Run migration 20260729_school_sp_otifef_ratings.sql if tables are missing'
-          : undefined,
+      empty: isp_ratings.length === 0 && food_ratings.length === 0,
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -140,12 +196,9 @@ export async function POST(request: NextRequest) {
     });
     if (!gate.ok) return gate.response;
 
-    const supabase = getSupabaseServer();
-    const { school, error } = await getOrCreateSchoolProfile(supabase, companyId);
-    if (error || !school) {
-      return NextResponse.json({ error: error || 'No school' }, { status: 503 });
-    }
-    const schoolId = Number(school.id);
+    const schoolGate = await requireSchoolRater(companyId);
+    if (!schoolGate.ok) return schoolGate.response;
+    const { supabase, schoolId } = schoolGate;
     const action = String(body.action || '');
 
     const star = (v: unknown) => {
@@ -210,13 +263,18 @@ export async function POST(request: NextRequest) {
         .select('*')
         .single();
       if (iErr) {
-        if (/does not exist|schema cache/i.test(iErr.message)) {
+        if (
+          /does not exist|schema cache|Could not find the table/i.test(
+            iErr.message
+          )
+        ) {
           return NextResponse.json(
             {
               error:
-                'Run migration 20260729_school_sp_otifef_ratings.sql for SP ratings',
+                'SP ratings table is missing. Apply supabase/migrations/20260729_school_sp_otifef_ratings.sql in Supabase SQL Editor.',
+              schema_missing: true,
             },
-            { status: 400 }
+            { status: 503 }
           );
         }
         return NextResponse.json({ error: iErr.message }, { status: 400 });
@@ -298,13 +356,18 @@ export async function POST(request: NextRequest) {
         .select('*')
         .single();
       if (iErr) {
-        if (/does not exist|schema cache/i.test(iErr.message)) {
+        if (
+          /does not exist|schema cache|Could not find the table/i.test(
+            iErr.message
+          )
+        ) {
           return NextResponse.json(
             {
               error:
-                'Run migration 20260729_school_sp_otifef_ratings.sql for food ratings',
+                'Food ratings table is missing. Apply supabase/migrations/20260729_school_sp_otifef_ratings.sql in Supabase SQL Editor.',
+              schema_missing: true,
             },
-            { status: 400 }
+            { status: 503 }
           );
         }
         return NextResponse.json({ error: iErr.message }, { status: 400 });

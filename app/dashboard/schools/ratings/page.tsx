@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * School rates linked SPs (OTIFEF dimensions) and food quality with constructive feedback.
+ * School-only: rates linked SPs (OTIFEF dimensions) and food quality.
+ * Not shown or usable on service provider profiles.
  */
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -13,6 +14,7 @@ import {
   Utensils,
   MessageSquarePlus,
   Save,
+  ShieldAlert,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -21,6 +23,7 @@ import {
   SchoolsHeader,
   SchoolsPage,
 } from '@/components/schools/SchoolsShell';
+import { useProgrammeRole } from '@/lib/schools/useProgrammeRole';
 
 type LinkedIsp = { isp_profile_id: number; name: string };
 
@@ -67,6 +70,7 @@ export default function SchoolRatingsPage() {
 
 function Inner() {
   const companyId = getSelectedCompanyId()!;
+  const programme = useProgrammeRole();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<'sp' | 'food'>('sp');
@@ -100,7 +104,16 @@ function Inner() {
   const [foodFeedback, setFoodFeedback] = useState('');
   const [recipeName, setRecipeName] = useState('');
 
+  const isSchool = programme.role === 'school';
+
   const load = useCallback(async () => {
+    if (!isSchool) {
+      setLoading(false);
+      setLinkedIsps([]);
+      setIspRatings([]);
+      setFoodRatings([]);
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch(
@@ -115,17 +128,21 @@ function Inner() {
       if (!ispId && (data.linked_isps || [])[0]) {
         setIspId(String(data.linked_isps[0].isp_profile_id));
       }
-      if (data.message) toast.message(data.message);
+      // Only surface real server warnings (e.g. schema missing) — not empty history
+      if (data.schema_missing && data.error) {
+        toast.error(String(data.error));
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
     } finally {
       setLoading(false);
     }
-  }, [companyId, ispId]);
+  }, [companyId, ispId, isSchool]);
 
   useEffect(() => {
+    if (programme.loading) return;
     void load();
-  }, [load]);
+  }, [load, programme.loading]);
 
   const saveSpRating = async () => {
     if (!ispId) return toast.error('Select a service provider');
@@ -197,12 +214,75 @@ function Inner() {
     }
   };
 
+  if (programme.loading) {
+    return (
+      <SchoolsPage>
+        <div className="py-20 flex justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+        </div>
+      </SchoolsPage>
+    );
+  }
+
+  if (!isSchool) {
+    const home =
+      programme.role === 'sp'
+        ? '/dashboard/schools/isp'
+        : programme.role === 'department'
+          ? '/dashboard/schools'
+          : '/dashboard/schools';
+    return (
+      <SchoolsPage>
+        <SchoolsHeader
+          title="Rate SP & food"
+          titleAccent="School only"
+          mode={programme.role === 'sp' ? 'isp' : programme.role === 'department' ? 'agency' : 'school'}
+          description="OTIFEF feedback and meal ratings are submitted by schools only — not from a service provider or DBE profile."
+        />
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 sm:p-8 max-w-xl">
+          <div className="flex items-start gap-3">
+            <ShieldAlert className="w-6 h-6 text-amber-700 shrink-0 mt-0.5" />
+            <div className="space-y-3">
+              <p className="font-black text-amber-950">
+                Not available on this profile
+              </p>
+              <p className="text-sm text-amber-900/90 leading-relaxed">
+                You are signed in as{' '}
+                <strong>{programme.label}</strong>. Schools rate linked service
+                providers (On-Time · In-Full · Error-Free) and meals for continuous
+                improvement. SPs can view objective OTIFEF scores on the SLA page
+                instead.
+              </p>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Link
+                  href={home}
+                  className="btn-primary !py-2 !px-3 text-xs"
+                >
+                  Back to {programme.label} home
+                </Link>
+                {programme.role === 'sp' || programme.role === 'department' ? (
+                  <Link
+                    href="/dashboard/schools/isp-sla"
+                    className="btn-secondary !py-2 !px-3 text-xs"
+                  >
+                    View SP OTIFEF / SLA
+                  </Link>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      </SchoolsPage>
+    );
+  }
+
   return (
     <SchoolsPage>
       <SchoolsHeader
         title="Rate SP & food"
         titleAccent="OTIFEF · feedback"
-        description="Rate linked service providers on On-Time · In-Full · Error-Free delivery, and rate meals with constructive feedback for continuous improvement."
+        mode="school"
+        description="Rate linked service providers on On-Time · In-Full · Error-Free delivery, and rate meals with constructive feedback for continuous improvement. School kitchen profile only."
         action={
           <div className="flex gap-2">
             <Link
