@@ -517,11 +517,25 @@ export async function POST(request: NextRequest) {
     const productIds = rawLines
       .map((l: { approved_product_id?: number }) => Number(l.approved_product_id))
       .filter((n: number) => Number.isFinite(n) && n > 0);
+    // Prefer active catalogue; for edits, also accept agency-owned inactive products
+    // already on a BOM so DBE can still update qty without re-activating
     const byId = await filterApprovedProductIds(
       supabase,
       companyId,
       productIds
     );
+    const missing = productIds.filter((id) => !byId.has(id));
+    if (missing.length) {
+      const { data: owned } = await supabase
+        .from('nsnp_approved_products')
+        .select('*')
+        .eq('agency_profile_id', companyId)
+        .in('id', missing)
+        .limit(missing.length + 5);
+      for (const p of owned || []) {
+        byId.set(Number(p.id), p as Record<string, unknown>);
+      }
+    }
 
     const lines: RecipeLine[] = [];
     for (const l of rawLines) {

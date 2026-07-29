@@ -4,12 +4,13 @@
  * DBE Recipes (BOM) + MPS/MRP planning for schools & SPs.
  * Recipe qty/learner × NSNP learners × feeding days → product requirements.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   Calculator,
   Coffee,
   Loader2,
+  Pencil,
   Plus,
   RefreshCw,
   Save,
@@ -178,6 +179,7 @@ function Inner() {
   const [productId, setProductId] = useState('');
   const [qtyPer, setQtyPer] = useState('0.05');
   const [wastage, setWastage] = useState('5');
+  const editorRef = useRef<HTMLDivElement>(null);
 
   // Budget editor
   const [bEditId, setBEditId] = useState<number | null>(null);
@@ -272,7 +274,21 @@ function Inner() {
         wastage_pct: String(l.wastage_pct ?? 0),
       }))
     );
+    setProductId('');
     setTab('recipes');
+    // Bring editor into view so Edit is obvious
+    requestAnimationFrame(() => {
+      editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  const updateBomLine = (
+    index: number,
+    patch: Partial<Pick<BomLine, 'qty_per_portion' | 'wastage_pct'>>
+  ) => {
+    setBomLines((prev) =>
+      prev.map((l, i) => (i === index ? { ...l, ...patch } : l))
+    );
   };
 
   /** Click a week-grid cell: edit first recipe there, or start a new one for that slot */
@@ -434,12 +450,15 @@ function Inner() {
       const dayName = WEEKDAY_LABEL[Number(weekday)] || weekday;
       toast.success(
         data.message ||
-          `Saved · ${dayName} ${mealType === 'breakfast' ? 'Breakfast' : 'Lunch'}`
+          (editId
+            ? `BOM updated · ${dayName} ${mealType === 'breakfast' ? 'Breakfast' : 'Lunch'}`
+            : `BOM saved · ${dayName} ${mealType === 'breakfast' ? 'Breakfast' : 'Lunch'}`)
       );
-      // Stay on same slot so user can refine; refresh list
-      void load();
-      if (data.recipe?.id) {
-        setEditId(Number(data.recipe.id));
+      await load();
+      if (data.recipe) {
+        openEdit(data.recipe as Recipe);
+      } else if (data.recipe?.id || editId) {
+        setEditId(Number(data.recipe?.id || editId));
       }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Save failed');
@@ -702,9 +721,16 @@ function Inner() {
                                 }`}
                               >
                                 {has ? (
-                                  <div className="space-y-1">
+                                  <div className="space-y-1.5">
                                     {list.map((r) => (
-                                      <div key={r.id}>
+                                      <div
+                                        key={r.id}
+                                        className={
+                                          editId === r.id
+                                            ? 'rounded-lg bg-white/80 px-1 py-0.5 ring-1 ring-[#00b4d8]/40'
+                                            : ''
+                                        }
+                                      >
                                         <p className="text-[11px] font-bold text-slate-900 leading-snug line-clamp-2">
                                           {r.name}
                                         </p>
@@ -713,7 +739,27 @@ function Inner() {
                                           {(r.lines || []).length === 1
                                             ? ''
                                             : 's'}
+                                          {editId === r.id ? ' · editing' : ''}
                                         </p>
+                                        {list.length > 1 ? (
+                                          <span
+                                            role="button"
+                                            tabIndex={0}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openEdit(r);
+                                            }}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') {
+                                                e.stopPropagation();
+                                                openEdit(r);
+                                              }
+                                            }}
+                                            className="text-[10px] font-bold text-[#0077b6] underline"
+                                          >
+                                            Edit this
+                                          </span>
+                                        ) : null}
                                       </div>
                                     ))}
                                   </div>
@@ -755,14 +801,30 @@ function Inner() {
 
           {/* ── Recipe editor for the selected slot ─────────────────── */}
           <div className="grid lg:grid-cols-5 gap-4">
-            <div className="lg:col-span-3 rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 space-y-4">
+            <div
+              ref={editorRef}
+              className={`lg:col-span-3 rounded-3xl border bg-white p-4 sm:p-5 space-y-4 ${
+                editId
+                  ? 'border-[#00b4d8] ring-2 ring-[#00b4d8]/20'
+                  : 'border-slate-200'
+              }`}
+            >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <p className="text-sm font-black">
-                    {editId ? 'Edit recipe BOM' : 'New recipe BOM'}
+                  <p className="text-sm font-black inline-flex items-center gap-2">
+                    {editId ? (
+                      <>
+                        <Pencil className="w-4 h-4 text-[#0077b6]" />
+                        Editing BOM #{editId}
+                      </>
+                    ) : (
+                      'New recipe BOM'
+                    )}
                   </p>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    Slot selected from the week planner above
+                    {editId
+                      ? 'Change day, meal, name, or edit ingredient qty / wastage below — then Update BOM.'
+                      : 'Pick a week cell (or day + meal), add ingredients, then Save.'}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -786,9 +848,9 @@ function Inner() {
                             : 'lunch') as MealTypeKey,
                         })
                       }
-                      className="text-[11px] font-bold text-slate-500 px-2 py-1"
+                      className="text-[11px] font-bold text-slate-500 px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50"
                     >
-                      Clear · new on this slot
+                      Cancel edit · new
                     </button>
                   ) : null}
                 </div>
@@ -959,15 +1021,17 @@ function Inner() {
               </div>
 
               {bomLines.length > 0 ? (
-                <div className="rounded-xl border border-slate-100 overflow-hidden">
-                  <div className="grid grid-cols-12 gap-1 bg-slate-50 px-2 py-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                    <span className="col-span-5">Product</span>
-                    <span className="col-span-2 text-right">Qty / learner</span>
-                    <span className="col-span-2 text-right">Wastage %</span>
-                    <span className="col-span-2 text-right">Total</span>
-                    <span className="col-span-1" />
+                <div className="rounded-xl border border-slate-200 overflow-hidden">
+                  <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      BOM lines · edit qty / wastage inline
+                    </p>
+                    <p className="text-[10px] font-semibold text-slate-400">
+                      {bomLines.length} ingredient
+                      {bomLines.length === 1 ? '' : 's'}
+                    </p>
                   </div>
-                  <ul className="text-xs max-h-56 overflow-y-auto divide-y divide-slate-50">
+                  <ul className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
                     {bomLines.map((l, i) => {
                       const q = Number(l.qty_per_portion) || 0;
                       const w = Number(l.wastage_pct) || 0;
@@ -975,36 +1039,72 @@ function Inner() {
                         Math.round(q * (1 + w / 100) * 1e6) / 1e6;
                       return (
                         <li
-                          key={l.approved_product_id}
-                          className="grid grid-cols-12 gap-1 px-2 py-2 items-center"
+                          key={`${l.approved_product_id}-${i}`}
+                          className="px-3 py-2.5 space-y-2 sm:space-y-0 sm:grid sm:grid-cols-12 sm:gap-2 sm:items-center"
                         >
-                          <span className="col-span-5 min-w-0 truncate">
-                            <strong>{l.brand_name}</strong> {l.product_name}
-                            <span className="block text-[10px] text-slate-400">
-                              {l.category} · {l.uom}
+                          <div className="sm:col-span-5 min-w-0">
+                            <p className="text-xs font-bold text-slate-900 truncate">
+                              {l.brand_name} · {l.product_name}
+                            </p>
+                            <p className="text-[10px] text-slate-400">
+                              {l.category} · UOM {l.uom}
+                            </p>
+                          </div>
+                          <label className="sm:col-span-2 block text-[10px]">
+                            <span className="font-bold uppercase text-slate-400">
+                              Qty / learner
                             </span>
-                          </span>
-                          <span className="col-span-2 text-right font-bold tabular-nums">
-                            {l.qty_per_portion}
-                          </span>
-                          <span className="col-span-2 text-right tabular-nums">
-                            {l.wastage_pct || '0'}
-                          </span>
-                          <span className="col-span-2 text-right font-black tabular-nums text-emerald-800">
-                            {total}
-                          </span>
-                          <button
-                            type="button"
-                            className="col-span-1 text-rose-600 font-bold text-right"
-                            title="Remove line"
-                            onClick={() =>
-                              setBomLines((prev) =>
-                                prev.filter((_, j) => j !== i)
-                              )
-                            }
-                          >
-                            ×
-                          </button>
+                            <input
+                              className="mt-0.5 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm font-bold tabular-nums text-right"
+                              value={l.qty_per_portion}
+                              inputMode="decimal"
+                              onChange={(e) =>
+                                updateBomLine(i, {
+                                  qty_per_portion: e.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <label className="sm:col-span-2 block text-[10px]">
+                            <span className="font-bold uppercase text-slate-400">
+                              Wastage %
+                            </span>
+                            <input
+                              className="mt-0.5 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm tabular-nums text-right"
+                              value={l.wastage_pct}
+                              inputMode="decimal"
+                              onChange={(e) =>
+                                updateBomLine(i, {
+                                  wastage_pct: e.target.value,
+                                })
+                              }
+                            />
+                          </label>
+                          <div className="sm:col-span-2 text-right">
+                            <p className="text-[9px] font-bold uppercase text-slate-400">
+                              Total
+                            </p>
+                            <p className="text-sm font-black tabular-nums text-emerald-800">
+                              {total}{' '}
+                              <span className="text-[10px] font-semibold text-slate-500">
+                                {l.uom}
+                              </span>
+                            </p>
+                          </div>
+                          <div className="sm:col-span-1 flex sm:justify-end">
+                            <button
+                              type="button"
+                              className="text-rose-600 font-bold text-xs px-2 py-1 rounded-lg border border-rose-100 hover:bg-rose-50"
+                              title="Remove from BOM"
+                              onClick={() =>
+                                setBomLines((prev) =>
+                                  prev.filter((_, j) => j !== i)
+                                )
+                              }
+                            >
+                              Remove
+                            </button>
+                          </div>
                         </li>
                       );
                     })}
@@ -1027,7 +1127,8 @@ function Inner() {
                 ) : (
                   <Save className="w-4 h-4" />
                 )}
-                Save · {selectedSlotLabel.dayName} {selectedSlotLabel.meal}
+                {editId ? 'Update BOM' : 'Save BOM'} ·{' '}
+                {selectedSlotLabel.dayName} {selectedSlotLabel.meal}
               </button>
             </div>
 
@@ -1700,14 +1801,19 @@ function MealGroup({
               <button
                 type="button"
                 onClick={() => onEdit(r)}
-                className="text-[11px] font-bold text-[#0077b6] px-2 py-1 hover:underline"
+                className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg border inline-flex items-center gap-1 ${
+                  editId === r.id
+                    ? 'bg-[#0077b6] text-white border-[#0077b6]'
+                    : 'text-[#0077b6] border-sky-200 bg-sky-50 hover:bg-sky-100'
+                }`}
               >
-                Edit
+                <Pencil className="w-3 h-3" />
+                {editId === r.id ? 'Editing' : 'Edit BOM'}
               </button>
               <button
                 type="button"
                 onClick={() => void onDelete(r.id)}
-                className="text-[11px] font-bold text-rose-600 px-2 py-1"
+                className="text-[11px] font-bold text-rose-600 px-2 py-1.5 rounded-lg border border-rose-100"
                 aria-label={`Delete ${r.name}`}
               >
                 <Trash2 className="w-3.5 h-3.5" />
