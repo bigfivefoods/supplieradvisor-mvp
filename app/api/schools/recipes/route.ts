@@ -128,30 +128,10 @@ export async function GET(request: NextRequest) {
 
     const recipes = await loadRecipes(supabase, agencyProfileId);
     const activeRecipes = recipes.filter((r) => r.active !== false);
-    // Schedule: weekday-assigned recipes serve 1×/week; unassigned split across 5 days by meal type
-    const byMealUnassigned = new Map<string, Recipe[]>();
-    const recipeSchedule: Array<{ recipe: Recipe; servesPerWeek: number }> =
-      [];
-    for (const r of activeRecipes) {
-      const wd = r.weekday != null ? Number(r.weekday) : null;
-      if (wd != null && wd >= 1 && wd <= 5) {
-        recipeSchedule.push({ recipe: r, servesPerWeek: 1 });
-      } else {
-        const mt = String(r.meal_type || 'lunch');
-        const list = byMealUnassigned.get(mt) || [];
-        list.push(r);
-        byMealUnassigned.set(mt, list);
-      }
-    }
-    for (const [, list] of byMealUnassigned) {
-      const each = list.length ? 5 / list.length : 0;
-      for (const recipe of list) {
-        recipeSchedule.push({
-          recipe,
-          servesPerWeek: Math.round(each * 100) / 100,
-        });
-      }
-    }
+    // Service days computed inside buildProgrammePlan (integer weekday hits / whole-day splits)
+    const recipeSchedule: Array<{ recipe: Recipe }> = activeRecipes.map(
+      (recipe) => ({ recipe })
+    );
 
     const budgets = await loadBudgets(supabase, agencyProfileId, sp, from, to);
 

@@ -49,33 +49,110 @@ export type SchoolLearners = {
   isp_profile_ids?: number[];
 };
 
-/** Count feeding days (weekdays by default) inclusive.
- *  When `feedingDates` is provided (from DBE calendar), only those dates count.
+/** ISO weekday: 1=Mon … 7=Sun */
+export function isoWeekdayFromIsoDate(iso: string): number {
+  const d = new Date(`${iso.slice(0, 10)}T12:00:00`);
+  const js = d.getDay(); // 0=Sun
+  return js === 0 ? 7 : js;
+}
+
+/**
+ * List every feeding day (YYYY-MM-DD) in [from, to] inclusive.
+ * When `feedingDates` is provided (DBE calendar), only those dates count.
+ * Otherwise weekdays Mon–Fri (or all days if includeWeekends).
  */
+export function listFeedingDayDates(
+  from: string,
+  to: string,
+  includeWeekends = false,
+  feedingDates?: Set<string> | null
+): string[] {
+  const a = new Date(`${from.slice(0, 10)}T12:00:00`);
+  const b = new Date(`${to.slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime()) || a > b) {
+    return [];
+  }
+  const out: string[] = [];
+  const d = new Date(a);
+  while (d <= b) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const key = `${y}-${m}-${day}`;
+    if (feedingDates) {
+      if (feedingDates.has(key)) out.push(key);
+    } else {
+      const wd = d.getDay();
+      if (includeWeekends || (wd !== 0 && wd !== 6)) out.push(key);
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
+/** Count feeding days (weekdays by default) inclusive. */
 export function countFeedingDays(
   from: string,
   to: string,
   includeWeekends = false,
   feedingDates?: Set<string> | null
 ): number {
-  const a = new Date(`${from.slice(0, 10)}T12:00:00`);
-  const b = new Date(`${to.slice(0, 10)}T12:00:00`);
-  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime()) || a > b) return 0;
+  return listFeedingDayDates(from, to, includeWeekends, feedingDates).length;
+}
+
+/** How many feeding days fall on a given ISO weekday (1=Mon … 5=Fri). */
+export function countWeekdayHits(
+  feedingDays: string[],
+  weekday: number
+): number {
+  if (!(weekday >= 1 && weekday <= 7)) return 0;
   let n = 0;
-  const d = new Date(a);
-  while (d <= b) {
-    if (feedingDates) {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      if (feedingDates.has(`${y}-${m}-${day}`)) n += 1;
-    } else {
-      const day = d.getDay();
-      if (includeWeekends || (day !== 0 && day !== 6)) n += 1;
-    }
-    d.setDate(d.getDate() + 1);
+  for (const iso of feedingDays) {
+    if (isoWeekdayFromIsoDate(iso) === weekday) n += 1;
   }
   return n;
+}
+
+/**
+ * Integer service days for each recipe in the period.
+ * - Weekday-assigned: count matching weekdays among feeding days
+ * - Unassigned (same meal type): split feeding days as whole numbers (sum = feeding days)
+ */
+export function assignRecipeServiceDays(
+  recipes: Recipe[],
+  feedingDayList: string[]
+): Map<number, number> {
+  const totalDays = feedingDayList.length;
+  const result = new Map<number, number>();
+  const unassignedByMeal = new Map<string, Recipe[]>();
+
+  for (const r of recipes) {
+    if (r.active === false) continue;
+    const wd = r.weekday != null ? Number(r.weekday) : NaN;
+    if (Number.isFinite(wd) && wd >= 1 && wd <= 5) {
+      result.set(r.id, countWeekdayHits(feedingDayList, wd));
+    } else {
+      const mt = String(r.meal_type || 'lunch').toLowerCase();
+      const list = unassignedByMeal.get(mt) || [];
+      list.push(r);
+      unassignedByMeal.set(mt, list);
+    }
+  }
+
+  for (const [, list] of unassignedByMeal) {
+    const n = list.length;
+    if (!n) continue;
+    // Equal whole-number shares; remainder to first recipes so sum === totalDays
+    const base = Math.floor(totalDays / n);
+    let rem = totalDays % n;
+    for (const r of list) {
+      const days = base + (rem > 0 ? 1 : 0);
+      if (rem > 0) rem -= 1;
+      result.set(r.id, days);
+    }
+  }
+
+  return result;
 }
 
 /** qty with wastage: qty * (1 + wastage_pct/100) */
@@ -85,30 +162,34 @@ export function qtyWithWastage(qty: number, wastagePct = 0): number {
 }
 
 /**
- * Portions of a recipe for a school for the planning window.
- * meals = learners * feedingDays * (how many times recipe is scheduled)
- * scheduleHits = number of (day,meal) slots using this recipe in the period
- * For simple model: each feeding day serves breakfast + lunch once →
- * if recipe is breakfast, hits = feedingDays; if we map recipes per weekday cycle,
- * hits = feedingDays * (slots_per_week / 5) approximately.
- *
- * scheduleHitsPerWeek: how many times this recipe appears Mon–Fri (e.g. 1 for daily lunch, 5 for every day)
+ * Recipe portions for a school in the planning window.
+ * meals (learner-servings) = learners × serviceDays (always whole when portion_learners = 1).
+ * serviceDays = integer times this recipe is served in the period (not days/5).
  */
 export function schoolMealPortions(opts: {
   learners: number;
-  feedingDays: number;
-  /** times this recipe is served per 5-day school week */
+  /** Integer: how many times this recipe is plated in the period */
+  serviceDays: number;
+  /** @deprecated use serviceDays — kept for call-site migration */
+  feedingDays?: number;
+  /** @deprecated use serviceDays */
   servesPerWeek?: number;
   portionLearners?: number;
 }): number {
-  const learners = Math.max(0, Number(opts.learners) || 0);
-  const days = Math.max(0, Number(opts.feedingDays) || 0);
-  const servesPerWeek = Math.max(0, Number(opts.servesPerWeek ?? 5));
+  const learners = Math.max(0, Math.round(Number(opts.learners) || 0));
+  let serviceDays = opts.serviceDays;
+  if (serviceDays == null || !Number.isFinite(Number(serviceDays))) {
+    // Legacy fallback: never leave fractional meals when possible
+    const days = Math.max(0, Number(opts.feedingDays) || 0);
+    const spw = Math.max(0, Number(opts.servesPerWeek ?? 5));
+    serviceDays = Math.round((days * spw) / 5);
+  }
+  serviceDays = Math.max(0, Math.round(Number(serviceDays) || 0));
   const base = Math.max(0.0001, Number(opts.portionLearners) || 1);
-  // scale week pattern across calendar feeding days
-  const weeks = days / 5;
-  const servings = learners * servesPerWeek * weeks;
-  return Math.round((servings / base) * 100) / 100;
+  // Whole learner-meals, then portions if recipe feeds >1 learner per batch
+  const learnerMeals = learners * serviceDays;
+  if (base === 1) return learnerMeals;
+  return Math.round((learnerMeals / base) * 100) / 100;
 }
 
 export type MrpLine = {
@@ -126,7 +207,9 @@ export type MpsSlice = {
   recipe_id: number;
   recipe_name: string;
   portions: number;
-  meals: number; // = portions * portion_learners ≈ learner-meals
+  meals: number; // whole learner-meals = learners × service_days (when portion=1)
+  /** How many times this recipe is served in the period (integer) */
+  service_days?: number;
 };
 
 export function explodeRecipeMrp(
@@ -261,8 +344,8 @@ export type ProgrammePlan = {
 };
 
 /**
- * Build full programme plan from recipes + schedule frequency + schools.
- * recipeSchedule: list of { recipe, servesPerWeek }
+ * Build full programme plan from recipes + schools.
+ * Meals = learners × integer service days per recipe (never fractional weeks).
  * Prefer DBE feeding calendar dates when provided.
  */
 export function buildProgrammePlan(opts: {
@@ -271,17 +354,29 @@ export function buildProgrammePlan(opts: {
   includeWeekends?: boolean;
   /** ISO dates that are feeding days (from nsnp_feeding_calendar_days) */
   feedingDates?: Set<string> | null;
-  recipes: Array<{ recipe: Recipe; servesPerWeek: number }>;
+  /** Prefer serviceDays; servesPerWeek kept for backward compatibility */
+  recipes: Array<{
+    recipe: Recipe;
+    serviceDays?: number;
+    servesPerWeek?: number;
+  }>;
   schools: SchoolLearners[];
   /** isp_profile_id → display name */
   ispNames?: Map<number, string>;
   budgets?: CategoryBudget[];
 }): ProgrammePlan {
-  const feeding_days = countFeedingDays(
+  const feedingDayList = listFeedingDayDates(
     opts.period_from,
     opts.period_to,
     opts.includeWeekends,
     opts.feedingDates
+  );
+  const feeding_days = feedingDayList.length;
+
+  // Auto-assign integer service days from weekdays when not provided
+  const autoDays = assignRecipeServiceDays(
+    opts.recipes.map((x) => x.recipe),
+    feedingDayList
   );
 
   const priceByCategory = new Map<string, number>();
@@ -300,17 +395,29 @@ export function buildProgrammePlan(opts: {
     const mps: MpsSlice[] = [];
     let mrpLines: MrpLine[] = [];
     let totalMeals = 0;
-    for (const { recipe, servesPerWeek } of opts.recipes) {
+    for (const entry of opts.recipes) {
+      const { recipe } = entry;
       if (!recipe.active && recipe.active !== undefined) continue;
+      let serviceDays =
+        entry.serviceDays != null
+          ? Math.max(0, Math.round(Number(entry.serviceDays) || 0))
+          : autoDays.get(recipe.id);
+      if (serviceDays == null && entry.servesPerWeek != null) {
+        serviceDays = Math.round(
+          (feeding_days * Number(entry.servesPerWeek)) / 5
+        );
+      }
+      serviceDays = Math.max(0, Math.round(Number(serviceDays) || 0));
+
       const portions = schoolMealPortions({
         learners: s.learners,
-        feedingDays: feeding_days,
-        servesPerWeek,
+        serviceDays,
         portionLearners: recipe.portion_learners,
       });
+      // Whole learner-meals
       const meals = Math.round(
-        portions * Math.max(0.0001, recipe.portion_learners) * 100
-      ) / 100;
+        portions * Math.max(0.0001, recipe.portion_learners)
+      );
       totalMeals += meals;
       mps.push({
         meal_type: recipe.meal_type,
@@ -318,6 +425,7 @@ export function buildProgrammePlan(opts: {
         recipe_name: recipe.name,
         portions,
         meals,
+        service_days: serviceDays,
       });
       mrpLines = mrpLines.concat(
         explodeRecipeMrp(recipe, portions, priceByCategory)
@@ -336,7 +444,7 @@ export function buildProgrammePlan(opts: {
       district: s.district,
       learners: s.learners,
       mps,
-      total_meals: Math.round(totalMeals * 100) / 100,
+      total_meals: Math.round(totalMeals),
       mrp,
       mrp_by_category,
       estimated_cost_zar,
@@ -354,7 +462,11 @@ export function buildProgrammePlan(opts: {
         programmeMpsMap.set(key, { ...m });
       } else {
         prev.portions = Math.round((prev.portions + m.portions) * 100) / 100;
-        prev.meals = Math.round((prev.meals + m.meals) * 100) / 100;
+        prev.meals = Math.round(prev.meals + m.meals);
+        if (m.service_days != null) {
+          // service_days is calendar days for the recipe (same for each school) — keep first
+          prev.service_days = prev.service_days ?? m.service_days;
+        }
       }
     }
   }
@@ -435,10 +547,9 @@ export function buildProgrammePlan(opts: {
     feeding_days,
     feeding_days_from_calendar: Boolean(opts.feedingDates),
     total_learners: opts.schools.reduce((n, s) => n + s.learners, 0),
-    total_meals:
-      Math.round(
-        schoolPlans.reduce((n, s) => n + s.total_meals, 0) * 100
-      ) / 100,
+    total_meals: Math.round(
+      schoolPlans.reduce((n, s) => n + s.total_meals, 0)
+    ),
     school_count: schoolPlans.length,
     mps: Array.from(programmeMpsMap.values()),
     mrp: programmeMrp,

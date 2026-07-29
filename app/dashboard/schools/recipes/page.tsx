@@ -94,6 +94,7 @@ type Plan = {
     recipe_name: string;
     meals: number;
     portions: number;
+    service_days?: number;
   }>;
   mrp: Array<{
     product_name: string;
@@ -1151,12 +1152,14 @@ function Inner() {
 
               <div className="rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-3 text-sm text-sky-950 flex flex-wrap items-center justify-between gap-2">
                 <p>
-                  <strong>How it works:</strong> Recipe BOM qty per learner ×
-                  school NSNP learners × feeding days
+                  <strong>How it works:</strong> Meals = learners × whole service
+                  days (weekday-assigned recipes count only those weekdays in
+                  the period
                   {plan.feeding_days_from_calendar
                     ? ' from the DBE feeding calendar'
-                    : ' (weekday estimate — set a feeding calendar for exact days)'}{' '}
-                  = product MRP. SPs see the sum of schools they supply.
+                    : ''}
+                  ). Product MRP = BOM qty per learner × those meals. No
+                  fractional week splits.
                 </p>
                 <Link
                   href="/dashboard/schools/feeding-calendar"
@@ -1169,6 +1172,10 @@ function Inner() {
               <div className="grid lg:grid-cols-2 gap-4">
                 <div className="rounded-3xl border border-slate-200 bg-white p-4">
                   <p className="text-sm font-black mb-2">MPS · meals by recipe</p>
+                  <p className="text-[11px] text-slate-500 mb-2">
+                    Whole learner-meals = learners × service days (days this
+                    recipe is served in the period).
+                  </p>
                   <ul className="text-sm space-y-1">
                     {(plan.mps || []).map((m, i) => (
                       <li
@@ -1180,9 +1187,18 @@ function Inner() {
                             {m.meal_type}
                           </span>{' '}
                           {m.recipe_name}
+                          {m.service_days != null ? (
+                            <span className="block text-[10px] font-normal text-slate-400">
+                              {m.service_days} service day
+                              {m.service_days === 1 ? '' : 's'} in period
+                            </span>
+                          ) : null}
                         </span>
-                        <span className="font-black tabular-nums">
-                          {m.meals.toLocaleString()} meals
+                        <span className="font-black tabular-nums text-right">
+                          {Number.isInteger(m.meals)
+                            ? m.meals.toLocaleString()
+                            : Math.round(m.meals).toLocaleString()}{' '}
+                          meals
                         </span>
                       </li>
                     ))}
