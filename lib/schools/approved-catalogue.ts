@@ -268,20 +268,24 @@ export async function filterApprovedProductIds(
   return out;
 }
 
+export type MenuProductStrip = {
+  id: number;
+  label: string;
+  reason: 'inactive' | 'not_on_catalogue';
+};
+
 /**
- * DBE menu authoring: product must belong to the department catalogue
- * (active or inactive). Putting a product on the mandated menu re-activates it
- * so schools/SPs can order it. Returns bad ids with display names.
+ * Menu products: only active department catalogue items.
+ * Inactive / foreign ids are stripped (never re-activated, never shown).
  */
-export async function validateMenuProductsForAgency(
+export async function sanitizeMenuProductIds(
   supabase: SupabaseClient,
   agencyProfileId: number,
   productIds: number[]
 ): Promise<{
-  ok: boolean;
-  bad: Array<{ id: number; label: string }>;
-  reactivated: number[];
-  byId: Map<number, Record<string, unknown>>;
+  allowedIds: number[];
+  allowed: Map<number, Record<string, unknown>>;
+  stripped: MenuProductStrip[];
 }> {
   const ids = [
     ...new Set(
@@ -289,7 +293,7 @@ export async function validateMenuProductsForAgency(
     ),
   ];
   if (!ids.length) {
-    return { ok: true, bad: [], reactivated: [], byId: new Map() };
+    return { allowedIds: [], allowed: new Map(), stripped: [] };
   }
 
   const { data: rows, error } = await supabase
@@ -299,81 +303,136 @@ export async function validateMenuProductsForAgency(
     .limit(ids.length + 10);
 
   if (error) {
-    // Soft fallback to active-only filter
     const byActive = await filterApprovedProductIds(
       supabase,
       agencyProfileId,
       ids
     );
-    const bad = ids
+    const allowedIds = ids.filter((id) => byActive.has(id));
+    const stripped = ids
       .filter((id) => !byActive.has(id))
-      .map((id) => ({ id, label: String(id) }));
-    return {
-      ok: bad.length === 0,
-      bad,
-      reactivated: [],
-      byId: byActive,
-    };
+      .map((id) => ({
+        id,
+        label: String(id),
+        reason: 'not_on_catalogue' as const,
+      }));
+    return { allowedIds, allowed: byActive, stripped };
   }
 
-  const byId = new Map<number, Record<string, unknown>>();
-  const ownedIds = new Set<number>();
-  const inactiveOwned: number[] = [];
+  // Does agency have its own catalogue rows?
+  const { count: ownedCount } = await supabase
+    .from('nsnp_approved_products')
+    .select('id', { count: 'exact', head: true })
+    .eq('agency_profile_id', agencyProfileId);
+
+  const allowed = new Map<number, Record<string, unknown>>();
+  const stripped: MenuProductStrip[] = [];
+  const found = new Set<number>();
 
   for (const r of rows || []) {
     const id = Number(r.id);
-    const agency = r.agency_profile_id != null ? Number(r.agency_profile_id) : null;
-    // Accept department-owned products; national rows only if agency has none owned yet
-    if (agency === agencyProfileId) {
-      ownedIds.add(id);
-      byId.set(id, r as Record<string, unknown>);
-      if (r.active === false) inactiveOwned.push(id);
+    found.add(id);
+    const agency =
+      r.agency_profile_id != null ? Number(r.agency_profile_id) : null;
+    const label = `${r.brand_name ? `${r.brand_name} · ` : ''}${r.name || id}`;
+    const onCatalogue =
+      agency === agencyProfileId ||
+      ((!ownedCount || ownedCount === 0) && agency == null);
+
+    if (!onCatalogue) {
+      stripped.push({ id, label, reason: 'not_on_catalogue' });
+      continue;
     }
+    if (r.active === false) {
+      stripped.push({ id, label, reason: 'inactive' });
+      continue;
+    }
+    allowed.set(id, r as Record<string, unknown>);
   }
 
-  // If agency catalogue is empty, allow national seed ids as transitional
-  if (!ownedIds.size) {
-    const { count } = await supabase
-      .from('nsnp_approved_products')
-      .select('id', { count: 'exact', head: true })
-      .eq('agency_profile_id', agencyProfileId);
-    if (!count) {
-      for (const r of rows || []) {
-        const id = Number(r.id);
-        if (r.agency_profile_id == null) {
-          ownedIds.add(id);
-          byId.set(id, r as Record<string, unknown>);
-        }
-      }
+  for (const id of ids) {
+    if (!found.has(id) && !allowed.has(id)) {
+      stripped.push({
+        id,
+        label: String(id),
+        reason: 'not_on_catalogue',
+      });
     }
-  }
-
-  const bad = ids
-    .filter((id) => !ownedIds.has(id))
-    .map((id) => {
-      const row = (rows || []).find((r) => Number(r.id) === id);
-      const name = row
-        ? `${row.brand_name ? `${row.brand_name} · ` : ''}${row.name || id}`
-        : String(id);
-      return { id, label: name };
-    });
-
-  // Menu inclusion means these foods are approved for programme use
-  let reactivated: number[] = [];
-  if (inactiveOwned.length) {
-    const { error: actErr } = await supabase
-      .from('nsnp_approved_products')
-      .update({ active: true, updated_at: new Date().toISOString() })
-      .in('id', inactiveOwned)
-      .eq('agency_profile_id', agencyProfileId);
-    if (!actErr) reactivated = inactiveOwned;
   }
 
   return {
-    ok: bad.length === 0,
-    bad,
-    reactivated,
-    byId,
+    allowedIds: ids.filter((id) => allowed.has(id)),
+    allowed,
+    stripped,
+  };
+}
+
+/** Drop inactive / off-catalogue product ids from menu cycle items. */
+export async function sanitizeMenuItemsProducts(
+  supabase: SupabaseClient,
+  agencyProfileId: number,
+  items: Array<{
+    day: number;
+    meal_type?: string;
+    dish?: string;
+    approved_product_ids?: number[];
+    notes?: string;
+  }>
+): Promise<{
+  items: Array<{
+    day: number;
+    meal_type?: string;
+    dish?: string;
+    approved_product_ids: number[];
+    notes?: string;
+  }>;
+  stripped: MenuProductStrip[];
+}> {
+  const allIds = [
+    ...new Set(items.flatMap((it) => it.approved_product_ids || [])),
+  ];
+  const { allowedIds, stripped } = await sanitizeMenuProductIds(
+    supabase,
+    agencyProfileId,
+    allIds
+  );
+  const allow = new Set(allowedIds);
+  return {
+    items: items.map((it) => ({
+      ...it,
+      approved_product_ids: (it.approved_product_ids || []).filter((id) =>
+        allow.has(id)
+      ),
+    })),
+    stripped,
+  };
+}
+
+/** @deprecated use sanitizeMenuProductIds — kept name for any external import */
+export async function validateMenuProductsForAgency(
+  supabase: SupabaseClient,
+  agencyProfileId: number,
+  productIds: number[]
+): Promise<{
+  ok: boolean;
+  bad: Array<{ id: number; label: string }>;
+  reactivated: number[];
+  byId: Map<number, Record<string, unknown>>;
+  stripped: MenuProductStrip[];
+  allowedIds: number[];
+}> {
+  const r = await sanitizeMenuProductIds(
+    supabase,
+    agencyProfileId,
+    productIds
+  );
+  return {
+    ok: r.stripped.length === 0,
+    bad: r.stripped.map((s) => ({ id: s.id, label: s.label })),
+    reactivated: [],
+    byId: r.allowed,
+    stripped: r.stripped,
+    allowedIds: r.allowedIds,
   };
 }
 

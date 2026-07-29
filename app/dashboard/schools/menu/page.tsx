@@ -81,12 +81,42 @@ function Inner() {
   const [saving, setSaving] = useState(false);
   const [productFilter, setProductFilter] = useState('');
 
-  const loadMenuIntoEditor = useCallback((m: Menu) => {
-    setEditingId(m.id);
-    setName(m.name);
-    setDescription(m.description || '');
-    setItems(normalizeTwoMealItems(m.items || []));
-  }, []);
+  /** Only active catalogue products may appear on the menu */
+  const pruneItemsToActive = useCallback(
+    (raw: DayMealSlot[], active: Product[]) => {
+      const allow = new Set(active.map((p) => p.id));
+      let stripped = 0;
+      const next = normalizeTwoMealItems(raw).map((it) => {
+        const ids = (it.approved_product_ids || []).filter((id) => {
+          const ok = allow.has(id);
+          if (!ok) stripped += 1;
+          return ok;
+        });
+        return { ...it, approved_product_ids: ids };
+      });
+      return { items: next, stripped };
+    },
+    []
+  );
+
+  const loadMenuIntoEditor = useCallback(
+    (m: Menu, activeProducts: Product[]) => {
+      setEditingId(m.id);
+      setName(m.name);
+      setDescription(m.description || '');
+      const { items: pruned, stripped } = pruneItemsToActive(
+        m.items || [],
+        activeProducts
+      );
+      setItems(pruned);
+      if (stripped > 0) {
+        toast.message(
+          `${stripped} inactive / off-list product(s) hidden — they cannot appear on the menu`
+        );
+      }
+    },
+    [pruneItemsToActive]
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -95,6 +125,7 @@ function Inner() {
         fetch(`/api/schools/menu?companyId=${companyId}`, {
           cache: 'no-store',
         }),
+        // activeOnly defaults true — only active catalogue for menu chips
         fetch(`/api/schools/approved?companyId=${companyId}`, {
           cache: 'no-store',
         }),
@@ -102,16 +133,17 @@ function Inner() {
       const m = await mRes.json();
       const p = await pRes.json();
       if (!mRes.ok) throw new Error(m.error || 'Failed');
+      const activeProducts = (p.products || []) as Product[];
       setCanEdit(Boolean(m.canEdit));
       setMenus(m.menus || []);
       setMandated(m.mandated || null);
       setAdherence(m.adherence || null);
       setAgencyName(m.agencyName || m.mandated?.agency_name || null);
       setPolicy(String(m.policy || ''));
-      setProducts(p.products || []);
+      setProducts(activeProducts);
       if (m.warning) toast.message(m.warning);
       if (m.mandated) {
-        loadMenuIntoEditor(m.mandated as Menu);
+        loadMenuIntoEditor(m.mandated as Menu, activeProducts);
       } else if (m.canEdit) {
         setItems(emptyTwoMealWeek());
       }
@@ -160,7 +192,18 @@ function Inner() {
   const save = async () => {
     if (!canEdit) return toast.error('Only the department can set the menu');
     if (!name.trim()) return toast.error('Menu name required');
-    const filled = items.filter((it) => it.dish.trim());
+    // Never send inactive products — catalogue chips are active-only
+    const { items: activeOnlyItems, stripped } = pruneItemsToActive(
+      items,
+      products
+    );
+    if (stripped > 0) {
+      setItems(activeOnlyItems);
+      toast.message(
+        `Removed ${stripped} inactive product(s) before save — they cannot appear on the menu`
+      );
+    }
+    const filled = activeOnlyItems.filter((it) => it.dish.trim());
     if (!filled.length) {
       return toast.error('Add at least one breakfast or lunch dish');
     }
@@ -229,7 +272,8 @@ function Inner() {
 
   const productLabel = (id: number) => {
     const p = products.find((x) => x.id === id);
-    return p ? `${p.brand_name} · ${p.name}` : `Product ${id}`;
+    // Never invent labels for inactive/off-list ids — they should already be pruned
+    return p ? `${p.brand_name} · ${p.name}` : null;
   };
 
   const pf = productFilter.trim().toLowerCase();
@@ -390,7 +434,7 @@ function Inner() {
                         <button
                           type="button"
                           className="w-full text-left"
-                          onClick={() => loadMenuIntoEditor(m)}
+                          onClick={() => loadMenuIntoEditor(m, products)}
                         >
                           <span className="font-semibold">{m.name}</span>
                           {m.active ? (
@@ -590,18 +634,23 @@ function Inner() {
                               </div>
                             ) : (
                               <ul className="text-xs text-slate-700 space-y-0.5">
-                                {(slot.approved_product_ids || []).length ===
-                                0 ? (
-                                  <li className="text-slate-400">
-                                    No products linked
-                                  </li>
-                                ) : (
-                                  (slot.approved_product_ids || []).map(
-                                    (id) => (
-                                      <li key={id}>· {productLabel(id)}</li>
-                                    )
+                                {(() => {
+                                  const labels = (
+                                    slot.approved_product_ids || []
                                   )
-                                )}
+                                    .map((id) => productLabel(id))
+                                    .filter(Boolean) as string[];
+                                  if (!labels.length) {
+                                    return (
+                                      <li className="text-slate-400">
+                                        No products linked
+                                      </li>
+                                    );
+                                  }
+                                  return labels.map((label, i) => (
+                                    <li key={i}>· {label}</li>
+                                  ));
+                                })()}
                               </ul>
                             )}
                           </div>

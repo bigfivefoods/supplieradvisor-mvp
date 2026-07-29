@@ -7,7 +7,7 @@ import {
 import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
 import {
   resolveCatalogueContext,
-  validateMenuProductsForAgency,
+  sanitizeMenuItemsProducts,
 } from '@/lib/schools/approved-catalogue';
 import {
   loadMandatedMenu,
@@ -40,6 +40,21 @@ export async function GET(request: NextRequest) {
     const ctx = await resolveCatalogueContext(supabase, companyId);
     const mandated = await loadMandatedMenu(supabase, companyId);
 
+    // Strip inactive / off-catalogue products so they never appear on menus
+    const stripMenuItems = async (
+      agencyId: number | null | undefined,
+      rawItems: unknown
+    ) => {
+      const parsed = parseMenuItems(rawItems);
+      if (!agencyId || !parsed.length) return parsed;
+      const { items } = await sanitizeMenuItemsProducts(
+        supabase,
+        Number(agencyId),
+        parsed
+      );
+      return items;
+    };
+
     // Agency: list all their menus + mandated active
     if (ctx.canEdit && ctx.agencyProfileId) {
       const { data: menus, error } = await supabase
@@ -65,19 +80,30 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
 
+      const agencyId = Number(ctx.agencyProfileId);
+      const menusClean = await Promise.all(
+        (menus || []).map(async (m) => ({
+          ...m,
+          items: await stripMenuItems(agencyId, m.items),
+        }))
+      );
+      const mandatedClean = mandated.menu
+        ? {
+            ...mandated.menu,
+            items: await stripMenuItems(agencyId, mandated.menu.items),
+          }
+        : null;
+
       return NextResponse.json({
         success: true,
         role: 'agency',
         canEdit: true,
         meal_types: MEAL_TYPES,
-        menus: (menus || []).map((m) => ({
-          ...m,
-          items: parseMenuItems(m.items),
-        })),
-        mandated: mandated.menu,
+        menus: menusClean,
+        mandated: mandatedClean,
         catalogue: ctx,
         policy:
-          'Set breakfast and lunch for each school day. Select approved products per meal. Schools and SPs follow this live; schools are rated on % menu adherence.',
+          'Set breakfast and lunch for each school day. Only active approved-list products appear — inactive foods stay off the menu. Schools and SPs follow this live; schools are rated on % menu adherence.',
       });
     }
 
@@ -115,8 +141,14 @@ export async function GET(request: NextRequest) {
       }));
     }
 
-    const prescribedIds = mandated.menu
-      ? productsPrescribedOnMenu(mandated.menu.items)
+    const mandatedItems = mandated.menu
+      ? await stripMenuItems(mandated.agencyProfileId, mandated.menu.items)
+      : [];
+    const mandatedClean = mandated.menu
+      ? { ...mandated.menu, items: mandatedItems }
+      : null;
+    const prescribedIds = mandatedClean
+      ? productsPrescribedOnMenu(mandatedClean.items)
       : [];
 
     return NextResponse.json({
@@ -124,7 +156,7 @@ export async function GET(request: NextRequest) {
       role: ctx.isIsp ? 'sp' : 'school',
       canEdit: false,
       meal_types: MEAL_TYPES,
-      mandated: mandated.menu,
+      mandated: mandatedClean,
       agencyName: mandated.agencyName,
       agencyProfileId: mandated.agencyProfileId,
       /** Product ids the department selected across breakfast+lunch for the week */
@@ -182,29 +214,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'name required' }, { status: 400 });
     }
 
-    const items = parseMenuItems(body.items);
-    const productIds = [
-      ...new Set(items.flatMap((it) => it.approved_product_ids || [])),
-    ];
-    let reactivatedIds: number[] = [];
-    if (productIds.length) {
-      const check = await validateMenuProductsForAgency(
-        supabase,
-        companyId,
-        productIds
+    const parsed = parseMenuItems(body.items);
+    // Only active department catalogue products may appear on the menu
+    const sanitized = await sanitizeMenuItemsProducts(
+      supabase,
+      companyId,
+      parsed
+    );
+    const items = sanitized.items;
+    const strippedInactive = sanitized.stripped.filter(
+      (s) => s.reason === 'inactive'
+    );
+    const strippedOther = sanitized.stripped.filter(
+      (s) => s.reason !== 'inactive'
+    );
+    if (strippedOther.length) {
+      return NextResponse.json(
+        {
+          error: `Menu products must be on your department approved list: ${strippedOther
+            .map((b) => b.label)
+            .join('; ')}`,
+          bad_product_ids: strippedOther.map((b) => b.id),
+        },
+        { status: 400 }
       );
-      if (!check.ok) {
-        return NextResponse.json(
-          {
-            error: `Menu products must be on your department approved list: ${check.bad
-              .map((b) => b.label)
-              .join('; ')}`,
-            bad_product_ids: check.bad.map((b) => b.id),
-          },
-          { status: 400 }
-        );
-      }
-      reactivatedIds = check.reactivated;
     }
 
     // Deactivate previous mandated menus when publishing active
@@ -278,10 +311,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       menu: { ...data, items: parseMenuItems(data.items) },
-      reactivated_product_ids: reactivatedIds,
+      stripped_inactive: strippedInactive,
       message:
-        reactivatedIds.length > 0
-          ? `Department menu published. ${reactivatedIds.length} catalogue product(s) re-activated because they are on the menu. Schools and SPs see it live.`
+        strippedInactive.length > 0
+          ? `Department menu published. ${strippedInactive.length} inactive product(s) were removed (inactive foods never appear on the menu). Schools and SPs see it live.`
           : 'Department menu published. Associated schools and SPs see it live and are rated on adherence.',
     });
   } catch (e: unknown) {
@@ -324,32 +357,33 @@ export async function PATCH(request: NextRequest) {
     if (body.description !== undefined) patch.description = body.description;
     if (body.cycle_days != null) patch.cycle_days = Number(body.cycle_days);
     if (body.mandatory != null) patch.mandatory = Boolean(body.mandatory);
-    let reactivatedIds: number[] = [];
+    let strippedInactive: Array<{ id: number; label: string; reason: string }> =
+      [];
     if (Array.isArray(body.items)) {
-      const items = parseMenuItems(body.items);
-      const productIds = [
-        ...new Set(items.flatMap((it) => it.approved_product_ids || [])),
-      ];
-      if (productIds.length) {
-        const check = await validateMenuProductsForAgency(
-          supabase,
-          companyId,
-          productIds
+      const parsed = parseMenuItems(body.items);
+      const sanitized = await sanitizeMenuItemsProducts(
+        supabase,
+        companyId,
+        parsed
+      );
+      strippedInactive = sanitized.stripped.filter(
+        (s) => s.reason === 'inactive'
+      );
+      const strippedOther = sanitized.stripped.filter(
+        (s) => s.reason !== 'inactive'
+      );
+      if (strippedOther.length) {
+        return NextResponse.json(
+          {
+            error: `Menu products must be on your department approved list: ${strippedOther
+              .map((b) => b.label)
+              .join('; ')}`,
+            bad_product_ids: strippedOther.map((b) => b.id),
+          },
+          { status: 400 }
         );
-        if (!check.ok) {
-          return NextResponse.json(
-            {
-              error: `Menu products must be on your department approved list: ${check.bad
-                .map((b) => b.label)
-                .join('; ')}`,
-              bad_product_ids: check.bad.map((b) => b.id),
-            },
-            { status: 400 }
-          );
-        }
-        reactivatedIds = check.reactivated;
       }
-      patch.items = items;
+      patch.items = sanitized.items;
     }
     if (body.active === true) {
       await supabase
@@ -377,10 +411,10 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({
       success: true,
       menu: { ...data, items: parseMenuItems(data.items) },
-      reactivated_product_ids: reactivatedIds,
+      stripped_inactive: strippedInactive,
       message:
-        reactivatedIds.length > 0
-          ? `Menu updated — ${reactivatedIds.length} catalogue product(s) re-activated (on menu = approved for programme). Schools and SPs see changes live.`
+        strippedInactive.length > 0
+          ? `Menu updated — ${strippedInactive.length} inactive product(s) removed (inactive foods never appear on the menu). Schools and SPs see changes live.`
           : 'Menu updated — schools and SPs see changes live',
     });
   } catch (e: unknown) {
