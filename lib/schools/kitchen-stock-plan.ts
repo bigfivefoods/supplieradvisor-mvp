@@ -22,6 +22,46 @@ export const DEFAULT_STOCK_COVER: StockCoverPolicy = {
   lead_time_days: 3,
 };
 
+/**
+ * Whole-number stock quantities by UOM (kitchen-friendly).
+ * - Countable (unit, tin, bag, pack, …): whole pieces (ceil for order/target).
+ * - Mass/volume (kg, g, L, ml, …): whole UOM units (ceil for order/target).
+ * - On-hand display: nearest whole (not forced up).
+ */
+export function isCountableUom(uom?: string | null): boolean {
+  const u = String(uom || '')
+    .trim()
+    .toLowerCase();
+  if (!u) return false;
+  return /^(unit|units|ea|each|pc|pcs|piece|pieces|tin|tins|bag|bags|pack|packs|box|boxes|case|cases|loaf|loaves|tray|trays|bottle|bottles|sachet|sachets|portion|portions|item|items)$/i.test(
+    u
+  );
+}
+
+/** Round stock qty to a whole number for the UOM. mode: floor | round | ceil */
+export function roundStockQty(
+  qty: number,
+  uom?: string | null,
+  mode: 'floor' | 'round' | 'ceil' = 'round'
+): number {
+  const n = Number(qty);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  // All kitchen levels/orders use whole UOM units (kg, g, tin, bag, …)
+  if (mode === 'ceil') return Math.max(0, Math.ceil(n - 1e-9));
+  if (mode === 'floor') return Math.max(0, Math.floor(n + 1e-9));
+  return Math.max(0, Math.round(n));
+}
+
+/** Format for inputs/display — always whole number string */
+export function formatStockQty(
+  qty: number | string | null | undefined,
+  uom?: string | null,
+  mode: 'floor' | 'round' | 'ceil' = 'round'
+): string {
+  const n = roundStockQty(Number(qty) || 0, uom, mode);
+  return String(n);
+}
+
 export type ProductDemand = {
   approved_product_id: number;
   product_name: string;
@@ -245,24 +285,46 @@ export function buildKitchenStockPlan(opts: {
   for (const d of [...demandById.values()].sort((a, b) =>
     a.product_name.localeCompare(b.product_name)
   )) {
-    const qty = Math.max(0, Number(onHand.get(d.approved_product_id)) || 0);
-    const daily = d.daily_usage;
+    const uom = d.uom || 'kg';
+    // On-hand: whole UOM (nearest); targets/orders: whole UOM rounded up
+    const qty = roundStockQty(
+      Math.max(0, Number(onHand.get(d.approved_product_id)) || 0),
+      uom,
+      'round'
+    );
+    const dailyRaw = d.daily_usage;
+    // Keep a small daily precision for days-left maths, then whole levels
+    const daily = dailyRaw > 0 ? dailyRaw : 0;
     const target_qty =
       daily > 0
-        ? Math.round(daily * policy.cover_days * 1000) / 1000
+        ? roundStockQty(daily * policy.cover_days, uom, 'ceil')
         : 0;
     const reorder_level =
       daily > 0
-        ? Math.round(daily * policy.reorder_cover_days * 1000) / 1000
+        ? roundStockQty(daily * policy.reorder_cover_days, uom, 'ceil')
         : 0;
+    // Never let reorder sit above target
+    const reorderAdj =
+      target_qty > 0 ? Math.min(reorder_level, target_qty) : reorder_level;
     const days_on_hand =
       daily > 0 ? Math.round((qty / daily) * 10) / 10 : null;
     let suggested = 0;
     if (daily > 0) {
-      suggested = Math.max(0, target_qty - qty);
-      // Round up lightly to 3 decimals for kg-style, or whole for unit-like
-      suggested = Math.ceil(suggested * 1000) / 1000;
+      suggested = roundStockQty(
+        Math.max(0, target_qty - qty),
+        uom,
+        'ceil'
+      );
     }
+
+    // Whole daily usage for display/messages (1 decimal if tiny, else whole)
+    const dailyDisplay =
+      daily <= 0
+        ? 0
+        : daily < 1
+          ? Math.round(daily * 10) / 10
+          : roundStockQty(daily, uom, 'ceil') ||
+            Math.max(1, Math.round(daily));
 
     let status: ProductStockPlan['status'] = 'no_demand';
     let message = 'Not on current recipe menu — no estimated daily use';
@@ -270,15 +332,18 @@ export function buildKitchenStockPlan(opts: {
       if (days_on_hand != null && days_on_hand <= Math.max(1, policy.lead_time_days)) {
         status = 'critical';
         message = `Only ~${days_on_hand} day(s) left — order urgently (lead time ${policy.lead_time_days}d)`;
-      } else if (qty <= reorder_level || (days_on_hand != null && days_on_hand <= policy.reorder_cover_days)) {
+      } else if (
+        qty <= reorderAdj ||
+        (days_on_hand != null && days_on_hand <= policy.reorder_cover_days)
+      ) {
         status = 'reorder';
-        message = `At/below ${policy.reorder_cover_days}-day reorder cover — suggested order ${suggested} ${d.uom}`;
+        message = `At/below ${policy.reorder_cover_days}-day reorder cover — suggested order ${suggested} ${uom}`;
       } else if (target_qty > 0 && qty > target_qty * 1.25) {
         status = 'overstock';
         message = `Above ${policy.cover_days}-day target holding`;
       } else {
         status = 'ok';
-        message = `~${days_on_hand} day(s) on hand · target ${policy.cover_days} days (${target_qty} ${d.uom})`;
+        message = `~${days_on_hand} day(s) on hand · target ${policy.cover_days} days (${target_qty} ${uom})`;
       }
     } else if (qty > 0) {
       status = 'ok';
@@ -287,10 +352,12 @@ export function buildKitchenStockPlan(opts: {
 
     products.push({
       ...d,
+      daily_usage: dailyDisplay,
+      weekly_usage: roundStockQty(d.weekly_usage, uom, 'ceil'),
       qty_on_hand: qty,
       days_on_hand,
       target_qty,
-      reorder_level,
+      reorder_level: reorderAdj,
       suggested_order_qty: suggested,
       status,
       message,

@@ -19,6 +19,10 @@ import {
   SchoolsHeader,
   SchoolsPage,
 } from '@/components/schools/SchoolsShell';
+import {
+  formatStockQty,
+  roundStockQty,
+} from '@/lib/schools/kitchen-stock-plan';
 
 type Product = {
   id: number;
@@ -176,35 +180,45 @@ function Inner() {
       const rows: LevelRow[] = (p.products || []).map((prod: Product) => {
         const s = stockByPid.get(prod.id);
         const plan = planByPid.get(prod.id);
+        const uom = prod.uom || 'kg';
+        const onHandRaw =
+          s?.qty_on_hand != null ? Number(s.qty_on_hand) : 0;
+        const reorderRaw =
+          s?.reorder_level != null
+            ? Number(s.reorder_level)
+            : plan?.reorder_level != null
+              ? Number(plan.reorder_level)
+              : null;
+        const targetRaw =
+          s?.target_level != null
+            ? Number(s.target_level)
+            : plan?.target_qty != null
+              ? Number(plan.target_qty)
+              : null;
+        const suggestRaw =
+          plan?.suggested_order_qty ??
+          (Number(s?.suggested_order_qty) || 0);
         return {
           approved_product_id: prod.id,
           product_name: prod.name,
           brand_name: prod.brand_name,
-          uom: prod.uom || 'kg',
-          qty_on_hand:
-            s?.qty_on_hand != null ? String(s.qty_on_hand) : '0',
+          uom,
+          qty_on_hand: formatStockQty(onHandRaw, uom, 'round'),
           reorder_level:
-            s?.reorder_level != null
-              ? String(s.reorder_level)
-              : plan?.reorder_level != null
-                ? String(plan.reorder_level)
-                : '',
+            reorderRaw != null && Number.isFinite(reorderRaw)
+              ? formatStockQty(reorderRaw, uom, 'ceil')
+              : '',
           target_level:
-            s?.target_level != null
-              ? String(s.target_level)
-              : plan?.target_qty != null
-                ? String(plan.target_qty)
-                : '',
+            targetRaw != null && Number.isFinite(targetRaw)
+              ? formatStockQty(targetRaw, uom, 'ceil')
+              : '',
           stock_id: s?.id != null ? Number(s.id) : undefined,
           low_stock: Boolean(s?.low_stock),
-          daily_usage:
-            plan?.daily_usage ?? (Number(s?.daily_usage) || 0),
+          daily_usage: plan?.daily_usage ?? (Number(s?.daily_usage) || 0),
           days_on_hand:
             plan?.days_on_hand ??
             (s?.days_on_hand != null ? Number(s.days_on_hand) : null),
-          suggested_order_qty:
-            plan?.suggested_order_qty ??
-            (Number(s?.suggested_order_qty) || 0),
+          suggested_order_qty: roundStockQty(suggestRaw, uom, 'ceil'),
           cover_status: plan?.status || String(s?.cover_status || ''),
           cover_message: plan?.message || String(s?.cover_message || ''),
         };
@@ -213,21 +227,30 @@ function Inner() {
         const pid = Number(s.approved_product_id);
         if (!rows.some((r) => r.approved_product_id === pid)) {
           const plan = planByPid.get(pid);
+          const uom = String(s.uom || 'kg');
           rows.push({
             approved_product_id: pid,
             product_name: String(s.product_name || ''),
             brand_name: String(s.brand_name || ''),
-            uom: String(s.uom || 'kg'),
-            qty_on_hand: String(s.qty_on_hand ?? 0),
+            uom,
+            qty_on_hand: formatStockQty(s.qty_on_hand ?? 0, uom, 'round'),
             reorder_level:
-              s.reorder_level != null ? String(s.reorder_level) : '',
+              s.reorder_level != null
+                ? formatStockQty(s.reorder_level, uom, 'ceil')
+                : '',
             target_level:
-              s.target_level != null ? String(s.target_level) : '',
+              s.target_level != null
+                ? formatStockQty(s.target_level, uom, 'ceil')
+                : '',
             stock_id: Number(s.id),
             low_stock: Boolean(s.low_stock),
             daily_usage: plan?.daily_usage ?? 0,
             days_on_hand: plan?.days_on_hand ?? null,
-            suggested_order_qty: plan?.suggested_order_qty ?? 0,
+            suggested_order_qty: roundStockQty(
+              plan?.suggested_order_qty ?? 0,
+              uom,
+              'ceil'
+            ),
             cover_status: plan?.status,
             cover_message: plan?.message,
           });
@@ -376,9 +399,18 @@ function Inner() {
           product_name: r.product_name,
           brand_name: r.brand_name,
           uom: r.uom,
-          qty_on_hand: r.qty_on_hand === '' ? undefined : r.qty_on_hand,
-          reorder_level: r.reorder_level === '' ? null : r.reorder_level,
-          target_level: r.target_level === '' ? null : r.target_level,
+          qty_on_hand:
+            r.qty_on_hand === ''
+              ? undefined
+              : roundStockQty(r.qty_on_hand, r.uom, 'round'),
+          reorder_level:
+            r.reorder_level === ''
+              ? null
+              : roundStockQty(r.reorder_level, r.uom, 'ceil'),
+          target_level:
+            r.target_level === ''
+              ? null
+              : roundStockQty(r.target_level, r.uom, 'ceil'),
         }));
       if (!linesPayload.length) {
         return toast.error('Set at least one on-hand or reorder level');
@@ -421,7 +453,7 @@ function Inner() {
       approved_product_id: p.approved_product_id,
       product_name: p.product_name,
       brand_name: p.brand_name,
-      qty: p.suggested_order_qty,
+      qty: roundStockQty(p.suggested_order_qty, p.uom, 'ceil'),
       uom: p.uom,
       unit_price: 0,
     }));
@@ -742,7 +774,9 @@ function Inner() {
                         </td>
                         <td className="px-2 py-1.5 text-xs tabular-nums text-slate-600">
                           {r.daily_usage && r.daily_usage > 0
-                            ? r.daily_usage
+                            ? r.daily_usage < 1
+                              ? r.daily_usage
+                              : roundStockQty(r.daily_usage, r.uom, 'ceil')
                             : '—'}
                         </td>
                         <td className="px-2 py-1.5 text-xs font-bold tabular-nums">
@@ -764,6 +798,10 @@ function Inner() {
                         </td>
                         <td className="px-2 py-1.5">
                           <input
+                            type="number"
+                            step={1}
+                            min={0}
+                            inputMode="numeric"
                             className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold tabular-nums"
                             value={r.qty_on_hand}
                             onChange={(e) =>
@@ -775,10 +813,30 @@ function Inner() {
                                 )
                               )
                             }
+                            onBlur={() =>
+                              setLevelRows((prev) =>
+                                prev.map((x, i) =>
+                                  i === idx
+                                    ? {
+                                        ...x,
+                                        qty_on_hand: formatStockQty(
+                                          x.qty_on_hand,
+                                          x.uom,
+                                          'round'
+                                        ),
+                                      }
+                                    : x
+                                )
+                              )
+                            }
                           />
                         </td>
                         <td className="px-2 py-1.5">
                           <input
+                            type="number"
+                            step={1}
+                            min={0}
+                            inputMode="numeric"
                             className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs tabular-nums"
                             value={r.reorder_level}
                             placeholder="auto"
@@ -791,10 +849,30 @@ function Inner() {
                                 )
                               )
                             }
+                            onBlur={() =>
+                              setLevelRows((prev) =>
+                                prev.map((x, i) =>
+                                  i === idx && x.reorder_level !== ''
+                                    ? {
+                                        ...x,
+                                        reorder_level: formatStockQty(
+                                          x.reorder_level,
+                                          x.uom,
+                                          'ceil'
+                                        ),
+                                      }
+                                    : x
+                                )
+                              )
+                            }
                           />
                         </td>
                         <td className="px-2 py-1.5">
                           <input
+                            type="number"
+                            step={1}
+                            min={0}
+                            inputMode="numeric"
                             className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs tabular-nums"
                             value={r.target_level}
                             placeholder="auto"
@@ -807,11 +885,31 @@ function Inner() {
                                 )
                               )
                             }
+                            onBlur={() =>
+                              setLevelRows((prev) =>
+                                prev.map((x, i) =>
+                                  i === idx && x.target_level !== ''
+                                    ? {
+                                        ...x,
+                                        target_level: formatStockQty(
+                                          x.target_level,
+                                          x.uom,
+                                          'ceil'
+                                        ),
+                                      }
+                                    : x
+                                )
+                              )
+                            }
                           />
                         </td>
                         <td className="px-2 py-1.5 text-xs font-black tabular-nums text-sky-900">
                           {r.suggested_order_qty && r.suggested_order_qty > 0
-                            ? r.suggested_order_qty
+                            ? roundStockQty(
+                                r.suggested_order_qty,
+                                r.uom,
+                                'ceil'
+                              )
                             : '—'}
                         </td>
                         <td className="px-2 py-1.5 text-xs text-slate-500">
@@ -1030,16 +1128,35 @@ function Inner() {
                             ? `~${String(s.days_on_hand)}d left`
                             : ''}
                           {s.daily_usage
-                            ? ` · ${String(s.daily_usage)}/${String(s.uom || 'u')}/day`
+                            ? ` · ${
+                                Number(s.daily_usage) < 1
+                                  ? String(s.daily_usage)
+                                  : String(
+                                      roundStockQty(
+                                        Number(s.daily_usage),
+                                        String(s.uom || 'kg'),
+                                        'ceil'
+                                      )
+                                    )
+                              }/${String(s.uom || 'u')}/day`
                             : ''}
                           {s.suggested_order_qty
-                            ? ` · order ${String(s.suggested_order_qty)}`
+                            ? ` · order ${roundStockQty(
+                                Number(s.suggested_order_qty),
+                                String(s.uom || 'kg'),
+                                'ceil'
+                              )}`
                             : ''}
                         </div>
                       </td>
                       <td className="px-4 py-2 text-right">
                         <div className="font-black tabular-nums">
-                          {Number(s.qty_on_hand)} {String(s.uom || '')}
+                          {roundStockQty(
+                            Number(s.qty_on_hand),
+                            String(s.uom || 'kg'),
+                            'round'
+                          )}{' '}
+                          {String(s.uom || '')}
                         </div>
                         <div className="flex justify-end gap-1 mt-1">
                           <button

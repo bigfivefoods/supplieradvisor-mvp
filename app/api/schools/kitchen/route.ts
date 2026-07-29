@@ -15,6 +15,7 @@ import {
   buildKitchenStockPlan,
   normalizeCoverPolicy,
   policyFromSchool,
+  roundStockQty,
   type StockCoverPolicy,
 } from '@/lib/schools/kitchen-stock-plan';
 import {
@@ -116,31 +117,49 @@ export async function GET(request: NextRequest) {
     );
 
     const stock = (stockRes.data || []).map((s) => {
-      const onHand = Number(s.qty_on_hand || 0);
+      const uom = String(s.uom || 'kg');
+      const onHand = roundStockQty(Number(s.qty_on_hand || 0), uom, 'round');
       const planRow = planByPid.get(Number(s.approved_product_id));
       // Prefer explicit reorder_level; else demand-based cover threshold
-      const reorder =
+      const reorderRaw =
         s.reorder_level != null && s.reorder_level !== ''
           ? Number(s.reorder_level)
           : planRow && planRow.reorder_level > 0
             ? planRow.reorder_level
             : null;
+      const reorder =
+        reorderRaw != null && Number.isFinite(reorderRaw)
+          ? roundStockQty(reorderRaw, uom, 'ceil')
+          : null;
+      const targetRaw =
+        s.target_level != null
+          ? Number(s.target_level)
+          : planRow?.target_qty ?? null;
+      const target =
+        targetRaw != null && Number.isFinite(targetRaw)
+          ? roundStockQty(targetRaw, uom, 'ceil')
+          : null;
       const low =
         (reorder != null && Number.isFinite(reorder) && onHand <= reorder) ||
         planRow?.status === 'reorder' ||
         planRow?.status === 'critical';
       return {
         ...s,
+        qty_on_hand: onHand,
         reorder_level: reorder,
-        min_level: s.min_level != null ? Number(s.min_level) : null,
-        target_level:
-          s.target_level != null
-            ? Number(s.target_level)
-            : planRow?.target_qty ?? null,
+        min_level:
+          s.min_level != null
+            ? roundStockQty(Number(s.min_level), uom, 'ceil')
+            : null,
+        target_level: target,
         low_stock: low,
         daily_usage: planRow?.daily_usage ?? 0,
         days_on_hand: planRow?.days_on_hand ?? null,
-        suggested_order_qty: planRow?.suggested_order_qty ?? 0,
+        suggested_order_qty: roundStockQty(
+          planRow?.suggested_order_qty ?? 0,
+          uom,
+          'ceil'
+        ),
         cover_status: planRow?.status || 'no_demand',
         cover_message: planRow?.message || null,
       };
@@ -598,23 +617,41 @@ export async function POST(request: NextRequest) {
           updated_at: new Date().toISOString(),
         };
         if (l.qty_on_hand !== undefined && l.qty_on_hand !== '') {
-          patch.qty_on_hand = Math.max(0, Number(l.qty_on_hand) || 0);
+          patch.qty_on_hand = roundStockQty(
+            Math.max(0, Number(l.qty_on_hand) || 0),
+            uom,
+            'round'
+          );
         }
         if (l.reorder_level !== undefined && l.reorder_level !== '') {
           patch.reorder_level =
             l.reorder_level === null
               ? null
-              : Math.max(0, Number(l.reorder_level) || 0);
+              : roundStockQty(
+                  Math.max(0, Number(l.reorder_level) || 0),
+                  uom,
+                  'ceil'
+                );
         }
         if (l.min_level !== undefined && l.min_level !== '') {
           patch.min_level =
-            l.min_level === null ? null : Math.max(0, Number(l.min_level) || 0);
+            l.min_level === null
+              ? null
+              : roundStockQty(
+                  Math.max(0, Number(l.min_level) || 0),
+                  uom,
+                  'ceil'
+                );
         }
         if (l.target_level !== undefined && l.target_level !== '') {
           patch.target_level =
             l.target_level === null
               ? null
-              : Math.max(0, Number(l.target_level) || 0);
+              : roundStockQty(
+                  Math.max(0, Number(l.target_level) || 0),
+                  uom,
+                  'ceil'
+                );
         }
 
         if (existing?.id) {
@@ -656,20 +693,36 @@ export async function POST(request: NextRequest) {
             brand_name: brand,
             qty_on_hand:
               l.qty_on_hand !== undefined && l.qty_on_hand !== ''
-                ? Math.max(0, Number(l.qty_on_hand) || 0)
+                ? roundStockQty(
+                    Math.max(0, Number(l.qty_on_hand) || 0),
+                    uom,
+                    'round'
+                  )
                 : 0,
             uom,
             reorder_level:
               l.reorder_level !== undefined && l.reorder_level !== ''
-                ? Math.max(0, Number(l.reorder_level) || 0)
+                ? roundStockQty(
+                    Math.max(0, Number(l.reorder_level) || 0),
+                    uom,
+                    'ceil'
+                  )
                 : null,
             min_level:
               l.min_level !== undefined && l.min_level !== ''
-                ? Math.max(0, Number(l.min_level) || 0)
+                ? roundStockQty(
+                    Math.max(0, Number(l.min_level) || 0),
+                    uom,
+                    'ceil'
+                  )
                 : null,
             target_level:
               l.target_level !== undefined && l.target_level !== ''
-                ? Math.max(0, Number(l.target_level) || 0)
+                ? roundStockQty(
+                    Math.max(0, Number(l.target_level) || 0),
+                    uom,
+                    'ceil'
+                  )
                 : null,
           };
           const { data, error: iErr } = await supabase
@@ -866,8 +919,8 @@ async function applyDemandLevels(
       product_name: p.product_name,
       brand_name: p.brand_name || '',
       uom: p.uom,
-      reorder_level: p.reorder_level,
-      target_level: p.target_qty,
+      reorder_level: roundStockQty(p.reorder_level, p.uom, 'ceil'),
+      target_level: roundStockQty(p.target_qty, p.uom, 'ceil'),
       updated_at: new Date().toISOString(),
     };
 
@@ -903,8 +956,8 @@ async function applyDemandLevels(
         brand_name: p.brand_name || '',
         qty_on_hand: 0,
         uom: p.uom,
-        reorder_level: p.reorder_level,
-        target_level: p.target_qty,
+        reorder_level: roundStockQty(p.reorder_level, p.uom, 'ceil'),
+        target_level: roundStockQty(p.target_qty, p.uom, 'ceil'),
       };
       const { error } = await supabase
         .from('school_kitchen_stock')
