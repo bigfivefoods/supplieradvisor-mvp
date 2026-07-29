@@ -11,16 +11,20 @@ import {
   resolveCatalogueContext,
 } from '@/lib/schools/approved-catalogue';
 import {
-  buildSchoolPoHtml,
+  buildSchoolPoPdf,
+  schoolPoPdfFilename,
   type PoDocumentInput,
   type PoParty,
 } from '@/lib/schools/po-document';
 
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
 /**
  * School NSNP POs — every line must be on the approved product list.
  * GET: schools see their POs; SPs see orders placed on them (wholesale supply inbox).
- *      ?id= · single PO detail with school + SP parties
- *      ?id=&format=print · printable HTML (open/print)
+ *      ?id= · single PO detail with school + SP parties (JSON)
+ *      ?id=&format=pdf|print · PDF document (inline open / print)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -38,7 +42,7 @@ export async function GET(request: NextRequest) {
     const orderId = sp.get('id') ? Number(sp.get('id')) : null;
     const format = String(sp.get('format') || 'json').toLowerCase();
 
-    // Single PO detail / print
+    // Single PO detail / PDF
     if (orderId && Number.isFinite(orderId)) {
       const detail = await loadPoDetail(supabase, companyId, orderId);
       if (!detail.ok) {
@@ -47,11 +51,20 @@ export async function GET(request: NextRequest) {
           { status: detail.status }
         );
       }
-      if (format === 'print' || format === 'html') {
-        const html = buildSchoolPoHtml(detail.doc);
-        return new NextResponse(html, {
+      if (
+        format === 'pdf' ||
+        format === 'print' ||
+        format === 'download'
+      ) {
+        const pdf = await buildSchoolPoPdf(detail.doc);
+        const filename = schoolPoPdfFilename(detail.doc.po_number);
+        const disposition =
+          format === 'download' ? 'attachment' : 'inline';
+        return new NextResponse(new Uint8Array(pdf), {
+          status: 200,
           headers: {
-            'Content-Type': 'text/html; charset=utf-8',
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `${disposition}; filename="${filename}"`,
             'Cache-Control': 'no-store',
           },
         });

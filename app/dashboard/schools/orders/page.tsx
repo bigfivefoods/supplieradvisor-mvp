@@ -83,13 +83,13 @@ function Inner() {
     'department approved list'
   );
 
-  const openPo = (orderId: number, print = false) => {
+  /** Open PO as PDF (browser viewer can print). download=true forces attachment. */
+  const openPo = (orderId: number, opts?: { download?: boolean }) => {
     const params = new URLSearchParams({
       companyId: String(companyId),
       id: String(orderId),
-      format: 'print',
+      format: opts?.download ? 'download' : 'pdf',
     });
-    if (print) params.set('autoprint', '1');
     window.open(
       `/api/schools/orders?${params}`,
       '_blank',
@@ -467,17 +467,19 @@ function Inner() {
                         <div className="inline-flex flex-col items-end gap-0.5">
                           <button
                             type="button"
-                            onClick={() => openPo(Number(o.id), false)}
+                            onClick={() => openPo(Number(o.id))}
                             className="text-xs font-bold text-[#0077b6] hover:underline inline-flex items-center gap-1"
                           >
-                            <ExternalLink className="w-3 h-3" /> Open PO
+                            <ExternalLink className="w-3 h-3" /> Open PDF
                           </button>
                           <button
                             type="button"
-                            onClick={() => openPo(Number(o.id), true)}
+                            onClick={() =>
+                              openPo(Number(o.id), { download: true })
+                            }
                             className="text-[10px] font-bold text-slate-600 hover:underline inline-flex items-center gap-1"
                           >
-                            <Printer className="w-3 h-3" /> Print
+                            <Printer className="w-3 h-3" /> Download / print
                           </button>
                           <Link
                             href="/dashboard/schools/ops"
@@ -849,8 +851,9 @@ function Inner() {
                     <td className="px-4 py-2.5 font-bold">
                       <button
                         type="button"
-                        onClick={() => openPo(Number(o.id), false)}
+                        onClick={() => openPo(Number(o.id))}
                         className="text-left hover:text-[#0077b6] hover:underline"
+                        title="Open PO PDF"
                       >
                         {String(o.po_number || o.id)}
                       </button>
@@ -877,17 +880,19 @@ function Inner() {
                       <div className="inline-flex flex-wrap justify-end gap-1">
                         <button
                           type="button"
-                          onClick={() => openPo(Number(o.id), false)}
+                          onClick={() => openPo(Number(o.id))}
                           className="text-[11px] font-bold text-[#0077b6] px-2 py-1 rounded-lg border border-sky-200 bg-sky-50 hover:bg-sky-100 inline-flex items-center gap-1"
                         >
-                          <ExternalLink className="w-3 h-3" /> Open
+                          <ExternalLink className="w-3 h-3" /> Open PDF
                         </button>
                         <button
                           type="button"
-                          onClick={() => openPo(Number(o.id), true)}
+                          onClick={() =>
+                            openPo(Number(o.id), { download: true })
+                          }
                           className="text-[11px] font-bold text-slate-700 px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 inline-flex items-center gap-1"
                         >
-                          <Printer className="w-3 h-3" /> Print
+                          <Printer className="w-3 h-3" /> Download
                         </button>
                       </div>
                     </td>

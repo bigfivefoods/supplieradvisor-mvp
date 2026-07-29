@@ -1,6 +1,7 @@
 /**
- * Printable NSNP school → SP purchase order HTML.
+ * NSNP school → SP purchase order document (PDF + optional HTML fallback).
  */
+import PDFDocument from 'pdfkit';
 
 export type PoParty = {
   name: string;
@@ -58,6 +59,343 @@ function money(n: number, currency = 'ZAR'): string {
   } catch {
     return `R ${n.toFixed(2)}`;
   }
+}
+
+function plain(s: unknown): string {
+  return String(s ?? '').trim();
+}
+
+function partyLines(p: PoParty): string[] {
+  const out: string[] = [plain(p.name) || '—'];
+  if (p.trading_name && p.trading_name !== p.name) {
+    out.push(`t/a ${plain(p.trading_name)}`);
+  }
+  if (p.emis_number) out.push(`EMIS: ${plain(p.emis_number)}`);
+  if (p.csd_number) out.push(`CSD: ${plain(p.csd_number)}`);
+  const loc = [p.district, p.province].filter(Boolean).map(plain).join(', ');
+  if (loc) out.push(loc);
+  if (p.address) out.push(plain(p.address));
+  if (p.contact_name) out.push(`Contact: ${plain(p.contact_name)}`);
+  if (p.contact_phone) out.push(`Tel: ${plain(p.contact_phone)}`);
+  if (p.contact_email) out.push(`Email: ${plain(p.contact_email)}`);
+  return out;
+}
+
+export function schoolPoPdfFilename(poNumber: string): string {
+  const safe = String(poNumber || 'PO')
+    .replace(/[^\w.-]+/g, '_')
+    .slice(0, 80);
+  return `NSNP-PO-${safe}.pdf`;
+}
+
+/**
+ * A4 PDF purchase order — school (buyer) + SP (supplier) parties, lines, total.
+ * Pure pdfkit for Vercel serverless.
+ */
+export async function buildSchoolPoPdf(doc: PoDocumentInput): Promise<Buffer> {
+  const currency = doc.currency || 'ZAR';
+  const lines = Array.isArray(doc.lines) ? doc.lines : [];
+  let subtotal = 0;
+  for (const l of lines) {
+    subtotal += Math.round(Number(l.qty || 0) * Number(l.unit_price || 0) * 100) / 100;
+  }
+  const total =
+    doc.total_amount != null && Number.isFinite(Number(doc.total_amount))
+      ? Number(doc.total_amount)
+      : subtotal;
+
+  const MARGIN = 40;
+  const PAGE_W = 595.28; // A4
+  const CONTENT_W = PAGE_W - MARGIN * 2;
+
+  return new Promise((resolve, reject) => {
+    const pdf = new PDFDocument({
+      size: 'A4',
+      margin: MARGIN,
+      bufferPages: true,
+      info: {
+        Title: `NSNP PO ${doc.po_number}`,
+        Author: 'Supplier Advisor · NSNP',
+        Subject: 'School purchase order — approved catalogue only',
+      },
+    });
+    const chunks: Buffer[] = [];
+    pdf.on('data', (c: Buffer) => chunks.push(c));
+    pdf.on('end', () => resolve(Buffer.concat(chunks)));
+    pdf.on('error', reject);
+
+    // Top brand bar
+    pdf.rect(0, 0, PAGE_W, 8).fill('#0077b6');
+
+    let y = MARGIN + 12;
+    pdf
+      .font('Helvetica-Bold')
+      .fontSize(9)
+      .fillColor('#0077b6')
+      .text('NSNP · SCHOOL PURCHASE ORDER', MARGIN, y, { width: CONTENT_W });
+    y = pdf.y + 4;
+
+    pdf
+      .font('Helvetica-Bold')
+      .fontSize(18)
+      .fillColor('#0f172a')
+      .text(plain(doc.po_number) || 'PO', MARGIN, y, { width: CONTENT_W * 0.55 });
+
+    const metaX = MARGIN + CONTENT_W * 0.55;
+    let metaY = y;
+    const metaLine = (label: string, value: string) => {
+      pdf
+        .font('Helvetica')
+        .fontSize(9)
+        .fillColor('#64748b')
+        .text(label, metaX, metaY, { width: CONTENT_W * 0.45, continued: false });
+      pdf
+        .font('Helvetica-Bold')
+        .fontSize(10)
+        .fillColor('#0f172a')
+        .text(value || '—', metaX + 95, metaY, { width: CONTENT_W * 0.45 - 95 });
+      metaY += 14;
+    };
+    metaLine('Order date', String(doc.order_date || '—').slice(0, 10));
+    metaLine('Required delivery', String(doc.expected_date || '—').slice(0, 10));
+    metaLine('Status', plain(doc.status) || 'submitted');
+    metaLine('Currency', currency);
+
+    y = Math.max(pdf.y, metaY) + 8;
+
+    if (doc.agency_name) {
+      pdf
+        .font('Helvetica')
+        .fontSize(9)
+        .fillColor('#64748b')
+        .text(`Programme: ${plain(doc.agency_name)}`, MARGIN, y, {
+          width: CONTENT_W,
+        });
+      y = pdf.y + 4;
+    }
+
+    if (doc.compliance_ok !== false) {
+      pdf
+        .font('Helvetica-Bold')
+        .fontSize(8)
+        .fillColor('#047857')
+        .text('✓ CATALOGUE COMPLIANT — approved brands only', MARGIN, y);
+      y = pdf.y + 10;
+    } else {
+      y += 6;
+    }
+
+    // Parties
+    const colW = (CONTENT_W - 12) / 2;
+    const partyBox = (title: string, p: PoParty, x: number, top: number) => {
+      const body = partyLines(p);
+      const h = 18 + body.length * 12 + 14;
+      pdf
+        .roundedRect(x, top, colW, h, 6)
+        .fillAndStroke('#f8fafc', '#e2e8f0');
+      pdf
+        .font('Helvetica-Bold')
+        .fontSize(8)
+        .fillColor('#64748b')
+        .text(title, x + 10, top + 8, { width: colW - 20 });
+      let py = top + 22;
+      body.forEach((line, i) => {
+        pdf
+          .font(i === 0 ? 'Helvetica-Bold' : 'Helvetica')
+          .fontSize(i === 0 ? 11 : 9)
+          .fillColor('#0f172a')
+          .text(line, x + 10, py, { width: colW - 20 });
+        py = pdf.y + 2;
+      });
+      return h;
+    };
+
+    const h1 = partyBox('SCHOOL (BUYER)', doc.school, MARGIN, y);
+    const h2 = partyBox(
+      'SERVICE PROVIDER (SUPPLIER)',
+      doc.isp,
+      MARGIN + colW + 12,
+      y
+    );
+    y += Math.max(h1, h2) + 14;
+
+    // Table header
+    const cols = {
+      num: MARGIN,
+      product: MARGIN + 22,
+      qty: MARGIN + CONTENT_W - 200,
+      uom: MARGIN + CONTENT_W - 155,
+      price: MARGIN + CONTENT_W - 110,
+      total: MARGIN + CONTENT_W - 55,
+    };
+    const drawHeader = () => {
+      pdf.rect(MARGIN, y, CONTENT_W, 18).fill('#0f172a');
+      pdf.font('Helvetica-Bold').fontSize(8).fillColor('#ffffff');
+      pdf.text('#', cols.num + 4, y + 5, { width: 16 });
+      pdf.text('PRODUCT (APPROVED BRAND)', cols.product, y + 5, {
+        width: cols.qty - cols.product - 4,
+      });
+      pdf.text('QTY', cols.qty, y + 5, { width: 40, align: 'right' });
+      pdf.text('UOM', cols.uom, y + 5, { width: 40 });
+      pdf.text('UNIT', cols.price, y + 5, { width: 50, align: 'right' });
+      pdf.text('TOTAL', cols.total, y + 5, { width: 50, align: 'right' });
+      y += 22;
+    };
+    drawHeader();
+
+    const ensureSpace = (need: number) => {
+      if (y + need > 780) {
+        pdf.addPage();
+        y = MARGIN;
+        pdf.rect(0, 0, PAGE_W, 8).fill('#0077b6');
+        y = MARGIN + 8;
+        drawHeader();
+      }
+    };
+
+    lines.forEach((l, i) => {
+      const qty = Number(l.qty || 0);
+      const price = Number(l.unit_price || 0);
+      const lineTotal = Math.round(qty * price * 100) / 100;
+      const name = plain(l.product_name) || 'Product';
+      const brand = plain(l.brand_name);
+      const rowH = brand ? 28 : 18;
+      ensureSpace(rowH + 4);
+
+      if (i % 2 === 0) {
+        pdf.rect(MARGIN, y - 2, CONTENT_W, rowH).fill('#f8fafc');
+      }
+      pdf.font('Helvetica').fontSize(9).fillColor('#0f172a');
+      pdf.text(String(i + 1), cols.num + 4, y, { width: 16 });
+      pdf.font('Helvetica-Bold').text(name, cols.product, y, {
+        width: cols.qty - cols.product - 6,
+      });
+      if (brand) {
+        pdf
+          .font('Helvetica')
+          .fontSize(8)
+          .fillColor('#047857')
+          .text(brand, cols.product, y + 12, {
+            width: cols.qty - cols.product - 6,
+          });
+      }
+      pdf.font('Helvetica').fontSize(9).fillColor('#0f172a');
+      pdf.text(String(qty), cols.qty, y, { width: 40, align: 'right' });
+      pdf.text(plain(l.uom) || 'kg', cols.uom, y, { width: 40 });
+      pdf.text(money(price, currency), cols.price, y, {
+        width: 50,
+        align: 'right',
+      });
+      pdf
+        .font('Helvetica-Bold')
+        .text(money(lineTotal, currency), cols.total, y, {
+          width: 50,
+          align: 'right',
+        });
+      y += rowH;
+      pdf
+        .moveTo(MARGIN, y)
+        .lineTo(MARGIN + CONTENT_W, y)
+        .strokeColor('#e2e8f0')
+        .lineWidth(0.5)
+        .stroke();
+      y += 2;
+    });
+
+    if (!lines.length) {
+      ensureSpace(20);
+      pdf
+        .font('Helvetica')
+        .fontSize(10)
+        .fillColor('#64748b')
+        .text('No line items', MARGIN, y);
+      y += 20;
+    }
+
+    // Total
+    y += 8;
+    ensureSpace(40);
+    const totalBoxW = 180;
+    const totalX = MARGIN + CONTENT_W - totalBoxW;
+    pdf
+      .roundedRect(totalX, y, totalBoxW, 32, 6)
+      .fillAndStroke('#f0f9ff', '#bae6fd');
+    pdf
+      .font('Helvetica-Bold')
+      .fontSize(10)
+      .fillColor('#0f172a')
+      .text('TOTAL', totalX + 10, y + 10, { width: 60 });
+    pdf
+      .font('Helvetica-Bold')
+      .fontSize(12)
+      .fillColor('#0077b6')
+      .text(money(total, currency), totalX + 70, y + 9, {
+        width: totalBoxW - 80,
+        align: 'right',
+      });
+    y += 44;
+
+    if (doc.notes) {
+      ensureSpace(50);
+      pdf
+        .font('Helvetica-Bold')
+        .fontSize(8)
+        .fillColor('#64748b')
+        .text('NOTES', MARGIN, y);
+      y = pdf.y + 2;
+      pdf
+        .font('Helvetica')
+        .fontSize(9)
+        .fillColor('#0f172a')
+        .text(plain(doc.notes), MARGIN, y, { width: CONTENT_W });
+      y = pdf.y + 12;
+    }
+
+    // Signatures
+    ensureSpace(60);
+    y += 10;
+    const sigW = (CONTENT_W - 24) / 2;
+    pdf
+      .moveTo(MARGIN, y + 28)
+      .lineTo(MARGIN + sigW, y + 28)
+      .strokeColor('#0f172a')
+      .lineWidth(1)
+      .stroke();
+    pdf
+      .moveTo(MARGIN + sigW + 24, y + 28)
+      .lineTo(MARGIN + CONTENT_W, y + 28)
+      .stroke();
+    pdf
+      .font('Helvetica')
+      .fontSize(8)
+      .fillColor('#64748b')
+      .text('School authorised signature · date', MARGIN, y + 32, {
+        width: sigW,
+      });
+    pdf.text(
+      'SP acknowledgement signature · date',
+      MARGIN + sigW + 24,
+      y + 32,
+      { width: sigW }
+    );
+
+    y += 56;
+    const generated =
+      doc.generated_at ||
+      new Date().toISOString().replace('T', ' ').slice(0, 19);
+    pdf
+      .font('Helvetica')
+      .fontSize(8)
+      .fillColor('#94a3b8')
+      .text(
+        `Generated ${generated} · DBE/PEU approved catalogue only · SP sources wholesalers → DN + POD → school GRN → learners fed`,
+        MARGIN,
+        y,
+        { width: CONTENT_W, align: 'center' }
+      );
+
+    pdf.end();
+  });
 }
 
 function partyBlock(title: string, p: PoParty): string {
