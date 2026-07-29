@@ -720,9 +720,6 @@ export async function POST(request: NextRequest) {
     }
 
     const total = lines.reduce((s, l) => s + l.qty * l.unit_price, 0);
-    const poNumber =
-      body.po_number ||
-      `NSNP-PO-${school.id}-${Date.now().toString(36).toUpperCase()}`;
 
     // Required delivery date — SP must see this on their orders report
     let expectedDate =
@@ -739,6 +736,22 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const orderDate =
+      body.order_date != null && String(body.order_date).trim()
+        ? String(body.order_date).slice(0, 10)
+        : new Date().toISOString().slice(0, 10);
+
+    // Date-first sequential PO: 2026-07-29-NSNP-PO-1, 2026-07-29-NSNP-PO-2, …
+    // Sequence is per school per order date so daily volume is visible at a glance.
+    const poNumber =
+      body.po_number && String(body.po_number).trim()
+        ? String(body.po_number).trim()
+        : await nextDailySchoolPoNumber(
+            supabase,
+            Number(school.id),
+            orderDate
+          );
 
     // Snapshot school + SP names onto the PO so PDF always shows them
     const ispPartySnap = await resolveIspParty(supabase, ispProfileId);
@@ -768,7 +781,7 @@ export async function POST(request: NextRequest) {
         isp_profile_id: ispProfileId,
         po_number: poNumber,
         status: body.status || 'submitted',
-        order_date: body.order_date || new Date().toISOString().slice(0, 10),
+        order_date: orderDate,
         expected_date: expectedDate,
         total_amount: Math.round(total * 100) / 100,
         currency: body.currency || 'ZAR',

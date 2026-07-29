@@ -113,10 +113,12 @@ function partyLines(p: PoParty): string[] {
 }
 
 export function schoolPoPdfFilename(poNumber: string): string {
+  // Keep date-first numbers readable in downloads: 2026-07-29-NSNP-PO-1.pdf
   const safe = String(poNumber || 'PO')
     .replace(/[^\w.-]+/g, '_')
-    .slice(0, 80);
-  return `NSNP-PO-${safe}.pdf`;
+    .replace(/_+/g, '_')
+    .slice(0, 100);
+  return `${safe}.pdf`;
 }
 
 /**
