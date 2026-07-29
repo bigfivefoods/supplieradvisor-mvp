@@ -67,28 +67,41 @@ export default function JoinPage() {
             Who are you joining as?
           </h1>
           <p className="text-slate-600 max-w-2xl leading-relaxed">
-            Each organisation type is a <strong>separate workspace</strong> with
-            its own login members, modules, and home screen. Education programme
-            example: DBE oversees schools · schools order from SPs · SPs buy
-            from wholesalers on the trade network.
+            <strong className="text-slate-900">Most people join as a normal company</strong>
+            {' '}— that option is first. Each type is a separate workspace with
+            its own members and modules. Government agencies are listed last.
           </p>
         </div>
 
         <div className="space-y-10">
           {groups.map((group) => (
             <section key={group.id}>
-              <h2 className="text-sm font-black text-slate-900 mb-1">
+              <h2
+                className={`text-sm font-black mb-1 ${
+                  group.id === 'trade' ? 'text-[#0077b6]' : 'text-slate-900'
+                }`}
+              >
                 {group.title}
+                {group.id === 'trade' ? (
+                  <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-sky-800 bg-sky-100 px-2 py-0.5 rounded-full">
+                    Recommended
+                  </span>
+                ) : null}
               </h2>
               <p className="text-xs text-slate-500 mb-4">{group.blurb}</p>
               <div className="grid sm:grid-cols-2 gap-3">
                 {group.entities.map((ent) => {
                   const Icon = ICONS[ent.id] || Building2;
+                  const isCompany = ent.id === 'business';
                   return (
                     <Link
                       key={ent.id}
                       href={`/onboarding?type=${encodeURIComponent(ent.business_type)}`}
-                      className="group rounded-3xl border border-slate-200 bg-white p-5 hover:border-[#00b4d8] hover:shadow-md transition-all"
+                      className={`group rounded-3xl border bg-white p-5 hover:border-[#00b4d8] hover:shadow-md transition-all ${
+                        isCompany
+                          ? 'border-sky-200 ring-1 ring-sky-100'
+                          : 'border-slate-200'
+                      }`}
                     >
                       <div className="flex items-start gap-3">
                         <div
