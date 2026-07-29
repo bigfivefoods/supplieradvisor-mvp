@@ -485,74 +485,150 @@ function Inner() {
               </label>
 
               <div className="border-t pt-3 space-y-2">
-                <p className="text-[10px] font-bold uppercase text-slate-400">
-                  BOM line (qty per 1 learner portion)
-                </p>
-                <select
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                  value={productId}
-                  onChange={(e) => setProductId(e.target.value)}
-                >
-                  <option value="">Approved product…</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.brand_name} — {p.name}
-                      {p.category ? ` · ${p.category}` : ''}
-                    </option>
-                  ))}
-                </select>
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                    value={qtyPer}
-                    onChange={(e) => setQtyPer(e.target.value)}
-                    placeholder="Qty / learner"
-                  />
-                  <input
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                    value={wastage}
-                    onChange={(e) => setWastage(e.target.value)}
-                    placeholder="Wastage %"
-                  />
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    BOM line — quantity per 1 learner portion
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                    Enter how much product one learner needs for one serving of
+                    this recipe. Total per learner = Qty × (1 + Wastage % /
+                    100).
+                  </p>
                 </div>
+
+                <label className="block text-xs">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Approved product (catalogue)
+                  </span>
+                  <select
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                    value={productId}
+                    onChange={(e) => setProductId(e.target.value)}
+                  >
+                    <option value="">Select NSNP approved product…</option>
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.brand_name} — {p.name}
+                        {p.category ? ` · ${p.category}` : ''}
+                        {p.uom ? ` (${p.uom})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block text-xs">
+                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Qty per 1 learner
+                    </span>
+                    <input
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold tabular-nums"
+                      value={qtyPer}
+                      onChange={(e) => setQtyPer(e.target.value)}
+                      placeholder="e.g. 0.08"
+                      inputMode="decimal"
+                    />
+                    <span className="block mt-0.5 text-[10px] text-slate-400">
+                      Net amount in product UOM (kg, L, etc.)
+                    </span>
+                  </label>
+                  <label className="block text-xs">
+                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Wastage %
+                    </span>
+                    <input
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm tabular-nums"
+                      value={wastage}
+                      onChange={(e) => setWastage(e.target.value)}
+                      placeholder="e.g. 5"
+                      inputMode="decimal"
+                    />
+                    <span className="block mt-0.5 text-[10px] text-slate-400">
+                      Extra allowance (0 = no waste)
+                    </span>
+                  </label>
+                </div>
+
+                {(() => {
+                  const q = Number(qtyPer);
+                  const w = Number(wastage) || 0;
+                  const prod = products.find(
+                    (p) => p.id === Number(productId)
+                  );
+                  if (!(q > 0)) return null;
+                  const total = Math.round(q * (1 + w / 100) * 1e6) / 1e6;
+                  return (
+                    <p className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
+                      Total per 1 learner (incl. wastage):{' '}
+                      <span className="font-black tabular-nums">
+                        {total} {prod?.uom || 'uom'}
+                      </span>
+                    </p>
+                  );
+                })()}
+
                 <button
                   type="button"
                   onClick={addBomLine}
                   className="btn-secondary !py-2 !px-3 text-xs w-full"
                 >
                   <Plus className="w-3.5 h-3.5 inline mr-1" />
-                  Add catalogue product
+                  Add catalogue product to BOM
                 </button>
               </div>
 
               {bomLines.length > 0 ? (
-                <ul className="text-xs space-y-1 max-h-48 overflow-y-auto">
-                  {bomLines.map((l, i) => (
-                    <li
-                      key={l.approved_product_id}
-                      className="flex justify-between gap-2 rounded-lg bg-slate-50 px-2 py-1.5"
-                    >
-                      <span>
-                        <strong>{l.brand_name}</strong> {l.product_name} ·{' '}
-                        {l.qty_per_portion} {l.uom}/learner
-                        {Number(l.wastage_pct) > 0
-                          ? ` +${l.wastage_pct}% waste`
-                          : ''}
-                      </span>
-                      <button
-                        type="button"
-                        className="text-rose-600 font-bold"
-                        onClick={() =>
-                          setBomLines((prev) =>
-                            prev.filter((_, j) => j !== i)
-                          )
-                        }
-                      >
-                        ×
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                <div className="rounded-xl border border-slate-100 overflow-hidden">
+                  <div className="grid grid-cols-12 gap-1 bg-slate-50 px-2 py-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                    <span className="col-span-5">Product</span>
+                    <span className="col-span-2 text-right">Qty / learner</span>
+                    <span className="col-span-2 text-right">Wastage %</span>
+                    <span className="col-span-2 text-right">Total / learner</span>
+                    <span className="col-span-1" />
+                  </div>
+                  <ul className="text-xs max-h-48 overflow-y-auto divide-y divide-slate-50">
+                    {bomLines.map((l, i) => {
+                      const q = Number(l.qty_per_portion) || 0;
+                      const w = Number(l.wastage_pct) || 0;
+                      const total =
+                        Math.round(q * (1 + w / 100) * 1e6) / 1e6;
+                      return (
+                        <li
+                          key={l.approved_product_id}
+                          className="grid grid-cols-12 gap-1 px-2 py-1.5 items-center"
+                        >
+                          <span className="col-span-5 min-w-0 truncate">
+                            <strong>{l.brand_name}</strong> {l.product_name}
+                            <span className="block text-[10px] text-slate-400">
+                              {l.category} · {l.uom}
+                            </span>
+                          </span>
+                          <span className="col-span-2 text-right font-bold tabular-nums">
+                            {l.qty_per_portion}
+                          </span>
+                          <span className="col-span-2 text-right tabular-nums">
+                            {l.wastage_pct || '0'}
+                          </span>
+                          <span className="col-span-2 text-right font-black tabular-nums text-emerald-800">
+                            {total}
+                          </span>
+                          <button
+                            type="button"
+                            className="col-span-1 text-rose-600 font-bold text-right"
+                            title="Remove line"
+                            onClick={() =>
+                              setBomLines((prev) =>
+                                prev.filter((_, j) => j !== i)
+                              )
+                            }
+                          >
+                            ×
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
               ) : null}
 
               <button
