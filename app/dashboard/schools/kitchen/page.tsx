@@ -30,6 +30,7 @@ type Product = {
   brand_name: string;
   uom?: string | null;
   image_url?: string | null;
+  category?: string | null;
 };
 
 type OpenOrder = {
@@ -83,6 +84,7 @@ type LevelRow = {
   approved_product_id: number;
   product_name: string;
   brand_name: string;
+  category: string;
   uom: string;
   qty_on_hand: string;
   reorder_level: string;
@@ -95,6 +97,16 @@ type LevelRow = {
   cover_status?: string;
   cover_message?: string;
 };
+
+type LevelSortKey =
+  | 'product'
+  | 'daily_usage'
+  | 'days_on_hand'
+  | 'qty_on_hand'
+  | 'reorder_level'
+  | 'target_level'
+  | 'suggested_order_qty'
+  | 'uom';
 
 const SUGGESTED_PO_KEY = 'nsnp_kitchen_suggested_po';
 
@@ -136,6 +148,11 @@ function Inner() {
   } | null>(null);
   const [savingCover, setSavingCover] = useState(false);
   const [recipesCount, setRecipesCount] = useState(0);
+  const [levelSort, setLevelSort] = useState<{
+    key: LevelSortKey;
+    dir: 'asc' | 'desc';
+  }>({ key: 'product', dir: 'asc' });
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -202,6 +219,9 @@ function Inner() {
           approved_product_id: prod.id,
           product_name: prod.name,
           brand_name: prod.brand_name,
+          category: String(
+            prod.category || plan?.category || 'Uncategorised'
+          ).trim() || 'Uncategorised',
           uom,
           qty_on_hand: formatStockQty(onHandRaw, uom, 'round'),
           reorder_level:
@@ -232,6 +252,9 @@ function Inner() {
             approved_product_id: pid,
             product_name: String(s.product_name || ''),
             brand_name: String(s.brand_name || ''),
+            category: String(
+              s.category || plan?.category || 'Uncategorised'
+            ).trim() || 'Uncategorised',
             uom,
             qty_on_hand: formatStockQty(s.qty_on_hand ?? 0, uom, 'round'),
             reorder_level:
@@ -257,6 +280,7 @@ function Inner() {
         }
       }
       setLevelRows(rows);
+      setCategoryFilter('all');
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
     } finally {
@@ -505,6 +529,127 @@ function Inner() {
 
   const summary = stockPlan?.summary;
 
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of levelRows) {
+      set.add(r.category || 'Uncategorised');
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [levelRows]);
+
+  const toggleLevelSort = (key: LevelSortKey) => {
+    setLevelSort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: key === 'product' || key === 'uom' ? 'asc' : 'desc' }
+    );
+  };
+
+  const patchLevelRow = (
+    productId: number,
+    patch: Partial<LevelRow> | ((row: LevelRow) => Partial<LevelRow>)
+  ) => {
+    setLevelRows((prev) =>
+      prev.map((x) => {
+        if (x.approved_product_id !== productId) return x;
+        const p = typeof patch === 'function' ? patch(x) : patch;
+        return { ...x, ...p };
+      })
+    );
+  };
+
+  const levelRowValue = (r: LevelRow, key: LevelSortKey): string | number => {
+    switch (key) {
+      case 'product':
+        return `${r.product_name} ${r.brand_name}`.toLowerCase();
+      case 'daily_usage':
+        return Number(r.daily_usage) || 0;
+      case 'days_on_hand':
+        return r.days_on_hand == null ? -1 : Number(r.days_on_hand);
+      case 'qty_on_hand':
+        return Number(r.qty_on_hand) || 0;
+      case 'reorder_level':
+        return r.reorder_level === '' ? -1 : Number(r.reorder_level) || 0;
+      case 'target_level':
+        return r.target_level === '' ? -1 : Number(r.target_level) || 0;
+      case 'suggested_order_qty':
+        return Number(r.suggested_order_qty) || 0;
+      case 'uom':
+        return String(r.uom || '').toLowerCase();
+      default:
+        return 0;
+    }
+  };
+
+  const sortedFilteredLevels = useMemo(() => {
+    let rows = [...levelRows];
+    if (categoryFilter !== 'all') {
+      rows = rows.filter(
+        (r) => (r.category || 'Uncategorised') === categoryFilter
+      );
+    }
+    const { key, dir } = levelSort;
+    const mult = dir === 'asc' ? 1 : -1;
+    rows.sort((a, b) => {
+      // Keep category groups together when not filtering one category
+      if (categoryFilter === 'all') {
+        const ca = (a.category || 'Uncategorised').toLowerCase();
+        const cb = (b.category || 'Uncategorised').toLowerCase();
+        if (ca !== cb) return ca.localeCompare(cb);
+      }
+      const va = levelRowValue(a, key);
+      const vb = levelRowValue(b, key);
+      if (typeof va === 'string' && typeof vb === 'string') {
+        return mult * va.localeCompare(vb);
+      }
+      return mult * ((Number(va) || 0) - (Number(vb) || 0));
+    });
+    return rows;
+  }, [levelRows, categoryFilter, levelSort]);
+
+  const levelsByCategory = useMemo(() => {
+    const groups: Array<{ category: string; rows: LevelRow[] }> = [];
+    const map = new Map<string, LevelRow[]>();
+    for (const r of sortedFilteredLevels) {
+      const cat = r.category || 'Uncategorised';
+      if (!map.has(cat)) {
+        map.set(cat, []);
+        groups.push({ category: cat, rows: map.get(cat)! });
+      }
+      map.get(cat)!.push(r);
+    }
+    return groups;
+  }, [sortedFilteredLevels]);
+
+  const SortTh = ({
+    label,
+    sortKey,
+    className = '',
+  }: {
+    label: string;
+    sortKey: LevelSortKey;
+    className?: string;
+  }) => {
+    const active = levelSort.key === sortKey;
+    return (
+      <th className={`px-2 py-2 ${className}`}>
+        <button
+          type="button"
+          onClick={() => toggleLevelSort(sortKey)}
+          className={`inline-flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider hover:text-slate-800 ${
+            active ? 'text-sky-800' : 'text-slate-400'
+          }`}
+          title={`Sort by ${label}`}
+        >
+          {label}
+          <span className="tabular-nums text-[9px] opacity-80">
+            {active ? (levelSort.dir === 'asc' ? '↑' : '↓') : '↕'}
+          </span>
+        </button>
+      </th>
+    );
+  };
+
   return (
     <SchoolsPage>
       <SchoolsHeader
@@ -701,18 +846,54 @@ function Inner() {
           </div>
         </div>
         {showLevels ? (
-          <div className="overflow-x-auto max-h-[32rem]">
+          <div>
+            <div className="px-4 py-2 border-b border-slate-100 flex flex-wrap items-center gap-1.5 bg-white">
+              <span className="text-[10px] font-bold uppercase text-slate-400 mr-1">
+                Category
+              </span>
+              <button
+                type="button"
+                onClick={() => setCategoryFilter('all')}
+                className={`rounded-full px-2.5 py-1 text-[10px] font-bold border ${
+                  categoryFilter === 'all'
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-white border-slate-200 text-slate-600 hover:border-sky-300'
+                }`}
+              >
+                All ({levelRows.length})
+              </button>
+              {categories.map((c) => {
+                const n = levelRows.filter(
+                  (r) => (r.category || 'Uncategorised') === c
+                ).length;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setCategoryFilter(c)}
+                    className={`rounded-full px-2.5 py-1 text-[10px] font-bold border capitalize ${
+                      categoryFilter === c
+                        ? 'bg-sky-700 text-white border-sky-700'
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-sky-300'
+                    }`}
+                  >
+                    {c.replace(/_/g, ' ')} ({n})
+                  </button>
+                );
+              })}
+            </div>
+            <div className="overflow-x-auto max-h-[32rem]">
             <table className="w-full text-sm min-w-[960px]">
               <thead className="sticky top-0 bg-slate-50 z-10">
-                <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
-                  <th className="px-3 py-2">Product</th>
-                  <th className="px-2 py-2">Daily use</th>
-                  <th className="px-2 py-2">Days left</th>
-                  <th className="px-2 py-2">On hand</th>
-                  <th className="px-2 py-2">Reorder at</th>
-                  <th className="px-2 py-2">Target hold</th>
-                  <th className="px-2 py-2">Suggest PO</th>
-                  <th className="px-2 py-2">UOM</th>
+                <tr className="border-b text-left">
+                  <SortTh label="Product" sortKey="product" className="px-3" />
+                  <SortTh label="Daily use" sortKey="daily_usage" />
+                  <SortTh label="Days left" sortKey="days_on_hand" />
+                  <SortTh label="On hand" sortKey="qty_on_hand" />
+                  <SortTh label="Reorder at" sortKey="reorder_level" />
+                  <SortTh label="Target hold" sortKey="target_level" />
+                  <SortTh label="Suggest PO" sortKey="suggested_order_qty" />
+                  <SortTh label="UOM" sortKey="uom" />
                 </tr>
               </thead>
               <tbody>
@@ -725,8 +906,35 @@ function Inner() {
                       No catalogue products yet — join DBE for the approved list.
                     </td>
                   </tr>
+                ) : sortedFilteredLevels.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={8}
+                      className="px-4 py-8 text-center text-slate-500"
+                    >
+                      No products in this category.
+                    </td>
+                  </tr>
                 ) : (
-                  levelRows.map((r, idx) => {
+                  levelsByCategory.flatMap((group) => {
+                    const header = (
+                      <tr
+                        key={`cat-${group.category}`}
+                        className="bg-slate-100/90 border-y border-slate-200"
+                      >
+                        <td
+                          colSpan={8}
+                          className="px-3 py-1.5 text-[11px] font-black uppercase tracking-wide text-slate-700"
+                        >
+                          {group.category.replace(/_/g, ' ')}
+                          <span className="ml-2 text-[10px] font-semibold text-slate-500 normal-case tracking-normal">
+                            {group.rows.length} item
+                            {group.rows.length === 1 ? '' : 's'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                    const body = group.rows.map((r) => {
                     const onHand = Number(r.qty_on_hand) || 0;
                     const reorder =
                       r.reorder_level === ''
@@ -739,6 +947,7 @@ function Inner() {
                         Number.isFinite(reorder) &&
                         onHand <= reorder);
                     const critical = r.cover_status === 'critical';
+                    const pid = r.approved_product_id;
                     return (
                       <tr
                         key={r.approved_product_id}
@@ -805,29 +1014,18 @@ function Inner() {
                             className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold tabular-nums"
                             value={r.qty_on_hand}
                             onChange={(e) =>
-                              setLevelRows((prev) =>
-                                prev.map((x, i) =>
-                                  i === idx
-                                    ? { ...x, qty_on_hand: e.target.value }
-                                    : x
-                                )
-                              )
+                              patchLevelRow(pid, {
+                                qty_on_hand: e.target.value,
+                              })
                             }
                             onBlur={() =>
-                              setLevelRows((prev) =>
-                                prev.map((x, i) =>
-                                  i === idx
-                                    ? {
-                                        ...x,
-                                        qty_on_hand: formatStockQty(
-                                          x.qty_on_hand,
-                                          x.uom,
-                                          'round'
-                                        ),
-                                      }
-                                    : x
-                                )
-                              )
+                              patchLevelRow(pid, (x) => ({
+                                qty_on_hand: formatStockQty(
+                                  x.qty_on_hand,
+                                  x.uom,
+                                  'round'
+                                ),
+                              }))
                             }
                           />
                         </td>
@@ -841,28 +1039,21 @@ function Inner() {
                             value={r.reorder_level}
                             placeholder="auto"
                             onChange={(e) =>
-                              setLevelRows((prev) =>
-                                prev.map((x, i) =>
-                                  i === idx
-                                    ? { ...x, reorder_level: e.target.value }
-                                    : x
-                                )
-                              )
+                              patchLevelRow(pid, {
+                                reorder_level: e.target.value,
+                              })
                             }
                             onBlur={() =>
-                              setLevelRows((prev) =>
-                                prev.map((x, i) =>
-                                  i === idx && x.reorder_level !== ''
-                                    ? {
-                                        ...x,
-                                        reorder_level: formatStockQty(
-                                          x.reorder_level,
-                                          x.uom,
-                                          'ceil'
-                                        ),
-                                      }
-                                    : x
-                                )
+                              patchLevelRow(pid, (x) =>
+                                x.reorder_level === ''
+                                  ? {}
+                                  : {
+                                      reorder_level: formatStockQty(
+                                        x.reorder_level,
+                                        x.uom,
+                                        'ceil'
+                                      ),
+                                    }
                               )
                             }
                           />
@@ -877,28 +1068,21 @@ function Inner() {
                             value={r.target_level}
                             placeholder="auto"
                             onChange={(e) =>
-                              setLevelRows((prev) =>
-                                prev.map((x, i) =>
-                                  i === idx
-                                    ? { ...x, target_level: e.target.value }
-                                    : x
-                                )
-                              )
+                              patchLevelRow(pid, {
+                                target_level: e.target.value,
+                              })
                             }
                             onBlur={() =>
-                              setLevelRows((prev) =>
-                                prev.map((x, i) =>
-                                  i === idx && x.target_level !== ''
-                                    ? {
-                                        ...x,
-                                        target_level: formatStockQty(
-                                          x.target_level,
-                                          x.uom,
-                                          'ceil'
-                                        ),
-                                      }
-                                    : x
-                                )
+                              patchLevelRow(pid, (x) =>
+                                x.target_level === ''
+                                  ? {}
+                                  : {
+                                      target_level: formatStockQty(
+                                        x.target_level,
+                                        x.uom,
+                                        'ceil'
+                                      ),
+                                    }
                               )
                             }
                           />
@@ -917,10 +1101,13 @@ function Inner() {
                         </td>
                       </tr>
                     );
+                    });
+                    return [header, ...body];
                   })
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         ) : null}
       </div>
