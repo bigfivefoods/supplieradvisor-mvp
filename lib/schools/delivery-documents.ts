@@ -422,8 +422,16 @@ export function deliveryDocFilename(
 type PdfDoc = InstanceType<typeof PDFDocument>;
 
 const PAGE_W = 595.28;
+/** A4 height in points */
+const PAGE_H = 841.89;
 const MARGIN = 40;
 const CONTENT_W = PAGE_W - MARGIN * 2;
+/** Reserve bottom band for footer so body never collides */
+const FOOTER_BAND = 36;
+/** Max Y for body content (above footer) */
+const CONTENT_BOTTOM = PAGE_H - FOOTER_BAND;
+/** Absolute footer baseline on each page */
+const FOOTER_Y = PAGE_H - 20;
 
 function startPdf(title: string, subject: string): {
   pdf: PdfDoc;
@@ -431,7 +439,13 @@ function startPdf(title: string, subject: string): {
 } {
   const pdf = new PDFDocument({
     size: 'A4',
-    margin: MARGIN,
+    // Leave bottom free for absolute footer (avoids auto page-break into page 2)
+    margins: {
+      top: MARGIN,
+      left: MARGIN,
+      right: MARGIN,
+      bottom: FOOTER_BAND,
+    },
     bufferPages: true,
     info: {
       Title: title,
@@ -498,7 +512,8 @@ function ensureSpace(
   need: number,
   onNewPage?: () => void
 ) {
-  if (yRef.y + need > 780) {
+  // Stay above footer band so content + footer share one page when short enough
+  if (yRef.y + need > CONTENT_BOTTOM - 8) {
     pdf.addPage();
     drawBrandBar(pdf);
     yRef.y = MARGIN + 8;
@@ -506,20 +521,33 @@ function ensureSpace(
   }
 }
 
+/**
+ * Draw footer on every page at a fixed bottom Y.
+ * Temporarily clears bottom margin so PDFKit does not auto-add a blank page 2.
+ */
 function footer(pdf: PdfDoc, generated: string) {
   const range = pdf.bufferedPageRange();
-  for (let i = 0; i < range.count; i++) {
+  const total = range.count;
+  for (let i = 0; i < total; i++) {
     pdf.switchToPage(range.start + i);
+    const savedBottom = pdf.page.margins.bottom;
+    pdf.page.margins.bottom = 0;
     pdf
       .font('Helvetica')
-      .fontSize(8)
+      .fontSize(7)
       .fillColor('#94a3b8')
       .text(
-        `Supplier Advisor · NSNP · ${generated} · page ${i + 1}/${range.count}`,
+        `Supplier Advisor · NSNP · ${generated} · page ${i + 1}/${total}`,
         MARGIN,
-        810,
-        { width: CONTENT_W, align: 'center' }
+        FOOTER_Y,
+        {
+          width: CONTENT_W,
+          align: 'center',
+          lineBreak: false,
+          // absolute position — do not advance document flow
+        }
       );
+    pdf.page.margins.bottom = savedBottom;
   }
 }
 
