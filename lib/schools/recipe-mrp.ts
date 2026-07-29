@@ -14,7 +14,65 @@ export type RecipeLine = {
   wastage_pct?: number;
   sort_order?: number;
   notes?: string | null;
+  /** School-selected brand product (same category range as DBE BOM) */
+  chosen_product_id?: number | null;
+  chosen_product_name?: string | null;
+  chosen_brand_name?: string | null;
+  /** Same-category brand options for school picker */
+  brand_options?: Array<{
+    id: number;
+    name: string;
+    brand_name: string;
+    category?: string | null;
+    uom?: string | null;
+  }>;
 };
+
+/** Normalize category for brand-range matching (soya / Soya / Soya Mince). */
+export function normalizeRecipeCategory(cat?: string | null): string {
+  return String(cat || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/**
+ * Apply school brand choices onto recipe lines (qty stays DBE BOM qty).
+ * Choices map: recipe_line_id → chosen product snapshot.
+ */
+export function applySchoolBrandChoices(
+  recipes: Recipe[],
+  choices: Map<
+    number,
+    {
+      chosen_product_id: number;
+      chosen_product_name?: string | null;
+      chosen_brand_name?: string | null;
+    }
+  >
+): Recipe[] {
+  if (!choices.size) return recipes;
+  return recipes.map((r) => ({
+    ...r,
+    lines: (r.lines || []).map((l) => {
+      const lineId = l.id != null ? Number(l.id) : null;
+      if (lineId == null || !choices.has(lineId)) return l;
+      const c = choices.get(lineId)!;
+      return {
+        ...l,
+        chosen_product_id: c.chosen_product_id,
+        chosen_product_name: c.chosen_product_name ?? null,
+        chosen_brand_name: c.chosen_brand_name ?? null,
+        // Effective product for MRP / ordering
+        approved_product_id: c.chosen_product_id,
+        product_name: String(
+          c.chosen_product_name || l.product_name || 'Product'
+        ),
+        brand_name: c.chosen_brand_name ?? l.brand_name,
+      };
+    }),
+  }));
+}
 
 export type Recipe = {
   id: number;

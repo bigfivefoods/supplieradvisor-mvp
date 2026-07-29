@@ -75,6 +75,7 @@ type Recipe = {
   active?: boolean;
   description?: string | null;
   lines: Array<{
+    id?: number;
     approved_product_id: number | null;
     product_name: string;
     brand_name?: string | null;
@@ -82,6 +83,16 @@ type Recipe = {
     qty_per_portion: number;
     uom: string;
     wastage_pct?: number;
+    chosen_product_id?: number | null;
+    chosen_product_name?: string | null;
+    chosen_brand_name?: string | null;
+    brand_options?: Array<{
+      id: number;
+      name: string;
+      brand_name: string;
+      category?: string | null;
+      uom?: string | null;
+    }>;
   }>;
 };
 
@@ -159,8 +170,10 @@ function Inner() {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<'agency' | 'school' | 'isp'>('agency');
   const [canEdit, setCanEdit] = useState(false);
+  const [canChooseBrand, setCanChooseBrand] = useState(false);
   const [tab, setTab] = useState<'recipes' | 'plan' | 'budgets'>('recipes');
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [brandBusy, setBrandBusy] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [plan, setPlan] = useState<Plan | null>(null);
@@ -213,11 +226,15 @@ function Inner() {
       }
       setRole((r.role || pl.role || 'school') as 'agency' | 'school' | 'isp');
       setCanEdit(Boolean(r.canEdit || pl.canEdit));
+      setCanChooseBrand(Boolean(r.canChooseBrand));
       setRecipes(r.recipes || pl.recipes || []);
       setProducts(p.products || []);
       setBudgets(pl.budgets || []);
       setPlan(pl.plan || null);
       if (r.message && !(r.recipes || []).length) toast.message(r.message);
+      if (r.brand_choice_help && r.canChooseBrand) {
+        /* soft — UI shows help */
+      }
       if (pl.warning || r.warning) toast.message(pl.warning || r.warning);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
@@ -467,6 +484,36 @@ function Inner() {
     }
   };
 
+  const saveSchoolBrand = async (
+    recipeId: number,
+    lineId: number,
+    chosenProductId: number
+  ) => {
+    const key = `${recipeId}:${lineId}`;
+    setBrandBusy(key);
+    try {
+      const res = await fetch('/api/schools/recipes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          action: 'save_school_brand_choice',
+          recipe_id: recipeId,
+          recipe_line_id: lineId,
+          chosen_product_id: chosenProductId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not save brand');
+      toast.success(data.message || 'Brand selected');
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setBrandBusy(null);
+    }
+  };
+
   const deleteRecipe = async (id: number) => {
     if (!confirm('Delete this recipe BOM?')) return;
     try {
@@ -592,7 +639,7 @@ function Inner() {
             ? 'Build recipe BOMs from the approved catalogue (qty per learner). MPS = meals from learner counts × feeding days; MRP = product requirements per school and per SP. Set category budgets to track cost.'
             : role === 'isp'
               ? 'Estimated meals (MPS) and product quantities (MRP) for schools you supply — scaled by each school’s NSNP learner count and DBE recipes.'
-              : 'Your school’s meal plan quantities from DBE recipes and your NSNP learner enrolment — use this to order from your SP.'
+              : 'Pick the brand for each BOM ingredient (e.g. which soya), then use MPS/MRP quantities to order from your SP. Qty per learner is set by DBE.'
         }
         action={
           <button
@@ -608,7 +655,9 @@ function Inner() {
       <div className="mb-4 flex flex-wrap gap-2">
         {(canEdit
           ? (['recipes', 'plan', 'budgets'] as const)
-          : (['plan'] as const)
+          : canChooseBrand
+            ? (['recipes', 'plan'] as const)
+            : (['plan'] as const)
         ).map((t) => (
           <button
             key={t}
@@ -621,7 +670,9 @@ function Inner() {
             }`}
           >
             {t === 'recipes'
-              ? 'Recipe BOM'
+              ? canEdit
+                ? 'Recipe BOM'
+                : 'Choose brands'
               : t === 'plan'
                 ? 'MPS / MRP plan'
                 : 'Category budgets'}
@@ -629,15 +680,224 @@ function Inner() {
         ))}
       </div>
 
-      {(tab === 'plan' || !canEdit) && (
+      {tab === 'plan' ? (
         <div className="mb-4">
           <PeriodSlicer value={period} onChange={setPeriod} />
         </div>
-      )}
+      ) : null}
 
       {loading ? (
         <div className="py-20 flex justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+        </div>
+      ) : tab === 'recipes' && canChooseBrand && !canEdit ? (
+        /* School: pick brand/product for each DBE BOM line */
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-950">
+            <strong>Choose brands for your kitchen.</strong> DBE sets the recipe
+            and quantity per learner. When a range has several approved brands
+            (e.g. soya), select the one your school will use. MRP and orders
+            follow your picks.
+          </div>
+          {recipes.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-10 text-center text-slate-500">
+              No programme recipes yet — wait for DBE to publish BOMs.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {recipesByWeekday.days.map((day) => {
+                const dayRecipes = [
+                  ...day.breakfast,
+                  ...day.lunch,
+                  ...day.other,
+                ];
+                if (!dayRecipes.length) return null;
+                return (
+                  <section
+                    key={day.day}
+                    className="rounded-3xl border border-slate-200 bg-white overflow-hidden"
+                  >
+                    <div className="px-4 py-2.5 bg-slate-50 border-b text-sm font-black">
+                      {day.label}
+                    </div>
+                    {dayRecipes.map((r) => (
+                      <div
+                        key={r.id}
+                        className="px-4 py-3 border-b border-slate-50 last:border-0 space-y-2"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-bold text-sm">{r.name}</p>
+                          <span
+                            className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-md ${
+                              String(r.meal_type).toLowerCase() === 'breakfast'
+                                ? 'bg-amber-100 text-amber-900'
+                                : 'bg-sky-100 text-sky-900'
+                            }`}
+                          >
+                            {r.meal_type}
+                          </span>
+                        </div>
+                        <ul className="space-y-2">
+                          {(r.lines || []).map((l, li) => {
+                            const lineId = l.id != null ? Number(l.id) : null;
+                            const options = l.brand_options || [];
+                            const selected =
+                              l.chosen_product_id != null
+                                ? Number(l.chosen_product_id)
+                                : l.approved_product_id != null
+                                  ? Number(l.approved_product_id)
+                                  : '';
+                            const busyKey =
+                              lineId != null ? `${r.id}:${lineId}` : null;
+                            return (
+                              <li
+                                key={lineId ?? `${r.id}-${li}`}
+                                className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3"
+                              >
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <p className="text-[10px] font-bold uppercase text-slate-400">
+                                      {(l.category || 'product').replace(
+                                        /_/g,
+                                        ' '
+                                      )}{' '}
+                                      · {l.qty_per_portion} {l.uom}/learner
+                                      {l.wastage_pct
+                                        ? ` · +${l.wastage_pct}% waste`
+                                        : ''}
+                                    </p>
+                                    <p className="text-sm font-semibold text-slate-800 mt-0.5">
+                                      DBE line:{' '}
+                                      {l.brand_name
+                                        ? `${l.brand_name} · `
+                                        : ''}
+                                      {l.product_name}
+                                    </p>
+                                  </div>
+                                </div>
+                                {lineId != null && options.length > 1 ? (
+                                  <label className="block mt-2 text-xs">
+                                    <span className="text-[10px] font-bold uppercase text-emerald-800">
+                                      Your brand / product
+                                    </span>
+                                    <select
+                                      className="mt-1 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm font-semibold"
+                                      value={selected === '' ? '' : String(selected)}
+                                      disabled={brandBusy === busyKey}
+                                      onChange={(e) => {
+                                        const v = Number(e.target.value);
+                                        if (!Number.isFinite(v)) return;
+                                        void saveSchoolBrand(r.id, lineId, v);
+                                      }}
+                                    >
+                                      {options.map((o) => (
+                                        <option key={o.id} value={o.id}>
+                                          {o.brand_name
+                                            ? `${o.brand_name} — ${o.name}`
+                                            : o.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    {brandBusy === busyKey ? (
+                                      <span className="inline-flex items-center gap-1 mt-1 text-[10px] text-slate-500">
+                                        <Loader2 className="w-3 h-3 animate-spin" />{' '}
+                                        Saving…
+                                      </span>
+                                    ) : (
+                                      <span className="block mt-1 text-[10px] text-slate-500">
+                                        {options.length} approved option
+                                        {options.length === 1 ? '' : 's'} in this
+                                        range
+                                      </span>
+                                    )}
+                                  </label>
+                                ) : (
+                                  <p className="mt-2 text-xs text-slate-600">
+                                    Using{' '}
+                                    <strong>
+                                      {l.chosen_brand_name ||
+                                        l.brand_name ||
+                                        '—'}{' '}
+                                      ·{' '}
+                                      {l.chosen_product_name || l.product_name}
+                                    </strong>
+                                    {options.length <= 1
+                                      ? ' (only approved option in this range)'
+                                      : ''}
+                                  </p>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ))}
+                  </section>
+                );
+              })}
+              {recipesByWeekday.unassigned.length > 0 ? (
+                <section className="rounded-3xl border border-amber-100 bg-amber-50/40 p-4">
+                  <p className="text-sm font-black text-amber-950 mb-2">
+                    Other recipes
+                  </p>
+                  {recipesByWeekday.unassigned.map((r) => (
+                    <div key={r.id} className="mb-3 last:mb-0">
+                      <p className="font-bold text-sm">{r.name}</p>
+                      <ul className="mt-1 space-y-2">
+                        {(r.lines || []).map((l, li) => {
+                          const lineId = l.id != null ? Number(l.id) : null;
+                          const options = l.brand_options || [];
+                          const selected =
+                            l.chosen_product_id != null
+                              ? Number(l.chosen_product_id)
+                              : l.approved_product_id != null
+                                ? Number(l.approved_product_id)
+                                : '';
+                          return (
+                            <li
+                              key={lineId ?? li}
+                              className="rounded-xl border border-amber-100 bg-white p-2"
+                            >
+                              <p className="text-xs font-semibold">
+                                {l.category} · {l.qty_per_portion}
+                                {l.uom}/learner
+                              </p>
+                              {lineId != null && options.length > 1 ? (
+                                <select
+                                  className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-xs font-semibold"
+                                  value={
+                                    selected === '' ? '' : String(selected)
+                                  }
+                                  onChange={(e) => {
+                                    const v = Number(e.target.value);
+                                    if (!Number.isFinite(v)) return;
+                                    void saveSchoolBrand(r.id, lineId, v);
+                                  }}
+                                >
+                                  {options.map((o) => (
+                                    <option key={o.id} value={o.id}>
+                                      {o.brand_name
+                                        ? `${o.brand_name} — ${o.name}`
+                                        : o.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <p className="text-[11px] text-slate-600">
+                                  {l.chosen_brand_name || l.brand_name} ·{' '}
+                                  {l.chosen_product_name || l.product_name}
+                                </p>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  ))}
+                </section>
+              ) : null}
+            </div>
+          )}
         </div>
       ) : tab === 'recipes' && canEdit ? (
         <div className="space-y-4">

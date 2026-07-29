@@ -12,13 +12,16 @@ import {
 import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
 import { fetchAgencySchoolLinks } from '@/lib/schools/supabase-page';
 import {
+  applySchoolBrandChoices,
   buildProgrammePlan,
+  normalizeRecipeCategory,
   schoolLearnerCount,
   type CategoryBudget,
   type Recipe,
   type RecipeLine,
   type SchoolLearners,
 } from '@/lib/schools/recipe-mrp';
+import { loadApprovedProducts } from '@/lib/schools/approved-catalogue';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -92,14 +95,30 @@ export async function GET(request: NextRequest) {
     }
 
     if (view === 'recipes' || view === 'all') {
-      const recipes = await loadRecipes(supabase, agencyProfileId);
+      let recipes = await loadRecipes(supabase, agencyProfileId);
+      if (role === 'school') {
+        const { school } = await getOrCreateSchoolProfile(supabase, companyId);
+        if (school) {
+          recipes = await enrichRecipesWithSchoolBrandChoices(
+            supabase,
+            agencyProfileId,
+            Number(school.id),
+            recipes
+          );
+        }
+      }
       if (view === 'recipes') {
         return NextResponse.json({
           success: true,
           role,
           canEdit: role === 'agency',
+          canChooseBrand: role === 'school',
           agencyProfileId,
           recipes,
+          brand_choice_help:
+            role === 'school'
+              ? 'For each BOM line, pick the approved brand/product your school will use (e.g. which soya brand). Qty stays as set by DBE.'
+              : undefined,
         });
       }
     }
@@ -126,7 +145,19 @@ export async function GET(request: NextRequest) {
         .toISOString()
         .slice(0, 10);
 
-    const recipes = await loadRecipes(supabase, agencyProfileId);
+    let recipes = await loadRecipes(supabase, agencyProfileId);
+    // School brand picks change which product appears on MRP (qty from DBE BOM)
+    if (role === 'school') {
+      const { school } = await getOrCreateSchoolProfile(supabase, companyId);
+      if (school) {
+        recipes = await enrichRecipesWithSchoolBrandChoices(
+          supabase,
+          agencyProfileId,
+          Number(school.id),
+          recipes
+        );
+      }
+    }
     const activeRecipes = recipes.filter((r) => r.active !== false);
     // Service days computed inside buildProgrammePlan (integer weekday hits / whole-day splits)
     const recipeSchedule: Array<{ recipe: Recipe }> = activeRecipes.map(
@@ -406,6 +437,185 @@ export async function POST(request: NextRequest) {
     if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
+    const action = String(body.action || 'save_recipe');
+
+    // ── School brand choice (not agency-only) ─────────────────────────
+    if (action === 'save_school_brand_choice') {
+      const agencyReg = await getAgencyRegistration(supabase, companyId);
+      if (agencyReg) {
+        return NextResponse.json(
+          { error: 'DBE sets the BOM; schools select brands on each line' },
+          { status: 403 }
+        );
+      }
+      const ctx = await resolveCatalogueContext(supabase, companyId);
+      const agencyProfileId = ctx.agencyProfileId;
+      if (!agencyProfileId) {
+        return NextResponse.json(
+          { error: 'Join a department to use programme recipes' },
+          { status: 400 }
+        );
+      }
+      const { school } = await getOrCreateSchoolProfile(supabase, companyId);
+      if (!school) {
+        return NextResponse.json({ error: 'School profile required' }, { status: 400 });
+      }
+      const schoolId = Number(school.id);
+      const recipeId = Number(body.recipe_id);
+      const recipeLineId = Number(body.recipe_line_id);
+      const chosenProductId = Number(body.chosen_product_id);
+      if (
+        !Number.isFinite(recipeId) ||
+        !Number.isFinite(recipeLineId) ||
+        !Number.isFinite(chosenProductId)
+      ) {
+        return NextResponse.json(
+          { error: 'recipe_id, recipe_line_id, chosen_product_id required' },
+          { status: 400 }
+        );
+      }
+
+      const { data: line } = await supabase
+        .from('nsnp_recipe_lines')
+        .select(
+          'id, recipe_id, approved_product_id, category, product_name, brand_name'
+        )
+        .eq('id', recipeLineId)
+        .eq('recipe_id', recipeId)
+        .maybeSingle();
+      if (!line) {
+        return NextResponse.json({ error: 'BOM line not found' }, { status: 404 });
+      }
+
+      // Line must belong to a recipe for this school's department
+      const { data: recipe } = await supabase
+        .from('nsnp_recipes')
+        .select('id, agency_profile_id')
+        .eq('id', recipeId)
+        .eq('agency_profile_id', agencyProfileId)
+        .maybeSingle();
+      if (!recipe) {
+        return NextResponse.json(
+          { error: 'Recipe is not on your department programme' },
+          { status: 403 }
+        );
+      }
+
+      const catalogue = await loadApprovedProducts(supabase, agencyProfileId, {
+        activeOnly: true,
+        includeNationalFallback: false,
+      });
+      let chosen = catalogue.find((p) => Number(p.id) === chosenProductId) as
+        | Record<string, unknown>
+        | undefined;
+      if (!chosen) {
+        const { data: row } = await supabase
+          .from('nsnp_approved_products')
+          .select('*')
+          .eq('id', chosenProductId)
+          .eq('agency_profile_id', agencyProfileId)
+          .maybeSingle();
+        chosen = (row as Record<string, unknown>) || undefined;
+      }
+      if (!chosen) {
+        return NextResponse.json(
+          { error: 'Chosen product is not on the department approved list' },
+          { status: 400 }
+        );
+      }
+
+      const lineCat = normalizeRecipeCategory(String(line.category || ''));
+      const chosenCat = normalizeRecipeCategory(String(chosen.category || ''));
+      if (
+        lineCat &&
+        chosenCat &&
+        lineCat !== chosenCat &&
+        !lineCat.includes(chosenCat) &&
+        !chosenCat.includes(lineCat)
+      ) {
+        return NextResponse.json(
+          {
+            error: `Brand must be in the same product range as the BOM line (${line.category || 'category'})`,
+          },
+          { status: 400 }
+        );
+      }
+
+      const choiceRow = {
+        school_profile_id: schoolId,
+        profile_id: companyId,
+        recipe_id: recipeId,
+        recipe_line_id: recipeLineId,
+        default_product_id: line.approved_product_id
+          ? Number(line.approved_product_id)
+          : null,
+        category: line.category != null ? String(line.category) : null,
+        chosen_product_id: chosenProductId,
+        chosen_product_name: String(chosen.name || ''),
+        chosen_brand_name: String(chosen.brand_name || ''),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data: upserted, error: uErr } = await supabase
+        .from('school_nsnp_recipe_brand_choices')
+        .upsert(choiceRow, { onConflict: 'school_profile_id,recipe_line_id' })
+        .select('*')
+        .single();
+
+      if (uErr) {
+        if (/does not exist|schema cache|onConflict|unique/i.test(uErr.message)) {
+          const { data: sch } = await supabase
+            .from('school_profiles')
+            .select('id, metadata')
+            .eq('id', schoolId)
+            .maybeSingle();
+          const meta =
+            sch?.metadata && typeof sch.metadata === 'object'
+              ? { ...(sch.metadata as Record<string, unknown>) }
+              : {};
+          const map =
+            meta.recipe_brand_choices &&
+            typeof meta.recipe_brand_choices === 'object'
+              ? {
+                  ...(meta.recipe_brand_choices as Record<string, unknown>),
+                }
+              : {};
+          map[String(recipeLineId)] = {
+            recipe_id: recipeId,
+            chosen_product_id: chosenProductId,
+            chosen_product_name: choiceRow.chosen_product_name,
+            chosen_brand_name: choiceRow.chosen_brand_name,
+            default_product_id: choiceRow.default_product_id,
+            category: choiceRow.category,
+          };
+          meta.recipe_brand_choices = map;
+          const { error: mErr } = await supabase
+            .from('school_profiles')
+            .update({
+              metadata: meta,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', schoolId);
+          if (mErr) {
+            return NextResponse.json({ error: mErr.message }, { status: 400 });
+          }
+          return NextResponse.json({
+            success: true,
+            choice: map[String(recipeLineId)],
+            storage: 'metadata',
+            message: `Using ${choiceRow.chosen_brand_name || choiceRow.chosen_product_name} for this BOM line`,
+          });
+        }
+        return NextResponse.json({ error: uErr.message }, { status: 400 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        choice: upserted,
+        message: `Using ${choiceRow.chosen_brand_name || choiceRow.chosen_product_name} for this BOM line`,
+      });
+    }
+
     const agency = await getAgencyRegistration(supabase, companyId);
     if (!agency) {
       return NextResponse.json(
@@ -413,8 +623,6 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       );
     }
-
-    const action = String(body.action || 'save_recipe');
 
     if (action === 'delete_recipe') {
       const id = Number(body.id);
@@ -799,6 +1007,168 @@ async function loadRecipes(
       lines: byRecipe.get(Number(r.id)) || [],
     };
   });
+}
+
+/**
+ * Attach same-category brand options + school choices onto recipe BOM lines.
+ */
+async function enrichRecipesWithSchoolBrandChoices(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  agencyProfileId: number,
+  schoolProfileId: number,
+  recipes: Recipe[]
+): Promise<Recipe[]> {
+  if (!recipes.length) return recipes;
+
+  const catalogue = await loadApprovedProducts(supabase, agencyProfileId, {
+    activeOnly: true,
+    includeNationalFallback: false,
+  });
+  const byCategory = new Map<
+    string,
+    Array<{
+      id: number;
+      name: string;
+      brand_name: string;
+      category?: string | null;
+      uom?: string | null;
+    }>
+  >();
+  for (const p of catalogue) {
+    const cat = normalizeRecipeCategory(String(p.category || ''));
+    if (!cat) continue;
+    const opt = {
+      id: Number(p.id),
+      name: String(p.name || ''),
+      brand_name: String(p.brand_name || ''),
+      category: p.category != null ? String(p.category) : null,
+      uom: p.uom != null ? String(p.uom) : null,
+    };
+    const arr = byCategory.get(cat) || [];
+    arr.push(opt);
+    byCategory.set(cat, arr);
+  }
+
+  // Soft match: also index first word of category (soya mince → soya)
+  const findOptions = (category?: string | null) => {
+    const cat = normalizeRecipeCategory(category);
+    if (!cat) return [] as Array<{
+      id: number;
+      name: string;
+      brand_name: string;
+      category?: string | null;
+      uom?: string | null;
+    }>;
+    if (byCategory.has(cat)) return byCategory.get(cat)!;
+    const out: Array<{
+      id: number;
+      name: string;
+      brand_name: string;
+      category?: string | null;
+      uom?: string | null;
+    }> = [];
+    const seen = new Set<number>();
+    for (const [k, list] of byCategory) {
+      if (k.includes(cat) || cat.includes(k)) {
+        for (const o of list) {
+          if (!seen.has(o.id)) {
+            seen.add(o.id);
+            out.push(o);
+          }
+        }
+      }
+    }
+    return out;
+  };
+
+  const choices = new Map<
+    number,
+    {
+      chosen_product_id: number;
+      chosen_product_name?: string | null;
+      chosen_brand_name?: string | null;
+    }
+  >();
+
+  const { data: choiceRows, error: cErr } = await supabase
+    .from('school_nsnp_recipe_brand_choices')
+    .select(
+      'recipe_line_id, chosen_product_id, chosen_product_name, chosen_brand_name'
+    )
+    .eq('school_profile_id', schoolProfileId)
+    .limit(500);
+  if (!cErr && choiceRows?.length) {
+    for (const c of choiceRows) {
+      choices.set(Number(c.recipe_line_id), {
+        chosen_product_id: Number(c.chosen_product_id),
+        chosen_product_name:
+          c.chosen_product_name != null ? String(c.chosen_product_name) : null,
+        chosen_brand_name:
+          c.chosen_brand_name != null ? String(c.chosen_brand_name) : null,
+      });
+    }
+  } else {
+    // metadata fallback
+    const { data: sch } = await supabase
+      .from('school_profiles')
+      .select('metadata')
+      .eq('id', schoolProfileId)
+      .maybeSingle();
+    const meta =
+      sch?.metadata && typeof sch.metadata === 'object'
+        ? (sch.metadata as Record<string, unknown>)
+        : {};
+    const map =
+      meta.recipe_brand_choices && typeof meta.recipe_brand_choices === 'object'
+        ? (meta.recipe_brand_choices as Record<string, Record<string, unknown>>)
+        : {};
+    for (const [lineId, c] of Object.entries(map)) {
+      const pid = Number(c.chosen_product_id);
+      if (!Number.isFinite(pid)) continue;
+      choices.set(Number(lineId), {
+        chosen_product_id: pid,
+        chosen_product_name:
+          c.chosen_product_name != null ? String(c.chosen_product_name) : null,
+        chosen_brand_name:
+          c.chosen_brand_name != null ? String(c.chosen_brand_name) : null,
+      });
+    }
+  }
+
+  const withOptions: Recipe[] = recipes.map((r) => ({
+    ...r,
+    lines: (r.lines || []).map((l) => {
+      let options = findOptions(l.category);
+      // Always include the DBE default product in the list
+      if (
+        l.approved_product_id &&
+        !options.some((o) => o.id === Number(l.approved_product_id))
+      ) {
+        options = [
+          {
+            id: Number(l.approved_product_id),
+            name: l.product_name,
+            brand_name: String(l.brand_name || ''),
+            category: l.category,
+            uom: l.uom,
+          },
+          ...options,
+        ];
+      }
+      const choice =
+        l.id != null ? choices.get(Number(l.id)) : undefined;
+      return {
+        ...l,
+        brand_options: options,
+        chosen_product_id: choice?.chosen_product_id ?? l.approved_product_id,
+        chosen_product_name:
+          choice?.chosen_product_name ?? l.product_name,
+        chosen_brand_name: choice?.chosen_brand_name ?? l.brand_name,
+      };
+    }),
+  }));
+
+  return applySchoolBrandChoices(withOptions, choices);
 }
 
 async function loadBudgets(
