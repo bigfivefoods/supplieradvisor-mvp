@@ -36,7 +36,7 @@ export default function GoldenPathStrip({ companyId, compact }: Props) {
   if (loading && !path) {
     return (
       <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 flex items-center gap-2 text-sm text-slate-500">
-        <Loader2 className="w-4 h-4 animate-spin" /> Loading supply path…
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading programme path…
       </div>
     );
   }
@@ -49,12 +49,18 @@ export default function GoldenPathStrip({ companyId, compact }: Props) {
         ? 'border-rose-200 bg-rose-50/70'
         : 'border-amber-200 bg-amber-50/70';
 
+  const pathLabel =
+    path.role === 'agency'
+      ? 'Golden path · Menu · catalogue · compliance · DBE'
+      : path.role === 'isp'
+        ? 'Golden path · School PO → procure → deliver · SP'
+        : 'Golden path · Stock vs menu → PO → receive → serve · School'
+
   return (
     <div className={`mb-4 rounded-2xl border ${healthRing} px-3 py-3`}>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-          Golden path · PO → GRN → feed ·{' '}
-          {path.role === 'isp' ? 'SP' : path.role === 'agency' ? 'DBE' : 'School'}
+          {pathLabel}
         </p>
         <Link
           href={path.nextHref}

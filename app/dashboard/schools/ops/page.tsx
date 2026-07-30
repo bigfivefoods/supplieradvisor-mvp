@@ -249,10 +249,10 @@ function Inner() {
         titleAccent="Sprint A · B · C"
         description={
           role === 'isp'
-            ? 'School POs (approved catalogue only) — buy from wholesalers, create DN, dispatch with POD; school receives into kitchen.'
+            ? 'Receive school POs → procure approved items → deliver to schools (DN + POD). You do not set menus.'
             : role === 'agency'
-              ? 'Exceptions, claims, stuck deliveries, district/cluster allocation.'
-              : 'Shopping list from DBE menu, three-way match, funding simulator, audit pack.'
+              ? 'DBE oversight only — joins, catalogue/menu readiness, PEU compliance, claim review. Schools order and receive; SPs fulfil.'
+              : 'Check kitchen stock vs DBE menu → PO to SP when short → receive GRN → serve. Shopping list, match & audit pack.'
         }
         action={
           <button

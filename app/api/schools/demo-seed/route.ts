@@ -265,15 +265,26 @@ async function statusOrSeed(
       'School picks soya brand on Recipes',
       'School orders → SP fulfils → GRN → serve day → claim',
     ],
-    golden_path: [
+    // DBE path ≠ school/SP supply loop
+    golden_path_dbe: [
+      'approve schools & SPs',
       'catalogue',
-      'menu/recipes',
-      'school brand pick',
-      'PO',
-      'DN+POD',
-      'GRN',
-      'serve',
-      'claim',
+      'menu',
+      'recipes/BOMs',
+      'feeding calendar',
+      'PEU compliance',
+      'review claims',
+    ],
+    golden_path_school: [
+      'check kitchen stock vs DBE menu',
+      'PO to SP when short',
+      'receive into kitchen (GRN)',
+      'serve meals',
+    ],
+    golden_path_sp: [
+      'receive school PO',
+      'procure items',
+      'deliver to school',
     ],
   });
 }

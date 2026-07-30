@@ -3,7 +3,7 @@
 /**
  * School: order approved catalogue products from linked SPs.
  * SP: inbox of school POs to source from wholesalers and fulfil.
- * Process: DBE catalogue + menu → school PO → SP wholesale buy → DN/POD → school GRN → serve.
+ * Process: School checks kitchen vs DBE menu → PO to SP when short → SP procures & delivers → school GRN → serve.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -412,7 +412,7 @@ function Inner() {
               Wholesale supply model
             </p>
             <p className="text-[13px] mt-0.5">
-              School PO → you fulfil (DN + POD) → school GRN. When received, the
+              School PO → you procure → deliver (DN + POD) → school GRN. When received, the
               action shows <strong>Fulfilled</strong> with that order&apos;s
               OTIFEF and the school&apos;s rating of you.
             </p>

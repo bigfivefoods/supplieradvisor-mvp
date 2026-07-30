@@ -5,7 +5,11 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
-import { buildGoldenPath, type PathCounts } from '@/lib/schools/golden-path';
+import {
+  buildGoldenPath,
+  emptyPathCounts,
+  type PathCounts,
+} from '@/lib/schools/golden-path';
 import {
   applyApprovedProductClaimIncentive,
   CLAIM_APPROVED_MIN_PCT,
@@ -336,20 +340,7 @@ async function gatherCounts(
   companyId: number,
   role: 'school' | 'isp' | 'agency'
 ): Promise<PathCounts> {
-  const c: PathCounts = {
-    openPos: 0,
-    openDns: 0,
-    dispatched: 0,
-    withPod: 0,
-    awaitingReceive: 0,
-    receivedThisWeek: 0,
-    serveToday: false,
-    claimsReady: false,
-    claimsBlocked: false,
-    lateDeliveries: 0,
-    openRiads: 0,
-    probationSps: 0,
-  };
+  const c: PathCounts = emptyPathCounts();
   const wk = weekStart();
   const todayStr = today();
 
@@ -393,17 +384,43 @@ async function gatherCounts(
     if (!school) return c;
     const sid = Number(school.id);
 
+    // Kitchen stock vs cover / zero — drives "check stock vs DBE menu"
+    try {
+      const { data: stock } = await supabase
+        .from('school_kitchen_stock')
+        .select('id, qty_on_hand, reorder_level, metadata')
+        .eq('school_profile_id', sid)
+        .limit(500);
+      const rows = stock || [];
+      c.stockShort = rows.filter((s) => {
+        const qty = Number(s.qty_on_hand || 0);
+        const reorder = Number(
+          (s as { reorder_level?: number }).reorder_level ?? 0
+        );
+        if (reorder > 0) return qty <= reorder;
+        return qty <= 0;
+      }).length;
+      c.stockOk = c.stockShort === 0 && rows.length > 0;
+      // No stock rows yet → still need a stock check
+      if (rows.length === 0) {
+        c.stockOk = false;
+        c.stockShort = 0;
+      }
+    } catch {
+      c.stockOk = false;
+    }
+
     const { data: pos } = await supabase
       .from('school_purchase_orders')
       .select('id')
       .eq('school_profile_id', sid)
-      .in('status', ['submitted', 'confirmed', 'open', 'dispatched'])
+      .in('status', ['submitted', 'confirmed', 'open', 'dispatched', 'draft'])
       .limit(50);
     c.openPos = (pos || []).length;
 
     const { data: dels } = await supabase
       .from('school_nsnp_deliveries')
-      .select('id, status, metadata, received_at')
+      .select('id, status, metadata, received_at, expected_date')
       .eq('school_profile_id', sid)
       .limit(100);
     const list = dels || [];
@@ -413,6 +430,7 @@ async function gatherCounts(
     c.dispatched = list.filter((d) =>
       ['dispatched', 'delivered'].includes(String(d.status))
     ).length;
+    // School receives (GRN) when SP has dispatched/delivered
     c.awaitingReceive = list.filter((d) =>
       ['dispatched', 'delivered', 'confirmed'].includes(String(d.status))
     ).length;
@@ -425,6 +443,13 @@ async function gatherCounts(
         d.received_at &&
         String(d.received_at).slice(0, 10) >= wk
     ).length;
+    c.lateDeliveries = list.filter((d) => {
+      if (!d.expected_date) return false;
+      return (
+        String(d.expected_date).slice(0, 10) < todayStr &&
+        ['dispatched', 'delivered', 'confirmed'].includes(String(d.status))
+      );
+    }).length;
 
     const { data: feed } = await supabase
       .from('school_feeding_days')
@@ -434,7 +459,6 @@ async function gatherCounts(
       .maybeSingle();
     c.serveToday = Boolean(feed);
 
-    // soft claim readiness from recent receipts
     const { data: recs } = await supabase
       .from('school_kitchen_receipts')
       .select('compliance_ok')
@@ -445,14 +469,30 @@ async function gatherCounts(
     c.claimsBlocked = bad > 0 && (recs || []).length > 0;
     c.claimsReady = c.serveToday && !c.claimsBlocked && c.receivedThisWeek > 0;
   } else {
-    // agency
+    // agency (DBE / PEU) — programme governance counts only.
+    // Do NOT map openPos / awaitingReceive as if DBE orders or receives food.
     const links = await fetchAgencySchoolLinks(supabase, companyId, [
       'active',
       'pending',
     ]).catch(() => []);
+    c.pendingAssociations = links.filter((l) => l.status === 'pending').length;
+    c.activeSchools = links.filter((l) => l.status === 'active').length;
     const schoolIds = links
       .map((l) => Number(l.school_profile_id))
       .filter(Boolean);
+
+    // Pending SP joins (same desk)
+    try {
+      const { data: ispPending } = await supabase
+        .from('nsnp_isp_agency_links')
+        .select('id')
+        .eq('agency_profile_id', companyId)
+        .eq('status', 'pending')
+        .limit(100);
+      c.pendingAssociations += (ispPending || []).length;
+    } catch {
+      /* soft */
+    }
 
     const { data: claims } = await supabase
       .from('nsnp_claim_packs')
@@ -460,30 +500,82 @@ async function gatherCounts(
       .eq('agency_profile_id', companyId)
       .eq('status', 'submitted')
       .limit(50);
-    c.claimsReady = (claims || []).length > 0;
-    c.openPos = (claims || []).length; // reuse as submitted claims count in metrics
+    c.submittedClaims = (claims || []).length;
+    c.claimsReady = c.submittedClaims > 0;
 
-    // late / awaiting approximate
+    // Approved catalogue (agency-owned products)
+    try {
+      const { count } = await supabase
+        .from('nsnp_approved_products')
+        .select('id', { count: 'exact', head: true })
+        .eq('agency_profile_id', companyId);
+      c.catalogueProducts = count ?? 0;
+    } catch {
+      try {
+        // Fallback column name on older catalogues
+        const { data: products } = await supabase
+          .from('nsnp_approved_products')
+          .select('id')
+          .eq('profile_id', companyId)
+          .limit(500);
+        c.catalogueProducts = (products || []).length;
+      } catch {
+        c.catalogueProducts = 0;
+      }
+    }
+
+    // Menu cycle mandated by agency (school_menu_cycles.agency_profile_id)
+    try {
+      const { data: menus } = await supabase
+        .from('school_menu_cycles')
+        .select('id')
+        .eq('agency_profile_id', companyId)
+        .limit(1);
+      c.menuConfigured = (menus || []).length > 0;
+    } catch {
+      c.menuConfigured = false;
+    }
+
+    // Recipes / BOMs (nsnp_recipes)
+    try {
+      const { data: recipes } = await supabase
+        .from('nsnp_recipes')
+        .select('id')
+        .eq('agency_profile_id', companyId)
+        .limit(1);
+      c.recipesConfigured = (recipes || []).length > 0;
+    } catch {
+      c.recipesConfigured = false;
+    }
+
+    // Feeding calendar (nsnp_feeding_calendars)
+    try {
+      const { data: cal } = await supabase
+        .from('nsnp_feeding_calendars')
+        .select('id')
+        .eq('agency_profile_id', companyId)
+        .limit(1);
+      c.calendarConfigured = (cal || []).length > 0;
+    } catch {
+      c.calendarConfigured = false;
+    }
+
+    // Oversight only: late deliveries in network (DBE monitors, does not GRN)
     if (schoolIds.length) {
       const slice = schoolIds.slice(0, 200);
       const { data: dels } = await supabase
         .from('school_nsnp_deliveries')
-        .select('id, status, expected_date, metadata')
+        .select('id, status, expected_date')
         .in('school_profile_id', slice)
-        .in('status', ['dispatched', 'delivered'])
+        .in('status', ['dispatched', 'delivered', 'confirmed'])
         .limit(300);
-      c.awaitingReceive = (dels || []).length;
       c.lateDeliveries = (dels || []).filter(
         (d) =>
           d.expected_date &&
           String(d.expected_date).slice(0, 10) < todayStr
       ).length;
-      c.withPod = (dels || []).filter(
-        (d) => (d.metadata as { has_pod_photo?: boolean })?.has_pod_photo
-      ).length;
     }
 
-    // open RIADs raised by agency (metadata) — soft
     try {
       const { data: riads } = await supabase
         .from('riad_logs')
@@ -491,25 +583,31 @@ async function gatherCounts(
         .contains('metadata', { raised_by_agency_profile_id: companyId })
         .limit(100);
       c.openRiads = (riads || []).filter(
-        (r) => !['closed', 'resolved'].includes(String(r.status || '').toLowerCase())
+        (r) =>
+          !['closed', 'resolved'].includes(
+            String(r.status || '').toLowerCase()
+          )
       ).length;
     } catch {
       c.openRiads = 0;
     }
 
-    // probation SPs
     try {
       const { data: ispLinks } = await supabase
         .from('nsnp_isp_agency_links')
-        .select('isp_profile_id, status')
+        .select('isp_profile_id, status, metadata')
         .eq('agency_profile_id', companyId)
         .eq('status', 'active')
         .limit(200);
-      // soft: mark none without full compute
-      c.probationSps = 0;
-      void ispLinks;
+      c.probationSps = (ispLinks || []).filter((l) => {
+        const meta = (l.metadata || {}) as { probation?: boolean; tier?: string };
+        return (
+          meta.probation === true ||
+          String(meta.tier || '').toLowerCase() === 'probation'
+        );
+      }).length;
     } catch {
-      /* soft */
+      c.probationSps = 0;
     }
   }
 

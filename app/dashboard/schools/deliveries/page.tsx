@@ -628,7 +628,7 @@ function Inner() {
         mode={mode}
         description={
           role === 'isp'
-            ? 'World-class supply: PO → dispatch → POD/invoice → school confirms. Large touch targets for field drivers.'
+            ? 'SP path: receive school PO → procure → deliver with POD. School path: receive into kitchen (GRN). Large touch targets for field drivers.'
             : 'World-class receive: check quantities, attach photos, post kitchen GRN in one step.'
         }
         action={

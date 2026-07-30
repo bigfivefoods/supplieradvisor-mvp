@@ -142,7 +142,7 @@ function Inner() {
         <SchoolsHeader
           title="SP command"
           titleAccent="Supply"
-          description="See how you fit in DBE → schools → SPs → children fed. Fulfil school POs, dispatch trucks, attach POD & invoices — schools confirm receipt into kitchen stock."
+          description="Receive school POs → procure approved items → deliver to schools. You do not set menus. See the full DBE → school → SP → children fed process below."
           mode="isp"
           action={
             <button
@@ -155,14 +155,7 @@ function Inner() {
           }
         />
         <GoldenPathStrip companyId={companyId} />
-        <div className="mb-4">
-          <a
-            href="#nsnp-system-flow"
-            className="btn-secondary !py-1.5 !px-3 text-xs"
-          >
-            How the system works
-          </a>
-        </div>
+        <NsnpSystemFlow audience="isp" />
         <div className="rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-sky-50 p-6 mb-6">
           <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
             Service provider · do this next
@@ -172,7 +165,7 @@ function Inner() {
           </h2>
           <p className="text-sm text-slate-600 mt-1">
             {ispNext?.desc ||
-              'Create delivery notes from school POs, mark dispatched/delivered, upload POD + invoice.'}
+              'Receive school POs, procure on-catalogue items, deliver with DN + POD. Schools GRN into kitchen.'}
           </p>
           <div className="flex flex-wrap gap-2 mt-4">
             <Link
@@ -277,9 +270,6 @@ function Inner() {
             </Link>
           ))}
         </div>
-        <div id="nsnp-system-flow">
-          <NsnpSystemFlow audience="isp" defaultCollapsed />
-        </div>
       </SchoolsPage>
     );
   }
@@ -290,7 +280,7 @@ function Inner() {
         <SchoolsHeader
           title="DBE / PEU command"
           titleAccent="Programme"
-          description="See how DBE → schools → service providers feed every child with compliance and prizes. Approve schools, own the catalogue, run PEU visits, review claims."
+          description="DBE does not order or receive food. Set the catalogue, menus, recipes and feeding calendar; approve schools & SPs; run PEU compliance; review claims. Schools order and receive; SPs supply."
           mode="agency"
           action={
             <button
@@ -303,6 +293,8 @@ function Inner() {
           }
         />
         <GoldenPathStrip companyId={companyId} />
+        <NsnpSystemFlow audience="dbe" />
+
         <div className="mb-4 flex flex-wrap gap-2">
           <Link
             href="/dashboard/schools/ops"
@@ -310,12 +302,6 @@ function Inner() {
           >
             Exception cockpit
           </Link>
-          <a
-            href="#nsnp-system-flow"
-            className="btn-secondary !py-2 !px-3 text-xs"
-          >
-            How the system works
-          </a>
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50 p-6 mb-6">
@@ -332,7 +318,7 @@ function Inner() {
               </h2>
               <p className="text-sm text-slate-600 mt-1">
                 {agencyNext?.desc ||
-                  'Approve associations, publish approved brands, monitor serve-day compliance. Use the module navbar to move between functions.'}
+                  'Set menus, catalogue, recipes and calendar; approve schools & SPs; PEU compliance and claim review. DBE never raises school POs or GRNs.'}
               </p>
               {agencyNext ? (
                 <Link
@@ -344,10 +330,6 @@ function Inner() {
               ) : null}
             </div>
           </div>
-        </div>
-
-        <div id="nsnp-system-flow">
-          <NsnpSystemFlow audience="dbe" />
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
@@ -519,6 +501,7 @@ function Inner() {
       />
 
       <GoldenPathStrip companyId={companyId} />
+      <NsnpSystemFlow audience="school" />
       <div className="mb-4 flex flex-wrap gap-2">
         <Link
           href="/dashboard/schools/ops"
@@ -526,12 +509,6 @@ function Inner() {
         >
           Supply ops · match · funding sim
         </Link>
-        <a
-          href="#nsnp-system-flow"
-          className="btn-secondary !py-1.5 !px-3 text-xs"
-        >
-          How the system works
-        </a>
       </div>
 
       {/* Priority 1 — Today board */}
@@ -920,15 +897,10 @@ function Inner() {
         ))}
       </div>
 
-      <div id="nsnp-system-flow" className="mt-6">
-        <NsnpSystemFlow audience="school" defaultCollapsed />
-      </div>
-
       <p className="mt-4 text-xs text-slate-400 flex items-center gap-1 flex-wrap">
         <MapPin className="w-3.5 h-3.5 shrink-0" />
-        End-to-end: profile → DBE approve → learners (Template A) → catalogue /
-        calendar / recipes → kitchen stock cover → SP order → DN/POD → GRN →
-        serve day → survey → claims → audit.
+        End-to-end: DBE rules → school stock vs menu → PO if short → SP procure &
+        deliver → GRN → serve children → PEU verify → claims.
       </p>
     </SchoolsPage>
   );
