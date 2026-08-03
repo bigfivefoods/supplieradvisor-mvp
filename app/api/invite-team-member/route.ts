@@ -154,7 +154,12 @@ export async function POST(request: NextRequest) {
 
     let memberId: number | null = existing?.id ? Number(existing.id) : null;
 
-    if (existing && ['invited', 'pending', 'removed'].includes(String(existing.status || ''))) {
+    if (
+      existing &&
+      ['invited', 'pending', 'removed', 'expired', 'suspended'].includes(
+        String(existing.status || '')
+      )
+    ) {
       const { data: refreshed, error: refreshError } = await supabaseAdmin
         .from('business_users')
         .update(invitePayload)

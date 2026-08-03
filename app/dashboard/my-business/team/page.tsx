@@ -240,6 +240,80 @@ function TeamInner() {
     }
   };
 
+  /** Resend invite email + refresh token for invited / pending / removed members */
+  const reinvite = async (member: TeamMember) => {
+    if (!canManage) {
+      toast.error('Only owners and admins can reinvite team members');
+      return;
+    }
+    const email = String(member.invited_email || member.email || '')
+      .toLowerCase()
+      .trim();
+    if (!email || !email.includes('@')) {
+      toast.error('This member has no email address to reinvite');
+      return;
+    }
+    const status = String(member.status || '').toLowerCase();
+    if (status === 'active') {
+      toast.error('This person is already an active member');
+      return;
+    }
+    setBusyId(member.id);
+    setLastInviteLink(null);
+    try {
+      const res = await fetch('/api/invite-team-member', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          name: member.name || '',
+          email,
+          role: member.role || 'member',
+          companyName,
+          inviterName:
+            user?.email?.address ||
+            (user as { google?: { name?: string } })?.google?.name ||
+            'Your teammate',
+        }),
+      });
+      const data = await res.json();
+      if (data.inviteLink) setLastInviteLink(String(data.inviteLink));
+
+      if (!res.ok) {
+        if (res.status === 502 && data.inviteLink) {
+          toast.error(
+            data.details
+              ? `Email failed: ${data.details}. Copy the invite link below.`
+              : data.error || 'Email failed — copy invite link below'
+          );
+          void load();
+          return;
+        }
+        throw new Error(
+          [data.error, data.details, data.hint].filter(Boolean).join(' — ') ||
+            'Reinvite failed'
+        );
+      }
+      toast.success(data.message || 'Invitation resent via email');
+      if (data.inviteLink) {
+        toast.message('Fresh join link is ready to copy below if needed', {
+          duration: 5000,
+        });
+      }
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Reinvite failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const canReinvite = (m: TeamMember) => {
+    const status = String(m.status || '').toLowerCase();
+    return ['invited', 'pending', 'removed', 'expired'].includes(status);
+  };
+
   const roleHelp = TEAM_ROLE_OPTIONS.find((r) => r.value === form.role);
 
   return (
@@ -354,16 +428,19 @@ function TeamInner() {
             <div className="p-12 text-center text-sm text-neutral-500">No team members yet.</div>
           ) : (
             <ul className="divide-y divide-neutral-100">
-              {members
-                .filter((m) => m.status !== 'removed')
-                .map((m) => {
+              {members.map((m) => {
                   const roleMeta = TEAM_ROLE_OPTIONS.find(
                     (r) => r.value === String(m.role || 'member').toLowerCase()
                   );
+                  const showReinvite = canManage && canReinvite(m);
+                  const isRemoved =
+                    String(m.status || '').toLowerCase() === 'removed';
                   return (
                     <li
                       key={m.id}
-                      className="px-5 py-4 flex flex-wrap items-center justify-between gap-3"
+                      className={`px-5 py-4 flex flex-wrap items-center justify-between gap-3 ${
+                        isRemoved ? 'opacity-70 bg-neutral-50/80' : ''
+                      }`}
                     >
                       <div className="min-w-0">
                         <div className="font-semibold text-slate-900 truncate">
@@ -378,7 +455,7 @@ function TeamInner() {
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap justify-end">
                         <span
                           className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${memberStatusClass(m.status)}`}
                         >
@@ -393,7 +470,7 @@ function TeamInner() {
                             // Map legacy free-text titles (e.g. CEO) via normalized option if present
                             return raw;
                           })()}
-                          disabled={busyId === m.id || !canManage}
+                          disabled={busyId === m.id || !canManage || isRemoved}
                           onChange={(e) => void updateRole(m.id, e.target.value)}
                           title={
                             canManage
@@ -426,7 +503,23 @@ function TeamInner() {
                         >
                           {m.role}
                         </span>
-                        {canManage && (
+                        {showReinvite && (
+                          <button
+                            type="button"
+                            disabled={busyId === m.id}
+                            onClick={() => void reinvite(m)}
+                            className="inline-flex items-center gap-1 !py-1.5 !px-2.5 text-xs font-semibold rounded-xl border border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100 disabled:opacity-50"
+                            title="Resend invitation email with a fresh join link"
+                          >
+                            {busyId === m.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <RefreshCw className="w-3.5 h-3.5" />
+                            )}
+                            Reinvite
+                          </button>
+                        )}
+                        {canManage && !isRemoved && (
                           <button
                             type="button"
                             disabled={busyId === m.id}
