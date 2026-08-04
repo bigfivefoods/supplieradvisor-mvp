@@ -102,7 +102,7 @@ const CONFIG: Record<
   invoice: {
     title: 'Invoices',
     description:
-      'Bill customers, email with your bank details, print/PDF, track payment, and auto-earn loyalty points when paid.',
+      'Bill customers, email PDF, track payment. Unpaid invoices can be revised — saving creates a new version and voids the original.',
     numberField: 'invoice_number',
     statuses: ['draft', 'sent', 'paid', 'partial', 'overdue', 'void'],
   },
@@ -840,7 +840,11 @@ function DocInner({
       return ['draft', 'confirmed'].includes(st);
     }
     if (type === 'invoice') {
-      return ['draft'].includes(st);
+      // Unpaid only — revisions create a new version and void the original
+      if (['paid', 'void', 'cancelled'].includes(st)) return false;
+      const paid = Number(d.amount_paid || 0);
+      if (paid > 0.009) return false;
+      return ['draft', 'sent', 'overdue', 'partial', 'viewed'].includes(st) || st === '';
     }
     return false;
   };
@@ -850,7 +854,9 @@ function DocInner({
       toast.error(
         type === 'quote'
           ? 'Only draft, sent, rejected, or expired quotations can be edited'
-          : 'This document cannot be edited in its current status'
+          : type === 'invoice'
+            ? 'Only unpaid invoices can be revised (no payments recorded)'
+            : 'This document cannot be edited in its current status'
       );
       return;
     }
@@ -915,8 +921,15 @@ function DocInner({
         ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     toast.message(
-      `Editing ${String(d[cfg.numberField] || type)}`,
-      { description: 'Update lines or details, then save changes.' }
+      type === 'invoice'
+        ? `Revising ${String(d[cfg.numberField] || 'invoice')}`
+        : `Editing ${String(d[cfg.numberField] || type)}`,
+      {
+        description:
+          type === 'invoice'
+            ? 'Save will create a new invoice version and void this unpaid original.'
+            : 'Update lines or details, then save changes.',
+      }
     );
   };
 
@@ -926,10 +939,60 @@ function DocInner({
       toast.error('Add at least one product or service line');
       return;
     }
-    // ── Update existing quotation / document ─────────────────────────────
+    // ── Update / revise existing document ────────────────────────────────
     if (editingId) {
       setSaving(true);
       try {
+        // Invoices: always save as a new version (void original if unpaid)
+        if (type === 'invoice') {
+          const body: Record<string, unknown> = {
+            companyId,
+            type: 'invoice',
+            id: editingId,
+            action: 'revise_invoice',
+            customer_id: customerId || null,
+            currency: docCurrency || 'ZAR',
+            tax_rate: Number(taxRate) || 0,
+            notes: notes || null,
+            items: valid,
+            payment_terms: paymentTerms || null,
+            terms: paymentTerms || null,
+            due_date: dueDate || null,
+            privyUserId,
+            // New revision starts as draft so you can re-email when ready
+            status: 'draft',
+          };
+          const res = await fetch('/api/customers/docs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || data.hint || 'Could not save new invoice version');
+          }
+          const newNum = String(
+            data.revision?.invoice_number ||
+              data.document?.invoice_number ||
+              'new version'
+          );
+          const oldNum = String(
+            data.original?.invoice_number || editingId
+          );
+          toast.success(`New invoice ${newNum}`, {
+            description: `Previous ${oldNum} marked void. Review the draft, then email or share.`,
+            duration: 10000,
+          });
+          const newId = Number(data.document?.id || data.revision?.id);
+          if (Number.isFinite(newId) && newId > 0) {
+            setHighlightDocId(newId);
+          }
+          resetForm();
+          void load();
+          return;
+        }
+
+        // Quotes / orders: in-place PATCH update
         const body: Record<string, unknown> = {
           companyId,
           type,
@@ -946,7 +1009,6 @@ function DocInner({
         };
         if (type === 'quote') body.valid_until = validUntil || null;
         if (type === 'order') body.promised_date = promisedDate || null;
-        if (type === 'invoice') body.due_date = dueDate || null;
 
         const res = await fetch('/api/customers/docs', {
           method: 'PATCH',
@@ -2119,7 +2181,9 @@ function DocInner({
             {editingId
               ? type === 'quote'
                 ? 'Edit quotation'
-                : `Edit ${type}`
+                : type === 'invoice'
+                  ? 'Revise invoice (new version)'
+                  : `Edit ${type}`
               : `Build ${type} — multi-currency catalogue`}
             {editingId ? (
               <span className="text-xs font-semibold text-neutral-500 ml-1">
@@ -2127,6 +2191,13 @@ function DocInner({
               </span>
             ) : null}
           </h2>
+          {editingId && type === 'invoice' ? (
+            <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+              Saving creates a <strong>new invoice version</strong> (e.g. …-R2)
+              as a draft and marks this unpaid original as <strong>void</strong>.
+              Payments already recorded block revision.
+            </p>
+          ) : null}
 
           {fromPoBanner ? (
             <div
@@ -2588,6 +2659,8 @@ function DocInner({
                 ) : editingId ? (
                   type === 'quote' ? (
                     'Save quotation'
+                  ) : type === 'invoice' ? (
+                    'Save new invoice version'
                   ) : (
                     `Save ${type}`
                   )
@@ -2941,11 +3014,13 @@ function DocInner({
                         title={
                           type === 'quote'
                             ? 'Edit quotation lines, customer, validity and terms'
-                            : 'Edit document'
+                            : type === 'invoice'
+                              ? 'Revise unpaid invoice — saves a new version and voids this one'
+                              : 'Edit document'
                         }
                       >
                         <Pencil className="w-3.5 h-3.5" />
-                        Edit
+                        {type === 'invoice' ? 'Revise' : 'Edit'}
                       </button>
                     )}
                     {type === 'quote' && d.status === 'draft' && (

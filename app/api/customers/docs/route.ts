@@ -1411,6 +1411,211 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // ── Revise invoice → new version (void previous unpaid original) ─────
+    // Body: { action: 'revise_invoice', id: originalId, items, customer_id, ... }
+    if (action === 'revise_invoice' && body.id) {
+      if (kind !== 'invoice') {
+        return NextResponse.json(
+          { error: 'revise_invoice only applies to invoices' },
+          { status: 400 }
+        );
+      }
+      const originalId = Number(body.id);
+      const { data: original, error: oErr } = await supabase
+        .from('customer_invoices')
+        .select('*')
+        .eq('id', originalId)
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      if (oErr || !original) {
+        return NextResponse.json(
+          { error: oErr?.message || 'Original invoice not found' },
+          { status: 404 }
+        );
+      }
+
+      const st = String(original.status || '').toLowerCase();
+      const paid = Number(original.amount_paid || 0);
+      if (['paid', 'void', 'cancelled'].includes(st)) {
+        return NextResponse.json(
+          {
+            error: `Cannot revise a ${st} invoice`,
+            code: 'INVOICE_LOCKED',
+          },
+          { status: 409 }
+        );
+      }
+      if (paid > 0.009) {
+        return NextResponse.json(
+          {
+            error:
+              'Cannot revise an invoice with payments recorded. Create a credit note or new invoice instead.',
+            code: 'INVOICE_HAS_PAYMENTS',
+            amount_paid: paid,
+          },
+          { status: 409 }
+        );
+      }
+
+      const items = normalizeItems(body.items);
+      if (!items.length) {
+        return NextResponse.json(
+          { error: 'Add at least one line item (product or service)' },
+          { status: 400 }
+        );
+      }
+
+      const taxRate = body.tax_rate != null ? Number(body.tax_rate) : 15;
+      const totals = calcDocTotals(items, taxRate);
+      const customer = await loadCustomer(
+        supabase,
+        body.customer_id != null
+          ? Number(body.customer_id)
+          : original.customer_id
+            ? Number(original.customer_id)
+            : null
+      );
+
+      const oldNum = String(original.invoice_number || `#${originalId}`);
+      // Version suffix: INV-… → INV-…-R2 (or -R3 if already revised)
+      const revMatch = /-R(\d+)$/i.exec(oldNum);
+      const nextRev = revMatch ? Number(revMatch[1]) + 1 : 2;
+      const baseNum = revMatch ? oldNum.replace(/-R\d+$/i, '') : oldNum;
+      const newNumber = `${baseNum}-R${nextRev}`;
+
+      const priorNotes =
+        body.notes !== undefined
+          ? body.notes
+            ? String(body.notes)
+            : null
+          : original.notes
+            ? String(original.notes)
+            : null;
+      const revisionNote = `[revision of ${oldNum} (#${originalId}) on ${now.slice(0, 10)}]`;
+      const notesOut = priorNotes
+        ? `${priorNotes}\n${revisionNote}`
+        : revisionNote;
+
+      // New version defaults to draft so seller can re-send; optional body.status
+      const nextStatus =
+        body.status != null
+          ? String(body.status)
+          : st === 'draft'
+            ? 'draft'
+            : 'draft';
+
+      const reviseBody: Record<string, unknown> = {
+        customer_id:
+          body.customer_id !== undefined
+            ? body.customer_id
+            : original.customer_id,
+        currency: body.currency || original.currency || 'ZAR',
+        notes: notesOut,
+        payment_terms:
+          body.payment_terms !== undefined
+            ? body.payment_terms
+            : original.payment_terms,
+        terms:
+          body.terms !== undefined
+            ? body.terms
+            : body.payment_terms !== undefined
+              ? body.payment_terms
+              : original.terms || original.payment_terms,
+        due_date:
+          body.due_date !== undefined ? body.due_date : original.due_date,
+        order_id: original.order_id,
+        quote_id: original.quote_id,
+        source_po_id: original.source_po_id,
+        invoice_number: newNumber,
+        status: nextStatus,
+        amount_paid: 0,
+      };
+
+      const payload = buildPayload(
+        'invoice',
+        reviseBody,
+        companyId,
+        items,
+        totals,
+        customer
+      );
+      // Force our versioned number (buildPayload may regenerate)
+      payload.invoice_number = newNumber;
+      payload.status = nextStatus;
+      payload.amount_paid = 0;
+      payload.paid_at = null;
+
+      const inserted = await insertDocTolerant(
+        supabase,
+        'customer_invoices',
+        payload
+      );
+      if (!inserted.ok) {
+        return NextResponse.json(
+          {
+            error: inserted.error,
+            hint: 'Could not create revised invoice',
+          },
+          { status: 500 }
+        );
+      }
+      const revision = inserted.data;
+      const revId = Number(revision.id);
+
+      // Void original and link to new version
+      const voidLine = `[void — superseded by ${newNumber} (#${revId}) on ${now.slice(0, 10)}]`;
+      const oldNotes = original.notes != null ? String(original.notes) : '';
+      const voidNotes = oldNotes ? `${oldNotes}\n${voidLine}` : voidLine;
+      await supabase
+        .from('customer_invoices')
+        .update({
+          status: 'void',
+          notes: voidNotes,
+          updated_at: now,
+        })
+        .eq('id', originalId)
+        .eq('profile_id', companyId);
+
+      // Soft activity
+      try {
+        const { logActivity } = await import('@/lib/customers/access');
+        await logActivity({
+          profile_id: companyId,
+          actor_user_id: _gate.userId || null,
+          action: 'invoice.revised',
+          entity_type: 'customer_invoices',
+          entity_id: String(revId),
+          summary: `Invoice ${oldNum} revised → ${newNumber}`,
+          metadata: {
+            original_id: originalId,
+            revision_id: revId,
+            original_number: oldNum,
+            revision_number: newNumber,
+          },
+        });
+      } catch {
+        /* soft */
+      }
+
+      return NextResponse.json({
+        success: true,
+        action: 'revise_invoice',
+        type: 'invoice',
+        document: revision,
+        original: {
+          id: originalId,
+          invoice_number: oldNum,
+          status: 'void',
+        },
+        revision: {
+          id: revId,
+          invoice_number: newNumber,
+          status: nextStatus,
+        },
+        message: `New invoice version ${newNumber} created. Previous ${oldNum} marked void.`,
+      });
+    }
+
     // ── Create ─────────────────────────────────────────────────────────────
     const items = normalizeItems(body.items);
     if (!items.length) {
