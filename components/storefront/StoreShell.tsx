@@ -93,21 +93,22 @@ export function ProductCard({
       href={href}
       className="group rounded-3xl border border-slate-200 bg-white overflow-hidden hover:border-[#00b4d8]/50 hover:shadow-md transition-all flex flex-col"
     >
-      <div className="aspect-[4/3] bg-slate-100 relative">
+      {/* Full pack visible — contain on light plate, no crop */}
+      <div className="relative flex h-24 sm:h-28 items-center justify-center bg-[#f8f7f5] px-2.5 py-2 border-b border-black/[0.06]">
         {product.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={product.imageUrl}
             alt={product.name}
-            className="absolute inset-0 w-full h-full object-cover"
+            className="h-full w-full max-w-[7rem] object-contain object-center"
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-slate-300 text-sm font-semibold">
+          <span className="text-slate-300 text-sm font-semibold">
             {product.category || 'Product'}
-          </div>
+          </span>
         )}
         {product.badges[0] ? (
-          <span className="absolute top-2 left-2 rounded-full bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5">
+          <span className="absolute top-1.5 right-1.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 shadow-sm">
             {product.badges[0]}
           </span>
         ) : null}
