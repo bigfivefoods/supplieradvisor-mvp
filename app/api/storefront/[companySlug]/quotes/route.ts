@@ -60,13 +60,21 @@ export async function POST(
     }
 
     const body = await request.json().catch(() => ({}));
+    // Accept marketing-site contract + extended multi-line body
     const contactEmail = String(body.contactEmail || body.email || '')
       .toLowerCase()
       .trim();
     const contactName = String(body.contactName || body.name || '').trim();
     const tradingName = String(
-      body.tradingName || body.companyName || contactName || 'Storefront buyer'
+      body.tradingName ||
+        body.companyName ||
+        body.organisation ||
+        body.organization ||
+        contactName ||
+        'Storefront buyer'
     ).trim();
+    const contactPhone = body.contactPhone || body.phone || null;
+    const message = body.message != null ? String(body.message) : null;
 
     if (!contactEmail.includes('@')) {
       return NextResponse.json(
@@ -75,12 +83,29 @@ export async function POST(
       );
     }
 
-    const rawLines = Array.isArray(body.lines) ? body.lines : [];
+    const rawLines: Array<Record<string, unknown>> = Array.isArray(body.lines)
+      ? body.lines
+      : [];
+    // Multi-product from marketing order list
+    if (!rawLines.length && body.products) {
+      const ids = String(body.products)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      for (const id of ids) {
+        rawLines.push({
+          externalRef: id,
+          product: id,
+          name: body.productName || id,
+          quantity: Number(body.quantity) || 1,
+        });
+      }
+    }
     if (!rawLines.length && (body.sku || body.externalRef || body.product)) {
       rawLines.push({
         sku: body.sku,
         externalRef: body.externalRef || body.product,
-        name: body.name || body.productName || 'Product',
+        name: body.productName || body.name || 'Product',
         quantity: Number(body.quantity) || 1,
       });
     }
@@ -147,14 +172,15 @@ export async function POST(
     };
 
     const notes = [
-      body.notes ? String(body.notes) : '',
+      message || (body.notes ? String(body.notes) : ''),
       `[storefront quote request]`,
+      `sla=response within 1 business day`,
       attribution.source ? `source=${attribution.source}` : '',
       attribution.ref ? `ref=${attribution.ref}` : '',
       attribution.channel ? `channel=${attribution.channel}` : '',
       contactName ? `contact=${contactName}` : '',
       contactEmail ? `email=${contactEmail}` : '',
-      body.contactPhone ? `phone=${body.contactPhone}` : '',
+      contactPhone ? `phone=${contactPhone}` : '',
     ]
       .filter(Boolean)
       .join('\n');
@@ -179,7 +205,7 @@ export async function POST(
             trading_name: tradingName,
             email: contactEmail,
             contact_name: contactName || null,
-            phone: body.contactPhone ? String(body.contactPhone) : null,
+            phone: contactPhone ? String(contactPhone) : null,
             status: 'active',
             source: 'storefront',
             notes: `From storefront ${seller.slug}`,
@@ -206,7 +232,7 @@ export async function POST(
       customer_name: tradingName,
       contact_name: contactName || null,
       contact_email: contactEmail,
-      contact_phone: body.contactPhone ? String(body.contactPhone) : null,
+      contact_phone: contactPhone ? String(contactPhone) : null,
       notes,
       items,
       terms: 'Quote request from public storefront — prices subject to confirmation.',
@@ -258,11 +284,24 @@ export async function POST(
         summary: `Storefront quote ${quoteNumber} from ${tradingName}`,
         metadata: attribution,
       });
+      await notifySellerQuote({
+        sellerId: seller.id,
+        sellerName: seller.tradingName,
+        quoteNumber,
+        tradingName,
+        contactEmail,
+        contactName,
+        channel: String(attribution.channel || ''),
+        source: String(attribution.source || ''),
+      });
       return NextResponse.json({
+        ok: true,
         success: true,
+        quoteId: retry.data?.id ?? quoteNumber,
         quote: retry.data,
+        sla: 'Response within 1 business day',
         message:
-          'Quote request received. Big Five Foods will confirm pricing and terms.',
+          'Quote request received. We aim to respond within 1 business day with pricing and terms.',
         seller: { id: seller.id, slug: seller.slug, tradingName: seller.tradingName },
         next: buyerCompanyId
           ? {
@@ -283,6 +322,17 @@ export async function POST(
       entity_id: String(quote?.id),
       summary: `Storefront quote ${quoteNumber} from ${tradingName}`,
       metadata: attribution,
+    });
+
+    await notifySellerQuote({
+      sellerId: seller.id,
+      sellerName: seller.tradingName,
+      quoteNumber,
+      tradingName,
+      contactEmail,
+      contactName,
+      channel: String(attribution.channel || ''),
+      source: String(attribution.source || ''),
     });
 
     // Soft handshake: pending connection from buyer → seller
@@ -306,10 +356,13 @@ export async function POST(
     }
 
     return NextResponse.json({
+      ok: true,
       success: true,
+      quoteId: quote?.id ?? quoteNumber,
       quote,
+      sla: 'Response within 1 business day',
       message:
-        'Quote request received. The seller will confirm pricing on SupplierAdvisor®.',
+        'Quote request received. We aim to respond within 1 business day with pricing and terms on SupplierAdvisor®.',
       seller: {
         id: seller.id,
         slug: seller.slug,
@@ -332,5 +385,65 @@ export async function POST(
       { error: e instanceof Error ? e.message : 'Error' },
       { status: 500 }
     );
+  }
+}
+
+/** Soft notify seller email + buyer confirmation when Resend is configured */
+async function notifySellerQuote(opts: {
+  sellerId: number;
+  sellerName: string;
+  quoteNumber: string;
+  tradingName: string;
+  contactEmail: string;
+  contactName: string;
+  channel: string;
+  source: string;
+}) {
+  try {
+    if (!process.env.RESEND_API_KEY) return;
+    const { getResend, getResendFrom } = await import('@/lib/resend');
+    const resend = getResend();
+    const from = getResendFrom();
+    const supabase = getSupabaseAdmin();
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('email, contact_email, trading_name')
+      .eq('id', opts.sellerId)
+      .maybeSingle();
+    const sellerTo =
+      String(prof?.email || prof?.contact_email || '').trim() || null;
+    const app =
+      process.env.NEXT_PUBLIC_APP_URL || 'https://www.supplieradvisor.com';
+    const quotesUrl = `${app.replace(/\/$/, '')}/dashboard/customers/quotes`;
+
+    if (sellerTo?.includes('@')) {
+      await resend.emails.send({
+        from,
+        to: sellerTo,
+        subject: `New storefront quote ${opts.quoteNumber} — ${opts.tradingName}`,
+        html: `<p><strong>New quote request</strong> on SupplierAdvisor®</p>
+<p>Quote: <strong>${opts.quoteNumber}</strong><br/>
+Buyer: ${opts.tradingName} · ${opts.contactName} · ${opts.contactEmail}<br/>
+Channel: ${opts.channel || '—'} · Source: ${opts.source || 'storefront'}</p>
+<p>SLA: respond within <strong>1 business day</strong>.</p>
+<p><a href="${quotesUrl}">Open Quotes inbox</a></p>`,
+      });
+    }
+
+    // Buyer confirmation
+    if (opts.contactEmail.includes('@')) {
+      await resend.emails.send({
+        from,
+        to: opts.contactEmail,
+        subject: `Quote request received — ${opts.sellerName}`,
+        html: `<p>Hi ${opts.contactName || 'there'},</p>
+<p>We received your quote request <strong>${opts.quoteNumber}</strong> for <strong>${opts.sellerName}</strong> on SupplierAdvisor®.</p>
+<p>We aim to respond within <strong>1 business day</strong> with pricing and terms.</p>
+<p>This is a verified B2B trade network — not a second order book.</p>
+<p>— SupplierAdvisor®</p>`,
+      });
+    }
+  } catch (e) {
+    console.warn('storefront quote notify soft-fail', e);
   }
 }

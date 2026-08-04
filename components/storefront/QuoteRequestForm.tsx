@@ -71,9 +71,11 @@ export default function QuoteRequestForm({
         message: data.message,
       });
       toast.success('Quote request sent', {
-        description: data.quote?.quote_number
-          ? `Reference ${data.quote.quote_number}`
-          : undefined,
+        description:
+          data.sla ||
+          (data.quote?.quote_number
+            ? `Reference ${data.quote.quote_number} · response within 1 business day`
+            : 'Response within 1 business day'),
       });
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed');
@@ -93,11 +95,18 @@ export default function QuoteRequestForm({
           {done.message ||
             'The seller will confirm pricing and terms on SupplierAdvisor®.'}
         </p>
+        <p className="text-sm font-semibold text-emerald-950 mt-2">
+          SLA: response within 1 business day
+        </p>
         {done.quoteNumber ? (
-          <p className="text-sm font-mono font-bold text-emerald-950 mt-2">
+          <p className="text-sm font-mono font-bold text-emerald-950 mt-1">
             {done.quoteNumber}
           </p>
         ) : null}
+        <p className="text-xs text-emerald-800 mt-3">
+          Check your email for confirmation. Track status in your SupplierAdvisor®
+          workspace after you join or sign in.
+        </p>
       </div>
     );
   }
@@ -179,6 +188,11 @@ export default function QuoteRequestForm({
           placeholder="Delivery area, programme, preferred timing…"
         />
       </div>
+      <p className="text-[11px] text-slate-500">
+        We aim to respond within <strong>1 business day</strong>. Seller of
+        record is the store company on SupplierAdvisor® — not a second order
+        book.
+      </p>
       <button
         type="submit"
         disabled={busy}

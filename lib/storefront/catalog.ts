@@ -176,36 +176,99 @@ function mapDbProduct(row: Record<string, unknown>): StoreProduct {
   const priceOnRequest =
     quoteFirst || price == null || meta.priceOnRequest === true;
 
+  const packSize =
+    meta.packSize != null
+      ? String(meta.packSize)
+      : meta.pack_size != null
+        ? String(meta.pack_size)
+        : meta.pack != null
+          ? String(meta.pack)
+          : row.uom
+            ? String(row.uom)
+            : null;
+
+  const imageUrl = row.primary_image_url ? String(row.primary_image_url) : null;
+  const extraImages = Array.isArray(meta.images)
+    ? meta.images.map(String).filter(Boolean)
+    : [];
+  const images = imageUrl
+    ? [imageUrl, ...extraImages.filter((u) => u !== imageUrl)]
+    : extraImages;
+
+  const inStock =
+    meta.inStock === false || meta.in_stock === false
+      ? false
+      : meta.madeToOrder === true || meta.made_to_order === true
+        ? false
+        : true;
+
+  const externalRef = meta.externalRef
+    ? String(meta.externalRef)
+    : meta.external_ref
+      ? String(meta.external_ref)
+      : null;
+
+  const shortName = meta.shortName
+    ? String(meta.shortName)
+    : meta.short_name
+      ? String(meta.short_name)
+      : String(row.name || 'Product').split('—')[0].trim();
+
   return {
-    id: Number(row.id),
+    id: externalRef || Number(row.id),
     sku: row.sku ? String(row.sku) : null,
     name: String(row.name || 'Product'),
+    shortName,
     description: row.short_description
       ? String(row.short_description)
       : null,
-    packSize:
-      meta.packSize != null
-        ? String(meta.packSize)
-        : meta.pack_size != null
-          ? String(meta.pack_size)
-          : row.uom
-            ? String(row.uom)
-            : null,
+    packSize,
+    pack: packSize,
     uom: row.uom ? String(row.uom) : null,
-    imageUrl: row.primary_image_url ? String(row.primary_image_url) : null,
+    imageUrl,
+    images,
     badges,
     channels,
+    channelFlags: channels,
+    channel: channels[0] || null,
     price: priceOnRequest ? null : price,
     currency,
     priceOnRequest,
-    externalRef: meta.externalRef
-      ? String(meta.externalRef)
-      : meta.external_ref
-        ? String(meta.external_ref)
-        : null,
+    inStock,
+    externalRef,
     quoteFirst,
     active: String(row.status || 'active').toLowerCase() === 'active',
     category: row.category ? String(row.category) : null,
+  };
+}
+
+/** Public API product shape for marketing site proxy */
+export function toPublicCatalogProduct(p: StoreProduct) {
+  return {
+    id: p.externalRef || p.sku || String(p.id),
+    sku: p.sku,
+    externalRef: p.externalRef || p.sku || String(p.id),
+    name: p.name,
+    shortName: p.shortName || p.name,
+    description: p.description,
+    pack: p.pack || p.packSize,
+    packSize: p.packSize,
+    images: p.images?.length
+      ? p.images
+      : p.imageUrl
+        ? [p.imageUrl]
+        : [],
+    imageUrl: p.imageUrl,
+    badges: p.badges,
+    channel: p.channel || p.channels[0] || null,
+    channelFlags: p.channelFlags || p.channels,
+    quoteFirst: p.quoteFirst,
+    inStock: p.inStock !== false,
+    priceOnRequest: p.priceOnRequest,
+    price: p.priceOnRequest ? null : p.price,
+    currency: p.currency,
+    active: p.active,
+    category: p.category,
   };
 }
 
@@ -394,12 +457,17 @@ export async function seedBigFiveFoodsCatalog(opts?: {
       metadata: {
         externalRef: s.externalRef,
         external_ref: s.externalRef,
+        shortName: s.name.split('—')[0].trim(),
         packSize: s.packSize,
         pack_size: s.packSize,
+        pack: s.packSize,
         badges: s.badges || [],
         channelFlags: s.channels,
         channels: s.channels,
         quoteFirst: Boolean(s.quoteFirst),
+        priceOnRequest: s.price == null || Boolean(s.quoteFirst),
+        inStock: !s.quoteFirst,
+        madeToOrder: Boolean(s.quoteFirst),
         storefront_public: true,
       },
       updated_at: new Date().toISOString(),

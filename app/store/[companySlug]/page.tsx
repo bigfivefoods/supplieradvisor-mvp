@@ -7,6 +7,7 @@ import {
 import { parseStoreAttribution } from '@/lib/storefront/attribution';
 import { ProductCard, StoreHero } from '@/components/storefront/StoreShell';
 import StoreClientFilters from '@/components/storefront/StoreClientFilters';
+import MultiProductTray from '@/components/storefront/MultiProductTray';
 
 type Props = {
   params: Promise<{ companySlug: string }> | { companySlug: string };
@@ -59,8 +60,20 @@ export default async function StoreHomePage({ params, searchParams }: Props) {
     );
   }
 
-  // Deep link with product param but no product path → try redirect message
+  // Deep link with product param but no product path → pin product
   const deepProduct = attr.product || attr.sku;
+  // Multi-SKU handoff: ?products=id1,id2&intent=cart
+  const multiRaw =
+    typeof sp?.products === 'string'
+      ? sp.products
+      : Array.isArray(sp?.products)
+        ? sp.products.join(',')
+        : '';
+  const multiKeys = multiRaw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
   let products = await listStoreProducts(company, {
     channel: channel ? String(channel) : null,
     q,
@@ -86,6 +99,24 @@ export default async function StoreHomePage({ params, searchParams }: Props) {
     });
   }
 
+  // Multi-product: pin shortlist order first
+  if (multiKeys.length) {
+    const rank = new Map(
+      multiKeys.map((k, i) => [k.toLowerCase(), i] as const)
+    );
+    products = [...products].sort((a, b) => {
+      const ak =
+        rank.get(String(a.externalRef || '').toLowerCase()) ??
+        rank.get(String(a.sku || '').toLowerCase()) ??
+        999;
+      const bk =
+        rank.get(String(b.externalRef || '').toLowerCase()) ??
+        rank.get(String(b.sku || '').toLowerCase()) ??
+        999;
+      return ak - bk;
+    });
+  }
+
   const categories = Array.from(
     new Set(products.map((p) => p.category).filter(Boolean) as string[])
   );
@@ -94,6 +125,15 @@ export default async function StoreHomePage({ params, searchParams }: Props) {
     <div>
       <StoreHero company={company} attr={attr} />
       <div className="max-w-6xl mx-auto px-4 py-8">
+        {multiKeys.length > 0 ? (
+          <MultiProductTray
+            companySlug={company.slug}
+            products={products}
+            selectedKeys={multiKeys}
+            attr={attr}
+          />
+        ) : null}
+
         <StoreClientFilters
           companySlug={company.slug}
           initialChannel={channel ? String(channel) : ''}
@@ -122,6 +162,33 @@ export default async function StoreHomePage({ params, searchParams }: Props) {
             ))}
           </div>
         )}
+
+        <footer className="mt-14 pt-8 border-t border-slate-200 text-xs text-slate-500 space-y-2">
+          <p>
+            <strong className="text-slate-700">Seller of record:</strong>{' '}
+            {company.tradingName} on SupplierAdvisor®. Quotes and orders appear
+            in the seller workspace (Customers → Quotes).
+          </p>
+          <p>
+            <strong className="text-slate-700">Quote SLA:</strong> we aim to
+            respond within 1 business day. NSNP / institutional lines are
+            quote-first — not instant public checkout.
+          </p>
+          <p>
+            <strong className="text-slate-700">Returns / damage:</strong>{' '}
+            report within 48 hours of delivery with photos and order/quote
+            reference. Contact the seller via your SupplierAdvisor® workspace
+            or the email on your quote confirmation.
+          </p>
+          <p>
+            <Link href="/" className="text-[#0077b6] font-semibold hover:underline">
+              supplieradvisor.com
+            </Link>
+            {' · '}
+            Catalog, stock, and invoices live here — not a second order book on
+            marketing sites.
+          </p>
+        </footer>
       </div>
     </div>
   );

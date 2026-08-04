@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   listStoreProducts,
   resolveStoreCompany,
+  toPublicCatalogProduct,
 } from '@/lib/storefront/catalog';
 import { rateLimit, clientIp } from '@/lib/http/rate-limit';
 
 /**
- * GET /api/storefront/{companySlug}/products?channel=&q=
- * Public catalog for partner storefronts (bigfivegroup.africa deep links).
+ * GET /api/storefront/{companySlug}/products?channel=&q=&products=id1,id2
+ * Public catalog for partner storefronts (bigfivegroup.africa proxy).
+ * Stable contract: { seller, storeUrl, updatedAt, products: [...] }
  */
 export async function GET(
   request: NextRequest,
@@ -35,10 +37,44 @@ export async function GET(
 
     const channel = request.nextUrl.searchParams.get('channel');
     const q = request.nextUrl.searchParams.get('q');
-    const products = await listStoreProducts(company, { channel, q });
+    const multi = request.nextUrl.searchParams.get('products');
+    let products = await listStoreProducts(company, { channel, q });
 
-    return NextResponse.json({
+    // Multi-SKU handoff: pin listed externalRefs first (order preserved)
+    if (multi) {
+      const keys = multi
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+      if (keys.length) {
+        const rank = new Map(keys.map((k, i) => [k, i]));
+        products = [...products].sort((a, b) => {
+          const ak =
+            rank.get(String(a.externalRef || '').toLowerCase()) ??
+            rank.get(String(a.sku || '').toLowerCase()) ??
+            rank.get(String(a.id).toLowerCase()) ??
+            999;
+          const bk =
+            rank.get(String(b.externalRef || '').toLowerCase()) ??
+            rank.get(String(b.sku || '').toLowerCase()) ??
+            rank.get(String(b.id).toLowerCase()) ??
+            999;
+          return ak - bk;
+        });
+      }
+    }
+
+    const publicProducts = products.map(toPublicCatalogProduct);
+    const site =
+      process.env.NEXT_PUBLIC_APP_URL || 'https://www.supplieradvisor.com';
+    const storeUrl = `${site.replace(/\/$/, '')}/store/${company.slug}`;
+
+    const body = {
+      ok: true,
       success: true,
+      seller: company.tradingName,
+      storeUrl,
+      updatedAt: new Date().toISOString(),
       company: {
         id: company.id,
         slug: company.slug,
@@ -49,8 +85,14 @@ export async function GET(
         city: company.city,
         country: company.country,
       },
-      products,
-      count: products.length,
+      products: publicProducts,
+      count: publicProducts.length,
+    };
+
+    return NextResponse.json(body, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+      },
     });
   } catch (e: unknown) {
     return NextResponse.json(

@@ -15,16 +15,26 @@ export type StoreProduct = {
   id: number | string;
   sku: string | null;
   name: string;
+  shortName?: string | null;
   description: string | null;
   packSize: string | null;
+  /** Alias for packSize (marketing API contract) */
+  pack?: string | null;
   uom: string | null;
   imageUrl: string | null;
+  images?: string[];
   badges: string[];
   channels: StoreChannel[];
+  /** Alias for channels */
+  channelFlags?: StoreChannel[];
+  /** Primary channel hint for marketing cards */
+  channel?: StoreChannel | string | null;
   /** retail/wholesale list price; null = price on request */
   price: number | null;
   currency: string;
   priceOnRequest: boolean;
+  /** Stock honesty: false = made-to-order / check lead time */
+  inStock: boolean;
   /** marketing site externalRef e.g. porridge-chocolate */
   externalRef: string | null;
   quoteFirst: boolean;

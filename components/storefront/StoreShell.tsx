@@ -131,6 +131,9 @@ export function ProductCard({
                 {product.currency} {Number(product.price).toLocaleString()}
               </p>
             )}
+            <p className="text-[10px] font-semibold text-slate-500">
+              {product.inStock === false ? 'Made to order' : 'In stock / available'}
+            </p>
             {product.quoteFirst ? (
               <p className="text-[10px] font-semibold text-violet-700">
                 Quote-first (institutional)

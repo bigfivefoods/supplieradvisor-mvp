@@ -264,24 +264,34 @@ export const BIG_FIVE_FOODS_TRADING_NAMES = [
 ];
 
 export function seedDefsAsStoreProducts(): StoreProduct[] {
-  return BIG_FIVE_FOODS_SEED.map((s, i) => ({
-    id: `seed-${s.externalRef}`,
-    sku: s.sku,
-    name: s.name,
-    description: s.description,
-    packSize: s.packSize,
-    uom: 'unit',
-    imageUrl: s.imageUrl || null,
-    badges: s.badges || [],
-    channels: s.channels,
-    price: s.price ?? null,
-    currency: 'ZAR',
-    priceOnRequest: s.price == null || s.quoteFirst === true,
-    externalRef: s.externalRef,
-    quoteFirst: Boolean(s.quoteFirst),
-    active: true,
-    category: s.category,
-  }));
+  return BIG_FIVE_FOODS_SEED.map((s) => {
+    const quoteFirst = Boolean(s.quoteFirst);
+    const priceOnRequest = s.price == null || quoteFirst;
+    return {
+      id: s.externalRef,
+      sku: s.sku,
+      name: s.name,
+      shortName: s.name.split('—')[0].trim(),
+      description: s.description,
+      packSize: s.packSize,
+      pack: s.packSize,
+      uom: 'unit',
+      imageUrl: s.imageUrl || null,
+      images: s.imageUrl ? [s.imageUrl] : [],
+      badges: s.badges || [],
+      channels: s.channels,
+      channelFlags: s.channels,
+      channel: s.channels[0] || null,
+      price: priceOnRequest ? null : s.price ?? null,
+      currency: 'ZAR',
+      priceOnRequest,
+      inStock: !quoteFirst,
+      externalRef: s.externalRef,
+      quoteFirst,
+      active: true,
+      category: s.category,
+    };
+  });
 }
 
 /** Marketing CDN base (optional image paths if used later) */

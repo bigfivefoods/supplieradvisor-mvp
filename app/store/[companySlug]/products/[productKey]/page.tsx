@@ -133,6 +133,11 @@ export default async function StoreProductPage({ params, searchParams }: Props) 
                 {product.currency} {Number(product.price).toLocaleString()}
               </p>
             )}
+            <p className="text-xs text-slate-600 mt-1 font-semibold">
+              {product.inStock === false
+                ? 'Made to order / check lead time'
+                : 'In stock / available'}
+            </p>
             <p className="text-xs text-slate-500 mt-1">
               Channels: {product.channels.join(', ') || 'trade'}
             </p>
