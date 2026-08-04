@@ -5,11 +5,8 @@ import {
   resolveStoreCompany,
 } from '@/lib/storefront/catalog';
 import { parseStoreAttribution } from '@/lib/storefront/attribution';
-import {
-  CategorySection,
-  groupProductsByCategory,
-  StoreHero,
-} from '@/components/storefront/StoreShell';
+import { CategorySection, StoreHero } from '@/components/storefront/StoreShell';
+import { groupProductsByCategory } from '@/lib/storefront/categories';
 import StoreClientFilters from '@/components/storefront/StoreClientFilters';
 import MultiProductTray from '@/components/storefront/MultiProductTray';
 

@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { categoryAnchorId } from '@/components/storefront/StoreShell';
+import { categoryAnchorId } from '@/lib/storefront/categories';
 
 export default function StoreClientFilters({
   companySlug,

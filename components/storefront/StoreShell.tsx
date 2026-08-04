@@ -1,5 +1,3 @@
-'use client';
-
 import Link from 'next/link';
 import { ShieldCheck, Building2 } from 'lucide-react';
 import type { StoreAttribution, StoreCompany, StoreProduct } from '@/lib/storefront/types';
@@ -9,6 +7,10 @@ import {
   onboardingWithPartner,
   storePath,
 } from '@/lib/storefront/attribution';
+import {
+  CATEGORY_BLURBS,
+  categoryAnchorId,
+} from '@/lib/storefront/categories';
 
 export function StoreHero({
   company,
@@ -70,57 +72,6 @@ export function StoreHero({
     </div>
   );
 }
-
-/** Preferred category order for Big Five Foods (and similar food catalogs). */
-export const STORE_CATEGORY_ORDER = [
-  'Porridges',
-  'Soya',
-  'One-pots',
-  'Soups',
-  'NSNP Institutional',
-] as const;
-
-export function categoryAnchorId(category: string): string {
-  return `cat-${category
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')}`;
-}
-
-export function groupProductsByCategory(
-  products: StoreProduct[]
-): { category: string; products: StoreProduct[] }[] {
-  const map = new Map<string, StoreProduct[]>();
-  for (const p of products) {
-    const cat = (p.category || 'Other').trim() || 'Other';
-    if (!map.has(cat)) map.set(cat, []);
-    map.get(cat)!.push(p);
-  }
-
-  const orderIndex = (name: string) => {
-    const i = STORE_CATEGORY_ORDER.findIndex(
-      (c) => c.toLowerCase() === name.toLowerCase()
-    );
-    return i === -1 ? 1000 : i;
-  };
-
-  return Array.from(map.entries())
-    .map(([category, items]) => ({ category, products: items }))
-    .sort((a, b) => {
-      const d = orderIndex(a.category) - orderIndex(b.category);
-      if (d !== 0) return d;
-      return a.category.localeCompare(b.category);
-    });
-}
-
-const CATEGORY_BLURBS: Record<string, string> = {
-  Porridges: 'Fortified instant porridge for home, catering, and foodservice.',
-  Soya: 'Plant-based textured soya mince — retail and wholesale packs.',
-  'One-pots': 'Complete one-pot meal mixes for kitchens that move fast.',
-  Soups: 'Seasoned soup bases for institutional and retail kitchens.',
-  'NSNP Institutional':
-    'Quote-first institutional lines for school nutrition programmes.',
-};
 
 export function CategorySection({
   category,
@@ -233,7 +184,7 @@ export function ProductCard({
             {product.category || 'Product'}
           </span>
         )}
-        {product.badges[0] ? (
+        {product.badges?.[0] ? (
           <span className="absolute top-1.5 right-1.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 shadow-sm">
             {product.badges[0]}
           </span>
@@ -242,11 +193,11 @@ export function ProductCard({
       <div className="p-4 flex-1 flex flex-col">
         {!hideCategory ? (
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            {product.category || product.channels.join(' · ')}
+            {product.category || (product.channels || []).join(' · ')}
           </p>
-        ) : product.channels.length ? (
+        ) : (product.channels || []).length ? (
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            {product.channels.join(' · ')}
+            {(product.channels || []).join(' · ')}
           </p>
         ) : null}
         <h3 className="font-bold text-slate-900 mt-0.5 group-hover:text-[#0077b6] leading-snug">
