@@ -21,6 +21,7 @@ import {
   Mail,
   FileDown,
   MessageCircle,
+  Pencil,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
@@ -211,6 +212,8 @@ function DocInner({
   );
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
+  /** When set, form saves via PATCH to update this document (quotes / drafts) */
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState(
     statusFromUrl && statusFromUrl !== 'all' ? statusFromUrl : 'all'
   );
@@ -806,12 +809,169 @@ function DocInner({
     });
   };
 
+  const resetForm = () => {
+    setEditingId(null);
+    setShowForm(false);
+    setLines([
+      {
+        name: '',
+        quantity: 1,
+        unit_price: 0,
+        line_total: 0,
+        uom: 'unit',
+        currency: docCurrency || 'ZAR',
+      },
+    ]);
+    setNotes('');
+    setCustomerId('');
+    setValidUntil('');
+    setPromisedDate('');
+    setDueDate('');
+    setPendingProductId('');
+    setTaxRate('15');
+  };
+
+  const canEditDoc = (d: DocRecord) => {
+    const st = String(d.status || '').toLowerCase();
+    if (type === 'quote') {
+      return ['draft', 'sent', 'rejected', 'expired'].includes(st);
+    }
+    if (type === 'order') {
+      return ['draft', 'confirmed'].includes(st);
+    }
+    if (type === 'invoice') {
+      return ['draft'].includes(st);
+    }
+    return false;
+  };
+
+  const startEdit = (d: DocRecord) => {
+    if (!canEditDoc(d)) {
+      toast.error(
+        type === 'quote'
+          ? 'Only draft, sent, rejected, or expired quotations can be edited'
+          : 'This document cannot be edited in its current status'
+      );
+      return;
+    }
+    const rawItems = Array.isArray(d.items) ? d.items : [];
+    const mapped: DocLineItem[] =
+      rawItems.length > 0
+        ? rawItems.map((it) => {
+            const quantity = Number(it.quantity) || 1;
+            const unit_price = Number(it.unit_price) || 0;
+            return {
+              product_id: it.product_id ?? null,
+              sku: it.sku ?? null,
+              name:
+                String(
+                  it.name ||
+                    (it as { item_name?: string }).item_name ||
+                    ''
+                ).trim() || 'Line',
+              quantity,
+              unit_price,
+              uom: it.uom || 'unit',
+              line_total:
+                Number(it.line_total) || calcLineTotal(quantity, unit_price),
+              currency: String(it.currency || d.currency || 'ZAR'),
+            };
+          })
+        : [
+            {
+              name: '',
+              quantity: 1,
+              unit_price: 0,
+              line_total: 0,
+              uom: 'unit',
+              currency: String(d.currency || 'ZAR'),
+            },
+          ];
+    setEditingId(Number(d.id));
+    setShowForm(true);
+    setCustomerId(d.customer_id != null ? String(d.customer_id) : '');
+    setDocCurrency(String(d.currency || 'ZAR'));
+    setTaxRate(String(d.tax_rate != null ? d.tax_rate : 15));
+    setNotes(d.notes != null ? String(d.notes) : '');
+    setValidUntil(
+      d.valid_until ? String(d.valid_until).slice(0, 10) : ''
+    );
+    setPromisedDate(
+      d.promised_date ? String(d.promised_date).slice(0, 10) : ''
+    );
+    setDueDate(d.due_date ? String(d.due_date).slice(0, 10) : '');
+    const terms = String(d.payment_terms || d.terms || '').trim();
+    if (terms) {
+      setPaymentTerms(terms);
+      if (!paymentTermsOptions.includes(terms)) {
+        setPaymentTermsOptions((opts) => [terms, ...opts]);
+      }
+    }
+    setLines(mapped);
+    setPendingProductId('');
+    requestAnimationFrame(() => {
+      document
+        .getElementById('doc-build-form')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    toast.message(
+      `Editing ${String(d[cfg.numberField] || type)}`,
+      { description: 'Update lines or details, then save changes.' }
+    );
+  };
+
   const create = async () => {
     const valid = lines.filter((l) => l.name.trim());
     if (!valid.length) {
       toast.error('Add at least one product or service line');
       return;
     }
+    // ── Update existing quotation / document ─────────────────────────────
+    if (editingId) {
+      setSaving(true);
+      try {
+        const body: Record<string, unknown> = {
+          companyId,
+          type,
+          id: editingId,
+          action: 'update',
+          customer_id: customerId || null,
+          currency: docCurrency || 'ZAR',
+          tax_rate: Number(taxRate) || 0,
+          notes: notes || null,
+          items: valid,
+          payment_terms: paymentTerms || null,
+          terms: paymentTerms || null,
+          privyUserId,
+        };
+        if (type === 'quote') body.valid_until = validUntil || null;
+        if (type === 'order') body.promised_date = promisedDate || null;
+        if (type === 'invoice') body.due_date = dueDate || null;
+
+        const res = await fetch('/api/customers/docs', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || data.hint || 'Update failed');
+        }
+        toast.success(
+          type === 'quote'
+            ? 'Quotation updated'
+            : `${cfg.title.slice(0, -1)} updated`
+        );
+        resetForm();
+        void load();
+      } catch (e: unknown) {
+        toast.error(e instanceof Error ? e.message : 'Update failed');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     // Guard: don't create a second invoice for the same PO — open existing instead
     if (type === 'invoice' && fromPo) {
       const marker = `From purchase order #${fromPo}`;
@@ -943,20 +1103,7 @@ function DocInner({
         '@/lib/onboarding/toast-client'
       );
       toastGoldenPathFromResponse(data);
-      setShowForm(false);
-      setLines([
-        {
-          name: '',
-          quantity: 1,
-          unit_price: 0,
-          line_total: 0,
-          uom: 'unit',
-          currency: docCurrency,
-        },
-      ]);
-      setNotes('');
-      setCustomerId('');
-      setPendingProductId('');
+      resetForm();
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -1841,14 +1988,21 @@ function DocInner({
   const newBtn = (
     <button
       type="button"
-      onClick={() => setShowForm((v) => !v)}
+      onClick={() => {
+        if (showForm) {
+          resetForm();
+        } else {
+          setEditingId(null);
+          setShowForm(true);
+        }
+      }}
       className={
         sales
           ? 'inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[#00b4d8] hover:bg-[#0096c7] text-white text-sm font-bold shadow-sm'
           : 'btn-primary !py-2.5 !px-5 text-sm'
       }
     >
-      <Plus className="w-4 h-4" /> New {type}
+      <Plus className="w-4 h-4" /> {showForm && !editingId ? 'Close form' : `New ${type}`}
     </button>
   );
 
@@ -1947,6 +2101,7 @@ function DocInner({
 
       {showForm && (
         <div
+          id="doc-build-form"
           className={
             sales
               ? 'bg-white border border-neutral-200 rounded-3xl p-5 mb-2 space-y-4 text-slate-800 shadow-sm'
@@ -1956,8 +2111,21 @@ function DocInner({
           <h2
             className={`font-bold flex items-center gap-2 ${sales ? 'text-slate-900' : ''}`}
           >
-            <Package className={`w-4 h-4 ${sales ? 'text-[#00b4d8]' : 'text-[#00b4d8]'}`} />{' '}
-            Build {type} — multi-currency catalogue
+            {editingId ? (
+              <Pencil className="w-4 h-4 text-[#00b4d8]" />
+            ) : (
+              <Package className="w-4 h-4 text-[#00b4d8]" />
+            )}
+            {editingId
+              ? type === 'quote'
+                ? 'Edit quotation'
+                : `Edit ${type}`
+              : `Build ${type} — multi-currency catalogue`}
+            {editingId ? (
+              <span className="text-xs font-semibold text-neutral-500 ml-1">
+                #{editingId}
+              </span>
+            ) : null}
           </h2>
 
           {fromPoBanner ? (
@@ -2401,7 +2569,7 @@ function DocInner({
                     ? 'px-4 py-2.5 rounded-2xl border border-neutral-200 text-slate-700 text-sm font-semibold hover:bg-slate-50'
                     : 'btn-secondary !py-2.5 !px-4'
                 }
-                onClick={() => setShowForm(false)}
+                onClick={() => resetForm()}
               >
                 Cancel
               </button>
@@ -2415,7 +2583,17 @@ function DocInner({
                 }
                 onClick={() => void create()}
               >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : `Create ${type}`}
+                {saving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : editingId ? (
+                  type === 'quote' ? (
+                    'Save quotation'
+                  ) : (
+                    `Save ${type}`
+                  )
+                ) : (
+                  `Create ${type}`
+                )}
               </button>
             </div>
           </div>
@@ -2753,6 +2931,21 @@ function DocInner({
                         className="btn-primary !py-1.5 !px-3 text-xs"
                       >
                         Mark paid
+                      </button>
+                    )}
+                    {canEditDoc(d) && (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(d)}
+                        className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1 border-sky-200 text-sky-900"
+                        title={
+                          type === 'quote'
+                            ? 'Edit quotation lines, customer, validity and terms'
+                            : 'Edit document'
+                        }
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        Edit
                       </button>
                     )}
                     {type === 'quote' && d.status === 'draft' && (

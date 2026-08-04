@@ -1829,11 +1829,103 @@ export async function PATCH(request: NextRequest) {
       Number.isFinite(Number(body.companyId)) &&
       Number(body.companyId) > 0;
     if (body.notes !== undefined) updates.notes = body.notes;
-    if (body.customer_id !== undefined) updates.customer_id = body.customer_id;
-    if (body.valid_until !== undefined) updates.valid_until = body.valid_until;
-    if (body.promised_date !== undefined) updates.promised_date = body.promised_date;
-    if (body.due_date !== undefined) updates.due_date = body.due_date;
+    if (body.customer_id !== undefined) {
+      updates.customer_id =
+        body.customer_id === null || body.customer_id === ''
+          ? null
+          : Number(body.customer_id);
+    }
+    if (body.currency !== undefined) updates.currency = String(body.currency || 'ZAR');
+    if (body.valid_until !== undefined) updates.valid_until = body.valid_until || null;
+    if (body.promised_date !== undefined) updates.promised_date = body.promised_date || null;
+    if (body.due_date !== undefined) updates.due_date = body.due_date || null;
     if (body.terms !== undefined) updates.terms = body.terms;
+    if (body.payment_terms !== undefined) {
+      updates.payment_terms = body.payment_terms;
+      // Keep commercial terms in sync for quotes when payment_terms is the source of truth
+      if (kind === 'quote' && body.terms === undefined) {
+        updates.terms = body.payment_terms;
+      }
+    }
+    if (body.customer_name !== undefined) updates.customer_name = body.customer_name;
+    if (body.contact_name !== undefined) updates.contact_name = body.contact_name;
+    if (body.contact_email !== undefined) updates.contact_email = body.contact_email;
+    if (body.contact_phone !== undefined) updates.contact_phone = body.contact_phone;
+    if (body.billing_address !== undefined) updates.billing_address = body.billing_address;
+    if (body.tax_rate !== undefined && body.items === undefined) {
+      updates.tax_rate = Number(body.tax_rate) || 0;
+    }
+
+    // Full document edit (quote lines / totals) — block after convert
+    if (body.items !== undefined || body.action === 'update') {
+      const companyId = Number(body.companyId);
+      if (Number.isFinite(companyId) && companyId > 0) {
+        const _gate = await requireCompanyAccess(request, companyId, {
+          legacyPrivyUserId: legacyPrivyFrom(request, body),
+        });
+        if (!_gate.ok) return _gate.response;
+      }
+
+      const { data: existingDoc } = await supabase
+        .from(table)
+        .select('id, status, profile_id, customer_id')
+        .eq('id', docId)
+        .maybeSingle();
+      if (!existingDoc) {
+        return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+      }
+      if (
+        Number.isFinite(companyId) &&
+        companyId > 0 &&
+        Number(existingDoc.profile_id) !== companyId
+      ) {
+        return NextResponse.json({ error: 'Document not found for this company' }, { status: 404 });
+      }
+      const st = String(existingDoc.status || '').toLowerCase();
+      if (kind === 'quote' && ['converted', 'accepted'].includes(st)) {
+        return NextResponse.json(
+          {
+            error: `Cannot edit a ${st} quotation. Create a new quote or convert from draft/sent only.`,
+            code: 'QUOTE_LOCKED',
+          },
+          { status: 409 }
+        );
+      }
+      if (kind === 'invoice' && ['paid', 'void', 'cancelled'].includes(st)) {
+        return NextResponse.json(
+          { error: `Cannot edit a ${st} invoice`, code: 'INVOICE_LOCKED' },
+          { status: 409 }
+        );
+      }
+
+      // Refresh customer display fields when customer_id changes
+      if (body.customer_id !== undefined) {
+        const cid = Number(body.customer_id);
+        if (Number.isFinite(cid) && cid > 0) {
+          const customer = await loadCustomer(supabase, cid);
+          if (customer) {
+            if (body.customer_name === undefined) {
+              updates.customer_name =
+                customer.trading_name || customer.legal_name || customer.company_name || null;
+            }
+            if (body.contact_name === undefined) {
+              updates.contact_name = customer.contact_name || customer.name || null;
+            }
+            if (body.contact_email === undefined) {
+              updates.contact_email =
+                customer.email || customer.contact_email || customer.billing_email || null;
+            }
+            if (body.contact_phone === undefined) {
+              updates.contact_phone =
+                customer.phone || customer.contact_phone || customer.contact_number || null;
+            }
+            if (body.billing_address === undefined && kind === 'quote') {
+              updates.billing_address = customer.billing_address || null;
+            }
+          }
+        }
+      }
+    }
 
     if (body.items !== undefined) {
       const items = normalizeItems(body.items);
