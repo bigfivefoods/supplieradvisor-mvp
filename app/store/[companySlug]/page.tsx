@@ -5,7 +5,11 @@ import {
   resolveStoreCompany,
 } from '@/lib/storefront/catalog';
 import { parseStoreAttribution } from '@/lib/storefront/attribution';
-import { ProductCard, StoreHero } from '@/components/storefront/StoreShell';
+import {
+  CategorySection,
+  groupProductsByCategory,
+  StoreHero,
+} from '@/components/storefront/StoreShell';
 import StoreClientFilters from '@/components/storefront/StoreClientFilters';
 import MultiProductTray from '@/components/storefront/MultiProductTray';
 
@@ -117,9 +121,8 @@ export default async function StoreHomePage({ params, searchParams }: Props) {
     });
   }
 
-  const categories = Array.from(
-    new Set(products.map((p) => p.category).filter(Boolean) as string[])
-  );
+  const grouped = groupProductsByCategory(products);
+  const categories = grouped.map((g) => g.category);
 
   return (
     <div>
@@ -143,7 +146,7 @@ export default async function StoreHomePage({ params, searchParams }: Props) {
         />
 
         {products.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-12 text-center">
+          <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-12 text-center mt-6">
             <p className="font-bold text-slate-800">Catalog coming soon</p>
             <p className="text-sm text-slate-500 mt-1">
               Products will appear here once the seller publishes their
@@ -151,12 +154,13 @@ export default async function StoreHomePage({ params, searchParams }: Props) {
             </p>
           </div>
         ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-6">
-            {products.map((product) => (
-              <ProductCard
-                key={String(product.id)}
+          <div className="mt-8 space-y-12 sm:space-y-14">
+            {grouped.map(({ category, products: items }) => (
+              <CategorySection
+                key={category}
+                category={category}
+                products={items}
                 companySlug={company.slug}
-                product={product}
                 attr={attr}
               />
             ))}

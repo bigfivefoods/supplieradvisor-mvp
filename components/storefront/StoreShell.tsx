@@ -71,14 +71,140 @@ export function StoreHero({
   );
 }
 
+/** Preferred category order for Big Five Foods (and similar food catalogs). */
+export const STORE_CATEGORY_ORDER = [
+  'Porridges',
+  'Soya',
+  'One-pots',
+  'Soups',
+  'NSNP Institutional',
+] as const;
+
+export function categoryAnchorId(category: string): string {
+  return `cat-${category
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')}`;
+}
+
+export function groupProductsByCategory(
+  products: StoreProduct[]
+): { category: string; products: StoreProduct[] }[] {
+  const map = new Map<string, StoreProduct[]>();
+  for (const p of products) {
+    const cat = (p.category || 'Other').trim() || 'Other';
+    if (!map.has(cat)) map.set(cat, []);
+    map.get(cat)!.push(p);
+  }
+
+  const orderIndex = (name: string) => {
+    const i = STORE_CATEGORY_ORDER.findIndex(
+      (c) => c.toLowerCase() === name.toLowerCase()
+    );
+    return i === -1 ? 1000 : i;
+  };
+
+  return Array.from(map.entries())
+    .map(([category, items]) => ({ category, products: items }))
+    .sort((a, b) => {
+      const d = orderIndex(a.category) - orderIndex(b.category);
+      if (d !== 0) return d;
+      return a.category.localeCompare(b.category);
+    });
+}
+
+const CATEGORY_BLURBS: Record<string, string> = {
+  Porridges: 'Fortified instant porridge for home, catering, and foodservice.',
+  Soya: 'Plant-based textured soya mince — retail and wholesale packs.',
+  'One-pots': 'Complete one-pot meal mixes for kitchens that move fast.',
+  Soups: 'Seasoned soup bases for institutional and retail kitchens.',
+  'NSNP Institutional':
+    'Quote-first institutional lines for school nutrition programmes.',
+};
+
+export function CategorySection({
+  category,
+  products,
+  companySlug,
+  attr,
+}: {
+  category: string;
+  products: StoreProduct[];
+  companySlug: string;
+  attr?: StoreAttribution;
+}) {
+  const id = categoryAnchorId(category);
+  const blurb = CATEGORY_BLURBS[category];
+  const isNsnp = /nsnp|institutional/i.test(category);
+
+  return (
+    <section
+      id={id}
+      className="scroll-mt-24"
+      aria-labelledby={`${id}-heading`}
+    >
+      <div
+        className={`rounded-2xl px-4 py-4 sm:px-5 sm:py-5 mb-4 border ${
+          isNsnp
+            ? 'bg-gradient-to-r from-violet-50 via-white to-emerald-50/60 border-violet-100'
+            : 'bg-white border-slate-200/90 shadow-sm'
+        }`}
+      >
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#0077b6]">
+              Category
+            </p>
+            <h2
+              id={`${id}-heading`}
+              className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-0.5"
+            >
+              {category}
+            </h2>
+            {blurb ? (
+              <p className="text-sm text-slate-600 mt-1 max-w-xl leading-relaxed">
+                {blurb}
+              </p>
+            ) : null}
+          </div>
+          <span
+            className={`shrink-0 inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${
+              isNsnp
+                ? 'bg-violet-100 text-violet-900'
+                : 'bg-slate-100 text-slate-700'
+            }`}
+          >
+            {products.length} product{products.length === 1 ? '' : 's'}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {products.map((product) => (
+          <ProductCard
+            key={String(product.id)}
+            companySlug={companySlug}
+            product={product}
+            attr={attr}
+            hideCategory
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function ProductCard({
   companySlug,
   product,
   attr,
+  hideCategory = false,
 }: {
   companySlug: string;
   product: StoreProduct;
   attr?: StoreAttribution;
+  /** When true, omit category line (section header already shows it) */
+  hideCategory?: boolean;
 }) {
   const key = product.externalRef || product.sku || String(product.id);
   const href = storePath(companySlug, key, {
@@ -114,9 +240,15 @@ export function ProductCard({
         ) : null}
       </div>
       <div className="p-4 flex-1 flex flex-col">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-          {product.category || product.channels.join(' · ')}
-        </p>
+        {!hideCategory ? (
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            {product.category || product.channels.join(' · ')}
+          </p>
+        ) : product.channels.length ? (
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            {product.channels.join(' · ')}
+          </p>
+        ) : null}
         <h3 className="font-bold text-slate-900 mt-0.5 group-hover:text-[#0077b6] leading-snug">
           {product.name}
         </h3>
