@@ -225,10 +225,35 @@ export default function BusinessOnboardingWizard() {
           ? 'Listing claimed — workspace ready!'
           : `${resolveEntityKind(form.business_type).shortLabel} workspace ready!`
       );
-      const dest =
+      // Partner storefront handoff (e.g. bigfivegroup.africa → Big Five Foods)
+      const partner = (searchParams.get('partner') || '').toLowerCase().trim();
+      const intent = (searchParams.get('intent') || '').toLowerCase().trim();
+      const product = searchParams.get('product') || searchParams.get('sku') || '';
+      const source = searchParams.get('source') || '';
+      const channel = searchParams.get('channel') || '';
+      let dest =
         data.homePath ||
         resolveEntityKind(form.business_type).homePath ||
         '/dashboard/select-company';
+      if (partner && (intent === 'order' || intent === 'trade' || intent === 'quote')) {
+        const qs = new URLSearchParams();
+        if (source) qs.set('source', source);
+        if (searchParams.get('ref')) qs.set('ref', String(searchParams.get('ref')));
+        if (channel) qs.set('channel', channel);
+        if (product) qs.set('product', product);
+        const q = qs.toString();
+        dest = product
+          ? `/store/${encodeURIComponent(partner)}/products/${encodeURIComponent(product)}${q ? `?${q}` : ''}`
+          : `/store/${encodeURIComponent(partner)}${q ? `?${q}` : ''}`;
+        try {
+          sessionStorage.setItem(
+            'sa_storefront_handoff',
+            JSON.stringify({ partner, intent, product, source, channel, at: Date.now() })
+          );
+        } catch {
+          /* soft */
+        }
+      }
       setTimeout(() => router.push(dest), 2200);
     } catch {
       toast.error('Something went wrong. Please try again.');

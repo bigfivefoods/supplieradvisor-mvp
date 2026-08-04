@@ -25,11 +25,12 @@ function LoginForm() {
     setNavigating(true);
 
     const t = setTimeout(async () => {
-      // Prefer explicit next for invite flows (preserve full query string)
+      // Prefer explicit next for invite / storefront return paths
       if (
         next.startsWith('/contractor/invite') ||
         next.startsWith('/onboarding') ||
-        next.startsWith('/invite')
+        next.startsWith('/invite') ||
+        next.startsWith('/store')
       ) {
         router.replace(next);
         return;
