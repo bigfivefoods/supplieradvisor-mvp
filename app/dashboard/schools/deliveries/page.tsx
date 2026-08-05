@@ -1334,12 +1334,15 @@ function Inner() {
                 ) ? (
                   <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-3 space-y-2">
                     <p className="text-[10px] font-bold uppercase text-amber-900">
-                      Commercial extras (not NSNP stock)
+                      Commercial / non-approved items (allowed)
                     </p>
                     <p className="text-[11px] text-amber-900/80">
-                      Unapproved brands are blocked on NSNP lines. Prefer OOS
-                      same-category substitute above. Extras here do not enter
-                      kitchen stock and reduce full-compliance score.
+                      You may supply non-approved goods on this DN. They score{' '}
+                      <strong>0%</strong> on SP compliance, block
+                      full-compliance bonus, and <strong>never</strong> enter
+                      kitchen stock. For OOS on an ordered brand, use
+                      same-category approved substitute (half score) above —
+                      not a free-text extra.
                     </p>
                     <div className="grid sm:grid-cols-4 gap-2">
                       <input

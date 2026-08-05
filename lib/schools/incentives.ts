@@ -189,7 +189,7 @@ export const SCHOOL_APPROVED_INCENTIVE_COPY =
   'Schools that order and receive only DBE/PEU approved foods earn higher headmaster prize scores (55% of points) and full claim funding.';
 
 export const ISP_APPROVED_INCENTIVE_COPY =
-  'Buy the school-selected brand. If it is out of stock, use another approved brand in the same category only (half compliance credit). Unapproved brands are not allowed and score zero.';
+  'Buy the school-selected brand. If OOS, use another approved brand in the same category (half credit). You may deliver commercial/non-approved items on the same DN — they score zero, never enter kitchen stock, and reduce preferred status.';
 
 /** Classify delivery lines for compliance scoring (brand fidelity aware) */
 export function scoreDeliveryLines(

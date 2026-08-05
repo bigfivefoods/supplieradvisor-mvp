@@ -678,27 +678,14 @@ export async function POST(request: NextRequest) {
         };
       });
 
-      // Hard block unapproved brands — SP cannot ship off-list on NSNP DN
-      const unapproved = lines.filter(
+      // Non-approved commercial lines are ALLOWED on the DN but score 0 and
+      // never enter kitchen stock on GRN (hard gate at receive).
+      const scored = scoreDeliveryLines(lines);
+      const otherCount = lines.filter(
         (l) =>
           Number(l.qty_delivered ?? l.qty ?? 0) > 0 &&
-          (l.approved === false || l.other_item === true)
-      );
-      if (unapproved.length) {
-        return NextResponse.json(
-          {
-            error: `Cannot deliver unapproved brands (${unapproved.length} line(s)). Use only the department approved list. If the school brand is OOS, substitute another approved brand in the same category (half score credit).`,
-            hard_block: true,
-            unapproved_lines: unapproved.slice(0, 10).map((l) => ({
-              product_name: l.product_name,
-              brand_name: l.brand_name,
-            })),
-          },
-          { status: 400 }
-        );
-      }
-
-      const scored = scoreDeliveryLines(lines);
+          (l.other_item === true || l.approved === false)
+      ).length;
       const meta = {
         ...((d.metadata as Record<string, unknown>) || {}),
         compliance_pct: scored.compliance_pct,
@@ -706,11 +693,14 @@ export async function POST(request: NextRequest) {
         brand_exact_pct: scored.brand_exact_pct ?? null,
         substitute_line_count: scored.substitute_line_count ?? 0,
         unapproved_line_count: scored.unapproved_line_count ?? 0,
-        other_item_count: lines.filter((l) => l.other_item || l.approved === false)
-          .length,
+        other_item_count: otherCount,
         brand_fidelity_note:
           (scored.substitute_line_count || 0) > 0
             ? 'Approved same-category brand substitute(s) score half credit vs exact school brand.'
+            : null,
+        commercial_extras_note:
+          otherCount > 0
+            ? `${otherCount} non-approved line(s) — allowed commercially; 0 SP score credit; not stocked as NSNP.`
             : null,
       };
 
@@ -733,9 +723,11 @@ export async function POST(request: NextRequest) {
         compliance: scored,
         message: scored.full_compliance
           ? 'Lines updated — exact school brands (max SP prize points on this DN)'
-          : (scored.substitute_line_count || 0) > 0
-            ? `Lines updated — ${scored.compliance_pct}% brand-fidelity credit (approved same-category substitutes score half; unapproved blocked)`
-            : `Lines updated — ${scored.compliance_pct}% on-catalogue brand fidelity`,
+          : otherCount > 0
+            ? `Lines updated — ${scored.compliance_pct}% score credit (${otherCount} non-approved line(s) allowed but score 0; not stocked at kitchen)`
+            : (scored.substitute_line_count || 0) > 0
+              ? `Lines updated — ${scored.compliance_pct}% brand-fidelity credit (approved same-category substitutes score half)`
+              : `Lines updated — ${scored.compliance_pct}% on-catalogue brand fidelity`,
       });
     }
 
