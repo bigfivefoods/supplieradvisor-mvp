@@ -470,10 +470,63 @@ export async function POST(request: NextRequest) {
         catalogue.agencyProfileId,
         pids
       );
+      // PO ordered products = school-selected brands (fidelity baseline)
+      const poOrdered = new Map<
+        number,
+        { product_id: number; category: string; brand_name: string }
+      >();
+      if (d.po_id) {
+        const { data: po } = await supabase
+          .from('school_purchase_orders')
+          .select('lines')
+          .eq('id', Number(d.po_id))
+          .maybeSingle();
+        const poLines = Array.isArray(po?.lines)
+          ? (po!.lines as Array<Record<string, unknown>>)
+          : [];
+        for (const pl of poLines) {
+          const opid = Number(pl.approved_product_id);
+          if (!Number.isFinite(opid) || opid <= 0) continue;
+          poOrdered.set(opid, {
+            product_id: opid,
+            category: String(pl.category || ''),
+            brand_name: String(pl.brand_name || ''),
+          });
+        }
+      }
+
       lines = lines.map((l) => {
         const pid = Number(l.approved_product_id);
         const prod = Number.isFinite(pid) ? byId.get(pid) : undefined;
         const approved = Boolean(prod && prod.active !== false);
+        const orderedPid =
+          l.ordered_product_id != null
+            ? Number(l.ordered_product_id)
+            : Number(l.po_product_id) ||
+              (Number.isFinite(pid) && poOrdered.has(pid)
+                ? pid
+                : Number(l.ordered_product_id) || null);
+        // Prefer explicit ordered id; else match by original PO line product
+        let ordered_product_id =
+          orderedPid && Number.isFinite(orderedPid) ? orderedPid : null;
+        let ordered_category = String(
+          l.ordered_category || l.category || ''
+        );
+        if (!ordered_product_id && l.po_line_product_id) {
+          ordered_product_id = Number(l.po_line_product_id) || null;
+        }
+        // If still missing, use original line snapshot fields
+        if (!ordered_product_id && l._ordered_product_id) {
+          ordered_product_id = Number(l._ordered_product_id) || null;
+        }
+        const orderedSnap =
+          ordered_product_id != null
+            ? poOrdered.get(ordered_product_id)
+            : undefined;
+        if (orderedSnap?.category) ordered_category = orderedSnap.category;
+        const deliveredCat = String(
+          prod?.category || l.category || ordered_category || ''
+        );
         return {
           ...l,
           approved,
@@ -484,16 +537,46 @@ export async function POST(request: NextRequest) {
           brand_name: approved
             ? String(prod?.brand_name || l.brand_name || '')
             : String(l.brand_name || 'Other'),
+          category: deliveredCat,
+          ordered_product_id,
+          ordered_category: ordered_category || deliveredCat,
         };
       });
+
+      // Hard block unapproved brands — SP cannot ship off-list on NSNP DN
+      const unapproved = lines.filter(
+        (l) =>
+          Number(l.qty_delivered ?? l.qty ?? 0) > 0 &&
+          (l.approved === false || l.other_item === true)
+      );
+      if (unapproved.length) {
+        return NextResponse.json(
+          {
+            error: `Cannot deliver unapproved brands (${unapproved.length} line(s)). Use only the department approved list. If the school brand is OOS, substitute another approved brand in the same category (half score credit).`,
+            hard_block: true,
+            unapproved_lines: unapproved.slice(0, 10).map((l) => ({
+              product_name: l.product_name,
+              brand_name: l.brand_name,
+            })),
+          },
+          { status: 400 }
+        );
+      }
 
       const scored = scoreDeliveryLines(lines);
       const meta = {
         ...((d.metadata as Record<string, unknown>) || {}),
         compliance_pct: scored.compliance_pct,
         full_compliance: scored.full_compliance,
+        brand_exact_pct: scored.brand_exact_pct ?? null,
+        substitute_line_count: scored.substitute_line_count ?? 0,
+        unapproved_line_count: scored.unapproved_line_count ?? 0,
         other_item_count: lines.filter((l) => l.other_item || l.approved === false)
           .length,
+        brand_fidelity_note:
+          (scored.substitute_line_count || 0) > 0
+            ? 'Approved same-category brand substitute(s) score half credit vs exact school brand.'
+            : null,
       };
 
       const { data: updated, error } = await supabase
@@ -514,8 +597,10 @@ export async function POST(request: NextRequest) {
         delivery: updated,
         compliance: scored,
         message: scored.full_compliance
-          ? 'Lines updated — 100% DBE-approved (max SP prize points on this DN)'
-          : `Lines updated — ${scored.compliance_pct}% on-catalogue (other items allowed; full compliance earns more SP points)`,
+          ? 'Lines updated — exact school brands (max SP prize points on this DN)'
+          : (scored.substitute_line_count || 0) > 0
+            ? `Lines updated — ${scored.compliance_pct}% brand-fidelity credit (approved same-category substitutes score half; unapproved blocked)`
+            : `Lines updated — ${scored.compliance_pct}% on-catalogue brand fidelity`,
       });
     }
 
@@ -1350,6 +1435,10 @@ async function createDeliveryFromPo(
     if (!(remaining > 0)) continue; // fully delivered line — skip
     lines.push({
       approved_product_id: pid,
+      // School-selected brand on the PO — SP must buy this when available
+      ordered_product_id: pid,
+      ordered_category: String(l.category || ''),
+      category: String(l.category || ''),
       product_name: String(l.product_name || ''),
       brand_name: String(l.brand_name || ''),
       qty_ordered: ordered,

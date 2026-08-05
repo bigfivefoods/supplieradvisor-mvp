@@ -62,17 +62,17 @@ export const SCHOOL_PRIZE_CRITERIA: PrizeCriterion[] = [
 export const SP_PRIZE_CRITERIA: PrizeCriterion[] = [
   {
     id: 'onCatalogue',
-    label: 'On-catalogue deliveries',
+    label: 'On-catalogue + brand fidelity',
     weight: 50,
-    how: '% of delivery / GRN lines that are on the department approved list (by quantity where available).',
-    tip: 'You may add other items on the DN, but catalogue lines earn the bulk of points.',
+    how: 'Weighted % by quantity: exact school brand = full credit; approved same-category substitute (OOS) = half credit; unapproved = zero. Unapproved brands are not allowed.',
+    tip: 'Buy the brand the school chose. If OOS, only switch to another approved brand in the same category — that scores half.',
   },
   {
     id: 'fullCompliance',
     label: 'Full-compliance deliveries',
     weight: 25,
-    how: 'Bonus for deliveries where every line is DBE-approved (100% clean). More full-clean DNs = more points.',
-    tip: 'Split non-catalogue extras onto a separate commercial invoice when possible; keep NSNP DN clean.',
+    how: 'Bonus for deliveries where every line is the exact school-selected brand (no substitutes, no off-list).',
+    tip: 'When the ordered brand is available, ship it. Keep NSNP DNs free of unapproved products.',
   },
   {
     id: 'podPhotos',

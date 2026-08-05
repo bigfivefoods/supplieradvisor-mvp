@@ -56,10 +56,13 @@ const WEEKDAY_LABEL: Record<number, string> = {
 };
 
 type BomLine = {
-  approved_product_id: number;
+  /** Reference product id (UOM); null when pure category line until save */
+  approved_product_id: number | null;
   product_name: string;
   brand_name: string;
   category: string;
+  /** DBE selects category; schools pick brand within category */
+  category_only?: boolean;
   qty_per_portion: string;
   uom: string;
   wastage_pct: string;
@@ -181,6 +184,9 @@ function Inner() {
     initialPeriodSlicerValue('this_month', 4)
   );
   const [saving, setSaving] = useState(false);
+  /** DBE BOM: pick category first (preferred) vs single product */
+  const [bomMode, setBomMode] = useState<'category' | 'product'>('category');
+  const [bomCategory, setBomCategory] = useState('');
 
   // Recipe editor
   const [editId, setEditId] = useState<number | null>(null);
@@ -264,6 +270,8 @@ function Inner() {
     setDescription('');
     setBomLines([]);
     setProductId('');
+    setBomCategory('');
+    setBomMode('category');
     if (slot) {
       const dayName = WEEKDAY_LABEL[slot.weekday] || `Day ${slot.weekday}`;
       setName(`${dayName} ${slot.meal === 'breakfast' ? 'Breakfast' : 'Lunch'}`);
@@ -281,17 +289,29 @@ function Inner() {
     );
     setDescription(r.description || '');
     setBomLines(
-      (r.lines || []).map((l) => ({
-        approved_product_id: Number(l.approved_product_id) || 0,
-        product_name: l.product_name,
-        brand_name: l.brand_name || '',
-        category: l.category || 'other',
-        qty_per_portion: String(l.qty_per_portion),
-        uom: l.uom || 'kg',
-        wastage_pct: String(l.wastage_pct ?? 0),
-      }))
+      (r.lines || []).map((l) => {
+        const categoryOnly =
+          !l.brand_name ||
+          String(l.notes || '').includes('category_line:') ||
+          (l.brand_options && l.brand_options.length > 1 && !l.brand_name);
+        return {
+          approved_product_id:
+            l.approved_product_id != null
+              ? Number(l.approved_product_id)
+              : null,
+          product_name: l.product_name,
+          brand_name: l.brand_name || '',
+          category: l.category || 'other',
+          category_only: Boolean(categoryOnly),
+          qty_per_portion: String(l.qty_per_portion),
+          uom: l.uom || 'kg',
+          wastage_pct: String(l.wastage_pct ?? 0),
+        };
+      })
     );
     setProductId('');
+    setBomCategory('');
+    setBomMode('category');
     setTab('recipes');
     // Bring editor into view so Edit is obvious
     requestAnimationFrame(() => {
@@ -395,16 +415,72 @@ function Inner() {
   }, [recipes]);
 
   const addBomLine = () => {
+    const qty = Number(qtyPer);
+    if (!(qty > 0)) return toast.error('Qty per learner portion must be > 0');
+
+    // Preferred: category line — schools pick brand later
+    if (bomMode === 'category') {
+      const cat = bomCategory.trim();
+      if (!cat) return toast.error('Select a product category for the BOM line');
+      const inCat = products.filter(
+        (p) =>
+          String(p.category || '')
+            .toLowerCase()
+            .trim() === cat.toLowerCase()
+      );
+      if (!inCat.length) {
+        return toast.error(
+          `No approved products in “${cat}” — add brands on Approved foods first`
+        );
+      }
+      const uom = inCat[0].uom || 'kg';
+      setBomLines((prev) => {
+        if (
+          prev.some(
+            (l) =>
+              l.category_only &&
+              l.category.toLowerCase() === cat.toLowerCase()
+          )
+        ) {
+          return prev.map((l) =>
+            l.category_only && l.category.toLowerCase() === cat.toLowerCase()
+              ? {
+                  ...l,
+                  qty_per_portion: String(qty),
+                  wastage_pct: wastage,
+                }
+              : l
+          );
+        }
+        return [
+          ...prev,
+          {
+            approved_product_id: inCat[0].id,
+            product_name: `${cat} (school chooses brand)`,
+            brand_name: '',
+            category: cat,
+            category_only: true,
+            qty_per_portion: String(qty),
+            uom,
+            wastage_pct: wastage,
+          },
+        ];
+      });
+      setBomCategory('');
+      toast.message(
+        `${inCat.length} approved brand(s) in “${cat}” — schools pick which one`
+      );
+      return;
+    }
+
     const prod =
       mealProducts.find((p) => p.id === Number(productId)) ||
       products.find((p) => p.id === Number(productId));
     if (!prod) return toast.error('Select an approved catalogue product');
-    const qty = Number(qtyPer);
-    if (!(qty > 0)) return toast.error('Qty per learner portion must be > 0');
     setBomLines((prev) => {
-      if (prev.some((l) => l.approved_product_id === prod.id)) {
+      if (prev.some((l) => l.approved_product_id === prod.id && !l.category_only)) {
         return prev.map((l) =>
-          l.approved_product_id === prod.id
+          l.approved_product_id === prod.id && !l.category_only
             ? {
                 ...l,
                 qty_per_portion: String(qty),
@@ -420,6 +496,7 @@ function Inner() {
           product_name: prod.name,
           brand_name: prod.brand_name,
           category: String(prod.category || 'other'),
+          category_only: false,
           qty_per_portion: String(qty),
           uom: prod.uom || 'kg',
           wastage_pct: wastage,
@@ -454,11 +531,15 @@ function Inner() {
           description: description || null,
           portion_learners: 1,
           lines: bomLines.map((l) => ({
-            approved_product_id: l.approved_product_id,
+            approved_product_id: l.category_only
+              ? null
+              : l.approved_product_id,
+            product_name: l.product_name,
             qty_per_portion: Number(l.qty_per_portion),
             uom: l.uom,
             wastage_pct: Number(l.wastage_pct || 0),
             category: l.category,
+            category_only: Boolean(l.category_only),
           })),
         }),
       });
@@ -694,10 +775,11 @@ function Inner() {
         /* School: pick brand/product for each DBE BOM line */
         <div className="space-y-4">
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-950">
-            <strong>Choose brands for your kitchen.</strong> DBE sets the recipe
-            and quantity per learner. When a range has several approved brands
-            (e.g. soya), select the one your school will use. MRP and orders
-            follow your picks.
+            <strong>Choose brands for your kitchen.</strong> DBE sets the{' '}
+            <em>category</em> and quantity per learner. You select the approved
+            brand within each category. Your SP must buy that brand; if it is
+            out of stock they may use another approved brand in the same
+            category only (half SP score). Unapproved brands are not allowed.
           </div>
           {recipes.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-10 text-center text-slate-500">
@@ -741,12 +823,11 @@ function Inner() {
                           {(r.lines || []).map((l, li) => {
                             const lineId = l.id != null ? Number(l.id) : null;
                             const options = l.brand_options || [];
+                            // School must explicitly pick brand — do not default to DBE reference product
                             const selected =
                               l.chosen_product_id != null
                                 ? Number(l.chosen_product_id)
-                                : l.approved_product_id != null
-                                  ? Number(l.approved_product_id)
-                                  : '';
+                                : '';
                             const busyKey =
                               lineId != null ? `${r.id}:${lineId}` : null;
                             return (
@@ -757,6 +838,7 @@ function Inner() {
                                 <div className="flex flex-wrap items-start justify-between gap-2">
                                   <div className="min-w-0">
                                     <p className="text-[10px] font-bold uppercase text-slate-400">
+                                      Category ·{' '}
                                       {(l.category || 'product').replace(
                                         /_/g,
                                         ' '
@@ -767,18 +849,17 @@ function Inner() {
                                         : ''}
                                     </p>
                                     <p className="text-sm font-semibold text-slate-800 mt-0.5">
-                                      DBE line:{' '}
+                                      DBE: {l.category || l.product_name}
                                       {l.brand_name
-                                        ? `${l.brand_name} · `
-                                        : ''}
-                                      {l.product_name}
+                                        ? ` · default ref ${l.brand_name}`
+                                        : ' · school chooses brand'}
                                     </p>
                                   </div>
                                 </div>
                                 {lineId != null && options.length > 1 ? (
                                   <label className="block mt-2 text-xs">
                                     <span className="text-[10px] font-bold uppercase text-emerald-800">
-                                      Your brand / product
+                                      Your brand (within category)
                                     </span>
                                     <select
                                       className="mt-1 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm font-semibold"
@@ -790,6 +871,9 @@ function Inner() {
                                         void saveSchoolBrand(r.id, lineId, v);
                                       }}
                                     >
+                                      <option value="">
+                                        Select approved brand…
+                                      </option>
                                       {options.map((o) => (
                                         <option key={o.id} value={o.id}>
                                           {o.brand_name
@@ -850,9 +934,7 @@ function Inner() {
                           const selected =
                             l.chosen_product_id != null
                               ? Number(l.chosen_product_id)
-                              : l.approved_product_id != null
-                                ? Number(l.approved_product_id)
-                                : '';
+                              : '';
                           return (
                             <li
                               key={lineId ?? li}
@@ -874,6 +956,7 @@ function Inner() {
                                     void saveSchoolBrand(r.id, lineId, v);
                                   }}
                                 >
+                                  <option value="">Select brand…</option>
                                   {options.map((o) => (
                                     <option key={o.id} value={o.id}>
                                       {o.brand_name
@@ -1195,35 +1278,103 @@ function Inner() {
                     3 · BOM ingredients (qty per 1 learner)
                   </p>
                   <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                    Products listed match your catalogue tags for{' '}
-                    <strong>{selectedSlotLabel.meal}</strong>. Total per learner
-                    = Qty × (1 + Wastage % / 100).
+                    <strong>DBE selects the category</strong> (e.g. soya).
+                    Schools then pick the brand within that category. SPs must
+                    buy the school brand (or an approved same-category
+                    substitute if OOS — half score).
                   </p>
                 </div>
 
-                <label className="block text-xs">
-                  <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    Approved product
-                  </span>
-                  <select
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
-                    value={productId}
-                    onChange={(e) => setProductId(e.target.value)}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBomMode('category')}
+                    className={`rounded-full px-3 py-1.5 text-[11px] font-bold border ${
+                      bomMode === 'category'
+                        ? 'bg-[#0077b6] text-white border-[#0077b6]'
+                        : 'bg-white border-slate-200 text-slate-600'
+                    }`}
                   >
-                    <option value="">
-                      {mealProducts.length
-                        ? `Select ${selectedSlotLabel.meal.toLowerCase()} product…`
-                        : 'No products tagged for this meal — tag them on Approved foods'}
-                    </option>
-                    {mealProducts.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.brand_name} — {p.name}
-                        {p.category ? ` · ${p.category}` : ''}
-                        {p.uom ? ` (${p.uom})` : ''}
+                    By category (recommended)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBomMode('product')}
+                    className={`rounded-full px-3 py-1.5 text-[11px] font-bold border ${
+                      bomMode === 'product'
+                        ? 'bg-slate-800 text-white border-slate-800'
+                        : 'bg-white border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    Specific product
+                  </button>
+                </div>
+
+                {bomMode === 'category' ? (
+                  <label className="block text-xs">
+                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Product category *
+                    </span>
+                    <select
+                      className="w-full rounded-xl border border-sky-200 bg-sky-50/40 px-3 py-2.5 text-sm font-semibold"
+                      value={bomCategory}
+                      onChange={(e) => setBomCategory(e.target.value)}
+                    >
+                      <option value="">Select category…</option>
+                      {categories.map((c) => {
+                        const n = products.filter(
+                          (p) =>
+                            String(p.category || '').toLowerCase() ===
+                            c.toLowerCase()
+                        ).length;
+                        return (
+                          <option key={c} value={c}>
+                            {c} · {n} brand{n === 1 ? '' : 's'}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    {bomCategory ? (
+                      <span className="block mt-1 text-[10px] text-sky-800 font-semibold">
+                        Schools will choose among{' '}
+                        {
+                          products.filter(
+                            (p) =>
+                              String(p.category || '').toLowerCase() ===
+                              bomCategory.toLowerCase()
+                          ).length
+                        }{' '}
+                        approved brand(s) in this category
+                      </span>
+                    ) : null}
+                  </label>
+                ) : (
+                  <label className="block text-xs">
+                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Specific approved product
+                    </span>
+                    <select
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                      value={productId}
+                      onChange={(e) => setProductId(e.target.value)}
+                    >
+                      <option value="">
+                        {mealProducts.length
+                          ? `Select ${selectedSlotLabel.meal.toLowerCase()} product…`
+                          : 'Select product from catalogue…'}
                       </option>
-                    ))}
-                  </select>
-                </label>
+                      {(mealProducts.length ? mealProducts : products).map(
+                        (p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.brand_name} — {p.name}
+                            {p.category ? ` · ${p.category}` : ''}
+                            {p.uom ? ` (${p.uom})` : ''}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </label>
+                )}
 
                 <div className="grid grid-cols-2 gap-2">
                   <label className="block text-xs">
@@ -1255,16 +1406,25 @@ function Inner() {
                 {(() => {
                   const q = Number(qtyPer);
                   const w = Number(wastage) || 0;
-                  const prod = mealProducts.find(
-                    (p) => p.id === Number(productId)
-                  );
-                  if (!(q > 0) || !prod) return null;
+                  if (!(q > 0)) return null;
+                  const prod =
+                    bomMode === 'product'
+                      ? mealProducts.find((p) => p.id === Number(productId)) ||
+                        products.find((p) => p.id === Number(productId))
+                      : products.find(
+                          (p) =>
+                            String(p.category || '').toLowerCase() ===
+                            bomCategory.toLowerCase()
+                        );
+                  if (!prod && bomMode === 'product') return null;
+                  if (bomMode === 'category' && !bomCategory) return null;
                   const total = Math.round(q * (1 + w / 100) * 1e6) / 1e6;
+                  const uom = prod?.uom || 'uom';
                   return (
                     <p className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
                       Total per 1 learner (incl. wastage):{' '}
                       <span className="font-black tabular-nums">
-                        {total} {prod.uom || 'uom'}
+                        {total} {uom}
                       </span>
                     </p>
                   );
@@ -1276,7 +1436,9 @@ function Inner() {
                   className="btn-secondary !py-2.5 !px-3 text-xs w-full"
                 >
                   <Plus className="w-3.5 h-3.5 inline mr-1" />
-                  Add product to BOM
+                  {bomMode === 'category'
+                    ? 'Add category to BOM'
+                    : 'Add product to BOM'}
                 </button>
               </div>
 
@@ -1304,9 +1466,14 @@ function Inner() {
                         >
                           <div className="sm:col-span-5 min-w-0">
                             <p className="text-xs font-bold text-slate-900 truncate">
-                              {l.brand_name} · {l.product_name}
+                              {l.category_only || !l.brand_name
+                                ? `Category · ${l.category}`
+                                : `${l.brand_name} · ${l.product_name}`}
                             </p>
                             <p className="text-[10px] text-slate-400">
+                              {l.category_only || !l.brand_name
+                                ? 'Schools pick brand · '
+                                : ''}
                               {l.category} · UOM {l.uom}
                             </p>
                           </div>

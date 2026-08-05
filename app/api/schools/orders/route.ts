@@ -925,9 +925,12 @@ export async function POST(request: NextRequest) {
         approved_product_id: pid,
         product_name: String(prod.name),
         brand_name: String(prod.brand_name),
+        category: String(prod.category || l.category || 'other'),
         qty,
         unit_price: Number(l.unit_price || 0),
         uom: String(l.uom || prod.uom || 'kg'),
+        // School brand choice for SP fidelity scoring
+        ordered_product_id: pid,
       });
     }
 

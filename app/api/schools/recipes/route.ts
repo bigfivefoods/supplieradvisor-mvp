@@ -117,8 +117,10 @@ export async function GET(request: NextRequest) {
           recipes,
           brand_choice_help:
             role === 'school'
-              ? 'For each BOM line, pick the approved brand/product your school will use (e.g. which soya brand). Qty stays as set by DBE.'
-              : undefined,
+              ? 'DBE sets the category and qty per learner. Pick the approved brand in each category. Your SP must supply that brand (or an approved same-category substitute if OOS — half score).'
+              : role === 'agency'
+                ? 'Set BOM lines by category. Schools pick the brand; SPs buy that brand (approved same-category substitute = half score; unapproved blocked).'
+                : undefined,
         });
       }
     }
@@ -722,16 +724,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Load full active catalogue for category-first BOM lines
+    const { data: catalogueRows } = await supabase
+      .from('nsnp_approved_products')
+      .select('id, name, brand_name, category, uom, active')
+      .eq('agency_profile_id', companyId)
+      .limit(800);
+    const catalogue = (catalogueRows || []).filter((p) => p.active !== false);
+    const byId = new Map(
+      catalogue.map((p) => [Number(p.id), p as Record<string, unknown>])
+    );
+    const byCategory = new Map<string, Array<Record<string, unknown>>>();
+    for (const p of catalogue) {
+      const cat = String(p.category || 'other')
+        .toLowerCase()
+        .trim();
+      if (!cat) continue;
+      const list = byCategory.get(cat) || [];
+      list.push(p as Record<string, unknown>);
+      byCategory.set(cat, list);
+    }
+
     const productIds: number[] = rawLines
       .map((l: { approved_product_id?: number }) => Number(l.approved_product_id))
       .filter((n: number) => Number.isFinite(n) && n > 0);
     // Prefer active catalogue; for edits, also accept agency-owned inactive products
     // already on a BOM so DBE can still update qty without re-activating
-    const byId = await filterApprovedProductIds(
+    const filtered = await filterApprovedProductIds(
       supabase,
       companyId,
       productIds
     );
+    for (const [id, p] of filtered) byId.set(id, p);
     const missing = productIds.filter((id: number) => !byId.has(id));
     if (missing.length) {
       const { data: owned } = await supabase
@@ -747,6 +771,71 @@ export async function POST(request: NextRequest) {
 
     const lines: RecipeLine[] = [];
     for (const l of rawLines) {
+      const qty = Number(l.qty_per_portion);
+      if (!(qty > 0)) {
+        return NextResponse.json(
+          {
+            error: `${l.product_name || l.category || 'Line'}: qty per portion must be > 0`,
+          },
+          { status: 400 }
+        );
+      }
+
+      // Category-first BOM: DBE selects category; schools pick brand later
+      const categoryOnly =
+        Boolean(l.category_only) ||
+        (l.approved_product_id == null && String(l.category || '').trim());
+
+      if (categoryOnly || (String(l.category || '').trim() && !Number(l.approved_product_id))) {
+        const catRaw = String(l.category || '').trim();
+        if (!catRaw) {
+          return NextResponse.json(
+            { error: 'Category is required for category-based BOM lines' },
+            { status: 400 }
+          );
+        }
+        const catKey = catRaw.toLowerCase();
+        let options =
+          byCategory.get(catKey) ||
+          [...byCategory.entries()]
+            .filter(
+              ([k]) => k.includes(catKey) || catKey.includes(k)
+            )
+            .flatMap(([, list]) => list);
+        if (!options.length) {
+          return NextResponse.json(
+            {
+              error: `No approved products in category “${catRaw}” — add them on the approved foods list first`,
+            },
+            { status: 400 }
+          );
+        }
+        // Reference product = first by brand name (UOM/qty reference only — not a school brand lock)
+        options = [...options].sort((a, b) =>
+          String(a.brand_name || a.name).localeCompare(
+            String(b.brand_name || b.name)
+          )
+        );
+        const ref = options[0];
+        lines.push({
+          approved_product_id: Number(ref.id),
+          product_name: String(
+            l.product_name || `${catRaw} (school chooses brand)`
+          ),
+          brand_name: '', // DBE does not lock brand
+          category: catRaw,
+          qty_per_portion: qty,
+          uom: String(l.uom || ref.uom || 'kg'),
+          wastage_pct: Math.max(0, Number(l.wastage_pct || 0)),
+          sort_order: Number(l.sort_order || lines.length),
+          notes:
+            l.notes != null
+              ? String(l.notes)
+              : `category_line:${catRaw};${options.length}_brands`,
+        });
+        continue;
+      }
+
       const pid = Number(l.approved_product_id);
       const prod = byId.get(pid);
       if (!prod) {
@@ -754,13 +843,6 @@ export async function POST(request: NextRequest) {
           {
             error: `Product ${pid || l.product_name} is not on your approved catalogue`,
           },
-          { status: 400 }
-        );
-      }
-      const qty = Number(l.qty_per_portion);
-      if (!(qty > 0)) {
-        return NextResponse.json(
-          { error: `${prod.name}: qty per portion must be > 0` },
           { status: 400 }
         );
       }

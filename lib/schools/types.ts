@@ -92,6 +92,10 @@ export type SchoolPoLine = {
   approved_product_id: number;
   product_name: string;
   brand_name: string;
+  /** Product category for brand-range / substitute rules */
+  category?: string | null;
+  /** School-selected brand product for SP brand-fidelity scoring */
+  ordered_product_id?: number | null;
   qty: number;
   unit_price: number;
   uom: string;

@@ -3,8 +3,10 @@
  *
  * Schools: headmaster prize pillars + claim eligibility / amount.
  * SPs: preferred-supplier score (0–100) with full-compliance bonus.
+ * Brand fidelity: exact school brand = full; approved same-category sub = half; unapproved = 0.
  */
 import { SP_PRIZE_CRITERIA } from '@/lib/schools/prize-criteria';
+import { scoreDeliveryLinesWithBrandFidelity } from '@/lib/schools/brand-fidelity';
 
 /** Minimum approved-brand % for full claim submission */
 export const CLAIM_APPROVED_MIN_PCT = 98;
@@ -187,13 +189,16 @@ export const SCHOOL_APPROVED_INCENTIVE_COPY =
   'Schools that order and receive only DBE/PEU approved foods earn higher headmaster prize scores (55% of points) and full claim funding.';
 
 export const ISP_APPROVED_INCENTIVE_COPY =
-  'SPs may add other items on a delivery note, but preferred status and max prize points require full compliance to the DBE approved list, photo POD, and on-time delivery.';
+  'Buy the school-selected brand. If it is out of stock, use another approved brand in the same category only (half compliance credit). Unapproved brands are not allowed and score zero.';
 
-/** Classify delivery lines for compliance scoring */
+/** Classify delivery lines for compliance scoring (brand fidelity aware) */
 export function scoreDeliveryLines(
   lines: Array<{
     approved?: boolean | null;
     approved_product_id?: number | null;
+    ordered_product_id?: number | null;
+    ordered_category?: string | null;
+    category?: string | null;
     qty_delivered?: number;
     qty_received?: number;
     qty_ordered?: number;
@@ -206,7 +211,26 @@ export function scoreDeliveryLines(
   full_compliance: boolean;
   line_count: number;
   approved_line_count: number;
+  brand_exact_pct?: number;
+  substitute_line_count?: number;
+  unapproved_line_count?: number;
 } {
+  // Brand fidelity: exact = full, same-category approved sub = half, unapproved = 0
+  const sc = scoreDeliveryLinesWithBrandFidelity(lines);
+  if (sc.line_count > 0 || lines.length === 0) {
+    return {
+      total_qty: sc.total_qty,
+      approved_qty: sc.approved_qty,
+      compliance_pct: sc.compliance_pct,
+      full_compliance: sc.full_compliance,
+      line_count: sc.line_count,
+      approved_line_count: sc.approved_line_count,
+      brand_exact_pct: sc.brand_exact_pct,
+      substitute_line_count: sc.substitute_line_count,
+      unapproved_line_count: sc.unapproved_line_count,
+    };
+  }
+
   let total_qty = 0;
   let approved_qty = 0;
   let line_count = 0;
