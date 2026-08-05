@@ -23,7 +23,6 @@ import {
   BarChart3,
   CheckCircle2,
   FileText,
-  Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -35,6 +34,7 @@ import {
 import type { SchoolReadiness } from '@/lib/schools/process';
 import GoldenPathStrip from '@/components/schools/GoldenPathStrip';
 import NsnpSystemFlow from '@/components/schools/NsnpSystemFlow';
+import ProcessGuidePdfButtons from '@/components/schools/ProcessGuidePdfButtons';
 import SchoolTodayBoard from '@/components/schools/SchoolTodayBoard';
 
 export default function SchoolsHubPage() {
@@ -147,13 +147,7 @@ function Inner() {
           mode="isp"
           action={
             <div className="flex flex-wrap items-center gap-2">
-              <a
-                href="/api/schools/process-guide/pdf?download=1"
-                className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
-                title="Full process PDF: DBE → Schools → SPs → Children fed"
-              >
-                <Download className="w-4 h-4" /> Process PDF
-              </a>
+              <ProcessGuidePdfButtons variant="header" />
               <button
                 type="button"
                 onClick={() => void load()}
@@ -166,15 +160,8 @@ function Inner() {
         />
         <GoldenPathStrip companyId={companyId} />
         <NsnpSystemFlow audience="isp" />
-        <div className="mb-4 flex flex-wrap gap-2">
-          <a
-            href="/api/schools/process-guide/pdf"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1.5"
-          >
-            <FileText className="w-3.5 h-3.5" /> View process PDF
-          </a>
+        <div className="mb-4">
+          <ProcessGuidePdfButtons variant="inline" />
         </div>
         <div className="rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-sky-50 p-6 mb-6">
           <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
@@ -304,13 +291,7 @@ function Inner() {
           mode="agency"
           action={
             <div className="flex flex-wrap items-center gap-2">
-              <a
-                href="/api/schools/process-guide/pdf?download=1"
-                className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
-                title="Full process PDF: DBE → Schools → SPs → Children fed"
-              >
-                <Download className="w-4 h-4" /> Process PDF
-              </a>
+              <ProcessGuidePdfButtons variant="header" />
               <button
                 type="button"
                 onClick={() => void load()}
@@ -324,21 +305,14 @@ function Inner() {
         <GoldenPathStrip companyId={companyId} />
         <NsnpSystemFlow audience="dbe" />
 
-        <div className="mb-4 flex flex-wrap gap-2">
+        <div className="mb-4 flex flex-wrap gap-2 items-center">
           <Link
             href="/dashboard/schools/ops"
             className="btn-primary !py-2 !px-3 text-xs"
           >
             Exception cockpit
           </Link>
-          <a
-            href="/api/schools/process-guide/pdf"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1.5"
-          >
-            <FileText className="w-3.5 h-3.5" /> View process PDF
-          </a>
+          <ProcessGuidePdfButtons variant="inline" />
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50 p-6 mb-6">
@@ -528,13 +502,7 @@ function Inner() {
         mode="school"
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <a
-              href="/api/schools/process-guide/pdf?download=1"
-              className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
-              title="Full process PDF: DBE → Schools → SPs → Children fed"
-            >
-              <Download className="w-4 h-4" /> Process PDF
-            </a>
+            <ProcessGuidePdfButtons variant="header" />
             <button
               type="button"
               onClick={() => void load()}
@@ -548,15 +516,8 @@ function Inner() {
 
       <GoldenPathStrip companyId={companyId} />
       <NsnpSystemFlow audience="school" />
-      <div className="mb-4 flex flex-wrap gap-2">
-        <a
-          href="/api/schools/process-guide/pdf"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1.5"
-        >
-          <FileText className="w-3.5 h-3.5" /> View process PDF
-        </a>
+      <div className="mb-4 flex flex-wrap gap-2 items-center">
+        <ProcessGuidePdfButtons variant="inline" />
         <Link
           href="/dashboard/schools/ops"
           className="btn-secondary !py-1.5 !px-3 text-xs"

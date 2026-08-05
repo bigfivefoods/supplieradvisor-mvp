@@ -309,14 +309,38 @@ export const SYSTEM_BENEFITS = [
 export const ONE_SENTENCE =
   'DBE sets catalogue, menus and calendar → schools check stock and order from SPs when short → SPs procure and deliver → schools GRN and serve → PEU verifies → DBE pays claims and rewards compliance.';
 
-// ── PDF geometry (A4 landscape) ─────────────────────────────────────────
-// Landscape uses the wide axis for process steps and role columns.
+// ── PDF geometry (A4 landscape | portrait) ──────────────────────────────
 
-const PAGE_W = 841.89;
-const PAGE_H = 595.28;
-const MX = 32;
-const CONTENT_W = PAGE_W - MX * 2;
-const FOOTER_Y = PAGE_H - 22;
+export type ProcessGuideOrientation = 'landscape' | 'portrait';
+
+const A4_PORTRAIT_W = 595.28;
+const A4_PORTRAIT_H = 841.89;
+
+type Geo = {
+  orientation: ProcessGuideOrientation;
+  pageW: number;
+  pageH: number;
+  mx: number;
+  contentW: number;
+  footerY: number;
+  isLandscape: boolean;
+};
+
+function geoFor(orientation: ProcessGuideOrientation): Geo {
+  const isLandscape = orientation === 'landscape';
+  const pageW = isLandscape ? A4_PORTRAIT_H : A4_PORTRAIT_W;
+  const pageH = isLandscape ? A4_PORTRAIT_W : A4_PORTRAIT_H;
+  const mx = isLandscape ? 32 : 36;
+  return {
+    orientation,
+    pageW,
+    pageH,
+    mx,
+    contentW: pageW - mx * 2,
+    footerY: pageH - 22,
+    isLandscape,
+  };
+}
 
 const BRAND = '#00b4d8';
 const BRAND_DEEP = '#0077b6';
@@ -363,108 +387,135 @@ function withOpenMargins(doc: PdfDoc, fn: () => void) {
   }
 }
 
-function drawFooter(doc: PdfDoc, pageNum: number, total: number) {
+function drawFooter(
+  doc: PdfDoc,
+  g: Geo,
+  pageNum: number,
+  total: number
+) {
   withOpenMargins(doc, () => {
-    const y = FOOTER_Y - 6;
+    const y = g.footerY - 6;
     doc
-      .moveTo(MX, y)
-      .lineTo(PAGE_W - MX, y)
+      .moveTo(g.mx, y)
+      .lineTo(g.pageW - g.mx, y)
       .strokeColor(LINE)
       .lineWidth(0.5)
       .stroke();
+    const orientLabel = g.isLandscape ? 'A4 landscape' : 'A4 portrait';
     doc
       .font('Helvetica')
       .fontSize(7)
       .fillColor(MUTED)
       .text(
-        'SupplierAdvisor® · NSNP · A4 landscape · System of record',
-        MX,
+        `SupplierAdvisor® · NSNP · ${orientLabel} · System of record`,
+        g.mx,
         y + 4,
-        { width: CONTENT_W * 0.72, align: 'left' }
+        { width: g.contentW * 0.72, align: 'left' }
       );
     doc
       .font('Helvetica')
       .fontSize(7)
       .fillColor(MUTED)
-      .text(`Page ${pageNum} of ${total}`, MX, y + 4, {
-        width: CONTENT_W,
+      .text(`Page ${pageNum} of ${total}`, g.mx, y + 4, {
+        width: g.contentW,
         align: 'right',
       });
   });
 }
 
-function drawHero(doc: PdfDoc) {
+function drawHero(doc: PdfDoc, g: Geo) {
   withOpenMargins(doc, () => {
-    doc.rect(0, 0, PAGE_W, 68).fill(BRAND_DEEP);
-    doc.rect(0, 64, PAGE_W, 4).fill(BRAND);
+    const heroH = g.isLandscape ? 68 : 92;
+    doc.rect(0, 0, g.pageW, heroH).fill(BRAND_DEEP);
+    doc.rect(0, heroH - 4, g.pageW, 4).fill(BRAND);
+    const orientLabel = g.isLandscape ? 'A4 LANDSCAPE' : 'A4 PORTRAIT';
     doc
       .font('Helvetica-Bold')
       .fontSize(8)
       .fillColor('#bae6fd')
-      .text('DBE / PEU COMMAND  ·  PROCESS GUIDE  ·  A4 LANDSCAPE', MX, 12, {
-        width: CONTENT_W,
+      .text(`DBE / PEU COMMAND  ·  PROCESS GUIDE  ·  ${orientLabel}`, g.mx, 12, {
+        width: g.contentW,
         characterSpacing: 1,
       });
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(16)
-      .fillColor('#ffffff')
-      .text('DBE → Schools → Service providers → Children fed', MX, 28, {
-        width: CONTENT_W * 0.72,
-      });
-    doc
-      .font('Helvetica')
-      .fontSize(8.5)
-      .fillColor('#e0f2fe')
-      .text(
-        'End-to-end National School Nutrition Programme on SupplierAdvisor® — every role, every step, every guardrail, and why it works.',
-        MX + CONTENT_W * 0.72,
-        28,
-        { width: CONTENT_W * 0.28 }
-      );
+    if (g.isLandscape) {
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(16)
+        .fillColor('#ffffff')
+        .text('DBE → Schools → Service providers → Children fed', g.mx, 28, {
+          width: g.contentW * 0.72,
+        });
+      doc
+        .font('Helvetica')
+        .fontSize(8.5)
+        .fillColor('#e0f2fe')
+        .text(
+          'End-to-end National School Nutrition Programme on SupplierAdvisor® — every role, every step, every guardrail, and why it works.',
+          g.mx + g.contentW * 0.72,
+          28,
+          { width: g.contentW * 0.28 }
+        );
+    } else {
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(15)
+        .fillColor('#ffffff')
+        .text('DBE → Schools → Service providers → Children fed', g.mx, 30, {
+          width: g.contentW,
+        });
+      doc
+        .font('Helvetica')
+        .fontSize(8.5)
+        .fillColor('#e0f2fe')
+        .text(
+          'End-to-end National School Nutrition Programme on SupplierAdvisor® — every role, every step, every guardrail, and why it works.',
+          g.mx,
+          62,
+          { width: g.contentW }
+        );
+    }
   });
 }
 
-function drawChain(doc: PdfDoc, y: number): number {
-  const gap = 10;
+function drawChain(doc: PdfDoc, g: Geo, y: number): number {
+  const gap = g.isLandscape ? 10 : 6;
   const n = PROCESS_CHAIN.length;
-  const boxW = (CONTENT_W - gap * (n - 1)) / n;
-  const boxH = 36;
+  const boxW = (g.contentW - gap * (n - 1)) / n;
+  const boxH = g.isLandscape ? 36 : 40;
   PROCESS_CHAIN.forEach((node, i) => {
-    const x = MX + i * (boxW + gap);
+    const x = g.mx + i * (boxW + gap);
     const color = CHAIN_COLORS[i] || BRAND;
     doc.roundedRect(x, y, boxW, boxH, 6).fillAndStroke('#ffffff', color);
-    doc.rect(x, y, 5, boxH).fill(color);
+    doc.rect(x, y, 4, boxH).fill(color);
     doc
       .font('Helvetica-Bold')
-      .fontSize(10)
+      .fontSize(g.isLandscape ? 10 : 8)
       .fillColor(INK)
-      .text(node.label, x + 12, y + 8, { width: boxW - 20 });
+      .text(node.label, x + 10, y + 8, { width: boxW - 16 });
     doc
       .font('Helvetica')
-      .fontSize(7.5)
+      .fontSize(g.isLandscape ? 7.5 : 6.5)
       .fillColor(MUTED)
-      .text(node.sub, x + 12, y + 21, { width: boxW - 20 });
+      .text(node.sub, x + 10, y + 22, { width: boxW - 16 });
   });
   return y + boxH + 10;
 }
 
-/** Compact role cards — wider landscape columns, denser type */
-function drawRoleCards(doc: PdfDoc, y: number): number {
+function drawRoleCards(doc: PdfDoc, g: Geo, y: number): number {
   doc
     .font('Helvetica-Bold')
     .fontSize(7.5)
     .fillColor(MUTED)
-    .text('WHO DOES WHAT', MX, y, { characterSpacing: 0.8 });
+    .text('WHO DOES WHAT', g.mx, y, { characterSpacing: 0.8 });
   y += 11;
 
   const gap = 8;
-  const colW = (CONTENT_W - gap * 2) / 3;
+  const colW = (g.contentW - gap * 2) / 3;
   const tones = [BRAND_DEEP, EMERALD, AMBER];
-  const h = 118;
+  const h = g.isLandscape ? 118 : 132;
 
   ROLE_CARDS.forEach((card, i) => {
-    const x = MX + i * (colW + gap);
+    const x = g.mx + i * (colW + gap);
     const tone = tones[i];
     let cy = y + 7;
 
@@ -472,7 +523,7 @@ function drawRoleCards(doc: PdfDoc, y: number): number {
     doc.rect(x, y, colW, 3).fill(tone);
     doc
       .font('Helvetica-Bold')
-      .fontSize(10)
+      .fontSize(g.isLandscape ? 10 : 9)
       .fillColor(INK)
       .text(card.title, x + 8, cy, { width: colW - 16 });
     cy += 12;
@@ -494,7 +545,7 @@ function drawRoleCards(doc: PdfDoc, y: number): number {
         .fontSize(6.5)
         .fillColor(INK)
         .text(`• ${line}`, x + 8, cy, { width: colW - 16 });
-      cy += 9.5;
+      cy += g.isLandscape ? 9.5 : 10.5;
     });
     cy += 2;
     doc
@@ -509,112 +560,141 @@ function drawRoleCards(doc: PdfDoc, y: number): number {
         .fontSize(6.5)
         .fillColor(MUTED)
         .text(`• ${line}`, x + 8, cy, { width: colW - 16 });
-      cy += 9;
+      cy += 9.5;
     });
   });
 
   return y + h + 10;
 }
 
-function drawPhase(doc: PdfDoc, phase: ProcessPhase, y: number): number {
-  doc
-    .font('Helvetica-Bold')
-    .fontSize(8.5)
-    .fillColor(BRAND_DEEP)
-    .text(phase.title, MX, y, { width: CONTENT_W * 0.45, continued: false });
-  doc
-    .font('Helvetica')
-    .fontSize(7)
-    .fillColor(MUTED)
-    .text(phase.subtitle, MX + CONTENT_W * 0.45, y + 1, {
-      width: CONTENT_W * 0.55,
-      align: 'right',
-    });
-  y += 12;
+function drawPhase(doc: PdfDoc, g: Geo, phase: ProcessPhase, y: number): number {
+  if (g.isLandscape) {
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(8.5)
+      .fillColor(BRAND_DEEP)
+      .text(phase.title, g.mx, y, {
+        width: g.contentW * 0.45,
+        continued: false,
+      });
+    doc
+      .font('Helvetica')
+      .fontSize(7)
+      .fillColor(MUTED)
+      .text(phase.subtitle, g.mx + g.contentW * 0.45, y + 1, {
+        width: g.contentW * 0.55,
+        align: 'right',
+      });
+    y += 12;
+  } else {
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(9)
+      .fillColor(BRAND_DEEP)
+      .text(phase.title, g.mx, y, { width: g.contentW });
+    y += 11;
+    doc
+      .font('Helvetica')
+      .fontSize(7)
+      .fillColor(MUTED)
+      .text(phase.subtitle, g.mx, y, { width: g.contentW });
+    y += 11;
+  }
 
-  const gap = 6;
+  const gap = 5;
   const n = phase.steps.length;
-  const boxW = (CONTENT_W - gap * (n - 1)) / n;
-  const boxH = 48;
+  const boxW = (g.contentW - gap * (n - 1)) / n;
+  const boxH = g.isLandscape ? 48 : 58;
 
   phase.steps.forEach((step, i) => {
-    const x = MX + i * (boxW + gap);
+    const x = g.mx + i * (boxW + gap);
     const wc = whoColor(step.who);
     doc.roundedRect(x, y, boxW, boxH, 5).fillAndStroke('#ffffff', LINE);
     doc
       .font('Helvetica-Bold')
       .fontSize(7)
       .fillColor(wc)
-      .text(step.n, x + 6, y + 5, { width: 22 });
-    doc.roundedRect(x + boxW - 40, y + 4, 34, 11, 3).fill(wc);
+      .text(step.n, x + 5, y + 5, { width: 22 });
+    const badgeW = Math.min(36, boxW - 28);
+    doc.roundedRect(x + boxW - badgeW - 4, y + 4, badgeW, 11, 3).fill(wc);
     doc
       .font('Helvetica-Bold')
       .fontSize(6)
       .fillColor('#ffffff')
-      .text(step.who, x + boxW - 40, y + 6, { width: 34, align: 'center' });
+      .text(step.who, x + boxW - badgeW - 4, y + 6, {
+        width: badgeW,
+        align: 'center',
+      });
     doc
       .font('Helvetica-Bold')
-      .fontSize(8)
+      .fontSize(g.isLandscape ? 8 : 7.5)
       .fillColor(INK)
-      .text(step.title, x + 6, y + 18, { width: boxW - 12 });
+      .text(step.title, x + 5, y + 18, { width: boxW - 10 });
     doc
       .font('Helvetica')
       .fontSize(6.5)
       .fillColor(MUTED)
-      .text(step.desc, x + 6, y + 30, { width: boxW - 12, height: 16 });
+      .text(step.desc, x + 5, y + 30, {
+        width: boxW - 10,
+        height: boxH - 34,
+      });
   });
 
-  return y + boxH + 8;
+  return y + boxH + (g.isLandscape ? 8 : 10);
 }
 
-function drawGates(doc: PdfDoc, y: number): number {
+function drawGates(doc: PdfDoc, g: Geo, y: number): number {
   doc
     .font('Helvetica-Bold')
     .fontSize(7.5)
     .fillColor(MUTED)
-    .text('GUARDRAILS — CHILDREN GET WHAT WAS AUTHORISED', MX, y, {
+    .text('GUARDRAILS — CHILDREN GET WHAT WAS AUTHORISED', g.mx, y, {
       characterSpacing: 0.5,
     });
   y += 10;
 
   const gap = 6;
-  const cols = 6; // one row across landscape width
-  const boxW = (CONTENT_W - gap * (cols - 1)) / cols;
-  const boxH = 52;
-  COMPLIANCE_GATES.forEach((g, i) => {
-    const x = MX + i * (boxW + gap);
-    doc.roundedRect(x, y, boxW, boxH, 5).fillAndStroke('#ecfdf5', '#a7f3d0');
+  const cols = g.isLandscape ? 6 : 3;
+  const boxW = (g.contentW - gap * (cols - 1)) / cols;
+  const boxH = g.isLandscape ? 52 : 48;
+  COMPLIANCE_GATES.forEach((gate, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const x = g.mx + col * (boxW + gap);
+    const gy = y + row * (boxH + gap);
+    doc.roundedRect(x, gy, boxW, boxH, 5).fillAndStroke('#ecfdf5', '#a7f3d0');
     doc
       .font('Helvetica-Bold')
       .fontSize(7)
       .fillColor(EMERALD)
-      .text(g.title, x + 5, y + 6, { width: boxW - 10 });
+      .text(gate.title, x + 5, gy + 6, { width: boxW - 10 });
     doc
       .font('Helvetica')
       .fontSize(6)
       .fillColor(INK)
-      .text(g.desc, x + 5, y + 20, { width: boxW - 10, height: 28 });
+      .text(gate.desc, x + 5, gy + 20, { width: boxW - 10, height: 26 });
   });
-  return y + boxH + 8;
+  const rows = Math.ceil(COMPLIANCE_GATES.length / cols);
+  return y + rows * (boxH + gap) + 6;
 }
 
-function drawBenefits(doc: PdfDoc, y: number): number {
+function drawBenefits(doc: PdfDoc, g: Geo, y: number): number {
   doc
     .font('Helvetica-Bold')
     .fontSize(7.5)
     .fillColor(MUTED)
-    .text('BENEFITS OF THE SYSTEM', MX, y, { characterSpacing: 0.5 });
+    .text('BENEFITS OF THE SYSTEM', g.mx, y, { characterSpacing: 0.5 });
   y += 10;
 
   const gap = 5;
-  const cols = 5; // 2 rows of 5 on landscape
-  const boxW = (CONTENT_W - gap * (cols - 1)) / cols;
-  const boxH = 46;
+  const cols = g.isLandscape ? 5 : 2;
+  const boxW = (g.contentW - gap * (cols - 1)) / cols;
+  const boxH = g.isLandscape ? 46 : 42;
 
   SYSTEM_BENEFITS.forEach((b, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
-    const x = MX + col * (boxW + gap);
+    const x = g.mx + col * (boxW + gap);
     const by = y + row * (boxH + gap);
     doc.roundedRect(x, by, boxW, boxH, 5).fillAndStroke(SOFT, LINE);
     doc.circle(x + 8, by + 10, 2.5).fill(BRAND);
@@ -627,54 +707,60 @@ function drawBenefits(doc: PdfDoc, y: number): number {
       .font('Helvetica')
       .fontSize(6)
       .fillColor(MUTED)
-      .text(b.desc, x + 6, by + 18, { width: boxW - 12, height: 26 });
+      .text(b.desc, x + 6, by + 18, { width: boxW - 12, height: boxH - 22 });
   });
 
   const rows = Math.ceil(SYSTEM_BENEFITS.length / cols);
   return y + rows * (boxH + gap) + 6;
 }
 
-function drawOutcome(doc: PdfDoc, y: number): number {
-  const h = 36;
-  doc.roundedRect(MX, y, CONTENT_W, h, 6).fillAndStroke('#e0f2fe', '#7dd3fc');
+function drawOutcome(doc: PdfDoc, g: Geo, y: number): number {
+  const h = g.isLandscape ? 36 : 48;
+  doc
+    .roundedRect(g.mx, y, g.contentW, h, 6)
+    .fillAndStroke('#e0f2fe', '#7dd3fc');
   doc
     .font('Helvetica-Bold')
     .fontSize(7.5)
     .fillColor(BRAND_DEEP)
-    .text('ONE SENTENCE — THE FULL LOOP', MX + 12, y + 6, {
-      width: CONTENT_W - 24,
+    .text('ONE SENTENCE — THE FULL LOOP', g.mx + 12, y + 6, {
+      width: g.contentW - 24,
     });
   doc
     .font('Helvetica')
     .fontSize(7.5)
     .fillColor(INK)
-    .text(ONE_SENTENCE, MX + 12, y + 18, { width: CONTENT_W - 24 });
+    .text(ONE_SENTENCE, g.mx + 12, y + 18, { width: g.contentW - 24 });
   return y + h;
 }
 
 /**
- * Beautiful 2-page A4 landscape process guide PDF.
+ * Beautiful 2-page A4 process guide PDF (landscape or portrait).
  * Page 1: cover, chain, roles, phases 1–3
- * Page 2: phases 4–6, guardrails (1 row), benefits (2×5), outcome
+ * Page 2: phases 4–6, guardrails, benefits, outcome
  */
 export async function buildNsnpProcessGuidePdf(opts?: {
   generatedAt?: Date;
+  orientation?: ProcessGuideOrientation;
 }): Promise<Buffer> {
   const generated = opts?.generatedAt || new Date();
+  const orientation: ProcessGuideOrientation =
+    opts?.orientation === 'portrait' ? 'portrait' : 'landscape';
+  const g = geoFor(orientation);
+  const layout = orientation;
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: 'A4',
-      layout: 'landscape',
+      layout,
       bufferPages: true,
       autoFirstPage: true,
-      margins: { top: 0, bottom: 28, left: MX, right: MX },
+      margins: { top: 0, bottom: 28, left: g.mx, right: g.mx },
       info: {
         Title:
           'NSNP Process Guide — DBE → Schools → Service providers → Children fed',
         Author: 'SupplierAdvisor®',
-        Subject:
-          'National School Nutrition Programme end-to-end process (A4 landscape)',
+        Subject: `National School Nutrition Programme end-to-end process (A4 ${orientation})`,
         Keywords: 'NSNP, DBE, PEU, school nutrition, process guide',
         CreationDate: generated,
       },
@@ -686,74 +772,113 @@ export async function buildNsnpProcessGuidePdf(opts?: {
     doc.on('error', reject);
 
     // ── PAGE 1 ────────────────────────────────────────────────────────
-    drawHero(doc);
-    let y = 78;
-    y = drawChain(doc, y);
-    y = drawRoleCards(doc, y);
+    drawHero(doc, g);
+    let y = g.isLandscape ? 78 : 102;
+    y = drawChain(doc, g, y);
+    y = drawRoleCards(doc, g, y);
 
     doc
       .font('Helvetica-Bold')
       .fontSize(7.5)
       .fillColor(MUTED)
-      .text('FULL PROCESS — PART A (JOIN → RULES → SCHOOL ORDER)', MX, y, {
+      .text('FULL PROCESS — PART A (JOIN → RULES → SCHOOL ORDER)', g.mx, y, {
         characterSpacing: 0.4,
       });
     y += 11;
 
     for (const phase of PROCESS_PHASES.slice(0, 3)) {
-      y = drawPhase(doc, phase, y);
+      y = drawPhase(doc, g, phase, y);
     }
 
     // ── PAGE 2 ────────────────────────────────────────────────────────
-    doc.addPage({ size: 'A4', layout: 'landscape' });
+    doc.addPage({ size: 'A4', layout });
     withOpenMargins(doc, () => {
-      doc.rect(0, 0, PAGE_W, 40).fill(BRAND_DEEP);
-      doc.rect(0, 36, PAGE_W, 4).fill(BRAND);
+      const headH = g.isLandscape ? 40 : 48;
+      doc.rect(0, 0, g.pageW, headH).fill(BRAND_DEEP);
+      doc.rect(0, headH - 4, g.pageW, 4).fill(BRAND);
       doc
         .font('Helvetica-Bold')
-        .fontSize(12)
+        .fontSize(g.isLandscape ? 12 : 11)
         .fillColor('#ffffff')
         .text(
           'Process continued · Guardrails · Benefits of the system',
-          MX,
-          12,
-          { width: CONTENT_W }
+          g.mx,
+          g.isLandscape ? 12 : 14,
+          { width: g.contentW }
         );
+      if (!g.isLandscape) {
+        doc
+          .font('Helvetica')
+          .fontSize(8)
+          .fillColor('#bae6fd')
+          .text(
+            'Phases 4–6 complete the loop from SP fulfilment to children fed and payment.',
+            g.mx,
+            30,
+            { width: g.contentW }
+          );
+      }
     });
 
-    y = 50;
+    y = g.isLandscape ? 50 : 58;
     doc
       .font('Helvetica-Bold')
       .fontSize(7.5)
       .fillColor(MUTED)
       .text(
         'FULL PROCESS — PART B (SP SUPPLY → CHILDREN FED → VERIFY & PAY)',
-        MX,
+        g.mx,
         y,
         { characterSpacing: 0.4 }
       );
     y += 11;
 
     for (const phase of PROCESS_PHASES.slice(3)) {
-      y = drawPhase(doc, phase, y);
+      y = drawPhase(doc, g, phase, y);
     }
 
-    y = drawGates(doc, y + 2);
-    y = drawBenefits(doc, y);
-    drawOutcome(doc, y);
+    y = drawGates(doc, g, y + 2);
+    y = drawBenefits(doc, g, y);
+    drawOutcome(doc, g, y);
 
     const range = doc.bufferedPageRange();
     const total = range.count;
     for (let i = 0; i < total; i++) {
       doc.switchToPage(range.start + i);
-      drawFooter(doc, i + 1, total);
+      drawFooter(doc, g, i + 1, total);
     }
 
     doc.end();
   });
 }
 
-export function nsnpProcessGuideFilename(d = new Date()): string {
+export function parseProcessGuideOrientation(
+  raw: string | null | undefined
+): ProcessGuideOrientation {
+  const v = String(raw || '')
+    .toLowerCase()
+    .trim();
+  if (v === 'portrait' || v === 'p' || v === 'vertical') return 'portrait';
+  return 'landscape';
+}
+
+export function nsnpProcessGuideFilename(
+  orientation: ProcessGuideOrientation = 'landscape',
+  d = new Date()
+): string {
   const day = d.toISOString().slice(0, 10);
-  return `NSNP-Process-Guide-Landscape-${day}.pdf`;
+  const orient =
+    orientation === 'portrait' ? 'Portrait' : 'Landscape';
+  return `NSNP-Process-Guide-${orient}-${day}.pdf`;
+}
+
+/** API / UI paths for both orientations */
+export function processGuidePdfUrl(
+  orientation: ProcessGuideOrientation,
+  opts?: { download?: boolean }
+): string {
+  const q = new URLSearchParams();
+  q.set('orientation', orientation);
+  if (opts?.download) q.set('download', '1');
+  return `/api/schools/process-guide/pdf?${q.toString()}`;
 }

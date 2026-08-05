@@ -3,6 +3,7 @@ import { rateLimit, clientIp } from '@/lib/http/rate-limit';
 import {
   buildNsnpProcessGuidePdf,
   nsnpProcessGuideFilename,
+  parseProcessGuideOrientation,
 } from '@/lib/schools/nsnp-process-guide';
 
 export const runtime = 'nodejs';
@@ -10,14 +11,16 @@ export const maxDuration = 30;
 
 /**
  * GET /api/schools/process-guide/pdf
- * Static end-to-end NSNP process PDF for DBE / School / SP command hubs.
- * Optional: ?download=1 forces Content-Disposition attachment.
+ *
+ * Query:
+ *   orientation=landscape|portrait  (default landscape)
+ *   download=1                      force attachment download
  */
 export async function GET(request: NextRequest) {
   try {
     const ip = clientIp(request);
     const rl = rateLimit(`nsnp-process-pdf:${ip}`, {
-      limit: 30,
+      limit: 40,
       windowMs: 60 * 60 * 1000,
     });
     if (!rl.ok) {
@@ -27,12 +30,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const sp = request.nextUrl.searchParams;
+    const orientation = parseProcessGuideOrientation(
+      sp.get('orientation') || sp.get('layout')
+    );
     const forceDownload =
-      request.nextUrl.searchParams.get('download') === '1' ||
-      request.nextUrl.searchParams.get('download') === 'true';
+      sp.get('download') === '1' || sp.get('download') === 'true';
 
-    const buf = await buildNsnpProcessGuidePdf();
-    const filename = nsnpProcessGuideFilename();
+    const buf = await buildNsnpProcessGuidePdf({ orientation });
+    const filename = nsnpProcessGuideFilename(orientation);
     const bytes = new Uint8Array(buf);
 
     return new NextResponse(bytes, {
@@ -44,6 +50,7 @@ export async function GET(request: NextRequest) {
           : `inline; filename="${filename}"`,
         'Content-Length': String(bytes.byteLength),
         'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+        'X-Process-Guide-Orientation': orientation,
       },
     });
   } catch (e: unknown) {

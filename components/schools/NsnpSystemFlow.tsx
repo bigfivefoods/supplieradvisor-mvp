@@ -20,7 +20,6 @@ import {
   ChefHat,
   ChevronDown,
   ClipboardCheck,
-  Download,
   Handshake,
   Landmark,
   Package,
@@ -30,6 +29,7 @@ import {
   Users,
   UtensilsCrossed,
 } from 'lucide-react';
+import ProcessGuidePdfButtons from '@/components/schools/ProcessGuidePdfButtons';
 
 type Audience = 'dbe' | 'school' | 'isp';
 
@@ -471,14 +471,7 @@ export default function NsnpSystemFlow({
             </p>
           </button>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <a
-              href="/api/schools/process-guide/pdf?download=1"
-              className="inline-flex items-center gap-1.5 rounded-full bg-white text-[#0077b6] px-3.5 py-2 text-xs font-bold shadow-sm hover:bg-sky-50 transition-colors"
-              title="Download full process PDF (2 pages)"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Download process PDF
-            </a>
+            <ProcessGuidePdfButtons variant="map" />
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}
