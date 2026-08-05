@@ -301,12 +301,8 @@ function Inner() {
 
   const submit = async () => {
     if (!lines.length) return toast.error('Add approved product lines first');
-    if (brandPick && brandPick.ok === false) {
-      return toast.error(
-        brandPick.message ||
-          'Pick brands on multi-brand recipe lines before ordering'
-      );
-    }
+    // Brand picks: server auto-applies from products on this PO (kitchen
+    // suggested lines already choose a brand). Soft-warn only if still blocked.
     if (!ispId) {
       return toast.error(
         'Select a service provider (preferred SPs listed first)'
@@ -685,8 +681,7 @@ function Inner() {
             <button
               type="button"
               onClick={() => setShowForm((v) => !v)}
-              disabled={Boolean(brandPick && brandPick.ok === false)}
-              className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1 disabled:opacity-50"
+              className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
             >
               <Plus className="w-3.5 h-3.5" /> New PO
             </button>
@@ -702,13 +697,14 @@ function Inner() {
       />
 
       {brandPick && brandPick.ok === false ? (
-        <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-950">
-          <p className="font-black text-xs uppercase tracking-wide text-rose-800">
-            Brand picks required before ordering
+        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p className="font-black text-xs uppercase tracking-wide text-amber-900">
+            Optional: set default brands on recipes
           </p>
           <p className="mt-1 text-[13px]">
-            {brandPick.message ||
-              'Multi-brand recipe lines need a brand choice (e.g. which soya brand).'}
+            Some multi-brand recipe lines still need a preferred brand. You can
+            still raise a PO from kitchen with specific brand products — those
+            brands are applied automatically to matching recipe lines.
           </p>
           {Array.isArray(brandPick.missing) && brandPick.missing.length > 0 ? (
             <ul className="mt-2 text-xs space-y-0.5 list-disc pl-4">
@@ -726,9 +722,9 @@ function Inner() {
           ) : null}
           <Link
             href={brandPick.href || '/dashboard/schools/recipes'}
-            className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-rose-900 underline"
+            className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-amber-950 underline"
           >
-            Open recipes · pick brands <ArrowRight className="w-3 h-3" />
+            Open recipes · set defaults <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
       ) : brandPick && brandPick.ok && (brandPick.multi_brand_lines || 0) > 0 ? (

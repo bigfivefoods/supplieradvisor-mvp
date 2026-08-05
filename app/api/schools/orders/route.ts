@@ -866,10 +866,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Sprint A1 — brand-pick gate (multi-brand BOM lines must be chosen)
+    const productIds = rawLines
+      .map((l: { approved_product_id?: number }) => Number(l.approved_product_id))
+      .filter((n: number) => Number.isFinite(n) && n > 0);
+
+    // Sprint A1 — brand-pick gate (order-scoped).
+    // Products on this PO auto-apply as brand picks for matching multi-brand
+    // recipe lines (kitchen suggested PO already chose the brand product).
+    // Unrelated multi-brand lines no longer block the PO.
     const brandGate = await checkSchoolBrandPickGate(supabase, {
       schoolProfileId: Number(school.id),
       agencyProfileId: catalogue.agencyProfileId,
+      orderedProductIds: productIds,
+      companyProfileId: companyId,
+      mode: 'order',
     });
     if (!brandGate.ok) {
       return NextResponse.json(
@@ -878,16 +888,13 @@ export async function POST(request: NextRequest) {
           brand_pick_gate: true,
           missing_brand_picks: brandGate.missing,
           multi_brand_lines: brandGate.multi_brand_lines,
+          auto_applied: brandGate.auto_applied || 0,
           href: brandGate.href || '/dashboard/schools/recipes',
           hard_block: true,
         },
         { status: 400 }
       );
     }
-
-    const productIds = rawLines
-      .map((l: { approved_product_id?: number }) => Number(l.approved_product_id))
-      .filter((n: number) => Number.isFinite(n));
 
     const byId = await filterApprovedProductIds(
       supabase,
