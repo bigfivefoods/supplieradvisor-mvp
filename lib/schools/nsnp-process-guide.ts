@@ -2,8 +2,13 @@
  * NSNP end-to-end process guide content + PDF.
  * DBE → Schools → Service providers → Children fed
  * Pure pdfkit — works on Vercel serverless.
+ *
+ * Do not import this module from client components (pulls pdfkit into the browser bundle).
+ * Client UI should use `@/lib/schools/process-guide-links` only.
  */
 import PDFDocument from 'pdfkit';
+import type { ProcessGuideOrientation } from '@/lib/schools/process-guide-links';
+export type { ProcessGuideOrientation } from '@/lib/schools/process-guide-links';
 
 // ── Content (single source for PDF; mirrors NsnpSystemFlow) ─────────────
 
@@ -310,8 +315,6 @@ export const ONE_SENTENCE =
   'DBE sets catalogue, menus and calendar → schools check stock and order from SPs when short → SPs procure and deliver → schools GRN and serve → PEU verifies → DBE pays claims and rewards compliance.';
 
 // ── PDF geometry (A4 landscape | portrait) ──────────────────────────────
-
-export type ProcessGuideOrientation = 'landscape' | 'portrait';
 
 const A4_PORTRAIT_W = 595.28;
 const A4_PORTRAIT_H = 841.89;
@@ -870,15 +873,4 @@ export function nsnpProcessGuideFilename(
   const orient =
     orientation === 'portrait' ? 'Portrait' : 'Landscape';
   return `NSNP-Process-Guide-${orient}-${day}.pdf`;
-}
-
-/** API / UI paths for both orientations */
-export function processGuidePdfUrl(
-  orientation: ProcessGuideOrientation,
-  opts?: { download?: boolean }
-): string {
-  const q = new URLSearchParams();
-  q.set('orientation', orientation);
-  if (opts?.download) q.set('download', '1');
-  return `/api/schools/process-guide/pdf?${q.toString()}`;
 }

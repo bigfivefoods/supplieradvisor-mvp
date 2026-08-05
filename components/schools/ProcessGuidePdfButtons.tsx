@@ -1,5 +1,5 @@
 import { Download, FileText } from 'lucide-react';
-import { processGuidePdfUrl } from '@/lib/schools/nsnp-process-guide';
+import { processGuidePdfUrl } from '@/lib/schools/process-guide-links';
 
 type Variant = 'header' | 'inline' | 'map';
 
