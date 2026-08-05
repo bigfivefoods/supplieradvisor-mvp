@@ -127,20 +127,13 @@ export default async function StoreProductPage({ params, searchParams }: Props) 
           ) : null}
 
           <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-            {product.priceOnRequest || product.price == null ? (
-              <p className="text-lg font-black text-amber-900">Price on request</p>
-            ) : (
-              <p className="text-lg font-black text-slate-900">
-                {product.currency} {Number(product.price).toLocaleString()}
-              </p>
-            )}
-            <p className="text-xs text-slate-600 mt-1 font-semibold">
+            <p className="text-xs text-slate-600 font-semibold">
               {product.inStock === false
                 ? 'Made to order / check lead time'
                 : 'In stock / available'}
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              Channels: {product.channels.join(', ') || 'trade'}
+              Channels: {(product.channels || []).join(', ') || 'trade'}
             </p>
           </div>
 

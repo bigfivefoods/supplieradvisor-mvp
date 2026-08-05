@@ -208,13 +208,6 @@ export function ProductCard({
         ) : null}
         <div className="mt-auto pt-3 flex items-end justify-between gap-2">
           <div>
-            {product.priceOnRequest || product.price == null ? (
-              <p className="text-sm font-bold text-amber-800">Price on request</p>
-            ) : (
-              <p className="text-sm font-black text-slate-900">
-                {product.currency} {Number(product.price).toLocaleString()}
-              </p>
-            )}
             <p className="text-[10px] font-semibold text-slate-500">
               {product.inStock === false ? 'Made to order' : 'In stock / available'}
             </p>
