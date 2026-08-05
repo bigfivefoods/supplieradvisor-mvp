@@ -182,12 +182,36 @@ export async function GET(request: NextRequest) {
         });
       }
 
+      const { buildDnScorePreview } = await import(
+        '@/lib/schools/brand-fidelity'
+      );
+      const score_preview = buildDnScorePreview(
+        lines.map((l) => ({
+          approved: l.approved !== false && !l.other_item,
+          approved_product_id:
+            l.approved_product_id != null
+              ? Number(l.approved_product_id)
+              : null,
+          ordered_product_id:
+            l.ordered_product_id != null
+              ? Number(l.ordered_product_id)
+              : null,
+          ordered_category:
+            l.ordered_category != null ? String(l.ordered_category) : null,
+          category: l.category != null ? String(l.category) : null,
+          qty_delivered: Number(l.qty_delivered ?? l.qty_ordered ?? 0),
+          qty_ordered: Number(l.qty_ordered ?? 0),
+          other_item: l.other_item === true,
+        }))
+      );
+
       return NextResponse.json({
         success: true,
         role,
         delivery: d,
         files: files || [],
         matching,
+        score_preview,
         isp: ispRow,
       });
     }
@@ -234,8 +258,10 @@ export async function GET(request: NextRequest) {
         .from('school_purchase_orders')
         .select('*')
         .eq('isp_profile_id', companyId)
+        // Accept-before-DN: only POs SP has accepted (or already in fulfilment)
         .in('status', [
-          'submitted',
+          'accepted',
+          'fulfilling',
           'confirmed',
           'open',
           'partially_received',
@@ -253,6 +279,8 @@ export async function GET(request: NextRequest) {
           .eq('school_profile_id', school.id)
           .in('status', [
             'submitted',
+            'accepted',
+            'fulfilling',
             'confirmed',
             'open',
             'partially_received',
@@ -678,14 +706,24 @@ export async function POST(request: NextRequest) {
         };
       });
 
+      // Apply explicit NSNP vs commercial lane if provided
+      const { applyDnLineLane, resolveDnLineLane, buildDnScorePreview } =
+        await import('@/lib/schools/brand-fidelity');
+      lines = lines.map((l) => {
+        const lane = resolveDnLineLane(l as {
+          other_item?: boolean;
+          approved?: boolean;
+          line_type?: string;
+          approved_product_id?: number | null;
+        });
+        return applyDnLineLane(l, lane);
+      });
+
       // Non-approved commercial lines are ALLOWED on the DN but score 0 and
       // never enter kitchen stock on GRN (hard gate at receive).
       const scored = scoreDeliveryLines(lines);
-      const otherCount = lines.filter(
-        (l) =>
-          Number(l.qty_delivered ?? l.qty ?? 0) > 0 &&
-          (l.other_item === true || l.approved === false)
-      ).length;
+      const preview = buildDnScorePreview(lines);
+      const otherCount = preview.commercial_lines;
       const meta = {
         ...((d.metadata as Record<string, unknown>) || {}),
         compliance_pct: scored.compliance_pct,
@@ -694,13 +732,14 @@ export async function POST(request: NextRequest) {
         substitute_line_count: scored.substitute_line_count ?? 0,
         unapproved_line_count: scored.unapproved_line_count ?? 0,
         other_item_count: otherCount,
+        score_preview: preview,
         brand_fidelity_note:
           (scored.substitute_line_count || 0) > 0
             ? 'Approved same-category brand substitute(s) score half credit vs exact school brand.'
             : null,
         commercial_extras_note:
           otherCount > 0
-            ? `${otherCount} non-approved line(s) — allowed commercially; 0 SP score credit; not stocked as NSNP.`
+            ? `${otherCount} commercial/non-approved line(s) — allowed; 0 SP score credit; not stocked as NSNP.`
             : null,
       };
 
@@ -721,10 +760,11 @@ export async function POST(request: NextRequest) {
         success: true,
         delivery: updated,
         compliance: scored,
+        score_preview: preview,
         message: scored.full_compliance
           ? 'Lines updated — exact school brands (max SP prize points on this DN)'
           : otherCount > 0
-            ? `Lines updated — ${scored.compliance_pct}% score credit (${otherCount} non-approved line(s) allowed but score 0; not stocked at kitchen)`
+            ? `Lines updated — ${scored.compliance_pct}% score credit (${otherCount} commercial line(s) score 0; not stocked at kitchen)`
             : (scored.substitute_line_count || 0) > 0
               ? `Lines updated — ${scored.compliance_pct}% brand-fidelity credit (approved same-category substitutes score half)`
               : `Lines updated — ${scored.compliance_pct}% on-catalogue brand fidelity`,
@@ -791,7 +831,14 @@ export async function POST(request: NextRequest) {
       });
       if (!created.ok) {
         return NextResponse.json(
-          { error: created.error, success: false },
+          {
+            error: created.error,
+            success: false,
+            accept_required: Boolean(
+              (created as { accept_required?: boolean }).accept_required
+            ),
+            po_status: (created as { po_status?: string }).po_status,
+          },
           { status: created.status || 400 }
         );
       }
@@ -801,7 +848,7 @@ export async function POST(request: NextRequest) {
         remaining: created.remaining || null,
         message: created.remaining?.partial
           ? 'Partial delivery note created — only remaining PO qty on lines'
-          : 'Delivery note created from PO — dispatch when the truck leaves',
+          : 'Delivery note created from accepted PO — dispatch when the truck leaves',
         one_click: true,
       });
     }
@@ -1557,6 +1604,29 @@ async function createDeliveryFromPo(
     };
   }
 
+  // Foolproof: SP must accept the PO before a DN can be created
+  const poStatus = String(po.status || '').toLowerCase();
+  const mayCreateDn = [
+    'accepted',
+    'fulfilling',
+    'confirmed',
+    'open',
+    'partially_received',
+    'dispatched',
+  ].includes(poStatus);
+  if (!mayCreateDn) {
+    return {
+      ok: false,
+      error:
+        poStatus === 'submitted'
+          ? 'Accept this PO first (Orders inbox → Accept PO), then create the delivery note.'
+          : `Cannot create a DN while PO status is “${poStatus || 'unknown'}”. Accept the PO first.`,
+      status: 400,
+      accept_required: true,
+      po_status: poStatus,
+    };
+  }
+
   // Sprint B1 — remaining qty: sum qty already on non-cancelled DNs for this PO
   const { data: priorDns } = await supabase
     .from('school_nsnp_deliveries')
@@ -1589,6 +1659,9 @@ async function createDeliveryFromPo(
     ordered_product_id?: number | null;
     ordered_category?: string;
     category?: string;
+    line_type?: 'nsnp' | 'commercial';
+    other_item?: boolean;
+    approved?: boolean;
     product_name: string;
     brand_name: string;
     qty_ordered: number;
@@ -1636,6 +1709,9 @@ async function createDeliveryFromPo(
       ordered_product_id: pid,
       ordered_category: String(l.category || ''),
       category: String(l.category || ''),
+      line_type: 'nsnp',
+      other_item: false,
+      approved: true,
       product_name: String(l.product_name || ''),
       brand_name: String(l.brand_name || ''),
       qty_ordered: ordered,

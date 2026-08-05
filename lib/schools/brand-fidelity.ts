@@ -196,7 +196,146 @@ export const BRAND_FIDELITY_COPY = {
   dbe: 'DBE sets the product category on the recipe BOM. Schools pick the brand; SPs supply that brand.',
   school:
     'Choose the approved brand your school will use for each recipe category. Your SP must buy that brand when available.',
-  sp: 'Buy the school-selected brand. If it is out of stock, use another approved brand in the same category only — that scores half credit. Unapproved brands are not allowed.',
+  sp: 'Buy the school-selected brand. If it is out of stock, use another approved brand in the same category only — that scores half credit. Commercial/non-approved extras are allowed on the DN but score zero and never enter kitchen stock.',
   substitute_half:
-    'Approved same-category substitute: half SP compliance credit (half penalty). Unapproved brands score zero and must not enter kitchen stock.',
+    'Approved same-category substitute: half SP compliance credit (half penalty). Non-approved commercial lines score zero and are not stocked as NSNP.',
 };
+
+/** Live scorecard for SP DN before dispatch/deliver */
+export function buildDnScorePreview(lines: ScoredDeliveryLine[]): {
+  compliance_pct: number;
+  full_compliance: boolean;
+  brand_exact_pct: number;
+  exact_qty: number;
+  substitute_qty: number;
+  commercial_qty: number;
+  total_qty: number;
+  exact_lines: number;
+  substitute_lines: number;
+  commercial_lines: number;
+  line_count: number;
+  on_catalogue_pillar_est: number;
+  full_compliance_pillar_est: number;
+  headline: string;
+  tips: string[];
+} {
+  const sc = scoreDeliveryLinesWithBrandFidelity(lines);
+  let exact_qty = 0;
+  let substitute_qty = 0;
+  let commercial_qty = 0;
+  for (const l of sc.lines) {
+    const qty = Number(
+      l.qty_received ?? l.qty_delivered ?? l.qty_ordered ?? l.qty ?? 0
+    );
+    if (l.brand_fidelity === 'exact' || l.brand_fidelity === 'unknown') {
+      exact_qty += qty;
+    } else if (l.brand_fidelity === 'approved_substitute') {
+      substitute_qty += qty;
+    } else {
+      commercial_qty += qty;
+    }
+  }
+
+  // Pillar estimates (weights from SP scorecard: 50 + 25)
+  const on_catalogue_pillar_est =
+    Math.round((sc.compliance_pct / 100) * 50 * 10) / 10;
+  const full_compliance_pillar_est = sc.full_compliance ? 25 : 0;
+
+  const tips: string[] = [];
+  if (sc.substitute_line_count > 0) {
+    tips.push(
+      `${sc.substitute_line_count} approved same-category OOS substitute line(s) = half credit on those qty`
+    );
+  }
+  if (sc.unapproved_line_count > 0) {
+    tips.push(
+      `${sc.unapproved_line_count} commercial/non-approved line(s) = 0% credit and will not enter kitchen stock`
+    );
+  }
+  if (sc.full_compliance) {
+    tips.push('Full-compliance bonus available if POD is attached and delivery is on time');
+  } else if (sc.line_count > 0) {
+    tips.push(
+      'Full-compliance bonus (25 pts) needs every line exact school brand — no subs, no commercial extras'
+    );
+  }
+  if (sc.line_count === 0) {
+    tips.push('Add delivery quantities to see live score impact');
+  }
+
+  let headline = 'No lines yet';
+  if (sc.line_count > 0) {
+    if (sc.full_compliance) {
+      headline = `Max brand fidelity — ${sc.compliance_pct}% weighted credit`;
+    } else if (sc.unapproved_line_count > 0 && sc.substitute_line_count > 0) {
+      headline = `${sc.compliance_pct}% score credit · substitutes + commercial extras`;
+    } else if (sc.unapproved_line_count > 0) {
+      headline = `${sc.compliance_pct}% score credit · commercial extras score 0`;
+    } else if (sc.substitute_line_count > 0) {
+      headline = `${sc.compliance_pct}% score credit · OOS substitutes at half`;
+    } else {
+      headline = `${sc.compliance_pct}% on-catalogue brand fidelity`;
+    }
+  }
+
+  return {
+    compliance_pct: sc.compliance_pct,
+    full_compliance: sc.full_compliance,
+    brand_exact_pct: sc.brand_exact_pct,
+    exact_qty,
+    substitute_qty,
+    commercial_qty,
+    total_qty: sc.total_qty,
+    exact_lines: sc.exact_line_count,
+    substitute_lines: sc.substitute_line_count,
+    commercial_lines: sc.unapproved_line_count,
+    line_count: sc.line_count,
+    on_catalogue_pillar_est,
+    full_compliance_pillar_est,
+    headline,
+    tips,
+  };
+}
+
+/** Normalize line lane for UI/API */
+export type DnLineLane = 'nsnp' | 'commercial';
+
+export function resolveDnLineLane(l: {
+  other_item?: boolean | null;
+  approved?: boolean | null;
+  line_type?: string | null;
+  approved_product_id?: number | null;
+}): DnLineLane {
+  if (l.line_type === 'commercial' || l.line_type === 'other') return 'commercial';
+  if (l.other_item === true || l.approved === false) return 'commercial';
+  if (l.line_type === 'nsnp') return 'nsnp';
+  if (l.approved_product_id != null && Number(l.approved_product_id) > 0) {
+    return 'nsnp';
+  }
+  return 'commercial';
+}
+
+export function applyDnLineLane(
+  line: Record<string, unknown>,
+  lane: DnLineLane
+): Record<string, unknown> {
+  if (lane === 'commercial') {
+    return {
+      ...line,
+      line_type: 'commercial',
+      other_item: true,
+      approved: false,
+      // Keep product id if present for reference, but score as commercial
+      brand_fidelity: 'unapproved',
+    };
+  }
+  return {
+    ...line,
+    line_type: 'nsnp',
+    other_item: false,
+    approved:
+      line.approved_product_id != null && Number(line.approved_product_id) > 0
+        ? true
+        : line.approved,
+  };
+}

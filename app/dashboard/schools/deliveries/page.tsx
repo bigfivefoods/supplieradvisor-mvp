@@ -37,6 +37,7 @@ import {
 } from '@/lib/schools/deliveries';
 import type { MatchingReport } from '@/lib/schools/delivery-documents';
 import GoldenPathStrip from '@/components/schools/GoldenPathStrip';
+import { buildDnScorePreview } from '@/lib/schools/brand-fidelity';
 
 type Delivery = {
   id: number;
@@ -78,11 +79,30 @@ type LineEdit = {
   uom: string;
   approved?: boolean;
   other_item?: boolean;
+  line_type?: 'nsnp' | 'commercial' | string;
   category?: string | null;
   ordered_category?: string | null;
   ordered_product_id?: number | null;
   oos_substitute?: boolean;
   brand_fidelity?: string;
+};
+
+type ScorePreview = {
+  compliance_pct: number;
+  full_compliance: boolean;
+  brand_exact_pct: number;
+  exact_qty: number;
+  substitute_qty: number;
+  commercial_qty: number;
+  total_qty: number;
+  exact_lines: number;
+  substitute_lines: number;
+  commercial_lines: number;
+  line_count: number;
+  on_catalogue_pillar_est: number;
+  full_compliance_pillar_est: number;
+  headline: string;
+  tips: string[];
 };
 
 const TIMELINE = [
@@ -161,6 +181,7 @@ function Inner() {
   >([]);
   const [subLineIdx, setSubLineIdx] = useState<number | null>(null);
   const [subProductId, setSubProductId] = useState('');
+  const [scorePreview, setScorePreview] = useState<ScorePreview | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -267,6 +288,7 @@ function Inner() {
     setShowDispatch(false);
     setShowReceive(false);
     setMatching(null);
+    setScorePreview(null);
     setDetailLoading(true);
     try {
       const res = await fetch(
@@ -282,6 +304,18 @@ function Inner() {
           ? (data.matching as MatchingReport)
           : null
       );
+      if (data.score_preview && typeof data.score_preview === 'object') {
+        setScorePreview(data.score_preview as ScorePreview);
+      } else if (
+        data.delivery?.metadata &&
+        typeof data.delivery.metadata === 'object' &&
+        (data.delivery.metadata as Record<string, unknown>).score_preview
+      ) {
+        setScorePreview(
+          (data.delivery.metadata as Record<string, unknown>)
+            .score_preview as ScorePreview
+        );
+      }
       setDriverName(String(data.delivery?.driver_name || ''));
       setVehicleReg(String(data.delivery?.vehicle_reg || ''));
       setNotesIsp(String(data.delivery?.notes_isp || ''));
@@ -294,7 +328,14 @@ function Inner() {
         lines.map((l) => {
           const ordered = Number(l.qty_ordered ?? l.qty ?? 0);
           const delivered = Number(l.qty_delivered ?? ordered);
-          const approved = l.approved !== false && Boolean(l.approved_product_id);
+          const isCommercial =
+            l.line_type === 'commercial' ||
+            l.other_item === true ||
+            l.approved === false;
+          const approved =
+            !isCommercial &&
+            l.approved !== false &&
+            Boolean(l.approved_product_id);
           return {
             approved_product_id:
               l.approved_product_id != null
@@ -302,13 +343,23 @@ function Inner() {
                 : null,
             product_name: String(l.product_name || ''),
             brand_name: String(l.brand_name || ''),
+            line_type: isCommercial ? 'commercial' : 'nsnp',
+            other_item: isCommercial,
+            category: l.category != null ? String(l.category) : null,
+            ordered_category:
+              l.ordered_category != null ? String(l.ordered_category) : null,
+            ordered_product_id:
+              l.ordered_product_id != null
+                ? Number(l.ordered_product_id)
+                : null,
+            oos_substitute: Boolean(l.oos_substitute),
+            brand_fidelity:
+              l.brand_fidelity != null ? String(l.brand_fidelity) : undefined,
             qty_ordered: ordered,
             qty_delivered: delivered,
             qty_received: Number(l.qty_received ?? 0),
             uom: String(l.uom || 'kg'),
             approved,
-            other_item:
-              l.other_item === true || l.approved === false || !l.approved_product_id,
           };
         })
       );
@@ -346,16 +397,29 @@ function Inner() {
         const delivered = Number(
           edit?.qty_delivered ?? l.qty_delivered ?? ordered
         );
+        const commercial =
+          edit?.line_type === 'commercial' ||
+          edit?.other_item === true ||
+          l.line_type === 'commercial';
         return {
           ...l,
+          ...edit,
           qty_ordered: ordered,
           qty_delivered: delivered,
           uom: edit?.uom || l.uom || 'kg',
+          line_type: commercial ? 'commercial' : 'nsnp',
+          other_item: commercial,
+          approved: commercial
+            ? false
+            : edit?.approved_product_id != null || l.approved_product_id != null,
         };
       });
       const data = await postAction('update_lines', { lines: merged });
       if (!data) return;
-      toast.success('Delivery quantities saved on DN');
+      if (data.score_preview) {
+        setScorePreview(data.score_preview as ScorePreview);
+      }
+      toast.success(data.message || 'Delivery lines saved on DN');
       void load();
       if (data.delivery) void openDetail(data.delivery);
     } catch (e: unknown) {
@@ -363,6 +427,21 @@ function Inner() {
     } finally {
       setSavingLines(false);
     }
+  };
+
+  const setLineLane = (idx: number, lane: 'nsnp' | 'commercial') => {
+    setDnLines((prev) =>
+      prev.map((row, i) =>
+        i === idx
+          ? {
+              ...row,
+              line_type: lane,
+              other_item: lane === 'commercial',
+              approved: lane === 'commercial' ? false : Boolean(row.approved_product_id),
+            }
+          : row
+      )
+    );
   };
 
   const dnTone = useMemo(() => {
@@ -375,6 +454,44 @@ function Inner() {
           }));
     return deliveryQtyTone(lines, 'delivered');
   }, [dnLines, selected?.lines]);
+
+  /** Live SP score impact as lines/qty/lane change (before save) */
+  const liveScore = useMemo(() => {
+    const source =
+      dnLines.length > 0
+        ? dnLines
+        : ((selected?.lines || []) as Array<Record<string, unknown>>);
+    if (!source.length) return scorePreview;
+    try {
+      return buildDnScorePreview(
+        source.map((l) => {
+          const commercial =
+            l.line_type === 'commercial' ||
+            l.other_item === true ||
+            l.approved === false;
+          return {
+            approved: !commercial && Boolean(l.approved_product_id),
+            approved_product_id:
+              l.approved_product_id != null
+                ? Number(l.approved_product_id)
+                : null,
+            ordered_product_id:
+              l.ordered_product_id != null
+                ? Number(l.ordered_product_id)
+                : null,
+            ordered_category:
+              l.ordered_category != null ? String(l.ordered_category) : null,
+            category: l.category != null ? String(l.category) : null,
+            qty_delivered: Number(l.qty_delivered ?? l.qty_ordered ?? 0),
+            qty_ordered: Number(l.qty_ordered ?? 0),
+            other_item: commercial,
+          };
+        })
+      );
+    } catch {
+      return scorePreview;
+    }
+  }, [dnLines, selected?.lines, scorePreview]);
 
   const postAction = async (
     action: string,
@@ -420,10 +537,26 @@ function Inner() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed');
+      if (!res.ok) {
+        if (data.accept_required) {
+          toast.error(
+            data.error || 'Accept the PO on Orders first, then create the DN',
+            {
+              action: {
+                label: 'Orders',
+                onClick: () => {
+                  window.location.href = '/dashboard/schools/orders';
+                },
+              },
+            }
+          );
+          return;
+        }
+        throw new Error(data.error || 'Failed');
+      }
       toast.success(
         data.message ||
-          'Delivery note ready — one-click from PO · dispatch when truck leaves'
+          'Delivery note ready — set lanes & qty, check live score, then dispatch'
       );
       setPoId('');
       void load();
@@ -778,14 +911,18 @@ function Inner() {
         <div className="flex flex-wrap gap-2 items-end">
           <label className="text-xs flex-1 min-w-[12rem]">
             <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
-              One-click delivery from open PO
+              Create DN from accepted PO
             </span>
             <select
               className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
               value={poId}
               onChange={(e) => setPoId(e.target.value)}
             >
-              <option value="">Select PO…</option>
+              <option value="">
+                {openOrders.length
+                  ? 'Select accepted PO…'
+                  : 'No accepted POs — accept on Orders first'}
+              </option>
               {openOrders.map((o) => (
                 <option key={String(o.id)} value={String(o.id)}>
                   {String(o.po_number || `PO #${o.id}`)} · {String(o.status)} ·{' '}
@@ -793,6 +930,10 @@ function Inner() {
                 </option>
               ))}
             </select>
+            <p className="text-[10px] text-slate-500 mt-1">
+              SP must <strong>Accept PO</strong> on Orders before a delivery note
+              can be created.
+            </p>
           </label>
           <button
             type="button"
@@ -1011,6 +1152,68 @@ function Inner() {
                   })}
                 </div>
 
+                {/* Live SP score preview */}
+                {liveScore && liveScore.line_count > 0 ? (
+                  <div
+                    className={`rounded-2xl border px-4 py-3 ${
+                      liveScore.full_compliance
+                        ? 'border-emerald-200 bg-emerald-50/80'
+                        : liveScore.commercial_lines > 0
+                          ? 'border-amber-200 bg-amber-50/80'
+                          : 'border-sky-200 bg-sky-50/80'
+                    }`}
+                  >
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Live SP score impact (before dispatch)
+                    </p>
+                    <p className="text-sm font-black text-slate-900 mt-0.5">
+                      {liveScore.headline}
+                    </p>
+                    <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                      <div className="rounded-xl bg-white/80 border border-white px-2 py-1.5">
+                        <p className="text-lg font-black tabular-nums text-emerald-800">
+                          {liveScore.compliance_pct}%
+                        </p>
+                        <p className="text-[9px] font-bold uppercase text-slate-500">
+                          Weighted credit
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-white/80 border border-white px-2 py-1.5">
+                        <p className="text-lg font-black tabular-nums text-sky-900">
+                          ~{liveScore.on_catalogue_pillar_est}
+                        </p>
+                        <p className="text-[9px] font-bold uppercase text-slate-500">
+                          /50 on-catalogue
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-white/80 border border-white px-2 py-1.5">
+                        <p className="text-lg font-black tabular-nums text-violet-900">
+                          {liveScore.full_compliance_pillar_est}
+                        </p>
+                        <p className="text-[9px] font-bold uppercase text-slate-500">
+                          /25 full clean
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-white/80 border border-white px-2 py-1.5">
+                        <p className="text-sm font-black tabular-nums text-slate-800">
+                          {liveScore.exact_lines}e · {liveScore.substitute_lines}
+                          h · {liveScore.commercial_lines}c
+                        </p>
+                        <p className="text-[9px] font-bold uppercase text-slate-500">
+                          exact · half · commercial
+                        </p>
+                      </div>
+                    </div>
+                    {liveScore.tips.length ? (
+                      <ul className="mt-2 text-[11px] text-slate-700 space-y-0.5 list-disc pl-4">
+                        {liveScore.tips.slice(0, 3).map((t) => (
+                          <li key={t}>{t}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 {/* Lines — SP sets planned/actual delivery qty; colour = variance vs ordered */}
                 <div>
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
@@ -1212,7 +1415,32 @@ function Inner() {
                             !['received', 'cancelled'].includes(
                               String(selected.status)
                             ) ? (
-                              <div className="mt-2 pl-0 sm:pl-1">
+                              <div className="mt-2 pl-0 sm:pl-1 space-y-1.5">
+                                <div className="flex flex-wrap gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setLineLane(i, 'nsnp')}
+                                    className={`rounded-full px-2.5 py-1 text-[10px] font-bold border ${
+                                      (dnLines[i]?.line_type || 'nsnp') !==
+                                      'commercial'
+                                        ? 'bg-emerald-600 text-white border-emerald-600'
+                                        : 'bg-white text-slate-600 border-slate-200'
+                                    }`}
+                                  >
+                                    NSNP line
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setLineLane(i, 'commercial')}
+                                    className={`rounded-full px-2.5 py-1 text-[10px] font-bold border ${
+                                      dnLines[i]?.line_type === 'commercial'
+                                        ? 'bg-amber-600 text-white border-amber-600'
+                                        : 'bg-white text-slate-600 border-slate-200'
+                                    }`}
+                                  >
+                                    Commercial (0% score)
+                                  </button>
+                                </div>
                                 {subLineIdx === i ? (
                                   <div className="rounded-xl border border-violet-200 bg-violet-50 p-2 space-y-1.5">
                                     <p className="text-[10px] font-bold text-violet-950">
