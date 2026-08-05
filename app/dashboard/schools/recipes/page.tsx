@@ -86,6 +86,7 @@ type Recipe = {
     qty_per_portion: number;
     uom: string;
     wastage_pct?: number;
+    notes?: string | null;
     chosen_product_id?: number | null;
     chosen_product_name?: string | null;
     chosen_brand_name?: string | null;
