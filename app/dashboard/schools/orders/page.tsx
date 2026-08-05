@@ -923,7 +923,9 @@ function Inner() {
               hasAgency={hasAgency}
               brandPickOk={brandPick == null ? null : brandPick.ok}
               submitting={submitting}
-              onSubmit={submit}
+              onSubmit={async () => {
+                await submit();
+              }}
               onCancel={() => setShowForm(false)}
             />
           ) : null}
