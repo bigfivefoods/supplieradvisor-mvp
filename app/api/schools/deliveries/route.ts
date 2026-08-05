@@ -1579,7 +1579,13 @@ async function createDeliveryFromPo(
         lines: Array<Record<string, unknown>>;
       };
     }
-  | { ok: false; error: string; status?: number }
+  | {
+      ok: false;
+      error: string;
+      status?: number;
+      accept_required?: boolean;
+      po_status?: string;
+    }
 > {
   const { data: po } = await supabase
     .from('school_purchase_orders')
