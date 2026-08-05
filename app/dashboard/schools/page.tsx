@@ -146,17 +146,36 @@ function Inner() {
           description="Receive school POs → procure approved items → deliver to schools. You do not set menus. See the full DBE → school → SP → children fed process below."
           mode="isp"
           action={
-            <button
-              type="button"
-              onClick={() => void load()}
-              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
-            >
-              <RefreshCw className="w-4 h-4" /> Refresh
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href="/api/schools/process-guide/pdf?download=1"
+                className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+                title="Full process PDF: DBE → Schools → SPs → Children fed"
+              >
+                <Download className="w-4 h-4" /> Process PDF
+              </a>
+              <button
+                type="button"
+                onClick={() => void load()}
+                className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" /> Refresh
+              </button>
+            </div>
           }
         />
         <GoldenPathStrip companyId={companyId} />
         <NsnpSystemFlow audience="isp" />
+        <div className="mb-4 flex flex-wrap gap-2">
+          <a
+            href="/api/schools/process-guide/pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1.5"
+          >
+            <FileText className="w-3.5 h-3.5" /> View process PDF
+          </a>
+        </div>
         <div className="rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-sky-50 p-6 mb-6">
           <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
             Service provider · do this next
@@ -508,19 +527,36 @@ function Inner() {
         }
         mode="school"
         action={
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
-          >
-            <RefreshCw className="w-4 h-4" /> Refresh
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href="/api/schools/process-guide/pdf?download=1"
+              className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+              title="Full process PDF: DBE → Schools → SPs → Children fed"
+            >
+              <Download className="w-4 h-4" /> Process PDF
+            </a>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" /> Refresh
+            </button>
+          </div>
         }
       />
 
       <GoldenPathStrip companyId={companyId} />
       <NsnpSystemFlow audience="school" />
       <div className="mb-4 flex flex-wrap gap-2">
+        <a
+          href="/api/schools/process-guide/pdf"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1.5"
+        >
+          <FileText className="w-3.5 h-3.5" /> View process PDF
+        </a>
         <Link
           href="/dashboard/schools/ops"
           className="btn-secondary !py-1.5 !px-3 text-xs"
