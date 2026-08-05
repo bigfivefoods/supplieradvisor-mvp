@@ -23,6 +23,7 @@ import {
   BarChart3,
   CheckCircle2,
   FileText,
+  Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -283,13 +284,22 @@ function Inner() {
           description="DBE does not order or receive food. Set the catalogue, menus, recipes and feeding calendar; approve schools & SPs; run PEU compliance; review claims. Schools order and receive; SPs supply."
           mode="agency"
           action={
-            <button
-              type="button"
-              onClick={() => void load()}
-              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
-            >
-              <RefreshCw className="w-4 h-4" /> Refresh
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href="/api/schools/process-guide/pdf?download=1"
+                className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+                title="Full process PDF: DBE → Schools → SPs → Children fed"
+              >
+                <Download className="w-4 h-4" /> Process PDF
+              </a>
+              <button
+                type="button"
+                onClick={() => void load()}
+                className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" /> Refresh
+              </button>
+            </div>
           }
         />
         <GoldenPathStrip companyId={companyId} />
@@ -302,6 +312,14 @@ function Inner() {
           >
             Exception cockpit
           </Link>
+          <a
+            href="/api/schools/process-guide/pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1.5"
+          >
+            <FileText className="w-3.5 h-3.5" /> View process PDF
+          </a>
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50 p-6 mb-6">

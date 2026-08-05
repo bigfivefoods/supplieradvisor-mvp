@@ -20,6 +20,7 @@ import {
   ChefHat,
   ChevronDown,
   ClipboardCheck,
+  Download,
   Handshake,
   Landmark,
   Package,
@@ -449,13 +450,13 @@ export default function NsnpSystemFlow({
       aria-label="NSNP full process diagram: DBE to schools to service providers to children fed"
       id="nsnp-system-flow"
     >
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full text-left bg-gradient-to-r from-[#0077b6] via-[#00b4d8] to-emerald-600 px-5 py-4 text-white"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
+      <div className="bg-gradient-to-r from-[#0077b6] via-[#00b4d8] to-emerald-600 px-5 py-4 text-white">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="text-left min-w-0 flex-1"
+          >
             <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">
               {copy.eyebrow}
             </p>
@@ -468,17 +469,31 @@ export default function NsnpSystemFlow({
             <p className="mt-2 inline-flex items-center rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-bold">
               {copy.youAre}
             </p>
+          </button>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <a
+              href="/api/schools/process-guide/pdf?download=1"
+              className="inline-flex items-center gap-1.5 rounded-full bg-white text-[#0077b6] px-3.5 py-2 text-xs font-bold shadow-sm hover:bg-sky-50 transition-colors"
+              title="Download full process PDF (2 pages)"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download process PDF
+            </a>
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-2 text-[10px] font-bold uppercase tracking-wider hover:bg-white/25"
+            >
+              {open ? 'Hide' : 'Show'} full process
+              <ChevronDown
+                className={`w-3.5 h-3.5 transition-transform ${
+                  open ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
           </div>
-          <span className="shrink-0 mt-1 inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider">
-            {open ? 'Hide' : 'Show'} full process
-            <ChevronDown
-              className={`w-3.5 h-3.5 transition-transform ${
-                open ? 'rotate-180' : ''
-              }`}
-            />
-          </span>
         </div>
-      </button>
+      </div>
 
       {open ? (
         <div className="p-4 sm:p-6 space-y-8">
