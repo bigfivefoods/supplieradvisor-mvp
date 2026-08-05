@@ -62,6 +62,54 @@ export function formatStockQty(
   return String(n);
 }
 
+/**
+ * Required PO quantity to restore days-cover target holding.
+ * Gap to target cover, with a floor for reorder/critical so low-stock
+ * lines always land a positive suggested buy qty.
+ */
+export function requiredOrderQty(opts: {
+  qty_on_hand: number | string | null | undefined;
+  target_qty: number | string | null | undefined;
+  reorder_level?: number | string | null | undefined;
+  daily_usage?: number | string | null | undefined;
+  reorder_cover_days?: number | null | undefined;
+  status?: string | null | undefined;
+  uom?: string | null;
+}): number {
+  const uom = opts.uom || 'kg';
+  const onHand = Math.max(0, Number(opts.qty_on_hand) || 0);
+  const target = Math.max(0, Number(opts.target_qty) || 0);
+  const reorder = Math.max(0, Number(opts.reorder_level) || 0);
+  const daily = Math.max(0, Number(opts.daily_usage) || 0);
+  const status = String(opts.status || '').toLowerCase();
+  const low =
+    status === 'reorder' ||
+    status === 'critical' ||
+    (reorder > 0 && onHand <= reorder);
+
+  // Primary: lift on-hand up to target cover holding
+  let qty = target > 0 ? Math.max(0, target - onHand) : 0;
+
+  // If below reorder cover and gap rounded away, still order enough to
+  // clear reorder (or at least one day of use / 1 UOM).
+  if (low && !(qty > 0)) {
+    const toReorder = reorder > 0 ? Math.max(0, reorder - onHand + 1) : 0;
+    const minBuy =
+      daily > 0
+        ? daily *
+          Math.max(1, Number(opts.reorder_cover_days) || 1)
+        : 1;
+    qty = Math.max(toReorder, minBuy, 1);
+  }
+
+  // Top-up above reorder toward target when low but gap tiny after rounding
+  if (low && target > onHand) {
+    qty = Math.max(qty, target - onHand);
+  }
+
+  return roundStockQty(qty, uom, 'ceil') || (low ? 1 : 0);
+}
+
 export type ProductDemand = {
   approved_product_id: number;
   product_name: string;
@@ -308,15 +356,6 @@ export function buildKitchenStockPlan(opts: {
       target_qty > 0 ? Math.min(reorder_level, target_qty) : reorder_level;
     const days_on_hand =
       daily > 0 ? Math.round((qty / daily) * 10) / 10 : null;
-    let suggested = 0;
-    if (daily > 0) {
-      suggested = roundStockQty(
-        Math.max(0, target_qty - qty),
-        uom,
-        'ceil'
-      );
-    }
-
     // Whole daily usage for display/messages (1 decimal if tiny, else whole)
     const dailyDisplay =
       daily <= 0
@@ -337,7 +376,7 @@ export function buildKitchenStockPlan(opts: {
         (days_on_hand != null && days_on_hand <= policy.reorder_cover_days)
       ) {
         status = 'reorder';
-        message = `At/below ${policy.reorder_cover_days}-day reorder cover — suggested order ${suggested} ${uom}`;
+        message = `At/below ${policy.reorder_cover_days}-day reorder cover`;
       } else if (target_qty > 0 && qty > target_qty * 1.25) {
         status = 'overstock';
         message = `Above ${policy.cover_days}-day target holding`;
@@ -350,28 +389,22 @@ export function buildKitchenStockPlan(opts: {
       message = 'On hand but no recipe demand this week';
     }
 
-    // Reorder/critical must always produce a buy qty — whole-UOM rounding can
-    // make target − on-hand collapse to 0 while still below reorder cover.
-    if (
-      daily > 0 &&
-      (status === 'reorder' || status === 'critical') &&
-      !(suggested > 0)
-    ) {
-      const toTarget = Math.max(0, target_qty - qty);
-      const minBuy = roundStockQty(
-        Math.max(daily * policy.reorder_cover_days, daily),
-        uom,
-        'ceil'
-      );
-      suggested = Math.max(
-        1,
-        roundStockQty(toTarget, uom, 'ceil') || 0,
-        minBuy || 0
-      );
+    // Required PO qty = gap to cover-days target (with low-stock floor)
+    const suggested = requiredOrderQty({
+      qty_on_hand: qty,
+      target_qty,
+      reorder_level: reorderAdj,
+      daily_usage: daily,
+      reorder_cover_days: policy.reorder_cover_days,
+      status,
+      uom,
+    });
+
+    if (status === 'reorder' || status === 'critical') {
       message =
         status === 'critical'
-          ? `Only ~${days_on_hand} day(s) left — suggested order ${suggested} ${uom}`
-          : `At/below ${policy.reorder_cover_days}-day reorder cover — suggested order ${suggested} ${uom}`;
+          ? `Only ~${days_on_hand} day(s) left — suggested order ${suggested} ${uom} to restore ${policy.cover_days}-day cover`
+          : `At/below ${policy.reorder_cover_days}-day reorder cover — suggested order ${suggested} ${uom} to restore ${policy.cover_days}-day cover`;
     }
 
     products.push({

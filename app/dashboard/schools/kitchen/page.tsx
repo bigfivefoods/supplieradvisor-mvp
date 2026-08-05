@@ -11,6 +11,8 @@ import {
   ShoppingCart,
   CalendarDays,
   Save,
+  Minus,
+  Plus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -21,6 +23,7 @@ import {
 } from '@/components/schools/SchoolsShell';
 import {
   formatStockQty,
+  requiredOrderQty,
   roundStockQty,
 } from '@/lib/schools/kitchen-stock-plan';
 
@@ -89,6 +92,8 @@ type LevelRow = {
   qty_on_hand: string;
   reorder_level: string;
   target_level: string;
+  /** School-editable qty that lands on the suggested PO (defaults to required cover gap) */
+  order_qty: string;
   stock_id?: number;
   low_stock?: boolean;
   daily_usage?: number;
@@ -106,6 +111,7 @@ type LevelSortKey =
   | 'reorder_level'
   | 'target_level'
   | 'suggested_order_qty'
+  | 'order_qty'
   | 'uom';
 
 const SUGGESTED_PO_KEY = 'nsnp_kitchen_suggested_po';
@@ -214,9 +220,21 @@ function Inner() {
             : plan?.target_qty != null
               ? Number(plan.target_qty)
               : null;
+        const coverStatus = plan?.status || String(s?.cover_status || '');
+        const required = requiredOrderQty({
+          qty_on_hand: onHandRaw,
+          target_qty: targetRaw,
+          reorder_level: reorderRaw,
+          daily_usage: plan?.daily_usage ?? (Number(s?.daily_usage) || 0),
+          reorder_cover_days: k.cover_policy?.reorder_cover_days,
+          status: coverStatus,
+          uom,
+        });
         const suggestRaw =
           plan?.suggested_order_qty ??
-          (Number(s?.suggested_order_qty) || 0);
+          (Number(s?.suggested_order_qty) || 0) ||
+          required;
+        const suggestFinal = roundStockQty(suggestRaw, uom, 'ceil') || required;
         return {
           approved_product_id: prod.id,
           product_name: prod.name,
@@ -234,14 +252,15 @@ function Inner() {
             targetRaw != null && Number.isFinite(targetRaw)
               ? formatStockQty(targetRaw, uom, 'ceil')
               : '',
+          order_qty: suggestFinal > 0 ? formatStockQty(suggestFinal, uom, 'ceil') : '',
           stock_id: s?.id != null ? Number(s.id) : undefined,
           low_stock: Boolean(s?.low_stock),
           daily_usage: plan?.daily_usage ?? (Number(s?.daily_usage) || 0),
           days_on_hand:
             plan?.days_on_hand ??
             (s?.days_on_hand != null ? Number(s.days_on_hand) : null),
-          suggested_order_qty: roundStockQty(suggestRaw, uom, 'ceil'),
-          cover_status: plan?.status || String(s?.cover_status || ''),
+          suggested_order_qty: suggestFinal,
+          cover_status: coverStatus,
           cover_message: plan?.message || String(s?.cover_message || ''),
         };
       });
@@ -250,6 +269,19 @@ function Inner() {
         if (!rows.some((r) => r.approved_product_id === pid)) {
           const plan = planByPid.get(pid);
           const uom = String(s.uom || 'kg');
+          const coverStatus = plan?.status || String(s.cover_status || '');
+          const required = requiredOrderQty({
+            qty_on_hand: s.qty_on_hand ?? 0,
+            target_qty: s.target_level ?? plan?.target_qty,
+            reorder_level: s.reorder_level ?? plan?.reorder_level,
+            daily_usage: plan?.daily_usage ?? 0,
+            reorder_cover_days: k.cover_policy?.reorder_cover_days,
+            status: coverStatus,
+            uom,
+          });
+          const suggestFinal =
+            roundStockQty(plan?.suggested_order_qty ?? 0, uom, 'ceil') ||
+            required;
           rows.push({
             approved_product_id: pid,
             product_name: String(s.product_name || ''),
@@ -266,17 +298,17 @@ function Inner() {
             target_level:
               s.target_level != null
                 ? formatStockQty(s.target_level, uom, 'ceil')
-                : '',
+                : plan?.target_qty != null
+                  ? formatStockQty(plan.target_qty, uom, 'ceil')
+                  : '',
+            order_qty:
+              suggestFinal > 0 ? formatStockQty(suggestFinal, uom, 'ceil') : '',
             stock_id: Number(s.id),
             low_stock: Boolean(s.low_stock),
             daily_usage: plan?.daily_usage ?? 0,
             days_on_hand: plan?.days_on_hand ?? null,
-            suggested_order_qty: roundStockQty(
-              plan?.suggested_order_qty ?? 0,
-              uom,
-              'ceil'
-            ),
-            cover_status: plan?.status,
+            suggested_order_qty: suggestFinal,
+            cover_status: coverStatus,
             cover_message: plan?.message,
           });
         }
@@ -472,23 +504,60 @@ function Inner() {
     }
   };
 
-  /** Build PO lines from kitchen stock — any product, not only system-suggested. */
-  const orderQtyForRow = (p: {
+  /**
+   * Qty for PO line: school-edited order_qty if set, else required cover gap
+   * (target hold − on hand) for days-cover restoration.
+   */
+  const orderQtyForRow = (r: {
+    order_qty?: string | number | null;
     suggested_order_qty?: number;
     target_qty?: number;
-    qty_on_hand?: number;
+    target_level?: string | number;
+    qty_on_hand?: number | string;
+    reorder_level?: number | string;
+    daily_usage?: number;
     status?: string;
+    cover_status?: string;
     uom: string;
   }) => {
-    let qty = Number(p.suggested_order_qty) || 0;
-    if (!(qty > 0)) {
-      const gap = Math.max(
-        0,
-        Number(p.target_qty || 0) - Number(p.qty_on_hand || 0)
-      );
-      qty = gap > 0 ? gap : 1;
+    const edited = Number(r.order_qty);
+    if (Number.isFinite(edited) && edited > 0) {
+      return roundStockQty(edited, r.uom, 'ceil') || 1;
     }
-    return roundStockQty(qty, p.uom, 'ceil') || 1;
+    return (
+      requiredOrderQty({
+        qty_on_hand: r.qty_on_hand,
+        target_qty:
+          r.target_qty ??
+          (r.target_level !== '' && r.target_level != null
+            ? Number(r.target_level)
+            : 0),
+        reorder_level: r.reorder_level,
+        daily_usage: r.daily_usage,
+        reorder_cover_days: stockPlan?.policy?.reorder_cover_days,
+        status: r.status || r.cover_status,
+        uom: r.uom,
+      }) ||
+      roundStockQty(r.suggested_order_qty ?? 0, r.uom, 'ceil') ||
+      1
+    );
+  };
+
+  /** Recompute suggested + draft order qty from on-hand / target / cover status */
+  const recomputeRowOrderQty = (row: LevelRow): Partial<LevelRow> => {
+    const required = requiredOrderQty({
+      qty_on_hand: row.qty_on_hand,
+      target_qty: row.target_level,
+      reorder_level: row.reorder_level,
+      daily_usage: row.daily_usage,
+      reorder_cover_days: stockPlan?.policy?.reorder_cover_days,
+      status: row.cover_status,
+      uom: row.uom,
+    });
+    return {
+      suggested_order_qty: required,
+      order_qty: required > 0 ? formatStockQty(required, row.uom, 'ceil') : '',
+    };
   };
 
   const pushOrderPayload = (
@@ -511,7 +580,9 @@ function Inner() {
       }))
       .filter((l) => l.qty > 0 && l.approved_product_id > 0);
     if (!payload.length) {
-      return toast.message('No order lines to send — pick products and set qty');
+      return toast.message(
+        'No order lines to send — set Order qty (required cover gap) and try again'
+      );
     }
     try {
       sessionStorage.setItem(SUGGESTED_PO_KEY, JSON.stringify(payload));
@@ -519,7 +590,7 @@ function Inner() {
       /* soft */
     }
     toast.success(
-      `${payload.length} line(s) ready on Orders — review qty, delivery date & SP, then submit`
+      `${payload.length} line(s) with required cover levels ready on Orders — adjust qty up/down if needed, pick SP & delivery date, then submit`
     );
     window.location.href = '/dashboard/schools/orders?suggested=1';
   };
@@ -527,6 +598,9 @@ function Inner() {
   const orderSuggested = (mode: 'suggested' | 'reorder' | 'selected' | 'all') => {
     const planById = new Map(
       (stockPlan?.products || []).map((p) => [p.approved_product_id, p])
+    );
+    const rowById = new Map(
+      levelRows.map((r) => [r.approved_product_id, r] as const)
     );
 
     if (mode === 'selected') {
@@ -545,12 +619,11 @@ function Inner() {
             brand_name: r.brand_name,
             uom: r.uom,
             qty: orderQtyForRow({
+              ...r,
               suggested_order_qty:
                 plan?.suggested_order_qty ?? r.suggested_order_qty,
               target_qty: plan?.target_qty ?? (Number(r.target_level) || 0),
-              qty_on_hand: Number(r.qty_on_hand) || 0,
               status: plan?.status || r.cover_status,
-              uom: r.uom,
             }),
           };
         });
@@ -569,40 +642,95 @@ function Inner() {
           brand_name: r.brand_name,
           uom: r.uom,
           qty: orderQtyForRow({
+            ...r,
             suggested_order_qty:
               plan?.suggested_order_qty ?? r.suggested_order_qty,
             target_qty: plan?.target_qty ?? (Number(r.target_level) || 0),
-            qty_on_hand: Number(r.qty_on_hand) || 0,
             status: plan?.status || r.cover_status,
-            uom: r.uom,
           }),
         };
       });
       return pushOrderPayload(rows);
     }
 
-    // suggested | reorder from stock plan
-    const source =
+    // suggested | reorder — prefer kitchen rows (editable order_qty) + plan
+    const sourceIds =
       mode === 'reorder'
-        ? reorderPlanLines
+        ? reorderPlanLines.map((p) => p.approved_product_id)
         : suggestedLines.length
-          ? suggestedLines
-          : reorderPlanLines;
-    if (!source.length) {
+          ? suggestedLines.map((p) => p.approved_product_id)
+          : reorderPlanLines.map((p) => p.approved_product_id);
+
+    // Also include any low-stock rows from the level table even if plan missed them
+    if (mode === 'suggested' || mode === 'reorder') {
+      for (const r of levelRows) {
+        const low =
+          r.cover_status === 'reorder' ||
+          r.cover_status === 'critical' ||
+          r.low_stock ||
+          (Number(r.suggested_order_qty) || 0) > 0 ||
+          (Number(r.order_qty) || 0) > 0;
+        if (low && !sourceIds.includes(r.approved_product_id)) {
+          if (mode === 'reorder') {
+            if (
+              r.cover_status === 'reorder' ||
+              r.cover_status === 'critical' ||
+              r.low_stock
+            ) {
+              sourceIds.push(r.approved_product_id);
+            }
+          } else if ((Number(r.order_qty) || Number(r.suggested_order_qty) || 0) > 0) {
+            sourceIds.push(r.approved_product_id);
+          }
+        }
+      }
+    }
+
+    if (!sourceIds.length) {
       return toast.message(
         mode === 'reorder'
           ? 'Nothing at reorder point — select products below and use Order selected, or Order any product'
           : 'No auto-suggested lines — select products in the list and Order selected (any product is allowed)'
       );
     }
+
     pushOrderPayload(
-      source.map((p) => ({
-        approved_product_id: p.approved_product_id,
-        product_name: p.product_name,
-        brand_name: p.brand_name,
-        uom: p.uom,
-        qty: orderQtyForRow(p),
-      }))
+      sourceIds.map((pid) => {
+        const r = rowById.get(pid);
+        const plan = planById.get(pid);
+        if (r) {
+          return {
+            approved_product_id: r.approved_product_id,
+            product_name: r.product_name,
+            brand_name: r.brand_name,
+            uom: r.uom,
+            qty: orderQtyForRow({
+              ...r,
+              suggested_order_qty:
+                plan?.suggested_order_qty ?? r.suggested_order_qty,
+              target_qty: plan?.target_qty ?? (Number(r.target_level) || 0),
+              status: plan?.status || r.cover_status,
+            }),
+          };
+        }
+        // Fallback from plan only
+        const p = plan!;
+        return {
+          approved_product_id: p.approved_product_id,
+          product_name: p.product_name,
+          brand_name: p.brand_name,
+          uom: p.uom,
+          qty: orderQtyForRow({
+            suggested_order_qty: p.suggested_order_qty,
+            target_qty: p.target_qty,
+            qty_on_hand: p.qty_on_hand,
+            reorder_level: p.reorder_level,
+            daily_usage: p.daily_usage,
+            status: p.status,
+            uom: p.uom,
+          }),
+        };
+      })
     );
   };
 
@@ -626,15 +754,28 @@ function Inner() {
         brand_name: r.brand_name,
         uom: r.uom,
         qty: orderQtyForRow({
+          ...r,
           suggested_order_qty:
             plan?.suggested_order_qty ?? r.suggested_order_qty,
           target_qty: plan?.target_qty ?? (Number(r.target_level) || 0),
-          qty_on_hand: Number(r.qty_on_hand) || 0,
           status: plan?.status || r.cover_status,
-          uom: r.uom,
         }),
       },
     ]);
+  };
+
+  const nudgeOrderQty = (pid: number, delta: number) => {
+    setLevelRows((prev) =>
+      prev.map((x) => {
+        if (x.approved_product_id !== pid) return x;
+        const cur = Number(x.order_qty) || 0;
+        const next = Math.max(0, cur + delta);
+        return {
+          ...x,
+          order_qty: next > 0 ? formatStockQty(next, x.uom, 'ceil') : '',
+        };
+      })
+    );
   };
 
   const adjust = async (
@@ -719,6 +860,8 @@ function Inner() {
         return r.target_level === '' ? -1 : Number(r.target_level) || 0;
       case 'suggested_order_qty':
         return Number(r.suggested_order_qty) || 0;
+      case 'order_qty':
+        return Number(r.order_qty) || 0;
       case 'uom':
         return String(r.uom || '').toLowerCase();
       default:
@@ -800,7 +943,7 @@ function Inner() {
       <SchoolsHeader
         title="Kitchen stock"
         titleAccent="Levels · GRN"
-        description="Estimated stock holding from DBE menu × learners. Set how many days of stock to hold — reorder prompts and suggested SP PO quantities follow."
+        description="Estimated stock holding from DBE menu × learners. When days cover is low, suggested PO lines use the required qty to restore target hold — edit Order qty up or down to match school needs."
         action={
           <div className="flex gap-2">
             <Link
@@ -1088,7 +1231,8 @@ function Inner() {
                   <SortTh label="On hand" sortKey="qty_on_hand" />
                   <SortTh label="Reorder at" sortKey="reorder_level" />
                   <SortTh label="Target hold" sortKey="target_level" />
-                  <SortTh label="Suggest PO" sortKey="suggested_order_qty" />
+                  <SortTh label="Required (cover)" sortKey="suggested_order_qty" />
+                  <SortTh label="Order qty" sortKey="order_qty" />
                   <SortTh label="UOM" sortKey="uom" />
                   <th className="px-2 py-2 text-[10px] font-bold uppercase text-slate-400">
                     Order
@@ -1099,7 +1243,7 @@ function Inner() {
                 {levelRows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={10}
+                      colSpan={11}
                       className="px-4 py-8 text-center text-slate-500"
                     >
                       No catalogue products yet — join DBE for the approved list.
@@ -1108,7 +1252,7 @@ function Inner() {
                 ) : sortedFilteredLevels.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={10}
+                      colSpan={11}
                       className="px-4 py-8 text-center text-slate-500"
                     >
                       No products in this category.
@@ -1122,7 +1266,7 @@ function Inner() {
                         className="bg-slate-100/90 border-y border-slate-200"
                       >
                         <td
-                          colSpan={10}
+                          colSpan={11}
                           className="px-3 py-1.5 text-[11px] font-black uppercase tracking-wide text-slate-700"
                         >
                           {group.category.replace(/_/g, ' ')}
@@ -1231,13 +1375,20 @@ function Inner() {
                               })
                             }
                             onBlur={() =>
-                              patchLevelRow(pid, (x) => ({
-                                qty_on_hand: formatStockQty(
+                              patchLevelRow(pid, (x) => {
+                                const qty_on_hand = formatStockQty(
                                   x.qty_on_hand,
                                   x.uom,
                                   'round'
-                                ),
-                              }))
+                                );
+                                return {
+                                  qty_on_hand,
+                                  ...recomputeRowOrderQty({
+                                    ...x,
+                                    qty_on_hand,
+                                  }),
+                                };
+                              })
                             }
                           />
                         </td>
@@ -1256,17 +1407,23 @@ function Inner() {
                               })
                             }
                             onBlur={() =>
-                              patchLevelRow(pid, (x) =>
-                                x.reorder_level === ''
-                                  ? {}
-                                  : {
-                                      reorder_level: formatStockQty(
+                              patchLevelRow(pid, (x) => {
+                                const reorder_level =
+                                  x.reorder_level === ''
+                                    ? ''
+                                    : formatStockQty(
                                         x.reorder_level,
                                         x.uom,
                                         'ceil'
-                                      ),
-                                    }
-                              )
+                                      );
+                                return {
+                                  reorder_level,
+                                  ...recomputeRowOrderQty({
+                                    ...x,
+                                    reorder_level,
+                                  }),
+                                };
+                              })
                             }
                           />
                         </td>
@@ -1285,17 +1442,23 @@ function Inner() {
                               })
                             }
                             onBlur={() =>
-                              patchLevelRow(pid, (x) =>
-                                x.target_level === ''
-                                  ? {}
-                                  : {
-                                      target_level: formatStockQty(
+                              patchLevelRow(pid, (x) => {
+                                const target_level =
+                                  x.target_level === ''
+                                    ? ''
+                                    : formatStockQty(
                                         x.target_level,
                                         x.uom,
                                         'ceil'
-                                      ),
-                                    }
-                              )
+                                      );
+                                return {
+                                  target_level,
+                                  ...recomputeRowOrderQty({
+                                    ...x,
+                                    target_level,
+                                  }),
+                                };
+                              })
                             }
                           />
                         </td>
@@ -1308,6 +1471,57 @@ function Inner() {
                               )
                             : '—'}
                         </td>
+                        <td className="px-2 py-1.5">
+                          <div className="inline-flex items-center gap-0.5">
+                            <button
+                              type="button"
+                              className="w-6 h-6 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 inline-flex items-center justify-center"
+                              onClick={() => nudgeOrderQty(pid, -1)}
+                              title="Decrease order qty"
+                              aria-label="Decrease order quantity"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <input
+                              type="number"
+                              step={1}
+                              min={0}
+                              inputMode="numeric"
+                              className="w-16 rounded-lg border border-sky-200 bg-sky-50/50 px-1.5 py-1 text-xs font-black tabular-nums text-center text-sky-950"
+                              value={r.order_qty}
+                              placeholder="0"
+                              title="Qty sent to suggested PO — edit for school requirements"
+                              onChange={(e) =>
+                                patchLevelRow(pid, {
+                                  order_qty: e.target.value,
+                                })
+                              }
+                              onBlur={() =>
+                                patchLevelRow(pid, (x) =>
+                                  x.order_qty === '' ||
+                                  !(Number(x.order_qty) > 0)
+                                    ? { order_qty: '' }
+                                    : {
+                                        order_qty: formatStockQty(
+                                          x.order_qty,
+                                          x.uom,
+                                          'ceil'
+                                        ),
+                                      }
+                                )
+                              }
+                            />
+                            <button
+                              type="button"
+                              className="w-6 h-6 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 inline-flex items-center justify-center"
+                              onClick={() => nudgeOrderQty(pid, 1)}
+                              title="Increase order qty"
+                              aria-label="Increase order quantity"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </td>
                         <td className="px-2 py-1.5 text-xs text-slate-500">
                           {r.uom}
                         </td>
@@ -1316,7 +1530,7 @@ function Inner() {
                             type="button"
                             onClick={() => orderOneProduct(r)}
                             className="text-[10px] font-bold text-sky-800 border border-sky-200 bg-sky-50 hover:bg-sky-100 rounded-lg px-2 py-1 inline-flex items-center gap-0.5"
-                            title="Add this product to a new SP order (any product — not only suggested)"
+                            title="Add this product to a new SP order using Order qty (required cover gap by default)"
                           >
                             <ShoppingCart className="w-3 h-3" />
                             Order

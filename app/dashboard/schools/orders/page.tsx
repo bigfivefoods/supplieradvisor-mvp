@@ -22,6 +22,8 @@ import {
   Printer,
   CheckCircle2,
   Star,
+  Minus,
+  Plus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -210,7 +212,7 @@ function Inner() {
       setShowForm(true);
       sessionStorage.removeItem('nsnp_kitchen_suggested_po');
       toast.success(
-        `Loaded ${next.length} suggested line(s) from kitchen stock cover — review qty & SP, then submit`
+        `Loaded ${next.length} line(s) with required cover levels from kitchen — adjust qty up/down if needed, pick SP & delivery date, then submit`
       );
       // clean query param without reload
       const url = new URL(window.location.href);
@@ -1010,20 +1012,100 @@ function Inner() {
                   key={i}
                   className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white border border-slate-100 px-3 py-2"
                 >
-                  <span>
+                  <span className="min-w-0">
                     <span className="font-bold text-emerald-800">
                       {l.brand_name}
                     </span>{' '}
-                    · {l.product_name} × {l.qty} {l.uom} @{' '}
-                    {formatMoney(l.unit_price)}
+                    · {l.product_name}
+                    <span className="text-slate-400"> · {l.uom}</span>
+                    {l.unit_price > 0 ? (
+                      <span className="text-slate-500">
+                        {' '}
+                        @ {formatMoney(l.unit_price)}
+                      </span>
+                    ) : null}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => removeLine(i)}
-                    className="text-[10px] font-bold text-rose-600"
-                  >
-                    Remove
-                  </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      className="w-7 h-7 rounded-lg border border-slate-200 bg-slate-50 inline-flex items-center justify-center hover:bg-white"
+                      title="Decrease quantity"
+                      onClick={() =>
+                        setLines((prev) =>
+                          prev.map((row, idx) =>
+                            idx === i
+                              ? {
+                                  ...row,
+                                  qty: Math.max(1, Math.round(row.qty) - 1),
+                                }
+                              : row
+                          )
+                        )
+                      }
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      inputMode="numeric"
+                      className="w-16 rounded-lg border border-sky-200 bg-sky-50/40 px-2 py-1.5 text-sm font-black tabular-nums text-center"
+                      value={l.qty}
+                      title="Adjust quantity for school requirements"
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setLines((prev) =>
+                          prev.map((row, idx) =>
+                            idx === i
+                              ? {
+                                  ...row,
+                                  qty: Math.max(0, Number(v) || 0),
+                                }
+                              : row
+                          )
+                        );
+                      }}
+                      onBlur={() =>
+                        setLines((prev) =>
+                          prev.map((row, idx) =>
+                            idx === i
+                              ? {
+                                  ...row,
+                                  qty: Math.max(1, Math.round(Number(row.qty) || 1)),
+                                }
+                              : row
+                          )
+                        )
+                      }
+                    />
+                    <button
+                      type="button"
+                      className="w-7 h-7 rounded-lg border border-slate-200 bg-slate-50 inline-flex items-center justify-center hover:bg-white"
+                      title="Increase quantity"
+                      onClick={() =>
+                        setLines((prev) =>
+                          prev.map((row, idx) =>
+                            idx === i
+                              ? {
+                                  ...row,
+                                  qty: Math.max(1, Math.round(row.qty) + 1),
+                                }
+                              : row
+                          )
+                        )
+                      }
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeLine(i)}
+                      className="text-[10px] font-bold text-rose-600 ml-1"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
