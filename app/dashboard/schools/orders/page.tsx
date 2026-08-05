@@ -32,6 +32,8 @@ import {
   SchoolsHeader,
   SchoolsPage,
 } from '@/components/schools/SchoolsShell';
+import SchoolOrderWizard from '@/components/schools/SchoolOrderWizard';
+import PoStatusTrail from '@/components/schools/PoStatusTrail';
 
 type Product = {
   id: number;
@@ -50,6 +52,7 @@ type Line = {
   qty: number;
   unit_price: number;
   uom: string;
+  category?: string | null;
 };
 
 export default function SchoolOrdersPage() {
@@ -92,6 +95,9 @@ function Inner() {
   const [catalogueLabel, setCatalogueLabel] = useState(
     'department approved list'
   );
+  const [hasAgency, setHasAgency] = useState(true);
+  const [wizardMode, setWizardMode] = useState(true);
+  const [busyPoId, setBusyPoId] = useState<number | null>(null);
 
   /** Open PO as PDF (browser viewer can print). download=true forces attachment. */
   const openPo = (orderId: number, opts?: { download?: boolean }) => {
@@ -168,6 +174,14 @@ function Inner() {
       } else if (p.agencyName) {
         setCatalogueLabel(`${p.agencyName} approved foods`);
       }
+      setHasAgency(
+        Boolean(
+          p.catalogue?.agencyProfileId ||
+            p.agencyProfileId ||
+            p.catalogue?.agencyName ||
+            p.agencyName
+        )
+      );
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
     } finally {
@@ -194,6 +208,7 @@ function Inner() {
         qty?: number;
         uom?: string;
         unit_price?: number;
+        category?: string;
       }>;
       if (!Array.isArray(parsed) || !parsed.length) return;
       const next: Line[] = parsed
@@ -205,13 +220,15 @@ function Inner() {
           qty: Number(l.qty),
           unit_price: Number(l.unit_price) || 0,
           uom: String(l.uom || 'kg'),
+          category: l.category != null ? String(l.category) : null,
         }));
       if (!next.length) return;
       setLines(next);
       setShowForm(true);
+      setWizardMode(true);
       sessionStorage.removeItem('nsnp_kitchen_suggested_po');
       toast.success(
-        `Loaded ${next.length} line(s) with required cover levels from kitchen — adjust qty up/down if needed, pick SP & delivery date, then submit`
+        `Loaded ${next.length} line(s) from kitchen cover — complete the order wizard (qty → SP → date → send)`
       );
       // clean query param without reload
       const url = new URL(window.location.href);
@@ -221,6 +238,30 @@ function Inner() {
       /* soft */
     }
   }, []);
+
+  const spAcceptPo = async (poId: number) => {
+    setBusyPoId(poId);
+    try {
+      const res = await fetch('/api/schools/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          companyId,
+          id: poId,
+          action: 'accept',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Accept failed');
+      toast.success(data.message || 'PO accepted — create DN next');
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusyPoId(null);
+    }
+  };
 
   const menuProducts = useMemo(() => {
     if (!menuProductIds.length) return [] as Product[];
@@ -626,13 +667,44 @@ function Inner() {
                               Fulfilled
                             </span>
                           ) : (
-                            <Link
-                              href="/dashboard/schools/ops"
-                              className="text-xs font-bold text-amber-900 bg-amber-100 border border-amber-200 rounded-full px-2.5 py-1 hover:bg-amber-200 inline-flex items-center gap-1"
-                            >
-                              Fulfil <ArrowRight className="w-3 h-3" />
-                            </Link>
+                            <>
+                              {['submitted', 'draft'].includes(status) ? (
+                                <button
+                                  type="button"
+                                  disabled={busyPoId === Number(o.id)}
+                                  onClick={() => void spAcceptPo(Number(o.id))}
+                                  className="text-xs font-bold text-white bg-[#0077b6] rounded-full px-2.5 py-1 hover:bg-[#0096c7] disabled:opacity-50"
+                                >
+                                  {busyPoId === Number(o.id)
+                                    ? '…'
+                                    : 'Accept PO'}
+                                </button>
+                              ) : null}
+                              <Link
+                                href="/dashboard/schools/deliveries"
+                                className="text-xs font-bold text-amber-900 bg-amber-100 border border-amber-200 rounded-full px-2.5 py-1 hover:bg-amber-200 inline-flex items-center gap-1"
+                              >
+                                Create DN <ArrowRight className="w-3 h-3" />
+                              </Link>
+                              <Link
+                                href="/dashboard/schools/ops"
+                                className="text-[10px] font-bold text-slate-600 hover:underline"
+                              >
+                                Fulfil queue
+                              </Link>
+                            </>
                           )}
+                          <div className="w-full max-w-[11rem] mt-1">
+                            <PoStatusTrail
+                              status={String(o.status)}
+                              metadata={
+                                o.metadata && typeof o.metadata === 'object'
+                                  ? (o.metadata as Record<string, unknown>)
+                                  : null
+                              }
+                              compact
+                            />
+                          </div>
                           <button
                             type="button"
                             onClick={() => openPo(Number(o.id))}
@@ -649,12 +721,6 @@ function Inner() {
                           >
                             <Printer className="w-3 h-3" /> Download
                           </button>
-                          <Link
-                            href="/dashboard/schools/isp-sla"
-                            className="text-[10px] font-bold text-slate-500 hover:underline"
-                          >
-                            OTIFEF scores
-                          </Link>
                         </div>
                       </td>
                     </tr>
@@ -807,7 +873,63 @@ function Inner() {
       </div>
 
       {showForm ? (
-        <div className="mb-6 rounded-3xl border border-sky-100 bg-sky-50/40 p-5 space-y-3">
+        <div className="mb-6 space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setWizardMode(true)}
+              className={`rounded-full px-3 py-1.5 text-[11px] font-bold border ${
+                wizardMode
+                  ? 'bg-[#0077b6] text-white border-[#0077b6]'
+                  : 'bg-white border-slate-200 text-slate-600'
+              }`}
+            >
+              Guided wizard
+            </button>
+            <button
+              type="button"
+              onClick={() => setWizardMode(false)}
+              className={`rounded-full px-3 py-1.5 text-[11px] font-bold border ${
+                !wizardMode
+                  ? 'bg-slate-800 text-white border-slate-800'
+                  : 'bg-white border-slate-200 text-slate-600'
+              }`}
+            >
+              Classic form
+            </button>
+          </div>
+
+          {wizardMode ? (
+            <SchoolOrderWizard
+              companyId={companyId}
+              lines={lines}
+              onLinesChange={setLines}
+              links={links.map((l) => ({
+                isp_profile_id: Number(l.isp_profile_id),
+                display_name: String(
+                  l.display_name || l.isp_name || `SP #${l.isp_profile_id}`
+                ),
+                preferred: Boolean(l.preferred),
+                status: String(l.status || ''),
+              }))}
+              ispId={ispId}
+              onIspIdChange={setIspId}
+              expectedDate={expectedDate}
+              onExpectedDateChange={setExpectedDate}
+              notes={notes}
+              onNotesChange={setNotes}
+              minDeliveryDate={minDeliveryDate}
+              catalogueLabel={catalogueLabel}
+              hasAgency={hasAgency}
+              brandPickOk={brandPick == null ? null : brandPick.ok}
+              submitting={submitting}
+              onSubmit={submit}
+              onCancel={() => setShowForm(false)}
+            />
+          ) : null}
+
+          {!wizardMode ? (
+        <div className="rounded-3xl border border-sky-100 bg-sky-50/40 p-5 space-y-3">
           {menuProducts.length > 0 ? (
             <button
               type="button"
@@ -1106,6 +1228,8 @@ function Inner() {
             </ul>
           ) : null}
         </div>
+          ) : null}
+        </div>
       ) : null}
 
       {loading ? (
@@ -1138,7 +1262,7 @@ function Inner() {
                 <th className="px-3 py-3">SP</th>
                 <th className="px-3 py-3">Lines</th>
                 <th className="px-3 py-3">Total</th>
-                <th className="px-3 py-3">Status</th>
+                <th className="px-3 py-3">Status / trail</th>
                 <th className="px-3 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -1186,9 +1310,26 @@ function Inner() {
                       <span className="text-[10px] font-bold uppercase rounded-full bg-slate-100 px-2 py-0.5">
                         {String(o.status)}
                       </span>
+                      <div className="mt-1.5 max-w-[14rem]">
+                        <PoStatusTrail
+                          status={String(o.status)}
+                          metadata={
+                            o.metadata && typeof o.metadata === 'object'
+                              ? (o.metadata as Record<string, unknown>)
+                              : null
+                          }
+                          compact
+                        />
+                      </div>
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       <div className="inline-flex flex-wrap justify-end gap-1">
+                        <Link
+                          href="/dashboard/schools/deliveries"
+                          className="text-[11px] font-bold text-emerald-800 px-2 py-1 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
+                        >
+                          Track / GRN
+                        </Link>
                         <button
                           type="button"
                           onClick={() => openPo(Number(o.id))}

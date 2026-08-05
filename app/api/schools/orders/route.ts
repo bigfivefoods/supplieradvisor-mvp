@@ -1076,7 +1076,8 @@ export async function POST(request: NextRequest) {
       (school as { natemis?: string | null }).natemis != null
         ? String((school as { natemis?: string }).natemis)
         : null;
-    const poMeta = {
+    const { appendStatusTrail } = await import('@/lib/schools/order-process');
+    let poMeta: Record<string, unknown> = {
       isp_name: ispPartySnap.name,
       isp_csd_number: ispPartySnap.csd_number,
       school_name: schoolNameSnap,
@@ -1085,7 +1086,14 @@ export async function POST(request: NextRequest) {
         (school as { emis_number?: string | null }).emis_number != null
           ? String((school as { emis_number?: string }).emis_number)
           : null,
+      process: 'school_po_sp_wholesale_grn',
     };
+    poMeta = appendStatusTrail(poMeta, {
+      status: 'submitted',
+      label: 'PO sent to SP',
+      by_role: 'school',
+      note: `${lines.length} approved line(s) · deliver by ${expectedDate}`,
+    });
 
     const { data, error: iErr } = await supabase
       .from('school_purchase_orders')
@@ -1180,23 +1188,128 @@ export async function PATCH(request: NextRequest) {
     if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
+    const { data: existing } = await supabase
+      .from('school_purchase_orders')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (!existing) {
+      return NextResponse.json({ error: 'PO not found' }, { status: 404 });
+    }
+
+    const isSchool = Number(existing.profile_id) === companyId;
+    const isIsp = Number(existing.isp_profile_id) === companyId;
+    if (!isSchool && !isIsp) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const action = String(body.action || '').toLowerCase();
+    const { appendStatusTrail, trailLabel } = await import(
+      '@/lib/schools/order-process'
+    );
+    const meta =
+      existing.metadata && typeof existing.metadata === 'object'
+        ? { ...(existing.metadata as Record<string, unknown>) }
+        : {};
+
     const patch: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
-    if (body.status) patch.status = body.status;
-    if (body.notes !== undefined) patch.notes = body.notes;
 
-    const { data, error } = await supabase
-      .from('school_purchase_orders')
-      .update(patch)
-      .eq('id', id)
-      .eq('profile_id', companyId)
-      .select('*')
-      .single();
+    // Foolproof SP path: accept → fulfilling
+    if (action === 'accept' && isIsp) {
+      patch.status = 'accepted';
+      patch.metadata = appendStatusTrail(meta, {
+        status: 'accepted',
+        label: 'SP accepted PO',
+        by_role: 'isp',
+        note: body.notes || 'Will procure school brands and deliver',
+      });
+      if (body.notes) patch.notes_isp = body.notes;
+    } else if (action === 'start_fulfil' && isIsp) {
+      patch.status = 'fulfilling';
+      patch.metadata = appendStatusTrail(meta, {
+        status: 'fulfilling',
+        label: 'SP buying / packing',
+        by_role: 'isp',
+        note: body.notes || null,
+      });
+    } else if (action === 'cancel' && (isSchool || isIsp)) {
+      const st = String(existing.status || '');
+      if (['received', 'closed', 'dispatched', 'delivered'].includes(st)) {
+        return NextResponse.json(
+          { error: 'Cannot cancel after dispatch / receive' },
+          { status: 400 }
+        );
+      }
+      patch.status = 'cancelled';
+      patch.metadata = appendStatusTrail(meta, {
+        status: 'cancelled',
+        label: 'PO cancelled',
+        by_role: isIsp ? 'isp' : 'school',
+        note: body.notes || body.reason || null,
+      });
+    } else {
+      // Generic patch (school own PO only for free-form status)
+      if (body.status && isSchool) patch.status = body.status;
+      if (body.notes !== undefined && isSchool) patch.notes = body.notes;
+      if (body.status) {
+        patch.metadata = appendStatusTrail(meta, {
+          status: String(body.status),
+          label: trailLabel(String(body.status)),
+          by_role: isIsp ? 'isp' : 'school',
+          note: body.notes || null,
+        });
+      }
+    }
+
+    let q = supabase.from('school_purchase_orders').update(patch).eq('id', id);
+    if (isSchool) q = q.eq('profile_id', companyId);
+    else q = q.eq('isp_profile_id', companyId);
+
+    const { data, error } = await q.select('*').single();
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
-    return NextResponse.json({ success: true, order: data });
+
+    // Notify school when SP accepts
+    if (action === 'accept' && isIsp) {
+      try {
+        const { logNsnpEvent } = await import('@/lib/schools/events');
+        await logNsnpEvent(supabase, {
+          companyId,
+          targetCompanyId: Number(existing.profile_id),
+          schoolProfileId: Number(existing.school_profile_id),
+          kind: 'po_accepted',
+          title: `SP accepted ${existing.po_number || `PO #${id}`}`,
+          body: 'Service provider will procure approved brands and deliver with POD.',
+          href: '/dashboard/schools/orders',
+          metadata: { po_id: id },
+        });
+      } catch {
+        /* soft */
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      order: data,
+      message:
+        action === 'accept'
+          ? 'PO accepted — create DN when truck is ready'
+          : action === 'start_fulfil'
+            ? 'Marked fulfilling'
+            : 'PO updated',
+      next:
+        action === 'accept'
+          ? {
+              label: 'Create delivery note',
+              href: '/dashboard/schools/deliveries',
+              action: 'create_from_po',
+              po_id: id,
+            }
+          : undefined,
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

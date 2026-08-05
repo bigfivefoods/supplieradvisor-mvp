@@ -396,6 +396,141 @@ export async function POST(request: NextRequest) {
     }
 
     // ── SP adds/updates lines (catalogue + optional other items) ─────
+    // SP: OOS substitute — same-category approved brand only (half score)
+    if (action === 'substitute_line') {
+      const id = Number(body.id || body.delivery_id);
+      const lineIndex = Number(body.line_index);
+      const subPid = Number(body.substitute_product_id);
+      if (!Number.isFinite(id) || !Number.isFinite(lineIndex) || !(subPid > 0)) {
+        return NextResponse.json(
+          {
+            error:
+              'id, line_index, and substitute_product_id required for OOS substitute',
+          },
+          { status: 400 }
+        );
+      }
+      const { data: d } = await supabase
+        .from('school_nsnp_deliveries')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      if (!d) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      }
+      if (Number(d.isp_profile_id) !== companyId) {
+        return NextResponse.json({ error: 'Only the SP can substitute' }, { status: 403 });
+      }
+      if (String(d.status) === 'received') {
+        return NextResponse.json(
+          { error: 'Cannot substitute after school GRN' },
+          { status: 400 }
+        );
+      }
+      const lines = Array.isArray(d.lines)
+        ? [...(d.lines as Array<Record<string, unknown>>)]
+        : [];
+      if (lineIndex < 0 || lineIndex >= lines.length) {
+        return NextResponse.json({ error: 'Invalid line_index' }, { status: 400 });
+      }
+      const {
+        resolveCatalogueContext,
+        filterApprovedProductIds,
+      } = await import('@/lib/schools/approved-catalogue');
+      const catalogue = await resolveCatalogueContext(
+        supabase,
+        Number(d.school_company_id),
+        { schoolProfileId: Number(d.school_profile_id) }
+      );
+      const byId = await filterApprovedProductIds(
+        supabase,
+        catalogue.agencyProfileId,
+        [subPid]
+      );
+      const prod = byId.get(subPid);
+      if (!prod) {
+        return NextResponse.json(
+          {
+            error:
+              'Substitute must be on the department approved list. Unapproved brands are not allowed.',
+            hard_block: true,
+          },
+          { status: 400 }
+        );
+      }
+      const { applyOosSubstitute } = await import('@/lib/schools/order-process');
+      const result = applyOosSubstitute({
+        line: lines[lineIndex],
+        substitute_product_id: subPid,
+        substitute_product: {
+          id: Number(prod.id),
+          name: String(prod.name),
+          brand_name: prod.brand_name != null ? String(prod.brand_name) : null,
+          category: prod.category != null ? String(prod.category) : null,
+          uom: prod.uom != null ? String(prod.uom) : null,
+          active: prod.active !== false,
+        },
+        reason: body.reason || 'Out of stock',
+      });
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error, hard_block: true }, { status: 400 });
+      }
+      lines[lineIndex] = result.line;
+      const scored = scoreDeliveryLines(lines);
+      const meta = {
+        ...((d.metadata as Record<string, unknown>) || {}),
+        compliance_pct: scored.compliance_pct,
+        full_compliance: scored.full_compliance,
+        brand_exact_pct: scored.brand_exact_pct ?? null,
+        substitute_line_count: scored.substitute_line_count ?? 0,
+        last_substitute: {
+          at: new Date().toISOString(),
+          line_index: lineIndex,
+          fidelity: result.fidelity,
+          reason: body.reason || 'Out of stock',
+        },
+      };
+      const { data: updated, error } = await supabase
+        .from('school_nsnp_deliveries')
+        .update({
+          lines,
+          metadata: meta,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select('*')
+        .single();
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      // Notify school of substitute
+      try {
+        const { logNsnpEvent } = await import('@/lib/schools/events');
+        await logNsnpEvent(supabase, {
+          companyId,
+          targetCompanyId: Number(d.school_company_id),
+          schoolProfileId: Number(d.school_profile_id),
+          kind: 'brand_substitute',
+          title: 'SP used approved brand substitute (OOS)',
+          body: result.message,
+          href: '/dashboard/schools/deliveries',
+          metadata: { delivery_id: id, fidelity: result.fidelity },
+        });
+      } catch {
+        /* soft */
+      }
+      return NextResponse.json({
+        success: true,
+        delivery: updated,
+        substitute: {
+          fidelity: result.fidelity,
+          credit: result.credit,
+          message: result.message,
+        },
+        compliance: scored,
+      });
+    }
+
     if (action === 'update_lines' || action === 'add_extra_lines') {
       const deliveryId = Number(body.id || body.delivery_id);
       if (!Number.isFinite(deliveryId)) {
@@ -721,6 +856,7 @@ export async function POST(request: NextRequest) {
       if (action === 'confirm' && isIsp) {
         patch.status = 'confirmed';
       } else if (action === 'dispatch' && isIsp) {
+        // Soft POD warning: recommend photo before truck leaves
         patch.status = 'dispatched';
         patch.dispatched_at = now;
         if (body.vehicle_reg) patch.vehicle_reg = body.vehicle_reg;
@@ -731,7 +867,72 @@ export async function POST(request: NextRequest) {
         if (Array.isArray(body.lines)) {
           patch.lines = body.lines;
         }
+        // Sync PO trail
+        if (d.po_id) {
+          try {
+            const { appendStatusTrail } = await import(
+              '@/lib/schools/order-process'
+            );
+            const { data: po } = await supabase
+              .from('school_purchase_orders')
+              .select('id, metadata, status')
+              .eq('id', Number(d.po_id))
+              .maybeSingle();
+            if (po) {
+              const m =
+                po.metadata && typeof po.metadata === 'object'
+                  ? (po.metadata as Record<string, unknown>)
+                  : {};
+              await supabase
+                .from('school_purchase_orders')
+                .update({
+                  status: 'dispatched',
+                  metadata: appendStatusTrail(m, {
+                    status: 'dispatched',
+                    label: 'DN dispatched',
+                    by_role: 'isp',
+                  }),
+                  updated_at: now,
+                })
+                .eq('id', Number(d.po_id));
+            }
+          } catch {
+            /* soft */
+          }
+        }
       } else if (action === 'mark_delivered' && isIsp) {
+        // Prefer POD before delivered (hard if env or require_pod)
+        {
+          const meta0 = (d.metadata || {}) as Record<string, unknown>;
+          let hasPod = Boolean(meta0.has_pod_photo);
+          if (!hasPod) {
+            const { count } = await supabase
+              .from('school_nsnp_delivery_files')
+              .select('*', { count: 'exact', head: true })
+              .eq('delivery_id', id)
+              .in('kind', ['pod', 'photo']);
+            hasPod = (count || 0) > 0;
+          }
+          const hard =
+            body.require_pod === true ||
+            body.require_pod === 1 ||
+            body.require_pod === '1' ||
+            process.env.NSNP_POD_HARD_GATE === '1';
+          if (!hasPod && hard) {
+            return NextResponse.json(
+              {
+                error:
+                  'Attach a photo POD before marking delivered — proof of delivery is required.',
+                pod_required: true,
+              },
+              { status: 400 }
+            );
+          }
+          if (!hasPod) {
+            podWarning =
+              'Marked delivered without POD photo — attach POD soon to protect SP prize points.';
+          }
+        }
         patch.status = 'delivered';
         patch.delivered_at = now;
         let linesForScore = Array.isArray(d.lines)

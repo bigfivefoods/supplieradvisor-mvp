@@ -78,6 +78,11 @@ type LineEdit = {
   uom: string;
   approved?: boolean;
   other_item?: boolean;
+  category?: string | null;
+  ordered_category?: string | null;
+  ordered_product_id?: number | null;
+  oos_substitute?: boolean;
+  brand_fidelity?: string;
 };
 
 const TIMELINE = [
@@ -145,14 +150,29 @@ function Inner() {
   const [savingLines, setSavingLines] = useState(false);
   /** PO · DN · GRN matching + exceptions (shared school / SP) */
   const [matching, setMatching] = useState<MatchingReport | null>(null);
+  const [catalogue, setCatalogue] = useState<
+    Array<{
+      id: number;
+      name: string;
+      brand_name: string;
+      category?: string | null;
+      uom?: string | null;
+    }>
+  >([]);
+  const [subLineIdx, setSubLineIdx] = useState<number | null>(null);
+  const [subProductId, setSubProductId] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(
-        `/api/schools/deliveries?companyId=${companyId}&role=auto`,
-        { cache: 'no-store' }
-      );
+      const [res, pRes] = await Promise.all([
+        fetch(`/api/schools/deliveries?companyId=${companyId}&role=auto`, {
+          cache: 'no-store',
+        }),
+        fetch(`/api/schools/approved?companyId=${companyId}`, {
+          cache: 'no-store',
+        }),
+      ]);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
       setRole(data.role === 'isp' ? 'isp' : 'school');
@@ -167,12 +187,61 @@ function Inner() {
         }
       );
       if (data.warning) toast.message(data.warning);
+      if (pRes.ok) {
+        const p = await pRes.json();
+        setCatalogue(
+          (p.products || []).map((x: Record<string, unknown>) => ({
+            id: Number(x.id),
+            name: String(x.name || ''),
+            brand_name: String(x.brand_name || ''),
+            category: x.category != null ? String(x.category) : null,
+            uom: x.uom != null ? String(x.uom) : null,
+          }))
+        );
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
     } finally {
       setLoading(false);
     }
   }, [companyId]);
+
+  const doOosSubstitute = async (lineIndex: number) => {
+    if (!selected || !subProductId) {
+      return toast.error('Pick an approved same-category brand');
+    }
+    setBusy(true);
+    try {
+      const res = await fetch('/api/schools/deliveries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          companyId,
+          action: 'substitute_line',
+          id: selected.id,
+          delivery_id: selected.id,
+          line_index: lineIndex,
+          substitute_product_id: Number(subProductId),
+          reason: 'Out of stock — approved same-category brand',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Substitute failed');
+      toast.success(
+        data.substitute?.message ||
+          'Substitute applied — half SP credit if different brand'
+      );
+      setSubLineIdx(null);
+      setSubProductId('');
+      void load();
+      if (data.delivery) void openDetail(data.delivery);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
     void load();
@@ -1139,6 +1208,101 @@ function Inner() {
                                 className={`w-2.5 h-2.5 rounded-full shrink-0 ${qtyVarianceDotClass(v.tone)}`}
                               />
                             </div>
+                            {role === 'isp' &&
+                            !['received', 'cancelled'].includes(
+                              String(selected.status)
+                            ) ? (
+                              <div className="mt-2 pl-0 sm:pl-1">
+                                {subLineIdx === i ? (
+                                  <div className="rounded-xl border border-violet-200 bg-violet-50 p-2 space-y-1.5">
+                                    <p className="text-[10px] font-bold text-violet-950">
+                                      OOS — approved same-category substitute
+                                      (half score)
+                                    </p>
+                                    <select
+                                      className="w-full rounded-lg border border-violet-200 bg-white px-2 py-1.5 text-xs font-semibold"
+                                      value={subProductId}
+                                      onChange={(e) =>
+                                        setSubProductId(e.target.value)
+                                      }
+                                    >
+                                      <option value="">
+                                        Pick approved brand in category…
+                                      </option>
+                                      {catalogue
+                                        .filter((p) => {
+                                          const cat = String(
+                                            l.ordered_category ||
+                                              l.category ||
+                                              ''
+                                          )
+                                            .toLowerCase()
+                                            .trim();
+                                          const pc = String(p.category || '')
+                                            .toLowerCase()
+                                            .trim();
+                                          if (!cat) return p.id !== l.approved_product_id;
+                                          return (
+                                            pc === cat ||
+                                            pc.includes(cat) ||
+                                            cat.includes(pc)
+                                          );
+                                        })
+                                        .map((p) => (
+                                          <option key={p.id} value={p.id}>
+                                            {p.brand_name} — {p.name}
+                                          </option>
+                                        ))}
+                                    </select>
+                                    <div className="flex gap-1">
+                                      <button
+                                        type="button"
+                                        disabled={busy}
+                                        onClick={() => void doOosSubstitute(i)}
+                                        className="text-[10px] font-bold bg-violet-700 text-white rounded-lg px-2 py-1"
+                                      >
+                                        Apply substitute
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSubLineIdx(null);
+                                          setSubProductId('');
+                                        }}
+                                        className="text-[10px] font-bold text-slate-600 px-2 py-1"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSubLineIdx(i);
+                                      setSubProductId('');
+                                    }}
+                                    className="text-[10px] font-bold text-violet-800 underline"
+                                  >
+                                    OOS — substitute approved brand
+                                  </button>
+                                )}
+                                {l.oos_substitute ||
+                                l.brand_fidelity === 'approved_substitute' ? (
+                                  <p className="text-[10px] font-semibold text-violet-800 mt-1">
+                                    Substitute applied (half SP credit)
+                                  </p>
+                                ) : null}
+                              </div>
+                            ) : null}
+                            {role === 'school' &&
+                            (l.oos_substitute ||
+                              l.brand_fidelity === 'approved_substitute') ? (
+                              <p className="text-[10px] font-semibold text-violet-800 mt-1">
+                                SP delivered an approved same-category brand
+                                substitute (OOS) — half SP score.
+                              </p>
+                            ) : null}
                           </li>
                         );
                       })
@@ -1163,19 +1327,19 @@ function Inner() {
                   ) : null}
                 </div>
 
-                {/* SP: add other items on DN */}
+                {/* SP: commercial extras — not NSNP kitchen stock */}
                 {role === 'isp' &&
                 !['received', 'cancelled'].includes(
                   String(selected.status)
                 ) ? (
                   <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-3 space-y-2">
                     <p className="text-[10px] font-bold uppercase text-amber-900">
-                      Add other item on delivery note
+                      Commercial extras (not NSNP stock)
                     </p>
                     <p className="text-[11px] text-amber-900/80">
-                      Allowed for commercial extras — kitchen will not stock
-                      them as NSNP approved. Full SP prize points need 100%
-                      DBE-approved lines.
+                      Unapproved brands are blocked on NSNP lines. Prefer OOS
+                      same-category substitute above. Extras here do not enter
+                      kitchen stock and reduce full-compliance score.
                     </p>
                     <div className="grid sm:grid-cols-4 gap-2">
                       <input
