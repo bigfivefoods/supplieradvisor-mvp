@@ -1392,6 +1392,10 @@ async function createDeliveryFromPo(
 
   type DnLine = {
     approved_product_id: number | null;
+    /** School-selected brand on the PO — SP should buy this when available */
+    ordered_product_id?: number | null;
+    ordered_category?: string;
+    category?: string;
     product_name: string;
     brand_name: string;
     qty_ordered: number;
