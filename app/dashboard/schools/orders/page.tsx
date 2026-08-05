@@ -23,7 +23,6 @@ import {
   CheckCircle2,
   Star,
   Minus,
-  Plus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';

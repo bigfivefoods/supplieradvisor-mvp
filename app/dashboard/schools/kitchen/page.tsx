@@ -231,9 +231,11 @@ function Inner() {
           uom,
         });
         const suggestRaw =
-          plan?.suggested_order_qty ??
-          (Number(s?.suggested_order_qty) || 0) ||
-          required;
+          Number(
+            plan?.suggested_order_qty != null
+              ? plan.suggested_order_qty
+              : s?.suggested_order_qty
+          ) || required;
         const suggestFinal = roundStockQty(suggestRaw, uom, 'ceil') || required;
         return {
           approved_product_id: prod.id,
