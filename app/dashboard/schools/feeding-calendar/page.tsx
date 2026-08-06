@@ -11,7 +11,9 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Download,
   Loader2,
+  Printer,
   RefreshCw,
   Save,
   Send,
@@ -357,6 +359,47 @@ function Inner() {
             >
               <ChevronRight className="w-4 h-4" />
             </button>
+            {calendar ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const q = new URLSearchParams({
+                      companyId: String(companyId),
+                      year: String(year),
+                      download: '1',
+                    });
+                    window.open(
+                      `/api/schools/feeding-calendar/pdf?${q}`,
+                      '_blank',
+                      'noopener,noreferrer'
+                    );
+                  }}
+                  className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+                  title="Download annual feeding calendar PDF"
+                >
+                  <Download className="w-3.5 h-3.5" /> Download PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const q = new URLSearchParams({
+                      companyId: String(companyId),
+                      year: String(year),
+                    });
+                    window.open(
+                      `/api/schools/feeding-calendar/pdf?${q}`,
+                      '_blank',
+                      'noopener,noreferrer'
+                    );
+                  }}
+                  className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+                  title="Open PDF to print"
+                >
+                  <Printer className="w-3.5 h-3.5" /> Print
+                </button>
+              </>
+            ) : null}
             <button
               type="button"
               onClick={() => void load()}
