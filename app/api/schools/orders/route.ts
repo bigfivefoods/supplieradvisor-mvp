@@ -1171,6 +1171,123 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/** Draft / unsent only — never after submit to SP */
+function isUnsentSchoolPoStatus(status: unknown): boolean {
+  const s = String(status || '')
+    .toLowerCase()
+    .trim();
+  return s === 'draft' || s === '';
+}
+
+/**
+ * DELETE /api/schools/orders?companyId=&id=
+ * School may hard-delete a PO only if it has not been sent to the SP (draft).
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const sp = request.nextUrl.searchParams;
+    const companyId = Number(sp.get('companyId'));
+    const id = Number(sp.get('id'));
+    if (!Number.isFinite(companyId) || !Number.isFinite(id)) {
+      return NextResponse.json(
+        { error: 'companyId and id required' },
+        { status: 400 }
+      );
+    }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!gate.ok) return gate.response;
+
+    const supabase = getSupabaseServer();
+    const { data: existing } = await supabase
+      .from('school_purchase_orders')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (!existing) {
+      return NextResponse.json({ error: 'PO not found' }, { status: 404 });
+    }
+
+    // School owns the PO (profile) — also allow school_profile company match
+    const isSchoolOwner =
+      Number(existing.profile_id) === companyId ||
+      Number(existing.school_profile_id) === companyId;
+    if (!isSchoolOwner) {
+      // Verify via school profile link for companyId
+      const { school } = await getOrCreateSchoolProfile(supabase, companyId);
+      if (!school || Number(existing.school_profile_id) !== Number(school.id)) {
+        return NextResponse.json(
+          { error: 'Only the school that created this PO can delete it' },
+          { status: 403 }
+        );
+      }
+    }
+
+    if (!isUnsentSchoolPoStatus(existing.status)) {
+      return NextResponse.json(
+        {
+          error:
+            'Only draft orders that have not been sent to the service provider can be deleted. Cancel a submitted PO instead.',
+          status: existing.status,
+          hard_block: true,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Refuse if any delivery / GRN already references this PO
+    const { data: dns } = await supabase
+      .from('school_nsnp_deliveries')
+      .select('id')
+      .eq('po_id', id)
+      .limit(1);
+    if (dns?.length) {
+      return NextResponse.json(
+        {
+          error:
+            'This PO already has a delivery note and cannot be deleted.',
+        },
+        { status: 400 }
+      );
+    }
+    const { data: grns } = await supabase
+      .from('school_kitchen_receipts')
+      .select('id')
+      .eq('po_id', id)
+      .limit(1);
+    if (grns?.length) {
+      return NextResponse.json(
+        { error: 'This PO already has a kitchen receipt and cannot be deleted.' },
+        { status: 400 }
+      );
+    }
+
+    const { error: dErr } = await supabase
+      .from('school_purchase_orders')
+      .delete()
+      .eq('id', id)
+      .eq('school_profile_id', Number(existing.school_profile_id));
+
+    if (dErr) {
+      return NextResponse.json({ error: dErr.message }, { status: 400 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      deleted: true,
+      id,
+      po_number: existing.po_number,
+      message: `Deleted draft ${existing.po_number || `PO #${id}`} (not sent to SP)`,
+    });
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Error' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
@@ -1199,9 +1316,18 @@ export async function PATCH(request: NextRequest) {
 
     const isSchool = Number(existing.profile_id) === companyId;
     const isIsp = Number(existing.isp_profile_id) === companyId;
+    // School company may own via school profile even if profile_id differs
+    let isSchoolViaProfile = isSchool;
     if (!isSchool && !isIsp) {
+      const { school } = await getOrCreateSchoolProfile(supabase, companyId);
+      if (school && Number(existing.school_profile_id) === Number(school.id)) {
+        isSchoolViaProfile = true;
+      }
+    }
+    if (!isSchool && !isIsp && !isSchoolViaProfile) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    const schoolActor = isSchool || isSchoolViaProfile;
 
     const action = String(body.action || '').toLowerCase();
     const { appendStatusTrail, trailLabel } = await import(
@@ -1211,6 +1337,35 @@ export async function PATCH(request: NextRequest) {
       existing.metadata && typeof existing.metadata === 'object'
         ? { ...(existing.metadata as Record<string, unknown>) }
         : {};
+
+    // Hard-delete draft that was never sent to SP
+    if ((action === 'delete' || action === 'discard') && schoolActor) {
+      if (!isUnsentSchoolPoStatus(existing.status)) {
+        return NextResponse.json(
+          {
+            error:
+              'Only draft orders that have not been sent to the service provider can be deleted. Cancel a submitted PO instead.',
+            status: existing.status,
+          },
+          { status: 400 }
+        );
+      }
+      const { error: dErr } = await supabase
+        .from('school_purchase_orders')
+        .delete()
+        .eq('id', id)
+        .eq('school_profile_id', Number(existing.school_profile_id));
+      if (dErr) {
+        return NextResponse.json({ error: dErr.message }, { status: 400 });
+      }
+      return NextResponse.json({
+        success: true,
+        deleted: true,
+        id,
+        po_number: existing.po_number,
+        message: `Deleted draft ${existing.po_number || `PO #${id}`} (not sent to SP)`,
+      });
+    }
 
     const patch: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
@@ -1234,13 +1389,30 @@ export async function PATCH(request: NextRequest) {
         by_role: 'isp',
         note: body.notes || null,
       });
-    } else if (action === 'cancel' && (isSchool || isIsp)) {
+    } else if (action === 'cancel' && (schoolActor || isIsp)) {
       const st = String(existing.status || '');
       if (['received', 'closed', 'dispatched', 'delivered'].includes(st)) {
         return NextResponse.json(
           { error: 'Cannot cancel after dispatch / receive' },
           { status: 400 }
         );
+      }
+      // Prefer delete for pure drafts (not sent)
+      if (schoolActor && isUnsentSchoolPoStatus(st)) {
+        const { error: dErr } = await supabase
+          .from('school_purchase_orders')
+          .delete()
+          .eq('id', id)
+          .eq('school_profile_id', Number(existing.school_profile_id));
+        if (dErr) {
+          return NextResponse.json({ error: dErr.message }, { status: 400 });
+        }
+        return NextResponse.json({
+          success: true,
+          deleted: true,
+          id,
+          message: `Deleted draft ${existing.po_number || `PO #${id}`}`,
+        });
       }
       patch.status = 'cancelled';
       patch.metadata = appendStatusTrail(meta, {
@@ -1251,8 +1423,8 @@ export async function PATCH(request: NextRequest) {
       });
     } else {
       // Generic patch (school own PO only for free-form status)
-      if (body.status && isSchool) patch.status = body.status;
-      if (body.notes !== undefined && isSchool) patch.notes = body.notes;
+      if (body.status && schoolActor) patch.status = body.status;
+      if (body.notes !== undefined && schoolActor) patch.notes = body.notes;
       if (body.status) {
         patch.metadata = appendStatusTrail(meta, {
           status: String(body.status),
@@ -1264,8 +1436,13 @@ export async function PATCH(request: NextRequest) {
     }
 
     let q = supabase.from('school_purchase_orders').update(patch).eq('id', id);
-    if (isSchool) q = q.eq('profile_id', companyId);
-    else q = q.eq('isp_profile_id', companyId);
+    if (schoolActor && !isIsp) {
+      q = q.eq('school_profile_id', Number(existing.school_profile_id));
+    } else if (isSchool) {
+      q = q.eq('profile_id', companyId);
+    } else {
+      q = q.eq('isp_profile_id', companyId);
+    }
 
     const { data, error } = await q.select('*').single();
     if (error) {

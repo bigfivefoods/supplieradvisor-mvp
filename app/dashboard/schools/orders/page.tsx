@@ -23,6 +23,7 @@ import {
   CheckCircle2,
   Star,
   Minus,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -258,6 +259,37 @@ function Inner() {
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusyPoId(null);
+    }
+  };
+
+  /** Hard-delete draft PO that has not been sent to the SP */
+  const deleteDraftPo = async (po: Record<string, unknown>) => {
+    const poId = Number(po.id);
+    const label = String(po.po_number || `PO #${poId}`);
+    if (
+      !confirm(
+        `Delete ${label}?\n\nOnly draft orders that have not been sent to the service provider can be deleted. This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    setBusyPoId(poId);
+    try {
+      const res = await fetch(
+        `/api/schools/orders?companyId=${companyId}&id=${poId}`,
+        {
+          method: 'DELETE',
+          credentials: 'same-origin',
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Delete failed');
+      toast.success(data.message || `Deleted ${label}`);
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Delete failed');
     } finally {
       setBusyPoId(null);
     }
@@ -1273,6 +1305,10 @@ function Inner() {
                 const lineCount = Array.isArray(o.lines)
                   ? (o.lines as unknown[]).length
                   : 0;
+                const status = String(o.status || '').toLowerCase();
+                const canDeleteDraft =
+                  role === 'school' &&
+                  (status === 'draft' || status === '');
                 const spName =
                   o.isp_name ||
                   links.find(
@@ -1309,7 +1345,13 @@ function Inner() {
                       {formatMoney(Number(o.total_amount || 0))}
                     </td>
                     <td className="px-3 py-2.5">
-                      <span className="text-[10px] font-bold uppercase rounded-full bg-slate-100 px-2 py-0.5">
+                      <span
+                        className={`text-[10px] font-bold uppercase rounded-full px-2 py-0.5 ${
+                          canDeleteDraft
+                            ? 'bg-amber-100 text-amber-900'
+                            : 'bg-slate-100 text-slate-700'
+                        }`}
+                      >
                         {String(o.status)}
                       </span>
                       <div className="mt-1.5 max-w-[14rem]">
@@ -1326,6 +1368,22 @@ function Inner() {
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       <div className="inline-flex flex-wrap justify-end gap-1">
+                        {canDeleteDraft ? (
+                          <button
+                            type="button"
+                            disabled={busyPoId === Number(o.id)}
+                            onClick={() => void deleteDraftPo(o)}
+                            className="text-[11px] font-bold text-rose-700 px-2 py-1 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 inline-flex items-center gap-1 disabled:opacity-40"
+                            title="Delete draft — not yet sent to SP"
+                          >
+                            {busyPoId === Number(o.id) ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3 h-3" />
+                            )}
+                            Delete
+                          </button>
+                        ) : null}
                         <Link
                           href="/dashboard/schools/deliveries"
                           className="text-[11px] font-bold text-emerald-800 px-2 py-1 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
