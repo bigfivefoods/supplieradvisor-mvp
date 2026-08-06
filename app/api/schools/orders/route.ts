@@ -1367,6 +1367,197 @@ export async function PATCH(request: NextRequest) {
       });
     }
 
+    // Send draft PO to SP (kitchen reorder drafts + manual drafts)
+    if (
+      (action === 'submit' ||
+        action === 'send' ||
+        action === 'send_to_sp') &&
+      schoolActor
+    ) {
+      if (!isUnsentSchoolPoStatus(existing.status)) {
+        return NextResponse.json(
+          {
+            error: `PO is already ${existing.status || 'in progress'} — only drafts can be sent to the SP.`,
+            status: existing.status,
+          },
+          { status: 400 }
+        );
+      }
+
+      const lines = Array.isArray(existing.lines) ? existing.lines : [];
+      if (!lines.length) {
+        return NextResponse.json(
+          { error: 'Draft has no lines — add products before sending' },
+          { status: 400 }
+        );
+      }
+
+      let ispProfileId =
+        body.isp_profile_id != null
+          ? Number(body.isp_profile_id)
+          : Number(existing.isp_profile_id);
+      if (!Number.isFinite(ispProfileId) || ispProfileId <= 0) {
+        return NextResponse.json(
+          {
+            error:
+              'Select a service provider before sending. Only linked SPs can receive this PO.',
+            field: 'isp_profile_id',
+            hard_block: true,
+          },
+          { status: 400 }
+        );
+      }
+
+      const { ispMaySupplySchool } = await import('@/lib/schools/isp-access');
+      const may = await ispMaySupplySchool(
+        supabase,
+        Number(existing.school_profile_id),
+        ispProfileId
+      );
+      if (!may.ok) {
+        return NextResponse.json(
+          {
+            error:
+              may.reason ||
+              'Orders only to SPs approved for your school / department.',
+            hard_block: true,
+          },
+          { status: 400 }
+        );
+      }
+      const { data: schoolLink } = await supabase
+        .from('school_isp_links')
+        .select('id, status')
+        .eq('school_profile_id', existing.school_profile_id)
+        .eq('isp_profile_id', ispProfileId)
+        .eq('status', 'active')
+        .maybeSingle();
+      if (!schoolLink) {
+        return NextResponse.json(
+          {
+            error:
+              'SP must be linked and active for this school before you can send the PO.',
+            hard_block: true,
+          },
+          { status: 400 }
+        );
+      }
+
+      const expectedRaw =
+        body.expected_date != null
+          ? String(body.expected_date).trim()
+          : existing.expected_date != null
+            ? String(existing.expected_date).trim()
+            : '';
+      const expectedDate = /^\d{4}-\d{2}-\d{2}$/.test(expectedRaw)
+        ? expectedRaw.slice(0, 10)
+        : null;
+      if (!expectedDate) {
+        return NextResponse.json(
+          {
+            error:
+              'Required delivery date is mandatory before sending (YYYY-MM-DD). It drives SP On-Time scoring.',
+            field: 'expected_date',
+            hard_block: true,
+          },
+          { status: 400 }
+        );
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      if (expectedDate < today) {
+        return NextResponse.json(
+          {
+            error:
+              'Required delivery date cannot be in the past — choose today or a future date.',
+            field: 'expected_date',
+            hard_block: true,
+          },
+          { status: 400 }
+        );
+      }
+
+      const ispPartySnap = await resolveIspParty(supabase, ispProfileId);
+      let nextMeta = {
+        ...meta,
+        isp_name: ispPartySnap.name,
+        isp_csd_number: ispPartySnap.csd_number,
+      };
+      nextMeta = appendStatusTrail(nextMeta, {
+        status: 'submitted',
+        label: 'PO sent to SP',
+        by_role: 'school',
+        note:
+          body.notes ||
+          `${lines.length} line(s) · deliver by ${expectedDate}`,
+      });
+
+      const notesPatch =
+        body.notes != null
+          ? String(body.notes)
+          : existing.notes != null
+            ? String(existing.notes)
+            : null;
+
+      const { data: sent, error: sErr } = await supabase
+        .from('school_purchase_orders')
+        .update({
+          status: 'submitted',
+          isp_profile_id: ispProfileId,
+          expected_date: expectedDate,
+          notes: notesPatch,
+          metadata: nextMeta,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('school_profile_id', Number(existing.school_profile_id))
+        .select('*')
+        .single();
+
+      if (sErr) {
+        return NextResponse.json({ error: sErr.message }, { status: 400 });
+      }
+
+      try {
+        const { logNsnpEvent } = await import('@/lib/schools/events');
+        const schoolName = String(
+          meta.school_name ||
+            (existing as { school_name?: string }).school_name ||
+            'School'
+        );
+        const poNumber = String(
+          existing.po_number || sent?.po_number || `PO #${id}`
+        );
+        await logNsnpEvent(supabase, {
+          companyId,
+          targetCompanyId: ispProfileId,
+          schoolProfileId: Number(existing.school_profile_id),
+          kind: 'po_submitted',
+          title: `New school PO ${poNumber}`,
+          body: `${schoolName} ordered ${lines.length} approved line(s). Source from wholesalers → Create DN → dispatch with POD.`,
+          href: '/dashboard/schools/ops',
+          metadata: {
+            po_id: id,
+            po_number: poNumber,
+            supply_model: 'sp_wholesale_to_school',
+            from_draft: true,
+          },
+        });
+      } catch {
+        /* soft */
+      }
+
+      return NextResponse.json({
+        success: true,
+        order: sent,
+        message: `PO ${sent?.po_number || id} sent to SP — they will source and deliver by ${expectedDate}`,
+        next: {
+          label: 'SP fulfil queue',
+          href: '/dashboard/schools/ops',
+          po_id: id,
+        },
+      });
+    }
+
     const patch: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };

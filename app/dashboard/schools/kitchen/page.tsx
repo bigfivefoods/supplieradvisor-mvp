@@ -16,6 +16,8 @@ import {
   Download,
   Printer,
   FileSpreadsheet,
+  Send,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -165,11 +167,18 @@ function Inner() {
   /** School can tick any stock lines to build a PO (not only suggested) */
   const [orderSelect, setOrderSelect] = useState<Set<number>>(() => new Set());
   const [creatingPo, setCreatingPo] = useState(false);
+  const [sendingPoId, setSendingPoId] = useState<number | null>(null);
+  const [draftOrders, setDraftOrders] = useState<
+    Array<Record<string, unknown>>
+  >([]);
+  const [spLinks, setSpLinks] = useState<
+    Array<{ isp_profile_id: number; display_name?: string }>
+  >([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [kRes, pRes] = await Promise.all([
+      const [kRes, pRes, oRes, lRes] = await Promise.all([
         fetch(`/api/schools/kitchen?companyId=${companyId}`, {
           cache: 'no-store',
           credentials: 'same-origin',
@@ -178,10 +187,49 @@ function Inner() {
           cache: 'no-store',
           credentials: 'same-origin',
         }),
+        fetch(`/api/schools/orders?companyId=${companyId}`, {
+          cache: 'no-store',
+          credentials: 'same-origin',
+        }),
+        fetch(`/api/schools/isps?companyId=${companyId}`, {
+          cache: 'no-store',
+          credentials: 'same-origin',
+        }),
       ]);
       const k = await kRes.json();
       const p = await pRes.json();
       if (!kRes.ok) throw new Error(k.error || 'Failed');
+      if (oRes.ok) {
+        const od = await oRes.json().catch(() => ({}));
+        const list = (od.orders || od.items || []) as Array<
+          Record<string, unknown>
+        >;
+        setDraftOrders(
+          list.filter((o) =>
+            ['draft', ''].includes(String(o.status || '').toLowerCase())
+          )
+        );
+      }
+      if (lRes.ok) {
+        const ld = await lRes.json().catch(() => ({}));
+        const raw = (ld.links || ld.isps || []) as Array<
+          Record<string, unknown>
+        >;
+        setSpLinks(
+          raw
+            .filter((x) => String(x.status || 'active') === 'active')
+            .map((x) => ({
+              isp_profile_id: Number(x.isp_profile_id || x.profile_id),
+              display_name: String(
+                x.display_name ||
+                  x.trading_name ||
+                  x.name ||
+                  `SP ${x.isp_profile_id || x.profile_id}`
+              ),
+            }))
+            .filter((x) => Number.isFinite(x.isp_profile_id))
+        );
+      }
       setStock(k.stock || []);
       setLowStock(k.lowStock || []);
       setReceipts(k.receipts || []);
@@ -607,6 +655,88 @@ function Inner() {
       `${payload.length} line(s) ready on Orders — adjust qty, pick SP & delivery date, then submit`
     );
     window.location.href = '/dashboard/schools/orders?suggested=1';
+  };
+
+  /** Send a kitchen draft PO to the SP (status draft → submitted) */
+  const sendDraftPoToSp = async (po: Record<string, unknown>) => {
+    const poId = Number(po.id);
+    let ispId =
+      po.isp_profile_id != null ? Number(po.isp_profile_id) : NaN;
+    if (!Number.isFinite(ispId) || ispId <= 0) {
+      ispId = spLinks[0]?.isp_profile_id ?? NaN;
+    }
+    if (!Number.isFinite(ispId) || ispId <= 0) {
+      toast.error('Link a service provider first (Schools → SPs)');
+      window.location.href = '/dashboard/schools/isps';
+      return;
+    }
+    let expected =
+      po.expected_date != null
+        ? String(po.expected_date).slice(0, 10)
+        : '';
+    const today = new Date().toISOString().slice(0, 10);
+    if (!expected || expected < today) {
+      const lead = Number(leadDays) || 3;
+      const d = new Date();
+      d.setDate(d.getDate() + Math.max(1, lead));
+      expected = d.toISOString().slice(0, 10);
+    }
+    if (
+      !confirm(
+        `Send ${String(po.po_number || `PO #${poId}`)} to your SP?\n\nDelivery by ${expected}. SP will be notified to source and deliver.`
+      )
+    ) {
+      return;
+    }
+    setSendingPoId(poId);
+    try {
+      const res = await fetch('/api/schools/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          companyId,
+          id: poId,
+          action: 'send_to_sp',
+          isp_profile_id: ispId,
+          expected_date: expected,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Send failed');
+      toast.success(data.message || 'PO sent to SP');
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Send failed');
+    } finally {
+      setSendingPoId(null);
+    }
+  };
+
+  const deleteKitchenDraft = async (po: Record<string, unknown>) => {
+    const poId = Number(po.id);
+    if (
+      !confirm(
+        `Delete draft ${String(po.po_number || poId)}? It has not been sent to the SP.`
+      )
+    ) {
+      return;
+    }
+    setSendingPoId(poId);
+    try {
+      const res = await fetch(
+        `/api/schools/orders?companyId=${companyId}&id=${poId}`,
+        { method: 'DELETE', credentials: 'same-origin' }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Delete failed');
+      toast.success(data.message || 'Draft deleted');
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Delete failed');
+    } finally {
+      setSendingPoId(null);
+    }
   };
 
   /**
@@ -1664,6 +1794,97 @@ function Inner() {
           </div>
         ) : null}
       </div>
+
+      {/* Draft kitchen POs awaiting send to SP */}
+      {draftOrders.length > 0 ? (
+        <div className="mb-6 rounded-3xl border-2 border-emerald-200 bg-emerald-50/40 p-5 space-y-3">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-sm font-black text-emerald-950 inline-flex items-center gap-2">
+                <Send className="w-4 h-4" />
+                Draft orders to your SP
+              </p>
+              <p className="text-[11px] text-emerald-900/80 mt-0.5 max-w-xl">
+                Suggested / standard reorders stay as drafts until you send
+                them. Review lines, then send so the SP can procure and
+                deliver.
+              </p>
+            </div>
+            <Link
+              href="/dashboard/schools/orders"
+              className="text-xs font-bold text-[#0077b6] hover:underline"
+            >
+              All orders →
+            </Link>
+          </div>
+          <ul className="space-y-2">
+            {draftOrders.map((o) => {
+              const lines = Array.isArray(o.lines)
+                ? (o.lines as unknown[])
+                : [];
+              const ispName =
+                o.isp_name ||
+                spLinks.find(
+                  (l) =>
+                    Number(l.isp_profile_id) === Number(o.isp_profile_id)
+                )?.display_name ||
+                (o.isp_profile_id
+                  ? `SP #${o.isp_profile_id}`
+                  : 'No SP yet');
+              return (
+                <li
+                  key={String(o.id)}
+                  className="rounded-2xl border border-emerald-100 bg-white px-4 py-3 flex flex-wrap items-center justify-between gap-2"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-900">
+                      {String(o.po_number || `PO #${o.id}`)}
+                      <span className="ml-2 text-[10px] font-bold uppercase rounded-full bg-amber-100 text-amber-900 px-2 py-0.5">
+                        draft
+                      </span>
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {lines.length} line(s) · {String(ispName)}
+                      {o.expected_date
+                        ? ` · deliver by ${String(o.expected_date).slice(0, 10)}`
+                        : ''}
+                      {o.notes
+                        ? ` · ${String(o.notes).slice(0, 60)}`
+                        : ''}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      disabled={sendingPoId === Number(o.id)}
+                      onClick={() => void sendDraftPoToSp(o)}
+                      className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+                      title="Send this draft PO to your service provider"
+                    >
+                      {sendingPoId === Number(o.id) ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Send className="w-3.5 h-3.5" />
+                      )}
+                      Send to SP
+                    </button>
+                    <button
+                      type="button"
+                      disabled={sendingPoId === Number(o.id)}
+                      onClick={() => void deleteKitchenDraft(o)}
+                      className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1 text-rose-700"
+                      title="Delete unsent draft"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
 
       {/* GRN */}
       <div className="mb-6 rounded-3xl border border-slate-200 bg-white p-5 space-y-4">

@@ -24,6 +24,7 @@ import {
   Star,
   Minus,
   Trash2,
+  Send,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -99,6 +100,12 @@ function Inner() {
   const [hasAgency, setHasAgency] = useState(true);
   const [wizardMode, setWizardMode] = useState(true);
   const [busyPoId, setBusyPoId] = useState<number | null>(null);
+  /** Draft PO send-to-SP panel */
+  const [sendDraft, setSendDraft] = useState<Record<string, unknown> | null>(
+    null
+  );
+  const [sendIspId, setSendIspId] = useState('');
+  const [sendExpectedDate, setSendExpectedDate] = useState('');
 
   /** Open PO as PDF (browser viewer can print). download=true forces attachment. */
   const openPo = (orderId: number, opts?: { download?: boolean }) => {
@@ -290,6 +297,63 @@ function Inner() {
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Delete failed');
+    } finally {
+      setBusyPoId(null);
+    }
+  };
+
+  const openSendDraft = (po: Record<string, unknown>) => {
+    const existingIsp = po.isp_profile_id != null ? String(po.isp_profile_id) : '';
+    const linked =
+      existingIsp &&
+      links.some((l) => String(l.isp_profile_id) === existingIsp)
+        ? existingIsp
+        : links[0]?.isp_profile_id != null
+          ? String(links[0].isp_profile_id)
+          : '';
+    const exp =
+      po.expected_date != null
+        ? String(po.expected_date).slice(0, 10)
+        : '';
+    setSendIspId(linked);
+    setSendExpectedDate(exp && exp >= minDeliveryDate ? exp : '');
+    setSendDraft(po);
+  };
+
+  /** Submit a kitchen/manual draft PO to the linked SP */
+  const sendDraftToSp = async () => {
+    if (!sendDraft) return;
+    const poId = Number(sendDraft.id);
+    if (!sendIspId) {
+      return toast.error('Select a service provider');
+    }
+    if (!sendExpectedDate || !/^\d{4}-\d{2}-\d{2}$/.test(sendExpectedDate)) {
+      return toast.error('Set the required delivery date');
+    }
+    if (sendExpectedDate < minDeliveryDate) {
+      return toast.error('Delivery date cannot be in the past');
+    }
+    setBusyPoId(poId);
+    try {
+      const res = await fetch('/api/schools/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          companyId,
+          id: poId,
+          action: 'send_to_sp',
+          isp_profile_id: Number(sendIspId),
+          expected_date: sendExpectedDate,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Send failed');
+      toast.success(data.message || 'PO sent to SP');
+      setSendDraft(null);
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Send failed');
     } finally {
       setBusyPoId(null);
     }
@@ -1306,9 +1370,11 @@ function Inner() {
                   ? (o.lines as unknown[]).length
                   : 0;
                 const status = String(o.status || '').toLowerCase();
-                const canDeleteDraft =
+                const isDraft =
                   role === 'school' &&
                   (status === 'draft' || status === '');
+                const canDeleteDraft = isDraft;
+                const canSendDraft = isDraft;
                 const spName =
                   o.isp_name ||
                   links.find(
@@ -1368,6 +1434,22 @@ function Inner() {
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       <div className="inline-flex flex-wrap justify-end gap-1">
+                        {canSendDraft ? (
+                          <button
+                            type="button"
+                            disabled={busyPoId === Number(o.id)}
+                            onClick={() => openSendDraft(o)}
+                            className="text-[11px] font-bold text-white px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 inline-flex items-center gap-1 disabled:opacity-40"
+                            title="Send this draft PO to your service provider"
+                          >
+                            {busyPoId === Number(o.id) ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Send className="w-3 h-3" />
+                            )}
+                            Send to SP
+                          </button>
+                        ) : null}
                         {canDeleteDraft ? (
                           <button
                             type="button"
@@ -1441,11 +1523,131 @@ function Inner() {
         >
           Deliveries / receive
         </Link>
+        <Link
+          href="/dashboard/schools/kitchen"
+          className="font-bold text-[#0077b6] underline"
+        >
+          Kitchen · suggested reorder
+        </Link>
         <span className="inline-flex items-center gap-1 text-amber-800">
           <Trophy className="w-3 h-3" /> On-catalogue orders protect prize &amp;
           claims
         </span>
       </div>
+
+      {/* Send draft kitchen/manual PO to SP */}
+      {sendDraft && role === 'school' ? (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 p-3">
+          <div
+            className="w-full max-w-md rounded-3xl border border-slate-200 bg-white shadow-xl p-5 space-y-4"
+            role="dialog"
+            aria-labelledby="send-po-title"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p
+                  id="send-po-title"
+                  className="text-sm font-black text-slate-900"
+                >
+                  Send PO to service provider
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {String(sendDraft.po_number || `PO #${sendDraft.id}`)} ·{' '}
+                  {Array.isArray(sendDraft.lines)
+                    ? (sendDraft.lines as unknown[]).length
+                    : 0}{' '}
+                  line(s) · draft from kitchen / school
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSendDraft(null)}
+                className="text-xs font-bold text-slate-500 hover:text-slate-800"
+              >
+                Close
+              </button>
+            </div>
+            {links.length === 0 ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                No active SP link. Accept or link a service provider first.{' '}
+                <Link
+                  href="/dashboard/schools/isps"
+                  className="font-bold underline"
+                >
+                  SPs →
+                </Link>
+              </div>
+            ) : (
+              <label className="block text-xs">
+                <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                  Service provider
+                </span>
+                <select
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold"
+                  value={sendIspId}
+                  onChange={(e) => setSendIspId(e.target.value)}
+                >
+                  <option value="">Select SP…</option>
+                  {links.map((l) => (
+                    <option
+                      key={String(l.isp_profile_id)}
+                      value={String(l.isp_profile_id)}
+                    >
+                      {String(
+                        l.display_name ||
+                          l.trading_name ||
+                          `SP #${l.isp_profile_id}`
+                      )}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label className="block text-xs">
+              <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                Required delivery date
+              </span>
+              <input
+                type="date"
+                min={minDeliveryDate}
+                value={sendExpectedDate}
+                onChange={(e) => setSendExpectedDate(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-bold tabular-nums"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">
+                Used for SP On-Time (OTIFEF) scoring
+              </span>
+            </label>
+            <div className="flex flex-wrap gap-2 justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setSendDraft(null)}
+                className="btn-secondary !py-2 !px-3 text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={
+                  busyPoId === Number(sendDraft.id) ||
+                  !sendIspId ||
+                  !sendExpectedDate ||
+                  links.length === 0
+                }
+                onClick={() => void sendDraftToSp()}
+                className="btn-primary !py-2 !px-4 text-xs inline-flex items-center gap-1 disabled:opacity-40"
+              >
+                {busyPoId === Number(sendDraft.id) ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Send className="w-3.5 h-3.5" />
+                )}
+                Send to SP
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </SchoolsPage>
   );
 }
