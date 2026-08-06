@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Loader2, RefreshCw, Truck, Star } from 'lucide-react';
+import {
+  Loader2,
+  RefreshCw,
+  Truck,
+  Star,
+  Download,
+  Printer,
+  FileSpreadsheet,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { formatMoney } from '@/lib/accounting/types';
@@ -64,6 +72,26 @@ function Inner() {
     void load();
   }, [load]);
 
+  /** PDF / CSV for the current PeriodSlicer cover period (all roles) */
+  const openSlaExport = (opts: {
+    format: 'pdf' | 'csv';
+    download?: boolean;
+  }) => {
+    const params = new URLSearchParams({
+      companyId: String(companyId),
+      from: period.from,
+      to: period.to,
+      format: opts.format,
+    });
+    if (period.label) params.set('label', period.label);
+    if (opts.download || opts.format === 'csv') params.set('download', '1');
+    window.open(
+      `/api/schools/isp-sla/export?${params.toString()}`,
+      '_blank',
+      'noopener,noreferrer'
+    );
+  };
+
   const headerMode =
     programme.role === 'sp'
       ? 'isp'
@@ -79,17 +107,41 @@ function Inner() {
         mode={headerMode}
         description={
           isSchool
-            ? 'Objective delivery metrics for service providers. Schools rate SPs and food under Rate SP & food. Preferred SPs stay on-catalogue and deliver on time.'
+            ? 'Objective delivery metrics for service providers for the selected cover period. Download PDF or CSV for boards and review packs. Rate SPs under Rate SP & food.'
             : programme.role === 'sp'
-              ? 'Your objective On-Time · In-Full · Error-Free delivery scores. Schools submit subjective ratings from their kitchen profile (not from this SP workspace).'
-              : 'Objective delivery metrics for service providers on the programme. Subjective Rate SP & food is school-only.'
+              ? 'Your objective On-Time · In-Full · Error-Free scores for the selected slicer period. Download PDF or CSV for your pack. Schools submit subjective ratings from their kitchen profile.'
+              : 'Objective delivery metrics for service providers on the programme for the selected cover period. Download PDF or CSV for programme review.'
         }
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => openSlaExport({ format: 'pdf', download: true })}
+              className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              title={`Download OTIFEF scorecard for ${period.label || `${period.from} → ${period.to}`}`}
+            >
+              <Download className="w-3.5 h-3.5" /> Download PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => openSlaExport({ format: 'pdf' })}
+              className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              title="Open PDF to print"
+            >
+              <Printer className="w-3.5 h-3.5" /> Print
+            </button>
+            <button
+              type="button"
+              onClick={() => openSlaExport({ format: 'csv', download: true })}
+              className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              title="Download CSV for Excel / sheets"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" /> CSV
+            </button>
             {isSchool ? (
               <Link
                 href="/dashboard/schools/ratings"
-                className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+                className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
               >
                 <Star className="w-3.5 h-3.5" /> Rate SP / food
               </Link>
@@ -97,7 +149,7 @@ function Inner() {
             <button
               type="button"
               onClick={() => void load()}
-              className="btn-secondary !py-2 !px-3 text-xs"
+              className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>

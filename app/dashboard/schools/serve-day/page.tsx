@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertTriangle,
@@ -31,8 +31,26 @@ export default function ServeDayPage() {
   );
 }
 
+function localIsoDate(d = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function Inner() {
   const companyId = getSelectedCompanyId()!;
+  const todayIso = useMemo(() => localIsoDate(), []);
+  const [serveDate, setServeDate] = useState(() => {
+    if (typeof window === 'undefined') return todayIso;
+    try {
+      const q = new URLSearchParams(window.location.search).get('date');
+      if (q && /^\d{4}-\d{2}-\d{2}$/.test(q) && q <= todayIso) return q;
+    } catch {
+      /* soft */
+    }
+    return todayIso;
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [data, setData] = useState<Record<string, unknown> | null>(null);
@@ -44,19 +62,19 @@ function Inner() {
   const [draftBanner, setDraftBanner] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
 
-  const draftId = String(data?.date || 'today');
+  const draftId = String(data?.date || serveDate || 'today');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(
-        `/api/schools/serve-day?companyId=${companyId}`,
+        `/api/schools/serve-day?companyId=${companyId}&date=${encodeURIComponent(serveDate)}`,
         { cache: 'no-store' }
       );
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed');
       setData(json);
-      const day = String(json.date || 'today');
+      const day = String(json.date || serveDate || 'today');
       const draft = loadOfflineDraft<{
         present?: string;
         served?: string;
@@ -75,9 +93,26 @@ function Inner() {
           `Restored offline draft from ${new Date(draft.savedAt).toLocaleString()}`
         );
       } else {
-        const sug = String(json.suggestedServed ?? '');
-        setPresent(sug);
-        setServed(sug);
+        const att = json.attendance?.present;
+        const fed =
+          json.feeding?.planned_meals ?? json.feeding?.served_meals;
+        const seed =
+          att != null
+            ? String(att)
+            : fed != null
+              ? String(fed)
+              : String(json.suggestedServed ?? '');
+        setPresent(seed);
+        setServed(
+          json.feeding?.served_meals != null
+            ? String(json.feeding.served_meals)
+            : seed
+        );
+        setWaste(
+          json.feeding?.waste_meals != null
+            ? String(json.feeding.waste_meals)
+            : '0'
+        );
         setDraftBanner(null);
       }
     } catch (e: unknown) {
@@ -87,7 +122,7 @@ function Inner() {
         served?: string;
         waste?: string;
         cost?: string;
-      }>('serve-day', companyId, 'today');
+      }>('serve-day', companyId, serveDate || 'today');
       if (draft?.payload) {
         setPresent(String(draft.payload.present || ''));
         setServed(String(draft.payload.served || ''));
@@ -101,7 +136,7 @@ function Inner() {
     } finally {
       setLoading(false);
     }
-  }, [companyId]);
+  }, [companyId, serveDate]);
 
   useEffect(() => {
     void load();
@@ -161,7 +196,7 @@ function Inner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           companyId,
-          date: data?.date,
+          date: data?.date || serveDate,
           meal_type: data?.mealType || 'lunch',
           present: Number(present || 0),
           enrolled: Number(
@@ -229,8 +264,8 @@ function Inner() {
     <SchoolsPage>
       <SchoolsHeader
         title="Serve day"
-        titleAccent="Today"
-        description="One screen for kitchen managers: menu → attendance → meals served → waste. Built for low-friction daily NSNP ops."
+        titleAccent={serveDate === todayIso ? 'Today' : serveDate}
+        description="One screen for kitchen managers: pick the day → menu → attendance → meals served → waste. Defaults to the day you logged in."
         action={
           <button
             type="button"
@@ -248,6 +283,29 @@ function Inner() {
         </div>
       ) : (
         <div className="max-w-xl mx-auto space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 flex flex-wrap items-end gap-2">
+            <label className="text-xs flex-1 min-w-[10rem]">
+              <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                Serve day
+              </span>
+              <input
+                type="date"
+                value={serveDate}
+                max={todayIso}
+                onChange={(e) => {
+                  if (e.target.value) setServeDate(e.target.value);
+                }}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold tabular-nums"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => setServeDate(todayIso)}
+              className="btn-secondary !py-2 !px-3 text-xs"
+            >
+              Today
+            </button>
+          </div>
           {offline || draftBanner ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
               {offline ? 'You are offline. ' : ''}
@@ -270,7 +328,7 @@ function Inner() {
 
           <div className="rounded-3xl border border-slate-200 bg-white p-5">
             <p className="text-[10px] font-bold uppercase text-slate-400">
-              {String(data?.date)} · {String(data?.mealType)}
+              {String(data?.date || serveDate)} · {String(data?.mealType)}
             </p>
             <h2 className="text-xl font-black mt-1">{String(school.name)}</h2>
             <p className="text-sm text-slate-600">

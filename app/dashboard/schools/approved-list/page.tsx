@@ -11,6 +11,9 @@ import {
   X,
   Save,
   ImageIcon,
+  Download,
+  Printer,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -396,6 +399,24 @@ function Inner() {
     }
   };
 
+  /** PDF / CSV catalogue export — same full list for DBE, schools, and SPs */
+  const openApprovedExport = (opts: {
+    format: 'pdf' | 'csv';
+    download?: boolean;
+  }) => {
+    const params = new URLSearchParams({
+      companyId: String(companyId),
+      format: opts.format,
+    });
+    if (opts.download || opts.format === 'csv') params.set('download', '1');
+    if (showInactive) params.set('all', '1');
+    window.open(
+      `/api/schools/approved/export?${params.toString()}`,
+      '_blank',
+      'noopener,noreferrer'
+    );
+  };
+
   return (
     <SchoolsPage>
       <SchoolsHeader
@@ -407,12 +428,36 @@ function Inner() {
         }
         description={
           canEdit
-            ? 'Department-owned NSNP catalogue with product photos. Tag each food Breakfast and/or Lunch so it appears on the mandated menu under that meal. Schools and SPs inherit this list live.'
+            ? 'Department-owned NSNP catalogue with product photos. Tag each food Breakfast and/or Lunch so it appears on the mandated menu under that meal. Schools and SPs inherit this list live. Download the list as PDF or CSV for kitchen boards and SP packs.'
             : catalogue?.message ||
-              'Only foods on your department’s approved list may be ordered or received. Product photos help kitchen and SP teams recognise approved brands.'
+              'Only foods on your department’s approved list may be ordered or received. Download PDF or CSV to print for the kitchen or share with your SP.'
         }
         action={
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => openApprovedExport({ format: 'pdf', download: true })}
+              className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              title="Download NSNP approved foods catalogue PDF"
+            >
+              <Download className="w-3.5 h-3.5" /> Download PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => openApprovedExport({ format: 'pdf' })}
+              className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              title="Open PDF to print"
+            >
+              <Printer className="w-3.5 h-3.5" /> Print
+            </button>
+            <button
+              type="button"
+              onClick={() => openApprovedExport({ format: 'csv', download: true })}
+              className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              title="Download CSV for Excel / sheets"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" /> CSV
+            </button>
             {canEdit ? (
               <>
                 <button

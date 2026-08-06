@@ -13,6 +13,9 @@ import {
   Save,
   Minus,
   Plus,
+  Download,
+  Printer,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -161,6 +164,7 @@ function Inner() {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   /** School can tick any stock lines to build a PO (not only suggested) */
   const [orderSelect, setOrderSelect] = useState<Set<number>>(() => new Set());
+  const [creatingPo, setCreatingPo] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -349,14 +353,7 @@ function Inner() {
     );
   }, [selectedPo]);
 
-  /** Lines with a positive suggested PO qty (may include ok items topping up to target) */
-  const suggestedLines = useMemo(
-    () =>
-      (stockPlan?.products || []).filter((p) => p.suggested_order_qty > 0),
-    [stockPlan]
-  );
-
-  /** Products flagged reorder/critical — always orderable even if suggest was rounded to 0 */
+  /** Products flagged reorder/critical — only these go on the suggested need-only PO */
   const reorderPlanLines = useMemo(
     () =>
       (stockPlan?.products || []).filter(
@@ -364,6 +361,21 @@ function Inner() {
       ),
     [stockPlan]
   );
+
+  /** Count for need-only suggested reorder (includes low_stock rows) */
+  const needOnlyCount = useMemo(() => {
+    const ids = new Set(reorderPlanLines.map((p) => p.approved_product_id));
+    for (const r of levelRows) {
+      if (
+        r.low_stock ||
+        r.cover_status === 'reorder' ||
+        r.cover_status === 'critical'
+      ) {
+        ids.add(r.approved_product_id);
+      }
+    }
+    return ids.size || reorderPlanLines.length || lowStock.length;
+  }, [reorderPlanLines, levelRows, lowStock.length]);
 
   const addBlankLine = () => {
     const first = products[0];
@@ -592,17 +604,80 @@ function Inner() {
       /* soft */
     }
     toast.success(
-      `${payload.length} line(s) with required cover levels ready on Orders — adjust qty up/down if needed, pick SP & delivery date, then submit`
+      `${payload.length} line(s) ready on Orders — adjust qty, pick SP & delivery date, then submit`
     );
     window.location.href = '/dashboard/schools/orders?suggested=1';
   };
 
-  const orderSuggested = (mode: 'suggested' | 'reorder' | 'selected' | 'all') => {
+  /**
+   * Server-side draft PO: need-only reorder, or weekly/monthly standard.
+   * Only lines the school needs for that mode are included.
+   */
+  const createReorderPo = async (
+    mode: 'need' | 'weekly' | 'monthly'
+  ) => {
+    setCreatingPo(true);
+    try {
+      const res = await fetch('/api/schools/kitchen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          companyId,
+          action: 'create_reorder_po',
+          mode,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        // Fallback wizard if server returned lines
+        if (data.fallback_wizard && Array.isArray(data.lines) && data.lines.length) {
+          pushOrderPayload(
+            data.lines.map(
+              (l: {
+                approved_product_id: number;
+                product_name: string;
+                brand_name: string;
+                uom: string;
+                qty: number;
+              }) => ({
+                approved_product_id: Number(l.approved_product_id),
+                product_name: String(l.product_name),
+                brand_name: String(l.brand_name || ''),
+                uom: String(l.uom || 'kg'),
+                qty: Number(l.qty),
+              })
+            )
+          );
+          return;
+        }
+        throw new Error(data.error || 'Could not create reorder PO');
+      }
+      toast.success(
+        data.message ||
+          `Draft ${data.label || 'reorder'} PO ${data.po_number} · ${data.line_count} line(s)`
+      );
+      window.location.href = `/dashboard/schools/orders?created=${data.po_id || ''}`;
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed to create PO');
+    } finally {
+      setCreatingPo(false);
+    }
+  };
+
+  const orderSuggested = (
+    mode: 'suggested' | 'reorder' | 'selected' | 'all' | 'weekly' | 'monthly'
+  ) => {
+    // Server creates draft PO with only needed lines
+    if (mode === 'suggested' || mode === 'reorder') {
+      return void createReorderPo('need');
+    }
+    if (mode === 'weekly' || mode === 'monthly') {
+      return void createReorderPo(mode);
+    }
+
     const planById = new Map(
       (stockPlan?.products || []).map((p) => [p.approved_product_id, p])
-    );
-    const rowById = new Map(
-      levelRows.map((r) => [r.approved_product_id, r] as const)
     );
 
     if (mode === 'selected') {
@@ -654,86 +729,6 @@ function Inner() {
       });
       return pushOrderPayload(rows);
     }
-
-    // suggested | reorder — prefer kitchen rows (editable order_qty) + plan
-    const sourceIds =
-      mode === 'reorder'
-        ? reorderPlanLines.map((p) => p.approved_product_id)
-        : suggestedLines.length
-          ? suggestedLines.map((p) => p.approved_product_id)
-          : reorderPlanLines.map((p) => p.approved_product_id);
-
-    // Also include any low-stock rows from the level table even if plan missed them
-    if (mode === 'suggested' || mode === 'reorder') {
-      for (const r of levelRows) {
-        const low =
-          r.cover_status === 'reorder' ||
-          r.cover_status === 'critical' ||
-          r.low_stock ||
-          (Number(r.suggested_order_qty) || 0) > 0 ||
-          (Number(r.order_qty) || 0) > 0;
-        if (low && !sourceIds.includes(r.approved_product_id)) {
-          if (mode === 'reorder') {
-            if (
-              r.cover_status === 'reorder' ||
-              r.cover_status === 'critical' ||
-              r.low_stock
-            ) {
-              sourceIds.push(r.approved_product_id);
-            }
-          } else if ((Number(r.order_qty) || Number(r.suggested_order_qty) || 0) > 0) {
-            sourceIds.push(r.approved_product_id);
-          }
-        }
-      }
-    }
-
-    if (!sourceIds.length) {
-      return toast.message(
-        mode === 'reorder'
-          ? 'Nothing at reorder point — select products below and use Order selected, or Order any product'
-          : 'No auto-suggested lines — select products in the list and Order selected (any product is allowed)'
-      );
-    }
-
-    pushOrderPayload(
-      sourceIds.map((pid) => {
-        const r = rowById.get(pid);
-        const plan = planById.get(pid);
-        if (r) {
-          return {
-            approved_product_id: r.approved_product_id,
-            product_name: r.product_name,
-            brand_name: r.brand_name,
-            uom: r.uom,
-            qty: orderQtyForRow({
-              ...r,
-              suggested_order_qty:
-                plan?.suggested_order_qty ?? r.suggested_order_qty,
-              target_qty: plan?.target_qty ?? (Number(r.target_level) || 0),
-              status: plan?.status || r.cover_status,
-            }),
-          };
-        }
-        // Fallback from plan only
-        const p = plan!;
-        return {
-          approved_product_id: p.approved_product_id,
-          product_name: p.product_name,
-          brand_name: p.brand_name,
-          uom: p.uom,
-          qty: orderQtyForRow({
-            suggested_order_qty: p.suggested_order_qty,
-            target_qty: p.target_qty,
-            qty_on_hand: p.qty_on_hand,
-            reorder_level: p.reorder_level,
-            daily_usage: p.daily_usage,
-            status: p.status,
-            uom: p.uom,
-          }),
-        };
-      })
-    );
   };
 
   const toggleOrderSelect = (pid: number) => {
@@ -940,14 +935,75 @@ function Inner() {
     );
   };
 
+  /** PDF / CSV of kitchen inventory levels (school board / stock take) */
+  const openKitchenExport = (opts: {
+    format: 'pdf' | 'csv';
+    download?: boolean;
+    lowOnly?: boolean;
+  }) => {
+    const params = new URLSearchParams({
+      companyId: String(companyId),
+      format: opts.format,
+    });
+    if (opts.download || opts.format === 'csv') params.set('download', '1');
+    if (opts.lowOnly) params.set('lowOnly', '1');
+    window.open(
+      `/api/schools/kitchen/export?${params.toString()}`,
+      '_blank',
+      'noopener,noreferrer'
+    );
+  };
+
   return (
     <SchoolsPage>
       <SchoolsHeader
         title="Kitchen stock"
         titleAccent="Levels · GRN"
-        description="Estimated stock holding from DBE menu × learners. When days cover is low, suggested PO lines use the required qty to restore target hold — edit Order qty up or down to match school needs."
+        description="Estimated stock holding from DBE menu × learners. Download PDF or CSV for stock-takes and kitchen boards. When days cover is low, suggested PO lines use the required qty to restore target hold — edit Order qty up or down to match school needs."
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                openKitchenExport({ format: 'pdf', download: true })
+              }
+              className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              title="Download full kitchen inventory levels PDF"
+            >
+              <Download className="w-3.5 h-3.5" /> Download PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => openKitchenExport({ format: 'pdf' })}
+              className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              title="Open inventory PDF to print"
+            >
+              <Printer className="w-3.5 h-3.5" /> Print
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                openKitchenExport({ format: 'csv', download: true })
+              }
+              className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              title="Download inventory CSV for Excel / sheets"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" /> CSV
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                openKitchenExport({
+                  format: 'pdf',
+                  download: true,
+                  lowOnly: true,
+                })
+              }
+              className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              title="Download low / reorder stock only"
+            >
+              <AlertTriangle className="w-3.5 h-3.5" /> Low stock PDF
+            </button>
             <Link
               href="/dashboard/schools/orders"
               className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
@@ -957,7 +1013,7 @@ function Inner() {
             <button
               type="button"
               onClick={() => void load()}
-              className="btn-secondary !py-2 !px-3 text-xs"
+              className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
@@ -1061,18 +1117,43 @@ function Inner() {
           </button>
           <button
             type="button"
-            onClick={() => orderSuggested('suggested')}
-            className="btn-secondary !py-2.5 !px-3 text-xs inline-flex items-center justify-center gap-1"
-            title="Products with a system-suggested top-up qty"
+            disabled={creatingPo}
+            onClick={() => void createReorderPo('need')}
+            className="btn-primary !py-2.5 !px-3 text-xs inline-flex items-center justify-center gap-1"
+            title="Create draft PO with only products at/below reorder cover (qty = restore target)"
           >
-            <ShoppingCart className="w-3.5 h-3.5" />
-            Suggested PO ({suggestedLines.length})
+            {creatingPo ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <ShoppingCart className="w-3.5 h-3.5" />
+            )}
+            Suggested reorder PO ({needOnlyCount})
+          </button>
+          <button
+            type="button"
+            disabled={creatingPo}
+            onClick={() => void createReorderPo('weekly')}
+            className="btn-secondary !py-2.5 !px-3 text-xs inline-flex items-center justify-center gap-1"
+            title="Create draft weekly standard reorder (menu demand for ~5 days − on hand)"
+          >
+            <CalendarDays className="w-3.5 h-3.5" />
+            Weekly standard
+          </button>
+          <button
+            type="button"
+            disabled={creatingPo}
+            onClick={() => void createReorderPo('monthly')}
+            className="btn-secondary !py-2.5 !px-3 text-xs inline-flex items-center justify-center gap-1"
+            title="Create draft monthly standard reorder (menu demand for ~20 days − on hand)"
+          >
+            <CalendarDays className="w-3.5 h-3.5" />
+            Monthly standard
           </button>
           <button
             type="button"
             onClick={() => orderSuggested('selected')}
-            className="btn-primary !py-2.5 !px-3 text-xs inline-flex items-center justify-center gap-1"
-            disabled={!orderSelect.size}
+            className="btn-secondary !py-2.5 !px-3 text-xs inline-flex items-center justify-center gap-1"
+            disabled={!orderSelect.size || creatingPo}
             title="Order any products you ticked in the inventory list"
           >
             <ShoppingCart className="w-3.5 h-3.5" />
@@ -1089,8 +1170,8 @@ function Inner() {
               <strong>
                 {summary?.reorder_count || lowStock.length} product(s)
               </strong>{' '}
-              at or below reorder cover — order from your SP with a required
-              delivery date.
+              at or below reorder cover — create a suggested reorder PO with{' '}
+              <strong>only those items</strong> and required delivery date.
               {summary?.critical_count ? (
                 <>
                   {' '}
@@ -1104,21 +1185,54 @@ function Inner() {
           </span>
           <button
             type="button"
-            onClick={() => orderSuggested('reorder')}
+            disabled={creatingPo}
+            onClick={() => void createReorderPo('need')}
             className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
           >
-            <ShoppingCart className="w-3.5 h-3.5" /> Order reorder list
+            {creatingPo ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <ShoppingCart className="w-3.5 h-3.5" />
+            )}
+            Create suggested reorder PO
           </button>
           <button
             type="button"
             onClick={() => orderSuggested('selected')}
             className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
-            disabled={!orderSelect.size}
+            disabled={!orderSelect.size || creatingPo}
           >
             Order selected ({orderSelect.size})
           </button>
         </div>
       )}
+
+      {/* Standard period reorders */}
+      <div className="mb-4 rounded-2xl border border-sky-200 bg-sky-50/70 px-4 py-3 text-sm text-sky-950 flex flex-wrap items-center justify-between gap-2">
+        <span>
+          <strong>Standard standing reorders.</strong> Weekly (~5 feeding days)
+          or monthly (~20 days) from the DBE menu × learners, minus what is
+          already on hand — only shortfalls are added to the draft PO.
+        </span>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={creatingPo}
+            onClick={() => void createReorderPo('weekly')}
+            className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+          >
+            <CalendarDays className="w-3.5 h-3.5" /> Weekly standard PO
+          </button>
+          <button
+            type="button"
+            disabled={creatingPo}
+            onClick={() => void createReorderPo('monthly')}
+            className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+          >
+            <CalendarDays className="w-3.5 h-3.5" /> Monthly standard PO
+          </button>
+        </div>
+      </div>
 
       {/* Inventory levels + demand */}
       <div className="mb-6 rounded-3xl border border-slate-200 bg-white overflow-hidden">
@@ -1128,9 +1242,9 @@ function Inner() {
               Inventory levels · estimated holding
             </p>
             <p className="text-[11px] text-slate-500">
-              Daily use from recipes × learners. Tick any product to order from
-              your SP — not only system-suggested lines. Suggested PO = target −
-              on hand.
+              Daily use from recipes × learners. Suggested reorder PO only
+              includes products at/below reorder cover. Tick any product for a
+              custom selection.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

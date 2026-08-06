@@ -23,6 +23,11 @@ import {
   type Recipe,
   type RecipeLine,
 } from '@/lib/schools/recipe-mrp';
+import { loadKitchenInventorySnapshot } from '@/lib/schools/kitchen-inventory';
+import {
+  buildReorderPoLines,
+  parseReorderPoMode,
+} from '@/lib/schools/kitchen-reorder-po';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -487,6 +492,247 @@ export async function POST(request: NextRequest) {
         compliance_ok: allApproved,
         po_id: poId,
         po_status: poStatus,
+      });
+    }
+
+    // Create suggested reorder / weekly / monthly standard PO (draft)
+    // Only includes lines the school actually needs for that mode.
+    if (
+      body.action === 'create_reorder_po' ||
+      body.action === 'create_suggested_po' ||
+      body.action === 'create_standard_po'
+    ) {
+      const mode =
+        parseReorderPoMode(body.mode) ||
+        parseReorderPoMode(body.period) ||
+        'need';
+
+      const snapshot = await loadKitchenInventorySnapshot(
+        supabase,
+        companyId,
+        school as Record<string, unknown>
+      );
+      const built = buildReorderPoLines(snapshot.stock_plan.products, mode, {
+        extraLowStock: snapshot.stock.map((s) => ({
+          approved_product_id: Number(s.approved_product_id) || 0,
+          product_name: s.product_name,
+          brand_name: s.brand_name,
+          category: s.category,
+          uom: s.uom,
+          qty_on_hand: s.qty_on_hand,
+          reorder_level: s.reorder_level,
+          target_level: s.target_level,
+          daily_usage: s.daily_usage,
+          low_stock: s.low_stock,
+          cover_status: s.cover_status,
+        })),
+      });
+
+      if (!built.lines.length) {
+        return NextResponse.json(
+          {
+            error:
+              mode === 'need'
+                ? 'Nothing below reorder cover right now — no suggested reorder PO to create.'
+                : mode === 'weekly'
+                  ? 'No weekly shortfall — on-hand covers ~5 feeding days for menu products.'
+                  : 'No monthly shortfall — on-hand covers ~20 feeding days for menu products.',
+            mode,
+            lines: [],
+          },
+          { status: 400 }
+        );
+      }
+
+      const catalogue = await resolveCatalogueContext(supabase, companyId, {
+        schoolProfileId: schoolId,
+      });
+      if (!catalogue.agencyProfileId) {
+        return NextResponse.json(
+          {
+            error:
+              'Join and get approved by your DBE / PEU before creating orders.',
+          },
+          { status: 400 }
+        );
+      }
+
+      const productIds = built.lines.map((l) => l.approved_product_id);
+      const byId = await filterApprovedProductIds(
+        supabase,
+        catalogue.agencyProfileId,
+        productIds
+      );
+      const lines = [];
+      for (const l of built.lines) {
+        const prod = byId.get(l.approved_product_id);
+        if (!prod) continue;
+        lines.push({
+          approved_product_id: l.approved_product_id,
+          product_name: String(prod.name || l.product_name),
+          brand_name: String(prod.brand_name || l.brand_name || ''),
+          category: String(prod.category || l.category || 'other'),
+          qty: l.qty,
+          unit_price: 0,
+          uom: String(l.uom || prod.uom || 'kg'),
+          ordered_product_id: l.approved_product_id,
+          reorder_reason: l.reason,
+        });
+      }
+      if (!lines.length) {
+        return NextResponse.json(
+          {
+            error:
+              'No approved products left on the reorder list — check the catalogue.',
+          },
+          { status: 400 }
+        );
+      }
+
+      // Prefer explicit SP, else first active school↔SP link
+      let ispProfileId =
+        body.isp_profile_id != null ? Number(body.isp_profile_id) : NaN;
+      if (!Number.isFinite(ispProfileId) || ispProfileId <= 0) {
+        const { data: links } = await supabase
+          .from('school_isp_links')
+          .select('isp_profile_id')
+          .eq('school_profile_id', schoolId)
+          .eq('status', 'active')
+          .order('created_at', { ascending: true })
+          .limit(1);
+        ispProfileId = links?.[0]?.isp_profile_id
+          ? Number(links[0].isp_profile_id)
+          : NaN;
+      }
+
+      const policy = policyFromSchool(school as Record<string, unknown>);
+      const today = new Date();
+      const lead = Math.max(0, Number(policy.lead_time_days) || 3);
+      const expected = new Date(today);
+      expected.setDate(expected.getDate() + lead);
+      const expectedDate =
+        body.expected_date &&
+        /^\d{4}-\d{2}-\d{2}$/.test(String(body.expected_date))
+          ? String(body.expected_date).slice(0, 10)
+          : expected.toISOString().slice(0, 10);
+      const orderDate = today.toISOString().slice(0, 10);
+
+      const dayPrefix = `${orderDate}-NSNP-PO-`;
+      const { data: existingPos } = await supabase
+        .from('school_purchase_orders')
+        .select('po_number')
+        .eq('school_profile_id', schoolId)
+        .eq('order_date', orderDate)
+        .limit(200);
+      let maxSeq = 0;
+      for (const row of existingPos || []) {
+        const n = String(row.po_number || '');
+        if (n.startsWith(dayPrefix)) {
+          const seq = Number(n.slice(dayPrefix.length));
+          if (Number.isFinite(seq) && seq > maxSeq) maxSeq = seq;
+        }
+      }
+      const poNumber = `${dayPrefix}${maxSeq + 1}`;
+
+      const schoolName = String(
+        (school as { school_name?: string }).school_name || 'School'
+      );
+      let ispName: string | null = null;
+      if (Number.isFinite(ispProfileId) && ispProfileId > 0) {
+        const { data: isp } = await supabase
+          .from('nsnp_isp_profiles')
+          .select('trading_name')
+          .eq('profile_id', ispProfileId)
+          .maybeSingle();
+        ispName = isp?.trading_name ? String(isp.trading_name) : null;
+        if (!ispName) {
+          const { data: p } = await supabase
+            .from('profiles')
+            .select('trading_name, legal_name')
+            .eq('id', ispProfileId)
+            .maybeSingle();
+          ispName = p?.trading_name || p?.legal_name || null;
+        }
+      }
+
+      const total = lines.reduce(
+        (s, l) => s + Number(l.qty) * Number(l.unit_price || 0),
+        0
+      );
+
+      const { appendStatusTrail } = await import('@/lib/schools/order-process');
+      let poMeta: Record<string, unknown> = {
+        source: 'kitchen_reorder',
+        reorder_mode: mode,
+        reorder_label: built.label,
+        school_name: schoolName,
+        isp_name: ispName,
+        process: 'school_po_sp_wholesale_grn',
+        feeding_days: built.feeding_days || null,
+        need_only: mode === 'need',
+      };
+      poMeta = appendStatusTrail(poMeta, {
+        status: 'draft',
+        label: built.label,
+        by_role: 'school',
+        note: `${lines.length} line(s) · ${built.notes}`,
+      });
+
+      const insertRow: Record<string, unknown> = {
+        school_profile_id: schoolId,
+        profile_id: companyId,
+        po_number: poNumber,
+        status: 'draft',
+        order_date: orderDate,
+        expected_date: expectedDate,
+        total_amount: Math.round(total * 100) / 100,
+        currency: 'ZAR',
+        lines,
+        compliance_ok: true,
+        notes: `${built.label}. ${built.notes}`,
+        metadata: poMeta,
+      };
+      if (Number.isFinite(ispProfileId) && ispProfileId > 0) {
+        insertRow.isp_profile_id = ispProfileId;
+      }
+
+      const { data: order, error: iErr } = await supabase
+        .from('school_purchase_orders')
+        .insert(insertRow)
+        .select('*')
+        .single();
+
+      if (iErr) {
+        // Fallback: return lines for client wizard if draft insert fails
+        return NextResponse.json(
+          {
+            success: false,
+            error: iErr.message,
+            lines,
+            mode,
+            label: built.label,
+            notes: built.notes,
+            fallback_wizard: true,
+          },
+          { status: 400 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        mode,
+        label: built.label,
+        notes: built.notes,
+        order,
+        po_id: order.id,
+        po_number: order.po_number,
+        line_count: lines.length,
+        lines,
+        has_sp: Number.isFinite(ispProfileId) && ispProfileId > 0,
+        expected_date: expectedDate,
+        message: Number.isFinite(ispProfileId) && ispProfileId > 0
+          ? `Draft ${built.label}: ${lines.length} line(s) only what you need. Review on Orders, then submit to your SP.`
+          : `Draft ${built.label}: ${lines.length} line(s). Link/select an SP on Orders, then submit.`,
       });
     }
 
