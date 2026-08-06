@@ -14,6 +14,8 @@ import {
   Coffee,
   Sun,
   ShoppingCart,
+  Download,
+  Printer,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -82,6 +84,19 @@ function Inner() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [productFilter, setProductFilter] = useState('');
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  const openMenuPdf = (opts?: { download?: boolean; menuId?: number | null }) => {
+    const params = new URLSearchParams({
+      companyId: String(companyId),
+    });
+    if (opts?.download) params.set('download', '1');
+    if (opts?.menuId) params.set('id', String(opts.menuId));
+    else if (mandated?.id) params.set('id', String(mandated.id));
+    else if (editingId) params.set('id', String(editingId));
+    const url = `/api/schools/menu/pdf?${params.toString()}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   /** Only active catalogue products may appear on the menu */
   const pruneItemsToActive = useCallback(
@@ -292,7 +307,42 @@ function Inner() {
               'Your DBE sets breakfast and lunch from the approved catalogue. This menu filters down to your school — order those products from your SP.'
         }
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {(mandated || canEdit) ? (
+              <>
+                <button
+                  type="button"
+                  disabled={pdfBusy || (!mandated && !editingId && !canEdit)}
+                  onClick={() => {
+                    if (!mandated && !editingId) {
+                      toast.message('No published menu to print yet');
+                      return;
+                    }
+                    setPdfBusy(true);
+                    openMenuPdf({ download: true });
+                    setTimeout(() => setPdfBusy(false), 800);
+                  }}
+                  className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1 disabled:opacity-50"
+                  title="Download A4 landscape weekly menu PDF"
+                >
+                  {pdfBusy ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5" />
+                  )}
+                  Download menu PDF
+                </button>
+                <button
+                  type="button"
+                  disabled={!mandated && !editingId}
+                  onClick={() => openMenuPdf({ download: false })}
+                  className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1 disabled:opacity-50"
+                  title="Open weekly menu PDF for printing"
+                >
+                  <Printer className="w-3.5 h-3.5" /> Print menu
+                </button>
+              </>
+            ) : null}
             {canEdit ? (
               <button
                 type="button"
@@ -304,7 +354,7 @@ function Inner() {
             ) : (
               <Link
                 href="/dashboard/schools/orders"
-                className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+                className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
               >
                 <ShoppingCart className="w-3.5 h-3.5" /> Order menu products
               </Link>
@@ -321,19 +371,38 @@ function Inner() {
       />
 
       {!canEdit ? (
-        <div className="mb-4 rounded-2xl border border-violet-200 bg-violet-50/80 px-4 py-3 text-sm text-violet-950 flex gap-2">
-          <Landmark className="w-5 h-5 shrink-0 text-violet-700" />
-          <div>
-            <p className="font-black text-xs uppercase tracking-wide">
-              Live from DBE · catalogue products only
-            </p>
-            <p className="text-[13px] mt-0.5">
-              {agencyName || 'Your department'} publishes this menu from the
-              approved foods catalogue. You cannot change it here — order the
-              listed products from your service provider; they source from
-              wholesalers and deliver to school.
-            </p>
+        <div className="mb-4 rounded-2xl border border-violet-200 bg-violet-50/80 px-4 py-3 text-sm text-violet-950 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex gap-2 min-w-0 flex-1">
+            <Landmark className="w-5 h-5 shrink-0 text-violet-700" />
+            <div>
+              <p className="font-black text-xs uppercase tracking-wide">
+                Live from DBE · catalogue products only
+              </p>
+              <p className="text-[13px] mt-0.5">
+                {agencyName || 'Your department'} publishes this menu from the
+                approved foods catalogue. Print it for the kitchen notice board,
+                then order listed products from your service provider.
+              </p>
+            </div>
           </div>
+          {mandated ? (
+            <div className="flex flex-wrap gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => openMenuPdf({ download: true, menuId: mandated.id })}
+                className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              >
+                <Download className="w-3.5 h-3.5" /> Download menu PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => openMenuPdf({ download: false, menuId: mandated.id })}
+                className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              >
+                <Printer className="w-3.5 h-3.5" /> Print
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : (
         <div className="mb-4 rounded-2xl border border-sky-200 bg-sky-50/80 px-4 py-3 text-sm text-sky-950 flex gap-2">
