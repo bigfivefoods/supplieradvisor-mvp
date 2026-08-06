@@ -1477,10 +1477,10 @@ export async function PATCH(request: NextRequest) {
       }
 
       const ispPartySnap = await resolveIspParty(supabase, ispProfileId);
-      let nextMeta = {
+      let nextMeta: Record<string, unknown> = {
         ...meta,
         isp_name: ispPartySnap.name,
-        isp_csd_number: ispPartySnap.csd_number,
+        isp_csd_number: ispPartySnap.csd_number ?? null,
       };
       nextMeta = appendStatusTrail(nextMeta, {
         status: 'submitted',
