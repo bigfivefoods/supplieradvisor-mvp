@@ -105,9 +105,17 @@ export default function IndustryToolsPage() {
               key={p.id}
               className="rounded-3xl border border-slate-200 bg-white p-5 space-y-4"
             >
-              <div>
-                <p className="font-black text-slate-900 text-lg">{p.name}</p>
-                <p className="text-xs text-slate-500 mt-1">{p.description}</p>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="font-black text-slate-900 text-lg">{p.name}</p>
+                  <p className="text-xs text-slate-500 mt-1">{p.description}</p>
+                </div>
+                <Link
+                  href={`/dashboard/industry-tools/${p.id}`}
+                  className="text-xs font-bold text-[#0077b6] border border-sky-200 bg-sky-50 rounded-lg px-3 py-1.5 shrink-0"
+                >
+                  Pack dashboard →
+                </Link>
               </div>
 
               <div>

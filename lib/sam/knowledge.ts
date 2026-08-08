@@ -21,15 +21,46 @@ import {
   referralRatesSummary,
   referralSuggestedCopy,
 } from '@/lib/billing/supply-chain-referral';
+import {
+  CORE_OS_MONTHLY_ZAR,
+  INDUSTRY_PACK_MONTHLY_ZAR,
+  INDUSTRY_PACKS,
+} from '@/lib/product/architecture';
 
-export function buildSamKnowledgeBrief(): string {
+export function buildSamKnowledgeBrief(opts?: {
+  /** Active industry pack ids for this company */
+  packIds?: string[] | null;
+  entityTypeId?: string | null;
+  sectorId?: string | null;
+}): string {
   const modules = MODULE_NAV.map((m) => {
+    // Full step list for SAM (no silent truncation of key hubs)
+    const maxSteps =
+      m.id === 'schools' || m.id === 'health' || m.id === 'my-business'
+        ? 24
+        : 14;
     const steps = (m.steps || [])
-      .slice(0, 8)
+      .slice(0, maxSteps)
       .map((s) => `    - ${s.name}: ${s.href}`)
       .join('\n');
-    return `- **${m.name}** (${m.href})\n${steps}`;
+    const more =
+      (m.steps || []).length > maxSteps
+        ? `\n    - … +${(m.steps || []).length - maxSteps} more steps in sidebar`
+        : '';
+    return `- **${m.name}** (${m.href})\n${steps}${more}`;
   }).join('\n');
+
+  const packBrief = INDUSTRY_PACKS.map((p) => {
+    const tools = p.industryToolsHrefs
+      .slice(0, 6)
+      .map((t) => `${t.name}→${t.href}`)
+      .join('; ');
+    return `  • **${p.name}** (+R${p.monthlyZar}/mo): ${p.description} Tools: ${tools}. Dashboard: /dashboard/industry-tools/${p.id}`;
+  }).join('\n');
+
+  const activePacks = (opts?.packIds || [])
+    .map((id) => INDUSTRY_PACKS.find((p) => p.id === id)?.name || id)
+    .filter(Boolean);
 
   const principles = OS_PRINCIPLES.map(
     (p) => `- **${p.title}**: ${p.body}`
@@ -83,11 +114,28 @@ ${principles}
 - sales_contractor uses **/sales** portal only (not full ERP).
 
 ## Pricing (platform company plan)
-- List: **R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month** after **${COMPANY_TRIAL_DAYS}-day free trial**.
-- Prepaid terms: ${pricing}.
+- **Core OS:** **R${CORE_OS_MONTHLY_ZAR}/month** (same as R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}) after **${COMPANY_TRIAL_DAYS}-day free trial**.
+- **Industry Packs:** **+R${INDUSTRY_PACK_MONTHLY_ZAR}/mo each** (Agri, Food Mfg, Logistics/Containers, Fitness, Dental, Allied Health, Impact, Public Procurement).
+- Prepaid terms on Core: ${pricing}.
+- Manage packs: /dashboard/my-business/packaging · Industry Tools: /dashboard/industry-tools
 - Billing UI: /dashboard/my-business/billing
 - Public pricing & referral: /#pricing and /#referral (same homepage)
 - Sales contractor portal access is a separate fee (about R${SALES_SUBSCRIPTION_MONTHLY_ZAR}/mo term product) after agreement.
+
+## Product architecture (Core → Sector → Pack → Modules)
+- Navigation is **functional** (Control Tower, Suppliers, Customers, Ops, Inventory, Quality, Finance, Intelligence, Industry Tools, Multi-entity, Administration).
+- **Never tell users features were removed** — packs and modules only show/hide hubs; every process step still lives under its MODULE_NAV hub (Suppliers still has Source/Book/Order/Escrow/…; Containers still has Manage/Map/…; Schools still has Kitchen/Orders/Serve day/…).
+- Industry Tools and pack dashboards are **shortcuts** into those full modules.
+- Provincial/National government: pack selection + specialist contact for full activation.
+
+## Industry Packs catalogue
+${packBrief}
+
+## This company's packaging context
+- Entity type: ${opts?.entityTypeId || 'unknown'}
+- Sector: ${opts?.sectorId || 'unknown'}
+- Active packs: ${activePacks.length ? activePacks.join(', ') : 'Core OS only (no packs)'}
+- When a pack is active, prefer deep links from that pack's tools list above, and still mention the full hub (e.g. Food Mfg → /dashboard/manufacturing with MPS, MRP, BOM steps).
 
 ## Supply-chain referral (company-to-company, NOT sales-rep MLM)
 - When companies invite others via referral link (?ref=code), subscription payments credit up the chain.

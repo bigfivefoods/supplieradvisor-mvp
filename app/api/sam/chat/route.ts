@@ -65,6 +65,9 @@ export async function POST(request: NextRequest) {
 
     let companyName: string | null = null;
     let role: string | null = null;
+    let packIds: string[] | null = null;
+    let entityTypeId: string | null = null;
+    let sectorId: string | null = null;
     const companyId = Number(body.companyId);
     if (Number.isFinite(companyId) && companyId > 0) {
       const mem = await getCompanyMembership(auth.userId, companyId);
@@ -74,7 +77,7 @@ export async function POST(request: NextRequest) {
           const supabase = getSupabaseServer();
           const { data: co } = await supabase
             .from('profiles')
-            .select('trading_name, legal_name')
+            .select('trading_name, legal_name, metadata')
             .eq('id', companyId)
             .maybeSingle();
           companyName =
@@ -82,6 +85,21 @@ export async function POST(request: NextRequest) {
               ?.trading_name ||
             (co as { legal_name?: string } | null)?.legal_name ||
             null;
+          const meta =
+            co?.metadata && typeof co.metadata === 'object'
+              ? (co.metadata as Record<string, unknown>)
+              : null;
+          if (meta) {
+            const { readPackagingFromMetadata } = await import(
+              '@/lib/product/architecture'
+            );
+            const pack = readPackagingFromMetadata(meta);
+            if (pack) {
+              packIds = pack.packIds || [];
+              entityTypeId = String(pack.entityTypeId || '') || null;
+              sectorId = String(pack.sectorId || '') || null;
+            }
+          }
         } catch {
           /* ignore */
         }
@@ -122,6 +140,9 @@ export async function POST(request: NextRequest) {
       role,
       pathname: body.pathname ? String(body.pathname).slice(0, 200) : null,
       liveTools,
+      packIds,
+      entityTypeId,
+      sectorId,
     });
 
     const messages: SamChatMessage[] = [

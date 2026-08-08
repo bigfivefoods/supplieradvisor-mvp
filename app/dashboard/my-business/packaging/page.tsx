@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * Packaging settings — view Core OS + Industry Packs (Phase 2).
- * Does not remove module features; links to full Modules admin.
+ * Packaging settings — view + manage Core OS & Industry Packs (Phase 3).
+ * Packs ADD module access and Industry Tools shortcuts; never remove feature trees.
  */
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   Layers,
@@ -12,8 +12,17 @@ import {
   Building2,
   AlertTriangle,
   CheckCircle2,
+  Loader2,
+  Save,
+  Package,
 } from 'lucide-react';
-import { useCompanyRole } from '@/lib/business/useCompanyRole';
+import { toast } from 'sonner';
+import { getSelectedCompanyId } from '@/lib/containers/company';
+import {
+  CompanyRequired,
+  BusinessHeader,
+  BusinessPage,
+} from '@/components/business/BusinessShell';
 import {
   CORE_OS_MONTHLY_ZAR,
   INDUSTRY_PACK_MONTHLY_ZAR,
@@ -22,12 +31,58 @@ import {
   OS_SECTORS,
   getIndustryPack,
   monthlyPriceZar,
+  type PackagingSelection,
 } from '@/lib/product/architecture';
 
 export default function PackagingSettingsPage() {
-  const { packaging, businessType, loading } = useCompanyRole();
-  const packIds = packaging?.packIds || [];
-  const price = useMemo(() => monthlyPriceZar(packIds), [packIds]);
+  return (
+    <CompanyRequired>
+      <Inner />
+    </CompanyRequired>
+  );
+}
+
+function Inner() {
+  const companyId = getSelectedCompanyId()!;
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [packaging, setPackaging] = useState<PackagingSelection | null>(null);
+  const [selectedPacks, setSelectedPacks] = useState<string[]>([]);
+  const [selectedModules, setSelectedModules] = useState<string[]>([]);
+  const [dirty, setDirty] = useState(false);
+  const [businessType, setBusinessType] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `/api/business/packaging?companyId=${companyId}`,
+        { cache: 'no-store', credentials: 'same-origin' }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load');
+      setPackaging(data.packaging || null);
+      setSelectedPacks(data.packaging?.packIds || []);
+      setSelectedModules(data.packaging?.moduleIds || []);
+      setBusinessType(
+        data.businessType != null ? String(data.businessType) : null
+      );
+      setDirty(false);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Load failed');
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const price = useMemo(
+    () => monthlyPriceZar(selectedPacks),
+    [selectedPacks]
+  );
   const entityLabel =
     OS_ENTITY_TYPES.find((e) => e.id === packaging?.entityTypeId)?.label ||
     businessType ||
@@ -40,45 +95,126 @@ export default function PackagingSettingsPage() {
     packaging?.setupStatus === 'contact_required' ||
     packaging?.setupStatus === 'pending_specialist';
 
+  const modulesForPacks = useMemo(() => {
+    const out: Array<{
+      id: string;
+      name: string;
+      description: string;
+      packName: string;
+    }> = [];
+    for (const pid of selectedPacks) {
+      const p = getIndustryPack(pid);
+      if (!p) continue;
+      for (const m of p.modules) {
+        out.push({
+          id: m.id,
+          name: m.name,
+          description: m.description,
+          packName: p.shortName,
+        });
+      }
+    }
+    return out;
+  }, [selectedPacks]);
+
+  const togglePack = (id: string) => {
+    setSelectedPacks((prev) => {
+      const has = prev.includes(id);
+      const next = has ? prev.filter((x) => x !== id) : [...prev, id];
+      // Drop modules from removed packs
+      const valid = new Set(
+        next.flatMap(
+          (pid) => getIndustryPack(pid)?.modules.map((m) => m.id) || []
+        )
+      );
+      setSelectedModules((mods) => mods.filter((m) => valid.has(m)));
+      return next;
+    });
+    setDirty(true);
+  };
+
+  const toggleModule = (id: string) => {
+    setSelectedModules((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+    setDirty(true);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/business/packaging', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          companyId,
+          packIds: selectedPacks,
+          moduleIds: selectedModules,
+          entityTypeId: packaging?.entityTypeId,
+          sectorId: packaging?.sectorId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Save failed');
+      toast.success(data.message || 'Packaging saved');
+      setDirty(false);
+      void load();
+      // Refresh sidebar module gates
+      window.dispatchEvent(new Event('sa:company-changed'));
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-wider text-[#0077b6]">
-          Administration · Packaging
-        </p>
-        <h1 className="text-2xl font-black text-slate-900 mt-1">
-          Core OS & Industry Packs
-        </h1>
-        <p className="text-sm text-slate-600 mt-1">
-          Packaging controls recommendations and Industry Tools shortcuts. Your
-          full module feature set (every process under Suppliers, Customers,
-          Schools, Make, etc.) stays available under each hub.
-        </p>
-      </div>
+    <BusinessPage>
+      <BusinessHeader
+        title="Packaging"
+        titleAccent="Core OS · Packs"
+        description="Manage Industry Packs. Packs unlock hubs and Industry Tools shortcuts — full process trees under Suppliers, Customers, Make, Schools, etc. are never removed."
+        action={
+          <button
+            type="button"
+            disabled={!dirty || saving}
+            onClick={() => void save()}
+            className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1 disabled:opacity-40"
+          >
+            {saving ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Save className="w-3.5 h-3.5" />
+            )}
+            Save packs
+          </button>
+        }
+      />
 
       {contactRequired ? (
-        <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950 flex gap-2">
+        <div className="mb-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950 flex gap-2">
           <AlertTriangle className="w-5 h-5 shrink-0" />
           <div>
-            <strong>Specialist setup required.</strong> Provincial / National
-            workspaces complete pack selection, then a SupplierAdvisor specialist
-            finishes activation and multi-entity configuration.
-            <div className="mt-2">
-              <Link
-                href="/dashboard/my-business/billing?setup=contact_required"
-                className="font-bold underline"
-              >
-                View setup status →
-              </Link>
-            </div>
+            <strong>Specialist setup required.</strong> You can still select
+            packs for the specialist; full go-live follows SupplierAdvisor
+            confirmation.
+            <Link
+              href="/dashboard/my-business/billing?setup=contact_required"
+              className="block font-bold underline mt-1"
+            >
+              Setup status →
+            </Link>
           </div>
         </div>
       ) : null}
 
       {loading ? (
-        <p className="text-sm text-slate-500">Loading…</p>
+        <div className="py-16 flex justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+        </div>
       ) : (
-        <>
+        <div className="space-y-6 max-w-3xl">
           <div className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3 text-sm">
             <Row label="Entity type" value={entityLabel} />
             <Row label="Sector" value={String(sectorLabel)} />
@@ -97,43 +233,124 @@ export default function PackagingSettingsPage() {
           </div>
 
           <div>
-            <h2 className="text-sm font-black text-slate-900 mb-2">
-              Active packs
+            <h2 className="text-sm font-black text-slate-900 mb-1">
+              Industry Packs
             </h2>
-            {!packIds.length ? (
-              <p className="text-sm text-slate-500 rounded-2xl border border-dashed border-slate-200 bg-white p-4">
-                Core OS only (R{CORE_OS_MONTHLY_ZAR}/mo). Add packs at
-                onboarding or contact support for pack changes.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {packIds.map((id) => {
-                  const p = getIndustryPack(id);
-                  return (
-                    <li
-                      key={id}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 flex gap-2"
+            <p className="text-[11px] text-slate-500 mb-3">
+              Core OS R{CORE_OS_MONTHLY_ZAR}/mo always included. Each pack +R
+              {INDUSTRY_PACK_MONTHLY_ZAR}/mo. Toggle packs and save.
+            </p>
+            <ul className="space-y-2">
+              {INDUSTRY_PACKS.map((p) => {
+                const on = selectedPacks.includes(p.id);
+                return (
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      onClick={() => togglePack(p.id)}
+                      className={`w-full text-left rounded-2xl border-2 p-4 flex gap-3 transition ${
+                        on
+                          ? 'border-[#00b4d8] bg-sky-50'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
                     >
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-bold text-sm">
-                          {p?.name || id}
-                        </p>
-                        <p className="text-[11px] text-slate-500">
-                          {p?.description}
+                      <div
+                        className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${
+                          on
+                            ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
+                            : 'border-slate-300'
+                        }`}
+                      >
+                        {on ? (
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        ) : null}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-black text-sm">{p.name}</p>
+                          <span className="text-[10px] font-bold text-slate-500">
+                            +R{p.monthlyZar}/mo
+                          </span>
+                          <Link
+                            href={`/dashboard/industry-tools/${p.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-[10px] font-bold text-[#0077b6] hover:underline"
+                          >
+                            Pack dashboard →
+                          </Link>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          {p.description}
                         </p>
                       </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          {modulesForPacks.length > 0 ? (
+            <div>
+              <h2 className="text-sm font-black text-slate-900 mb-1">
+                Pack modules (optional filter)
+              </h2>
+              <p className="text-[11px] text-slate-500 mb-3">
+                Leave empty to enable all modules in selected packs. Otherwise
+                only ticked modules unlock their hubs.
+              </p>
+              <ul className="space-y-1.5">
+                {modulesForPacks.map((m) => {
+                  const on = selectedModules.includes(m.id);
+                  return (
+                    <li key={m.id}>
+                      <button
+                        type="button"
+                        onClick={() => toggleModule(m.id)}
+                        className={`w-full text-left rounded-xl border px-3 py-2 flex gap-2 text-sm ${
+                          on
+                            ? 'border-[#00b4d8] bg-sky-50'
+                            : 'border-slate-200 bg-white'
+                        }`}
+                      >
+                        <Package
+                          className={`w-4 h-4 shrink-0 mt-0.5 ${on ? 'text-[#0077b6]' : 'text-slate-400'}`}
+                        />
+                        <span>
+                          <span className="font-bold">{m.name}</span>
+                          <span className="text-[10px] text-slate-400">
+                            {' '}
+                            · {m.packName}
+                          </span>
+                          <span className="block text-[11px] text-slate-500">
+                            {m.description}
+                          </span>
+                        </span>
+                      </button>
                     </li>
                   );
                 })}
               </ul>
-            )}
-          </div>
+            </div>
+          ) : null}
 
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={!dirty || saving}
+              onClick={() => void save()}
+              className="btn-primary !py-2 !px-4 text-xs inline-flex items-center gap-1 disabled:opacity-40"
+            >
+              {saving ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Save className="w-3.5 h-3.5" />
+              )}
+              Save packaging
+            </button>
             <Link
               href="/dashboard/industry-tools"
-              className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
             >
               <Layers className="w-3.5 h-3.5" /> Industry Tools
             </Link>
@@ -146,13 +363,14 @@ export default function PackagingSettingsPage() {
             </Link>
           </div>
 
-          <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-            <strong>Catalogue:</strong>{' '}
-            {INDUSTRY_PACKS.map((p) => p.shortName).join(' · ')}
-          </div>
-        </>
+          <p className="text-[11px] text-slate-500 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+            Saving packs turns on related hubs (e.g. Make, Containers, Schools)
+            without deleting process steps under any module. Use{' '}
+            <strong>Modules</strong> to show/hide entire hubs in the sidebar.
+          </p>
+        </div>
       )}
-    </div>
+    </BusinessPage>
   );
 }
 
