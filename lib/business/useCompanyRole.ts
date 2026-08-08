@@ -18,6 +18,7 @@ import {
   normalizeEnabledModules,
   type EnabledModulesMap,
 } from '@/lib/business/company-modules';
+import type { PackagingSelection } from '@/lib/product/architecture';
 
 const FINANCE_CRITICAL: TeamRole[] = ['owner', 'admin', 'finance'];
 const QA_OVERRIDE_ROLES: TeamRole[] = ['owner', 'admin'];
@@ -38,6 +39,9 @@ export type CompanyRoleState = {
   /** Company profile module toggles (sidebar). Default all true. */
   enabledModules: EnabledModulesMap;
   isCompanyModuleEnabled: (moduleId: string) => boolean;
+  /** Core OS packaging (entity, sector, packs) */
+  packaging: PackagingSelection | null;
+  businessType: string | null;
   /** Period lock, hard finance close */
   canFinanceCritical: boolean;
   /** QA inspections write */
@@ -84,11 +88,15 @@ export function useCompanyRole(): CompanyRoleState {
   const [enabledModules, setEnabledModules] = useState<EnabledModulesMap>(() =>
     normalizeEnabledModules(null)
   );
+  const [packaging, setPackaging] = useState<PackagingSelection | null>(null);
+  const [businessType, setBusinessType] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!companyId || !privyUserId) {
       setRole(null);
       setEnabledModules(normalizeEnabledModules(null));
+      setPackaging(null);
+      setBusinessType(null);
       setLoading(false);
       return;
     }
@@ -111,6 +119,14 @@ export function useCompanyRole(): CompanyRoleState {
       setMemberId(mem.memberId != null ? Number(mem.memberId) : null);
       setCanManageTeam(Boolean(mem.canManageTeam));
       setEnabledModules(normalizeEnabledModules(data.enabledModules));
+      setPackaging(
+        data.packaging && typeof data.packaging === 'object'
+          ? (data.packaging as PackagingSelection)
+          : null
+      );
+      setBusinessType(
+        data.businessType != null ? String(data.businessType) : null
+      );
     } catch {
       setRole(null);
     } finally {
@@ -172,6 +188,8 @@ export function useCompanyRole(): CompanyRoleState {
     canAccessRoute,
     enabledModules,
     isCompanyModuleEnabled,
+    packaging,
+    businessType,
     canFinanceCritical,
     canOpsWrite,
     canQaOverride,

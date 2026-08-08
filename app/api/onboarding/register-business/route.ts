@@ -51,6 +51,11 @@ export async function POST(request: NextRequest) {
       // Directory claim: attach ownership of existing public profile
       claimProfileId,
       claim,
+      // Core OS packaging
+      os_entity_type,
+      os_sector,
+      industry_packs,
+      industry_modules,
     } = body;
 
     const _auth = await requireVerifiedUser(request, { legacyPrivyUserId: privyUserId });
@@ -224,7 +229,19 @@ export async function POST(request: NextRequest) {
     }
 
     const { resolveEntityKind } = await import('@/lib/entities/entity-kinds');
-    const entityKind = resolveEntityKind(business_type || 'business');
+    // Prefer packaging entity type → business_type
+    const packEntityType = os_entity_type
+      ? String(os_entity_type)
+      : null;
+    const entityKind = resolveEntityKind(
+      packEntityType || business_type || 'business'
+    );
+    const packIds = Array.isArray(industry_packs)
+      ? industry_packs.map(String)
+      : [];
+    const moduleIds = Array.isArray(industry_modules)
+      ? industry_modules.map(String)
+      : [];
 
     const baseInsert: Record<string, unknown> = {
       trading_name: tradingNameTrim,
@@ -361,9 +378,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Provision school / DBE / SP domain rows + module presets
+    // Provision school / DBE / SP domain rows + module presets + packaging
     let homePath = '/dashboard';
     let entityId = entityKind.id;
+    let setupStatus: string | undefined;
     try {
       const { provisionEntityWorkspace } = await import(
         '@/lib/entities/provision'
@@ -377,11 +395,51 @@ export async function POST(request: NextRequest) {
         contactPhone: contact_phone ? String(contact_phone) : null,
         city: city ? String(city) : null,
         userId,
+        packaging: {
+          entityTypeId:
+            packEntityType ||
+            (entityKind.id === 'school'
+              ? 'school'
+              : entityKind.id === 'municipal_government'
+                ? 'municipal'
+                : entityKind.id === 'provincial_government'
+                  ? 'provincial'
+                  : entityKind.id === 'national_government'
+                    ? 'national'
+                    : 'private_company'),
+          sectorId: os_sector ? String(os_sector) : null,
+          packIds,
+          moduleIds,
+        },
       });
       homePath = provisioned.homePath;
       entityId = provisioned.entity.id;
+      setupStatus = provisioned.setupStatus;
     } catch (e) {
       console.warn('entity provision soft-fail', e);
+    }
+
+    // Specialist contact lead for provincial / national
+    if (
+      setupStatus === 'contact_required' ||
+      entityKind.id === 'provincial_government' ||
+      entityKind.id === 'national_government'
+    ) {
+      try {
+        await supabase.from('crm_leads').insert({
+          source: 'onboarding_contact_required',
+          company_name: tradingNameTrim,
+          contact_name: contact_name || null,
+          contact_email: email,
+          contact_phone: contact_phone || null,
+          notes: `Setup path contact_required · entity=${entityKind.id} · packs=${packIds.join(',')}`,
+          status: 'new',
+          profile_id: profile.id,
+          created_at: now,
+        });
+      } catch {
+        /* soft — table may not exist */
+      }
     }
 
     // Soft ops alert — never blocks registration
@@ -419,9 +477,19 @@ export async function POST(request: NextRequest) {
       entityKind: entityId,
       orgType: entityKind.org_type,
       homePath,
-      message: lifetimePlan
-        ? 'Organisation registered with complimentary lifetime access.'
-        : 'Organisation registered successfully.',
+      setupStatus: setupStatus || 'active',
+      packaging: {
+        entityType: packEntityType,
+        sector: os_sector || null,
+        packs: packIds,
+        modules: moduleIds,
+      },
+      message:
+        setupStatus === 'contact_required'
+          ? 'Thanks — a specialist will contact you to complete setup.'
+          : lifetimePlan
+            ? 'Organisation registered with complimentary lifetime access.'
+            : 'Organisation registered successfully.',
       trial: lifetimePlan
         ? null
         : {

@@ -71,6 +71,7 @@ import {
   COMPANY_TRIAL_DAYS,
   formatZar,
 } from '@/lib/billing/company-subscription';
+import { INDUSTRY_PACK_MONTHLY_ZAR } from '@/lib/product/architecture';
 import { FOUNDING_FREE_COMPANY_LIMIT } from '@/lib/billing/lifetime';
 import {
   REFERRAL_LEVEL_RATES_PCT,
@@ -509,7 +510,8 @@ export default function LandingPage() {
           {/* Accurate commercial strip under hero (not competing with headline) */}
           <div className="mt-10 flex flex-col items-center gap-3 border-t border-slate-200/80 pt-8 sm:mt-12">
             <p className="text-center text-sm text-slate-500">
-              From {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo after your{' '}
+              Core OS from {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo ·
+              Industry Packs +{formatZar(INDUSTRY_PACK_MONTHLY_ZAR)}/mo each ·{' '}
               {COMPANY_TRIAL_DAYS}-day free trial · first{' '}
               {FOUNDING_FREE_COMPANY_LIMIT} companies free for life ·{' '}
               <a
@@ -528,7 +530,10 @@ export default function LandingPage() {
               { k: '14+', l: 'operating systems' },
               { k: 'B2B·G·C', l: 'one verified fabric' },
               { k: `${COMPANY_TRIAL_DAYS}d`, l: 'free full trial' },
-              { k: 'R' + COMPANY_SUBSCRIPTION_MONTHLY_ZAR, l: 'per company / mo' },
+              {
+                k: 'R' + COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
+                l: 'Core OS / mo',
+              },
             ].map((s) => (
               <div
                 key={s.l}

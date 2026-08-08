@@ -1,6 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+/**
+ * Core OS onboarding — Entity → Sector → Packs → Modules → Details → Review
+ * Brief 2026-08-09. Preserves invite claim, referral, partner storefront handoff.
+ */
+import { useMemo, useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -10,41 +14,49 @@ import {
   ArrowRight,
   Building2,
   CheckCircle2,
-  Factory,
-  Globe2,
   GraduationCap,
   Landmark,
-  Leaf,
   Loader2,
   ShieldCheck,
-  Users2,
-  Truck,
-  HeartPulse,
-  Hospital,
+  Layers,
+  Package,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
 import {
-  entityGroups,
-  resolveEntityKind,
-} from '@/lib/entities/entity-kinds';
-import { industriesGroupedBySector } from '@/lib/business/industries';
+  extractEmailFromPrivyUser,
+  getCanonicalUserId,
+} from '@/lib/auth/identity';
+import { resolveEntityKind } from '@/lib/entities/entity-kinds';
+import {
+  CORE_OS_MONTHLY_ZAR,
+  INDUSTRY_PACK_MONTHLY_ZAR,
+  INDUSTRY_PACKS,
+  OS_ENTITY_TYPES,
+  OS_SECTORS,
+  defaultSectorForEntity,
+  getIndustryPack,
+  getOsEntityType,
+  monthlyPriceZar,
+  recommendPackIds,
+  type OsEntityTypeId,
+  type OsSectorId,
+} from '@/lib/product/architecture';
 
-/** Icons for entity kinds (wizard cards) */
-const ENTITY_ICONS: Record<string, typeof Building2> = {
-  business: Building2,
-  supplier: Factory,
-  government_education: Landmark,
-  government_health: HeartPulse,
-  school: GraduationCap,
-  hospital: Hospital,
-  nsnp_isp: Truck,
-  association: Users2,
-  consumer_org: Leaf,
-  consumer: Globe2,
-};
+const STEPS = [
+  'Account',
+  'Entity',
+  'Sector',
+  'Packs',
+  'Modules',
+  'Details',
+  'Review',
+] as const;
 
 type FormState = {
+  os_entity_type: string;
+  os_sector: string;
+  industry_packs: string[];
+  industry_modules: string[];
   business_type: string;
   trading_name: string;
   legal_name: string;
@@ -59,7 +71,15 @@ type FormState = {
   short_description: string;
 };
 
-const STEPS = ['Account', 'Organisation', 'Details', 'Contact', 'Review'] as const;
+function mapTypeParamToEntity(typeParam: string): string {
+  const t = typeParam.toLowerCase();
+  if (t === 'school' || t === 'education') return 'school';
+  if (t === 'government' || t === 'gov' || t === 'dbe') return 'municipal';
+  if (t === 'provincial') return 'provincial';
+  if (t === 'national') return 'national';
+  if (t === 'municipal') return 'municipal';
+  return 'private_company';
+}
 
 export default function BusinessOnboardingWizard() {
   const router = useRouter();
@@ -70,19 +90,25 @@ export default function BusinessOnboardingWizard() {
   const prefillEmail = searchParams.get('email') || '';
   const { ready, authenticated, user, login } = usePrivy();
 
-  const initialType = resolveEntityKind(typeParam).business_type;
+  const initialEntity = mapTypeParamToEntity(typeParam);
+  const initialSector = defaultSectorForEntity(initialEntity);
 
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [doneProfileId, setDoneProfileId] = useState<number | null>(null);
   const [doneLifetime, setDoneLifetime] = useState(false);
+  const [doneContactRequired, setDoneContactRequired] = useState(false);
   const [claimConflict, setClaimConflict] = useState<{
     profileId: number;
     connectHref?: string;
   } | null>(null);
   const [form, setForm] = useState<FormState>({
-    business_type: initialType,
+    os_entity_type: initialEntity,
+    os_sector: initialSector,
+    industry_packs: [],
+    industry_modules: [],
+    business_type: getOsEntityType(initialEntity)?.businessType || 'business',
     trading_name: claimName || '',
     legal_name: claimName || '',
     registration_number: '',
@@ -96,14 +122,63 @@ export default function BusinessOnboardingWizard() {
     short_description: '',
   });
 
+  // Auto sector for public entities
+  useEffect(() => {
+    const e = getOsEntityType(form.os_entity_type);
+    if (e?.publicSector && form.os_sector !== 'public_sector') {
+      setForm((f) => ({ ...f, os_sector: 'public_sector' }));
+    }
+  }, [form.os_entity_type, form.os_sector]);
+
+  // Prefill recommended packs when landing on pack step empty
+  const recommended = useMemo(
+    () => recommendPackIds(form.os_entity_type, form.os_sector),
+    [form.os_entity_type, form.os_sector]
+  );
+
+  const price = useMemo(
+    () => monthlyPriceZar(form.industry_packs),
+    [form.industry_packs]
+  );
+
+  const entityDef = getOsEntityType(form.os_entity_type);
+  const contactRequired = entityDef?.setupPath === 'contact_required';
+
+  const modulesForSelectedPacks = useMemo(() => {
+    const out: Array<{
+      packId: string;
+      packName: string;
+      id: string;
+      name: string;
+      description: string;
+    }> = [];
+    for (const pid of form.industry_packs) {
+      const pack = getIndustryPack(pid);
+      if (!pack) continue;
+      for (const m of pack.modules) {
+        out.push({
+          packId: pack.id,
+          packName: pack.shortName,
+          id: m.id,
+          name: m.name,
+          description: m.description,
+        });
+      }
+    }
+    return out;
+  }, [form.industry_packs]);
+
   const progress = ((step + 1) / STEPS.length) * 100;
 
   const canNext = useMemo(() => {
     if (step === 0) return authenticated;
-    if (step === 1) return Boolean(form.business_type);
-    if (step === 2) return form.trading_name.trim().length >= 2;
-    if (step === 3) {
+    if (step === 1) return Boolean(form.os_entity_type);
+    if (step === 2) return Boolean(form.os_sector);
+    if (step === 3) return true; // packs optional (Core only)
+    if (step === 4) return true; // modules optional
+    if (step === 5) {
       return (
+        form.trading_name.trim().length >= 2 &&
         form.contact_name.trim().length >= 2 &&
         form.contact_email.includes('@')
       );
@@ -111,8 +186,47 @@ export default function BusinessOnboardingWizard() {
     return true;
   }, [step, authenticated, form]);
 
-  const update = (key: keyof FormState, value: string) => {
+  const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const togglePack = (packId: string) => {
+    setForm((prev) => {
+      const has = prev.industry_packs.includes(packId);
+      const industry_packs = has
+        ? prev.industry_packs.filter((id) => id !== packId)
+        : [...prev.industry_packs, packId];
+      // Drop modules from removed packs
+      const stillValid = new Set(
+        industry_packs.flatMap(
+          (pid) => getIndustryPack(pid)?.modules.map((m) => m.id) || []
+        )
+      );
+      const industry_modules = prev.industry_modules.filter((id) =>
+        stillValid.has(id)
+      );
+      return { ...prev, industry_packs, industry_modules };
+    });
+  };
+
+  const toggleModule = (moduleId: string) => {
+    setForm((prev) => {
+      const has = prev.industry_modules.includes(moduleId);
+      return {
+        ...prev,
+        industry_modules: has
+          ? prev.industry_modules.filter((id) => id !== moduleId)
+          : [...prev.industry_modules, moduleId],
+      };
+    });
+  };
+
+  const applyRecommendedPacks = () => {
+    setForm((prev) => ({
+      ...prev,
+      industry_packs: [...new Set([...prev.industry_packs, ...recommended])],
+    }));
+    toast.success('Recommended packs selected');
   };
 
   const ensureAuthPrefill = () => {
@@ -129,10 +243,19 @@ export default function BusinessOnboardingWizard() {
       return;
     }
     if (step === 0) ensureAuthPrefill();
+    // Skip modules step if no packs
+    if (step === 3 && form.industry_packs.length === 0) {
+      setStep(5);
+      return;
+    }
     if (step < STEPS.length - 1) setStep((s) => s + 1);
   };
 
   const goBack = () => {
+    if (step === 5 && form.industry_packs.length === 0) {
+      setStep(3);
+      return;
+    }
     if (step > 0) setStep((s) => s - 1);
   };
 
@@ -141,16 +264,17 @@ export default function BusinessOnboardingWizard() {
       login();
       return;
     }
-
     const privyUserId = getCanonicalUserId(user.id);
     if (!privyUserId) {
       toast.error('Session not ready. Please sign in again.');
       return;
     }
 
+    const entity = getOsEntityType(form.os_entity_type);
+    const business_type = entity?.businessType || 'business';
+
     setSubmitting(true);
     try {
-      // Supply-chain referrer from ?ref= on /onboarding (company id or code)
       let referralCode =
         searchParams.get('ref') || searchParams.get('referral') || null;
       if (referralCode && typeof window !== 'undefined') {
@@ -172,10 +296,25 @@ export default function BusinessOnboardingWizard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           privyUserId,
-          ...form,
-          contact_email: form.contact_email || extractEmailFromPrivyUser(user),
+          business_type,
+          trading_name: form.trading_name,
+          legal_name: form.legal_name,
+          registration_number: form.registration_number,
+          industry: form.industry || form.os_sector,
+          country: form.country,
+          city: form.city,
+          website: form.website,
+          contact_name: form.contact_name,
+          contact_email:
+            form.contact_email || extractEmailFromPrivyUser(user),
+          contact_phone: form.contact_phone,
+          short_description: form.short_description,
           referralCode: referralCode || undefined,
           claimProfileId: claimId || undefined,
+          os_entity_type: form.os_entity_type,
+          os_sector: form.os_sector,
+          industry_packs: form.industry_packs,
+          industry_modules: form.industry_modules,
         }),
       });
       const data = await res.json();
@@ -186,9 +325,7 @@ export default function BusinessOnboardingWizard() {
             profileId: pid,
             connectHref: data.connectHref || `/c/${pid}`,
           });
-          toast.message('Listing already has an owner', {
-            description: 'Connect as a partner or sign in with the owner account.',
-          });
+          toast.message('Listing already has an owner');
         } else {
           toast.error(data.error || 'Registration failed');
         }
@@ -203,9 +340,14 @@ export default function BusinessOnboardingWizard() {
         }
         setDoneProfileId(Number(data.profileId));
       }
-      setDoneLifetime(Boolean(data.lifetime?.status === 'lifetime' || data.claimed));
+      setDoneLifetime(
+        Boolean(data.lifetime?.status === 'lifetime' || data.claimed)
+      );
+      setDoneContactRequired(
+        data.setupStatus === 'contact_required' ||
+          entity?.setupPath === 'contact_required'
+      );
 
-      // Soft: notify referrer CRM that invite was accepted
       if (referralCode && /^\d+$/.test(String(referralCode))) {
         void fetch('/api/public/invite-track', {
           method: 'POST',
@@ -221,21 +363,27 @@ export default function BusinessOnboardingWizard() {
 
       setDone(true);
       toast.success(
-        data.claimed
-          ? 'Listing claimed — workspace ready!'
-          : `${resolveEntityKind(form.business_type).shortLabel} workspace ready!`
+        data.setupStatus === 'contact_required'
+          ? 'A specialist will contact you to complete setup'
+          : data.claimed
+            ? 'Listing claimed — workspace ready!'
+            : 'Workspace ready!'
       );
-      // Partner storefront handoff (e.g. bigfivegroup.africa → Big Five Foods)
+
       const partner = (searchParams.get('partner') || '').toLowerCase().trim();
       const intent = (searchParams.get('intent') || '').toLowerCase().trim();
-      const product = searchParams.get('product') || searchParams.get('sku') || '';
+      const product =
+        searchParams.get('product') || searchParams.get('sku') || '';
       const source = searchParams.get('source') || '';
       const channel = searchParams.get('channel') || '';
       let dest =
         data.homePath ||
-        resolveEntityKind(form.business_type).homePath ||
+        resolveEntityKind(business_type).homePath ||
         '/dashboard/select-company';
-      if (partner && (intent === 'order' || intent === 'trade' || intent === 'quote')) {
+      if (
+        partner &&
+        (intent === 'order' || intent === 'trade' || intent === 'quote')
+      ) {
         const qs = new URLSearchParams();
         if (source) qs.set('source', source);
         if (searchParams.get('ref')) qs.set('ref', String(searchParams.get('ref')));
@@ -245,16 +393,8 @@ export default function BusinessOnboardingWizard() {
         dest = product
           ? `/store/${encodeURIComponent(partner)}/products/${encodeURIComponent(product)}${q ? `?${q}` : ''}`
           : `/store/${encodeURIComponent(partner)}${q ? `?${q}` : ''}`;
-        try {
-          sessionStorage.setItem(
-            'sa_storefront_handoff',
-            JSON.stringify({ partner, intent, product, source, channel, at: Date.now() })
-          );
-        } catch {
-          /* soft */
-        }
       }
-      setTimeout(() => router.push(dest), 2200);
+      setTimeout(() => router.push(dest), 2400);
     } catch {
       toast.error('Something went wrong. Please try again.');
     } finally {
@@ -278,84 +418,34 @@ export default function BusinessOnboardingWizard() {
             Listing already claimed
           </h1>
           <p className="text-sm text-neutral-600 mb-6 leading-relaxed">
-            Company #{claimConflict.profileId} already has an owner on
-            SupplierAdvisor. You can connect as a trade partner, or sign in with
-            the owner account to manage the listing.
+            Company #{claimConflict.profileId} already has an owner.
           </p>
-          <div className="flex flex-col gap-2">
-            <Link
-              href={claimConflict.connectHref || `/c/${claimConflict.profileId}`}
-              className="btn-primary !py-3 text-sm"
-            >
-              View listing & connect
-            </Link>
-            <Link
-              href={`/login?next=${encodeURIComponent(`/c/${claimConflict.profileId}`)}`}
-              className="btn-secondary !py-3 text-sm"
-            >
-              Sign in as owner
-            </Link>
-            <Link href="/onboarding?type=business" className="text-xs font-semibold text-[#0077b6] hover:underline mt-2">
-              Register a new company instead
-            </Link>
-          </div>
+          <Link
+            href={claimConflict.connectHref || `/c/${claimConflict.profileId}`}
+            className="btn-primary !py-3 text-sm"
+          >
+            View listing & connect
+          </Link>
         </div>
       </div>
     );
   }
 
   if (done) {
-    const shareUrl =
-      typeof window !== 'undefined'
-        ? `${window.location.origin}/onboarding?type=business&ref=${doneProfileId || ''}`
-        : `https://www.supplieradvisor.com/onboarding?type=business&ref=${doneProfileId || ''}`;
-    const shareText = doneLifetime
-      ? `We just claimed our SupplierAdvisor founding seat — join the verified B2B trade network: ${shareUrl}`
-      : `We joined SupplierAdvisor — the B2B trade OS: ${shareUrl}`;
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-6">
         <div className="text-center max-w-md">
           <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto mb-6" />
           <h1 className="text-4xl font-black tracking-[-2px] text-[#00b4d8] mb-3">
-            {claimId ? 'Listing claimed' : 'Welcome aboard'}
+            {doneContactRequired ? 'Request received' : 'Welcome aboard'}
           </h1>
           <p className="text-lg text-neutral-600 mb-4">
-            Your workspace is ready. Redirecting…
+            {doneContactRequired
+              ? 'A specialist will contact you to complete provincial / national setup. Redirecting…'
+              : doneLifetime
+                ? 'Founding seat ready. Redirecting…'
+                : 'Your Core OS workspace is ready. Redirecting…'}
           </p>
-          {doneProfileId ? (
-            <div className="rounded-2xl border border-violet-200 bg-violet-50/80 px-4 py-3 text-left">
-              <p className="text-xs font-black text-violet-950 mb-1">
-                Share your referral link
-              </p>
-              <p className="text-[11px] text-violet-900/90 mb-2 leading-relaxed">
-                Invite partners — they join via your ref code.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="btn-primary !py-1.5 !px-3 text-xs"
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(shareUrl);
-                      toast.success('Referral link copied');
-                    } catch {
-                      toast.message(shareUrl);
-                    }
-                  }}
-                >
-                  Copy link
-                </button>
-                <a
-                  href={`https://wa.me/?text=${encodeURIComponent(shareText)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-secondary !py-1.5 !px-3 text-xs"
-                >
-                  WhatsApp
-                </a>
-              </div>
-            </div>
-          ) : null}
         </div>
       </div>
     );
@@ -363,334 +453,526 @@ export default function BusinessOnboardingWizard() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
-      <div className="max-w-3xl mx-auto px-6 py-10 md:py-14">
-        <div className="flex items-center justify-between mb-8">
-          <Link href="/" className="flex items-center gap-3">
-            <Image src="/sa-logo.png" alt="SupplierAdvisor" width={40} height={40} className="rounded-xl" />
-            <span className="font-black text-xl tracking-[-1px] text-slate-900">SupplierAdvisor®</span>
-          </Link>
-          <Link href="/login" className="text-sm font-medium text-[#00b4d8] hover:underline">
-            Already have an account?
-          </Link>
-        </div>
-
-        {/* Progress */}
-        <div className="mb-10">
-          <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-3">
-            {STEPS.map((label, i) => (
-              <span key={label} className={i <= step ? 'text-[#00b4d8]' : ''}>
-                {label}
-              </span>
-            ))}
-          </div>
-          <div className="h-2 bg-neutral-200 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-[#00b4d8] transition-all duration-300 rounded-full"
-              style={{ width: `${progress}%` }}
+      <header className="border-b border-slate-200 bg-white/90 backdrop-blur sticky top-0 z-20">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          <Link href="/" className="flex items-center gap-2">
+            <Image
+              src="/icon.png"
+              alt="SupplierAdvisor"
+              width={32}
+              height={32}
+              className="rounded-lg"
             />
+            <span className="font-black text-sm text-slate-900 hidden sm:inline">
+              SupplierAdvisor®
+            </span>
+          </Link>
+          <div className="flex-1 max-w-xs mx-4">
+            <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+              <div
+                className="h-full bg-[#00b4d8] transition-all"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="text-[10px] font-bold uppercase text-slate-400 mt-1 text-center">
+              {STEPS[step]} · {step + 1}/{STEPS.length}
+            </p>
           </div>
+          <span className="text-[10px] font-bold text-slate-500 tabular-nums">
+            Core R{CORE_OS_MONTHLY_ZAR}
+            {price.packCount
+              ? ` + ${price.packCount}×R${INDUSTRY_PACK_MONTHLY_ZAR}`
+              : ''}
+          </span>
         </div>
+      </header>
 
-        <div className="bg-white border border-neutral-200 rounded-3xl p-8 md:p-10 shadow-sm">
-          {claimId ? (
-            <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
-              <p className="font-black">Claiming directory listing</p>
-              <p className="text-xs mt-0.5 opacity-90">
-                Company #{claimId}
-                {claimName ? ` · ${claimName}` : ''} — you will become owner
-                without creating a duplicate company.
-              </p>
-            </div>
-          ) : null}
-          {step === 0 && (
+      <main className="max-w-3xl mx-auto px-4 py-8 pb-28">
+        {/* Step 0 — Account */}
+        {step === 0 ? (
+          <section className="space-y-6">
             <div>
-              <div className="inline-flex items-center gap-2 bg-[#00b4d8]/10 text-[#0077b6] px-3 py-1.5 rounded-full text-sm font-semibold mb-4">
-                <ShieldCheck className="w-4 h-4" /> Secure account
-              </div>
-              <h1 className="text-3xl md:text-4xl font-black tracking-[-1.5px] text-[#00b4d8] mb-3">
-                {claimId ? 'Claim your listing' : 'Create your SupplierAdvisor account'}
+              <h1 className="text-3xl font-black text-slate-900 tracking-tight">
+                Join SupplierAdvisor
               </h1>
-              <p className="text-neutral-600 text-lg mb-8 leading-relaxed">
-                We use enterprise-grade authentication via Privy — email one-time codes, Google, Apple, or wallet.
-                Stronger than passwords, faster for your team.
+              <p className="text-slate-600 mt-2 text-sm leading-relaxed">
+                Core OS from R{CORE_OS_MONTHLY_ZAR}/mo · Industry Packs +R
+                {INDUSTRY_PACK_MONTHLY_ZAR}/mo each · 30-day trial.
               </p>
-
-              {authenticated ? (
-                <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-100 mb-8">
-                  <div className="font-semibold text-emerald-800">You&apos;re signed in</div>
-                  <div className="text-sm text-emerald-700 mt-1">
-                    {extractEmailFromPrivyUser(user) || user?.id}
-                  </div>
-                </div>
-              ) : (
-                <ul className="space-y-3 mb-8 text-neutral-700">
-                  <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-[#00b4d8] flex-shrink-0" /> Email verification codes (no weak passwords)</li>
-                  <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-[#00b4d8] flex-shrink-0" /> Google &amp; Apple social sign-in</li>
-                  <li className="flex gap-3"><CheckCircle2 className="w-5 h-5 text-[#00b4d8] flex-shrink-0" /> Optional wallet for on-chain features</li>
-                </ul>
-              )}
             </div>
-          )}
-
-          {step === 1 && (
-            <div>
-              <h1 className="text-3xl font-black tracking-[-1.5px] text-[#00b4d8] mb-3">
-                Who is registering?
-              </h1>
-              <p className="text-neutral-600 mb-2">
-                Choose your lane:{' '}
-                <strong className="text-slate-900">B2B businesses first</strong>
-                , then{' '}
-                <strong className="text-slate-900">B2C consumers</strong>{' '}
-                (marketplace), then{' '}
-                <strong className="text-slate-900">B2G government</strong>{' '}
-                agencies last.
-              </p>
-              <p className="text-sm text-neutral-500 mb-6">
-                Most invitations register a normal company (B2B). Government
-                offices only if you represent an official department.
-              </p>
-              <div className="space-y-8">
-                {entityGroups().map((group) => (
-                  <div key={group.id}>
-                    <h2
-                      className={`text-xs font-black uppercase tracking-wider mb-1 ${
-                        group.lane === 'b2b'
-                          ? 'text-[#0077b6]'
-                          : group.lane === 'b2c'
-                            ? 'text-fuchsia-700'
-                            : 'text-slate-400'
-                      }`}
-                    >
-                      {group.title}
-                      {group.lane === 'b2b' ? (
-                        <span className="ml-2 normal-case tracking-normal font-bold text-[10px] bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full">
-                          First · recommended
-                        </span>
-                      ) : null}
-                      {group.lane === 'b2c' ? (
-                        <span className="ml-2 normal-case tracking-normal font-bold text-[10px] bg-fuchsia-100 text-fuchsia-800 px-2 py-0.5 rounded-full">
-                          Marketplace
-                        </span>
-                      ) : null}
-                    </h2>
-                    <p className="text-xs text-slate-500 mb-3">{group.blurb}</p>
-                    <div className="grid sm:grid-cols-2 gap-3">
-                      {group.entities.map((type) => {
-                        const Icon = ENTITY_ICONS[type.id] || Building2;
-                        const selected = form.business_type === type.business_type;
-                        const isCompany = type.id === 'business';
-                        return (
-                          <button
-                            key={type.id}
-                            type="button"
-                            onClick={() =>
-                              update('business_type', type.business_type)
-                            }
-                            className={`text-left p-4 rounded-2xl border transition-all ${
-                              selected
-                                ? 'border-[#00b4d8] bg-[#00b4d8]/5 shadow-sm ring-2 ring-[#00b4d8]/20'
-                                : isCompany
-                                  ? 'border-sky-200 bg-sky-50/40 hover:border-sky-300'
-                                  : 'border-neutral-200 hover:border-neutral-300 bg-white'
-                            }`}
-                          >
-                            <div className="flex items-start gap-3">
-                              <Icon
-                                className={`w-6 h-6 shrink-0 ${
-                                  selected || isCompany
-                                    ? 'text-[#00b4d8]'
-                                    : 'text-neutral-500'
-                                }`}
-                              />
-                              <div>
-                                <div className="font-semibold text-slate-900 text-sm flex items-center gap-2 flex-wrap">
-                                  {type.label}
-                                  {isCompany ? (
-                                    <span className="text-[9px] font-black uppercase tracking-wide text-sky-700 bg-sky-100 px-1.5 py-0.5 rounded">
-                                      Default
-                                    </span>
-                                  ) : null}
-                                </div>
-                                <div className="text-xs text-neutral-600 mt-1 leading-relaxed">
-                                  {type.description}
-                                </div>
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
+            {authenticated ? (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950 flex gap-2 items-center">
+                <ShieldCheck className="w-5 h-5 shrink-0" />
+                Signed in
+                {user?.email?.address || extractEmailFromPrivyUser(user)
+                  ? ` as ${user?.email?.address || extractEmailFromPrivyUser(user)}`
+                  : ''}
+                . Continue to choose your organisation type.
               </div>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div>
-              <h1 className="text-3xl font-black tracking-[-1.5px] text-[#00b4d8] mb-3">Organisation details</h1>
-              <p className="text-neutral-600 mb-8">These details appear on your verified company profile.</p>
-              <div className="space-y-5">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Trading name *</label>
-                  <input className="input w-full" value={form.trading_name} onChange={(e) => update('trading_name', e.target.value)} placeholder="Acme Fresh" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Legal name</label>
-                  <input className="input w-full" value={form.legal_name} onChange={(e) => update('legal_name', e.target.value)} placeholder="Acme Fresh (Pty) Ltd" />
-                </div>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Registration number</label>
-                    <input className="input w-full" value={form.registration_number} onChange={(e) => update('registration_number', e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Industry / sector
-                    </label>
-                    <select
-                      className="input w-full"
-                      value={form.industry}
-                      onChange={(e) => update('industry', e.target.value)}
-                    >
-                      <option value="">Select industry…</option>
-                      {industriesGroupedBySector().map(
-                        ({ sector, industries }) => (
-                          <optgroup
-                            key={sector.id}
-                            label={`${sector.order}. ${sector.label}`}
-                          >
-                            {industries.map((ind) => (
-                              <option key={ind.name} value={ind.name}>
-                                {ind.name}
-                              </option>
-                            ))}
-                          </optgroup>
-                        )
-                      )}
-                    </select>
-                  </div>
-                </div>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Country</label>
-                    <input className="input w-full" value={form.country} onChange={(e) => update('country', e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">City</label>
-                    <input className="input w-full" value={form.city} onChange={(e) => update('city', e.target.value)} />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Website</label>
-                  <div className="relative">
-                    <Globe2 className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" />
-                    <input className="input w-full pl-11" value={form.website} onChange={(e) => update('website', e.target.value)} placeholder="https://" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Short description</label>
-                  <textarea
-                    className="input w-full min-h-[100px]"
-                    value={form.short_description}
-                    onChange={(e) => update('short_description', e.target.value)}
-                    placeholder="What does your organisation do?"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div>
-              <h1 className="text-3xl font-black tracking-[-1.5px] text-[#00b4d8] mb-3">Primary contact</h1>
-              <p className="text-neutral-600 mb-8">This person will be the account owner for the company.</p>
-              <div className="space-y-5">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Full name *</label>
-                  <input className="input w-full" value={form.contact_name} onChange={(e) => update('contact_name', e.target.value)} placeholder="Thandi Nkosi" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Work email *</label>
-                  <input type="email" className="input w-full" value={form.contact_email} onChange={(e) => update('contact_email', e.target.value)} placeholder="you@company.com" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Phone</label>
-                  <input type="tel" className="input w-full" value={form.contact_phone} onChange={(e) => update('contact_phone', e.target.value)} placeholder="+27 …" />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {step === 4 && (
-            <div>
-              <h1 className="text-3xl font-black tracking-[-1.5px] text-[#00b4d8] mb-3">Review &amp; launch</h1>
-              <p className="text-neutral-600 mb-8">Confirm everything looks right. You can edit your profile later.</p>
-              <div className="rounded-2xl border border-neutral-200 divide-y bg-neutral-50">
-                {[
-                  [
-                    'Organisation type',
-                    resolveEntityKind(form.business_type).label,
-                  ],
-                  ['Trading name', form.trading_name],
-                  ['Legal name', form.legal_name || form.trading_name],
-                  ['Location', [form.city, form.country].filter(Boolean).join(', ')],
-                  ['Contact', form.contact_name],
-                  ['Email', form.contact_email],
-                  ['Phone', form.contact_phone || '—'],
-                ].map(([label, value]) => (
-                  <div key={String(label)} className="flex justify-between gap-4 px-5 py-4 text-sm">
-                    <span className="text-neutral-500">{label}</span>
-                    <span className="font-medium text-slate-900 text-right">{value || '—'}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Navigation */}
-          <div className="flex items-center justify-between mt-10 pt-6 border-t border-neutral-100">
-            <button
-              type="button"
-              onClick={goBack}
-              disabled={step === 0}
-              className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl text-neutral-600 disabled:opacity-30 hover:bg-neutral-50"
-            >
-              <ArrowLeft className="w-4 h-4" /> Back
-            </button>
-
-            {step < STEPS.length - 1 ? (
-              <button
-                type="button"
-                onClick={goNext}
-                disabled={!canNext && step !== 0}
-                className="btn-primary py-3 px-8 disabled:opacity-50 inline-flex items-center gap-2"
-              >
-                {step === 0 && !authenticated ? 'Sign in to continue' : 'Continue'}
-                <ArrowRight className="w-4 h-4" />
-              </button>
             ) : (
               <button
                 type="button"
-                onClick={submit}
-                disabled={submitting || !canNext}
-                className="btn-primary py-3 px-8 disabled:opacity-50 inline-flex items-center gap-2"
+                onClick={() => login()}
+                className="btn-primary !py-3 !px-6 text-sm w-full sm:w-auto"
               >
-                {submitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Creating workspace…
-                  </>
-                ) : (
-                  <>
-                    Create my workspace <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
+                Sign in to continue
               </button>
             )}
-          </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-xs text-slate-600 space-y-1">
+              <p className="font-bold text-slate-800">How packaging works</p>
+              <p>
+                <strong>Core OS</strong> — Control Tower, Suppliers, Customers,
+                Ops, Inventory, Quality, Finance, Intelligence.
+              </p>
+              <p>
+                <strong>Industry Packs</strong> — add vertical tools (+R
+                {INDUSTRY_PACK_MONTHLY_ZAR}/mo each).
+              </p>
+              <p>
+                <strong>Modules</strong> — turn pack capabilities on/off.
+              </p>
+            </div>
+          </section>
+        ) : null}
+
+        {/* Step 1 — Entity type */}
+        {step === 1 ? (
+          <section className="space-y-4">
+            <h1 className="text-2xl font-black text-slate-900">
+              What type of organisation?
+            </h1>
+            <p className="text-sm text-slate-600">
+              Required. This drives recommendations and public-sector rules.
+            </p>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {OS_ENTITY_TYPES.map((e) => {
+                const Icon =
+                  e.id === 'school'
+                    ? GraduationCap
+                    : e.publicSector
+                      ? Landmark
+                      : Building2;
+                const on = form.os_entity_type === e.id;
+                return (
+                  <button
+                    key={e.id}
+                    type="button"
+                    onClick={() => {
+                      update('os_entity_type', e.id);
+                      update('business_type', e.businessType);
+                      if (e.publicSector) update('os_sector', 'public_sector');
+                    }}
+                    className={`text-left rounded-2xl border-2 p-4 transition ${
+                      on
+                        ? 'border-[#00b4d8] bg-sky-50 shadow-sm'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <Icon
+                      className={`w-6 h-6 mb-2 ${on ? 'text-[#0077b6]' : 'text-slate-400'}`}
+                    />
+                    <p className="font-black text-sm text-slate-900">
+                      {e.label}
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                      {e.description}
+                    </p>
+                    {e.setupPath === 'contact_required' ? (
+                      <span className="inline-block mt-2 text-[10px] font-bold uppercase text-violet-800 bg-violet-100 px-2 py-0.5 rounded-full">
+                        Specialist setup
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        {/* Step 2 — Sector */}
+        {step === 2 ? (
+          <section className="space-y-4">
+            <h1 className="text-2xl font-black text-slate-900">Sector</h1>
+            <p className="text-sm text-slate-600">
+              {entityDef?.publicSector
+                ? 'Public sector is selected for government and school entities.'
+                : 'Required. Drives Industry Pack recommendations.'}
+            </p>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {OS_SECTORS.map((s) => {
+                const locked =
+                  entityDef?.publicSector && s.id !== 'public_sector';
+                const on = form.os_sector === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    disabled={Boolean(locked)}
+                    onClick={() => update('os_sector', s.id as OsSectorId)}
+                    className={`text-left rounded-2xl border-2 p-4 transition ${
+                      on
+                        ? 'border-[#00b4d8] bg-sky-50'
+                        : locked
+                          ? 'border-slate-100 bg-slate-50 opacity-40 cursor-not-allowed'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <p className="font-black text-sm">{s.label}</p>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      {s.description}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        {/* Step 3 — Packs */}
+        {step === 3 ? (
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <h1 className="text-2xl font-black text-slate-900">
+                  Industry Packs
+                </h1>
+                <p className="text-sm text-slate-600 mt-1">
+                  Optional. Core OS alone is fine. Each pack +R
+                  {INDUSTRY_PACK_MONTHLY_ZAR}/mo.
+                </p>
+              </div>
+              {recommended.length ? (
+                <button
+                  type="button"
+                  onClick={applyRecommendedPacks}
+                  className="btn-secondary !py-1.5 !px-3 text-xs"
+                >
+                  Apply recommended
+                </button>
+              ) : null}
+            </div>
+            <div className="rounded-xl border border-sky-100 bg-sky-50/80 px-3 py-2 text-xs text-sky-950">
+              Recommended for your entity + sector:{' '}
+              <strong>
+                {recommended.length
+                  ? recommended
+                      .map((id) => getIndustryPack(id)?.shortName || id)
+                      .join(', ')
+                  : 'Core only'}
+              </strong>
+            </div>
+            <div className="space-y-2">
+              {INDUSTRY_PACKS.map((p) => {
+                const on = form.industry_packs.includes(p.id);
+                const rec = recommended.includes(p.id);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => togglePack(p.id)}
+                    className={`w-full text-left rounded-2xl border-2 p-4 flex gap-3 transition ${
+                      on
+                        ? 'border-[#00b4d8] bg-sky-50'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div
+                      className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${
+                        on
+                          ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
+                          : 'border-slate-300'
+                      }`}
+                    >
+                      {on ? <CheckCircle2 className="w-3.5 h-3.5" /> : null}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-black text-sm text-slate-900">
+                          {p.name}
+                        </p>
+                        <span className="text-[10px] font-bold text-slate-500">
+                          +R{p.monthlyZar}/mo
+                        </span>
+                        {rec ? (
+                          <span className="text-[10px] font-bold uppercase text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
+                            Recommended
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                        {p.description}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-slate-500">
+              Running total:{' '}
+              <strong className="text-slate-800">
+                R{price.total}/mo
+              </strong>{' '}
+              (Core R{price.core}
+              {price.packCount
+                ? ` + ${price.packCount} pack(s) R${price.packs}`
+                : ''}
+              )
+            </p>
+          </section>
+        ) : null}
+
+        {/* Step 4 — Modules */}
+        {step === 4 ? (
+          <section className="space-y-4">
+            <h1 className="text-2xl font-black text-slate-900">
+              Industry modules
+            </h1>
+            <p className="text-sm text-slate-600">
+              Recommended. Leave empty to enable all modules in selected packs.
+              You can change this later under Administration → Modules.
+            </p>
+            {modulesForSelectedPacks.length === 0 ? (
+              <p className="text-sm text-slate-500">
+                No packs selected — skip to company details.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {modulesForSelectedPacks.map((m) => {
+                  const on = form.industry_modules.includes(m.id);
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => toggleModule(m.id)}
+                      className={`w-full text-left rounded-xl border p-3 flex gap-3 ${
+                        on
+                          ? 'border-[#00b4d8] bg-sky-50'
+                          : 'border-slate-200 bg-white'
+                      }`}
+                    >
+                      <Package
+                        className={`w-4 h-4 shrink-0 mt-0.5 ${on ? 'text-[#0077b6]' : 'text-slate-400'}`}
+                      />
+                      <div>
+                        <p className="text-sm font-bold text-slate-900">
+                          {m.name}{' '}
+                          <span className="text-[10px] font-normal text-slate-400">
+                            · {m.packName}
+                          </span>
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          {m.description}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        ) : null}
+
+        {/* Step 5 — Details */}
+        {step === 5 ? (
+          <section className="space-y-4">
+            <h1 className="text-2xl font-black text-slate-900">
+              Company details
+            </h1>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <label className="text-xs sm:col-span-2">
+                <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                  Trading name *
+                </span>
+                <input
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold"
+                  value={form.trading_name}
+                  onChange={(e) => update('trading_name', e.target.value)}
+                  placeholder="How you trade"
+                />
+              </label>
+              <label className="text-xs sm:col-span-2">
+                <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                  Legal name
+                </span>
+                <input
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                  value={form.legal_name}
+                  onChange={(e) => update('legal_name', e.target.value)}
+                />
+              </label>
+              <label className="text-xs">
+                <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                  Registration no.
+                </span>
+                <input
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                  value={form.registration_number}
+                  onChange={(e) =>
+                    update('registration_number', e.target.value)
+                  }
+                />
+              </label>
+              <label className="text-xs">
+                <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                  City
+                </span>
+                <input
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                  value={form.city}
+                  onChange={(e) => update('city', e.target.value)}
+                />
+              </label>
+              <label className="text-xs">
+                <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                  Contact name *
+                </span>
+                <input
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold"
+                  value={form.contact_name}
+                  onChange={(e) => update('contact_name', e.target.value)}
+                />
+              </label>
+              <label className="text-xs">
+                <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                  Contact email *
+                </span>
+                <input
+                  type="email"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold"
+                  value={form.contact_email}
+                  onChange={(e) => update('contact_email', e.target.value)}
+                />
+              </label>
+              <label className="text-xs sm:col-span-2">
+                <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                  Phone
+                </span>
+                <input
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                  value={form.contact_phone}
+                  onChange={(e) => update('contact_phone', e.target.value)}
+                />
+              </label>
+            </div>
+          </section>
+        ) : null}
+
+        {/* Step 6 — Review */}
+        {step === 6 ? (
+          <section className="space-y-4">
+            <h1 className="text-2xl font-black text-slate-900">
+              Review & confirm
+            </h1>
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3 text-sm">
+              <Row
+                label="Entity"
+                value={entityDef?.label || form.os_entity_type}
+              />
+              <Row
+                label="Sector"
+                value={
+                  OS_SECTORS.find((s) => s.id === form.os_sector)?.label ||
+                  form.os_sector
+                }
+              />
+              <Row
+                label="Packs"
+                value={
+                  form.industry_packs.length
+                    ? form.industry_packs
+                        .map((id) => getIndustryPack(id)?.name || id)
+                        .join(', ')
+                    : 'Core OS only'
+                }
+              />
+              <Row
+                label="Modules"
+                value={
+                  form.industry_modules.length
+                    ? `${form.industry_modules.length} selected`
+                    : form.industry_packs.length
+                      ? 'All modules in selected packs'
+                      : '—'
+                }
+              />
+              <Row label="Company" value={form.trading_name} />
+              <Row label="Contact" value={`${form.contact_name} · ${form.contact_email}`} />
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                <span className="text-xs font-bold uppercase text-slate-400">
+                  Est. monthly
+                </span>
+                <span className="text-lg font-black text-slate-900">
+                  R{price.total}
+                  <span className="text-xs font-bold text-slate-400">/mo</span>
+                </span>
+              </div>
+              {contactRequired ? (
+                <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-950">
+                  <Layers className="w-4 h-4 inline mr-1" />
+                  <strong>Specialist setup:</strong> Provincial and National
+                  government complete pack selection here; a SupplierAdvisor
+                  specialist will contact you to finish activation.
+                </div>
+              ) : (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-950">
+                  Full self-serve activation after confirm (30-day trial on Core
+                  OS).
+                </div>
+              )}
+            </div>
+          </section>
+        ) : null}
+      </main>
+
+      <footer className="fixed bottom-0 inset-x-0 border-t border-slate-200 bg-white/95 backdrop-blur z-20">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={goBack}
+            disabled={step === 0}
+            className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1 disabled:opacity-30"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+          {step < STEPS.length - 1 ? (
+            <button
+              type="button"
+              disabled={!canNext}
+              onClick={goNext}
+              className="btn-primary !py-2.5 !px-5 text-sm inline-flex items-center gap-1 disabled:opacity-40"
+            >
+              Continue <ArrowRight className="w-4 h-4" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={submitting || !canNext}
+              onClick={() => void submit()}
+              className="btn-primary !py-2.5 !px-5 text-sm inline-flex items-center gap-1 disabled:opacity-40"
+            >
+              {submitting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4" />
+              )}
+              {contactRequired ? 'Request specialist setup' : 'Create workspace'}
+            </button>
+          )}
         </div>
-      </div>
+      </footer>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-wrap justify-between gap-2">
+      <span className="text-[10px] font-bold uppercase text-slate-400">
+        {label}
+      </span>
+      <span className="text-sm font-semibold text-slate-900 text-right max-w-[70%]">
+        {value || '—'}
+      </span>
     </div>
   );
 }

@@ -20,6 +20,9 @@ export const ENTITY_KINDS = [
   'consumer',
   'government_education',
   'government_health',
+  'municipal_government',
+  'provincial_government',
+  'national_government',
 ] as const;
 
 export type EntityKind = (typeof ENTITY_KINDS)[number];
@@ -201,6 +204,52 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     badge: 'B2G',
     badgeClass: 'bg-rose-100 text-rose-900 border-rose-200',
   },
+  // ── Public sector entity types (Core OS packaging 2026-08) ──────────
+  {
+    id: 'municipal_government',
+    business_type: 'municipal_government',
+    org_type: 'municipal_government',
+    label: 'Municipal / Local Government',
+    shortLabel: 'Municipal',
+    description:
+      'Local government — self-serve with public procurement and multi-entity tools.',
+    group: 'government',
+    homePath: '/dashboard',
+    modulePreset: 'trading',
+    provision: 'none',
+    badge: 'B2G · Local',
+    badgeClass: 'bg-indigo-100 text-indigo-900 border-indigo-200',
+  },
+  {
+    id: 'provincial_government',
+    business_type: 'provincial_government',
+    org_type: 'provincial_government',
+    label: 'Provincial Government',
+    shortLabel: 'Provincial',
+    description:
+      'Provincial department — pack selection; specialist completes full setup.',
+    group: 'government',
+    homePath: '/dashboard',
+    modulePreset: 'dbe_agency',
+    provision: 'agency_education',
+    badge: 'B2G · Province',
+    badgeClass: 'bg-violet-100 text-violet-900 border-violet-200',
+  },
+  {
+    id: 'national_government',
+    business_type: 'national_government',
+    org_type: 'national_government',
+    label: 'National Government',
+    shortLabel: 'National',
+    description:
+      'National department — pack selection; specialist completes full setup.',
+    group: 'government',
+    homePath: '/dashboard',
+    modulePreset: 'dbe_agency',
+    provision: 'agency_education',
+    badge: 'B2G · National',
+    badgeClass: 'bg-purple-100 text-purple-900 border-purple-200',
+  },
 ] as const;
 
 const BY_ID = new Map(ENTITY_DEFINITIONS.map((e) => [e.id, e]));
@@ -245,6 +294,19 @@ export function resolveEntityKind(
     t === 'shopper'
   ) {
     return BY_ID.get('consumer')!;
+  }
+  // Core OS packaging entity types
+  if (t === 'private_company' || t === 'private' || t === 'company') {
+    return BY_ID.get('business')!;
+  }
+  if (t === 'municipal' || t === 'local_government' || t === 'municipality') {
+    return BY_ID.get('municipal_government')!;
+  }
+  if (t === 'provincial' || t === 'province') {
+    return BY_ID.get('provincial_government')!;
+  }
+  if (t === 'national' || t === 'national_gov') {
+    return BY_ID.get('national_government')!;
   }
 
   return BY_ID.get('business')!;

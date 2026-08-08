@@ -51,14 +51,31 @@ export async function GET(request: NextRequest) {
 
     // Company module enablement (sidebar) — default all selected
     let enabledModules = normalizeEnabledModules(null);
+    let packaging: Record<string, unknown> | null = null;
+    let businessType: string | null = null;
     try {
       const supabase = getSupabaseServer();
       const { data: prof } = await supabase
         .from('profiles')
-        .select('metadata')
+        .select('metadata, business_type')
         .eq('id', companyId)
         .maybeSingle();
       enabledModules = extractEnabledModulesFromMetadata(prof?.metadata);
+      businessType =
+        prof?.business_type != null ? String(prof.business_type) : null;
+      const meta =
+        prof?.metadata && typeof prof.metadata === 'object'
+          ? (prof.metadata as Record<string, unknown>)
+          : null;
+      if (meta) {
+        const { readPackagingFromMetadata } = await import(
+          '@/lib/product/architecture'
+        );
+        packaging = readPackagingFromMetadata(meta) as unknown as Record<
+          string,
+          unknown
+        > | null;
+      }
     } catch {
       /* soft — fail open all modules */
     }
@@ -82,6 +99,8 @@ export async function GET(request: NextRequest) {
       },
       matrix,
       enabledModules,
+      packaging,
+      businessType,
       moduleOptions: listCompanyModuleOptions(),
     });
   } catch (e: unknown) {

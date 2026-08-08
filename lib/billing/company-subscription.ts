@@ -1,5 +1,6 @@
 /**
- * Company SaaS subscription — R299 / month after 30-day free trial.
+ * Company SaaS subscription — Core OS R299 / month after 30-day free trial.
+ * Industry Packs +R199/mo each (see lib/product/architecture.ts).
  * Payments via Paystack (monthly or multi-year prepaid with discounts).
  * Lifetime complimentary: founder companies + first 25 founding partners.
  */

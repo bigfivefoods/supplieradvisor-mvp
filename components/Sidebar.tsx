@@ -14,14 +14,11 @@ import { useCompanyRole } from '@/lib/business/useCompanyRole';
 import { SIDEBAR_MODULE_RESOURCE } from '@/lib/business/permissions';
 import SystemHealthBadge from '@/components/system/SystemHealthBadge';
 import { useSidebarChrome } from '@/components/chrome/SidebarContext';
-import { sidebarModulesFromNav } from '@/lib/chrome/module-nav';
 import { useProgrammeRole } from '@/lib/schools/useProgrammeRole';
 import { stepVisibleForRole } from '@/lib/schools/programme-role';
 import { useHealthProgrammeRole } from '@/lib/health/useProgrammeRole';
 import { healthStepVisibleForRole } from '@/lib/health/programme-role';
-
-/** Critical-process nav only — icons unique per module (see lib/chrome/module-nav.ts). */
-const modules = sidebarModulesFromNav();
+import { functionalSidebarModules } from '@/lib/chrome/functional-nav';
 
 const EXPANDED_KEY = 'sa-sidebar-expanded-v1';
 
@@ -60,27 +57,50 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     rights,
     loading,
     isCompanyModuleEnabled,
+    packaging,
+    businessType,
   } = useCompanyRole();
   const programme = useProgrammeRole();
   const healthProgramme = useHealthProgrammeRole();
+
+  const modules = useMemo(() => {
+    const simplifiedSchool =
+      businessType === 'school' ||
+      packaging?.entityTypeId === 'school' ||
+      programme.role === 'school';
+    return functionalSidebarModules({
+      isModuleEnabled: isCompanyModuleEnabled,
+      packaging,
+      simplifiedSchool,
+    });
+  }, [isCompanyModuleEnabled, packaging, businessType, programme.role]);
 
   const visibleModules = useMemo(() => {
     // sales_contractor must only see Sales (enforced in /sales SalesShell;
     // if they ever land here, still lock nav to sales-portal only).
     if (role === 'sales_contractor') {
-      return modules.filter((mod) => mod.id === 'sales-portal');
+      return modules.filter(
+        (mod) =>
+          mod.id === 'sales-portal' ||
+          mod.functionalId === 'customers' ||
+          mod.href.startsWith('/sales')
+      );
     }
     return modules
       .filter((mod) => {
+        // Functional shells always allowed if present; module gates applied when building
+        if (mod.id === 'industry_tools' || mod.id === 'multi_entity') {
+          return true;
+        }
         // Company profile module toggles (default all on)
-        if (!isCompanyModuleEnabled(mod.id)) return false;
+        if (!isCompanyModuleEnabled(mod.id) && mod.id !== 'home') return false;
         const resource = SIDEBAR_MODULE_RESOURCE[mod.id];
         if (!resource) return true;
         if (!role) return true;
         return canViewModule(resource);
       })
       .map((mod) => {
-        // Schools module: education only (DBE / School / SP)
+        // Schools steps (standalone or folded under Operations)
         if (mod.id === 'schools') {
           const filtered = mod.sub.filter((s) =>
             stepVisibleForRole(

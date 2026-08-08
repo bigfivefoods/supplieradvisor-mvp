@@ -23,15 +23,70 @@ export async function provisionEntityWorkspace(
     province?: string | null;
     city?: string | null;
     userId?: string | null;
+    /** Core OS packaging (entity type, sector, packs, modules) */
+    packaging?: {
+      entityTypeId?: string | null;
+      sectorId?: string | null;
+      packIds?: string[] | null;
+      moduleIds?: string[] | null;
+    } | null;
   }
 ): Promise<{
   entity: EntityDefinition;
   homePath: string;
   enabledModules: EnabledModulesMap;
+  setupStatus?: string;
 }> {
   const entity = resolveEntityKind(opts.businessType);
-  const enabledModules = enabledModulesFromPreset(entity.modulePreset);
+  let enabledModules = enabledModulesFromPreset(entity.modulePreset);
   const now = new Date().toISOString();
+  let setupStatus = 'active';
+
+  // Overlay pack-based module enablement when packaging is present
+  if (opts.packaging?.packIds?.length || opts.packaging?.entityTypeId) {
+    try {
+      const {
+        packagingFromSelection,
+        packagingMetadataBlob,
+        enabledModulesMapFromPacks,
+      } = await import('@/lib/product/architecture');
+      const { MODULE_NAV } = await import('@/lib/chrome/module-nav');
+      const selection = packagingFromSelection({
+        entityTypeId:
+          opts.packaging.entityTypeId ||
+          (entity.id === 'school' ? 'school' : 'private_company'),
+        sectorId: opts.packaging.sectorId || 'secondary',
+        packIds: opts.packaging.packIds || [],
+        moduleIds: opts.packaging.moduleIds || [],
+      });
+      setupStatus = selection.setupStatus;
+      enabledModules = enabledModulesMapFromPacks(
+        selection.packIds,
+        selection.moduleIds,
+        MODULE_NAV.map((m) => m.id)
+      ) as EnabledModulesMap;
+      // School simplified default modules
+      if (selection.entityTypeId === 'school') {
+        enabledModules = {
+          ...enabledModules,
+          schools: true,
+          inventory: true,
+          suppliers: true,
+          network: true,
+          customers: false,
+          manufacturing: false,
+          distribution: false,
+          containers: false,
+          'sales-portal': false,
+        };
+      }
+      // Persist packaging into metadata below
+      (opts as { _packagingBlob?: Record<string, unknown> })._packagingBlob =
+        packagingMetadataBlob(selection);
+    } catch (e) {
+      console.warn('packaging overlay soft-fail', e);
+    }
+  }
 
   // Persist org_type + modules on profile (soft if columns missing)
   try {
@@ -48,6 +103,11 @@ export async function provisionEntityWorkspace(
     meta.modules_configured_at = now;
     meta.entity_kind = entity.id;
     meta.entity_group = entity.group;
+    const packBlob = (opts as { _packagingBlob?: Record<string, unknown> })
+      ._packagingBlob;
+    if (packBlob) {
+      Object.assign(meta, packBlob);
+    }
 
     await supabase
       .from('profiles')
@@ -73,7 +133,16 @@ export async function provisionEntityWorkspace(
     }
   }
 
-  if (entity.provision === 'school' || entity.provision === 'facility_health') {
+  // Contact-gated provincial/national: do not fully open programme rows
+  const contactGated =
+    entity.id === 'provincial_government' ||
+    entity.id === 'national_government' ||
+    setupStatus === 'contact_required';
+
+  if (
+    !contactGated &&
+    (entity.provision === 'school' || entity.provision === 'facility_health')
+  ) {
     try {
       const memberType =
         entity.provision === 'facility_health' ? 'hospital' : 'school';
@@ -188,7 +257,10 @@ export async function provisionEntityWorkspace(
 
   return {
     entity,
-    homePath: entity.homePath,
+    homePath: contactGated
+      ? '/dashboard/my-business/billing?setup=contact_required'
+      : entity.homePath,
     enabledModules,
+    setupStatus,
   };
 }
