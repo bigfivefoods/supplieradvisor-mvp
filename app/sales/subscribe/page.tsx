@@ -22,14 +22,6 @@ import {
   type SalesSubscriptionInfo,
 } from '@/lib/sales-contractor/subscription';
 
-declare global {
-  interface Window {
-    PaystackPop?: {
-      setup: (opts: Record<string, unknown>) => { openIframe: () => void };
-    };
-  }
-}
-
 export default function SalesSubscribePage() {
   const router = useRouter();
   const { user } = usePrivy();

@@ -97,14 +97,6 @@ const BANK_VERIFY_AMOUNT_CENTS = BANK_VERIFY_AMOUNT_ZAR * 100;
 
 const BANK_ACCOUNT_TYPES = ['Current', 'Savings', 'Cheque', 'Transmission', 'Bond', 'Credit'] as const;
 
-declare global {
-  interface Window {
-    PaystackPop?: {
-      setup: (opts: Record<string, unknown>) => { openIframe: () => void };
-    };
-  }
-}
-
 function extractWalletFromPrivy(user: {
   wallet?: { address?: string | null } | null;
   linkedAccounts?: ReadonlyArray<{ type?: string; address?: string | null }> | null;
@@ -1203,7 +1195,8 @@ function ProfileInner() {
       );
       return;
     }
-    if (!window.PaystackPop?.setup) {
+    const paystackSetup = window.PaystackPop?.setup;
+    if (!paystackSetup) {
       toast.error('Paystack is still loading — wait a second and try again.');
       return;
     }
@@ -1219,7 +1212,7 @@ function ProfileInner() {
     setBankPaying(true);
     const ref = `sa-bank-${companyId}-${Date.now()}`;
     try {
-      const handler = window.PaystackPop.setup({
+      const handler = paystackSetup({
         key,
         email,
         amount: BANK_VERIFY_AMOUNT_CENTS,
@@ -1286,7 +1279,8 @@ function ProfileInner() {
       );
       return;
     }
-    if (!window.PaystackPop) {
+    const paystackSetup = window.PaystackPop?.setup;
+    if (!paystackSetup) {
       toast.error('Paystack is still loading — try again in a moment');
       return;
     }
@@ -1294,7 +1288,7 @@ function ProfileInner() {
     setPaying(true);
     const ref = `sa-verify-${companyId}-${Date.now()}`;
     try {
-      const handler = window.PaystackPop.setup({
+      const handler = paystackSetup({
         key,
         email,
         amount: VERIFY_AMOUNT_CENTS,

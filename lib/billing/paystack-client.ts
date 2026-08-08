@@ -35,20 +35,28 @@ export type PaystackCheckoutOpts = {
   onError?: (err: unknown) => void;
 };
 
-type PaystackPopV2 = {
+/** Shared shape for Paystack InlineJS v1 (setup) and v2 (checkout / paymentRequest). */
+export type PaystackPopInstance = {
   newTransaction?: (opts: Record<string, unknown>) => void;
   checkout?: (opts: Record<string, unknown>) => Promise<void> | void;
   paymentRequest?: (opts: Record<string, unknown>) => Promise<void> | void;
   setup?: (opts: Record<string, unknown>) => { openIframe: () => void };
 };
 
+export type PaystackPopGlobal = PaystackPopInstance & {
+  new?: (opts?: Record<string, unknown>) => PaystackPopInstance;
+  /** v1 static-style API still used in some call sites */
+  setup?: (opts: Record<string, unknown>) => { openIframe: () => void };
+} & (new () => PaystackPopInstance);
+
 declare global {
   interface Window {
-    PaystackPop?: (new () => PaystackPopV2) & PaystackPopV2 & {
-      setup?: (opts: Record<string, unknown>) => { openIframe: () => void };
-    };
+    /** Single declaration for the whole app — do not redeclare elsewhere */
+    PaystackPop?: PaystackPopGlobal;
   }
 }
+
+export {};
 
 export function getPaystackPublicKey(): string | null {
   const k = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '';
@@ -103,9 +111,9 @@ export async function openPaystackCheckout(
   // v2 instance API
   try {
     const isCtor = typeof Pop === 'function';
-    const instance: PaystackPopV2 = isCtor
-      ? new (Pop as new () => PaystackPopV2)()
-      : (Pop as PaystackPopV2);
+    const instance: PaystackPopInstance = isCtor
+      ? new (Pop as new () => PaystackPopInstance)()
+      : (Pop as PaystackPopInstance);
 
     const payload: Record<string, unknown> = {
       key: opts.key,
@@ -182,9 +190,9 @@ export async function mountPaystackApplePay(opts: {
   const Pop = window.PaystackPop;
   if (!Pop) return false;
   const isCtor = typeof Pop === 'function';
-  const instance: PaystackPopV2 = isCtor
-    ? new (Pop as new () => PaystackPopV2)()
-    : (Pop as PaystackPopV2);
+  const instance: PaystackPopInstance = isCtor
+    ? new (Pop as new () => PaystackPopInstance)()
+    : (Pop as PaystackPopInstance);
   if (typeof instance.paymentRequest !== 'function') return false;
 
   let mounted = false;
