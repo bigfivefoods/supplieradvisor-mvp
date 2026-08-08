@@ -21,6 +21,8 @@ import {
   AlertTriangle,
   RefreshCw,
   Users,
+  FileText,
+  Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
@@ -182,6 +184,23 @@ function BillingInner() {
     monthlyZar: number;
     packNames: string[];
   } | null>(null);
+  const [billingLedger, setBillingLedger] = useState<
+    Array<{
+      invoiceNumber?: string;
+      ref: string;
+      at: string;
+      kind: string;
+      amountZar: number;
+      channel?: string | null;
+      packIds?: string[];
+      termId?: string | null;
+    }>
+  >([]);
+  const [enableRecurring, setEnableRecurring] = useState(false);
+  const [recurringInfo, setRecurringInfo] = useState<{
+    subscriptionCode: string | null;
+    planCode: string | null;
+  } | null>(null);
 
   useEffect(() => {
     if (!payFocus || loading) return;
@@ -213,6 +232,10 @@ function BillingInner() {
       if (Array.isArray(data.packaging?.packIds)) {
         setSelectedPackIds(data.packaging.packIds.map(String));
       }
+      setBillingLedger(
+        Array.isArray(data.billingLedger) ? data.billingLedger : []
+      );
+      setRecurringInfo(data.recurring || null);
       const kyc = data.referral?.payoutKyc;
       if (kyc) {
         setKycForm((f) => ({
@@ -414,6 +437,7 @@ function BillingInner() {
           termId: paidTermId,
           packIds: packs,
           product: packs.length ? 'company_saas_plus_packs' : 'company_saas',
+          enableRecurring,
         }),
       });
       const data = await res.json();
@@ -425,9 +449,23 @@ function BillingInner() {
         `Subscription active (${termLabel}${packs.length ? ` · ${packs.length} pack(s)` : ''})${ch} — thank you!`
       );
       setSubscription(data.subscription);
+      if (data.receipt?.downloadUrl) {
+        toast.message('Receipt ready', {
+          action: {
+            label: 'Download',
+            onClick: () =>
+              window.open(
+                `${data.receipt.downloadUrl}&download=1`,
+                '_blank',
+                'noopener,noreferrer'
+              ),
+          },
+        });
+      }
       if (data.packaging) {
         window.dispatchEvent(new Event('sa:company-changed'));
       }
+      void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Activation failed');
     } finally {
@@ -967,12 +1005,30 @@ function BillingInner() {
                   </div>
                 </div>
 
+                <label className="mt-4 flex items-start gap-2 text-xs text-slate-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 rounded border-slate-300"
+                    checked={enableRecurring}
+                    onChange={(e) => setEnableRecurring(e.target.checked)}
+                  />
+                  <span>
+                    <strong>Auto-renew monthly</strong> (Paystack subscription
+                    after first card payment; Apple Pay may require re-auth).
+                    {recurringInfo?.subscriptionCode ? (
+                      <span className="block text-emerald-700 font-bold mt-0.5">
+                        Recurring active · {recurringInfo.planCode || 'plan'}
+                      </span>
+                    ) : null}
+                  </span>
+                </label>
+
                 <button
                   type="button"
                   disabled={paying}
                   onClick={() => void startPayment()}
                   id="paystack-other-channels"
-                  className="mt-6 w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-gradient-to-r from-[#00b4d8] to-[#0077b6] text-white font-black text-base shadow-xl shadow-sky-200/50 disabled:opacity-50"
+                  className="mt-4 w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-gradient-to-r from-[#00b4d8] to-[#0077b6] text-white font-black text-base shadow-xl shadow-sky-200/50 disabled:opacity-50"
                 >
                   {paying ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -1031,6 +1087,55 @@ function BillingInner() {
         </div>
 
         <div className="lg:col-span-2 space-y-4">
+          <Panel className="p-5">
+            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <FileText className="w-4 h-4 text-[#00b4d8]" />
+              Payment history
+            </h3>
+            {billingLedger.length === 0 ? (
+              <p className="mt-3 text-xs text-slate-500">
+                No recorded payments yet. Receipts appear here after Paystack /
+                Apple Pay checkout.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-2 max-h-56 overflow-y-auto">
+                {billingLedger.map((e) => (
+                  <li
+                    key={e.ref}
+                    className="rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2 text-xs"
+                  >
+                    <div className="flex justify-between gap-2">
+                      <span className="font-bold text-slate-900">
+                        {e.invoiceNumber || e.ref.slice(0, 16)}
+                      </span>
+                      <span className="font-black tabular-nums">
+                        R{Number(e.amountZar || 0).toFixed(0)}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-0.5 flex flex-wrap gap-x-2">
+                      <span>{String(e.at || '').slice(0, 10)}</span>
+                      <span className="capitalize">{e.kind}</span>
+                      {e.channel ? <span>{e.channel}</span> : null}
+                    </div>
+                    <button
+                      type="button"
+                      className="mt-1.5 text-[10px] font-bold text-[#0077b6] inline-flex items-center gap-1 hover:underline"
+                      onClick={() =>
+                        window.open(
+                          `/api/business/billing/receipt?companyId=${companyId}&ref=${encodeURIComponent(e.ref)}&download=1`,
+                          '_blank',
+                          'noopener,noreferrer'
+                        )
+                      }
+                    >
+                      <Download className="w-3 h-3" /> Download receipt PDF
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+
           <Panel className="p-5">
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <Calendar className="w-4 h-4 text-[#00b4d8]" />

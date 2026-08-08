@@ -398,13 +398,18 @@ export async function GET(request: NextRequest) {
       /* soft */
     }
 
-    // Active Industry Packs from metadata (for billing UI)
+    // Active Industry Packs + payment ledger from metadata
     let packagingBilling: {
       packIds: string[];
       paidUntil: string | null;
       channel: string | null;
       monthlyZar: number;
       packNames: string[];
+    } | null = null;
+    let billingLedger: unknown[] = [];
+    let recurring: {
+      subscriptionCode: string | null;
+      planCode: string | null;
     } | null = null;
     try {
       const { data: full } = await getSupabaseServer()
@@ -419,6 +424,9 @@ export async function GET(request: NextRequest) {
       if (meta) {
         const { readPackagingFromMetadata, getIndustryPack, monthlyPriceZar } =
           await import('@/lib/product/architecture');
+        const { readBillingLedger } = await import(
+          '@/lib/billing/billing-ledger'
+        );
         const pack = readPackagingFromMetadata(meta);
         const packIds = pack?.packIds || [];
         packagingBilling = {
@@ -436,6 +444,17 @@ export async function GET(request: NextRequest) {
             (id) => getIndustryPack(id)?.shortName || id
           ),
         };
+        billingLedger = readBillingLedger(meta);
+        recurring = {
+          subscriptionCode:
+            meta.paystack_subscription_code != null
+              ? String(meta.paystack_subscription_code)
+              : null,
+          planCode:
+            meta.paystack_plan_code != null
+              ? String(meta.paystack_plan_code)
+              : null,
+        };
       }
     } catch {
       /* soft */
@@ -449,6 +468,8 @@ export async function GET(request: NextRequest) {
       subscription,
       pricing: pricingPayload(),
       packaging: packagingBilling,
+      billingLedger,
+      recurring,
       usage,
       trialJustStarted,
       lifetimeJustGranted,
@@ -830,6 +851,111 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Billing ledger + optional Paystack recurring subscription
+      let ledgerEntry: Record<string, unknown> | null = null;
+      try {
+        const { data: fullMeta } = await supabase
+          .from('profiles')
+          .select('metadata')
+          .eq('id', companyId)
+          .maybeSingle();
+        let meta =
+          fullMeta?.metadata && typeof fullMeta.metadata === 'object'
+            ? { ...(fullMeta.metadata as Record<string, unknown>) }
+            : {};
+        // If packs already wrote metadata, re-read after apply
+        if (updates.metadata && typeof updates.metadata === 'object') {
+          meta = { ...(updates.metadata as Record<string, unknown>) };
+        } else if (packIdsPaid.length) {
+          const { data: again } = await supabase
+            .from('profiles')
+            .select('metadata')
+            .eq('id', companyId)
+            .maybeSingle();
+          if (again?.metadata && typeof again.metadata === 'object') {
+            meta = { ...(again.metadata as Record<string, unknown>) };
+          }
+        }
+        const { appendBillingLedger } = await import(
+          '@/lib/billing/billing-ledger'
+        );
+        const kind =
+          packsOnly
+            ? 'packs'
+            : packIdsPaid.length
+              ? 'core_plus_packs'
+              : action === 'renew'
+                ? 'renewal'
+                : 'core';
+        const appended = appendBillingLedger(
+          meta,
+          {
+            at: now.toISOString(),
+            kind,
+            ref: verified.reference,
+            amountZar: paidZar,
+            amountCents: verified.amount,
+            currency: 'ZAR',
+            termId: finalTerm.id,
+            months: finalTerm.months,
+            packIds: packIdsPaid,
+            channel: verified.channel,
+            planCode: String(updates.subscription_plan || finalTerm.planCode),
+            note: packsOnly
+              ? 'Industry Packs payment'
+              : 'Core OS subscription payment',
+          },
+          companyId
+        );
+        ledgerEntry = appended.entry as unknown as Record<string, unknown>;
+        updates.metadata = appended.meta;
+
+        // Optional auto-renew: create Paystack plan subscription when auth present
+        if (
+          !packsOnly &&
+          verified.customerCode &&
+          verified.authorizationCode &&
+          body.enableRecurring === true
+        ) {
+          try {
+            const {
+              ensurePaystackPlan,
+              createPaystackSubscription,
+              monthlyPlanAmountCents,
+              envPaystackPlanCode,
+            } = await import('@/lib/billing/paystack-plans');
+            const packCount = packIdsPaid.length;
+            let planCode =
+              envPaystackPlanCode(finalTerm.id, packCount) ||
+              `SA_CORE_P${packCount}_${finalTerm.id}`.toUpperCase();
+            if (finalTerm.id === 'monthly') {
+              const ensured = await ensurePaystackPlan({
+                name: `SupplierAdvisor Core${packCount ? ` + ${packCount} packs` : ''} monthly`,
+                amountCents: monthlyPlanAmountCents(packCount),
+                interval: 'monthly',
+                planCode,
+              });
+              if (ensured.ok) planCode = ensured.planCode;
+            }
+            const subRes = await createPaystackSubscription({
+              customerCode: verified.customerCode,
+              planCode,
+              authorizationCode: verified.authorizationCode,
+            });
+            if (subRes.ok) {
+              const m = updates.metadata as Record<string, unknown>;
+              m.paystack_subscription_code = subRes.subscriptionCode;
+              m.paystack_plan_code = planCode;
+              updates.metadata = m;
+            }
+          } catch (e) {
+            console.warn('[subscription] recurring setup soft-fail', e);
+          }
+        }
+      } catch (e) {
+        console.warn('[subscription] ledger soft-fail', e);
+      }
+
       if (Object.keys(updates).length) {
         const { data, error } = await supabase
           .from('profiles')
@@ -909,6 +1035,13 @@ export async function POST(request: NextRequest) {
         periodEnd: periodEnd.toISOString(),
         packaging: packagingResult,
         channel: verified.channel,
+        receipt: ledgerEntry
+          ? {
+              invoiceNumber: ledgerEntry.invoiceNumber,
+              ref: ledgerEntry.ref,
+              downloadUrl: `/api/business/billing/receipt?companyId=${companyId}&ref=${encodeURIComponent(String(ledgerEntry.ref))}`,
+            }
+          : null,
         referral:
           referralResult.ok
             ? {
@@ -917,6 +1050,111 @@ export async function POST(request: NextRequest) {
                 ratesSummary: referralRatesSummary(),
               }
             : { error: referralResult.error },
+      });
+    }
+
+    // ── initialize checkout (server-side; supports Apple Pay channels) ──
+    if (action === 'initialize' || action === 'init_checkout') {
+      if (!canManageBilling) {
+        return NextResponse.json(
+          { error: 'Only owners, admins, or finance can start checkout.' },
+          { status: 403 }
+        );
+      }
+      const payEmail = String(
+        body.email || row.email || ''
+      )
+        .toLowerCase()
+        .trim();
+      if (!payEmail.includes('@')) {
+        return NextResponse.json(
+          { error: 'Billing email required for checkout' },
+          { status: 400 }
+        );
+      }
+      const claimedTerm = getBillingTerm(
+        body.termId || body.term || 'monthly'
+      );
+      const packIdsPaid = Array.isArray(body.packIds)
+        ? body.packIds.map(String)
+        : [];
+      const packsOnly = body.packsOnly === true;
+      const { quoteIndustryPacks, quoteCorePlusPacks } = await import(
+        '@/lib/billing/pack-pricing'
+      );
+      const packQuote = quoteIndustryPacks(packIdsPaid, claimedTerm.id);
+      const combined = quoteCorePlusPacks(packIdsPaid, claimedTerm.id);
+      const amountCents = packsOnly
+        ? packQuote.payCents
+        : packIdsPaid.length
+          ? combined.totalPayCents
+          : claimedTerm.payCents;
+      const ref =
+        String(body.reference || '').trim() ||
+        `sa-co-${packsOnly ? 'packs' : 'sub'}-${claimedTerm.id}-${companyId}-${Date.now()}`;
+      const { initializePaystackTransaction, envPaystackPlanCode } =
+        await import('@/lib/billing/paystack-plans');
+      const planCode =
+        body.enableRecurring === true && claimedTerm.id === 'monthly' && !packsOnly
+          ? envPaystackPlanCode(claimedTerm.id, packIdsPaid.length)
+          : null;
+      const init = await initializePaystackTransaction({
+        email: payEmail,
+        amountCents,
+        reference: ref,
+        callbackUrl: body.callbackUrl
+          ? String(body.callbackUrl)
+          : undefined,
+        planCode: planCode || undefined,
+        metadata: {
+          product: packsOnly
+            ? 'industry_packs'
+            : packIdsPaid.length
+              ? 'company_saas_plus_packs'
+              : 'company_saas',
+          company_id: String(companyId),
+          term_id: claimedTerm.id,
+          pack_ids: packIdsPaid.join(','),
+          months: String(claimedTerm.months),
+          custom_fields: [
+            {
+              display_name: 'Company ID',
+              variable_name: 'company_id',
+              value: String(companyId),
+            },
+            {
+              display_name: 'Product',
+              variable_name: 'product',
+              value: packsOnly
+                ? 'industry_packs'
+                : packIdsPaid.length
+                  ? 'company_saas_plus_packs'
+                  : 'company_saas',
+            },
+            {
+              display_name: 'Pack IDs',
+              variable_name: 'pack_ids',
+              value: packIdsPaid.join(','),
+            },
+            {
+              display_name: 'Term',
+              variable_name: 'term_id',
+              value: claimedTerm.id,
+            },
+          ],
+        },
+      });
+      if (!init.ok) {
+        return NextResponse.json({ error: init.error }, { status: 502 });
+      }
+      return NextResponse.json({
+        success: true,
+        authorizationUrl: init.authorizationUrl,
+        accessCode: init.accessCode,
+        reference: init.reference,
+        amountCents,
+        termId: claimedTerm.id,
+        packIds: packIdsPaid,
       });
     }
 

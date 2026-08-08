@@ -322,6 +322,57 @@ export async function POST(request: NextRequest) {
               });
             }
 
+            // Append billing ledger for receipt PDFs
+            try {
+              const { data: full } = await supabase
+                .from('profiles')
+                .select('metadata')
+                .eq('id', companyId)
+                .maybeSingle();
+              const meta =
+                full?.metadata && typeof full.metadata === 'object'
+                  ? { ...(full.metadata as Record<string, unknown>) }
+                  : {};
+              const { appendBillingLedger } = await import(
+                '@/lib/billing/billing-ledger'
+              );
+              const paidZar = v.ok
+                ? Math.round(v.amount / 100)
+                : Number(data.amount || 0) / 100;
+              const amountCents = v.ok
+                ? v.amount
+                : Number(data.amount || 0);
+              const { meta: nextMeta } = appendBillingLedger(
+                meta,
+                {
+                  at: new Date().toISOString(),
+                  kind: packsOnly
+                    ? 'packs'
+                    : packIds.length
+                      ? 'core_plus_packs'
+                      : 'core',
+                  ref: reference,
+                  amountZar: paidZar,
+                  amountCents,
+                  currency: 'ZAR',
+                  months,
+                  packIds,
+                  channel,
+                  note: 'Paystack webhook activation',
+                },
+                companyId
+              );
+              await supabase
+                .from('profiles')
+                .update({
+                  metadata: nextMeta,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', companyId);
+            } catch {
+              /* soft */
+            }
+
             void recordPaystackWebhookPulse({
               event: eventName,
               reference,
