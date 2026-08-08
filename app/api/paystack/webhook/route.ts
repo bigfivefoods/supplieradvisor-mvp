@@ -200,6 +200,155 @@ export async function POST(request: NextRequest) {
           });
         }
       }
+
+      // Core OS + Industry Pack payments (browser closed after Paystack / Apple Pay)
+      try {
+        const {
+          companyIdFromPaystackData,
+          packIdsFromPaystackData,
+          productFromPaystackData,
+          applyPaidIndustryPacks,
+        } = await import('@/lib/billing/apply-paid-packs');
+        const product = productFromPaystackData(data);
+        const isSaaS =
+          product.includes('company_saas') ||
+          product.includes('industry_pack') ||
+          product === 'packs' ||
+          reference.startsWith('sa-co-sub-') ||
+          reference.startsWith('sa-co-ap-') ||
+          reference.startsWith('sa-packs-');
+
+        if (isSaaS || packIdsFromPaystackData(data).length > 0) {
+          let companyId = companyIdFromPaystackData(data);
+          if (!companyId) {
+            try {
+              const { companyIdFromPaystackCharge: fromCharge } = await import(
+                '@/lib/business/cipc-after-payment'
+              );
+              companyId = fromCharge(data);
+            } catch {
+              companyId = null;
+            }
+          }
+          if (companyId) {
+            const { verifyPaystackTransaction } = await import(
+              '@/lib/billing/paystack'
+            );
+            const { addMonths } = await import(
+              '@/lib/billing/company-subscription'
+            );
+            const v = await verifyPaystackTransaction(reference, {
+              expectedCurrency: 'ZAR',
+            });
+            if (!v.ok && process.env.NODE_ENV === 'production') {
+              void recordPaystackWebhookPulse({
+                event: eventName,
+                reference,
+                companyId,
+                handled: 'subscription_verify_failed',
+                summary: v.error,
+              });
+              return NextResponse.json({
+                received: true,
+                handled: 'subscription_verify_failed',
+                reason: v.error,
+              });
+            }
+
+            const packIds = packIdsFromPaystackData(data);
+            const packsOnly =
+              product.includes('industry_pack') ||
+              product === 'packs' ||
+              reference.startsWith('sa-packs-');
+
+            // Infer months from metadata term or default 1
+            let months = 1;
+            const meta = data.metadata as Record<string, unknown> | undefined;
+            if (meta) {
+              if (meta.months != null && Number(meta.months) > 0) {
+                months = Number(meta.months);
+              } else if (Array.isArray(meta.custom_fields)) {
+                for (const f of meta.custom_fields as Array<
+                  Record<string, unknown>
+                >) {
+                  if (String(f.variable_name) === 'months') {
+                    const n = Number(f.value);
+                    if (n > 0) months = n;
+                  }
+                  if (String(f.variable_name) === 'term_id') {
+                    const t = String(f.value);
+                    if (t === '1y') months = 12;
+                    if (t === '2y') months = 24;
+                    if (t === '3y') months = 36;
+                  }
+                }
+              }
+            }
+
+            const supabase = getSupabaseServer();
+            const periodEnd = addMonths(new Date(), months).toISOString();
+            const channel = v.ok ? v.channel : String(data.channel || '');
+
+            if (!packsOnly) {
+              // Activate / extend Core subscription
+              const paidZar = v.ok
+                ? Math.round(v.amount / 100)
+                : Number(data.amount || 0) / 100;
+              await supabase
+                .from('profiles')
+                .update({
+                  subscription_status: 'active',
+                  subscription_ends_at: periodEnd,
+                  subscription_paystack_ref: reference,
+                  subscription_amount_zar: paidZar,
+                  subscription_plan: packsOnly
+                    ? 'packs'
+                    : packIds.length
+                      ? 'company_plus_packs'
+                      : 'company_monthly',
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', companyId);
+            }
+
+            let packResult = null;
+            if (packIds.length) {
+              packResult = await applyPaidIndustryPacks(supabase, {
+                companyId,
+                packIds,
+                paidUntil: periodEnd,
+                paystackReference: reference,
+                channel,
+              });
+            }
+
+            void recordPaystackWebhookPulse({
+              event: eventName,
+              reference,
+              companyId,
+              handled: packsOnly
+                ? 'packs_activated'
+                : 'subscription_activated',
+              summary: `Webhook → ${packsOnly ? 'packs' : 'subscription'}${packIds.length ? ` +${packIds.length} packs` : ''} · ${channel || 'channel?'}`,
+              metadata: { packIds, packsOnly, packResult, channel },
+            });
+
+            return NextResponse.json({
+              received: true,
+              handled: packsOnly
+                ? 'packs_activated'
+                : 'subscription_activated',
+              reference,
+              companyId,
+              packIds,
+              channel,
+              packResult,
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('[paystack webhook] subscription/packs soft-fail', e);
+      }
     }
 
     return NextResponse.json({

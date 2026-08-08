@@ -511,9 +511,9 @@ export default function LandingPage() {
           <div className="mt-10 flex flex-col items-center gap-3 border-t border-slate-200/80 pt-8 sm:mt-12">
             <p className="text-center text-sm text-slate-500">
               Core OS from {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo ·
-              Industry Packs +{formatZar(INDUSTRY_PACK_MONTHLY_ZAR)}/mo each ·{' '}
-              {COMPANY_TRIAL_DAYS}-day free trial · first{' '}
-              {FOUNDING_FREE_COMPANY_LIMIT} companies free for life ·{' '}
+              Industry Packs +{formatZar(INDUSTRY_PACK_MONTHLY_ZAR)}/mo each ·
+              Paystack &amp; Apple Pay · {COMPANY_TRIAL_DAYS}-day free trial ·
+              first {FOUNDING_FREE_COMPANY_LIMIT} companies free for life ·{' '}
               <a
                 href="#pricing"
                 className="font-semibold text-[#0077b6] underline decoration-sky-200 underline-offset-4 hover:text-[#00b4d8]"

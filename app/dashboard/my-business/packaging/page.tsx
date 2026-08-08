@@ -157,41 +157,20 @@ function Inner() {
     setDirty(true);
   };
 
-  const save = async () => {
-    setSaving(true);
-    try {
-      const res = await fetch('/api/business/packaging', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({
-          companyId,
-          packIds: selectedPacks,
-          moduleIds: selectedModules,
-          entityTypeId: packaging?.entityTypeId,
-          sectorId: packaging?.sectorId,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Save failed');
-      toast.success(data.message || 'Packaging saved');
-      setDirty(false);
-      void load();
-      // Refresh sidebar module gates
-      window.dispatchEvent(new Event('sa:company-changed'));
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Save failed');
-    } finally {
-      setSaving(false);
-    }
-  };
+  const newPacksQuote = useMemo(() => {
+    const prev = new Set(packaging?.packIds || []);
+    const added = selectedPacks.filter((id) => !prev.has(id));
+    return quoteIndustryPacks(added, payTermId);
+  }, [packaging?.packIds, selectedPacks, payTermId]);
 
   /** Pay only for newly selected packs (vs previously saved) via Paystack / Apple Pay */
   const payForNewPacks = async () => {
     const prev = new Set(packaging?.packIds || []);
     const added = selectedPacks.filter((id) => !prev.has(id));
     if (!added.length) {
-      toast.message('No new packs to pay for — save free toggles, or pick more packs');
+      toast.message(
+        'No new packs to pay for — save free toggles, or pick more packs'
+      );
       return;
     }
     const key = getPaystackPublicKey();
@@ -222,6 +201,7 @@ function Inner() {
           term_id: payTermId,
           pack_ids: added.join(','),
           pack_count: String(added.length),
+          months: String(q.months),
         },
         onSuccess: async (reference) => {
           try {
@@ -241,7 +221,6 @@ function Inner() {
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Activation failed');
-            // Persist full selected packs (including previous)
             await fetch('/api/business/packaging', {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
@@ -276,11 +255,52 @@ function Inner() {
     }
   };
 
-  const newPacksQuote = useMemo(() => {
-    const prev = new Set(packaging?.packIds || []);
-    const added = selectedPacks.filter((id) => !prev.has(id));
-    return quoteIndustryPacks(added, payTermId);
-  }, [packaging?.packIds, selectedPacks, payTermId]);
+  const save = async (opts?: { skipPayPrompt?: boolean }) => {
+    setSaving(true);
+    try {
+      const prev = new Set(packaging?.packIds || []);
+      const added = selectedPacks.filter((id) => !prev.has(id));
+
+      if (
+        !opts?.skipPayPrompt &&
+        added.length > 0 &&
+        newPacksQuote.payCents > 0
+      ) {
+        const pay = confirm(
+          `You added ${added.length} Industry Pack(s) (R${newPacksQuote.payZar} for ${payTermId === 'monthly' ? '1 month' : payTermId}).\n\nOK = Pay now (Paystack / Apple Pay on Safari)\nCancel = Save selection without charging (trial / specialist path)`
+        );
+        setSaving(false);
+        if (pay) {
+          await payForNewPacks();
+          return;
+        }
+        setSaving(true);
+      }
+
+      const res = await fetch('/api/business/packaging', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          companyId,
+          packIds: selectedPacks,
+          moduleIds: selectedModules,
+          entityTypeId: packaging?.entityTypeId,
+          sectorId: packaging?.sectorId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Save failed');
+      toast.success(data.message || 'Packaging saved');
+      setDirty(false);
+      void load();
+      window.dispatchEvent(new Event('sa:company-changed'));
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <BusinessPage>

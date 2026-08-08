@@ -175,6 +175,13 @@ function BillingInner() {
     branchCode: '',
     taxNumber: '',
   });
+  const [packagingBilling, setPackagingBilling] = useState<{
+    packIds: string[];
+    paidUntil: string | null;
+    channel: string | null;
+    monthlyZar: number;
+    packNames: string[];
+  } | null>(null);
 
   useEffect(() => {
     if (!payFocus || loading) return;
@@ -202,6 +209,10 @@ function BillingInner() {
       setReferral(data.referral || null);
       setFounding(data.founding || null);
       setUsage(data.usage || null);
+      setPackagingBilling(data.packaging || null);
+      if (Array.isArray(data.packaging?.packIds)) {
+        setSelectedPackIds(data.packaging.packIds.map(String));
+      }
       const kyc = data.referral?.payoutKyc;
       if (kyc) {
         setKycForm((f) => ({
@@ -1025,6 +1036,49 @@ function BillingInner() {
               <Calendar className="w-4 h-4 text-[#00b4d8]" />
               Plan details
             </h3>
+            {packagingBilling && packagingBilling.packIds.length > 0 ? (
+              <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50/80 px-3 py-2 text-xs text-sky-950">
+                <p className="font-bold">
+                  Industry Packs · +R{packagingBilling.monthlyZar}/mo
+                </p>
+                <p className="mt-0.5">
+                  {packagingBilling.packNames.join(' · ') || '—'}
+                </p>
+                {packagingBilling.paidUntil ? (
+                  <p className="mt-0.5 text-sky-800/80">
+                    Paid through{' '}
+                    {new Date(packagingBilling.paidUntil).toLocaleDateString(
+                      'en-ZA'
+                    )}
+                    {packagingBilling.channel === 'apple_pay'
+                      ? ' · Apple Pay'
+                      : packagingBilling.channel
+                        ? ` · ${packagingBilling.channel}`
+                        : ''}
+                  </p>
+                ) : (
+                  <p className="mt-0.5 text-amber-800">
+                    Packs selected — not marked paid yet
+                  </p>
+                )}
+                <Link
+                  href="/dashboard/my-business/packaging"
+                  className="font-bold underline mt-1 inline-block"
+                >
+                  Manage packs →
+                </Link>
+              </div>
+            ) : (
+              <div className="mt-3 text-[11px] text-slate-500">
+                No Industry Packs yet ·{' '}
+                <Link
+                  href="/dashboard/my-business/packaging"
+                  className="font-bold text-[#0077b6] underline"
+                >
+                  Add packs
+                </Link>
+              </div>
+            )}
             <dl className="mt-4 space-y-3 text-sm">
               <div className="flex justify-between gap-3">
                 <dt className="text-slate-500">Status</dt>

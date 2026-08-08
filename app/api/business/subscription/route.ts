@@ -398,6 +398,49 @@ export async function GET(request: NextRequest) {
       /* soft */
     }
 
+    // Active Industry Packs from metadata (for billing UI)
+    let packagingBilling: {
+      packIds: string[];
+      paidUntil: string | null;
+      channel: string | null;
+      monthlyZar: number;
+      packNames: string[];
+    } | null = null;
+    try {
+      const { data: full } = await getSupabaseServer()
+        .from('profiles')
+        .select('metadata')
+        .eq('id', companyId)
+        .maybeSingle();
+      const meta =
+        full?.metadata && typeof full.metadata === 'object'
+          ? (full.metadata as Record<string, unknown>)
+          : null;
+      if (meta) {
+        const { readPackagingFromMetadata, getIndustryPack, monthlyPriceZar } =
+          await import('@/lib/product/architecture');
+        const pack = readPackagingFromMetadata(meta);
+        const packIds = pack?.packIds || [];
+        packagingBilling = {
+          packIds,
+          paidUntil:
+            meta.industry_packs_paid_until != null
+              ? String(meta.industry_packs_paid_until)
+              : null,
+          channel:
+            meta.industry_packs_channel != null
+              ? String(meta.industry_packs_channel)
+              : null,
+          monthlyZar: monthlyPriceZar(packIds).packs,
+          packNames: packIds.map(
+            (id) => getIndustryPack(id)?.shortName || id
+          ),
+        };
+      }
+    } catch {
+      /* soft */
+    }
+
     return NextResponse.json({
       success: true,
       companyId,
@@ -405,6 +448,7 @@ export async function GET(request: NextRequest) {
       billingEmail: row.email || null,
       subscription,
       pricing: pricingPayload(),
+      packaging: packagingBilling,
       usage,
       trialJustStarted,
       lifetimeJustGranted,
@@ -764,63 +808,22 @@ export async function POST(request: NextRequest) {
       let packagingResult: Record<string, unknown> | null = null;
       if (packIdsPaid.length) {
         try {
-          const { data: fullProf } = await supabase
-            .from('profiles')
-            .select('metadata, business_type')
-            .eq('id', companyId)
-            .maybeSingle();
-          const meta =
-            fullProf?.metadata && typeof fullProf.metadata === 'object'
-              ? { ...(fullProf.metadata as Record<string, unknown>) }
-              : {};
-          const {
-            readPackagingFromMetadata,
-            packagingFromSelection,
-            packagingMetadataBlob,
-            enabledModulesMapFromPacks,
-          } = await import('@/lib/product/architecture');
-          const {
-            extractEnabledModulesFromMetadata,
-            mergeEnabledModulesIntoMetadata,
-          } = await import('@/lib/business/company-modules');
-          const { MODULE_NAV } = await import('@/lib/chrome/module-nav');
-          const currentPack = readPackagingFromMetadata(meta);
-          const nextPackIds = [
-            ...new Set([...(currentPack?.packIds || []), ...packIdsPaid]),
-          ];
-          const selection = packagingFromSelection({
-            entityTypeId:
-              currentPack?.entityTypeId ||
-              (String(fullProf?.business_type || '') === 'school'
-                ? 'school'
-                : 'private_company'),
-            sectorId: currentPack?.sectorId || 'secondary',
-            packIds: nextPackIds,
-            moduleIds: currentPack?.moduleIds || [],
-          });
-          Object.assign(meta, packagingMetadataBlob(selection));
-          meta.industry_packs_last_ref = verified.reference;
-          meta.industry_packs_paid_until = periodEnd.toISOString();
-          meta.industry_packs_channel = verified.channel;
-          const baseEnable = Object.entries(
-            extractEnabledModulesFromMetadata(meta)
-          )
-            .filter(([, on]) => on)
-            .map(([id]) => id);
-          const fromPacks = enabledModulesMapFromPacks(
-            selection.packIds,
-            selection.moduleIds,
-            MODULE_NAV.map((m) => m.id),
-            { basePresetEnable: baseEnable }
+          const { applyPaidIndustryPacks } = await import(
+            '@/lib/billing/apply-paid-packs'
           );
-          const merged = { ...extractEnabledModulesFromMetadata(meta) };
-          for (const [id, on] of Object.entries(fromPacks)) {
-            if (on) merged[id] = true;
-          }
-          updates.metadata = mergeEnabledModulesIntoMetadata(meta, merged);
-          packagingResult = {
-            packIds: selection.packIds,
+          // If core updates include metadata later, apply packs after core update
+          const applied = await applyPaidIndustryPacks(supabase, {
+            companyId,
+            packIds: packIdsPaid,
             paidUntil: periodEnd.toISOString(),
+            paystackReference: verified.reference,
+            channel: verified.channel,
+          });
+          packagingResult = {
+            packIds: applied.packIds,
+            paidUntil: applied.paidUntil,
+            ok: applied.ok,
+            error: applied.error || null,
           };
         } catch (e) {
           console.warn('[subscription] pack merge soft-fail', e);
