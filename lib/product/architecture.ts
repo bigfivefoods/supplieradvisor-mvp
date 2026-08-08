@@ -148,8 +148,12 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       },
     ],
     industryToolsHrefs: [
-      { name: 'Impact', href: '/dashboard/sustainability', desc: 'Regen & ESG' },
-      { name: 'Suppliers', href: '/dashboard/suppliers', desc: 'Grower book' },
+      { name: 'Supplier book', href: '/dashboard/suppliers/network', desc: 'Growers & farms' },
+      { name: 'Source growers', href: '/dashboard/suppliers/discover', desc: 'Find primary suppliers' },
+      { name: 'Lots & stock', href: '/dashboard/inventory/lots', desc: 'Origin batches' },
+      { name: 'Inventory', href: '/dashboard/inventory/stock', desc: 'On-hand' },
+      { name: 'Impact / ESG', href: '/dashboard/sustainability', desc: 'Regen metrics' },
+      { name: 'Intelligence', href: '/dashboard/intelligence', desc: 'Pulse & scores' },
     ],
   },
   {
@@ -183,8 +187,15 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       },
     ],
     industryToolsHrefs: [
-      { name: 'Make', href: '/dashboard/manufacturing', desc: 'MPS · MRP · BOM' },
-      { name: 'Quality', href: '/dashboard/quality', desc: 'QA & holds' },
+      { name: 'Make hub', href: '/dashboard/manufacturing', desc: 'MPS · MRP · BOM' },
+      { name: 'MPS', href: '/dashboard/manufacturing/master-production-schedules', desc: 'Schedule' },
+      { name: 'MRP', href: '/dashboard/manufacturing/mrp', desc: 'Material plan' },
+      { name: 'BOM', href: '/dashboard/manufacturing/bills-of-materials', desc: 'Recipes' },
+      { name: 'Production', href: '/dashboard/manufacturing/production-orders', desc: 'Runs' },
+      { name: 'QA holds', href: '/dashboard/quality', desc: 'Inspections' },
+      { name: 'SHEQ', href: '/dashboard/sheq', desc: 'Safety & NCR' },
+      { name: 'Customer catalogue', href: '/dashboard/customers', desc: 'Brand fidelity' },
+      { name: 'Inventory', href: '/dashboard/inventory', desc: 'RM & FG stock' },
     ],
   },
   {
@@ -218,8 +229,15 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       },
     ],
     industryToolsHrefs: [
-      { name: 'Containers', href: '/dashboard/containers', desc: 'Outlets & map' },
-      { name: 'Ship', href: '/dashboard/distribution', desc: 'Logistics' },
+      { name: 'Containers command', href: '/dashboard/containers', desc: 'Full container OS' },
+      { name: 'Manage outlets', href: '/dashboard/containers/manage', desc: 'Sites' },
+      { name: 'Map', href: '/dashboard/containers/map', desc: 'Network map' },
+      { name: 'Container impact', href: '/dashboard/containers/impact', desc: 'Impact' },
+      { name: 'Contractors', href: '/dashboard/containers/contractors', desc: 'Build partners' },
+      { name: 'Resellers', href: '/dashboard/containers/resellers', desc: 'Channel' },
+      { name: 'Ship / distribution', href: '/dashboard/distribution', desc: 'Inbound · outbound' },
+      { name: 'Ops outbound', href: '/dashboard/operations/outbound', desc: 'Dispatch' },
+      { name: 'DC stock', href: '/dashboard/inventory/stock', desc: 'Warehouse' },
     ],
   },
   {
@@ -335,13 +353,18 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
         description: 'Pulse and scorecards for impact.',
         unlocks: ['intelligence', 'sustainability'],
       },
+      {
+        id: 'esg_lots',
+        name: 'Trace lots',
+        description: 'Inventory lots for chain of custody.',
+        unlocks: ['inventory'],
+      },
     ],
     industryToolsHrefs: [
-      {
-        name: 'Sustainability',
-        href: '/dashboard/sustainability',
-        desc: 'ESG & impact',
-      },
+      { name: 'Impact hub', href: '/dashboard/sustainability', desc: 'ESG workspace' },
+      { name: 'Intelligence', href: '/dashboard/intelligence', desc: 'Pulse & Super-Cube' },
+      { name: 'Lots / trace', href: '/dashboard/inventory/lots', desc: 'Chain of custody' },
+      { name: 'Supplier OTIFEF', href: '/dashboard/suppliers/performance', desc: 'Score suppliers' },
     ],
   },
   {
@@ -358,7 +381,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       {
         id: 'pp_nsnp',
         name: 'NSNP / schools programme',
-        description: 'Schools feeding programme tools.',
+        description: 'Schools feeding programme tools (full Schools module).',
         unlocks: ['schools'],
       },
       {
@@ -375,12 +398,13 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       },
     ],
     industryToolsHrefs: [
-      { name: 'Schools', href: '/dashboard/schools', desc: 'NSNP programme' },
-      {
-        name: 'Group',
-        href: '/dashboard/my-business/group',
-        desc: 'Multi-entity',
-      },
+      { name: 'Schools hub', href: '/dashboard/schools', desc: 'Full NSNP OS' },
+      { name: 'Approved foods', href: '/dashboard/schools/approved-list', desc: 'Catalogue' },
+      { name: 'Kitchen', href: '/dashboard/schools/kitchen', desc: 'Stock & reorder' },
+      { name: 'Orders / SP', href: '/dashboard/schools/orders', desc: 'School POs' },
+      { name: 'Serve day', href: '/dashboard/schools/serve-day', desc: 'Feeding' },
+      { name: 'Group entities', href: '/dashboard/my-business/group', desc: 'Multi-entity' },
+      { name: 'Quality', href: '/dashboard/quality', desc: 'Compliance' },
     ],
   },
 ] as const;
@@ -485,13 +509,22 @@ export function unlockAppModulesFromPacks(
   return [...unlock];
 }
 
-/** Build EnabledModulesMap from packs (for profiles.metadata.enabled_modules) */
+/**
+ * Build EnabledModulesMap from packs.
+ * Core OS modules stay on; packs ADD vertical modules.
+ * Never disables a hub that was already unlocked by Core defaults.
+ */
 export function enabledModulesMapFromPacks(
   packIds: string[],
   moduleIds: string[],
-  allModuleIds: string[]
+  allModuleIds: string[],
+  opts?: { basePresetEnable?: string[] }
 ): Record<string, boolean> {
   const unlocked = new Set(unlockAppModulesFromPacks(packIds, moduleIds));
+  // Base trading / entity preset modules always stay available
+  for (const id of opts?.basePresetEnable || []) {
+    unlocked.add(id);
+  }
   // School / public procurement packs always include schools programme module
   if (
     packIds.includes('public_procurement') ||
@@ -499,15 +532,35 @@ export function enabledModulesMapFromPacks(
   ) {
     unlocked.add('schools');
   }
+  // Logistics pack → full containers hub (all container features)
+  if (packIds.includes('logistics_containers')) {
+    unlocked.add('containers');
+    unlocked.add('distribution');
+    unlocked.add('operations');
+  }
+  // Food mfg → full make + quality
+  if (packIds.includes('food_bev_mfg')) {
+    unlocked.add('manufacturing');
+    unlocked.add('quality');
+    unlocked.add('sheq');
+    unlocked.add('inventory');
+  }
+  // Agri → suppliers + inventory + impact
+  if (packIds.includes('agri_regen')) {
+    unlocked.add('suppliers');
+    unlocked.add('inventory');
+    unlocked.add('sustainability');
+  }
+  // Impact pack
+  if (packIds.includes('impact_esg')) {
+    unlocked.add('sustainability');
+    unlocked.add('intelligence');
+  }
+
   const map: Record<string, boolean> = {};
   for (const id of allModuleIds) {
     if (id === 'home' || id === 'my-business' || id === 'guide') {
       map[id] = true;
-      continue;
-    }
-    // If no packs selected, core trade modules on
-    if (!packIds.length) {
-      map[id] = unlocked.has(id);
       continue;
     }
     map[id] = unlocked.has(id);

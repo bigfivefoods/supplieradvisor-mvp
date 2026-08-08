@@ -1,6 +1,10 @@
 /**
  * Functional side navigation order (brief 2026-08-09).
- * Packaging is NOT a top-level header — Industry Tools appears only when packs are active.
+ *
+ * CRITICAL: Never fold multiple MODULE_NAV hubs into one item.
+ * Each existing module keeps its full step tree (Source, Book, Order, …).
+ * We only reorder + rename labels for functional clarity.
+ * Industry Tools is additive when packs are active.
  */
 import { MODULE_NAV, type ModuleNav } from '@/lib/chrome/module-nav';
 import {
@@ -9,143 +13,81 @@ import {
   type PackagingSelection,
 } from '@/lib/product/architecture';
 import {
-  Building2,
-  ContactRound,
-  UsersRound,
-  Workflow,
-  Warehouse,
-  ClipboardCheck,
-  Landmark,
-  Brain,
   Layers,
   Network,
-  Settings2,
-  LayoutDashboard,
   type LucideIcon,
 } from 'lucide-react';
 
-/** Ordered functional sections for the sidebar */
-export type FunctionalNavId =
-  | 'control_tower'
-  | 'suppliers'
-  | 'customers'
-  | 'operations'
-  | 'inventory'
-  | 'quality_compliance'
-  | 'finance'
-  | 'intelligence_impact'
-  | 'industry_tools'
-  | 'multi_entity'
-  | 'administration';
+/** Functional ordering of existing MODULE_NAV ids (1:1, full trees preserved). */
+export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
+  'home', // Control Tower
+  'suppliers',
+  'customers',
+  'sales-portal', // under trade — keep as own hub so Sales features stay
+  'operations',
+  'manufacturing', // Make — not merged into Operations
+  'distribution', // Ship
+  'inventory',
+  'quality',
+  'sheq',
+  'projects',
+  'accounting', // Finance
+  'intelligence',
+  'sustainability', // Impact
+  'containers', // Industry vertical — also listed under Industry Tools when packs on
+  'schools', // Programme — full NSNP tree
+  'health', // Programme — full DoH tree
+  'network',
+  'people',
+  'my-business', // Administration
+  'guide',
+] as const;
 
-export type FunctionalNavSection = {
-  id: FunctionalNavId;
-  name: string;
-  icon: LucideIcon;
-  href: string;
-  /** MODULE_NAV ids folded into this section */
-  moduleIds: string[];
-  /** Hide unless industry packs active */
-  requiresPacks?: boolean;
-  /** Hide for school simplified nav unless pack unlocks */
-  schoolDefault?: boolean;
+/** Display labels for functional chrome (hrefs + steps unchanged). */
+export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
+  home: 'Control Tower',
+  suppliers: 'Suppliers',
+  customers: 'Customers',
+  'sales-portal': 'Sales',
+  operations: 'Operations',
+  manufacturing: 'Make',
+  distribution: 'Ship',
+  inventory: 'Inventory',
+  quality: 'Quality',
+  sheq: 'SHEQ',
+  projects: 'Projects',
+  accounting: 'Finance',
+  intelligence: 'Intelligence',
+  sustainability: 'Impact',
+  containers: 'Containers',
+  schools: 'Schools',
+  health: 'Health',
+  network: 'Network',
+  people: 'People',
+  'my-business': 'Administration',
+  guide: 'Guide',
 };
 
 /**
- * Canonical functional structure — maps onto existing MODULE_NAV hubs.
- * Do not use Core / Sector / Pack as sidebar headers.
+ * School simplified experience: still show these modules when enabled,
+ * with FULL step trees (kitchen, orders, serve day, etc. stay under Schools).
+ * Other modules only appear if pack-enabled or company explicitly enabled.
  */
-export const FUNCTIONAL_NAV: readonly FunctionalNavSection[] = [
-  {
-    id: 'control_tower',
-    name: 'Control Tower',
-    icon: LayoutDashboard,
-    href: '/dashboard',
-    moduleIds: ['home'],
-    schoolDefault: true,
-  },
-  {
-    id: 'suppliers',
-    name: 'Suppliers',
-    icon: ContactRound,
-    href: '/dashboard/suppliers',
-    moduleIds: ['suppliers'],
-    schoolDefault: true,
-  },
-  {
-    id: 'customers',
-    name: 'Customers',
-    icon: UsersRound,
-    href: '/dashboard/customers',
-    moduleIds: ['customers', 'sales-portal'],
-    schoolDefault: false,
-  },
-  {
-    id: 'operations',
-    name: 'Operations',
-    icon: Workflow,
-    href: '/dashboard/operations',
-    moduleIds: ['operations', 'manufacturing', 'distribution', 'schools', 'health'],
-    schoolDefault: true,
-  },
-  {
-    id: 'inventory',
-    name: 'Inventory',
-    icon: Warehouse,
-    href: '/dashboard/inventory',
-    moduleIds: ['inventory'],
-    schoolDefault: true,
-  },
-  {
-    id: 'quality_compliance',
-    name: 'Quality & Compliance',
-    icon: ClipboardCheck,
-    href: '/dashboard/quality',
-    moduleIds: ['quality', 'sheq', 'projects'],
-    schoolDefault: false,
-  },
-  {
-    id: 'finance',
-    name: 'Finance',
-    icon: Landmark,
-    href: '/dashboard/accounting',
-    moduleIds: ['accounting'],
-    schoolDefault: false,
-  },
-  {
-    id: 'intelligence_impact',
-    name: 'Intelligence & Impact',
-    icon: Brain,
-    href: '/dashboard/intelligence',
-    moduleIds: ['intelligence', 'sustainability'],
-    schoolDefault: true,
-  },
-  {
-    id: 'industry_tools',
-    name: 'Industry Tools',
-    icon: Layers,
-    href: '/dashboard/industry-tools',
-    moduleIds: ['containers'],
-    requiresPacks: true,
-    schoolDefault: false,
-  },
-  {
-    id: 'multi_entity',
-    name: 'Multi-entity',
-    icon: Network,
-    href: '/dashboard/my-business/group',
-    moduleIds: [],
-    schoolDefault: false,
-  },
-  {
-    id: 'administration',
-    name: 'Administration',
-    icon: Settings2,
-    href: '/dashboard/my-business',
-    moduleIds: ['my-business', 'people', 'guide', 'network'],
-    schoolDefault: true,
-  },
-] as const;
+export const SCHOOL_PRIORITY_MODULE_IDS = new Set([
+  'home',
+  'schools',
+  'suppliers',
+  'inventory',
+  'operations',
+  'network',
+  'sustainability',
+  'intelligence',
+  'quality',
+  'sheq',
+  'my-business',
+  'guide',
+  'accounting', // optional but keep if enabled
+]);
 
 export type SidebarModuleShape = {
   id: string;
@@ -161,21 +103,36 @@ export type SidebarModuleShape = {
     rail?: boolean;
     desc?: string;
   }>;
-  /** Functional section id for ordering / chrome */
-  functionalId?: FunctionalNavId;
+  /** Optional functional section tag for chrome */
+  functionalId?: string;
 };
 
 function moduleById(id: string): ModuleNav | undefined {
   return MODULE_NAV.find((m) => m.id === id);
 }
 
+function stepsFromModule(m: ModuleNav): SidebarModuleShape['sub'] {
+  return m.steps.map((s) => ({
+    name: s.name,
+    href: s.href,
+    exact: Boolean(s.exact),
+    group: s.group,
+    section: s.section,
+    rail: s.rail !== false,
+    desc: s.desc,
+  }));
+}
+
 /**
- * Build sidebar modules in functional order, gated by company enablement + packs.
+ * Build sidebar modules:
+ * - Every enabled MODULE_NAV hub is its own item with complete steps
+ * - Ordered for functional daily work
+ * - Industry Tools added when packs active (does not replace Containers / Schools)
+ * - Multi-entity shortcut without removing Administration → Group
  */
 export function functionalSidebarModules(opts: {
   isModuleEnabled: (id: string) => boolean;
   packaging?: PackagingSelection | null;
-  /** School simplified experience */
   simplifiedSchool?: boolean;
 }): SidebarModuleShape[] {
   const packIds = opts.packaging?.packIds || [];
@@ -183,178 +140,154 @@ export function functionalSidebarModules(opts: {
   const out: SidebarModuleShape[] = [];
   const seen = new Set<string>();
 
-  for (const section of FUNCTIONAL_NAV) {
-    if (section.requiresPacks && !hasPacks) continue;
-    if (opts.simplifiedSchool && section.schoolDefault === false) {
-      // Still show if pack explicitly unlocked a module under this section
-      const anyEnabled = section.moduleIds.some((id) => opts.isModuleEnabled(id));
-      if (!anyEnabled && section.id !== 'control_tower') continue;
-    }
+  const shouldShowModule = (id: string): boolean => {
+    if (!opts.isModuleEnabled(id)) return false;
+    if (!opts.simplifiedSchool) return true;
+    // Schools: priority modules always if enabled; others only if pack unlocked them
+    if (SCHOOL_PRIORITY_MODULE_IDS.has(id)) return true;
+    // Pack-driven extras (e.g. containers from logistics pack)
+    return opts.isModuleEnabled(id);
+  };
 
-    if (section.id === 'control_tower') {
-      out.push({
-        id: 'home',
-        name: section.name,
-        icon: section.icon,
-        href: section.href,
-        sub: [],
-        functionalId: section.id,
-      });
-      seen.add('home');
-      continue;
-    }
+  for (const id of FUNCTIONAL_MODULE_ORDER) {
+    if (seen.has(id)) continue;
+    if (!shouldShowModule(id)) continue;
+    const m = moduleById(id);
+    if (!m) continue;
 
-    if (section.id === 'industry_tools') {
-      const tools: SidebarModuleShape['sub'] = [];
-      for (const pid of packIds) {
-        const pack = INDUSTRY_PACKS.find((p) => p.id === pid);
-        if (!pack) continue;
-        for (const t of pack.industryToolsHrefs) {
-          if (tools.some((x) => x.href === t.href)) continue;
-          tools.push({
-            name: t.name,
-            href: t.href,
-            desc: t.desc,
-          });
-        }
-      }
-      // Containers pack surfaces
-      if (opts.isModuleEnabled('containers')) {
-        const c = moduleById('containers');
-        if (c) {
-          for (const s of c.steps.slice(0, 4)) {
-            if (tools.some((x) => x.href === s.href)) continue;
-            tools.push({
-              name: s.name,
-              href: s.href,
-              exact: s.exact,
-              desc: s.desc,
-            });
-          }
-        }
-      }
-      if (!tools.length && !opts.isModuleEnabled('containers')) continue;
-      out.push({
-        id: 'industry_tools',
-        name: section.name,
-        icon: section.icon,
-        href: tools[0]?.href || section.href,
-        sub: tools.length
-          ? tools
-          : [{ name: 'Overview', href: section.href, exact: true }],
-        functionalId: section.id,
-      });
-      continue;
-    }
-
-    if (section.id === 'multi_entity') {
-      out.push({
-        id: 'multi_entity',
-        name: section.name,
-        icon: section.icon,
-        href: section.href,
-        sub: [
-          {
-            name: 'Group',
-            href: '/dashboard/my-business/group',
-            desc: 'Holding, subsidiaries, associations',
-          },
-        ],
-        functionalId: section.id,
-      });
-      continue;
-    }
-
-    // Fold enabled modules under this section (first primary hub is the section root)
-    const enabledMods = section.moduleIds
-      .map((id) => moduleById(id))
-      .filter((m): m is ModuleNav => Boolean(m && opts.isModuleEnabled(m.id)));
-
-    if (!enabledMods.length) {
-      // Administration always shows company hub
-      if (section.id === 'administration') {
-        const mb = moduleById('my-business');
-        if (mb) {
-          out.push({
-            id: mb.id,
-            name: section.name,
-            icon: section.icon,
-            href: mb.href,
-            sub: mb.steps.map((s) => ({
-              name: s.name,
-              href: s.href,
-              exact: Boolean(s.exact),
-              group: s.group,
-              section: s.section,
-              rail: s.rail !== false,
-              desc: s.desc,
-            })),
-            functionalId: section.id,
-          });
-          seen.add(mb.id);
-        }
-      }
-      continue;
-    }
-
-    // Primary module for section name/href; merge steps from all folded modules
-    const primary = enabledMods[0];
-    if (seen.has(primary.id) && section.moduleIds.length === 1) continue;
-
-    const sub: SidebarModuleShape['sub'] = [];
-    for (const mod of enabledMods) {
-      if (seen.has(mod.id) && mod.id !== primary.id) {
-        // still merge unique steps
-      }
-      for (const s of mod.steps) {
-        if (sub.some((x) => x.href === s.href)) continue;
-        sub.push({
-          name: s.name,
-          href: s.href,
-          exact: Boolean(s.exact),
-          group: s.group || (enabledMods.length > 1 ? mod.name : undefined),
-          section: s.section,
-          rail: s.rail !== false,
-          desc: s.desc,
-        });
-      }
-      seen.add(mod.id);
-    }
+    const name =
+      id === 'home'
+        ? 'Control Tower'
+        : id === 'my-business'
+          ? 'Administration'
+          : id === 'accounting'
+            ? 'Finance'
+            : id === 'sustainability'
+              ? 'Impact'
+              : FUNCTIONAL_DISPLAY_NAME[id] || m.name;
 
     out.push({
-      id: primary.id,
-      name: section.name,
-      icon: section.icon,
-      href: primary.href,
-      sub,
-      functionalId: section.id,
+      id: m.id,
+      name,
+      icon: m.icon,
+      href: m.href,
+      // FULL tree — never slice
+      sub: stepsFromModule(m),
+      functionalId: id,
     });
+    seen.add(id);
   }
 
-  // Any remaining enabled modules not folded (fallback)
+  // Any MODULE_NAV hub not in the order list (future-proof) — still full tree
   for (const m of MODULE_NAV) {
     if (seen.has(m.id)) continue;
     if (m.id === 'home') continue;
-    if (!opts.isModuleEnabled(m.id)) continue;
+    if (!shouldShowModule(m.id)) continue;
     out.push({
       id: m.id,
-      name: m.name,
+      name: FUNCTIONAL_DISPLAY_NAME[m.id] || m.name,
       icon: m.icon,
       href: m.href,
-      sub: m.steps.map((s) => ({
-        name: s.name,
-        href: s.href,
-        exact: Boolean(s.exact),
-        group: s.group,
-        section: s.section,
-        rail: s.rail !== false,
-        desc: s.desc,
-      })),
+      sub: stepsFromModule(m),
     });
     seen.add(m.id);
   }
 
+  // Industry Tools — additive hub (packs + deep links into existing modules)
+  if (hasPacks) {
+    const tools = buildIndustryToolsSubs(packIds, opts.isModuleEnabled);
+    if (tools.length) {
+      // Insert after Impact / before Containers if present, else before Administration
+      const adminIdx = out.findIndex((x) => x.id === 'my-business');
+      const item: SidebarModuleShape = {
+        id: 'industry_tools',
+        name: 'Industry Tools',
+        icon: Layers,
+        href: '/dashboard/industry-tools',
+        sub: [
+          {
+            name: 'Overview',
+            href: '/dashboard/industry-tools',
+            exact: true,
+            desc: 'Packs & vertical tools',
+          },
+          ...tools,
+        ],
+        functionalId: 'industry_tools',
+      };
+      if (adminIdx >= 0) out.splice(adminIdx, 0, item);
+      else out.push(item);
+    }
+  }
+
+  // Multi-entity shortcut (does not remove Administration → Group step)
+  const multi: SidebarModuleShape = {
+    id: 'multi_entity',
+    name: 'Multi-entity',
+    icon: Network,
+    href: '/dashboard/my-business/group',
+    sub: [
+      {
+        name: 'Group structure',
+        href: '/dashboard/my-business/group',
+        desc: 'Holding, subsidiaries, associations',
+      },
+    ],
+    functionalId: 'multi_entity',
+  };
+  // Show for non-school or when packaging implies multi-entity
+  const showMulti =
+    !opts.simplifiedSchool ||
+    packIds.includes('public_procurement') ||
+    opts.packaging?.entityTypeId === 'provincial' ||
+    opts.packaging?.entityTypeId === 'national' ||
+    opts.packaging?.entityTypeId === 'municipal';
+  if (showMulti) {
+    const adminIdx = out.findIndex((x) => x.id === 'my-business');
+    if (adminIdx >= 0) out.splice(adminIdx, 0, multi);
+    else out.push(multi);
+  }
+
   return out;
+}
+
+/** Collect pack tool links + preserve entry points into full modules */
+function buildIndustryToolsSubs(
+  packIds: string[],
+  isModuleEnabled: (id: string) => boolean
+): SidebarModuleShape['sub'] {
+  const tools: SidebarModuleShape['sub'] = [];
+  const seenHref = new Set<string>();
+
+  const push = (name: string, href: string, desc?: string) => {
+    if (seenHref.has(href)) return;
+    seenHref.add(href);
+    tools.push({ name, href, desc });
+  };
+
+  for (const pid of packIds) {
+    const pack = INDUSTRY_PACKS.find((p) => p.id === pid);
+    if (!pack) continue;
+    for (const t of pack.industryToolsHrefs) {
+      push(`${pack.shortName}: ${t.name}`, t.href, t.desc);
+    }
+  }
+
+  // When containers module on, expose hub (full module still in main nav)
+  if (isModuleEnabled('containers')) {
+    push('Containers hub', '/dashboard/containers', 'Full container OS');
+  }
+  if (isModuleEnabled('schools')) {
+    push('Schools / NSNP hub', '/dashboard/schools', 'Full schools programme');
+  }
+  if (isModuleEnabled('manufacturing')) {
+    push('Make · MPS/MRP', '/dashboard/manufacturing', 'Full manufacturing');
+  }
+  if (isModuleEnabled('sustainability')) {
+    push('Impact / ESG', '/dashboard/sustainability', 'Full impact module');
+  }
+
+  return tools;
 }
 
 export function packagingFromCompanyMeta(
@@ -364,5 +297,10 @@ export function packagingFromCompanyMeta(
   return readPackagingFromMetadata(meta as Record<string, unknown>);
 }
 
-/** Display alias: Company hub → Administration label already applied above */
-export { Building2 };
+/**
+ * Assert helper for tests / docs: every MODULE_NAV id has a place in order or fallback.
+ */
+export function allModuleNavIdsPreserved(): boolean {
+  const ordered = new Set(FUNCTIONAL_MODULE_ORDER);
+  return MODULE_NAV.every((m) => ordered.has(m.id) || m.id === 'home');
+}

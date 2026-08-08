@@ -60,12 +60,17 @@ export async function provisionEntityWorkspace(
         moduleIds: opts.packaging.moduleIds || [],
       });
       setupStatus = selection.setupStatus;
+      // Start from entity preset so we never lose programme/module features
+      const baseEnable = Object.entries(enabledModules)
+        .filter(([, on]) => on)
+        .map(([id]) => id);
       enabledModules = enabledModulesMapFromPacks(
         selection.packIds,
         selection.moduleIds,
-        MODULE_NAV.map((m) => m.id)
+        MODULE_NAV.map((m) => m.id),
+        { basePresetEnable: baseEnable }
       ) as EnabledModulesMap;
-      // School simplified default modules
+      // School simplified defaults — but KEEP full Schools module + kitchen stack
       if (selection.entityTypeId === 'school') {
         enabledModules = {
           ...enabledModules,
@@ -73,11 +78,18 @@ export async function provisionEntityWorkspace(
           inventory: true,
           suppliers: true,
           network: true,
+          operations: true,
+          quality: true,
+          sheq: true,
+          sustainability: true,
+          intelligence: true,
+          // De-emphasise (not delete features from codebase — just hide hubs)
           customers: false,
           manufacturing: false,
           distribution: false,
           containers: false,
           'sales-portal': false,
+          projects: false,
         };
       }
       // Persist packaging into metadata below

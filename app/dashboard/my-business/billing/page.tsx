@@ -64,6 +64,8 @@ function BillingInner() {
   const email = extractEmailFromPrivyUser(user);
   const searchParams = useSearchParams();
   const payFocus = searchParams?.get('pay') === '1';
+  const setupContactRequired =
+    searchParams?.get('setup') === 'contact_required';
   const plansRef = useRef<HTMLDivElement>(null);
 
   const [loading, setLoading] = useState(true);
@@ -513,6 +515,37 @@ function BillingInner() {
         settleProof={settleProof}
       />
 
+      {setupContactRequired ? (
+        <div className="mb-6 rounded-2xl border border-violet-300 bg-violet-50 px-4 py-4 flex gap-3">
+          <AlertTriangle className="w-5 h-5 text-violet-700 shrink-0 mt-0.5" />
+          <div className="text-sm text-violet-950 space-y-1">
+            <p className="font-black">Specialist setup in progress</p>
+            <p className="text-xs text-violet-900/90 leading-relaxed">
+              Provincial and National government workspaces select Sector and
+              Industry Packs during onboarding, then a SupplierAdvisor specialist
+              completes multi-entity configuration, compliance depth, and
+              activation. Your Core OS hubs and selected pack modules remain
+              visible for review — full programme go-live follows specialist
+              confirmation.
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Link
+                href="/dashboard/my-business/packaging"
+                className="text-xs font-bold underline"
+              >
+                View packaging
+              </Link>
+              <Link
+                href="/dashboard/industry-tools"
+                className="text-xs font-bold underline"
+              >
+                Industry Tools
+              </Link>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {(needPay || trialEndingSoon || payFocus) && !sub?.isLifetime ? (
         <div
           className={`mb-6 rounded-2xl border px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 justify-between ${
@@ -536,8 +569,9 @@ function BillingInner() {
                 needPay ? 'text-rose-900/80' : 'text-amber-900/80'
               }`}
             >
-              From R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo · save up to 30% with
-              multi-year. Paystack checkout below.
+              Core OS from R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo · Industry
+              Packs extra · save up to 30% with multi-year. Paystack checkout
+              below.
               {founding && !founding.full && founding.remaining > 0
                 ? ` · ${founding.remaining} founding free seat(s) may still be open.`
                 : ''}
