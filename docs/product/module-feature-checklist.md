@@ -33,7 +33,7 @@ Automated: `lib/chrome/module-nav-integrity.test.ts` (or script).
 | 17 | `health` | Health | 18* | ✅ Full (role-filtered steps) |
 | 18 | `network` | Network | 5 | ✅ Full |
 | 19 | `people` | People | 9 | ✅ Full |
-| 20 | `my-business` | Administration | 15 | ✅ Full (+ Packaging) |
+| 20 | `my-business` | Company | 15 | ✅ Full (+ Packaging) |
 | 21 | `guide` | Guide | 12 | ✅ Full |
 
 \* Schools/Health step counts include DBE / School / SP (or DoH / Facility / SP) groups; sidebar filters by programme role but does **not** drop the module tree definition.
@@ -42,7 +42,7 @@ Automated: `lib/chrome/module-nav-integrity.test.ts` (or script).
 
 **Additive (not MODULE_NAV):**  
 - `industry_tools` — pack shortcuts into existing hubs  
-- `multi_entity` — shortcut to Administration → Group  
+- `multi_entity` — shortcut to Company → Group  
 
 ---
 
@@ -161,11 +161,11 @@ DoH desk · Join · Facilities · Catalogue · Orders · Kitchen · Nutrition ·
 
 ---
 
-## Network · People · Administration · Guide
+## Network · People · Company · Guide
 
 ### Network — Graph · Open trade · Price · Market · Invite ✅  
 ### People — Overview · Directory · Org · Rate · Discipline · Payroll · Leave · Train · Onboard ✅  
-### Administration (`my-business`) — Overview · Identity · Modules · **Packaging** · Team · Group · Trust · Verify · Billing · Docs · Settings · Ops · Sales · Referrals · Risks ✅  
+### Company (`my-business`) — Overview · Identity · Modules · **Packaging** · Team · Group · Trust · Verify · Billing · Docs · Settings · Ops · Sales · Referrals · Risks ✅  
 ### Guide — Start · Company · Network · Buy · Sell · Stock · Ops · Make · Ship · Assure · Money · Secure ✅  
 
 ---

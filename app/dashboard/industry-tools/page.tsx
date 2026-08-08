@@ -66,7 +66,7 @@ export default function IndustryToolsPage() {
           <p className="text-sm text-slate-500 max-w-md mx-auto">
             You are on Core OS. All standard modules (Suppliers, Customers, Ops,
             Inventory, Finance…) remain in the sidebar when enabled under
-            Administration → Modules.
+            Company → Modules.
           </p>
           <div className="flex flex-wrap justify-center gap-2 pt-2">
             <Link

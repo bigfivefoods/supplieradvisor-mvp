@@ -729,7 +729,7 @@ export default function BusinessOnboardingWizard() {
             </h1>
             <p className="text-sm text-slate-600">
               Recommended. Leave empty to enable all modules in selected packs.
-              You can change this later under Administration → Modules.
+              You can change this later under Company → Modules.
             </p>
             {modulesForSelectedPacks.length === 0 ? (
               <p className="text-sm text-slate-500">

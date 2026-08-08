@@ -20,7 +20,8 @@ import {
 
 /** Functional ordering of existing MODULE_NAV ids (1:1, full trees preserved). */
 export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
-  'home', // Control Tower
+  'home', // Control Tower (command center)
+  'my-business', // Company — directly below command
   'suppliers',
   'customers',
   'sales-portal', // under trade — keep as own hub so Sales features stay
@@ -39,13 +40,13 @@ export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
   'health', // Programme — full DoH tree
   'network',
   'people',
-  'my-business', // Administration
   'guide',
 ] as const;
 
 /** Display labels for functional chrome (hrefs + steps unchanged). */
 export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
   home: 'Control Tower',
+  'my-business': 'Company',
   suppliers: 'Suppliers',
   customers: 'Customers',
   'sales-portal': 'Sales',
@@ -64,7 +65,6 @@ export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
   health: 'Health',
   network: 'Network',
   people: 'People',
-  'my-business': 'Administration',
   guide: 'Guide',
 };
 
@@ -128,7 +128,7 @@ function stepsFromModule(m: ModuleNav): SidebarModuleShape['sub'] {
  * - Every enabled MODULE_NAV hub is its own item with complete steps
  * - Ordered for functional daily work
  * - Industry Tools added when packs active (does not replace Containers / Schools)
- * - Multi-entity shortcut without removing Administration → Group
+ * - Multi-entity shortcut without removing Company → Group
  */
 export function functionalSidebarModules(opts: {
   isModuleEnabled: (id: string) => boolean;
@@ -155,16 +155,7 @@ export function functionalSidebarModules(opts: {
     const m = moduleById(id);
     if (!m) continue;
 
-    const name =
-      id === 'home'
-        ? 'Control Tower'
-        : id === 'my-business'
-          ? 'Administration'
-          : id === 'accounting'
-            ? 'Finance'
-            : id === 'sustainability'
-              ? 'Impact'
-              : FUNCTIONAL_DISPLAY_NAME[id] || m.name;
+    const name = FUNCTIONAL_DISPLAY_NAME[id] || m.name;
 
     out.push({
       id: m.id,
@@ -197,8 +188,16 @@ export function functionalSidebarModules(opts: {
   if (hasPacks) {
     const tools = buildIndustryToolsSubs(packIds, opts.isModuleEnabled);
     if (tools.length) {
-      // Insert after Impact / before Containers if present, else before Administration
-      const adminIdx = out.findIndex((x) => x.id === 'my-business');
+      // After Impact / before Containers when present; else before Network/People/Guide tail
+      const insertAt = (() => {
+        const containersIdx = out.findIndex((x) => x.id === 'containers');
+        if (containersIdx >= 0) return containersIdx;
+        const impactIdx = out.findIndex((x) => x.id === 'sustainability');
+        if (impactIdx >= 0) return impactIdx + 1;
+        const networkIdx = out.findIndex((x) => x.id === 'network');
+        if (networkIdx >= 0) return networkIdx;
+        return out.length;
+      })();
       const item: SidebarModuleShape = {
         id: 'industry_tools',
         name: 'Industry Tools',
@@ -215,12 +214,11 @@ export function functionalSidebarModules(opts: {
         ],
         functionalId: 'industry_tools',
       };
-      if (adminIdx >= 0) out.splice(adminIdx, 0, item);
-      else out.push(item);
+      out.splice(insertAt, 0, item);
     }
   }
 
-  // Multi-entity shortcut (does not remove Administration → Group step)
+  // Multi-entity shortcut (does not remove Company → Group step) — sit just after Company
   const multi: SidebarModuleShape = {
     id: 'multi_entity',
     name: 'Multi-entity',
@@ -243,8 +241,8 @@ export function functionalSidebarModules(opts: {
     opts.packaging?.entityTypeId === 'national' ||
     opts.packaging?.entityTypeId === 'municipal';
   if (showMulti) {
-    const adminIdx = out.findIndex((x) => x.id === 'my-business');
-    if (adminIdx >= 0) out.splice(adminIdx, 0, multi);
+    const companyIdx = out.findIndex((x) => x.id === 'my-business');
+    if (companyIdx >= 0) out.splice(companyIdx + 1, 0, multi);
     else out.push(multi);
   }
 

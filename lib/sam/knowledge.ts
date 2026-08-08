@@ -123,7 +123,7 @@ ${principles}
 - Sales contractor portal access is a separate fee (about R${SALES_SUBSCRIPTION_MONTHLY_ZAR}/mo term product) after agreement.
 
 ## Product architecture (Core → Sector → Pack → Modules)
-- Navigation is **functional** (Control Tower, Suppliers, Customers, Ops, Inventory, Quality, Finance, Intelligence, Industry Tools, Multi-entity, Administration).
+- Navigation is **functional** (Control Tower, Company, Suppliers, Customers, Ops, Inventory, Quality, Finance, Intelligence, Industry Tools, Multi-entity).
 - **Never tell users features were removed** — packs and modules only show/hide hubs; every process step still lives under its MODULE_NAV hub (Suppliers still has Source/Book/Order/Escrow/…; Containers still has Manage/Map/…; Schools still has Kitchen/Orders/Serve day/…).
 - Industry Tools and pack dashboards are **shortcuts** into those full modules.
 - Provincial/National government: pack selection + specialist contact for full activation.
