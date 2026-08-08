@@ -141,8 +141,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 })();`,
           }}
         />
-        {/* Paystack Inline Script */}
-        <script src="https://js.paystack.co/v1/inline.js" async />
+        {/* Paystack InlineJS v2 — required for Apple Pay + modern checkout */}
+        <script src="https://js.paystack.co/v2/inline.js" async />
       </head>
       <body className="min-h-dvh antialiased text-slate-900">
         <Providers>{children}</Providers>

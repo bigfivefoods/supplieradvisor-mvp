@@ -23,7 +23,8 @@
     "ops:p0": "bash scripts/ops-p0-check.sh",
     "ops:verify": "node scripts/verify-platform.mjs",
     "deploy:usdc-escrow": "node scripts/deploy-usdc-escrow.mjs",
-    "deploy:usdc-hardhat": "cd contracts/contracts && npx hardhat compile && npx tsx scripts/deploy-usdc.ts"
+    "deploy:usdc-hardhat": "cd contracts/contracts && npx hardhat compile && npx tsx scripts/deploy-usdc.ts",
+    "check:module-nav": "node scripts/check-module-nav-integrity.mjs"
   },
   "dependencies": {
     "@privy-io/react-auth": "^3.18.0",

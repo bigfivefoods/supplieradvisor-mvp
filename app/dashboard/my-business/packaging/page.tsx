@@ -15,9 +15,15 @@ import {
   Loader2,
   Save,
   Package,
+  CreditCard,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
+import {
+  extractEmailFromPrivyUser,
+  getCanonicalUserId,
+} from '@/lib/auth/identity';
 import {
   CompanyRequired,
   BusinessHeader,
@@ -33,6 +39,12 @@ import {
   monthlyPriceZar,
   type PackagingSelection,
 } from '@/lib/product/architecture';
+import {
+  getPaystackPublicKey,
+  openPaystackCheckout,
+} from '@/lib/billing/paystack-client';
+import { quoteIndustryPacks } from '@/lib/billing/pack-pricing';
+import type { BillingTermId } from '@/lib/billing/company-subscription';
 
 export default function PackagingSettingsPage() {
   return (
@@ -44,13 +56,18 @@ export default function PackagingSettingsPage() {
 
 function Inner() {
   const companyId = getSelectedCompanyId()!;
+  const { user } = usePrivy();
+  const privyUserId = getCanonicalUserId(user?.id);
+  const email = extractEmailFromPrivyUser(user);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [packaging, setPackaging] = useState<PackagingSelection | null>(null);
   const [selectedPacks, setSelectedPacks] = useState<string[]>([]);
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
   const [dirty, setDirty] = useState(false);
   const [businessType, setBusinessType] = useState<string | null>(null);
+  const [payTermId] = useState<BillingTermId>('monthly');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -168,6 +185,102 @@ function Inner() {
       setSaving(false);
     }
   };
+
+  /** Pay only for newly selected packs (vs previously saved) via Paystack / Apple Pay */
+  const payForNewPacks = async () => {
+    const prev = new Set(packaging?.packIds || []);
+    const added = selectedPacks.filter((id) => !prev.has(id));
+    if (!added.length) {
+      toast.message('No new packs to pay for — save free toggles, or pick more packs');
+      return;
+    }
+    const key = getPaystackPublicKey();
+    if (!key || !email) {
+      toast.error(
+        !email
+          ? 'Sign in with an email for Paystack'
+          : 'Set NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY'
+      );
+      return;
+    }
+    const q = quoteIndustryPacks(added, payTermId);
+    if (!(q.payCents > 0)) {
+      toast.error('Invalid pack quote');
+      return;
+    }
+    setPaying(true);
+    const ref = `sa-packs-${payTermId}-${companyId}-${Date.now()}`;
+    try {
+      await openPaystackCheckout({
+        key,
+        email,
+        amountCents: q.payCents,
+        ref,
+        metadata: {
+          product: 'industry_packs',
+          company_id: String(companyId),
+          term_id: payTermId,
+          pack_ids: added.join(','),
+          pack_count: String(added.length),
+        },
+        onSuccess: async (reference) => {
+          try {
+            const res = await fetch('/api/business/subscription', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                companyId,
+                privyUserId,
+                action: 'activate',
+                paystackReference: reference,
+                termId: payTermId,
+                packIds: added,
+                product: 'industry_packs',
+                packsOnly: true,
+              }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Activation failed');
+            // Persist full selected packs (including previous)
+            await fetch('/api/business/packaging', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                companyId,
+                packIds: selectedPacks,
+                moduleIds: selectedModules,
+                entityTypeId: packaging?.entityTypeId,
+                sectorId: packaging?.sectorId,
+              }),
+            });
+            toast.success(
+              data.channel === 'apple_pay'
+                ? `Packs activated via Apple Pay · R${q.payZar}`
+                : `Packs activated · R${q.payZar}`
+            );
+            setDirty(false);
+            void load();
+            window.dispatchEvent(new Event('sa:company-changed'));
+          } catch (e: unknown) {
+            toast.error(e instanceof Error ? e.message : 'Activation failed');
+          } finally {
+            setPaying(false);
+          }
+        },
+        onClose: () => setPaying(false),
+        onError: () => setPaying(false),
+      });
+    } catch (e: unknown) {
+      setPaying(false);
+      toast.error(e instanceof Error ? e.message : 'Checkout failed');
+    }
+  };
+
+  const newPacksQuote = useMemo(() => {
+    const prev = new Set(packaging?.packIds || []);
+    const added = selectedPacks.filter((id) => !prev.has(id));
+    return quoteIndustryPacks(added, payTermId);
+  }, [packaging?.packIds, selectedPacks, payTermId]);
 
   return (
     <BusinessPage>
@@ -348,6 +461,29 @@ function Inner() {
               )}
               Save packaging
             </button>
+            {newPacksQuote.packCount > 0 ? (
+              <button
+                type="button"
+                disabled={paying}
+                onClick={() => void payForNewPacks()}
+                className="btn-secondary !py-2 !px-4 text-xs inline-flex items-center gap-1 border-emerald-300 text-emerald-900 bg-emerald-50"
+                title="Pay for newly selected packs via Paystack (Apple Pay on Safari)"
+              >
+                {paying ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <CreditCard className="w-3.5 h-3.5" />
+                )}
+                Pay {newPacksQuote.packCount} new pack(s) · R
+                {newPacksQuote.payZar}
+              </button>
+            ) : null}
+            <Link
+              href="/dashboard/my-business/billing"
+              className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+            >
+              Billing · Core + packs
+            </Link>
             <Link
               href="/dashboard/industry-tools"
               className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"

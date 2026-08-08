@@ -649,9 +649,31 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Verify paid amount is at least the cheapest monthly plan
+      // Optional Industry Packs paid with Core (or packs-only add-on)
+      const packIdsPaid = Array.isArray(body.packIds)
+        ? body.packIds.map(String).filter(Boolean)
+        : [];
+      const product = String(body.product || 'company_saas').toLowerCase();
+      const packsOnly =
+        product === 'industry_packs' ||
+        product === 'packs' ||
+        body.packsOnly === true;
+
+      const { quoteIndustryPacks, quoteCorePlusPacks } = await import(
+        '@/lib/billing/pack-pricing'
+      );
+      const packQuote = quoteIndustryPacks(packIdsPaid, claimedTerm.id);
+      const combined = quoteCorePlusPacks(packIdsPaid, claimedTerm.id);
+
+      // Minimum acceptable: packs-only amount OR core amount OR combined
+      const minCents = packsOnly
+        ? Math.max(packQuote.payCents, 100)
+        : packIdsPaid.length
+          ? combined.totalPayCents
+          : COMPANY_SUBSCRIPTION_MONTHLY_CENTS;
+
       const verified = await verifyPaystackTransaction(paystackReference, {
-        expectedAmountCents: COMPANY_SUBSCRIPTION_MONTHLY_CENTS,
+        expectedAmountCents: minCents,
         expectedCurrency: 'ZAR',
       });
       if (!verified.ok) {
@@ -664,18 +686,39 @@ export async function POST(request: NextRequest) {
       // Resolve term from claimed id + actual paid amount
       const term = resolveBillingTerm({
         termId: claimedTerm.id,
-        amountCents: verified.amount,
+        amountCents: packsOnly
+          ? packQuote.payCents
+          : packIdsPaid.length
+            ? combined.totalPayCents
+            : verified.amount,
       });
-      // If claimed multi-year but paid only monthly, fall back to amount-based term
       const finalTerm =
-        verified.amount >= term.payCents
+        !packsOnly && verified.amount >= term.payCents
           ? term
-          : resolveBillingTerm({ amountCents: verified.amount });
+          : !packsOnly
+            ? resolveBillingTerm({ amountCents: verified.amount })
+            : claimedTerm;
 
-      if (verified.amount < finalTerm.payCents) {
+      if (!packsOnly && verified.amount < finalTerm.payCents) {
+        // Allow combined core+packs payments
+        if (
+          packIdsPaid.length &&
+          verified.amount >= combined.totalPayCents
+        ) {
+          /* ok */
+        } else {
+          return NextResponse.json(
+            {
+              error: `Paid amount too low for ${finalTerm.label} plan (got ${verified.amount} cents, need ${finalTerm.payCents}).`,
+            },
+            { status: 402 }
+          );
+        }
+      }
+      if (packsOnly && verified.amount < packQuote.payCents) {
         return NextResponse.json(
           {
-            error: `Paid amount too low for ${finalTerm.label} plan (got ${verified.amount} cents, need ${finalTerm.payCents}).`,
+            error: `Paid amount too low for Industry Packs (${packQuote.packCount} pack(s) · need R${packQuote.payZar}).`,
           },
           { status: 402 }
         );
@@ -683,7 +726,6 @@ export async function POST(request: NextRequest) {
 
       const now = new Date();
       const current = computeCompanySubscription(row);
-      // Extend from remaining paid end if still active, else from now
       let periodStart = now;
       if (current.isActive && row.subscription_ends_at) {
         const existingEnd = new Date(row.subscription_ends_at);
@@ -694,69 +736,156 @@ export async function POST(request: NextRequest) {
       const periodEnd = addMonths(periodStart, finalTerm.months);
       const startsAt = row.subscription_starts_at || now.toISOString();
 
-      const updates: Record<string, unknown> = {
-        subscription_status: 'active',
-        subscription_starts_at: startsAt,
-        subscription_ends_at: periodEnd.toISOString(),
-        subscription_paystack_ref: verified.reference,
-        subscription_amount_zar: finalTerm.payZar,
-        subscription_plan: finalTerm.planCode,
-      };
-      if (verified.customerCode) {
-        updates.subscription_paystack_customer_code = verified.customerCode;
-      }
-      if (verified.authorizationCode) {
-        updates.subscription_paystack_auth_code = verified.authorizationCode;
-      }
+      const paidZar = packsOnly
+        ? packQuote.payZar
+        : packIdsPaid.length && verified.amount >= combined.totalPayCents
+          ? combined.totalPayZar
+          : finalTerm.payZar;
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', companyId)
-        .select(SUBSCRIPTION_SELECT_FIELDS)
-        .single();
-
-      if (error) {
-        if (/column|subscription_/i.test(error.message)) {
-          return NextResponse.json(
-            {
-              error: error.message,
-              hint: 'Run supabase/migrations/20260712_company_subscription.sql',
-            },
-            { status: 503 }
-          );
+      const updates: Record<string, unknown> = {};
+      if (!packsOnly) {
+        updates.subscription_status = 'active';
+        updates.subscription_starts_at = startsAt;
+        updates.subscription_ends_at = periodEnd.toISOString();
+        updates.subscription_paystack_ref = verified.reference;
+        updates.subscription_amount_zar = paidZar;
+        updates.subscription_plan = packIdsPaid.length
+          ? `${finalTerm.planCode}+packs`
+          : finalTerm.planCode;
+        if (verified.customerCode) {
+          updates.subscription_paystack_customer_code = verified.customerCode;
         }
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        if (verified.authorizationCode) {
+          updates.subscription_paystack_auth_code = verified.authorizationCode;
+        }
       }
 
-      row = data as ProfileSubRow;
+      // Merge Industry Packs into metadata when paid
+      let packagingResult: Record<string, unknown> | null = null;
+      if (packIdsPaid.length) {
+        try {
+          const { data: fullProf } = await supabase
+            .from('profiles')
+            .select('metadata, business_type')
+            .eq('id', companyId)
+            .maybeSingle();
+          const meta =
+            fullProf?.metadata && typeof fullProf.metadata === 'object'
+              ? { ...(fullProf.metadata as Record<string, unknown>) }
+              : {};
+          const {
+            readPackagingFromMetadata,
+            packagingFromSelection,
+            packagingMetadataBlob,
+            enabledModulesMapFromPacks,
+          } = await import('@/lib/product/architecture');
+          const {
+            extractEnabledModulesFromMetadata,
+            mergeEnabledModulesIntoMetadata,
+          } = await import('@/lib/business/company-modules');
+          const { MODULE_NAV } = await import('@/lib/chrome/module-nav');
+          const currentPack = readPackagingFromMetadata(meta);
+          const nextPackIds = [
+            ...new Set([...(currentPack?.packIds || []), ...packIdsPaid]),
+          ];
+          const selection = packagingFromSelection({
+            entityTypeId:
+              currentPack?.entityTypeId ||
+              (String(fullProf?.business_type || '') === 'school'
+                ? 'school'
+                : 'private_company'),
+            sectorId: currentPack?.sectorId || 'secondary',
+            packIds: nextPackIds,
+            moduleIds: currentPack?.moduleIds || [],
+          });
+          Object.assign(meta, packagingMetadataBlob(selection));
+          meta.industry_packs_last_ref = verified.reference;
+          meta.industry_packs_paid_until = periodEnd.toISOString();
+          meta.industry_packs_channel = verified.channel;
+          const baseEnable = Object.entries(
+            extractEnabledModulesFromMetadata(meta)
+          )
+            .filter(([, on]) => on)
+            .map(([id]) => id);
+          const fromPacks = enabledModulesMapFromPacks(
+            selection.packIds,
+            selection.moduleIds,
+            MODULE_NAV.map((m) => m.id),
+            { basePresetEnable: baseEnable }
+          );
+          const merged = { ...extractEnabledModulesFromMetadata(meta) };
+          for (const [id, on] of Object.entries(fromPacks)) {
+            if (on) merged[id] = true;
+          }
+          updates.metadata = mergeEnabledModulesIntoMetadata(meta, merged);
+          packagingResult = {
+            packIds: selection.packIds,
+            paidUntil: periodEnd.toISOString(),
+          };
+        } catch (e) {
+          console.warn('[subscription] pack merge soft-fail', e);
+        }
+      }
+
+      if (Object.keys(updates).length) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .update(updates)
+          .eq('id', companyId)
+          .select(SUBSCRIPTION_SELECT_FIELDS)
+          .single();
+
+        if (error) {
+          if (/column|subscription_/i.test(error.message)) {
+            return NextResponse.json(
+              {
+                error: error.message,
+                hint: 'Run supabase/migrations/20260712_company_subscription.sql',
+              },
+              { status: 503 }
+            );
+          }
+          return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+        row = data as ProfileSubRow;
+      }
+
       const subscription = computeCompanySubscription(row);
 
       // Credit L1–L3 supply-chain referral fees (max 10% of payment)
       const referralResult = await creditSubscriptionReferralFees({
         sourceProfileId: companyId,
-        baseAmountZar: finalTerm.payZar,
+        baseAmountZar: paidZar,
         sourceRef: verified.reference,
-        termLabel: finalTerm.label,
+        termLabel: packsOnly
+          ? `Industry Packs · ${finalTerm.label}`
+          : finalTerm.label,
         months: finalTerm.months,
       });
 
       void logActivity({
         profile_id: companyId,
         actor_user_id: gate.userId,
-        action: 'billing.subscription_activated',
+        action: packsOnly
+          ? 'billing.packs_activated'
+          : 'billing.subscription_activated',
         entity_type: 'profile',
         entity_id: String(companyId),
-        summary: `Company subscription activated (${finalTerm.label} · ${formatZar(finalTerm.payZar)} · ${finalTerm.months} mo)`,
+        summary: packsOnly
+          ? `Industry Packs activated (${packQuote.packCount} pack(s) · ${formatZar(paidZar)} · ${finalTerm.months} mo)`
+          : `Company subscription activated (${finalTerm.label} · ${formatZar(paidZar)} · ${finalTerm.months} mo${packIdsPaid.length ? ` · +${packIdsPaid.length} pack(s)` : ''})`,
         metadata: {
           paystackReference: verified.reference,
           termId: finalTerm.id,
           months: finalTerm.months,
           discountPercent: finalTerm.discountPercent,
-          payZar: finalTerm.payZar,
+          payZar: paidZar,
           endsAt: periodEnd.toISOString(),
           amountCents: verified.amount,
           channel: verified.channel,
+          packIds: packIdsPaid,
+          packsOnly,
+          applePay: verified.channel === 'apple_pay',
           referralPayouts:
             referralResult.ok
               ? referralResult.payouts.map((p) => ({
@@ -775,6 +904,8 @@ export async function POST(request: NextRequest) {
         pricing: pricingPayload(),
         term: finalTerm,
         periodEnd: periodEnd.toISOString(),
+        packaging: packagingResult,
+        channel: verified.channel,
         referral:
           referralResult.ok
             ? {

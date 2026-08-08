@@ -1,53 +1,46 @@
 /**
- * Smoke: MODULE_NAV order + step preservation via functional nav.
- * Run: node scripts/check-module-nav-integrity.mjs
- * (Uses dynamic import of compiled esbuild bundle or inline parse.)
+ * Smoke: MODULE_NAV feature trees preserved by functional nav.
+ * Run: yarn check:module-nav
  */
-import { createRequire } from 'module';
 import { build } from 'esbuild';
-import { writeFileSync, mkdirSync } from 'fs';
+import { createRequire } from 'module';
 import { join } from 'path';
-import { pathToFileURL } from 'url';
+import { mkdirSync, existsSync } from 'fs';
 
 const outdir = '/tmp/sa-module-integrity';
 mkdirSync(outdir, { recursive: true });
+const outfile = join(outdir, 'integrity.cjs');
+const root = process.cwd();
+
+function resolveAt(path) {
+  const base = join(root, path.slice(2));
+  for (const ext of ['', '.ts', '.tsx', '.js']) {
+    const p = base + ext;
+    if (existsSync(p)) return p;
+  }
+  return base + '.ts';
+}
 
 await build({
-  entryPoints: ['lib/chrome/module-nav-integrity.ts'],
+  entryPoints: [join(root, 'lib/chrome/module-nav-integrity.ts')],
   bundle: true,
   platform: 'node',
   format: 'cjs',
-  outfile: join(outdir, 'integrity.cjs'),
-  packages: 'external',
-  // Bundle workspace internals
-  packages: undefined,
-  external: [],
-  alias: {
-    '@': process.cwd(),
-  },
-});
-
-const require = createRequire(import.meta.url);
-// re-build with absolute alias
-await build({
-  entryPoints: [join(process.cwd(), 'lib/chrome/module-nav-integrity.ts')],
-  bundle: true,
-  platform: 'node',
-  format: 'cjs',
-  outfile: join(outdir, 'integrity.cjs'),
+  outfile,
   plugins: [
     {
       name: 'alias-at',
-      setup(build) {
-        build.onResolve({ filter: /^@\// }, (args) => ({
-          path: join(process.cwd(), args.path.slice(2)),
+      setup(buildApi) {
+        buildApi.onResolve({ filter: /^@\// }, (args) => ({
+          path: resolveAt(args.path),
         }));
       },
     },
   ],
 });
 
-const { auditModuleNavIntegrity } = require(join(outdir, 'integrity.cjs'));
+const require = createRequire(import.meta.url);
+const { auditModuleNavIntegrity } = require(outfile);
 const report = auditModuleNavIntegrity();
 console.log(JSON.stringify(report, null, 2));
 if (!report.ok) {

@@ -90,7 +90,7 @@ export default function SalesSubscribePage() {
     }
   };
 
-  const startPayment = () => {
+  const startPayment = async () => {
     if (!agreementSigned) {
       toast.error('Sign the contractor agreement first');
       router.push('/sales/agreement');
@@ -115,49 +115,35 @@ export default function SalesSubscribePage() {
     setPaying(true);
     const ref = `sa-sales-sub-${companyId}-${privyUserId?.slice(-8) || 'u'}-${Date.now()}`;
     try {
-      const handler = window.PaystackPop.setup({
+      const { openPaystackCheckout } = await import(
+        '@/lib/billing/paystack-client'
+      );
+      await openPaystackCheckout({
         key,
         email,
-        amount: SALES_SUBSCRIPTION_TOTAL_CENTS,
+        amountCents: SALES_SUBSCRIPTION_TOTAL_CENTS,
         currency: 'ZAR',
         ref,
         metadata: {
-          custom_fields: [
-            {
-              display_name: 'Product',
-              variable_name: 'product',
-              value: 'sales_contractor_portal',
-            },
-            {
-              display_name: 'Company ID',
-              variable_name: 'company_id',
-              value: String(companyId),
-            },
-            {
-              display_name: 'Term',
-              variable_name: 'term',
-              value: `${SALES_SUBSCRIPTION_TERM_MONTHS}_months`,
-            },
-            {
-              display_name: 'Monthly ZAR',
-              variable_name: 'monthly_zar',
-              value: String(SALES_SUBSCRIPTION_MONTHLY_ZAR),
-            },
-          ],
+          product: 'sales_contractor_portal',
+          company_id: String(companyId),
+          term: `${SALES_SUBSCRIPTION_TERM_MONTHS}_months`,
+          monthly_zar: String(SALES_SUBSCRIPTION_MONTHLY_ZAR),
         },
-        callback: (response: { reference?: string }) => {
-          void activate(response.reference || ref);
+        onSuccess: (reference) => {
+          void activate(reference);
         },
         onClose: () => {
           setPaying(false);
         },
       });
-      handler.openIframe();
     } catch (e: unknown) {
       setPaying(false);
       toast.error(e instanceof Error ? e.message : 'Could not open Paystack');
     }
   };
+
+  // startPayment must be async for openPaystackCheckout
 
   if (loading) {
     return (

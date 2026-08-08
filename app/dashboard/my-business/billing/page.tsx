@@ -1,6 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, Suspense } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  Suspense,
+} from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -39,13 +46,17 @@ import {
 import { Panel } from '@/components/relationship/RelationshipChrome';
 import CommercialValueBanner from '@/components/billing/CommercialValueBanner';
 
-declare global {
-  interface Window {
-    PaystackPop?: {
-      setup: (opts: Record<string, unknown>) => { openIframe: () => void };
-    };
-  }
-}
+import {
+  getPaystackPublicKey,
+  likelyApplePayEnvironment,
+  mountPaystackApplePay,
+  openPaystackCheckout,
+} from '@/lib/billing/paystack-client';
+import {
+  quoteCorePlusPacks,
+  quoteIndustryPacks,
+} from '@/lib/billing/pack-pricing';
+import { INDUSTRY_PACKS } from '@/lib/product/architecture';
 
 export default function BusinessBillingPage() {
   return (
@@ -99,6 +110,17 @@ function BillingInner() {
   const [lifetimeGrantedToast, setLifetimeGrantedToast] = useState(false);
   const [termId, setTermId] = useState<BillingTermId>('1y');
   const selectedTerm = getBillingTerm(termId);
+  const [selectedPackIds, setSelectedPackIds] = useState<string[]>([]);
+  const [applePayReady, setApplePayReady] = useState(false);
+  const [showApplePay, setShowApplePay] = useState(false);
+  const packQuote = useMemo(
+    () => quoteIndustryPacks(selectedPackIds, termId),
+    [selectedPackIds, termId]
+  );
+  const combinedQuote = useMemo(
+    () => quoteCorePlusPacks(selectedPackIds, termId),
+    [selectedPackIds, termId]
+  );
   type ReferralState = {
     code?: string | null;
     invitePath?: string;
@@ -364,7 +386,11 @@ function BillingInner() {
     }
   };
 
-  const activate = async (paystackReference: string, paidTermId: BillingTermId) => {
+  const activate = async (
+    paystackReference: string,
+    paidTermId: BillingTermId,
+    packs: string[] = selectedPackIds
+  ) => {
     try {
       const res = await fetch('/api/business/subscription', {
         method: 'POST',
@@ -375,13 +401,22 @@ function BillingInner() {
           action: 'activate',
           paystackReference,
           termId: paidTermId,
+          packIds: packs,
+          product: packs.length ? 'company_saas_plus_packs' : 'company_saas',
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.hint || 'Activation failed');
       const termLabel = data.term?.label || getBillingTerm(paidTermId).label;
-      toast.success(`Subscription active (${termLabel}) — thank you!`);
+      const ch =
+        data.channel === 'apple_pay' ? ' via Apple Pay' : '';
+      toast.success(
+        `Subscription active (${termLabel}${packs.length ? ` · ${packs.length} pack(s)` : ''})${ch} — thank you!`
+      );
       setSubscription(data.subscription);
+      if (data.packaging) {
+        window.dispatchEvent(new Event('sa:company-changed'));
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Activation failed');
     } finally {
@@ -389,13 +424,13 @@ function BillingInner() {
     }
   };
 
-  const startPayment = () => {
+  const startPayment = async () => {
     const payEmail = email || billingEmail;
     if (!payEmail) {
       toast.error('Your account needs an email for Paystack checkout');
       return;
     }
-    const key = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
+    const key = getPaystackPublicKey();
     if (!key) {
       toast.error(
         'Paystack is not configured. Set NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY.'
@@ -408,62 +443,96 @@ function BillingInner() {
     }
 
     const term = getBillingTerm(termId);
+    const amountCents = selectedPackIds.length
+      ? combinedQuote.totalPayCents
+      : term.payCents;
     setPaying(true);
     const ref = `sa-co-sub-${term.id}-${companyId}-${Date.now()}`;
     try {
-      const handler = window.PaystackPop.setup({
+      await openPaystackCheckout({
         key,
         email: payEmail,
-        amount: term.payCents,
+        amountCents,
         currency: 'ZAR',
         ref,
         metadata: {
-          custom_fields: [
-            {
-              display_name: 'Product',
-              variable_name: 'product',
-              value: 'company_saas',
-            },
-            {
-              display_name: 'Company ID',
-              variable_name: 'company_id',
-              value: String(companyId),
-            },
-            {
-              display_name: 'Term',
-              variable_name: 'term_id',
-              value: term.id,
-            },
-            {
-              display_name: 'Plan',
-              variable_name: 'plan',
-              value: term.planCode,
-            },
-            {
-              display_name: 'Months',
-              variable_name: 'months',
-              value: String(term.months),
-            },
-            {
-              display_name: 'Discount %',
-              variable_name: 'discount_percent',
-              value: String(term.discountPercent),
-            },
-          ],
+          product: selectedPackIds.length
+            ? 'company_saas_plus_packs'
+            : 'company_saas',
+          company_id: String(companyId),
+          term_id: term.id,
+          plan: term.planCode,
+          months: String(term.months),
+          discount_percent: String(term.discountPercent),
+          pack_ids: selectedPackIds.join(','),
+          pack_count: String(selectedPackIds.length),
         },
-        callback: (response: { reference?: string }) => {
-          void activate(response.reference || ref, term.id);
+        onSuccess: (reference) => {
+          void activate(reference, term.id, selectedPackIds);
         },
-        onClose: () => {
+        onClose: () => setPaying(false),
+        onError: (e) => {
           setPaying(false);
+          toast.error(
+            e instanceof Error ? e.message : 'Checkout error'
+          );
         },
       });
-      handler.openIframe();
     } catch (e: unknown) {
       setPaying(false);
       toast.error(e instanceof Error ? e.message : 'Could not open Paystack');
     }
   };
+
+  /** Mount dedicated Apple Pay button when on Safari / iOS */
+  useEffect(() => {
+    if (!showApplePay || !likelyApplePayEnvironment()) {
+      setApplePayReady(false);
+      return;
+    }
+    const key = getPaystackPublicKey();
+    const payEmail = email || billingEmail;
+    if (!key || !payEmail || !window.PaystackPop) return;
+    const term = getBillingTerm(termId);
+    const amountCents = selectedPackIds.length
+      ? combinedQuote.totalPayCents
+      : term.payCents;
+    const ref = `sa-co-ap-${term.id}-${companyId}-${Date.now()}`;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const el = document.getElementById('paystack-apple-pay');
+        if (el) el.innerHTML = '';
+        const ok = await mountPaystackApplePay({
+          key,
+          email: payEmail,
+          amountCents,
+          ref,
+          containerId: 'paystack-apple-pay',
+          otherChannelsButtonId: 'paystack-other-channels',
+          metadata: {
+            product: selectedPackIds.length
+              ? 'company_saas_plus_packs'
+              : 'company_saas',
+            company_id: String(companyId),
+            term_id: term.id,
+            pack_ids: selectedPackIds.join(','),
+          },
+          onSuccess: (reference) => {
+            if (!cancelled) void activate(reference, term.id, selectedPackIds);
+          },
+          onCancel: () => setPaying(false),
+        });
+        if (!cancelled) setApplePayReady(ok);
+      } catch {
+        if (!cancelled) setApplePayReady(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showApplePay, termId, selectedPackIds.join(','), companyId, email, billingEmail]);
 
   if (loading) {
     return (
@@ -680,13 +749,63 @@ function BillingInner() {
               </li>
               <li className="flex gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                Secure Paystack checkout in ZAR
+                Secure Paystack checkout in ZAR · Apple Pay on Safari / iOS
+              </li>
+              <li className="flex gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                Industry Packs +R199/mo each (same prepaid discounts)
               </li>
               <li className="flex gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 Early renewals extend your access period
               </li>
             </ul>
+
+            {/* Industry Packs add-on at checkout */}
+            <div className="mt-6 rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-3">
+              <p className="text-xs font-black text-slate-900 mb-1">
+                Add Industry Packs (optional)
+              </p>
+              <p className="text-[11px] text-slate-600 mb-2">
+                Core OS R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo · each pack billed
+                with the same term discount. Full module features stay in the
+                sidebar.
+              </p>
+              <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+                {INDUSTRY_PACKS.map((p) => {
+                  const on = selectedPackIds.includes(p.id);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() =>
+                        setSelectedPackIds((prev) =>
+                          on
+                            ? prev.filter((x) => x !== p.id)
+                            : [...prev, p.id]
+                        )
+                      }
+                      className={`text-[10px] font-bold rounded-full px-2.5 py-1 border ${
+                        on
+                          ? 'bg-[#00b4d8] text-white border-[#00b4d8]'
+                          : 'bg-white text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      {p.shortName}
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedPackIds.length > 0 ? (
+                <p className="text-[11px] font-bold text-sky-900 mt-2 tabular-nums">
+                  Packs R{packQuote.payZar} · Core R{selectedTerm.payZar} ·{' '}
+                  <span className="text-slate-900">
+                    Total R{combinedQuote.totalPayZar}
+                  </span>{' '}
+                  for {selectedTerm.label}
+                </p>
+              ) : null}
+            </div>
 
             {founding && !sub?.isLifetime && (
               <div className="mt-6 rounded-2xl border border-violet-200 bg-violet-50/90 px-4 py-4 text-sm text-violet-950">
@@ -840,7 +959,8 @@ function BillingInner() {
                 <button
                   type="button"
                   disabled={paying}
-                  onClick={() => startPayment()}
+                  onClick={() => void startPayment()}
+                  id="paystack-other-channels"
                   className="mt-6 w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-gradient-to-r from-[#00b4d8] to-[#0077b6] text-white font-black text-base shadow-xl shadow-sky-200/50 disabled:opacity-50"
                 >
                   {paying ? (
@@ -848,15 +968,51 @@ function BillingInner() {
                   ) : (
                     <CreditCard className="w-5 h-5" />
                   )}
-                  {sub?.isActive ? 'Renew' : 'Pay'} · {formatZar(selectedTerm.payZar)}
+                  {sub?.isActive ? 'Renew' : 'Pay'} ·{' '}
+                  {formatZar(
+                    selectedPackIds.length
+                      ? combinedQuote.totalPayZar
+                      : selectedTerm.payZar
+                  )}
                   {selectedTerm.months > 1
                     ? ` · ${selectedTerm.label}`
                     : ' / month'}
+                  {selectedPackIds.length
+                    ? ` · +${selectedPackIds.length} pack(s)`
+                    : ''}
                 </button>
+
+                {/* Apple Pay — Safari / iOS (Paystack InlineJS v2 paymentRequest) */}
+                <div className="mt-3 space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowApplePay((v) => !v)}
+                    className="w-full text-xs font-bold text-slate-700 border border-slate-200 rounded-xl py-2 hover:bg-slate-50"
+                  >
+                    {showApplePay ? 'Hide' : 'Show'} Apple Pay (Safari / iPhone)
+                  </button>
+                  {showApplePay ? (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-950 p-3 space-y-2">
+                      <div id="paystack-apple-pay" className="min-h-[48px]" />
+                      {!applePayReady ? (
+                        <p className="text-[10px] text-slate-400 text-center">
+                          Apple Pay appears on Safari / iOS when enabled on your
+                          Paystack dashboard and domain is verified. Use Pay
+                          above for card, EFT, and other channels.
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-emerald-400 text-center">
+                          Apple Pay ready — complete on your device
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
 
                 <p className="mt-3 text-[11px] text-center text-neutral-500 flex items-center justify-center gap-1">
                   <Shield className="w-3 h-3" />
-                  Secure Paystack checkout · fees paid to SupplierAdvisor
+                  Secure Paystack · Apple Pay · card · EFT · fees to
+                  SupplierAdvisor
                 </p>
               </>
             )}
