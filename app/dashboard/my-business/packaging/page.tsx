@@ -92,16 +92,18 @@ function Inner() {
       setSelectedModules(data.packaging?.moduleIds || []);
       setSectorId(data.packaging?.sectorId ? String(data.packaging.sectorId) : '');
       {
-        const ids = Array.isArray(data.packaging?.industryIds)
-          ? data.packaging.industryIds.map(String)
+        const raw = data.packaging?.industryIds;
+        const ids: string[] = Array.isArray(raw)
+          ? raw.map((x: unknown) => String(x))
           : data.packaging?.industryId
             ? [String(data.packaging.industryId)]
             : [];
         setIndustryIds([...new Set(ids)]);
       }
       {
-        const ids = Array.isArray(data.packaging?.businessTypeIds)
-          ? data.packaging.businessTypeIds.map(String)
+        const raw = data.packaging?.businessTypeIds;
+        const ids: string[] = Array.isArray(raw)
+          ? raw.map((x: unknown) => String(x))
           : data.packaging?.businessTypeId
             ? [String(data.packaging.businessTypeId)]
             : [];
