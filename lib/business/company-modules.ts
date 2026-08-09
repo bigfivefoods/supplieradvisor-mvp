@@ -46,39 +46,44 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   guide: 'In-app training curriculum',
 };
 
-/** Logical groups for the Modules workspace UI */
+/**
+ * Logical groups for the Modules workspace UI.
+ * Short section titles mirror Schools-DBE sidebar style (Govern · Insights · Field …).
+ */
 export type ModuleCategoryId =
-  | 'core'
+  | 'govern'
   | 'trade'
-  | 'operations'
+  | 'operate'
   | 'finance'
   | 'people'
-  | 'compliance'
-  | 'intelligence'
-  | 'programmes';
+  | 'assure'
+  | 'insights'
+  | 'impact'
+  | 'programme';
 
 export const MODULE_CATEGORIES: Array<{
   id: ModuleCategoryId;
+  /** Short sticky-style section label (like DBE Govern / Field) */
   title: string;
   blurb: string;
   moduleIds: string[];
 }> = [
   {
-    id: 'core',
-    title: 'Always on',
-    blurb: 'Identity, home, and help — never turn these off.',
+    id: 'govern',
+    title: 'Govern',
+    blurb: 'Command centre, company identity, and help — always on.',
     moduleIds: ['home', 'my-business', 'guide'],
   },
   {
     id: 'trade',
-    title: 'Trade network',
-    blurb: 'Find partners, buy, sell, and settle money.',
+    title: 'Trade',
+    blurb: 'Network, suppliers, customers, and sales portal.',
     moduleIds: ['network', 'suppliers', 'customers', 'sales-portal'],
   },
   {
-    id: 'operations',
-    title: 'Operations',
-    blurb: 'Stock, production, logistics, and outlets.',
+    id: 'operate',
+    title: 'Operate',
+    blurb: 'Inventory, ops tower, make, ship, and container outlets.',
     moduleIds: [
       'inventory',
       'operations',
@@ -90,32 +95,38 @@ export const MODULE_CATEGORIES: Array<{
   {
     id: 'finance',
     title: 'Finance',
-    blurb: 'General ledger, bank, tax, and management packs.',
+    blurb: 'Books, bank, tax, and management packs.',
     moduleIds: ['accounting'],
   },
   {
     id: 'people',
     title: 'People',
-    blurb: 'Team beyond Company → Team: HR, leave, payroll.',
+    blurb: 'HR directory, payroll, leave, and org beyond Company → Team.',
     moduleIds: ['people'],
   },
   {
-    id: 'compliance',
-    title: 'Quality & compliance',
-    blurb: 'SHEQ, quality, projects, and ESG.',
-    moduleIds: ['sheq', 'quality', 'projects', 'sustainability'],
+    id: 'assure',
+    title: 'Assure',
+    blurb: 'SHEQ, quality holds, and projects.',
+    moduleIds: ['sheq', 'quality', 'projects'],
   },
   {
-    id: 'intelligence',
-    title: 'Intelligence',
-    blurb: 'Pulse, insights, forecasts, Super-Cube® leadership.',
+    id: 'insights',
+    title: 'Insights',
+    blurb: 'Pulse, forecasts, scorecards, Super-Cube® leadership.',
     moduleIds: ['intelligence'],
   },
   {
-    id: 'programmes',
-    title: 'Programmes',
+    id: 'impact',
+    title: 'Impact',
+    blurb: 'ESG, carbon, and regenerative metrics.',
+    moduleIds: ['sustainability'],
+  },
+  {
+    id: 'programme',
+    title: 'Programme',
     blurb:
-      'Public Sector programmes — DBE under Provincial; schools under Local; health (DoH) at National / Provincial / facility Local.',
+      'Public sector programmes — schools (DBE / NSNP) and health (DoH).',
     moduleIds: ['schools', 'health'],
   },
 ];

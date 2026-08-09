@@ -821,35 +821,47 @@ function ModulesInner() {
         </div>
       )}
 
-      {/* Core OS workspace modules */}
+      {/* Workspace modules — sectioned like Schools-DBE (Govern · Trade · Operate …) */}
       <div className="mb-2 flex items-center gap-2">
         <Layers className="w-4 h-4 text-[#0077b6]" />
         <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">
-          Core OS workspace
+          Workspace modules
         </h3>
         <span className="text-[11px] text-neutral-500">
-          Always available · R{CORE_OS_MONTHLY_ZAR}/mo
+          Core OS · R{CORE_OS_MONTHLY_ZAR}/mo
         </span>
       </div>
       <p className="text-xs text-neutral-500 mb-4 max-w-2xl">
-        Toggle which hubs appear in your sidebar. Hubs also unlocked by a pack you
-        subscribe to show a green &ldquo;via pack&rdquo; badge.
+        Grouped like Schools (Govern · Trade · Operate · Insights …). Toggle which
+        hubs appear in the sidebar. Hubs unlocked by a subscribed pack show a
+        green &ldquo;via pack&rdquo; badge.
       </p>
 
-      {MODULE_CATEGORIES.filter((cat) => cat.id !== 'programmes').map((cat) => {
+      {MODULE_CATEGORIES.map((cat) => {
         const opts = cat.moduleIds
           .map((id) => optionsById.get(id))
           .filter(Boolean) as ReturnType<typeof listCompanyModuleOptions>;
         if (!opts.length) return null;
         return (
-          <Panel key={cat.id} title={cat.title} className="mb-4">
-            <div className="px-4 pt-2 pb-1">
-              <p className="text-xs text-neutral-500 leading-relaxed">{cat.blurb}</p>
+          <div key={cat.id} className="mb-5">
+            {/* Sticky-style section band (matches DBE sidebar section labels) */}
+            <div className="rounded-2xl bg-slate-100 px-4 py-2.5 mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-[#0077b6]">
+                  Section
+                </div>
+                <div className="text-base font-black text-slate-900 tracking-tight">
+                  {cat.title}
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500 max-w-md text-right leading-snug">
+                {cat.blurb}
+              </p>
             </div>
-            <ul className="p-4 pt-2 grid sm:grid-cols-2 xl:grid-cols-3 gap-2">
+            <ul className="grid sm:grid-cols-2 xl:grid-cols-3 gap-2">
               {opts.map((opt) => renderModuleToggle(opt.id, true))}
             </ul>
-          </Panel>
+          </div>
         );
       })}
 
