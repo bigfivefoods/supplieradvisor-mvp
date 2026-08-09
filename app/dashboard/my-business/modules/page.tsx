@@ -29,7 +29,7 @@ import {
   BusinessPage,
   BusinessHeader,
 } from '@/components/business/BusinessShell';
-import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
+import { SectionLabel } from '@/components/relationship/RelationshipChrome';
 import {
   MODULE_CATEGORIES,
   countEnabledOptionalModules,
