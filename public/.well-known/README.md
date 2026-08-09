@@ -1,13 +1,16 @@
 # Apple Pay / Paystack domain verification
 
-Host the Paystack Apple Pay domain association file as:
+Hosted at:
 
   /.well-known/apple-developer-merchantid-domain-association
 
-Preferred: set env `APPLE_PAY_DOMAIN_ASSOCIATION` to the file contents
-(served by `app/.well-known/apple-developer-merchantid-domain-association/route.ts`).
+**Live source of truth:** `lib/billing/apple-pay-domain-association.ts`, served by
+`app/.well-known/apple-developer-merchantid-domain-association/route.ts`.
 
-Or place the downloaded file here as:
-  public/.well-known/apple-developer-merchantid-domain-association
+A static copy also lives in this folder for fallback / inspection.
 
-Then verify the domain in Paystack Dashboard → Settings → Apple Pay.
+Optional override: set env `APPLE_PAY_DOMAIN_ASSOCIATION` (or
+`PAYSTACK_APPLE_PAY_DOMAIN_FILE`) to replace the body without a deploy.
+
+After deploy, verify the domain in **Paystack Dashboard → Settings → Apple Pay**.
+Domain must be HTTPS (`www.supplieradvisor.com`).

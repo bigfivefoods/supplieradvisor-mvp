@@ -1,25 +1,26 @@
 import { NextResponse } from 'next/server';
+import { APPLE_PAY_DOMAIN_ASSOCIATION_BODY } from '@/lib/billing/apple-pay-domain-association';
 
 /**
- * Apple Pay domain verification file for Paystack.
- * Set APPLE_PAY_DOMAIN_ASSOCIATION to the file contents from Paystack Dashboard
- * (Settings → Apple Pay → add domain → download verification file).
- *
+ * Apple Pay domain verification for Paystack.
  * Served at: /.well-known/apple-developer-merchantid-domain-association
- * Content-Type must be text/plain (application/text family).
+ *
+ * Content ships in-repo (Paystack domain association payload). Env can override:
+ *   APPLE_PAY_DOMAIN_ASSOCIATION or PAYSTACK_APPLE_PAY_DOMAIN_FILE
  */
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const body =
+  const fromEnv =
     process.env.APPLE_PAY_DOMAIN_ASSOCIATION ||
     process.env.PAYSTACK_APPLE_PAY_DOMAIN_FILE ||
     '';
+  const body = (fromEnv.trim() || APPLE_PAY_DOMAIN_ASSOCIATION_BODY).trim();
 
-  if (!body.trim()) {
+  if (!body) {
     return new NextResponse(
-      'Apple Pay domain association not configured. Set APPLE_PAY_DOMAIN_ASSOCIATION env var to the verification file contents from Paystack Dashboard → Settings → Apple Pay.',
+      'Apple Pay domain association not configured.',
       {
         status: 404,
         headers: {
@@ -30,10 +31,10 @@ export async function GET() {
     );
   }
 
-  return new NextResponse(body.trim(), {
+  return new NextResponse(body, {
     status: 200,
     headers: {
-      // Paystack docs: application/text — text/plain is widely accepted
+      // Apple / Paystack expect plain text domain association body
       'Content-Type': 'text/plain; charset=utf-8',
       'Cache-Control': 'public, max-age=3600',
     },
