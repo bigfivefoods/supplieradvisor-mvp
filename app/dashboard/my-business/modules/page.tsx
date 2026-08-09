@@ -89,6 +89,10 @@ function ModulesInner() {
   const [govLocked, setGovLocked] = useState(false);
   const [platformOperator, setPlatformOperator] = useState(false);
   const [lockMessage, setLockMessage] = useState('');
+  const [classifying, setClassifying] = useState(false);
+  const [draftSector, setDraftSector] = useState('');
+  const [draftIndustry, setDraftIndustry] = useState('');
+  const [draftBusinessType, setDraftBusinessType] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);

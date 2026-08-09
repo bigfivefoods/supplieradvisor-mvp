@@ -37,8 +37,14 @@ import {
   OS_SECTORS,
   getIndustryPack,
   monthlyPriceZar,
+  type OsSectorId,
   type PackagingSelection,
 } from '@/lib/product/architecture';
+import {
+  getBusinessType,
+  getIndustry,
+  industriesForSector,
+} from '@/lib/product/business-catalogue';
 import {
   getPaystackPublicKey,
   openPaystackCheckout,
@@ -65,6 +71,9 @@ function Inner() {
   const [packaging, setPackaging] = useState<PackagingSelection | null>(null);
   const [selectedPacks, setSelectedPacks] = useState<string[]>([]);
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
+  const [sectorId, setSectorId] = useState<string>('');
+  const [industryId, setIndustryId] = useState<string>('');
+  const [businessTypeId, setBusinessTypeId] = useState<string>('');
   const [dirty, setDirty] = useState(false);
   const [businessType, setBusinessType] = useState<string | null>(null);
   const [payTermId] = useState<BillingTermId>('monthly');
@@ -81,6 +90,15 @@ function Inner() {
       setPackaging(data.packaging || null);
       setSelectedPacks(data.packaging?.packIds || []);
       setSelectedModules(data.packaging?.moduleIds || []);
+      setSectorId(data.packaging?.sectorId ? String(data.packaging.sectorId) : '');
+      setIndustryId(
+        data.packaging?.industryId ? String(data.packaging.industryId) : ''
+      );
+      setBusinessTypeId(
+        data.packaging?.businessTypeId
+          ? String(data.packaging.businessTypeId)
+          : ''
+      );
       setBusinessType(
         data.businessType != null ? String(data.businessType) : null
       );
@@ -105,12 +123,44 @@ function Inner() {
     businessType ||
     '—';
   const sectorLabel =
-    OS_SECTORS.find((s) => s.id === packaging?.sectorId)?.label ||
-    packaging?.sectorId ||
+    OS_SECTORS.find((s) => s.id === sectorId)?.label ||
+    sectorId ||
     '—';
+  const industryDef = useMemo(() => getIndustry(industryId || null), [industryId]);
+  const businessTypeDef = useMemo(
+    () => getBusinessType(industryId || null, businessTypeId || null),
+    [industryId, businessTypeId]
+  );
+  const industries = useMemo(
+    () => industriesForSector(sectorId || null),
+    [sectorId]
+  );
+  const needsClassification = !sectorId || !industryId;
   const contactRequired =
     packaging?.setupStatus === 'contact_required' ||
     packaging?.setupStatus === 'pending_specialist';
+
+  const onSelectSector = (id: OsSectorId) => {
+    setSectorId(id);
+    setIndustryId('');
+    setBusinessTypeId('');
+    setDirty(true);
+  };
+
+  const onSelectIndustry = (id: string) => {
+    const ind = getIndustry(id);
+    setIndustryId(id);
+    setBusinessTypeId('');
+    if (ind?.packIds?.length) {
+      setSelectedPacks((prev) => [...new Set([...prev, ...ind.packIds])]);
+    }
+    setDirty(true);
+  };
+
+  const onSelectBusinessType = (id: string) => {
+    setBusinessTypeId(id);
+    setDirty(true);
+  };
 
   const modulesForPacks = useMemo(() => {
     const out: Array<{
@@ -285,8 +335,12 @@ function Inner() {
           companyId,
           packIds: selectedPacks,
           moduleIds: selectedModules,
-          entityTypeId: packaging?.entityTypeId,
-          sectorId: packaging?.sectorId,
+          entityTypeId:
+            businessTypeDef?.entityTypeId || packaging?.entityTypeId,
+          sectorId: sectorId || packaging?.sectorId || 'secondary',
+          industryId: industryId || null,
+          businessTypeId: businessTypeId || null,
+          suggestIndustryPacks: true,
         }),
       });
       const data = await res.json();
@@ -307,11 +361,11 @@ function Inner() {
       <BusinessHeader
         title="Packaging"
         titleAccent="Core OS · Packs"
-        description="Manage Industry Packs. Packs unlock hubs and Industry Tools shortcuts — full process trees under Suppliers, Customers, Make, Schools, etc. are never removed."
+        description="Set your sector and industry (required for modules), then manage Industry Packs. Packs unlock hubs — full process trees are never removed."
         action={
           <button
             type="button"
-            disabled={!dirty || saving}
+            disabled={!dirty || saving || !sectorId}
             onClick={() => void save()}
             className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1 disabled:opacity-40"
           >
@@ -320,7 +374,7 @@ function Inner() {
             ) : (
               <Save className="w-3.5 h-3.5" />
             )}
-            Save packs
+            Save
           </button>
         }
       />
@@ -348,9 +402,27 @@ function Inner() {
         </div>
       ) : (
         <div className="space-y-6 max-w-3xl">
+          {needsClassification ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+              <strong>Complete your classification.</strong> Companies that
+              registered earlier can pick sector and industry here so Modules
+              and packs match your business.
+            </div>
+          ) : null}
+
           <div className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3 text-sm">
             <Row label="Entity type" value={entityLabel} />
             <Row label="Sector" value={String(sectorLabel)} />
+            <Row
+              label="Industry"
+              value={industryDef?.label || industryId || 'Not set'}
+            />
+            <Row
+              label="Business type"
+              value={
+                businessTypeDef?.label || businessTypeId || businessType || '—'
+              }
+            />
             <Row
               label="Setup status"
               value={String(packaging?.setupStatus || 'active')}
@@ -363,6 +435,127 @@ function Inner() {
                   : ''
               })`}
             />
+          </div>
+
+          {/* Sector + industry picker for existing companies */}
+          <div className="rounded-3xl border border-[#00b4d8]/25 bg-gradient-to-br from-white to-sky-50/50 p-5 space-y-5">
+            <div>
+              <h2 className="text-sm font-black text-slate-900">
+                Sector & industry
+              </h2>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Required for Companies → Modules. Already registered? Choose
+                below and save.
+              </p>
+            </div>
+
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6] mb-2">
+                1 · Sector
+              </p>
+              <div className="grid sm:grid-cols-2 gap-2">
+                {OS_SECTORS.map((s) => {
+                  const on = sectorId === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => onSelectSector(s.id as OsSectorId)}
+                      className={`text-left rounded-2xl border-2 p-3 transition ${
+                        on
+                          ? 'border-[#00b4d8] bg-sky-50 ring-1 ring-[#00b4d8]/30'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <p className="font-black text-sm text-slate-900">
+                        {s.label}
+                      </p>
+                      <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                        {s.description}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {sectorId ? (
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6] mb-2">
+                  2 · Industry · {sectorLabel}
+                </p>
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                  {industries.map((ind) => {
+                    const on = industryId === ind.id;
+                    return (
+                      <button
+                        key={ind.id}
+                        type="button"
+                        onClick={() => onSelectIndustry(ind.id)}
+                        className={`w-full text-left rounded-2xl border-2 p-3 transition ${
+                          on
+                            ? 'border-[#00b4d8] bg-sky-50 ring-1 ring-[#00b4d8]/30'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <p className="font-black text-sm text-slate-900">
+                          {ind.label}
+                        </p>
+                        <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                          {ind.description}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            {industryDef ? (
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6] mb-2">
+                  3 · Business type · {industryDef.label}
+                </p>
+                <div className="grid sm:grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
+                  {industryDef.businessTypes.map((bt) => {
+                    const on = businessTypeId === bt.id;
+                    return (
+                      <button
+                        key={bt.id}
+                        type="button"
+                        onClick={() => onSelectBusinessType(bt.id)}
+                        className={`text-left rounded-2xl border-2 p-3 transition ${
+                          on
+                            ? 'border-[#00b4d8] bg-sky-50 ring-1 ring-[#00b4d8]/30'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <p className="font-bold text-sm text-slate-900">
+                          {bt.label}
+                        </p>
+                        <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                          {bt.description}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            <button
+              type="button"
+              disabled={!dirty || saving || !sectorId}
+              onClick={() => void save({ skipPayPrompt: true })}
+              className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5 disabled:opacity-40"
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              Save sector & industry
+            </button>
           </div>
 
           <div>

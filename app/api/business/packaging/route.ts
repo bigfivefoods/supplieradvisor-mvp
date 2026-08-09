@@ -25,7 +25,8 @@ export const runtime = 'nodejs';
 
 /**
  * GET  /api/business/packaging?companyId=
- * PATCH /api/business/packaging  { companyId, packIds?, moduleIds?, sectorId? }
+ * PATCH /api/business/packaging
+ *   { companyId, packIds?, moduleIds?, sectorId?, industryId?, businessTypeId?, entityTypeId? }
  *
  * In-app Industry Pack management (Phase 3). Adds modules; never deletes MODULE_NAV steps.
  */
@@ -135,24 +136,73 @@ export async function PATCH(request: NextRequest) {
     const packIdsRaw = Array.isArray(body.packIds)
       ? body.packIds.map(String)
       : current?.packIds || [];
-    // Validate pack ids
-    const packIds = packIdsRaw.filter((id: string) => Boolean(getIndustryPack(id)));
+    // Validate pack ids (mutable so industry suggest can add)
+    const packIds = packIdsRaw.filter((id: string) =>
+      Boolean(getIndustryPack(id))
+    );
     const moduleIds = Array.isArray(body.moduleIds)
       ? body.moduleIds.map(String)
       : current?.moduleIds || [];
-    const entityTypeId =
-      body.entityTypeId != null
-        ? String(body.entityTypeId)
-        : current?.entityTypeId || 'private_company';
     const sectorId =
       body.sectorId != null
         ? String(body.sectorId)
         : current?.sectorId || 'secondary';
+    const industryId =
+      body.industryId !== undefined
+        ? body.industryId != null
+          ? String(body.industryId)
+          : null
+        : current?.industryId || null;
+    const businessTypeId =
+      body.businessTypeId !== undefined
+        ? body.businessTypeId != null
+          ? String(body.businessTypeId)
+          : null
+        : current?.businessTypeId || null;
+
+    let entityTypeId =
+      body.entityTypeId != null
+        ? String(body.entityTypeId)
+        : current?.entityTypeId || 'private_company';
+    let industryLabel: string | null = null;
+    let profileBusinessType: string | null = null;
+    if (industryId) {
+      try {
+        const { getIndustry, getBusinessType } = await import(
+          '@/lib/product/business-catalogue'
+        );
+        const ind = getIndustry(industryId);
+        industryLabel = ind?.label || null;
+        if (businessTypeId) {
+          const bt = getBusinessType(industryId, businessTypeId);
+          if (bt) {
+            entityTypeId = bt.entityTypeId;
+            profileBusinessType = bt.profileBusinessType;
+          }
+        }
+        // When sector changes without packs, suggest industry packs additively
+        if (
+          Array.isArray(body.suggestIndustryPacks) &&
+          body.suggestIndustryPacks &&
+          ind?.packIds?.length
+        ) {
+          for (const pid of ind.packIds) {
+            if (!packIds.includes(pid) && getIndustryPack(pid)) {
+              packIds.push(pid);
+            }
+          }
+        }
+      } catch {
+        /* soft */
+      }
+    }
 
     // Contact-gated orgs cannot self-activate full packs changes? Allow pack selection still
     const selection = packagingFromSelection({
       entityTypeId,
       sectorId,
+      industryId,
+      businessTypeId,
       packIds,
       moduleIds,
     });
@@ -199,12 +249,16 @@ export async function PATCH(request: NextRequest) {
     }
     const nextMeta = mergeEnabledModulesIntoMetadata(meta, merged);
 
+    const profilePatch: Record<string, unknown> = {
+      metadata: nextMeta,
+      updated_at: new Date().toISOString(),
+    };
+    if (industryLabel) profilePatch.industry = industryLabel;
+    if (profileBusinessType) profilePatch.business_type = profileBusinessType;
+
     const { error } = await supabase
       .from('profiles')
-      .update({
-        metadata: nextMeta,
-        updated_at: new Date().toISOString(),
-      })
+      .update(profilePatch)
       .eq('id', companyId);
 
     if (error) {
