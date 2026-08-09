@@ -645,3 +645,90 @@ export function readPackagingFromMetadata(
         : 'active',
   };
 }
+
+/** Paid pack window + channel from profiles.metadata */
+export function readPackBillingFromMetadata(
+  meta: Record<string, unknown> | null | undefined
+): {
+  paidUntil: string | null;
+  channel: string | null;
+  lastRef: string | null;
+} {
+  if (!meta || typeof meta !== 'object') {
+    return { paidUntil: null, channel: null, lastRef: null };
+  }
+  return {
+    paidUntil:
+      meta.industry_packs_paid_until != null
+        ? String(meta.industry_packs_paid_until)
+        : null,
+    channel:
+      meta.industry_packs_channel != null
+        ? String(meta.industry_packs_channel)
+        : null,
+    lastRef:
+      meta.industry_packs_last_ref != null
+        ? String(meta.industry_packs_last_ref)
+        : null,
+  };
+}
+
+/** Primary sector for catalogue grouping (first recommended, else tertiary). */
+export function primarySectorForPack(pack: IndustryPackDef): OsSectorId {
+  return pack.recommendSectors[0] || 'tertiary';
+}
+
+/** Industry packs grouped by primary sector (each pack once). */
+export function industryPacksBySector(): Array<{
+  sectorId: OsSectorId;
+  sectorLabel: string;
+  sectorDescription: string;
+  packs: IndustryPackDef[];
+}> {
+  return OS_SECTORS.map((sector) => ({
+    sectorId: sector.id,
+    sectorLabel: sector.label,
+    sectorDescription: sector.description,
+    packs: INDUSTRY_PACKS.filter((p) => primarySectorForPack(p) === sector.id),
+  })).filter((g) => g.packs.length > 0);
+}
+
+/** Unique app MODULE_NAV ids unlocked by a pack. */
+export function appModulesUnlockedByPack(pack: IndustryPackDef): string[] {
+  const ids = new Set<string>();
+  for (const m of pack.modules) {
+    for (const u of m.unlocks) ids.add(u);
+  }
+  // Known pack → hub expansions (match enabledModulesMapFromPacks extras)
+  if (pack.id === 'logistics_containers') {
+    ids.add('containers');
+    ids.add('distribution');
+    ids.add('operations');
+  }
+  if (pack.id === 'food_bev_mfg') {
+    ids.add('manufacturing');
+    ids.add('quality');
+    ids.add('sheq');
+    ids.add('inventory');
+  }
+  if (pack.id === 'agri_regen') {
+    ids.add('suppliers');
+    ids.add('inventory');
+    ids.add('sustainability');
+  }
+  if (pack.id === 'impact_esg') {
+    ids.add('sustainability');
+    ids.add('intelligence');
+  }
+  if (pack.id === 'public_procurement') {
+    ids.add('schools');
+  }
+  return [...ids];
+}
+
+/** Packs that unlock a given app module id. */
+export function packsUnlockingAppModule(moduleId: string): IndustryPackDef[] {
+  return INDUSTRY_PACKS.filter((p) =>
+    appModulesUnlockedByPack(p).includes(moduleId)
+  );
+}

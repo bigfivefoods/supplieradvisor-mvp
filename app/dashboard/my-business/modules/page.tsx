@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Company → Modules — choose which workspace modules appear in the sidebar.
- * First-class onboarding step; presets for starter / trading / ops / full.
+ * Company → Modules — workspace hubs grouped by Core OS + sector / industry packs.
+ * Shows which Industry Packs the company has subscribed to.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -16,6 +16,9 @@ import {
   Building2,
   Users,
   Network,
+  Package,
+  CreditCard,
+  Layers,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
@@ -41,6 +44,18 @@ import {
   type EnabledModulesMap,
   type ModulePresetId,
 } from '@/lib/business/company-modules';
+import {
+  CORE_OS_MONTHLY_ZAR,
+  INDUSTRY_PACK_MONTHLY_ZAR,
+  OS_ENTITY_TYPES,
+  OS_SECTORS,
+  appModulesUnlockedByPack,
+  getIndustryPack,
+  industryPacksBySector,
+  packsUnlockingAppModule,
+  readPackBillingFromMetadata,
+  readPackagingFromMetadata,
+} from '@/lib/product/architecture';
 
 export default function CompanyModulesPage() {
   return (
@@ -113,11 +128,61 @@ function ModulesInner() {
     void load();
   }, [load]);
 
+  const packaging = useMemo(
+    () => readPackagingFromMetadata(metadata),
+    [metadata]
+  );
+  const packBilling = useMemo(
+    () => readPackBillingFromMetadata(metadata),
+    [metadata]
+  );
+  const subscribedPackIds = useMemo(
+    () => new Set(packaging?.packIds || []),
+    [packaging]
+  );
+  const paidActive = useMemo(() => {
+    if (!packBilling.paidUntil) return false;
+    const t = Date.parse(packBilling.paidUntil);
+    return Number.isFinite(t) && t > Date.now();
+  }, [packBilling.paidUntil]);
+
+  const entityLabel =
+    OS_ENTITY_TYPES.find((e) => e.id === packaging?.entityTypeId)?.label ||
+    'Not set';
+  const sectorLabel =
+    OS_SECTORS.find((s) => s.id === packaging?.sectorId)?.label ||
+    packaging?.sectorId ||
+    'Not set';
+  const yourSectorId = packaging?.sectorId || null;
+
+  const sectorGroups = useMemo(() => industryPacksBySector(), []);
+
+  /** Put the company's sector first */
+  const orderedSectorGroups = useMemo(() => {
+    if (!yourSectorId) return sectorGroups;
+    const yours = sectorGroups.filter((g) => g.sectorId === yourSectorId);
+    const rest = sectorGroups.filter((g) => g.sectorId !== yourSectorId);
+    return [...yours, ...rest];
+  }, [sectorGroups, yourSectorId]);
+
+  const subscribedPacks = useMemo(
+    () =>
+      (packaging?.packIds || [])
+        .map((id) => getIndustryPack(id))
+        .filter(Boolean) as NonNullable<ReturnType<typeof getIndustryPack>>[],
+    [packaging]
+  );
+
   const counts = useMemo(
     () => countEnabledOptionalModules(enabled),
     [enabled]
   );
   const configured = hasModulesConfigured(metadata);
+
+  const optionsById = useMemo(() => {
+    const m = new Map(listCompanyModuleOptions().map((o) => [o.id, o]));
+    return m;
+  }, []);
 
   const persist = async (map: EnabledModulesMap, silent?: boolean) => {
     if (!privyUserId) {
@@ -186,10 +251,58 @@ function ModulesInner() {
     });
   };
 
-  const optionsById = useMemo(() => {
-    const m = new Map(listCompanyModuleOptions().map((o) => [o.id, o]));
-    return m;
-  }, []);
+  const renderModuleToggle = (moduleId: string, showPackBadges?: boolean) => {
+    const opt = optionsById.get(moduleId);
+    if (!opt) return null;
+    const on = enabled[opt.id] !== false;
+    const viaPacks = showPackBadges
+      ? packsUnlockingAppModule(opt.id).filter((p) => subscribedPackIds.has(p.id))
+      : [];
+    return (
+      <li key={opt.id}>
+        <label
+          className={`flex items-start gap-3 rounded-2xl border px-3.5 py-3 cursor-pointer transition-all min-h-[4.5rem] ${
+            on
+              ? 'border-[#00b4d8]/45 bg-[#00b4d8]/5 shadow-sm'
+              : 'border-neutral-200 bg-white hover:border-neutral-300'
+          } ${opt.alwaysOn ? 'opacity-95' : ''}`}
+        >
+          <input
+            type="checkbox"
+            className="mt-1 rounded border-neutral-300 text-[#00b4d8] focus:ring-[#00b4d8] shrink-0"
+            checked={on}
+            disabled={opt.alwaysOn || saving || govLocked}
+            onChange={(e) => toggle(opt.id, e.target.checked)}
+          />
+          <span className="min-w-0">
+            <span className="block text-sm font-bold text-slate-900">
+              {opt.name}
+              {opt.alwaysOn ? (
+                <span className="ml-1.5 text-[9px] font-black uppercase tracking-wide text-neutral-400">
+                  always on
+                </span>
+              ) : null}
+            </span>
+            <span className="block text-[11px] text-neutral-500 leading-snug mt-0.5">
+              {opt.description}
+            </span>
+            {viaPacks.length > 0 ? (
+              <span className="mt-1.5 flex flex-wrap gap-1">
+                {viaPacks.map((p) => (
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-800"
+                  >
+                    via {p.shortName}
+                  </span>
+                ))}
+              </span>
+            ) : null}
+          </span>
+        </label>
+      </li>
+    );
+  };
 
   if (loading) {
     return (
@@ -206,7 +319,7 @@ function ModulesInner() {
       <BusinessHeader
         title="Workspace"
         titleAccent="modules"
-        description={`${tradingName || 'Your company'} — choose which capabilities appear in the sidebar. Partners you invite complete their own company the same way.`}
+        description={`${tradingName || 'Your company'} — modules grouped by Core OS, sector, and Industry Packs. Toggle what appears in the sidebar.`}
         action={
           <button
             type="button"
@@ -232,23 +345,24 @@ function ModulesInner() {
         </div>
       ) : null}
 
-      {/* Journey strip */}
+      {/* Subscriptions + packaging summary */}
       <div className="mb-6 rounded-3xl border border-cyan-100 bg-gradient-to-br from-white via-sky-50/60 to-cyan-50 p-5 sm:p-6">
         <div className="flex flex-wrap items-start gap-3 mb-4">
           <div className="w-11 h-11 rounded-2xl bg-[#00b4d8]/15 flex items-center justify-center">
-            <LayoutGrid className="w-5 h-5 text-[#0077b6]" />
+            <Package className="w-5 h-5 text-[#0077b6]" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-black uppercase tracking-widest text-[#0077b6]">
-              Company setup · step modules
+              Your plan · sector & packs
             </p>
             <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
-              Shape the workspace for how you trade
+              {entityLabel}
+              <span className="text-neutral-400 font-bold"> · </span>
+              {sectorLabel}
             </h2>
             <p className="text-sm text-slate-600 mt-1 max-w-2xl leading-relaxed">
-              Turn on only what your company needs. You can invite a customer or
-              supplier to SupplierAdvisor — they finish their own profile, modules,
-              team, and billing. Your book stays linked when they claim.
+              Core OS is always included. Industry Packs unlock vertical tools and
+              recommended hubs — subscribed packs are marked below.
             </p>
           </div>
           <div className="text-right shrink-0">
@@ -273,26 +387,67 @@ function ModulesInner() {
           </div>
         </div>
 
-        <SectionLabel>Quick presets</SectionLabel>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2 mt-2">
-          {MODULE_PRESETS.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              disabled={saving}
-              onClick={() => applyPreset(p.id)}
-              className="rounded-2xl border border-white bg-white/95 p-3.5 text-left shadow-sm hover:border-[#00b4d8]/40 hover:shadow-md transition-all"
+        <div className="flex flex-wrap gap-2 mb-4">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-900">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Core OS · R{CORE_OS_MONTHLY_ZAR}/mo
+          </span>
+          {subscribedPacks.length === 0 ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-600">
+              No Industry Packs subscribed yet
+            </span>
+          ) : (
+            subscribedPacks.map((p) => (
+              <span
+                key={p.id}
+                className="inline-flex items-center gap-1.5 rounded-full border border-[#00b4d8]/35 bg-white px-3 py-1.5 text-xs font-bold text-[#0077b6]"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                {p.shortName}
+                <span className="font-semibold text-neutral-500">
+                  · R{p.monthlyZar}/mo
+                </span>
+              </span>
+            ))
+          )}
+          {packBilling.paidUntil ? (
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold ${
+                paidActive
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                  : 'border-amber-200 bg-amber-50 text-amber-900'
+              }`}
             >
-              <div className="text-sm font-bold text-slate-900">{p.label}</div>
-              <p className="text-[11px] text-neutral-500 mt-0.5 leading-snug">
-                {p.description}
-              </p>
-            </button>
-          ))}
+              <CreditCard className="w-3.5 h-3.5" />
+              Packs paid until{' '}
+              {new Date(packBilling.paidUntil).toLocaleDateString(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+              })}
+              {packBilling.channel ? ` · ${packBilling.channel}` : ''}
+              {!paidActive ? ' · renew' : ''}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/dashboard/my-business/packaging"
+            className="btn-primary !py-2 !px-4 text-sm inline-flex items-center gap-1.5"
+          >
+            <Layers className="w-4 h-4" /> Manage packs
+          </Link>
+          <Link
+            href="/dashboard/my-business/billing"
+            className="btn-secondary !py-2 !px-4 text-sm inline-flex items-center gap-1.5"
+          >
+            <CreditCard className="w-4 h-4" /> Billing
+          </Link>
         </div>
       </div>
 
-      {/* Partner invite callout */}
+      {/* Journey + presets */}
       <div className="mb-6 grid md:grid-cols-3 gap-3">
         <Link
           href="/dashboard/my-business/profile"
@@ -308,7 +463,7 @@ function ModulesInner() {
           <LayoutGrid className="w-5 h-5 text-[#0077b6] mb-2" />
           <div className="text-sm font-bold text-slate-900">2. Modules (you are here)</div>
           <p className="text-[11px] text-neutral-600 mt-0.5">
-            Enable trade, ops, finance — hide noise.
+            Core OS + sector packs — hide noise in the sidebar.
           </p>
         </div>
         <Link
@@ -323,58 +478,211 @@ function ModulesInner() {
         </Link>
       </div>
 
+      <div className="mb-6 rounded-3xl border border-neutral-200 bg-white p-5">
+        <SectionLabel>Quick presets</SectionLabel>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2 mt-2">
+          {MODULE_PRESETS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              disabled={saving || govLocked}
+              onClick={() => applyPreset(p.id)}
+              className="rounded-2xl border border-neutral-100 bg-neutral-50/80 p-3.5 text-left shadow-sm hover:border-[#00b4d8]/40 hover:bg-white hover:shadow-md transition-all"
+            >
+              <div className="text-sm font-bold text-slate-900">{p.label}</div>
+              <p className="text-[11px] text-neutral-500 mt-0.5 leading-snug">
+                {p.description}
+              </p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Core OS workspace modules */}
+      <div className="mb-2 flex items-center gap-2">
+        <Layers className="w-4 h-4 text-[#0077b6]" />
+        <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">
+          Core OS workspace
+        </h3>
+        <span className="text-[11px] text-neutral-500">
+          Always available · R{CORE_OS_MONTHLY_ZAR}/mo
+        </span>
+      </div>
+      <p className="text-xs text-neutral-500 mb-4 max-w-2xl">
+        Toggle which hubs appear in your sidebar. Hubs also unlocked by a pack you
+        subscribe to show a green &ldquo;via pack&rdquo; badge.
+      </p>
+
       {MODULE_CATEGORIES.map((cat) => {
         const opts = cat.moduleIds
           .map((id) => optionsById.get(id))
           .filter(Boolean) as ReturnType<typeof listCompanyModuleOptions>;
         if (!opts.length) return null;
         return (
-          <Panel
-            key={cat.id}
-            title={cat.title}
-            className="mb-4"
-          >
+          <Panel key={cat.id} title={cat.title} className="mb-4">
             <div className="px-4 pt-2 pb-1">
               <p className="text-xs text-neutral-500 leading-relaxed">{cat.blurb}</p>
             </div>
             <ul className="p-4 pt-2 grid sm:grid-cols-2 xl:grid-cols-3 gap-2">
-              {opts.map((opt) => {
-                const on = enabled[opt.id] !== false;
-                return (
-                  <li key={opt.id}>
-                    <label
-                      className={`flex items-start gap-3 rounded-2xl border px-3.5 py-3 cursor-pointer transition-all min-h-[4.5rem] ${
-                        on
-                          ? 'border-[#00b4d8]/45 bg-[#00b4d8]/5 shadow-sm'
-                          : 'border-neutral-200 bg-white hover:border-neutral-300'
-                      } ${opt.alwaysOn ? 'opacity-95' : ''}`}
-                    >
-                      <input
-                        type="checkbox"
-                        className="mt-1 rounded border-neutral-300 text-[#00b4d8] focus:ring-[#00b4d8] shrink-0"
-                        checked={on}
-                        disabled={opt.alwaysOn || saving}
-                        onChange={(e) => toggle(opt.id, e.target.checked)}
-                      />
-                      <span className="min-w-0">
-                        <span className="block text-sm font-bold text-slate-900">
-                          {opt.name}
-                          {opt.alwaysOn ? (
-                            <span className="ml-1.5 text-[9px] font-black uppercase tracking-wide text-neutral-400">
-                              always on
-                            </span>
-                          ) : null}
-                        </span>
-                        <span className="block text-[11px] text-neutral-500 leading-snug mt-0.5">
-                          {opt.description}
-                        </span>
-                      </span>
-                    </label>
-                  </li>
-                );
-              })}
+              {opts.map((opt) => renderModuleToggle(opt.id, true))}
             </ul>
           </Panel>
+        );
+      })}
+
+      {/* Sector + Industry Packs */}
+      <div className="mt-8 mb-2 flex items-center gap-2">
+        <Package className="w-4 h-4 text-[#0077b6]" />
+        <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">
+          Sector & Industry Packs
+        </h3>
+        <span className="text-[11px] text-neutral-500">
+          +R{INDUSTRY_PACK_MONTHLY_ZAR}/mo each
+        </span>
+      </div>
+      <p className="text-xs text-neutral-500 mb-4 max-w-2xl">
+        Packs are grouped by the sector they primarily serve. Your sector is listed
+        first. Subscribe under Packaging / Billing — then enable the hubs you want
+        below.
+      </p>
+
+      {orderedSectorGroups.map((group) => {
+        const isYours = yourSectorId === group.sectorId;
+        return (
+          <div key={group.sectorId} className="mb-6">
+            <div
+              className={`rounded-2xl px-4 py-3 mb-3 flex flex-wrap items-center justify-between gap-2 ${
+                isYours
+                  ? 'bg-[#0077b6] text-white'
+                  : 'bg-slate-100 text-slate-800'
+              }`}
+            >
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-widest opacity-80">
+                  {isYours ? 'Your sector' : 'Sector'}
+                </div>
+                <div className="text-base font-black">{group.sectorLabel}</div>
+                <div
+                  className={`text-xs mt-0.5 ${
+                    isYours ? 'text-white/80' : 'text-neutral-500'
+                  }`}
+                >
+                  {group.sectorDescription}
+                </div>
+              </div>
+              <div
+                className={`text-xs font-bold ${
+                  isYours ? 'text-white/90' : 'text-neutral-600'
+                }`}
+              >
+                {
+                  group.packs.filter((p) => subscribedPackIds.has(p.id)).length
+                }
+                /{group.packs.length} subscribed
+              </div>
+            </div>
+
+            <div className="grid gap-4">
+              {group.packs.map((pack) => {
+                const subscribed = subscribedPackIds.has(pack.id);
+                const unlockIds = appModulesUnlockedByPack(pack);
+                return (
+                  <div
+                    key={pack.id}
+                    className={`rounded-3xl border bg-white overflow-hidden ${
+                      subscribed
+                        ? 'border-emerald-300 ring-1 ring-emerald-100'
+                        : 'border-neutral-200'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3 px-4 sm:px-5 py-4 border-b border-neutral-100">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <h4 className="text-base font-black text-slate-900">
+                            {pack.name}
+                          </h4>
+                          {subscribed ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-emerald-800">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Subscribed
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full bg-neutral-50 border border-neutral-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-500">
+                              Not subscribed
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-neutral-500 leading-relaxed max-w-xl">
+                          {pack.description}
+                        </p>
+                        <p className="text-[11px] font-semibold text-neutral-600 mt-1.5">
+                          R{pack.monthlyZar}/mo · {pack.modules.length} pack
+                          feature
+                          {pack.modules.length === 1 ? '' : 's'} · unlocks{' '}
+                          {unlockIds.length} hub
+                          {unlockIds.length === 1 ? '' : 's'}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2 shrink-0">
+                        {subscribed ? (
+                          <Link
+                            href="/dashboard/my-business/billing"
+                            className="btn-secondary !py-2 !px-3 text-xs"
+                          >
+                            Billing
+                          </Link>
+                        ) : (
+                          <Link
+                            href="/dashboard/my-business/packaging"
+                            className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+                          >
+                            Subscribe <ArrowRight className="w-3 h-3" />
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Pack feature modules (industry definition) */}
+                    <div className="px-4 sm:px-5 py-3 bg-slate-50/80 border-b border-neutral-100">
+                      <div className="text-[10px] font-black uppercase tracking-widest text-neutral-400 mb-2">
+                        Pack includes
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {pack.modules.map((m) => (
+                          <span
+                            key={m.id}
+                            title={m.description}
+                            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold border ${
+                              subscribed
+                                ? 'bg-white border-emerald-200 text-emerald-900'
+                                : 'bg-white border-neutral-200 text-neutral-600'
+                            }`}
+                          >
+                            {m.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* App hubs unlocked */}
+                    <div className="p-4 sm:p-5">
+                      <div className="text-[10px] font-black uppercase tracking-widest text-neutral-400 mb-2">
+                        Workspace hubs unlocked
+                        {!subscribed ? (
+                          <span className="ml-2 font-semibold normal-case tracking-normal text-amber-700">
+                            — subscribe to activate recommended hubs
+                          </span>
+                        ) : null}
+                      </div>
+                      <ul className="grid sm:grid-cols-2 xl:grid-cols-3 gap-2">
+                        {unlockIds.map((id) => renderModuleToggle(id, false))}
+                      </ul>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         );
       })}
 
