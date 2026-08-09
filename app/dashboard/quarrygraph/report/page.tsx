@@ -78,7 +78,11 @@ export default function QuarryReportPage() {
       hours: number;
       util_pct: number | null;
       fuel_l: number;
+      km: number;
       l_per_hour: number | null;
+      l_per_km: number | null;
+      fuel_util_pct: number | null;
+      cost_per_km: number | null;
       tonnes_moved: number;
       t_per_hour: number | null;
       l_per_tonne: number | null;
@@ -160,7 +164,7 @@ export default function QuarryReportPage() {
     <QuarrygraphWorkbench
       title="Key reports"
       titleAccent="management pack"
-      description="Multi-quarry roll-up, vehicle KPIs (util %, L/h, t/h, R/t), plant vs dispatch balance, labour and compliance — filter and export CSV."
+      description="Multi-quarry roll-up, vehicle KPIs (fuel util L/h · L/km, cost R/km, R/t), plant vs dispatch balance, labour and compliance — filter and export CSV."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -333,17 +337,16 @@ export default function QuarryReportPage() {
                 headers={[
                   'Code',
                   'Vehicle',
-                  'Type',
-                  'Status',
                   'Quarry',
                   'Hours',
-                  'Util %',
-                  'Fuel',
+                  'Fuel L',
+                  'Km',
                   'L/h',
+                  'L/km',
+                  'Fuel util %',
+                  'R/km',
+                  'Cost R',
                   't',
-                  't/h',
-                  'L/t',
-                  'Cost',
                   'R/t',
                 ]}
                 rows={metrics.map((m, i) => ({
@@ -351,17 +354,16 @@ export default function QuarryReportPage() {
                   cells: [
                     m.code,
                     m.vehicle,
-                    m.type,
-                    m.status,
                     m.quarry,
                     m.hours,
-                    m.util_pct ?? '—',
                     m.fuel_l,
+                    m.km,
                     m.l_per_hour ?? '—',
-                    m.tonnes_moved,
-                    m.t_per_hour ?? '—',
-                    m.l_per_tonne ?? '—',
+                    m.l_per_km ?? '—',
+                    m.fuel_util_pct ?? '—',
+                    m.cost_per_km ?? '—',
                     m.cost_zar,
+                    m.tonnes_moved,
                     m.cost_per_t ?? '—',
                   ],
                 }))}

@@ -171,7 +171,12 @@ export type FieldgraphReportBundle = {
     vehicle: string;
     hours: number;
     fuel_l: number;
+    km: number;
     l_per_hour: number | null;
+    l_per_km: number | null;
+    cost_per_km: number | null;
+    fuel_util_pct: number | null;
+    cost_zar: number;
     logs: number;
   }>;
   fleetLogs: Array<{
@@ -181,6 +186,7 @@ export type FieldgraphReportBundle = {
     activity: string;
     hours: number | null;
     fuel_l: number | null;
+    km: number | null;
   }>;
   labourByType: Array<{
     type: string;
@@ -581,7 +587,12 @@ export function buildFieldgraphReport(
       vehicle: u.vehicle,
       hours: u.hours,
       fuel_l: u.fuel_l,
+      km: u.km,
       l_per_hour: u.l_per_hour,
+      l_per_km: u.l_per_km,
+      cost_per_km: u.cost_per_km,
+      fuel_util_pct: u.fuel_util_pct,
+      cost_zar: u.cost_zar,
       logs: u.logs,
     })),
     fleetLogs: [...fleetLogs]
@@ -594,6 +605,7 @@ export function buildFieldgraphReport(
         activity: l.activity,
         hours: l.hours ?? null,
         fuel_l: l.fuel_l ?? null,
+        km: l.km ?? null,
       })),
     labourByType: labour.byEmployment.map((r) => ({
       type: r.type,
@@ -703,9 +715,31 @@ export function reportToCsv(
       ]);
     }
   } else if (report === 'fleet') {
-    push(['vehicle', 'hours', 'fuel_l', 'l_per_hour', 'logs']);
+    push([
+      'vehicle',
+      'hours',
+      'fuel_l',
+      'km',
+      'l_per_hour',
+      'l_per_km',
+      'cost_per_km',
+      'fuel_util_pct',
+      'cost_zar',
+      'logs',
+    ]);
     for (const r of bundle.fleetByVehicle) {
-      push([r.vehicle, r.hours, r.fuel_l, r.l_per_hour, r.logs]);
+      push([
+        r.vehicle,
+        r.hours,
+        r.fuel_l,
+        r.km,
+        r.l_per_hour,
+        r.l_per_km,
+        r.cost_per_km,
+        r.fuel_util_pct,
+        r.cost_zar,
+        r.logs,
+      ]);
     }
   } else if (report === 'labour') {
     push(['date', 'gang', 'type', 'field', 'activity', 'headcount', 'hours', 'rate', 'cost']);

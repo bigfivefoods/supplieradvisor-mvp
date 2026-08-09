@@ -450,14 +450,30 @@ export default function FieldgraphReportPage() {
           {bundle && (report === 'overview' || report === 'fleet') && (
             <>
               <ReportTable
-                title="Fleet utilisation by vehicle"
-                headers={['Vehicle', 'Logs', 'Hours', 'Fuel L', 'L / hour']}
+                title="Fleet: fuel util & R/km by vehicle"
+                headers={[
+                  'Vehicle',
+                  'Logs',
+                  'Hours',
+                  'Fuel L',
+                  'Km',
+                  'L/h',
+                  'L/km',
+                  'R/km',
+                  'Fuel util %',
+                  'Cost R',
+                ]}
                 rows={bundle.fleetByVehicle.map((r) => [
                   r.vehicle,
                   r.logs,
                   r.hours,
                   r.fuel_l,
+                  r.km,
                   r.l_per_hour ?? '—',
+                  r.l_per_km ?? '—',
+                  r.cost_per_km ?? '—',
+                  r.fuel_util_pct ?? '—',
+                  r.cost_zar,
                 ])}
               />
               <ReportTable
@@ -469,6 +485,7 @@ export default function FieldgraphReportPage() {
                   'Activity',
                   'Hours',
                   'Fuel L',
+                  'Km',
                 ]}
                 rows={bundle.fleetLogs.map((r) => [
                   r.date,
@@ -477,6 +494,7 @@ export default function FieldgraphReportPage() {
                   r.activity,
                   r.hours ?? '—',
                   r.fuel_l ?? '—',
+                  r.km ?? '—',
                 ])}
               />
             </>

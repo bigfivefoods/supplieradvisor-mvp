@@ -72,7 +72,7 @@ export function DataTable({
   onDelete,
 }: {
   headers: string[];
-  rows: Array<{ id: string; cells: Array<string | number> }>;
+  rows: Array<{ id: string; cells: Array<string | number | ReactNode> }>;
   onDelete?: (id: string) => void;
 }) {
   return (

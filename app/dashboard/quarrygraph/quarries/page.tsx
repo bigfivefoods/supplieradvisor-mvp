@@ -22,15 +22,20 @@ export default function QuarriesPage() {
   const [form, setForm] = useState({
     code: '',
     name: '',
+    kind: 'permanent',
+    status: 'active',
     trading_name: '',
     district: '',
     province: '',
+    address: '',
     manager: '',
     phone: '',
     mining_right_ref: '',
     water_use_licence: '',
     emp_ref: '',
     target_daily_t: '',
+    lat: '',
+    lng: '',
   });
 
   const byQuarry =
@@ -60,21 +65,28 @@ export default function QuarriesPage() {
         target_daily_t: form.target_daily_t
           ? Number(form.target_daily_t)
           : null,
+        lat: form.lat ? Number(form.lat) : null,
+        lng: form.lng ? Number(form.lng) : null,
       },
     });
     toast.success('Quarry operation saved — attach pits and fleet to it');
     setForm({
       code: '',
       name: '',
+      kind: 'permanent',
+      status: 'active',
       trading_name: '',
       district: '',
       province: '',
+      address: '',
       manager: '',
       phone: '',
       mining_right_ref: '',
       water_use_licence: '',
       emp_ref: '',
       target_daily_t: '',
+      lat: '',
+      lng: '',
     });
   };
 
@@ -82,7 +94,7 @@ export default function QuarriesPage() {
     <QuarrygraphWorkbench
       title="Quarries"
       titleAccent="multi-site"
-      description="Register each quarry operation (estate). Pits, plant, fleet and reports roll up under these quarries — run many sites under one company."
+      description="Register permanent quarries (and GPS). Temporary quarries and batching plants live under Locations & projects — pits, plant and fleet still roll up here."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -101,11 +113,26 @@ export default function QuarriesPage() {
                 value: Number(summary?.siteCount) || store.sites.length,
               },
               {
-                label: 'Vehicles',
-                value: Number(summary?.vehicleCount) || 0,
+                label: 'Temp / batch',
+                value: `${summary?.temporaryQuarries ?? 0} / ${summary?.batchingPlants ?? 0}`,
+              },
+              {
+                label: 'With GPS',
+                value: Number(summary?.locationsWithGps) || 0,
               },
             ]}
           />
+
+          <p className="text-xs text-slate-600">
+            Project temporary sites and batching plants:{' '}
+            <a
+              href="/dashboard/quarrygraph/locations"
+              className="font-bold text-violet-700 underline"
+            >
+              Locations & projects
+            </a>
+            .
+          </p>
 
           <FormCard
             title="Add quarry operation"
@@ -129,6 +156,17 @@ export default function QuarriesPage() {
                 setForm((f) => ({ ...f, name: e.target.value }))
               }
             />
+            <select
+              className={fieldClass()}
+              value={form.kind}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, kind: e.target.value }))
+              }
+            >
+              <option value="permanent">Permanent</option>
+              <option value="temporary">Temporary</option>
+              <option value="batching_plant">Batching plant</option>
+            </select>
             <input
               className={fieldClass()}
               placeholder="Trading name"
@@ -205,15 +243,43 @@ export default function QuarriesPage() {
                 setForm((f) => ({ ...f, target_daily_t: e.target.value }))
               }
             />
+            <input
+              className={fieldClass()}
+              placeholder="Address"
+              value={form.address}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, address: e.target.value }))
+              }
+            />
+            <input
+              className={fieldClass()}
+              type="number"
+              step="0.000001"
+              placeholder="Latitude"
+              value={form.lat}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, lat: e.target.value }))
+              }
+            />
+            <input
+              className={fieldClass()}
+              type="number"
+              step="0.000001"
+              placeholder="Longitude"
+              value={form.lng}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, lng: e.target.value }))
+              }
+            />
           </FormCard>
 
           <DataTable
             headers={[
               'Code',
               'Name',
+              'Kind',
               'District',
-              'Manager',
-              'Mining right',
+              'GPS',
               'Target t/d',
               'Pits',
               'Vehicles',
@@ -229,9 +295,11 @@ export default function QuarriesPage() {
                 cells: [
                   q.code,
                   q.name,
+                  q.kind || 'permanent',
                   q.district || '—',
-                  q.manager || '—',
-                  q.mining_right_ref || '—',
+                  q.lat != null && q.lng != null
+                    ? `${Number(q.lat).toFixed(3)}, ${Number(q.lng).toFixed(3)}`
+                    : '—',
                   q.target_daily_t ?? '—',
                   roll?.sites ?? pits,
                   roll?.vehicles ?? vehs,

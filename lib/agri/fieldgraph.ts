@@ -120,6 +120,16 @@ export type AgriVehicle = {
   name: string;
   type?: string;
   reg_no?: string;
+  /** Last known odometer (km) */
+  odometer_km?: number | null;
+  /** Operating cost R per hour */
+  cost_per_hour_zar?: number | null;
+  /** Budgeted / hired cost R per km */
+  cost_per_km_zar?: number | null;
+  /** Book fuel burn L/hour (for fuel util %) */
+  fuel_burn_l_h?: number | null;
+  /** Diesel price R/L for fuel cost & R/km */
+  fuel_price_zar_l?: number | null;
   active?: boolean;
   created_at: string;
 };
@@ -150,7 +160,12 @@ export type AgriFleetLog = {
   activity: string;
   hours?: number | null;
   fuel_l?: number | null;
+  /** Distance this activity (preferred for cost/km) */
+  km?: number | null;
   odometer_km?: number | null;
+  fuel_price_zar_l?: number | null;
+  /** Optional total cost override for the log */
+  cost_zar?: number | null;
   notes?: string;
   created_at: string;
 };
@@ -525,6 +540,20 @@ export function summariseFieldgraph(store: FieldgraphStore) {
   const boardEstimates = store.estimates.filter(
     (e) => e.status === 'board' || e.status === 'submitted'
   ).length;
+  const fleetUtil = vehicleUtilisation(store);
+  const fleetKm = fleetUtil.reduce((n, r) => n + r.km, 0);
+  const fleetCost = fleetUtil.reduce((n, r) => n + r.cost_zar, 0);
+  const withKm = fleetUtil.filter((r) => r.km > 0);
+  const costPerKm =
+    withKm.length > 0
+      ? Math.round(
+          (withKm.reduce((n, r) => n + (r.cost_per_km || 0), 0) /
+            withKm.length) *
+            100
+        ) / 100
+      : fleetKm > 0 && fleetCost > 0
+        ? Math.round((fleetCost / fleetKm) * 100) / 100
+        : null;
 
   return {
     fieldCount: activeFields.length,
@@ -541,6 +570,18 @@ export function summariseFieldgraph(store: FieldgraphStore) {
     fleetLogs: store.fleet_logs.length,
     fuelTotalL: Math.round(fuelTotal * 10) / 10,
     fleetHours: Math.round(hoursTotal * 10) / 10,
+    fleetKm: Math.round(fleetKm * 10) / 10,
+    /** Key: fleet fuel utilisation L/hour */
+    lPerHour:
+      hoursTotal > 0
+        ? Math.round((fuelTotal / hoursTotal) * 100) / 100
+        : null,
+    /** Key: fleet fuel utilisation L/km */
+    lPerKm:
+      fleetKm > 0 ? Math.round((fuelTotal / fleetKm) * 1000) / 1000 : null,
+    /** Key: average cost per kilometre */
+    costPerKm,
+    fleetCostZar: Math.round(fleetCost * 100) / 100,
     gangCount: (store.gangs || []).filter((g) => g.active !== false).length,
     labourLogs: store.labour_logs.length,
     labourCostZar: labourCostSummary(store).totalCost,
@@ -639,63 +680,185 @@ export function fieldYieldSeries(
   });
 }
 
-/** Vehicle utilisation report */
+/** Resolve km for a log: explicit km, else positive odometer delta */
+export function resolveLogKm(
+  log: { km?: number | null; odometer_km?: number | null },
+  prevOdometer: number | null
+): { km: number; nextOdometer: number | null } {
+  const odo =
+    log.odometer_km != null && Number.isFinite(Number(log.odometer_km))
+      ? Number(log.odometer_km)
+      : null;
+  if (log.km != null && Number(log.km) > 0) {
+    return { km: Number(log.km), nextOdometer: odo ?? prevOdometer };
+  }
+  if (odo != null && prevOdometer != null) {
+    const d = odo - prevOdometer;
+    if (d > 0 && d < 5000) return { km: d, nextOdometer: odo };
+  }
+  return { km: 0, nextOdometer: odo ?? prevOdometer };
+}
+
+/**
+ * Vehicle utilisation + key fuel / cost metrics per vehicle.
+ * Keys: fuel util (L/h, L/km), cost per km (R/km).
+ */
 export function vehicleUtilisation(store: FieldgraphStore): Array<{
   vehicle: string;
   vehicle_id: string | null;
+  code: string;
   logs: number;
   hours: number;
   fuel_l: number;
+  km: number;
+  /** Key: fuel utilisation L/hour */
   l_per_hour: number | null;
+  /** Key: fuel utilisation L/km */
+  l_per_km: number | null;
+  km_per_l: number | null;
+  fuel_util_pct: number | null;
+  fuel_cost_zar: number;
+  cost_zar: number;
+  /** Key: total cost per km */
+  cost_per_km: number | null;
+  fuel_cost_per_km: number | null;
   activities: Record<string, number>;
   fields: string[];
 }> {
-  const byKey = new Map<
-    string,
-    {
-      vehicle: string;
-      vehicle_id: string | null;
-      logs: number;
-      hours: number;
-      fuel_l: number;
-      activities: Record<string, number>;
-      fields: Set<string>;
-    }
-  >();
-  for (const log of store.fleet_logs) {
+  type Acc = {
+    vehicle: string;
+    vehicle_id: string | null;
+    code: string;
+    logs: number;
+    hours: number;
+    fuel_l: number;
+    km: number;
+    fuel_cost_zar: number;
+    cost_zar: number;
+    fuel_burn_l_h: number | null;
+    activities: Record<string, number>;
+    fields: Set<string>;
+  };
+
+  const byKey = new Map<string, Acc>();
+  const lastOdo = new Map<string, number | null>();
+
+  for (const v of store.vehicles || []) {
+    byKey.set(v.id, {
+      vehicle: v.name,
+      vehicle_id: v.id,
+      code: v.code,
+      logs: 0,
+      hours: 0,
+      fuel_l: 0,
+      km: 0,
+      fuel_cost_zar: 0,
+      cost_zar: 0,
+      fuel_burn_l_h:
+        v.fuel_burn_l_h != null ? Number(v.fuel_burn_l_h) : null,
+      activities: {},
+      fields: new Set(),
+    });
+    lastOdo.set(
+      v.id,
+      v.odometer_km != null ? Number(v.odometer_km) : null
+    );
+  }
+
+  const sorted = [...store.fleet_logs].sort((a, b) => {
+    const d = a.date.localeCompare(b.date);
+    if (d !== 0) return d;
+    return a.created_at.localeCompare(b.created_at);
+  });
+
+  for (const log of sorted) {
     const key = log.vehicle_id || log.vehicle;
-    let row = byKey.get(key);
+    let row = log.vehicle_id ? byKey.get(log.vehicle_id) : undefined;
     if (!row) {
       row = {
         vehicle: log.vehicle,
         vehicle_id: log.vehicle_id || null,
+        code: '—',
         logs: 0,
         hours: 0,
         fuel_l: 0,
+        km: 0,
+        fuel_cost_zar: 0,
+        cost_zar: 0,
+        fuel_burn_l_h: null,
         activities: {},
         fields: new Set(),
       };
       byKey.set(key, row);
+      lastOdo.set(key, null);
     }
+    const v = (store.vehicles || []).find((x) => x.id === log.vehicle_id);
+    const h = Number(log.hours) || 0;
+    const fuel = Number(log.fuel_l) || 0;
+    const price =
+      log.fuel_price_zar_l != null
+        ? Number(log.fuel_price_zar_l)
+        : Number(v?.fuel_price_zar_l) || 0;
+    const fuelCost = fuel * price;
+    const odoKey = log.vehicle_id || key;
+    const prev = lastOdo.get(odoKey) ?? null;
+    const { km, nextOdometer } = resolveLogKm(log, prev);
+    lastOdo.set(odoKey, nextOdometer);
+
     row.logs += 1;
-    row.hours += Number(log.hours) || 0;
-    row.fuel_l += Number(log.fuel_l) || 0;
+    row.hours += h;
+    row.fuel_l += fuel;
+    row.km += km;
+    row.fuel_cost_zar += fuelCost;
+    if (log.cost_zar != null) {
+      row.cost_zar += Number(log.cost_zar) || 0;
+    } else {
+      row.cost_zar +=
+        h * (Number(v?.cost_per_hour_zar) || 0) +
+        km * (Number(v?.cost_per_km_zar) || 0) +
+        fuelCost;
+    }
     const act = log.activity || 'Other';
     row.activities[act] = (row.activities[act] || 0) + 1;
     if (log.field_id) row.fields.add(log.field_id);
   }
+
   return [...byKey.values()]
-    .map((r) => ({
-      vehicle: r.vehicle,
-      vehicle_id: r.vehicle_id,
-      logs: r.logs,
-      hours: Math.round(r.hours * 10) / 10,
-      fuel_l: Math.round(r.fuel_l * 10) / 10,
-      l_per_hour:
-        r.hours > 0 ? Math.round((r.fuel_l / r.hours) * 100) / 100 : null,
-      activities: r.activities,
-      fields: [...r.fields],
-    }))
+    .map((r) => {
+      const lph =
+        r.hours > 0 ? Math.round((r.fuel_l / r.hours) * 100) / 100 : null;
+      const lpk =
+        r.km > 0 ? Math.round((r.fuel_l / r.km) * 1000) / 1000 : null;
+      return {
+        vehicle: r.vehicle,
+        vehicle_id: r.vehicle_id,
+        code: r.code,
+        logs: r.logs,
+        hours: Math.round(r.hours * 10) / 10,
+        fuel_l: Math.round(r.fuel_l * 10) / 10,
+        km: Math.round(r.km * 10) / 10,
+        l_per_hour: lph,
+        l_per_km: lpk,
+        km_per_l:
+          r.fuel_l > 0 && r.km > 0
+            ? Math.round((r.km / r.fuel_l) * 100) / 100
+            : null,
+        fuel_util_pct:
+          lph != null && r.fuel_burn_l_h != null && r.fuel_burn_l_h > 0
+            ? Math.round((lph / r.fuel_burn_l_h) * 1000) / 10
+            : null,
+        fuel_cost_zar: Math.round(r.fuel_cost_zar * 100) / 100,
+        cost_zar: Math.round(r.cost_zar * 100) / 100,
+        cost_per_km:
+          r.km > 0 ? Math.round((r.cost_zar / r.km) * 100) / 100 : null,
+        fuel_cost_per_km:
+          r.km > 0
+            ? Math.round((r.fuel_cost_zar / r.km) * 100) / 100
+            : null,
+        activities: r.activities,
+        fields: [...r.fields],
+      };
+    })
     .sort((a, b) => b.hours - a.hours);
 }
 

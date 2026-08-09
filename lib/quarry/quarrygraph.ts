@@ -43,27 +43,74 @@ export const PRODUCT_GRADES = [
 ] as const;
 
 /**
+ * Permanent quarry, temporary quarry, or project batching plant.
+ * Temporary / batching are often project-by-project with finite dates.
+ */
+export const OPERATION_KINDS = [
+  'permanent',
+  'temporary',
+  'batching_plant',
+] as const;
+
+export const OPERATION_STATUSES = [
+  'active',
+  'planned',
+  'completed',
+  'mothballed',
+] as const;
+
+/** Pit face under a quarry, temp borrow pit, batch plant pad, etc. */
+export const SITE_TYPES = [
+  'pit_face',
+  'temporary_quarry',
+  'batching_plant',
+  'stockyard',
+  'depot',
+  'project_pad',
+] as const;
+
+export const ALLOCATION_RESOURCE_TYPES = [
+  'vehicle',
+  'crew',
+  'plant',
+] as const;
+
+/**
  * Top-level quarry / operation (estate). A company can run many quarries;
  * each has pits/faces (sites), plant and fleet home base.
+ * Also covers temporary quarries and mobile/project batching plants.
  */
 export type QuarryOperation = {
   id: string;
   code: string;
   name: string;
+  /** permanent | temporary | batching_plant */
+  kind?: (typeof OPERATION_KINDS)[number] | string;
+  status?: (typeof OPERATION_STATUSES)[number] | string;
   /** Trading / brand for this quarry */
   trading_name?: string;
+  /** Project / contract this operation serves */
+  project_code?: string;
+  project_name?: string;
+  client?: string;
+  /** Planned / actual window (temp & project plants) */
+  start_date?: string | null;
+  end_date?: string | null;
   district?: string;
   province?: string;
   country?: string;
+  /** Street / site address for maps & logistics */
+  address?: string;
   manager?: string;
   phone?: string;
   email?: string;
   mining_right_ref?: string;
   water_use_licence?: string;
   emp_ref?: string;
+  /** GPS — WGS84 for Google Maps / distance matrix */
   lat?: number | null;
   lng?: number | null;
-  /** Target daily production tonnes */
+  /** Target daily production / batch output tonnes */
   target_daily_t?: number | null;
   notes?: string;
   active?: boolean;
@@ -79,22 +126,53 @@ export type QuarrySite = {
   quarry_id?: string | null;
   /** Legacy free-text — prefer quarry_id */
   quarry_name?: string;
+  /** pit_face | temporary_quarry | batching_plant | … */
+  site_type?: (typeof SITE_TYPES)[number] | string;
+  /** True for borrow pits, project pads, temporary faces */
+  is_temporary?: boolean;
   material: string;
   /** Operating pit / face */
   face?: string;
   hectares?: number | null;
+  project_code?: string;
+  project_name?: string;
+  start_date?: string | null;
+  end_date?: string | null;
   /** Mining right / permit ref */
   mining_right_ref?: string;
   water_use_licence?: string;
   emp_ref?: string;
   district?: string;
   province?: string;
+  address?: string;
+  /** GPS — WGS84 */
   lat?: number | null;
   lng?: number | null;
   notes?: string;
   active?: boolean;
   created_at: string;
   updated_at: string;
+};
+
+/**
+ * Allocate fleet, crews or plant units to a quarry / site / project
+ * for a period (mobile plant, temp quarry staffing, batching jobs).
+ */
+export type ResourceAllocation = {
+  id: string;
+  resource_type: (typeof ALLOCATION_RESOURCE_TYPES)[number] | string;
+  /** vehicle_id, crew_id, or free-text plant unit id */
+  resource_id: string;
+  resource_label?: string;
+  quarry_id?: string | null;
+  site_id?: string | null;
+  project_code?: string;
+  role?: string;
+  start_date: string;
+  end_date?: string | null;
+  notes?: string;
+  created_at: string;
+  updated_at?: string;
 };
 
 export const VEHICLE_TYPES = [
@@ -252,8 +330,12 @@ export type QuarryVehicle = {
   target_hours_day?: number | null;
   /** Optional operating cost inputs */
   cost_per_hour_zar?: number | null;
+  /** Budgeted operating cost per km (haul units) */
   cost_per_km_zar?: number | null;
+  /** Target fuel burn L/hour (book rate for fuel util %) */
   fuel_burn_l_h?: number | null;
+  /** Diesel / fuel price R per litre for cost metrics */
+  fuel_price_zar_l?: number | null;
   operator?: string;
   last_service_at?: string | null;
   next_service_hours?: number | null;
@@ -278,7 +360,11 @@ export type QuarryFleetLog = {
   fuel_l?: number | null;
   tonnes_moved?: number | null;
   loads?: number | null;
+  /** Distance covered this shift (preferred for R/km) */
+  km?: number | null;
   odometer_km?: number | null;
+  /** Fuel price override for this fill (R/L) */
+  fuel_price_zar_l?: number | null;
   /** Optional shift cost override */
   cost_zar?: number | null;
   operator?: string;
@@ -359,7 +445,7 @@ export type CompliancePermit = {
 };
 
 export type QuarrygraphStore = {
-  /** Multi-quarry registry (operations / estates) */
+  /** Multi-quarry registry (permanent, temporary, batching plants) */
   quarries: QuarryOperation[];
   sites: QuarrySite[];
   products: AggregateProduct[];
@@ -375,6 +461,8 @@ export type QuarrygraphStore = {
   labour_logs: QuarryLabourLog[];
   quality_tests: QualityTest[];
   permits: CompliancePermit[];
+  /** Resource → location / project allocations */
+  allocations: ResourceAllocation[];
   updated_at?: string;
 };
 
@@ -395,6 +483,7 @@ export function emptyQuarrygraphStore(): QuarrygraphStore {
     labour_logs: [],
     quality_tests: [],
     permits: [],
+    allocations: [],
   };
 }
 
@@ -452,6 +541,181 @@ export function siteById(store: QuarrygraphStore, id: string) {
 
 export function productById(store: QuarrygraphStore, id: string) {
   return store.products.find((p) => p.id === id);
+}
+
+export type LocationPoint = {
+  id: string;
+  source: 'quarry' | 'site';
+  code: string;
+  name: string;
+  kind: string;
+  project_code?: string;
+  project_name?: string;
+  address?: string;
+  lat: number;
+  lng: number;
+  is_temporary: boolean;
+  status?: string;
+};
+
+function hasCoords(
+  lat?: number | null,
+  lng?: number | null
+): lat is number {
+  return (
+    lat != null &&
+    lng != null &&
+    Number.isFinite(Number(lat)) &&
+    Number.isFinite(Number(lng))
+  );
+}
+
+/** All geocoded quarries + sites for maps / distance matrix */
+export function locationPoints(store: QuarrygraphStore): LocationPoint[] {
+  const out: LocationPoint[] = [];
+  for (const q of store.quarries || []) {
+    if (q.active === false) continue;
+    if (!hasCoords(q.lat, q.lng)) continue;
+    const kind = String(q.kind || 'permanent');
+    out.push({
+      id: q.id,
+      source: 'quarry',
+      code: q.code,
+      name: q.name,
+      kind,
+      project_code: q.project_code,
+      project_name: q.project_name,
+      address: q.address,
+      lat: Number(q.lat),
+      lng: Number(q.lng),
+      is_temporary: kind === 'temporary' || kind === 'batching_plant',
+      status: q.status,
+    });
+  }
+  for (const s of store.sites || []) {
+    if (s.active === false) continue;
+    if (!hasCoords(s.lat, s.lng)) continue;
+    const st = String(s.site_type || 'pit_face');
+    out.push({
+      id: s.id,
+      source: 'site',
+      code: s.code,
+      name: s.name,
+      kind: st,
+      project_code: s.project_code,
+      project_name: s.project_name,
+      address: s.address,
+      lat: Number(s.lat),
+      lng: Number(s.lng),
+      is_temporary: s.is_temporary === true || st === 'temporary_quarry' || st === 'batching_plant' || st === 'project_pad',
+      status: undefined,
+    });
+  }
+  return out.sort((a, b) => a.code.localeCompare(b.code));
+}
+
+/** Great-circle distance (km) — pure math, no API key */
+export function haversineKm(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number }
+): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** Rough road distance (haversine × factor) when Google Directions not called */
+export function estimatedRoadKm(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+  factor = 1.3
+): number {
+  return haversineKm(a, b) * factor;
+}
+
+/** Open pin in Google Maps */
+export function mapsPlaceUrl(lat: number, lng: number): string {
+  return `https://www.google.com/maps?q=${lat},${lng}`;
+}
+
+export function mapsDirectionsUrl(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number }
+): string {
+  return `https://www.google.com/maps/dir/?api=1&origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&travelmode=driving`;
+}
+
+export type DistancePair = {
+  from_id: string;
+  from_code: string;
+  from_name: string;
+  to_id: string;
+  to_code: string;
+  to_name: string;
+  straight_km: number;
+  road_km_est: number;
+  maps_url: string;
+};
+
+/** Pairwise distances for all geocoded locations (straight + road estimate + Maps link) */
+export function distanceMatrix(
+  store: QuarrygraphStore,
+  opts?: { maxPairs?: number }
+): DistancePair[] {
+  const pts = locationPoints(store);
+  const maxPairs = opts?.maxPairs ?? 80;
+  const pairs: DistancePair[] = [];
+  for (let i = 0; i < pts.length; i++) {
+    for (let j = i + 1; j < pts.length; j++) {
+      if (pairs.length >= maxPairs) return pairs;
+      const a = pts[i];
+      const b = pts[j];
+      const straight = haversineKm(a, b);
+      pairs.push({
+        from_id: a.id,
+        from_code: a.code,
+        from_name: a.name,
+        to_id: b.id,
+        to_code: b.code,
+        to_name: b.name,
+        straight_km: Math.round(straight * 10) / 10,
+        road_km_est: Math.round(estimatedRoadKm(a, b) * 10) / 10,
+        maps_url: mapsDirectionsUrl(a, b),
+      });
+    }
+  }
+  return pairs.sort((x, y) => x.straight_km - y.straight_km);
+}
+
+/** Active allocations on a date (default today) */
+export function allocationsOnDate(
+  store: QuarrygraphStore,
+  date?: string
+): ResourceAllocation[] {
+  const d = date || new Date().toISOString().slice(0, 10);
+  return (store.allocations || []).filter((a) => {
+    if (a.start_date > d) return false;
+    if (a.end_date && a.end_date < d) return false;
+    return true;
+  });
+}
+
+export function allocationsForLocation(
+  store: QuarrygraphStore,
+  opts: { quarryId?: string | null; siteId?: string | null }
+): ResourceAllocation[] {
+  return (store.allocations || []).filter((a) => {
+    if (opts.siteId && a.site_id === opts.siteId) return true;
+    if (opts.quarryId && a.quarry_id === opts.quarryId) return true;
+    return false;
+  });
 }
 
 export function computeLabourCost(input: {
@@ -543,6 +807,20 @@ export function projectProductionDates(
 export function summariseQuarrygraph(store: QuarrygraphStore) {
   const quarries = (store.quarries || []).filter((q) => q.active !== false);
   const sites = store.sites.filter((s) => s.active !== false);
+  const permanentOps = quarries.filter(
+    (q) => !q.kind || q.kind === 'permanent'
+  );
+  const temporaryOps = quarries.filter((q) => q.kind === 'temporary');
+  const batchingPlants = quarries.filter((q) => q.kind === 'batching_plant');
+  const tempSites = sites.filter(
+    (s) =>
+      s.is_temporary === true ||
+      s.site_type === 'temporary_quarry' ||
+      s.site_type === 'batching_plant' ||
+      s.site_type === 'project_pad'
+  );
+  const geocoded = locationPoints(store);
+  const openAllocations = allocationsOnDate(store);
   const products = store.products.filter((p) => p.active !== false);
   const vehicles = store.vehicles.filter((v) => v.active !== false);
   const reserveT = store.reserves
@@ -606,10 +884,33 @@ export function summariseQuarrygraph(store: QuarrygraphStore) {
     (n, l) => n + (Number(l.tonnes_moved) || 0),
     0
   );
+  const fleetMetrics = vehicleMetrics(store);
+  const fleetKm = fleetMetrics.reduce((n, r) => n + r.km, 0);
+  const fleetFuelCost = fleetMetrics.reduce((n, r) => n + r.fuel_cost_zar, 0);
+  const withKm = fleetMetrics.filter((r) => r.km > 0);
+  const avgCostPerKm =
+    withKm.length > 0
+      ? Math.round(
+          (withKm.reduce((n, r) => n + (r.cost_per_km || 0), 0) / withKm.length) *
+            100
+        ) / 100
+      : fleetKm > 0 && fleetCost > 0
+        ? Math.round((fleetCost / fleetKm) * 100) / 100
+        : null;
+  const avgLPerKm =
+    fleetKm > 0 ? Math.round((fuel / fleetKm) * 1000) / 1000 : null;
+  const avgLPerHour =
+    hours > 0 ? Math.round((fuel / hours) * 100) / 100 : null;
 
   return {
     quarryCount: quarries.length,
+    permanentQuarries: permanentOps.length,
+    temporaryQuarries: temporaryOps.length,
+    batchingPlants: batchingPlants.length,
     siteCount: sites.length,
+    temporarySites: tempSites.length,
+    locationsWithGps: geocoded.length,
+    openAllocations: openAllocations.length,
     productCount: products.length,
     reserveTonnes: Math.round(reserveT * 10) / 10,
     stockpileTonnes: Math.round(stockT * 10) / 10,
@@ -623,6 +924,14 @@ export function summariseQuarrygraph(store: QuarrygraphStore) {
     fleetHours: Math.round(hours * 10) / 10,
     fleetIdleHours: Math.round(idle * 10) / 10,
     fuelTotalL: Math.round(fuel * 10) / 10,
+    fleetKm: Math.round(fleetKm * 10) / 10,
+    /** Key: fleet average fuel utilisation L/hour */
+    lPerHour: avgLPerHour,
+    /** Key: fleet average fuel utilisation L/km */
+    lPerKm: avgLPerKm,
+    /** Key: fleet average cost per kilometre (R/km) */
+    costPerKm: avgCostPerKm,
+    fuelCostZar: Math.round(fleetFuelCost * 100) / 100,
     tonnesMovedFleet: Math.round(tonnesMoved * 10) / 10,
     tPerHour:
       hours > 0 ? Math.round((tonnesMoved / hours) * 100) / 100 : null,
@@ -699,42 +1008,78 @@ export type VehicleMetricsRow = {
   hours: number;
   idle_hours: number;
   fuel_l: number;
+  /** Key metric: km travelled (shift km + odometer deltas) */
+  km: number;
   tonnes_moved: number;
   loads: number;
+  /** Key: fuel utilisation L per operating hour */
   l_per_hour: number | null;
+  /** Key: fuel utilisation L per km */
+  l_per_km: number | null;
+  km_per_l: number | null;
   t_per_hour: number | null;
   l_per_tonne: number | null;
   util_pct: number | null;
+  /** Actual L/h vs book fuel_burn_l_h (100% = on target) */
+  fuel_util_pct: number | null;
+  fuel_cost_zar: number;
   cost_zar: number;
+  /** Key metric: total cost ÷ km */
+  cost_per_km: number | null;
+  /** Fuel-only cost ÷ km */
+  fuel_cost_per_km: number | null;
   cost_per_t: number | null;
   engine_hours: number | null;
   odometer_km: number | null;
 };
 
-/** Full vehicle KPI board from registry + logs */
+/** Resolve km for a log: explicit km, else positive odometer delta */
+export function resolveLogKm(
+  log: { km?: number | null; odometer_km?: number | null },
+  prevOdometer: number | null
+): { km: number; nextOdometer: number | null } {
+  const odo =
+    log.odometer_km != null && Number.isFinite(Number(log.odometer_km))
+      ? Number(log.odometer_km)
+      : null;
+  if (log.km != null && Number(log.km) > 0) {
+    return { km: Number(log.km), nextOdometer: odo ?? prevOdometer };
+  }
+  if (odo != null && prevOdometer != null) {
+    const d = odo - prevOdometer;
+    // Guard against resets / unit swaps
+    if (d > 0 && d < 5000) return { km: d, nextOdometer: odo };
+  }
+  return { km: 0, nextOdometer: odo ?? prevOdometer };
+}
+
+/** Full vehicle KPI board — fuel util + R/km are first-class */
 export function vehicleMetrics(store: QuarrygraphStore): VehicleMetricsRow[] {
-  const byId = new Map<
-    string,
-    {
-      vehicle_id: string | null;
-      vehicle: string;
-      code: string;
-      type: string;
-      status: string;
-      ownership: string;
-      quarry: string;
-      logs: number;
-      hours: number;
-      idle_hours: number;
-      fuel_l: number;
-      tonnes_moved: number;
-      loads: number;
-      cost_zar: number;
-      engine_hours: number | null;
-      odometer_km: number | null;
-      target_hours_day: number;
-    }
-  >();
+  type Acc = {
+    vehicle_id: string | null;
+    vehicle: string;
+    code: string;
+    type: string;
+    status: string;
+    ownership: string;
+    quarry: string;
+    logs: number;
+    hours: number;
+    idle_hours: number;
+    fuel_l: number;
+    km: number;
+    tonnes_moved: number;
+    loads: number;
+    cost_zar: number;
+    fuel_cost_zar: number;
+    engine_hours: number | null;
+    odometer_km: number | null;
+    target_hours_day: number;
+    fuel_burn_l_h: number | null;
+  };
+
+  const byId = new Map<string, Acc>();
+  const lastOdo = new Map<string, number | null>();
 
   for (const v of store.vehicles) {
     const q = quarryById(store, v.quarry_id);
@@ -750,16 +1095,27 @@ export function vehicleMetrics(store: QuarrygraphStore): VehicleMetricsRow[] {
       hours: 0,
       idle_hours: 0,
       fuel_l: 0,
+      km: 0,
       tonnes_moved: 0,
       loads: 0,
       cost_zar: 0,
+      fuel_cost_zar: 0,
       engine_hours: v.engine_hours ?? null,
       odometer_km: v.odometer_km ?? null,
       target_hours_day: Number(v.target_hours_day) || 8,
+      fuel_burn_l_h:
+        v.fuel_burn_l_h != null ? Number(v.fuel_burn_l_h) : null,
     });
+    lastOdo.set(v.id, v.odometer_km != null ? Number(v.odometer_km) : null);
   }
 
-  for (const log of store.fleet_logs) {
+  const sortedLogs = [...store.fleet_logs].sort((a, b) => {
+    const d = a.date.localeCompare(b.date);
+    if (d !== 0) return d;
+    return a.created_at.localeCompare(b.created_at);
+  });
+
+  for (const log of sortedLogs) {
     const key = log.vehicle_id || log.vehicle;
     let row = log.vehicle_id ? byId.get(log.vehicle_id) : undefined;
     if (!row) {
@@ -775,25 +1131,50 @@ export function vehicleMetrics(store: QuarrygraphStore): VehicleMetricsRow[] {
         hours: 0,
         idle_hours: 0,
         fuel_l: 0,
+        km: 0,
         tonnes_moved: 0,
         loads: 0,
         cost_zar: 0,
+        fuel_cost_zar: 0,
         engine_hours: null,
         odometer_km: null,
         target_hours_day: 8,
+        fuel_burn_l_h: null,
       };
       byId.set(key, row);
+      lastOdo.set(key, null);
     }
     const v = store.vehicles.find((x) => x.id === log.vehicle_id);
     const h = Number(log.hours) || 0;
+    const fuel = Number(log.fuel_l) || 0;
+    const price =
+      log.fuel_price_zar_l != null
+        ? Number(log.fuel_price_zar_l)
+        : Number(v?.fuel_price_zar_l) || 0;
+    const fuelCost = fuel * price;
+    const odoKey = log.vehicle_id || key;
+    const prev = lastOdo.get(odoKey) ?? null;
+    const { km, nextOdometer } = resolveLogKm(log, prev);
+    lastOdo.set(odoKey, nextOdometer);
+
     row.logs += 1;
     row.hours += h;
     row.idle_hours += Number(log.idle_hours) || 0;
-    row.fuel_l += Number(log.fuel_l) || 0;
+    row.fuel_l += fuel;
+    row.km += km;
     row.tonnes_moved += Number(log.tonnes_moved) || 0;
     row.loads += Number(log.loads) || 0;
-    if (log.cost_zar != null) row.cost_zar += Number(log.cost_zar) || 0;
-    else row.cost_zar += h * (Number(v?.cost_per_hour_zar) || 0);
+    row.fuel_cost_zar += fuelCost;
+
+    if (log.cost_zar != null) {
+      row.cost_zar += Number(log.cost_zar) || 0;
+    } else {
+      // Roll-up: hour rate + km rate + fuel (set only the rates you track)
+      row.cost_zar +=
+        h * (Number(v?.cost_per_hour_zar) || 0) +
+        km * (Number(v?.cost_per_km_zar) || 0) +
+        fuelCost;
+    }
     if (log.engine_hours_end != null) row.engine_hours = Number(log.engine_hours_end);
     if (log.odometer_km != null) row.odometer_km = Number(log.odometer_km);
   }
@@ -802,6 +1183,20 @@ export function vehicleMetrics(store: QuarrygraphStore): VehicleMetricsRow[] {
     .map((r) => {
       const days = Math.max(1, r.logs);
       const target = r.target_hours_day * days;
+      const lph =
+        r.hours > 0 ? Math.round((r.fuel_l / r.hours) * 100) / 100 : null;
+      const lpk =
+        r.km > 0 ? Math.round((r.fuel_l / r.km) * 1000) / 1000 : null;
+      const cpk =
+        r.km > 0 ? Math.round((r.cost_zar / r.km) * 100) / 100 : null;
+      const fcpk =
+        r.km > 0
+          ? Math.round((r.fuel_cost_zar / r.km) * 100) / 100
+          : null;
+      const fuelUtil =
+        lph != null && r.fuel_burn_l_h != null && r.fuel_burn_l_h > 0
+          ? Math.round((lph / r.fuel_burn_l_h) * 1000) / 10
+          : null;
       return {
         vehicle_id: r.vehicle_id,
         vehicle: r.vehicle,
@@ -814,10 +1209,15 @@ export function vehicleMetrics(store: QuarrygraphStore): VehicleMetricsRow[] {
         hours: Math.round(r.hours * 10) / 10,
         idle_hours: Math.round(r.idle_hours * 10) / 10,
         fuel_l: Math.round(r.fuel_l * 10) / 10,
+        km: Math.round(r.km * 10) / 10,
         tonnes_moved: Math.round(r.tonnes_moved * 10) / 10,
         loads: r.loads,
-        l_per_hour:
-          r.hours > 0 ? Math.round((r.fuel_l / r.hours) * 100) / 100 : null,
+        l_per_hour: lph,
+        l_per_km: lpk,
+        km_per_l:
+          r.fuel_l > 0 && r.km > 0
+            ? Math.round((r.km / r.fuel_l) * 100) / 100
+            : null,
         t_per_hour:
           r.hours > 0
             ? Math.round((r.tonnes_moved / r.hours) * 100) / 100
@@ -830,7 +1230,11 @@ export function vehicleMetrics(store: QuarrygraphStore): VehicleMetricsRow[] {
           target > 0
             ? Math.round((r.hours / target) * 1000) / 10
             : null,
+        fuel_util_pct: fuelUtil,
+        fuel_cost_zar: Math.round(r.fuel_cost_zar * 100) / 100,
         cost_zar: Math.round(r.cost_zar * 100) / 100,
+        cost_per_km: cpk,
+        fuel_cost_per_km: fcpk,
         cost_per_t:
           r.tonnes_moved > 0
             ? Math.round((r.cost_zar / r.tonnes_moved) * 100) / 100
@@ -850,8 +1254,12 @@ export function vehicleUtilisation(store: QuarrygraphStore) {
     logs: r.logs,
     hours: r.hours,
     fuel_l: r.fuel_l,
+    km: r.km,
     tonnes_moved: r.tonnes_moved,
     l_per_hour: r.l_per_hour,
+    l_per_km: r.l_per_km,
+    cost_per_km: r.cost_per_km,
+    fuel_util_pct: r.fuel_util_pct,
   }));
 }
 
@@ -999,6 +1407,10 @@ export function buildKeyReports(store: QuarrygraphStore) {
     byProduct: productionByProduct(store),
     vehicleMetrics: vehicleMetrics(store),
     labourCost: labourCostSummary(store),
+    locations: locationPoints(store),
+    distanceMatrix: distanceMatrix(store),
+    allocations: store.allocations || [],
+    openAllocations: allocationsOnDate(store),
     /** Dispatch vs plant vs stock balance */
     productBalance: productionByProduct(store).map((p) => ({
       ...p,

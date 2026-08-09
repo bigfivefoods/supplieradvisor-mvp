@@ -357,15 +357,35 @@ export async function POST(request: NextRequest) {
       if (!store.vehicles) store.vehicles = [];
       const id = String(rec.id || newId('veh'));
       const existing = store.vehicles.findIndex((v) => v.id === id);
+      const prev = existing >= 0 ? store.vehicles[existing] : null;
       const row: AgriVehicle = {
         id,
         code: String(rec.code || `V-${store.vehicles.length + 1}`),
         name: String(rec.name || 'Vehicle'),
         type: rec.type != null ? String(rec.type) : undefined,
         reg_no: rec.reg_no != null ? String(rec.reg_no) : undefined,
+        odometer_km:
+          rec.odometer_km != null
+            ? Number(rec.odometer_km)
+            : prev?.odometer_km ?? null,
+        cost_per_hour_zar:
+          rec.cost_per_hour_zar != null
+            ? Number(rec.cost_per_hour_zar)
+            : prev?.cost_per_hour_zar ?? null,
+        cost_per_km_zar:
+          rec.cost_per_km_zar != null
+            ? Number(rec.cost_per_km_zar)
+            : prev?.cost_per_km_zar ?? null,
+        fuel_burn_l_h:
+          rec.fuel_burn_l_h != null
+            ? Number(rec.fuel_burn_l_h)
+            : prev?.fuel_burn_l_h ?? null,
+        fuel_price_zar_l:
+          rec.fuel_price_zar_l != null
+            ? Number(rec.fuel_price_zar_l)
+            : prev?.fuel_price_zar_l ?? null,
         active: rec.active !== false,
-        created_at:
-          existing >= 0 ? store.vehicles[existing].created_at : now,
+        created_at: prev?.created_at || now,
       };
       if (existing >= 0) store.vehicles[existing] = row;
       else store.vehicles.push(row);
@@ -398,6 +418,26 @@ export async function POST(request: NextRequest) {
       const veh = vehicleId
         ? (store.vehicles || []).find((v) => v.id === vehicleId)
         : null;
+      const hours = rec.hours != null ? Number(rec.hours) : null;
+      const km = rec.km != null ? Number(rec.km) : null;
+      const fuel_l = rec.fuel_l != null ? Number(rec.fuel_l) : null;
+      const fuel_price_zar_l =
+        rec.fuel_price_zar_l != null
+          ? Number(rec.fuel_price_zar_l)
+          : veh?.fuel_price_zar_l != null
+            ? Number(veh.fuel_price_zar_l)
+            : null;
+      let cost_zar =
+        rec.cost_zar != null && rec.cost_zar !== ''
+          ? Number(rec.cost_zar)
+          : null;
+      if (cost_zar == null) {
+        const computed =
+          (hours || 0) * (Number(veh?.cost_per_hour_zar) || 0) +
+          (km || 0) * (Number(veh?.cost_per_km_zar) || 0) +
+          (fuel_l || 0) * (fuel_price_zar_l || 0);
+        if (computed > 0) cost_zar = Math.round(computed * 100) / 100;
+      }
       const row: AgriFleetLog = {
         id,
         field_id: rec.field_id != null ? String(rec.field_id) : null,
@@ -407,14 +447,27 @@ export async function POST(request: NextRequest) {
           rec.vehicle || veh?.name || veh?.code || 'Vehicle'
         ),
         activity: String(rec.activity || 'Work'),
-        hours: rec.hours != null ? Number(rec.hours) : null,
-        fuel_l: rec.fuel_l != null ? Number(rec.fuel_l) : null,
+        hours,
+        fuel_l,
+        km,
         odometer_km:
           rec.odometer_km != null ? Number(rec.odometer_km) : null,
+        fuel_price_zar_l,
+        cost_zar,
         notes: rec.notes != null ? String(rec.notes) : undefined,
         created_at:
           existing >= 0 ? store.fleet_logs[existing].created_at : now,
       };
+      // Roll odometer onto registry
+      if (vehicleId && row.odometer_km != null) {
+        const vi = (store.vehicles || []).findIndex((v) => v.id === vehicleId);
+        if (vi >= 0) {
+          store.vehicles[vi] = {
+            ...store.vehicles[vi],
+            odometer_km: row.odometer_km,
+          };
+        }
+      }
       if (existing >= 0) store.fleet_logs[existing] = row;
       else store.fleet_logs.push(row);
     } else if (entity === 'gangs') {
@@ -724,6 +777,9 @@ function seedDemo(now: string): FieldgraphStore {
         name: 'Tractor 02',
         type: 'Tractor',
         reg_no: 'NP 123-456',
+        cost_per_hour_zar: 420,
+        fuel_burn_l_h: 12,
+        fuel_price_zar_l: 24.5,
         active: true,
         created_at: now,
       },
@@ -733,6 +789,11 @@ function seedDemo(now: string): FieldgraphStore {
         name: 'Hauler 01',
         type: 'Truck',
         reg_no: 'NP 987-654',
+        odometer_km: 124500,
+        cost_per_hour_zar: 380,
+        cost_per_km_zar: 8.5,
+        fuel_burn_l_h: 18,
+        fuel_price_zar_l: 24.5,
         active: true,
         created_at: now,
       },
@@ -747,6 +808,8 @@ function seedDemo(now: string): FieldgraphStore {
         activity: 'Rip / ridge',
         hours: 6.5,
         fuel_l: 48,
+        km: 22,
+        fuel_price_zar_l: 24.5,
         created_at: now,
       },
       {
@@ -758,6 +821,9 @@ function seedDemo(now: string): FieldgraphStore {
         activity: 'Cane haul',
         hours: 4,
         fuel_l: 62,
+        km: 48,
+        odometer_km: 124548,
+        fuel_price_zar_l: 24.5,
         created_at: now,
       },
       {
@@ -769,6 +835,8 @@ function seedDemo(now: string): FieldgraphStore {
         activity: 'Planting',
         hours: 8,
         fuel_l: 55,
+        km: 18,
+        fuel_price_zar_l: 24.5,
         created_at: now,
       },
     ],

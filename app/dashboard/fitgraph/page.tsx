@@ -21,6 +21,7 @@ import {
   FitgraphPage,
   FitgraphRequired,
 } from '@/components/fitness/FitgraphShell';
+import FitgraphSystemFlow from '@/components/fitness/FitgraphSystemFlow';
 import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 import {
   HubModuleGrid,
@@ -237,6 +238,10 @@ function Inner() {
           />
         </HubTelemetryGrid>
       )}
+
+      <div className="mt-8">
+        <FitgraphSystemFlow />
+      </div>
 
       <div className="my-8 grid sm:grid-cols-2 gap-3">
         {[

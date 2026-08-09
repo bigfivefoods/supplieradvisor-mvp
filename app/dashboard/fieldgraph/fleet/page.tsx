@@ -48,6 +48,10 @@ export default function FieldgraphFleetPage() {
     name: '',
     type: 'Tractor',
     reg_no: '',
+    cost_per_hour_zar: '',
+    cost_per_km_zar: '',
+    fuel_price_zar_l: '24.5',
+    fuel_burn_l_h: '',
   });
   const [logForm, setLogForm] = useState({
     field_id: '',
@@ -57,7 +61,9 @@ export default function FieldgraphFleetPage() {
     activity: 'Harvest',
     hours: '',
     fuel_l: '',
+    km: '',
     odometer_km: '',
+    fuel_price_zar_l: '',
     notes: '',
   });
 
@@ -67,10 +73,17 @@ export default function FieldgraphFleetPage() {
       (analysis?.vehicleUtilisation as Array<{
         vehicle: string;
         vehicle_id: string | null;
+        code?: string;
         logs: number;
         hours: number;
         fuel_l: number;
+        km: number;
         l_per_hour: number | null;
+        l_per_km: number | null;
+        fuel_util_pct: number | null;
+        cost_zar: number;
+        cost_per_km: number | null;
+        fuel_cost_per_km: number | null;
         activities: Record<string, number>;
         fields: string[];
       }>) || []
@@ -117,10 +130,33 @@ export default function FieldgraphFleetPage() {
     await post({
       entity: 'vehicles',
       action: 'upsert',
-      record: { ...vehForm },
+      record: {
+        ...vehForm,
+        cost_per_hour_zar: vehForm.cost_per_hour_zar
+          ? Number(vehForm.cost_per_hour_zar)
+          : null,
+        cost_per_km_zar: vehForm.cost_per_km_zar
+          ? Number(vehForm.cost_per_km_zar)
+          : null,
+        fuel_price_zar_l: vehForm.fuel_price_zar_l
+          ? Number(vehForm.fuel_price_zar_l)
+          : null,
+        fuel_burn_l_h: vehForm.fuel_burn_l_h
+          ? Number(vehForm.fuel_burn_l_h)
+          : null,
+      },
     });
-    toast.success('Vehicle registered');
-    setVehForm({ code: '', name: '', type: 'Tractor', reg_no: '' });
+    toast.success('Vehicle registered with fuel & R/km rates');
+    setVehForm({
+      code: '',
+      name: '',
+      type: 'Tractor',
+      reg_no: '',
+      cost_per_hour_zar: '',
+      cost_per_km_zar: '',
+      fuel_price_zar_l: '24.5',
+      fuel_burn_l_h: '',
+    });
   };
 
   const addLog = async () => {
@@ -140,18 +176,24 @@ export default function FieldgraphFleetPage() {
         activity: logForm.activity,
         hours: logForm.hours ? Number(logForm.hours) : null,
         fuel_l: logForm.fuel_l ? Number(logForm.fuel_l) : null,
+        km: logForm.km ? Number(logForm.km) : null,
         odometer_km: logForm.odometer_km
           ? Number(logForm.odometer_km)
+          : null,
+        fuel_price_zar_l: logForm.fuel_price_zar_l
+          ? Number(logForm.fuel_price_zar_l)
           : null,
         notes: logForm.notes || undefined,
       },
     });
-    toast.success('Activity logged');
+    toast.success('Activity logged — fuel util & R/km updated');
     setLogForm((f) => ({
       ...f,
       hours: '',
       fuel_l: '',
+      km: '',
       odometer_km: '',
+      fuel_price_zar_l: '',
       notes: '',
     }));
   };
@@ -165,27 +207,19 @@ export default function FieldgraphFleetPage() {
     <FieldgraphWorkbench
       title="Vehicle Management"
       titleAccent="fleet & fuel"
-      description="Manage daily vehicle activities by field and monitor fuel utilisation by vehicle. Reporting analyses utilisation by activity and fuel consumption across the fleet."
+      description="Key metrics per vehicle: fuel utilisation (L/h, L/km) and cost per kilometre (R/km). Log hours, fuel, km and rates on the registry."
     >
       {loading || !store ? (
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <div className="grid sm:grid-cols-4 gap-3">
+          <div className="grid sm:grid-cols-3 lg:grid-cols-6 gap-3">
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
               <div className="text-[10px] font-black uppercase text-slate-400">
                 Vehicles
               </div>
               <div className="text-2xl font-black tabular-nums">
                 {Number(summary?.vehicleCount) || vehicles.length}
-              </div>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-              <div className="text-[10px] font-black uppercase text-slate-400">
-                Activity logs
-              </div>
-              <div className="text-2xl font-black tabular-nums">
-                {Number(summary?.fleetLogs) || store.fleet_logs.length}
               </div>
             </div>
             <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 px-4 py-3">
@@ -202,6 +236,30 @@ export default function FieldgraphFleetPage() {
               </div>
               <div className="text-2xl font-black tabular-nums">
                 {Number(summary?.fuelTotalL) || 0}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-violet-100 bg-violet-50/40 px-4 py-3">
+              <div className="text-[10px] font-black uppercase text-violet-800/70">
+                Fuel util L/h
+              </div>
+              <div className="text-2xl font-black tabular-nums">
+                {summary?.lPerHour != null ? String(summary.lPerHour) : '—'}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-violet-100 bg-violet-50/40 px-4 py-3">
+              <div className="text-[10px] font-black uppercase text-violet-800/70">
+                Fuel util L/km
+              </div>
+              <div className="text-2xl font-black tabular-nums">
+                {summary?.lPerKm != null ? String(summary.lPerKm) : '—'}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-rose-100 bg-rose-50/40 px-4 py-3">
+              <div className="text-[10px] font-black uppercase text-rose-800/70">
+                Cost R/km
+              </div>
+              <div className="text-2xl font-black tabular-nums">
+                {summary?.costPerKm != null ? String(summary.costPerKm) : '—'}
               </div>
             </div>
           </div>
@@ -231,7 +289,7 @@ export default function FieldgraphFleetPage() {
 
           {tab === 'registry' && (
             <div className="space-y-4">
-              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 grid sm:grid-cols-2 lg:grid-cols-5 gap-2">
+              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
                 <input
                   className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
                   placeholder="Code (e.g. T02)"
@@ -269,11 +327,62 @@ export default function FieldgraphFleetPage() {
                     setVehForm((f) => ({ ...f, reg_no: e.target.value }))
                   }
                 />
+                <input
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  type="number"
+                  placeholder="Cost R / hour"
+                  value={vehForm.cost_per_hour_zar}
+                  onChange={(e) =>
+                    setVehForm((f) => ({
+                      ...f,
+                      cost_per_hour_zar: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  type="number"
+                  step="0.01"
+                  placeholder="Cost R / km"
+                  value={vehForm.cost_per_km_zar}
+                  onChange={(e) =>
+                    setVehForm((f) => ({
+                      ...f,
+                      cost_per_km_zar: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  type="number"
+                  step="0.01"
+                  placeholder="Fuel price R/L"
+                  value={vehForm.fuel_price_zar_l}
+                  onChange={(e) =>
+                    setVehForm((f) => ({
+                      ...f,
+                      fuel_price_zar_l: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  type="number"
+                  step="0.1"
+                  placeholder="Book fuel burn L/h"
+                  value={vehForm.fuel_burn_l_h}
+                  onChange={(e) =>
+                    setVehForm((f) => ({
+                      ...f,
+                      fuel_burn_l_h: e.target.value,
+                    }))
+                  }
+                />
                 <button
                   type="button"
                   disabled={saving}
                   onClick={() => void addVehicle()}
-                  className="btn-primary !py-2 text-sm inline-flex justify-center gap-1.5"
+                  className="btn-primary !py-2 text-sm sm:col-span-2 lg:col-span-4 inline-flex justify-center gap-1.5"
                 >
                   {saving ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -288,7 +397,7 @@ export default function FieldgraphFleetPage() {
                 {vehicles.length === 0 ? (
                   <p className="text-sm text-slate-500 sm:col-span-3 py-6 text-center">
                     No vehicles registered yet. Add tractors, haulers and
-                    harvesters to link activity logs.
+                    harvesters with R/h, R/km and fuel price.
                   </p>
                 ) : (
                   vehicles.map((v) => (
@@ -307,6 +416,12 @@ export default function FieldgraphFleetPage() {
                           <div className="text-[11px] text-slate-500">
                             {v.type || 'Vehicle'}
                             {v.reg_no ? ` · ${v.reg_no}` : ''}
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-1">
+                            R/h {v.cost_per_hour_zar ?? '—'} · R/km{' '}
+                            {v.cost_per_km_zar ?? '—'} · R/L{' '}
+                            {v.fuel_price_zar_l ?? '—'} · book L/h{' '}
+                            {v.fuel_burn_l_h ?? '—'}
                           </div>
                         </div>
                       </div>
@@ -422,13 +537,36 @@ export default function FieldgraphFleetPage() {
                 />
                 <input
                   className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
-                  placeholder="Odometer km"
+                  placeholder="Km this activity"
+                  type="number"
+                  step="0.1"
+                  value={logForm.km}
+                  onChange={(e) =>
+                    setLogForm((f) => ({ ...f, km: e.target.value }))
+                  }
+                />
+                <input
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  placeholder="Odometer km (end)"
                   type="number"
                   value={logForm.odometer_km}
                   onChange={(e) =>
                     setLogForm((f) => ({
                       ...f,
                       odometer_km: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  placeholder="Fuel R/L (optional)"
+                  type="number"
+                  step="0.01"
+                  value={logForm.fuel_price_zar_l}
+                  onChange={(e) =>
+                    setLogForm((f) => ({
+                      ...f,
+                      fuel_price_zar_l: e.target.value,
                     }))
                   }
                 />
@@ -457,6 +595,7 @@ export default function FieldgraphFleetPage() {
                       <th className="px-3 py-2.5">Activity</th>
                       <th className="px-3 py-2.5">Hours</th>
                       <th className="px-3 py-2.5">Fuel L</th>
+                      <th className="px-3 py-2.5">Km</th>
                       <th className="px-3 py-2.5" />
                     </tr>
                   </thead>
@@ -481,6 +620,9 @@ export default function FieldgraphFleetPage() {
                           <td className="px-3 py-2.5 tabular-nums">
                             {l.fuel_l ?? '—'}
                           </td>
+                          <td className="px-3 py-2.5 tabular-nums">
+                            {l.km ?? '—'}
+                          </td>
                           <td className="px-3 py-2.5 text-right">
                             <button
                               type="button"
@@ -501,7 +643,7 @@ export default function FieldgraphFleetPage() {
                     {store.fleet_logs.length === 0 && (
                       <tr>
                         <td
-                          colSpan={7}
+                          colSpan={8}
                           className="px-3 py-10 text-center text-slate-500"
                         >
                           No activity logged yet.
@@ -517,12 +659,15 @@ export default function FieldgraphFleetPage() {
           {tab === 'report' && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-sm font-black mb-3">
-                  Fuel & hours by vehicle
+                <h3 className="text-sm font-black mb-1">
+                  Fuel utilisation & cost per km by vehicle
                 </h3>
+                <p className="text-xs text-slate-500 mb-3">
+                  Key: L/h · L/km (fuel util) and R/km (cost per kilometre).
+                </p>
                 {utilisation.length === 0 ? (
                   <p className="text-sm text-slate-500 py-6 text-center border border-dashed border-slate-200 rounded-2xl">
-                    Log activity with hours and fuel to build utilisation
+                    Log activity with hours, fuel and km to build utilisation
                     reports.
                   </p>
                 ) : (
@@ -548,7 +693,7 @@ export default function FieldgraphFleetPage() {
                             }}
                           />
                         </div>
-                        <div className="grid grid-cols-3 gap-2 text-sm">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-sm">
                           <div>
                             <div className="text-[10px] uppercase font-black text-slate-400">
                               Hours
@@ -567,10 +712,42 @@ export default function FieldgraphFleetPage() {
                           </div>
                           <div>
                             <div className="text-[10px] uppercase font-black text-slate-400">
+                              Km
+                            </div>
+                            <div className="font-bold tabular-nums">
+                              {u.km}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase font-black text-violet-600">
                               L / hour
                             </div>
                             <div className="font-bold tabular-nums">
                               {u.l_per_hour ?? '—'}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase font-black text-violet-600">
+                              L / km
+                            </div>
+                            <div className="font-bold tabular-nums">
+                              {u.l_per_km ?? '—'}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase font-black text-rose-600">
+                              R / km
+                            </div>
+                            <div className="font-bold tabular-nums">
+                              {u.cost_per_km ?? '—'}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase font-black text-slate-400">
+                              Fuel util %
+                            </div>
+                            <div className="font-bold tabular-nums">
+                              {u.fuel_util_pct ?? '—'}
                             </div>
                           </div>
                         </div>

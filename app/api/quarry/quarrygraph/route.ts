@@ -27,6 +27,7 @@ import {
   type QuarryVehicle,
   type QuarrygraphStore,
   type ReserveEstimate,
+  type ResourceAllocation,
   type Stockpile,
   type LabourEmploymentType,
   type LabourRateUnit,
@@ -49,7 +50,8 @@ type Entity =
   | 'crews'
   | 'labour_logs'
   | 'quality_tests'
-  | 'permits';
+  | 'permits'
+  | 'allocations';
 
 async function loadStore(companyId: number) {
   const supabase = getSupabaseServer();
@@ -223,37 +225,73 @@ function upsertEntity(
   now: string
 ) {
   if (!store.quarries) store.quarries = [];
+  if (!store.allocations) store.allocations = [];
 
   if (entity === 'quarries') {
     const id = String(rec.id || newId('qry'));
     const existing = store.quarries.findIndex((q) => q.id === id);
+    const prev = existing >= 0 ? store.quarries[existing] : null;
+    const kind = String(rec.kind || prev?.kind || 'permanent');
     const row: QuarryOperation = {
       id,
       code: String(rec.code || `Q-${store.quarries.length + 1}`),
       name: String(rec.name || 'Quarry'),
+      kind,
+      status: String(rec.status || prev?.status || 'active'),
       trading_name:
-        rec.trading_name != null ? String(rec.trading_name) : undefined,
-      district: rec.district != null ? String(rec.district) : undefined,
-      province: rec.province != null ? String(rec.province) : undefined,
-      country: rec.country != null ? String(rec.country) : undefined,
-      manager: rec.manager != null ? String(rec.manager) : undefined,
-      phone: rec.phone != null ? String(rec.phone) : undefined,
-      email: rec.email != null ? String(rec.email) : undefined,
+        rec.trading_name != null
+          ? String(rec.trading_name)
+          : prev?.trading_name,
+      project_code:
+        rec.project_code != null
+          ? String(rec.project_code)
+          : prev?.project_code,
+      project_name:
+        rec.project_name != null
+          ? String(rec.project_name)
+          : prev?.project_name,
+      client:
+        rec.client != null ? String(rec.client) : prev?.client,
+      start_date:
+        rec.start_date != null
+          ? String(rec.start_date)
+          : prev?.start_date ?? null,
+      end_date:
+        rec.end_date != null
+          ? String(rec.end_date)
+          : prev?.end_date ?? null,
+      district: rec.district != null ? String(rec.district) : prev?.district,
+      province: rec.province != null ? String(rec.province) : prev?.province,
+      country: rec.country != null ? String(rec.country) : prev?.country,
+      address:
+        rec.address != null ? String(rec.address) : prev?.address,
+      manager: rec.manager != null ? String(rec.manager) : prev?.manager,
+      phone: rec.phone != null ? String(rec.phone) : prev?.phone,
+      email: rec.email != null ? String(rec.email) : prev?.email,
       mining_right_ref:
-        rec.mining_right_ref != null ? String(rec.mining_right_ref) : undefined,
+        rec.mining_right_ref != null
+          ? String(rec.mining_right_ref)
+          : prev?.mining_right_ref,
       water_use_licence:
         rec.water_use_licence != null
           ? String(rec.water_use_licence)
-          : undefined,
-      emp_ref: rec.emp_ref != null ? String(rec.emp_ref) : undefined,
-      lat: rec.lat != null ? Number(rec.lat) : null,
-      lng: rec.lng != null ? Number(rec.lng) : null,
+          : prev?.water_use_licence,
+      emp_ref: rec.emp_ref != null ? String(rec.emp_ref) : prev?.emp_ref,
+      lat:
+        rec.lat != null && rec.lat !== ''
+          ? Number(rec.lat)
+          : prev?.lat ?? null,
+      lng:
+        rec.lng != null && rec.lng !== ''
+          ? Number(rec.lng)
+          : prev?.lng ?? null,
       target_daily_t:
-        rec.target_daily_t != null ? Number(rec.target_daily_t) : null,
-      notes: rec.notes != null ? String(rec.notes) : undefined,
+        rec.target_daily_t != null
+          ? Number(rec.target_daily_t)
+          : prev?.target_daily_t ?? null,
+      notes: rec.notes != null ? String(rec.notes) : prev?.notes,
       active: rec.active !== false,
-      created_at:
-        existing >= 0 ? store.quarries[existing].created_at : now,
+      created_at: prev?.created_at || now,
       updated_at: now,
     };
     if (existing >= 0) store.quarries[existing] = row;
@@ -261,13 +299,24 @@ function upsertEntity(
   } else if (entity === 'sites') {
     const id = String(rec.id || newId('sit'));
     const existing = store.sites.findIndex((s) => s.id === id);
+    const prev = existing >= 0 ? store.sites[existing] : null;
     const quarryId =
       rec.quarry_id != null && String(rec.quarry_id)
         ? String(rec.quarry_id)
-        : null;
+        : prev?.quarry_id ?? null;
     const q = quarryId
       ? store.quarries.find((x) => x.id === quarryId)
       : undefined;
+    const siteType = String(
+      rec.site_type || prev?.site_type || 'pit_face'
+    );
+    const isTemp =
+      rec.is_temporary === true ||
+      rec.is_temporary === 'true' ||
+      siteType === 'temporary_quarry' ||
+      siteType === 'batching_plant' ||
+      siteType === 'project_pad' ||
+      (rec.is_temporary === undefined && prev?.is_temporary === true);
     const row: QuarrySite = {
       id,
       code: String(rec.code || `S-${store.sites.length + 1}`),
@@ -276,33 +325,122 @@ function upsertEntity(
       quarry_name:
         rec.quarry_name != null
           ? String(rec.quarry_name)
-          : q?.name || undefined,
-      material: String(rec.material || 'Mixed / other'),
-      face: rec.face != null ? String(rec.face) : undefined,
-      hectares: rec.hectares != null ? Number(rec.hectares) : null,
+          : q?.name || prev?.quarry_name,
+      site_type: siteType,
+      is_temporary: isTemp,
+      material: String(rec.material || prev?.material || 'Mixed / other'),
+      face: rec.face != null ? String(rec.face) : prev?.face,
+      hectares:
+        rec.hectares != null
+          ? Number(rec.hectares)
+          : prev?.hectares ?? null,
+      project_code:
+        rec.project_code != null
+          ? String(rec.project_code)
+          : prev?.project_code || q?.project_code,
+      project_name:
+        rec.project_name != null
+          ? String(rec.project_name)
+          : prev?.project_name || q?.project_name,
+      start_date:
+        rec.start_date != null
+          ? String(rec.start_date)
+          : prev?.start_date ?? null,
+      end_date:
+        rec.end_date != null
+          ? String(rec.end_date)
+          : prev?.end_date ?? null,
       mining_right_ref:
         rec.mining_right_ref != null
           ? String(rec.mining_right_ref)
-          : q?.mining_right_ref,
+          : prev?.mining_right_ref || q?.mining_right_ref,
       water_use_licence:
         rec.water_use_licence != null
           ? String(rec.water_use_licence)
-          : q?.water_use_licence,
+          : prev?.water_use_licence || q?.water_use_licence,
       emp_ref:
-        rec.emp_ref != null ? String(rec.emp_ref) : q?.emp_ref,
+        rec.emp_ref != null
+          ? String(rec.emp_ref)
+          : prev?.emp_ref || q?.emp_ref,
       district:
-        rec.district != null ? String(rec.district) : q?.district,
+        rec.district != null
+          ? String(rec.district)
+          : prev?.district || q?.district,
       province:
-        rec.province != null ? String(rec.province) : q?.province,
-      lat: rec.lat != null ? Number(rec.lat) : null,
-      lng: rec.lng != null ? Number(rec.lng) : null,
-      notes: rec.notes != null ? String(rec.notes) : undefined,
+        rec.province != null
+          ? String(rec.province)
+          : prev?.province || q?.province,
+      address:
+        rec.address != null ? String(rec.address) : prev?.address,
+      lat:
+        rec.lat != null && rec.lat !== ''
+          ? Number(rec.lat)
+          : prev?.lat ?? null,
+      lng:
+        rec.lng != null && rec.lng !== ''
+          ? Number(rec.lng)
+          : prev?.lng ?? null,
+      notes: rec.notes != null ? String(rec.notes) : prev?.notes,
       active: rec.active !== false,
-      created_at: existing >= 0 ? store.sites[existing].created_at : now,
+      created_at: prev?.created_at || now,
       updated_at: now,
     };
     if (existing >= 0) store.sites[existing] = row;
     else store.sites.push(row);
+  } else if (entity === 'allocations') {
+    const id = String(rec.id || newId('alc'));
+    const existing = store.allocations.findIndex((a) => a.id === id);
+    const prev = existing >= 0 ? store.allocations[existing] : null;
+    const resourceType = String(
+      rec.resource_type || prev?.resource_type || 'vehicle'
+    );
+    const resourceId = String(
+      rec.resource_id || prev?.resource_id || ''
+    );
+    let label =
+      rec.resource_label != null
+        ? String(rec.resource_label)
+        : prev?.resource_label;
+    if (!label && resourceId) {
+      if (resourceType === 'vehicle') {
+        const v = store.vehicles.find((x) => x.id === resourceId);
+        label = v ? `${v.code} · ${v.name}` : undefined;
+      } else if (resourceType === 'crew') {
+        const c = store.crews.find((x) => x.id === resourceId);
+        label = c ? `${c.code} · ${c.name}` : undefined;
+      }
+    }
+    const row: ResourceAllocation = {
+      id,
+      resource_type: resourceType,
+      resource_id: resourceId,
+      resource_label: label,
+      quarry_id:
+        rec.quarry_id != null && String(rec.quarry_id)
+          ? String(rec.quarry_id)
+          : prev?.quarry_id ?? null,
+      site_id:
+        rec.site_id != null && String(rec.site_id)
+          ? String(rec.site_id)
+          : prev?.site_id ?? null,
+      project_code:
+        rec.project_code != null
+          ? String(rec.project_code)
+          : prev?.project_code,
+      role: rec.role != null ? String(rec.role) : prev?.role,
+      start_date: String(
+        rec.start_date || prev?.start_date || now.slice(0, 10)
+      ),
+      end_date:
+        rec.end_date != null
+          ? String(rec.end_date)
+          : prev?.end_date ?? null,
+      notes: rec.notes != null ? String(rec.notes) : prev?.notes,
+      created_at: prev?.created_at || now,
+      updated_at: now,
+    };
+    if (existing >= 0) store.allocations[existing] = row;
+    else store.allocations.push(row);
   } else if (entity === 'products') {
     const id = String(rec.id || newId('prd'));
     const existing = store.products.findIndex((p) => p.id === id);
@@ -551,9 +689,17 @@ function upsertEntity(
           ? Number(rec.cost_per_hour_zar)
           : null,
       cost_per_km_zar:
-        rec.cost_per_km_zar != null ? Number(rec.cost_per_km_zar) : null,
+        rec.cost_per_km_zar != null
+          ? Number(rec.cost_per_km_zar)
+          : prev?.cost_per_km_zar ?? null,
       fuel_burn_l_h:
-        rec.fuel_burn_l_h != null ? Number(rec.fuel_burn_l_h) : null,
+        rec.fuel_burn_l_h != null
+          ? Number(rec.fuel_burn_l_h)
+          : prev?.fuel_burn_l_h ?? null,
+      fuel_price_zar_l:
+        rec.fuel_price_zar_l != null
+          ? Number(rec.fuel_price_zar_l)
+          : prev?.fuel_price_zar_l ?? null,
       operator: rec.operator != null ? String(rec.operator) : undefined,
       last_service_at:
         rec.last_service_at != null ? String(rec.last_service_at) : null,
@@ -586,13 +732,27 @@ function upsertEntity(
             : null) ||
           null;
     const hours = rec.hours != null ? Number(rec.hours) : null;
+    const km = rec.km != null ? Number(rec.km) : null;
+    const fuel_l = rec.fuel_l != null ? Number(rec.fuel_l) : null;
+    const fuel_price_zar_l =
+      rec.fuel_price_zar_l != null
+        ? Number(rec.fuel_price_zar_l)
+        : veh?.fuel_price_zar_l != null
+          ? Number(veh.fuel_price_zar_l)
+          : null;
     let cost_zar =
       rec.cost_zar != null && rec.cost_zar !== ''
         ? Number(rec.cost_zar)
         : null;
-    if (cost_zar == null && hours != null && veh?.cost_per_hour_zar) {
-      cost_zar =
-        Math.round(hours * Number(veh.cost_per_hour_zar) * 100) / 100;
+    if (cost_zar == null) {
+      const h = hours || 0;
+      const k = km || 0;
+      const f = fuel_l || 0;
+      const computed =
+        h * (Number(veh?.cost_per_hour_zar) || 0) +
+        k * (Number(veh?.cost_per_km_zar) || 0) +
+        f * (fuel_price_zar_l || 0);
+      if (computed > 0) cost_zar = Math.round(computed * 100) / 100;
     }
     const row: QuarryFleetLog = {
       id,
@@ -609,12 +769,14 @@ function upsertEntity(
           : null,
       idle_hours:
         rec.idle_hours != null ? Number(rec.idle_hours) : null,
-      fuel_l: rec.fuel_l != null ? Number(rec.fuel_l) : null,
+      fuel_l,
       tonnes_moved:
         rec.tonnes_moved != null ? Number(rec.tonnes_moved) : null,
       loads: rec.loads != null ? Number(rec.loads) : null,
+      km,
       odometer_km:
         rec.odometer_km != null ? Number(rec.odometer_km) : null,
+      fuel_price_zar_l,
       cost_zar,
       operator:
         rec.operator != null
@@ -776,9 +938,13 @@ function seedDemo(now: string): QuarrygraphStore {
   const y = String(new Date().getFullYear());
   const q1 = newId('qry');
   const q2 = newId('qry');
+  const q3 = newId('qry');
+  const q4 = newId('qry');
   const s1 = newId('sit');
   const s2 = newId('sit');
   const s3 = newId('sit');
+  const s4 = newId('sit');
+  const s5 = newId('sit');
   const p1 = newId('prd');
   const p2 = newId('prd');
   const p3 = newId('prd');
@@ -795,13 +961,18 @@ function seedDemo(now: string): QuarrygraphStore {
         id: q1,
         code: 'HV',
         name: 'Highveld Aggregates',
+        kind: 'permanent',
+        status: 'active',
         trading_name: 'Highveld Aggregates (Pty) Ltd',
         district: 'Emalahleni',
         province: 'Mpumalanga',
+        address: 'R555 corridor, Emalahleni',
         manager: 'Sipho Nkosi',
         mining_right_ref: `MR-${y}-001`,
         water_use_licence: 'WUL-88421',
         emp_ref: 'EMP-HV-12',
+        lat: -25.872,
+        lng: 29.235,
         target_daily_t: 1200,
         active: true,
         created_at: now,
@@ -811,12 +982,61 @@ function seedDemo(now: string): QuarrygraphStore {
         id: q2,
         code: 'KP',
         name: 'Klipfontein Pit',
+        kind: 'permanent',
+        status: 'active',
         trading_name: 'Klipfontein Quarries',
         district: 'Middelburg',
         province: 'Mpumalanga',
+        address: 'Klipfontein farm, Middelburg',
         manager: 'Anika Botha',
         mining_right_ref: `MR-${y}-014`,
+        lat: -25.775,
+        lng: 29.465,
         target_daily_t: 600,
+        active: true,
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: q3,
+        code: 'TMP-N4',
+        name: 'N4 borrow pit (temp)',
+        kind: 'temporary',
+        status: 'active',
+        project_code: 'N4-REHAB-26',
+        project_name: 'N4 rehabilitation package B',
+        client: 'SANRAL contractor JV',
+        start_date: `${y}-03-01`,
+        end_date: `${y}-11-30`,
+        district: 'eMalahleni',
+        province: 'Mpumalanga',
+        address: 'N4 km 42 temporary quarry',
+        lat: -25.841,
+        lng: 29.312,
+        target_daily_t: 400,
+        notes: 'Temporary quarry for project duration only',
+        active: true,
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: q4,
+        code: 'BP-RMX',
+        name: 'Ready-mix batching plant · Middelburg',
+        kind: 'batching_plant',
+        status: 'active',
+        project_code: 'RMX-MID-01',
+        project_name: 'Municipal road base supply',
+        client: 'Local municipality',
+        start_date: `${y}-01-15`,
+        end_date: `${y}-12-15`,
+        district: 'Middelburg',
+        province: 'Mpumalanga',
+        address: 'Industrial park, Middelburg',
+        lat: -25.79,
+        lng: 29.48,
+        target_daily_t: 320,
+        notes: 'Project mobile batching plant — allocate ADTs + loader',
         active: true,
         created_at: now,
         updated_at: now,
@@ -829,6 +1049,8 @@ function seedDemo(now: string): QuarrygraphStore {
         name: 'North face',
         quarry_id: q1,
         quarry_name: 'Highveld Aggregates',
+        site_type: 'pit_face',
+        is_temporary: false,
         material: 'Dolerite',
         face: 'A-North',
         hectares: 18.5,
@@ -837,6 +1059,8 @@ function seedDemo(now: string): QuarrygraphStore {
         emp_ref: 'EMP-HV-12',
         district: 'Emalahleni',
         province: 'Mpumalanga',
+        lat: -25.8705,
+        lng: 29.238,
         active: true,
         created_at: now,
         updated_at: now,
@@ -847,12 +1071,16 @@ function seedDemo(now: string): QuarrygraphStore {
         name: 'Sand pit',
         quarry_id: q1,
         quarry_name: 'Highveld Aggregates',
+        site_type: 'pit_face',
+        is_temporary: false,
         material: 'Alluvial sand',
         face: 'B-East',
         hectares: 6.2,
         mining_right_ref: `MR-${y}-001`,
         district: 'Emalahleni',
         province: 'Mpumalanga',
+        lat: -25.874,
+        lng: 29.241,
         active: true,
         created_at: now,
         updated_at: now,
@@ -863,11 +1091,57 @@ function seedDemo(now: string): QuarrygraphStore {
         name: 'Main face',
         quarry_id: q2,
         quarry_name: 'Klipfontein Pit',
+        site_type: 'pit_face',
+        is_temporary: false,
         material: 'Granite',
         face: 'Main',
         hectares: 12,
         district: 'Middelburg',
         province: 'Mpumalanga',
+        lat: -25.776,
+        lng: 29.467,
+        active: true,
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: s4,
+        code: 'N4-PAD',
+        name: 'N4 crusher pad',
+        quarry_id: q3,
+        quarry_name: 'N4 borrow pit (temp)',
+        site_type: 'temporary_quarry',
+        is_temporary: true,
+        material: 'Mixed / other',
+        project_code: 'N4-REHAB-26',
+        project_name: 'N4 rehabilitation package B',
+        start_date: `${y}-03-01`,
+        end_date: `${y}-11-30`,
+        hectares: 2.5,
+        district: 'eMalahleni',
+        province: 'Mpumalanga',
+        lat: -25.842,
+        lng: 29.315,
+        active: true,
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: s5,
+        code: 'BP-YARD',
+        name: 'Batch plant yard',
+        quarry_id: q4,
+        quarry_name: 'Ready-mix batching plant · Middelburg',
+        site_type: 'batching_plant',
+        is_temporary: true,
+        material: 'Mixed / other',
+        project_code: 'RMX-MID-01',
+        start_date: `${y}-01-15`,
+        end_date: `${y}-12-15`,
+        district: 'Middelburg',
+        province: 'Mpumalanga',
+        lat: -25.791,
+        lng: 29.481,
         active: true,
         created_at: now,
         updated_at: now,
@@ -1051,6 +1325,7 @@ function seedDemo(now: string): QuarrygraphStore {
         target_hours_day: 10,
         cost_per_hour_zar: 1850,
         fuel_burn_l_h: 38,
+        fuel_price_zar_l: 24.5,
         operator: 'Thabo',
         active: true,
         created_at: now,
@@ -1074,7 +1349,9 @@ function seedDemo(now: string): QuarrygraphStore {
         odometer_km: 88200,
         target_hours_day: 10,
         cost_per_hour_zar: 1450,
+        cost_per_km_zar: 18.5,
         fuel_burn_l_h: 28,
+        fuel_price_zar_l: 24.5,
         active: true,
         created_at: now,
         updated_at: now,
@@ -1094,6 +1371,8 @@ function seedDemo(now: string): QuarrygraphStore {
         engine_hours: 2100,
         target_hours_day: 8,
         cost_per_hour_zar: 980,
+        fuel_price_zar_l: 24.5,
+        fuel_burn_l_h: 22,
         active: true,
         created_at: now,
         updated_at: now,
@@ -1115,6 +1394,7 @@ function seedDemo(now: string): QuarrygraphStore {
         loads: 42,
         engine_hours_end: 8429.5,
         cost_zar: 17575,
+        fuel_price_zar_l: 24.5,
         operator: 'Thabo',
         created_at: now,
       },
@@ -1129,10 +1409,12 @@ function seedDemo(now: string): QuarrygraphStore {
         hours: 8.5,
         idle_hours: 1.2,
         fuel_l: 110,
+        km: 45,
         tonnes_moved: 1180,
         loads: 42,
         odometer_km: 88245,
         cost_zar: 12325,
+        fuel_price_zar_l: 24.5,
         created_at: now,
       },
       {
@@ -1148,6 +1430,7 @@ function seedDemo(now: string): QuarrygraphStore {
         tonnes_moved: 420,
         loads: 28,
         cost_zar: 5880,
+        fuel_price_zar_l: 24.5,
         created_at: now,
       },
     ],
@@ -1243,6 +1526,64 @@ function seedDemo(now: string): QuarrygraphStore {
         expires_at: `${Number(y) + 6}-01-09`,
         status: 'valid',
         created_at: now,
+      },
+    ],
+    allocations: [
+      {
+        id: newId('alc'),
+        resource_type: 'vehicle',
+        resource_id: v2,
+        resource_label: 'AD02 · ADT 02',
+        quarry_id: q4,
+        site_id: s5,
+        project_code: 'RMX-MID-01',
+        role: 'Haul aggregate to batch plant',
+        start_date: `${y}-01-15`,
+        end_date: `${y}-12-15`,
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: newId('alc'),
+        resource_type: 'vehicle',
+        resource_id: v3,
+        resource_label: 'LD05 · Loader 05',
+        quarry_id: q4,
+        site_id: s5,
+        project_code: 'RMX-MID-01',
+        role: 'Feed hoppers',
+        start_date: `${y}-01-15`,
+        end_date: `${y}-06-30`,
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: newId('alc'),
+        resource_type: 'crew',
+        resource_id: c1,
+        resource_label: 'DRILL · Drill & blast crew',
+        quarry_id: q3,
+        site_id: s4,
+        project_code: 'N4-REHAB-26',
+        role: 'Temp quarry blast prep',
+        start_date: `${y}-03-01`,
+        end_date: `${y}-11-30`,
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: newId('alc'),
+        resource_type: 'plant',
+        resource_id: 'mobile_jaw_01',
+        resource_label: 'Mobile jaw crusher 01',
+        quarry_id: q3,
+        site_id: s4,
+        project_code: 'N4-REHAB-26',
+        role: 'On-site crush',
+        start_date: `${y}-03-01`,
+        end_date: `${y}-11-30`,
+        created_at: now,
+        updated_at: now,
       },
     ],
     updated_at: now,

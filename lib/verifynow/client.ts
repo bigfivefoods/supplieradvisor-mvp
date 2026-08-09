@@ -396,11 +396,11 @@ export function parseVerifyNowBankResult(
     (results.VerificationResults as Record<string, unknown>) ||
     (results as Record<string, unknown>);
 
-  const identityAndAccountVerified =
+  const identityAndAccountVerifiedRaw =
     results.identity_and_account_verified === true ||
     results.identityAndAccountVerified === true ||
-    (/yes|true/i.test(String(vr.identityMatch || vr.IdentityMatch || '')) &&
-      /yes|true/i.test(String(vr.accountFound || vr.AccountFound || '')));
+    (/^(yes|true|y|1)$/i.test(String(vr.identityMatch || vr.IdentityMatch || '').trim()) &&
+      /^(yes|true|y|1)$/i.test(String(vr.accountFound || vr.AccountFound || '').trim()));
 
   const summary = String(
     results.summary || results.Summary || vr.Status || vr.status || result.status || ''
@@ -408,18 +408,27 @@ export function parseVerifyNowBankResult(
 
   const statusText =
     String(vr.Status || vr.status || summary || '').trim() ||
-    (identityAndAccountVerified ? 'Verified' : 'Unknown');
+    (identityAndAccountVerifiedRaw ? 'Verified' : 'Unknown');
 
+  // Success statuses include VerifyNow's "VerifiedNoErrors" (must not match /error/i)
   const successFlag =
     result.success === true ||
-    identityAndAccountVerified ||
-    /verified|success|verifiednoerrors/i.test(statusText);
+    identityAndAccountVerifiedRaw ||
+    /verified\s*no\s*errors|^verified$|success|account\s*verified/i.test(statusText);
+
+  const accountFoundNo = /^(no|false|n|0)$/i.test(
+    String(vr.accountFound ?? vr.AccountFound ?? '').trim()
+  );
+  const identityMatchNo = /^(no|false|n|0)$/i.test(
+    String(vr.identityMatch ?? vr.IdentityMatch ?? '').trim()
+  );
 
   const failed =
     result.success === false ||
-    /invalid|failed|error|not found|rejected|no match/i.test(statusText) ||
-    /no/i.test(String(vr.accountFound || '')) ||
-    /no/i.test(String(vr.identityMatch || ''));
+    // Word-boundary negatives — avoid matching "No" inside "VerifiedNoErrors" or "error" in "NoErrors"
+    /\b(invalid|failed|not\s*found|rejected|no\s*match|declined)\b/i.test(statusText) ||
+    accountFoundNo ||
+    identityMatchNo;
 
   const remaining =
     result.remaining_credits != null
@@ -428,13 +437,15 @@ export function parseVerifyNowBankResult(
         ? Number(result.remainingCredits)
         : null;
 
+  const ok = successFlag && !failed;
+
   return {
-    ok: successFlag && !failed,
+    ok,
     statusText,
     summary:
       summary ||
-      (successFlag && !failed ? 'Identity and Bank Account Verified' : statusText),
-    identityAndAccountVerified: Boolean(identityAndAccountVerified && !failed),
+      (ok ? 'Identity and Bank Account Verified' : statusText),
+    identityAndAccountVerified: Boolean(identityAndAccountVerifiedRaw && ok),
     accountFound: yesNo(vr.accountFound ?? vr.AccountFound),
     accountOpen: yesNo(vr.accountOpen ?? vr.AccountOpen),
     identityMatch: yesNo(vr.identityMatch ?? vr.IdentityMatch),

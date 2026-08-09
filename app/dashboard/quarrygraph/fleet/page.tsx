@@ -36,6 +36,9 @@ export default function QuarryFleetPage() {
     quarry_id: '',
     home_site_id: '',
     cost_per_hour_zar: '',
+    cost_per_km_zar: '',
+    fuel_price_zar_l: '24.5',
+    fuel_burn_l_h: '',
     target_hours_day: '10',
     engine_hours: '',
     fuel_capacity_l: '',
@@ -50,10 +53,12 @@ export default function QuarryFleetPage() {
     hours: '',
     idle_hours: '',
     fuel_l: '',
+    km: '',
     tonnes_moved: '',
     loads: '',
     engine_hours_end: '',
     odometer_km: '',
+    fuel_price_zar_l: '',
     operator: '',
   });
 
@@ -69,12 +74,17 @@ export default function QuarryFleetPage() {
       hours: number;
       idle_hours: number;
       fuel_l: number;
+      km: number;
       tonnes_moved: number;
       l_per_hour: number | null;
+      l_per_km: number | null;
+      fuel_util_pct: number | null;
       t_per_hour: number | null;
       l_per_tonne: number | null;
       util_pct: number | null;
       cost_zar: number;
+      cost_per_km: number | null;
+      fuel_cost_per_km: number | null;
       cost_per_t: number | null;
       engine_hours: number | null;
     }>) || [];
@@ -109,6 +119,15 @@ export default function QuarryFleetPage() {
         cost_per_hour_zar: veh.cost_per_hour_zar
           ? Number(veh.cost_per_hour_zar)
           : null,
+        cost_per_km_zar: veh.cost_per_km_zar
+          ? Number(veh.cost_per_km_zar)
+          : null,
+        fuel_price_zar_l: veh.fuel_price_zar_l
+          ? Number(veh.fuel_price_zar_l)
+          : null,
+        fuel_burn_l_h: veh.fuel_burn_l_h
+          ? Number(veh.fuel_burn_l_h)
+          : null,
         target_hours_day: veh.target_hours_day
           ? Number(veh.target_hours_day)
           : 8,
@@ -118,7 +137,7 @@ export default function QuarryFleetPage() {
           : null,
       },
     });
-    toast.success('Vehicle registered with metrics targets');
+    toast.success('Vehicle registered with fuel & R/km targets');
     setVeh((f) => ({
       ...f,
       code: '',
@@ -129,6 +148,8 @@ export default function QuarryFleetPage() {
       year: '',
       engine_hours: '',
       cost_per_hour_zar: '',
+      cost_per_km_zar: '',
+      fuel_burn_l_h: '',
     }));
   };
 
@@ -146,22 +167,26 @@ export default function QuarryFleetPage() {
         hours: log.hours ? Number(log.hours) : null,
         idle_hours: log.idle_hours ? Number(log.idle_hours) : null,
         fuel_l: log.fuel_l ? Number(log.fuel_l) : null,
+        km: log.km ? Number(log.km) : null,
         tonnes_moved: log.tonnes_moved ? Number(log.tonnes_moved) : null,
         loads: log.loads ? Number(log.loads) : null,
         engine_hours_end: log.engine_hours_end
           ? Number(log.engine_hours_end)
           : null,
         odometer_km: log.odometer_km ? Number(log.odometer_km) : null,
+        fuel_price_zar_l: log.fuel_price_zar_l
+          ? Number(log.fuel_price_zar_l)
+          : null,
       },
     });
-    toast.success('Shift log saved — meters rolled to registry');
+    toast.success('Shift log saved — fuel util & R/km updated');
   };
 
   return (
     <QuarrygraphWorkbench
       title="Vehicles & metrics"
       titleAccent="fleet KPI"
-      description="Multi-quarry plant register with status, ownership, cost/hour, engine hours; shift logs for fuel, tonnes, idle, util % and R/t."
+      description="Key metrics per vehicle: fuel utilisation (L/h, L/km) and cost per kilometre (R/km). Log fuel, km and rates on the registry."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -186,13 +211,26 @@ export default function QuarryFleetPage() {
                 value: Number(summary?.fuelTotalL) || 0,
               },
               {
-                label: 't / hour',
-                value: summary?.tPerHour != null ? String(summary.tPerHour) : '—',
+                label: 'Fuel util L/h',
+                value:
+                  summary?.lPerHour != null ? String(summary.lPerHour) : '—',
               },
               {
-                label: 'L / tonne',
+                label: 'Fuel util L/km',
+                value: summary?.lPerKm != null ? String(summary.lPerKm) : '—',
+              },
+              {
+                label: 'Cost R/km',
                 value:
-                  summary?.lPerTonne != null ? String(summary.lPerTonne) : '—',
+                  summary?.costPerKm != null ? String(summary.costPerKm) : '—',
+              },
+              {
+                label: 'Fleet km',
+                value: Number(summary?.fleetKm) || 0,
+              },
+              {
+                label: 't / hour',
+                value: summary?.tPerHour != null ? String(summary.tPerHour) : '—',
               },
               {
                 label: 'Fleet cost R',
@@ -364,6 +402,45 @@ export default function QuarryFleetPage() {
                 <input
                   className={fieldClass()}
                   type="number"
+                  step="0.01"
+                  placeholder="Cost R / km"
+                  value={veh.cost_per_km_zar}
+                  onChange={(e) =>
+                    setVeh((f) => ({
+                      ...f,
+                      cost_per_km_zar: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  className={fieldClass()}
+                  type="number"
+                  step="0.01"
+                  placeholder="Fuel price R/L"
+                  value={veh.fuel_price_zar_l}
+                  onChange={(e) =>
+                    setVeh((f) => ({
+                      ...f,
+                      fuel_price_zar_l: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  className={fieldClass()}
+                  type="number"
+                  step="0.1"
+                  placeholder="Book fuel burn L/h"
+                  value={veh.fuel_burn_l_h}
+                  onChange={(e) =>
+                    setVeh((f) => ({
+                      ...f,
+                      fuel_burn_l_h: e.target.value,
+                    }))
+                  }
+                />
+                <input
+                  className={fieldClass()}
+                  type="number"
                   placeholder="Target hours / day"
                   value={veh.target_hours_day}
                   onChange={(e) =>
@@ -409,11 +486,11 @@ export default function QuarryFleetPage() {
                   'Name',
                   'Type',
                   'Status',
-                  'Own',
                   'Quarry',
                   'R/h',
-                  'Eng. h',
-                  'Target h/d',
+                  'R/km',
+                  'R/L',
+                  'L/h book',
                 ]}
                 rows={store.vehicles.map((v) => {
                   const q = (store.quarries || []).find(
@@ -426,11 +503,11 @@ export default function QuarryFleetPage() {
                       v.name,
                       v.type || '—',
                       v.status || '—',
-                      v.ownership || '—',
                       q?.code || '—',
                       v.cost_per_hour_zar ?? '—',
-                      v.engine_hours ?? '—',
-                      v.target_hours_day ?? '—',
+                      v.cost_per_km_zar ?? '—',
+                      v.fuel_price_zar_l ?? '—',
+                      v.fuel_burn_l_h ?? '—',
                     ],
                   };
                 })}
@@ -532,6 +609,16 @@ export default function QuarryFleetPage() {
                 <input
                   className={fieldClass()}
                   type="number"
+                  step="0.1"
+                  placeholder="Km this shift"
+                  value={log.km}
+                  onChange={(e) =>
+                    setLog((f) => ({ ...f, km: e.target.value }))
+                  }
+                />
+                <input
+                  className={fieldClass()}
+                  type="number"
                   placeholder="Tonnes moved"
                   value={log.tonnes_moved}
                   onChange={(e) =>
@@ -562,10 +649,23 @@ export default function QuarryFleetPage() {
                 <input
                   className={fieldClass()}
                   type="number"
-                  placeholder="Odometer km"
+                  placeholder="Odometer km (end)"
                   value={log.odometer_km}
                   onChange={(e) =>
                     setLog((f) => ({ ...f, odometer_km: e.target.value }))
+                  }
+                />
+                <input
+                  className={fieldClass()}
+                  type="number"
+                  step="0.01"
+                  placeholder="Fuel R/L (optional)"
+                  value={log.fuel_price_zar_l}
+                  onChange={(e) =>
+                    setLog((f) => ({
+                      ...f,
+                      fuel_price_zar_l: e.target.value,
+                    }))
                   }
                 />
               </FormCard>
@@ -575,10 +675,9 @@ export default function QuarryFleetPage() {
                   'Vehicle',
                   'Activity',
                   'Hours',
-                  'Idle',
-                  'Fuel',
+                  'Fuel L',
+                  'Km',
                   't',
-                  'Loads',
                   'Cost R',
                 ]}
                 rows={[...store.fleet_logs]
@@ -590,10 +689,9 @@ export default function QuarryFleetPage() {
                       l.vehicle,
                       l.activity,
                       l.hours ?? '—',
-                      l.idle_hours ?? '—',
                       l.fuel_l ?? '—',
+                      l.km ?? '—',
                       l.tonnes_moved ?? '—',
-                      l.loads ?? '—',
                       l.cost_zar ?? '—',
                     ],
                   }))}
@@ -606,21 +704,26 @@ export default function QuarryFleetPage() {
 
           {tab === 'metrics' && (
             <>
+              <p className="text-xs text-slate-600 rounded-2xl border border-amber-100 bg-amber-50/50 px-4 py-3">
+                <strong>Key metrics:</strong> fuel utilisation per vehicle
+                (L/h and L/km) and cost per kilometre (R/km). Fuel util % is
+                actual L/h vs book burn rate. Log <em>km this shift</em> (or
+                odometer) and fuel price for R/km.
+              </p>
               <DataTable
                 headers={[
                   'Code',
                   'Vehicle',
-                  'Type',
-                  'Status',
-                  'Quarry',
                   'Hours',
-                  'Util %',
                   'Fuel L',
+                  'Km',
                   'L/h',
-                  't moved',
-                  't/h',
-                  'L/t',
+                  'L/km',
+                  'Fuel util %',
+                  'R/km',
+                  'Fuel R/km',
                   'Cost R',
+                  't',
                   'R/t',
                 ]}
                 rows={metrics.map((m, i) => ({
@@ -628,17 +731,16 @@ export default function QuarryFleetPage() {
                   cells: [
                     m.code,
                     m.vehicle,
-                    m.type,
-                    m.status,
-                    m.quarry,
                     m.hours,
-                    m.util_pct ?? '—',
                     m.fuel_l,
+                    m.km,
                     m.l_per_hour ?? '—',
-                    m.tonnes_moved,
-                    m.t_per_hour ?? '—',
-                    m.l_per_tonne ?? '—',
+                    m.l_per_km ?? '—',
+                    m.fuel_util_pct ?? '—',
+                    m.cost_per_km ?? '—',
+                    m.fuel_cost_per_km ?? '—',
                     m.cost_zar,
+                    m.tonnes_moved,
                     m.cost_per_t ?? '—',
                   ],
                 }))}
