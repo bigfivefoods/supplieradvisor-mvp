@@ -111,20 +111,24 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     invites: 'admin',
     settings: 'admin',
     verification: 'admin',
+    // Finance module is owner + finance only (books, bank, tax)
+    accounting: 'none',
+    banking: 'none',
   },
   member: {
     ...fullAccess('write'),
     team: 'view',
     settings: 'view',
-    banking: 'view',
+    banking: 'none',
     verification: 'view',
     invites: 'none',
-    accounting: 'view',
+    accounting: 'none',
   },
   viewer: {
     ...fullAccess('view'),
     invites: 'none',
-    banking: 'view',
+    banking: 'none',
+    accounting: 'none',
     verification: 'view',
   },
   finance: {
@@ -151,6 +155,8 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     people: 'write',
     schools: 'write',
     invites: 'none',
+    accounting: 'none',
+    banking: 'none',
   },
   sales: {
     ...fullAccess('view'),
@@ -191,8 +197,9 @@ export const TEAM_ROLE_OPTIONS: ReadonlyArray<{
   {
     value: 'admin',
     label: 'Admin',
-    description: 'Manage team, settings, verification, and edit all company content.',
-    rights: 'Write + manage team',
+    description:
+      'Manage team, settings, verification, and edit company content (not Finance books).',
+    rights: 'Write + manage team · no Finance module',
   },
   {
     value: 'member',
@@ -209,8 +216,9 @@ export const TEAM_ROLE_OPTIONS: ReadonlyArray<{
   {
     value: 'finance',
     label: 'Finance',
-    description: 'Banking, accounting, and financial documents.',
-    rights: 'Write finance · view rest',
+    description:
+      'Only role (with Owner) that can open the Finance module — books, bank, tax, period close.',
+    rights: 'Write Finance · view rest',
   },
   {
     value: 'operations',

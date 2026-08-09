@@ -10,11 +10,13 @@ import {
   Sparkles,
   Shield,
   Bot,
+  Filter,
 } from 'lucide-react';
 import {
-  GUIDE_SECTIONS,
   SYSTEM_OVERVIEW,
   OS_PRINCIPLES,
+  filterGuideSections,
+  GUIDE_SECTIONS,
 } from '@/lib/guide/curriculum';
 import { ProcessFlow, SystemPillars } from '@/components/guide/ProcessFlow';
 import {
@@ -26,16 +28,49 @@ import {
 } from '@/components/guide/GuideDiagrams';
 import { GuideHero, GuideShell } from '@/components/guide/GuideChrome';
 import { MODULE_NAV } from '@/lib/chrome/module-nav';
+import { useCompanyRole } from '@/lib/business/useCompanyRole';
 
 export default function SystemGuideHome() {
+  const { isCompanyModuleEnabled, loading, packaging } = useCompanyRole();
+  const sections = filterGuideSections(isCompanyModuleEnabled);
+  const hiddenCount = Math.max(0, GUIDE_SECTIONS.length - sections.length);
+
   return (
     <GuideShell>
       <GuideHero
-        eyebrow="System how-to guide · full training academy"
+        eyebrow="System how-to guide · tailored to your modules"
         title="Master the supply-chain OS"
-        titleAccent="module by module"
-        description="A complete, practical handbook for SupplierAdvisor® — system story, design principles, architecture diagrams, trade loops, and every module with process flows, step-by-step how-tos, and live app links."
+        titleAccent="for your company"
+        description="Training handbook for SupplierAdvisor® — system story, principles, and only the modules enabled on this company. Change Company → Modules to show or hide chapters."
       />
+
+      {/* Module filter banner */}
+      <section className="mb-8 rounded-2xl border border-cyan-100 bg-cyan-50/50 px-4 py-3 flex flex-wrap items-start gap-3">
+        <Filter className="w-4 h-4 text-cyan-700 mt-0.5 shrink-0" />
+        <div className="min-w-0 flex-1 text-sm text-slate-700">
+          <p className="font-bold text-slate-900">
+            Showing {sections.length} training chapters for this company
+            {loading ? '…' : ''}
+          </p>
+          <p className="text-[12px] text-slate-600 mt-0.5 leading-relaxed">
+            Always on: activation, company, SAM, security, action centre. Industry
+            packs (Fieldgraph, Quarrygraph, Fitgraph, Schools, Health) appear when
+            enabled.
+            {hiddenCount > 0
+              ? ` ${hiddenCount} chapter${hiddenCount === 1 ? '' : 's'} hidden because those modules are off.`
+              : ''}
+            {packaging?.packIds?.length
+              ? ` Packs: ${packaging.packIds.join(', ')}.`
+              : ''}
+          </p>
+        </div>
+        <Link
+          href="/dashboard/my-business/modules"
+          className="text-xs font-bold text-cyan-800 underline shrink-0"
+        >
+          Edit modules
+        </Link>
+      </section>
 
       {/* Hero story */}
       <section className="relative overflow-hidden rounded-[2rem] border border-cyan-100 bg-gradient-to-br from-white via-sky-50/90 to-cyan-50 p-6 sm:p-8 mb-10 shadow-sm">
@@ -61,7 +96,6 @@ export default function SystemGuideHome() {
         </div>
       </section>
 
-      {/* Architecture stack */}
       <section className="mb-10">
         <div className="flex items-center gap-2 mb-4">
           <Layers className="w-4 h-4 text-[#00b4d8]" />
@@ -72,7 +106,6 @@ export default function SystemGuideHome() {
         <LayerStackDiagram layers={SYSTEM_OVERVIEW.layers} />
       </section>
 
-      {/* OS principles */}
       <section className="mb-10">
         <div className="flex items-center gap-2 mb-2">
           <Shield className="w-4 h-4 text-[#00b4d8]" />
@@ -87,7 +120,6 @@ export default function SystemGuideHome() {
         <PrinciplesGrid principles={OS_PRINCIPLES} title="" />
       </section>
 
-      {/* Pillars */}
       <section className="mb-10">
         <div className="flex items-center gap-2 mb-4">
           <Sparkles className="w-4 h-4 text-[#00b4d8]" />
@@ -98,7 +130,6 @@ export default function SystemGuideHome() {
         <SystemPillars items={SYSTEM_OVERVIEW.pillars} />
       </section>
 
-      {/* Trade + money diagrams */}
       <section className="mb-10 space-y-4">
         <h2 className="text-sm font-black uppercase tracking-[0.14em] text-neutral-400">
           Critical system diagrams
@@ -107,7 +138,6 @@ export default function SystemGuideHome() {
         <MoneyFlowDiagram />
       </section>
 
-      {/* Golden path CTA */}
       <section className="mb-10">
         <Link
           href="/dashboard/guide/golden-path"
@@ -120,8 +150,8 @@ export default function SystemGuideHome() {
             Get live in 3 days
           </h2>
           <p className="text-sm text-slate-600 mt-1.5 max-w-xl leading-relaxed">
-            Golden path: profile → team → partners → first trade → rate →
-            billing. Dashboard checklist auto-ticks. Founding free cohort for
+            Golden path: profile → modules → team → partners → first trade → rate
+            → billing. Dashboard checklist auto-ticks. Founding free cohort for
             the earliest companies.
           </p>
           <span className="inline-flex items-center gap-1.5 mt-4 text-sm font-bold text-violet-800">
@@ -130,7 +160,6 @@ export default function SystemGuideHome() {
         </Link>
       </section>
 
-      {/* How to use */}
       <section className="mb-10">
         <div className="flex items-center gap-2 mb-2">
           <Compass className="w-4 h-4 text-[#00b4d8]" />
@@ -144,17 +173,19 @@ export default function SystemGuideHome() {
             — master flow, layers, and principles above.
           </p>
           <p>
-            <strong className="text-slate-800">2. Train one module deeply</strong>{' '}
-            — principles → flow diagram → step-by-step → Open in app → checklist.
+            <strong className="text-slate-800">2. Train only enabled modules</strong>{' '}
+            — chapters below match Company → Modules (plus always-on activation
+            training).
           </p>
           <p>
-            <strong className="text-slate-800">3. Practice the trade loop</strong>{' '}
+            <strong className="text-slate-800">3. Open process design PDFs</strong>{' '}
+            — Fieldgraph, Quarrygraph, Fitgraph, and Schools hubs have expandable
+            end-to-end designs with landscape/portrait A4 downloads.
+          </p>
+          <p>
+            <strong className="text-slate-800">4. Practice the trade loop</strong>{' '}
             — buyer PO from supplier catalogue ↔ seller inbound accept ↔ OTIFEF ↔
             rate.
-          </p>
-          <p>
-            <strong className="text-slate-800">4. Use the process rail + SAM</strong>{' '}
-            — sticky verbs match this curriculum; SAM chips adapt per page.
           </p>
           <p>
             <strong className="text-slate-800">5. Measure “Done when”</strong> — every
@@ -169,25 +200,52 @@ export default function SystemGuideHome() {
             <Bot className="w-3.5 h-3.5" />
             SAM AI coach training
           </Link>
-          <Link
-            href="/dashboard/guide/suppliers"
-            className="font-bold text-slate-600 hover:underline"
-          >
-            Suppliers · catalogue PO
-          </Link>
-          <Link
-            href="/dashboard/guide/customers"
-            className="font-bold text-slate-600 hover:underline"
-          >
-            Customers · inbound
-          </Link>
+          {isCompanyModuleEnabled('suppliers') && (
+            <Link
+              href="/dashboard/guide/suppliers"
+              className="font-bold text-slate-600 hover:underline"
+            >
+              Suppliers · catalogue PO
+            </Link>
+          )}
+          {isCompanyModuleEnabled('customers') && (
+            <Link
+              href="/dashboard/guide/customers"
+              className="font-bold text-slate-600 hover:underline"
+            >
+              Customers · inbound
+            </Link>
+          )}
+          {isCompanyModuleEnabled('fieldgraph') && (
+            <Link
+              href="/dashboard/guide/fieldgraph"
+              className="font-bold text-emerald-700 hover:underline"
+            >
+              Fieldgraph®
+            </Link>
+          )}
+          {isCompanyModuleEnabled('quarrygraph') && (
+            <Link
+              href="/dashboard/guide/quarrygraph"
+              className="font-bold text-amber-800 hover:underline"
+            >
+              Quarrygraph®
+            </Link>
+          )}
+          {isCompanyModuleEnabled('fitgraph') && (
+            <Link
+              href="/dashboard/guide/fitgraph"
+              className="font-bold text-violet-700 hover:underline"
+            >
+              Fitgraph®
+            </Link>
+          )}
         </div>
       </section>
 
-      {/* Module map strip */}
       <section className="mb-8">
         <ModuleMapStrip
-          items={GUIDE_SECTIONS.map((s) => ({
+          items={sections.map((s) => ({
             slug: s.slug,
             title: s.title,
             tagline: s.tagline,
@@ -195,16 +253,15 @@ export default function SystemGuideHome() {
         />
       </section>
 
-      {/* Training modules grid */}
       <section>
         <div className="flex items-center gap-2 mb-4">
           <BookOpen className="w-4 h-4 text-[#00b4d8]" />
           <h2 className="text-sm font-black uppercase tracking-[0.14em] text-neutral-400">
-            All training modules ({GUIDE_SECTIONS.length})
+            Your training modules ({sections.length})
           </h2>
         </div>
         <div className="grid sm:grid-cols-2 gap-3">
-          {GUIDE_SECTIONS.map((s, i) => {
+          {sections.map((s, i) => {
             const nav = MODULE_NAV.find((m) => m.id === s.moduleId);
             const Icon = nav?.icon || BookOpen;
             return (
@@ -265,8 +322,7 @@ export default function SystemGuideHome() {
         </p>
         <p className="text-xs text-neutral-500 mt-1 max-w-lg mx-auto leading-relaxed">
           Use a demo company. Follow Open in app from each how-to. Ask SAM when
-          stuck. When you finish Suppliers + Customers, you understand the core
-          of the OS.
+          stuck. Enable more modules anytime under Company → Modules.
         </p>
         <div className="mt-4 flex flex-wrap justify-center gap-3">
           <Link
@@ -276,10 +332,10 @@ export default function SystemGuideHome() {
             Start golden path
           </Link>
           <Link
-            href="/dashboard/guide/suppliers"
+            href="/dashboard/my-business/modules"
             className="btn-secondary !py-2 !px-4 text-xs"
           >
-            Suppliers deep dive
+            Company modules
           </Link>
         </div>
       </div>

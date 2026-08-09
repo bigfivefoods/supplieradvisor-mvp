@@ -94,7 +94,7 @@ export const SYSTEM_OVERVIEW = {
     },
     {
       title: 'Flow of goods',
-      body: 'Inventory, operations, manufacturing, distribution, and containers move product with lots and holds.',
+      body: 'Inventory, operations, manufacturing, distribution, and containers move product with lots and holds. Industry packs add Fieldgraph (agri), Quarrygraph (aggregates), and Fitgraph (gyms).',
     },
     {
       title: 'Flow of money',
@@ -102,17 +102,17 @@ export const SYSTEM_OVERVIEW = {
     },
     {
       title: 'Trust',
-      body: 'QA inspections, HACCP, OTIFEF scores, peer ratings, and RIAD risks keep the story auditable.',
+      body: 'QA inspections, HACCP, OTIFEF scores, peer ratings, and RIAD risks keep the story auditable. VerifyNow covers CIPC and bank AVS.',
     },
     {
       title: 'Activation',
-      body: 'Golden path (3 days), founding free cohort (first 25), billing trial/prepaid, and SAM for in-app how-to.',
+      body: 'Golden path (3 days), module pick on Company → Modules, founding free cohort, billing trial/prepaid, and SAM for in-app how-to. This Guide mirrors the modules you enable.',
     },
   ],
   layers: [
     {
       name: 'Identity & access',
-      body: 'Privy auth · company select · roles · settings · soft-delete · founding / billing',
+      body: 'Privy auth · company select · roles · modules toggle · settings · soft-delete · founding / billing',
       tone: 'slate',
     },
     {
@@ -127,29 +127,35 @@ export const SYSTEM_OVERVIEW = {
     },
     {
       name: 'Physical ops',
-      body: 'Inventory lots · transfers · make · ship · containers · ops control tower',
+      body: 'Inventory lots · transfers · make · ship · containers · Fieldgraph · Quarrygraph · ops tower',
       tone: 'emerald',
     },
     {
+      name: 'Services verticals',
+      body: 'Fitgraph gym OS · coach portal · memberships · website embed calendar',
+      tone: 'violet',
+    },
+    {
       name: 'Assure & account',
-      body: 'QA holds · OTIFEF · bank · journals · period lock · trust pack',
+      body: 'QA holds · OTIFEF · bank · journals · period lock · trust pack · VerifyNow',
       tone: 'amber',
     },
     {
       name: 'Insight & leadership',
-      body: 'Pulse · forecast · score · Super-Cube · SAM · Action centre bell',
+      body: 'Pulse · forecast · score · Super-Cube · SAM · Action centre · process design PDFs',
       tone: 'rose',
     },
   ],
   masterFlow: [
-    { id: '1', label: 'Company', hint: 'Select workspace', tone: 'slate' as const },
+    { id: '1', label: 'Company', hint: 'Select · modules', tone: 'slate' as const },
     { id: '2', label: 'Connect', hint: 'Network & partners', tone: 'cyan' as const },
     { id: '3', label: 'Buy / Sell', hint: 'Catalogue POs & CRM', tone: 'violet' as const },
     { id: '4', label: 'Move', hint: 'Receive · make · ship', tone: 'emerald' as const },
-    { id: '5', label: 'Assure', hint: 'QA · hold · release', tone: 'amber' as const },
-    { id: '6', label: 'Account', hint: 'Bank · post · close', tone: 'cyan' as const },
-    { id: '7', label: 'Trust', hint: 'OTIFEF · rate', tone: 'rose' as const },
-    { id: '8', label: 'Learn', hint: 'Pulse · SAM', tone: 'violet' as const },
+    { id: '5', label: 'Vertical', hint: 'Field · Quarry · Gym', tone: 'amber' as const },
+    { id: '6', label: 'Assure', hint: 'QA · hold · release', tone: 'amber' as const },
+    { id: '7', label: 'Account', hint: 'Bank · post · close', tone: 'cyan' as const },
+    { id: '8', label: 'Trust', hint: 'OTIFEF · rate', tone: 'rose' as const },
+    { id: '9', label: 'Learn', hint: 'Guide · SAM', tone: 'violet' as const },
   ],
 };
 
@@ -192,11 +198,12 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     ],
     processes: [
       {
-        name: 'Day 1 — Identity & team',
+        name: 'Day 1 — Identity, modules & team',
         href: '/dashboard/my-business/profile',
-        summary: 'Make the company findable and staffed.',
+        summary: 'Make the company findable, pick modules, staff the workspace.',
         steps: [
           'Company → Profile — trading name, industry, contacts (completeness ≥ 60% auto-ticks)',
+          'Company → Modules — enable only what you run (Fieldgraph, Quarrygraph, Fitgraph, trade, ops…); Guide mirrors this list',
           'Company → Team — invite at least one colleague',
           'Return to Dashboard — golden path shows Auto badges when detected',
         ],
@@ -838,8 +845,8 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     title: 'Finance',
     tagline: 'Chart, post, collect, pay, bank, report, close',
     purpose:
-      'Books of record: chart of accounts, journals, AR/AP, bank allocation, reports, and period locks.',
-    who: ['Finance', 'Owner', 'Admin'],
+      'Books of record: chart of accounts, journals, AR/AP, bank allocation, reports, and period locks. The Finance module sidebar and routes are visible only to Owner and Finance roles.',
+    who: ['Owner', 'Finance'],
     flow: [
       { id: 'a', label: 'Chart', hint: 'CoA', tone: 'slate' },
       { id: 'b', label: 'Post', hint: 'Journals', tone: 'cyan' },
@@ -1133,11 +1140,11 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         summary: 'UI banners explain when your role cannot lock or ship-override.',
         steps: [
           'Check role under Company → Team',
-          'Finance critical: owner / admin / finance',
+          'Finance module (books / bank): owner and finance roles only',
           'QA override ship: owner / admin only',
           'Escrow attach: owner / admin / finance / operations',
           'Company delete: owner only (Settings → Danger zone)',
-          'Review audit under Finance → Close',
+          'Review audit under Finance → Close (if you have Finance access)',
         ],
       },
     ],
@@ -1153,7 +1160,415 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     ],
     related: ['company', 'action-centre'],
   },
+  // ── Industry verticals (opt-in modules) ─────────────────────────────
+  {
+    slug: 'fieldgraph',
+    moduleId: 'fieldgraph',
+    title: 'Fieldgraph®',
+    tagline: 'Fields → estimates → harvest → fleet/labour → trade',
+    purpose:
+      'Primary multi-crop farm OS: shared field master, season estimates (with revisions), harvest planner, inputs, vehicle fuel util (L/h · L/km · R/km), gangs & rates, regen samples, and farm-to-buyer trade with origin lots. Download the 2-page process design PDF from the command hub.',
+    who: ['Farm office', 'Field ops', 'Mill / buyer trade'],
+    principles: [
+      {
+        title: 'One field book',
+        body: 'Estimates, harvest, inputs, fleet and labour all key off the same field codes and hectares.',
+      },
+      {
+        title: 'Cut dates from truth',
+        body: 'Harvest projection uses non-draft estimates and daily allocation — not guesswork calendars.',
+      },
+      {
+        title: 'Fuel util first-class',
+        body: 'Log hours, fuel L, and km; review L/h, L/km, and cost R/km per vehicle.',
+      },
+    ],
+    outcomes: [
+      'Fields registered with agronomic attributes',
+      'Season estimates revised and board-ready',
+      'Harvest sequence with projected cut dates',
+      'Fleet fuel util and labour cost visible',
+    ],
+    flow: [
+      { id: 'a', label: 'Fields', hint: 'Shared master', tone: 'emerald' },
+      { id: 'b', label: 'Estimates', hint: 'Board pack', tone: 'sky' },
+      { id: 'c', label: 'Harvest', hint: 'Cut dates', tone: 'amber' },
+      { id: 'd', label: 'Ops', hint: 'Inputs · fleet', tone: 'violet' },
+      { id: 'e', label: 'Regen', hint: 'Soil proof', tone: 'emerald' },
+      { id: 'f', label: 'Trade', hint: 'Lots · buyer', tone: 'rose' },
+    ],
+    processes: [
+      {
+        name: 'Season estimate cycle',
+        href: '/dashboard/fieldgraph/estimates',
+        summary: 'Draft → revise → board submit → actuals.',
+        steps: [
+          'Fieldgraph → Fields — register / update field book',
+          'Estimates — create season tonnes & quality',
+          'Revise as crop progresses (history snapshots)',
+          'Submit board / mill pack when ready',
+          'Record actuals after delivery for yield graphs',
+        ],
+      },
+      {
+        name: 'Harvest planner',
+        href: '/dashboard/fieldgraph/harvest',
+        summary: 'Sequence + daily allocation → projected cut windows.',
+        steps: [
+          'Order fields for the season',
+          'Set daily tonnes the mill / gang can take',
+          'Project cut start/end dates',
+          'Set destination (mill / silo / network buyer)',
+        ],
+      },
+      {
+        name: 'Fleet fuel util & R/km',
+        href: '/dashboard/fieldgraph/fleet',
+        summary: 'Registry rates + daily logs drive L/h, L/km, cost/km.',
+        steps: [
+          'Register vehicles with R/h, R/km, fuel R/L, book L/h',
+          'Log activity: hours, fuel L, km (or odometer)',
+          'Open Utilisation report — fuel util and R/km by vehicle',
+          'Export fleet sheet from Fieldgraph Reports',
+        ],
+        tip: 'Download Landscape/Portrait process design PDF from the Fieldgraph hub.',
+      },
+    ],
+    concepts: [
+      { term: 't/ha', meaning: 'Tonnes per hectare from estimate or actual vs field size.' },
+      { term: 'L/h · L/km · R/km', meaning: 'Fuel utilisation and cost-per-kilometre KPIs.' },
+      { term: 'Process PDF', meaning: '2-page A4 end-to-end design for training packs.' },
+    ],
+    checklist: [
+      'At least one field with hectares',
+      'One estimate and one harvest plan row',
+      'One fleet log with fuel and km',
+      'Opened process design or reports once',
+    ],
+    related: ['inventory', 'operations', 'quarrygraph'],
+  },
+  {
+    slug: 'quarrygraph',
+    moduleId: 'quarrygraph',
+    title: 'Quarrygraph®',
+    tagline: 'Locations → reserves → plant → dispatch → compliant',
+    purpose:
+      'Primary quarrying & aggregates OS: permanent / temporary / batching locations with GPS, pits & products, reserves, production plan, plant & stockpiles, weighbridge, fleet fuel util (L/h · R/km), labour, resource allocation to projects, QA and permits. Process design PDF on the hub.',
+    who: ['Quarry office', 'Plant & pit ops', 'Dispatch & trade'],
+    principles: [
+      {
+        title: 'Multi-quarry + project plants',
+        body: 'Permanent estates, temporary borrow pits, and batching plants share one OS with project windows.',
+      },
+      {
+        title: 'GPS for haul truth',
+        body: 'Lat/lng enable distance matrix and Google Maps directions between sites.',
+      },
+      {
+        title: 'One site code',
+        body: 'Reserves, blasts, plant, stock and dispatch all key off the same site master.',
+      },
+    ],
+    outcomes: [
+      'At least one permanent or project location with GPS',
+      'Sites and products linked under a quarry',
+      'Plant run + stockpile + weighbridge ticket path understood',
+      'Fleet util and open allocations visible',
+    ],
+    flow: [
+      { id: 'a', label: 'Locations', hint: 'Perm · temp · batch', tone: 'amber' },
+      { id: 'b', label: 'Sites', hint: 'Pits · grades', tone: 'slate' },
+      { id: 'c', label: 'Reserves', hint: 'Plan · blast', tone: 'sky' },
+      { id: 'd', label: 'Plant', hint: 'Crush · pads', tone: 'violet' },
+      { id: 'e', label: 'Dispatch', hint: 'Weighbridge', tone: 'emerald' },
+      { id: 'f', label: 'Ops', hint: 'Fleet · labour', tone: 'rose' },
+    ],
+    processes: [
+      {
+        name: 'Stand up multi-site + project plant',
+        href: '/dashboard/quarrygraph/locations',
+        summary: 'Permanent quarry, temp borrow pit, batching plant, allocate fleet.',
+        steps: [
+          'Quarries — permanent estate with lat/lng',
+          'Locations — temporary or batching plant with project dates',
+          'Sites — pits/pads under each operation',
+          'Locations → Allocate — ADT / loader / crew to the project',
+          'Distances tab — open Google Maps directions between GPS points',
+        ],
+      },
+      {
+        name: 'Pit to ticket',
+        href: '/dashboard/quarrygraph/production',
+        summary: 'Reserves → blast → plant → stock → weighbridge.',
+        steps: [
+          'Reserves — surveyed / approved tonnes',
+          'Production — sequence, daily t, blast log',
+          'Plant — crusher run + stockpile balance',
+          'Dispatch — ticket net t, customer, destination',
+          'Quality + Compliance — QA and permit status',
+        ],
+      },
+      {
+        name: 'Fleet fuel util & R/km',
+        href: '/dashboard/quarrygraph/fleet',
+        summary: 'KPI board: L/h, L/km, fuel util %, cost R/km.',
+        steps: [
+          'Registry — R/h, R/km, fuel R/L, book burn L/h',
+          'Shift logs — hours, fuel L, km this shift',
+          'KPI board — review util and cost metrics',
+          'Reports — management pack by quarry / vehicle',
+        ],
+        tip: 'Download Landscape/Portrait process design PDF from the Quarrygraph hub.',
+      },
+    ],
+    concepts: [
+      { term: 'Temporary quarry', meaning: 'Borrow pit / project quarry with start–end and project code.' },
+      { term: 'Batching plant', meaning: 'Project ready-mix or mobile plant — allocate resources to it.' },
+      { term: 'Fuel util %', meaning: 'Actual L/h vs book fuel_burn_l_h on the vehicle.' },
+    ],
+    checklist: [
+      'One location with GPS',
+      'One site + product + plant or dispatch path',
+      'One fleet log with fuel metrics',
+      'Opened process design or Locations once',
+    ],
+    related: ['fieldgraph', 'operations', 'quality'],
+  },
+  {
+    slug: 'fitgraph',
+    moduleId: 'fitgraph',
+    title: 'Fitgraph®',
+    tagline: 'Coaches → calendar → bookings → website',
+    purpose:
+      'Tertiary gym / studio OS: coaches (portal links), members, membership plans & subscriptions, class types, calendar with coach assignment and public publish, bookings/waitlist, check-ins, coach portal share, and website embed + JSON API. Process design PDF on the hub.',
+    who: ['Gym owner / manager', 'Coach', 'Front desk', 'Member (public)'],
+    principles: [
+      {
+        title: 'Owner schedules coaches',
+        body: 'Every public class should have a coach; reassign on the calendar anytime.',
+      },
+      {
+        title: 'Public = published',
+        body: 'Only sessions marked public appear on the website embed and public API.',
+      },
+      {
+        title: 'Tokenised portals',
+        body: 'Website and coach portals use secret tokens — no private PII on the public calendar.',
+      },
+    ],
+    outcomes: [
+      'Coaches registered with at least one portal link',
+      'Plans + one active subscription',
+      'Sessions scheduled with coach and capacity',
+      'Website published or demo calendar understood',
+    ],
+    flow: [
+      { id: 'a', label: 'People', hint: 'Coaches · members', tone: 'violet' },
+      { id: 'b', label: 'Plans', hint: 'Subs · packs', tone: 'emerald' },
+      { id: 'c', label: 'Classes', hint: 'Types', tone: 'amber' },
+      { id: 'd', label: 'Calendar', hint: 'Schedule coach', tone: 'sky' },
+      { id: 'e', label: 'Floor', hint: 'Book · check-in', tone: 'rose' },
+      { id: 'f', label: 'Website', hint: 'Embed · portal', tone: 'violet' },
+    ],
+    processes: [
+      {
+        name: 'Schedule and publish a class',
+        href: '/dashboard/fitgraph/calendar',
+        summary: 'Class type + coach + public flag → website calendar.',
+        steps: [
+          'Classes — define type, duration, capacity',
+          'Coaches — register trainer; issue portal if needed',
+          'Calendar — schedule session, assign coach, mark public',
+          'Website — enable publish + copy embed / page link',
+          'Open /embed/fitgraph/{token} to verify customer view',
+        ],
+      },
+      {
+        name: 'Subscriptions & floor booking',
+        href: '/dashboard/fitgraph/subscriptions',
+        summary: 'Entitlement then book / waitlist / check-in.',
+        steps: [
+          'Memberships — create plan (public pricing optional)',
+          'Subscriptions — start sub for a client; set credits',
+          'Bookings — book member into a session (waitlist if full)',
+          'Check-ins — front desk or class attendance',
+        ],
+      },
+      {
+        name: 'Coach portal share',
+        href: '/dashboard/fitgraph/coaches',
+        summary: 'Coach shares class, books walk-in, marks attended.',
+        steps: [
+          'Coaches — Issue / copy portal link',
+          'Open /coach/fitgraph/{token}',
+          'Share session publicly or book a guest',
+          'Mark roster attended after class',
+        ],
+        tip: 'Download Landscape/Portrait process design PDF from the Fitgraph hub.',
+      },
+    ],
+    concepts: [
+      { term: 'Coach portal', meaning: 'Token URL for a coach to manage their classes without full dashboard login.' },
+      { term: 'Public session', meaning: 'Visible on website embed; private sessions stay owner-only.' },
+      { term: 'Subscription', meaning: 'Client plan entitlement with status and remaining credits.' },
+    ],
+    checklist: [
+      'Coach + class type + scheduled session',
+      'One subscription or demo seed loaded',
+      'Website settings understood (publish / embed)',
+      'Opened process design once',
+    ],
+    related: ['customers', 'golden-path'],
+  },
+  {
+    slug: 'people',
+    moduleId: 'people',
+    title: 'People (HR)',
+    tagline: 'Directory → leave → payroll → org · training',
+    purpose:
+      'HR workspace: employee directory, leave, payroll inputs, organogram, training and performance — separate from field gangs or quarry crews (those live on Fieldgraph / Quarrygraph rates).',
+    who: ['HR', 'Owner', 'Payroll admin'],
+    flow: [
+      { id: 'a', label: 'Directory', hint: 'Employees', tone: 'cyan' },
+      { id: 'b', label: 'Leave', hint: 'Balances', tone: 'emerald' },
+      { id: 'c', label: 'Payroll', hint: 'Inputs', tone: 'amber' },
+      { id: 'd', label: 'Org', hint: 'Chart', tone: 'violet' },
+      { id: 'e', label: 'Train', hint: 'Records', tone: 'sky' },
+    ],
+    processes: [
+      {
+        name: 'Onboard an employee',
+        href: '/dashboard/people',
+        summary: 'Create person, role link, leave defaults.',
+        steps: [
+          'People — add employee',
+          'Set employment type and department',
+          'Link user to company team if they need login',
+          'Review leave balances and training status',
+        ],
+      },
+    ],
+    checklist: ['One employee record', 'Know where leave and payroll live'],
+    related: ['company', 'roles-security'],
+  },
+  {
+    slug: 'sheq',
+    moduleId: 'sheq',
+    title: 'SHEQ',
+    tagline: 'Incidents → NCR/CAPA → safety culture',
+    purpose:
+      'Occupational health & safety: incidents, NCR/CAPA, and safety workflows that sit next to Quality (food/product QA) without replacing it.',
+    who: ['SHEQ officer', 'Operations', 'Owner'],
+    flow: [
+      { id: 'a', label: 'Report', hint: 'Incident', tone: 'rose' },
+      { id: 'b', label: 'NCR', hint: 'Non-conformance', tone: 'amber' },
+      { id: 'c', label: 'CAPA', hint: 'Corrective', tone: 'emerald' },
+      { id: 'd', label: 'Close', hint: 'Evidence', tone: 'slate' },
+    ],
+    processes: [
+      {
+        name: 'Log and close an incident',
+        href: '/dashboard/sheq',
+        summary: 'Capture, assign CAPA, close with evidence.',
+        steps: [
+          'SHEQ — create incident',
+          'Assign owner and due date',
+          'Raise NCR/CAPA if process failed',
+          'Attach evidence and close',
+        ],
+      },
+    ],
+    checklist: ['Know incident entry path', 'Distinguish SHEQ vs Quality QA'],
+    related: ['quality', 'operations'],
+  },
+  {
+    slug: 'schools',
+    moduleId: 'schools',
+    title: 'Schools (NSNP)',
+    tagline: 'DBE → school → SP → learners · process design',
+    purpose:
+      'National School Nutrition Programme OS: department govern, school kitchen & learners, SP supply. Expandable process design + printable PDF on Schools hubs (same pattern as Fieldgraph).',
+    who: ['DBE / PEU', 'School kitchen', 'Service provider'],
+    flow: [
+      { id: 'a', label: 'Govern', hint: 'DBE', tone: 'slate' },
+      { id: 'b', label: 'School', hint: 'Kitchen', tone: 'emerald' },
+      { id: 'c', label: 'SP', hint: 'Supply', tone: 'amber' },
+      { id: 'd', label: 'Serve', hint: 'Learners', tone: 'cyan' },
+      { id: 'e', label: 'Prove', hint: 'RIAD · report', tone: 'violet' },
+    ],
+    processes: [
+      {
+        name: 'Open role-correct hub',
+        href: '/dashboard/schools',
+        summary: 'DBE, School, or SP tree depends on programme role.',
+        steps: [
+          'Confirm programme role (department / school / SP)',
+          'Follow sidebar sections for your role only',
+          'Expand full process design on the Schools hub',
+          'Download process PDF for training packs',
+        ],
+      },
+    ],
+    checklist: ['Role correct on sidebar', 'Opened process design once'],
+    related: ['suppliers', 'inventory'],
+  },
+  {
+    slug: 'health',
+    moduleId: 'health',
+    title: 'Health (DoH)',
+    tagline: 'Department · facility · SP nutrition programmes',
+    purpose:
+      'Department of Health programme workspace: facilities, approved foods, SP supply, and nutrition ops — role-filtered like Schools.',
+    who: ['DoH', 'Facility', 'Health SP'],
+    flow: [
+      { id: 'a', label: 'Govern', hint: 'DoH', tone: 'slate' },
+      { id: 'b', label: 'Facility', hint: 'Clinic / hospital', tone: 'emerald' },
+      { id: 'c', label: 'SP', hint: 'Supply', tone: 'amber' },
+      { id: 'd', label: 'Nutrition', hint: 'Programmes', tone: 'cyan' },
+    ],
+    processes: [
+      {
+        name: 'Open Health by role',
+        href: '/dashboard/health',
+        summary: 'Sidebar labels DoH / Facility / SP from programme role.',
+        steps: [
+          'Confirm health programme role',
+          'Use role-filtered steps only',
+          'Link approved foods and SP supply where required',
+        ],
+      },
+    ],
+    checklist: ['Role-correct Health hub opened once'],
+    related: ['schools', 'suppliers'],
+  },
 ];
+
+/** Always shown in the Guide even when the linked module is off */
+export const GUIDE_ALWAYS_VISIBLE_SLUGS = new Set([
+  'golden-path',
+  'company',
+  'sam',
+  'roles-security',
+  'action-centre',
+]);
+
+export type GuideModuleGate = (moduleId: string) => boolean;
+
+/**
+ * Guide chapters for this company: always-on training + sections whose
+ * moduleId is enabled (or no moduleId).
+ */
+export function filterGuideSections(
+  isModuleEnabled: GuideModuleGate,
+  sections: GuideSection[] = GUIDE_SECTIONS
+): GuideSection[] {
+  return sections.filter((s) => {
+    if (GUIDE_ALWAYS_VISIBLE_SLUGS.has(s.slug)) return true;
+    if (!s.moduleId) return true;
+    if (s.moduleId === 'guide' || s.moduleId === 'home') return true;
+    return isModuleEnabled(s.moduleId);
+  });
+}
 
 export function getGuideSection(slug: string): GuideSection | undefined {
   return GUIDE_SECTIONS.find((s) => s.slug === slug);
@@ -1166,4 +1581,106 @@ export function guideIndex() {
     tagline: s.tagline,
     moduleId: s.moduleId,
   }));
+}
+
+/** Sidebar nested steps under Guide — filtered to enabled modules */
+export function buildGuideNavSteps(
+  isModuleEnabled: GuideModuleGate
+): Array<{
+  name: string;
+  href: string;
+  exact?: boolean;
+  desc?: string;
+  section?: string;
+}> {
+  const sections = filterGuideSections(isModuleEnabled);
+  const steps: Array<{
+    name: string;
+    href: string;
+    exact?: boolean;
+    desc?: string;
+    section?: string;
+  }> = [
+    {
+      name: 'Start',
+      href: '/dashboard/guide',
+      exact: true,
+      desc: 'Your modules · system overview',
+      section: 'Start',
+    },
+  ];
+
+  const sectionFor = (s: GuideSection): string => {
+    const id = s.moduleId || s.slug;
+    if (
+      id === 'my-business' ||
+      s.slug === 'golden-path' ||
+      s.slug === 'company' ||
+      s.slug === 'roles-security'
+    )
+      return 'Govern';
+    if (
+      id === 'network' ||
+      id === 'suppliers' ||
+      id === 'customers' ||
+      id === 'sales-portal'
+    )
+      return 'Trade';
+    if (
+      id === 'inventory' ||
+      id === 'operations' ||
+      id === 'manufacturing' ||
+      id === 'distribution' ||
+      id === 'containers' ||
+      id === 'fieldgraph' ||
+      id === 'quarrygraph'
+    )
+      return 'Operate';
+    if (id === 'fitgraph') return 'Services';
+    if (id === 'accounting') return 'Money';
+    if (id === 'quality' || id === 'sheq') return 'Assure';
+    if (id === 'projects' || id === 'people') return 'People';
+    if (id === 'sustainability' || id === 'intelligence') return 'Insights';
+    if (id === 'schools' || id === 'health') return 'Programme';
+    return 'More';
+  };
+
+  const shortName: Record<string, string> = {
+    'golden-path': 'Activate',
+    company: 'Company',
+    network: 'Network',
+    suppliers: 'Buy',
+    customers: 'Sell',
+    inventory: 'Stock',
+    operations: 'Ops',
+    make: 'Make',
+    ship: 'Ship',
+    containers: 'Containers',
+    fieldgraph: 'Fieldgraph',
+    quarrygraph: 'Quarrygraph',
+    fitgraph: 'Fitgraph',
+    quality: 'Assure',
+    finance: 'Money',
+    projects: 'Projects',
+    impact: 'Impact',
+    insights: 'Insights',
+    sales: 'Sales',
+    'action-centre': 'Actions',
+    sam: 'SAM',
+    'roles-security': 'Secure',
+    people: 'People',
+    sheq: 'SHEQ',
+    schools: 'Schools',
+    health: 'Health',
+  };
+
+  for (const s of sections) {
+    steps.push({
+      name: shortName[s.slug] || s.title,
+      href: `/dashboard/guide/${s.slug}`,
+      desc: s.tagline,
+      section: sectionFor(s),
+    });
+  }
+  return steps;
 }

@@ -20,7 +20,8 @@ import {
 } from '@/lib/business/company-modules';
 import type { PackagingSelection } from '@/lib/product/architecture';
 
-const FINANCE_CRITICAL: TeamRole[] = ['owner', 'admin', 'finance'];
+/** Who may open Finance / period-lock critical UI — owner + finance only */
+const FINANCE_CRITICAL: TeamRole[] = ['owner', 'finance'];
 const QA_OVERRIDE_ROLES: TeamRole[] = ['owner', 'admin'];
 const MONEY_OR_OPS: TeamRole[] = ['owner', 'admin', 'finance', 'operations'];
 

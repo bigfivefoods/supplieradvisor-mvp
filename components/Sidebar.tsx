@@ -19,6 +19,7 @@ import { stepVisibleForRole } from '@/lib/schools/programme-role';
 import { useHealthProgrammeRole } from '@/lib/health/useProgrammeRole';
 import { healthStepVisibleForRole } from '@/lib/health/programme-role';
 import { functionalSidebarModules } from '@/lib/chrome/functional-nav';
+import { buildGuideNavSteps } from '@/lib/guide/curriculum';
 
 const EXPANDED_KEY = 'sa-sidebar-expanded-v1';
 
@@ -136,6 +137,20 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                   ? 'Health · SP'
                   : 'Health · Facility',
             sub: filtered.length ? filtered : mod.sub,
+          };
+        }
+        // Guide: nest only chapters for modules this company has enabled
+        if (mod.id === 'guide') {
+          const steps = buildGuideNavSteps(isCompanyModuleEnabled);
+          return {
+            ...mod,
+            sub: steps.map((s) => ({
+              name: s.name,
+              href: s.href,
+              exact: Boolean(s.exact),
+              section: s.section,
+              desc: s.desc,
+            })),
           };
         }
         return mod;
