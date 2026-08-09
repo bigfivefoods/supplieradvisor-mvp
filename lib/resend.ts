@@ -15,9 +15,9 @@ export function getResend(): Resend {
 }
 
 /** Default transactional sender — domain must be verified in Resend. */
-const DEFAULT_FROM = 'SupplierAdvisor <invites@supplieradvisor.com>';
+const DEFAULT_FROM = 'SupplierAdvisor <hello@supplieradvisor.com>';
 /** Optional reply destination so recipients can respond to a real inbox. */
-const DEFAULT_REPLY_TO = 'connect@supplieradvisor.com';
+const DEFAULT_REPLY_TO = 'hello@supplieradvisor.com';
 
 /**
  * Normalize a From header to a verified supplieradvisor.com address.
@@ -53,10 +53,10 @@ function normalizeSupplierAdvisorFrom(raw: string | undefined | null): string | 
  * Verified Resend "from" address — always @supplieradvisor.com when possible.
  *
  * Once supplieradvisor.com is verified in Resend, any mailbox on that domain
- * can send (invites@, team@, noreply@, etc.) — you do not need a full inbox
+ * can send (hello@ is the system default) — you do not need a full inbox
  * provider unless you want people to reply.
  *
- * Env (optional): RESEND_FROM_EMAIL=SupplierAdvisor <invites@supplieradvisor.com>
+ * Env (optional): RESEND_FROM_EMAIL=SupplierAdvisor <hello@supplieradvisor.com>
  */
 export function getResendFrom(): string {
   const candidates = [
@@ -73,7 +73,7 @@ export function getResendFrom(): string {
 
 /**
  * Reply-To for transactional mail so replies land in a real inbox.
- * Env (optional): RESEND_REPLY_TO=connect@supplieradvisor.com
+ * Env (optional): RESEND_REPLY_TO=hello@supplieradvisor.com
  */
 export function getResendReplyTo(): string {
   const raw = String(process.env.RESEND_REPLY_TO || DEFAULT_REPLY_TO)

@@ -753,7 +753,7 @@ export async function notifyRecallPack(params: {
 
 /**
  * Ops alert when a company self-registers.
- * Default recipient: connect@supplieradvisor.com (override via NEW_COMPANY_NOTIFY_EMAIL).
+ * Default recipient: hello@supplieradvisor.com (override via NEW_COMPANY_NOTIFY_EMAIL).
  */
 export async function notifyNewCompanyRegistered(params: {
   profileId: number;
@@ -777,7 +777,7 @@ export async function notifyNewCompanyRegistered(params: {
     const toRaw =
       process.env.NEW_COMPANY_NOTIFY_EMAIL ||
       process.env.PLATFORM_OPS_EMAIL ||
-      'connect@supplieradvisor.com';
+      'hello@supplieradvisor.com';
     const to = toRaw
       .split(/[,;\s]+/)
       .map((s) => s.trim())
@@ -953,7 +953,7 @@ export async function notifyCipcVerificationOutcome(params: {
     const opsRaw =
       process.env.NEW_COMPANY_NOTIFY_EMAIL ||
       process.env.PLATFORM_OPS_EMAIL ||
-      'connect@supplieradvisor.com';
+      'hello@supplieradvisor.com';
     const ops = opsRaw
       .split(/[,;\s]+/)
       .map((s) => s.trim())

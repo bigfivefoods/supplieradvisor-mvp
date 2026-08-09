@@ -1,6 +1,6 @@
 /**
  * Daily / weekly ops reports: who signed up + registration funnel metrics.
- * Soft-fail email to connect@supplieradvisor.com (same override as live notify).
+ * Soft-fail email to hello@supplieradvisor.com (same override as live notify).
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getResend, getResendFrom } from '@/lib/resend';
@@ -47,7 +47,7 @@ function opsRecipients(): string[] {
   const toRaw =
     process.env.NEW_COMPANY_NOTIFY_EMAIL ||
     process.env.PLATFORM_OPS_EMAIL ||
-    'connect@supplieradvisor.com';
+    'hello@supplieradvisor.com';
   return toRaw
     .split(/[,;\s]+/)
     .map((s) => s.trim())
