@@ -32,9 +32,7 @@ import {
 import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
 import {
   MODULE_CATEGORIES,
-  MODULE_PRESETS,
   countEnabledOptionalModules,
-  enabledModulesFromPreset,
   extractEnabledModulesFromMetadata,
   hasModulesConfigured,
   isAlwaysOnModule,
@@ -42,8 +40,8 @@ import {
   mergeEnabledModulesIntoMetadata,
   normalizeEnabledModules,
   type EnabledModulesMap,
-  type ModulePresetId,
 } from '@/lib/business/company-modules';
+import { MODULE_NAV } from '@/lib/chrome/module-nav';
 import {
   CORE_OS_MONTHLY_ZAR,
   INDUSTRY_PACK_MONTHLY_ZAR,
@@ -52,6 +50,7 @@ import {
   PUBLIC_SECTOR_TIERS,
   SA_NATIONAL_DEPARTMENTS,
   appModulesUnlockedByPack,
+  enabledModulesMapFromPacks,
   getIndustryPack,
   industryPacksBySector,
   packsUnlockingAppModule,
@@ -63,6 +62,7 @@ import {
   getBusinessType,
   getIndustry,
   industriesForSector,
+  packIdsForSector,
 } from '@/lib/product/business-catalogue';
 
 export default function CompanyModulesPage() {
@@ -251,11 +251,73 @@ function ModulesInner() {
     }
   };
 
-  const applyPreset = (id: ModulePresetId) => {
-    const map = enabledModulesFromPreset(id);
-    setEnabled(map);
+  /** Quick presets = only this company's sector + industry (not global catalogue) */
+  const sectorIndustryPresets = useMemo(() => {
+    const allIds = MODULE_NAV.map((m) => m.id);
+    const out: Array<{
+      id: string;
+      label: string;
+      description: string;
+      map: EnabledModulesMap;
+    }> = [];
+
+    if (yourSectorId) {
+      const sectorPackIds = packIdsForSector(yourSectorId);
+      const map = enabledModulesMapFromPacks(
+        sectorPackIds,
+        [],
+        allIds
+      ) as EnabledModulesMap;
+      const packNames = sectorPackIds
+        .map((id) => getIndustryPack(id)?.shortName || id)
+        .filter(Boolean);
+      out.push({
+        id: `sector:${yourSectorId}`,
+        label: `${sectorLabel} sector`,
+        description: packNames.length
+          ? `Enable hubs for ${sectorLabel}: ${packNames.join(', ')}.`
+          : `Core hubs recommended for the ${sectorLabel} sector.`,
+        map,
+      });
+    }
+
+    if (companyIndustry) {
+      // Industry packs; merge any explicitly selected packaging packs
+      const industryPacks = [
+        ...new Set([
+          ...companyIndustry.packIds,
+          ...(packaging?.packIds || []),
+        ]),
+      ];
+      const map = enabledModulesMapFromPacks(
+        industryPacks,
+        packaging?.moduleIds || [],
+        allIds
+      ) as EnabledModulesMap;
+      const packNames = industryPacks
+        .map((id) => getIndustryPack(id)?.shortName || id)
+        .filter(Boolean);
+      out.push({
+        id: `industry:${companyIndustry.id}`,
+        label: companyIndustry.label,
+        description: packNames.length
+          ? `Your industry modules · packs: ${packNames.join(', ')}.`
+          : companyIndustry.description,
+        map,
+      });
+    }
+
+    return out;
+  }, [yourSectorId, sectorLabel, companyIndustry, packaging]);
+
+  const applySectorIndustryPreset = (map: EnabledModulesMap) => {
+    const next: EnabledModulesMap = { ...map };
+    for (const opt of listCompanyModuleOptions()) {
+      if (opt.alwaysOn) next[opt.id] = true;
+    }
+    setEnabled(next);
     setDirty(true);
-    void persist(map);
+    void persist(next);
   };
 
   const toggle = (moduleId: string, on: boolean) => {
@@ -510,25 +572,48 @@ function ModulesInner() {
         </Link>
       </div>
 
-      <div className="mb-6 rounded-3xl border border-neutral-200 bg-white p-5">
-        <SectionLabel>Quick presets</SectionLabel>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2 mt-2">
-          {MODULE_PRESETS.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              disabled={saving || govLocked}
-              onClick={() => applyPreset(p.id)}
-              className="rounded-2xl border border-neutral-100 bg-neutral-50/80 p-3.5 text-left shadow-sm hover:border-[#00b4d8]/40 hover:bg-white hover:shadow-md transition-all"
-            >
-              <div className="text-sm font-bold text-slate-900">{p.label}</div>
-              <p className="text-[11px] text-neutral-500 mt-0.5 leading-snug">
-                {p.description}
-              </p>
-            </button>
-          ))}
+      {sectorIndustryPresets.length > 0 ? (
+        <div className="mb-6 rounded-3xl border border-neutral-200 bg-white p-5">
+          <SectionLabel>Quick presets</SectionLabel>
+          <p className="text-xs text-neutral-500 mt-1 mb-2">
+            Only your registered sector
+            {companyIndustry ? ' and industry' : ''} — not the full preset
+            catalogue.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-2 mt-2">
+            {sectorIndustryPresets.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                disabled={saving || govLocked}
+                onClick={() => applySectorIndustryPreset(p.map)}
+                className="rounded-2xl border border-neutral-100 bg-neutral-50/80 p-3.5 text-left shadow-sm hover:border-[#00b4d8]/40 hover:bg-white hover:shadow-md transition-all"
+              >
+                <div className="text-[10px] font-black uppercase tracking-widest text-[#0077b6]">
+                  {p.id.startsWith('sector:') ? 'Sector' : 'Industry'}
+                </div>
+                <div className="text-sm font-bold text-slate-900 mt-0.5">
+                  {p.label}
+                </div>
+                <p className="text-[11px] text-neutral-500 mt-0.5 leading-snug">
+                  {p.description}
+                </p>
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          Quick presets appear after you set a sector (and industry) on{' '}
+          <Link
+            href="/dashboard/my-business/packaging"
+            className="font-bold underline"
+          >
+            Packaging
+          </Link>{' '}
+          or during onboarding.
+        </div>
+      )}
 
       {/* Core OS workspace modules */}
       <div className="mb-2 flex items-center gap-2">
