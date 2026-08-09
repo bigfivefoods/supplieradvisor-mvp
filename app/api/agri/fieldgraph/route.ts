@@ -6,11 +6,14 @@ import {
 } from '@/lib/auth/api-auth';
 import {
   emptyFieldgraphStore,
+  millBoardEstimateRows,
   newId,
   projectHarvestDates,
   readFieldgraphFromMetadata,
   summariseFieldgraph,
+  vehicleUtilisation,
   writeFieldgraphToMetadata,
+  yieldQualityBySeason,
   type AgriApplication,
   type AgriEstimate,
   type AgriField,
@@ -18,6 +21,8 @@ import {
   type AgriHarvestPlanItem,
   type AgriLabourLog,
   type AgriRegenSample,
+  type AgriVehicle,
+  type AgriYieldActual,
   type FieldgraphStore,
 } from '@/lib/agri/fieldgraph';
 
@@ -26,8 +31,10 @@ export const runtime = 'nodejs';
 type Entity =
   | 'fields'
   | 'estimates'
+  | 'yield_actuals'
   | 'harvest_plan'
   | 'applications'
+  | 'vehicles'
   | 'fleet_logs'
   | 'labour_logs'
   | 'regen_samples';
@@ -83,10 +90,18 @@ export async function GET(request: NextRequest) {
     if (!gate.ok) return gate.response;
 
     const { store } = await loadStore(companyId);
+    const season =
+      request.nextUrl.searchParams.get('season') ||
+      String(new Date().getFullYear());
     return NextResponse.json({
       success: true,
       store,
       summary: summariseFieldgraph(store),
+      analysis: {
+        yieldBySeason: yieldQualityBySeason(store),
+        vehicleUtilisation: vehicleUtilisation(store),
+        millBoard: millBoardEstimateRows(store, season),
+      },
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -116,10 +131,16 @@ export async function POST(request: NextRequest) {
     if (action === 'seed_demo') {
       const demo = seedDemo(now);
       await saveStore(companyId, meta, demo);
+      const y = String(new Date().getFullYear());
       return NextResponse.json({
         success: true,
         store: demo,
         summary: summariseFieldgraph(demo),
+        analysis: {
+          yieldBySeason: yieldQualityBySeason(demo),
+          vehicleUtilisation: vehicleUtilisation(demo),
+          millBoard: millBoardEstimateRows(demo, y),
+        },
         message: 'Demo farm loaded',
       });
     }
@@ -141,6 +162,11 @@ export async function POST(request: NextRequest) {
         success: true,
         store,
         summary: summariseFieldgraph(store),
+        analysis: {
+          yieldBySeason: yieldQualityBySeason(store),
+          vehicleUtilisation: vehicleUtilisation(store),
+          millBoard: millBoardEstimateRows(store, season),
+        },
         message: 'Harvest dates projected',
       });
     }
@@ -161,10 +187,16 @@ export async function POST(request: NextRequest) {
         );
       }
       await saveStore(companyId, meta, store);
+      const delSeason = String(new Date().getFullYear());
       return NextResponse.json({
         success: true,
         store,
         summary: summariseFieldgraph(store),
+        analysis: {
+          yieldBySeason: yieldQualityBySeason(store),
+          vehicleUtilisation: vehicleUtilisation(store),
+          millBoard: millBoardEstimateRows(store, delSeason),
+        },
       });
     }
 
@@ -189,6 +221,17 @@ export async function POST(request: NextRequest) {
         ratoon: rec.ratoon != null ? Number(rec.ratoon) : undefined,
         irrigation: (rec.irrigation as AgriField['irrigation']) || 'unknown',
         soil_type: rec.soil_type != null ? String(rec.soil_type) : undefined,
+        plant_date: rec.plant_date != null ? String(rec.plant_date) : null,
+        row_spacing_m:
+          rec.row_spacing_m != null ? Number(rec.row_spacing_m) : null,
+        population_per_ha:
+          rec.population_per_ha != null
+            ? Number(rec.population_per_ha)
+            : null,
+        slope_pct: rec.slope_pct != null ? Number(rec.slope_pct) : null,
+        drainage: rec.drainage != null ? String(rec.drainage) : undefined,
+        district: rec.district != null ? String(rec.district) : undefined,
+        mill_group: rec.mill_group != null ? String(rec.mill_group) : undefined,
         lat: rec.lat != null ? Number(rec.lat) : null,
         lng: rec.lng != null ? Number(rec.lng) : null,
         notes: rec.notes != null ? String(rec.notes) : undefined,
@@ -206,7 +249,53 @@ export async function POST(request: NextRequest) {
       const tonnes = Number(rec.tonnes) || 0;
       const ha = field?.hectares || 0;
       const existing = store.estimates.findIndex((e) => e.id === id);
+      const prev = existing >= 0 ? store.estimates[existing] : null;
+      const quality =
+        rec.quality_pct != null ? Number(rec.quality_pct) : null;
+      const status = (rec.status as AgriEstimate['status']) || 'draft';
+      const revisions = [...(prev?.revisions || [])];
+      if (
+        prev &&
+        (prev.tonnes !== tonnes ||
+          prev.quality_pct !== quality ||
+          prev.status !== status)
+      ) {
+        revisions.push({
+          at: now,
+          tonnes: prev.tonnes,
+          quality_pct: prev.quality_pct,
+          status: prev.status,
+          note: 'Auto snapshot before update',
+        });
+      }
       const row: AgriEstimate = {
+        id,
+        field_id: fieldId,
+        season: String(rec.season || new Date().getFullYear()),
+        tonnes,
+        quality_pct: quality,
+        tonnes_per_ha: ha > 0 ? Math.round((tonnes / ha) * 100) / 100 : null,
+        status,
+        board_ref:
+          rec.board_ref != null
+            ? String(rec.board_ref)
+            : prev?.board_ref,
+        revision: (prev?.revision || 0) + (prev ? 1 : 0) || 1,
+        revisions: revisions.slice(-20),
+        notes: rec.notes != null ? String(rec.notes) : undefined,
+        updated_at: now,
+      };
+      if (existing >= 0) store.estimates[existing] = row;
+      else store.estimates.push(row);
+    } else if (entity === 'yield_actuals') {
+      if (!store.yield_actuals) store.yield_actuals = [];
+      const id = String(rec.id || newId('yld'));
+      const fieldId = String(rec.field_id || '');
+      const field = store.fields.find((f) => f.id === fieldId);
+      const tonnes = Number(rec.tonnes) || 0;
+      const ha = field?.hectares || 0;
+      const existing = store.yield_actuals.findIndex((y) => y.id === id);
+      const row: AgriYieldActual = {
         id,
         field_id: fieldId,
         season: String(rec.season || new Date().getFullYear()),
@@ -214,22 +303,45 @@ export async function POST(request: NextRequest) {
         quality_pct:
           rec.quality_pct != null ? Number(rec.quality_pct) : null,
         tonnes_per_ha: ha > 0 ? Math.round((tonnes / ha) * 100) / 100 : null,
-        status: (rec.status as AgriEstimate['status']) || 'draft',
+        harvested_at:
+          rec.harvested_at != null ? String(rec.harvested_at) : null,
         notes: rec.notes != null ? String(rec.notes) : undefined,
-        updated_at: now,
+        created_at:
+          existing >= 0 ? store.yield_actuals[existing].created_at : now,
       };
-      if (existing >= 0) store.estimates[existing] = row;
-      else store.estimates.push(row);
+      if (existing >= 0) store.yield_actuals[existing] = row;
+      else store.yield_actuals.push(row);
     } else if (entity === 'harvest_plan') {
       const id = String(rec.id || newId('hvt'));
       const existing = store.harvest_plan.findIndex((h) => h.id === id);
+      const fieldId = String(rec.field_id || '');
+      const season = String(rec.season || new Date().getFullYear());
+      const est = store.estimates.find(
+        (e) => e.field_id === fieldId && e.season === season && e.status !== 'draft'
+      );
       const row: AgriHarvestPlanItem = {
         id,
-        field_id: String(rec.field_id || ''),
-        season: String(rec.season || new Date().getFullYear()),
+        field_id: fieldId,
+        season,
         sequence: Number(rec.sequence) || store.harvest_plan.length + 1,
         planned_date:
           rec.planned_date != null ? String(rec.planned_date) : null,
+        planned_end_date:
+          rec.planned_end_date != null
+            ? String(rec.planned_end_date)
+            : existing >= 0
+              ? store.harvest_plan[existing].planned_end_date
+              : null,
+        days_to_cut:
+          rec.days_to_cut != null
+            ? Number(rec.days_to_cut)
+            : existing >= 0
+              ? store.harvest_plan[existing].days_to_cut
+              : null,
+        estimated_tonnes:
+          rec.estimated_tonnes != null
+            ? Number(rec.estimated_tonnes)
+            : est?.tonnes ?? null,
         daily_allocation_t:
           rec.daily_allocation_t != null
             ? Number(rec.daily_allocation_t)
@@ -242,6 +354,22 @@ export async function POST(request: NextRequest) {
       };
       if (existing >= 0) store.harvest_plan[existing] = row;
       else store.harvest_plan.push(row);
+    } else if (entity === 'vehicles') {
+      if (!store.vehicles) store.vehicles = [];
+      const id = String(rec.id || newId('veh'));
+      const existing = store.vehicles.findIndex((v) => v.id === id);
+      const row: AgriVehicle = {
+        id,
+        code: String(rec.code || `V-${store.vehicles.length + 1}`),
+        name: String(rec.name || 'Vehicle'),
+        type: rec.type != null ? String(rec.type) : undefined,
+        reg_no: rec.reg_no != null ? String(rec.reg_no) : undefined,
+        active: rec.active !== false,
+        created_at:
+          existing >= 0 ? store.vehicles[existing].created_at : now,
+      };
+      if (existing >= 0) store.vehicles[existing] = row;
+      else store.vehicles.push(row);
     } else if (entity === 'applications') {
       const id = String(rec.id || newId('app'));
       const existing = store.applications.findIndex((a) => a.id === id);
@@ -266,14 +394,24 @@ export async function POST(request: NextRequest) {
     } else if (entity === 'fleet_logs') {
       const id = String(rec.id || newId('flt'));
       const existing = store.fleet_logs.findIndex((f) => f.id === id);
+      const vehicleId =
+        rec.vehicle_id != null ? String(rec.vehicle_id) : null;
+      const veh = vehicleId
+        ? (store.vehicles || []).find((v) => v.id === vehicleId)
+        : null;
       const row: AgriFleetLog = {
         id,
         field_id: rec.field_id != null ? String(rec.field_id) : null,
+        vehicle_id: vehicleId,
         date: String(rec.date || now.slice(0, 10)),
-        vehicle: String(rec.vehicle || 'Vehicle'),
+        vehicle: String(
+          rec.vehicle || veh?.name || veh?.code || 'Vehicle'
+        ),
         activity: String(rec.activity || 'Work'),
         hours: rec.hours != null ? Number(rec.hours) : null,
         fuel_l: rec.fuel_l != null ? Number(rec.fuel_l) : null,
+        odometer_km:
+          rec.odometer_km != null ? Number(rec.odometer_km) : null,
         notes: rec.notes != null ? String(rec.notes) : undefined,
         created_at:
           existing >= 0 ? store.fleet_logs[existing].created_at : now,
@@ -327,10 +465,18 @@ export async function POST(request: NextRequest) {
     }
 
     await saveStore(companyId, meta, store);
+    const analysisSeason = String(
+      (rec as { season?: string }).season || new Date().getFullYear()
+    );
     return NextResponse.json({
       success: true,
       store,
       summary: summariseFieldgraph(store),
+      analysis: {
+        yieldBySeason: yieldQualityBySeason(store),
+        vehicleUtilisation: vehicleUtilisation(store),
+        millBoard: millBoardEstimateRows(store, analysisSeason),
+      },
     });
   } catch (e: unknown) {
     console.error('[fieldgraph]', e);
@@ -346,6 +492,8 @@ function seedDemo(now: string): FieldgraphStore {
   const f1 = newId('fld');
   const f2 = newId('fld');
   const f3 = newId('fld');
+  const v1 = newId('veh');
+  const v2 = newId('veh');
   return {
     fields: [
       {
@@ -360,6 +508,10 @@ function seedDemo(now: string): FieldgraphStore {
         ratoon: 2,
         irrigation: 'irrigated',
         soil_type: 'Hutton',
+        plant_date: `${y - 1}-09-15`,
+        row_spacing_m: 1.4,
+        mill_group: 'North Coast MGB',
+        district: 'KZN North Coast',
         active: true,
         created_at: now,
         updated_at: now,
@@ -375,6 +527,9 @@ function seedDemo(now: string): FieldgraphStore {
         season_year: y,
         irrigation: 'dryland',
         soil_type: 'Clovelly',
+        plant_date: `${y}-10-20`,
+        population_per_ha: 55000,
+        district: 'Midlands',
         active: true,
         created_at: now,
         updated_at: now,
@@ -390,6 +545,7 @@ function seedDemo(now: string): FieldgraphStore {
         season_year: y - 4,
         irrigation: 'irrigated',
         soil_type: 'Oakleaf',
+        mill_group: 'Fresh pack',
         active: true,
         created_at: now,
         updated_at: now,
@@ -399,11 +555,34 @@ function seedDemo(now: string): FieldgraphStore {
       {
         id: newId('est'),
         field_id: f1,
+        season: String(y - 1),
+        tonnes: 2720,
+        quality_pct: 12.1,
+        tonnes_per_ha: 95.8,
+        status: 'final',
+        board_ref: `MGB-${y - 1}-A12`,
+        revision: 2,
+        revisions: [
+          {
+            at: `${y - 1}-06-01T10:00:00.000Z`,
+            tonnes: 2600,
+            quality_pct: 11.8,
+            status: 'submitted',
+            note: 'First board',
+          },
+        ],
+        updated_at: now,
+      },
+      {
+        id: newId('est'),
+        field_id: f1,
         season: String(y),
         tonnes: 2840,
         quality_pct: 12.4,
         tonnes_per_ha: 100,
-        status: 'submitted',
+        status: 'board',
+        board_ref: `MGB-${y}-A12`,
+        revision: 1,
         updated_at: now,
       },
       {
@@ -414,7 +593,30 @@ function seedDemo(now: string): FieldgraphStore {
         quality_pct: 12.5,
         tonnes_per_ha: 8,
         status: 'draft',
+        revision: 1,
         updated_at: now,
+      },
+    ],
+    yield_actuals: [
+      {
+        id: newId('yld'),
+        field_id: f1,
+        season: String(y - 1),
+        tonnes: 2688,
+        quality_pct: 12.0,
+        tonnes_per_ha: 94.6,
+        harvested_at: `${y - 1}-08-20`,
+        created_at: now,
+      },
+      {
+        id: newId('yld'),
+        field_id: f2,
+        season: String(y - 1),
+        tonnes: 310,
+        quality_pct: 13.0,
+        tonnes_per_ha: 7.4,
+        harvested_at: `${y - 1}-05-12`,
+        created_at: now,
       },
     ],
     harvest_plan: [
@@ -424,7 +626,8 @@ function seedDemo(now: string): FieldgraphStore {
         season: String(y),
         sequence: 1,
         planned_date: null,
-        destination: 'Mill / buyer',
+        estimated_tonnes: 2840,
+        destination: 'Mill / North Coast',
         status: 'planned',
         updated_at: now,
       },
@@ -434,6 +637,7 @@ function seedDemo(now: string): FieldgraphStore {
         season: String(y),
         sequence: 2,
         planned_date: null,
+        estimated_tonnes: 336,
         destination: 'Silo / trader',
         status: 'planned',
         updated_at: now,
@@ -455,15 +659,58 @@ function seedDemo(now: string): FieldgraphStore {
         created_at: now,
       },
     ],
+    vehicles: [
+      {
+        id: v1,
+        code: 'T02',
+        name: 'Tractor 02',
+        type: 'Tractor',
+        reg_no: 'NP 123-456',
+        active: true,
+        created_at: now,
+      },
+      {
+        id: v2,
+        code: 'H01',
+        name: 'Hauler 01',
+        type: 'Truck',
+        reg_no: 'NP 987-654',
+        active: true,
+        created_at: now,
+      },
+    ],
     fleet_logs: [
       {
         id: newId('flt'),
         field_id: f1,
+        vehicle_id: v1,
         date: now.slice(0, 10),
         vehicle: 'Tractor 02',
         activity: 'Rip / ridge',
         hours: 6.5,
         fuel_l: 48,
+        created_at: now,
+      },
+      {
+        id: newId('flt'),
+        field_id: f1,
+        vehicle_id: v2,
+        date: now.slice(0, 10),
+        vehicle: 'Hauler 01',
+        activity: 'Cane haul',
+        hours: 4,
+        fuel_l: 62,
+        created_at: now,
+      },
+      {
+        id: newId('flt'),
+        field_id: f2,
+        vehicle_id: v1,
+        date: now.slice(0, 10),
+        vehicle: 'Tractor 02',
+        activity: 'Planting',
+        hours: 8,
+        fuel_l: 55,
         created_at: now,
       },
     ],

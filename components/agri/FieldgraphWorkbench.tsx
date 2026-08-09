@@ -14,30 +14,39 @@ import {
   RelationshipHeader,
 } from '@/components/relationship/RelationshipChrome';
 
-export function useFieldgraph() {
+export function useFieldgraph(opts?: { season?: string }) {
   const companyId = getSelectedCompanyId()!;
+  const season =
+    opts?.season || String(new Date().getFullYear());
   const [store, setStore] = useState<FieldgraphStore | null>(null);
   const [summary, setSummary] = useState<Record<string, unknown> | null>(null);
+  const [analysis, setAnalysis] = useState<Record<string, unknown> | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(
-        `/api/agri/fieldgraph?companyId=${companyId}`,
-        { cache: 'no-store' }
-      );
+      const q = new URLSearchParams({
+        companyId: String(companyId),
+        season,
+      });
+      const res = await fetch(`/api/agri/fieldgraph?${q}`, {
+        cache: 'no-store',
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Load failed');
       setStore(data.store);
       setSummary(data.summary || null);
+      setAnalysis(data.analysis || null);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
     } finally {
       setLoading(false);
     }
-  }, [companyId]);
+  }, [companyId, season]);
 
   useEffect(() => {
     void load();
@@ -55,6 +64,7 @@ export function useFieldgraph() {
       if (!res.ok) throw new Error(data.error || 'Save failed');
       setStore(data.store);
       setSummary(data.summary || null);
+      if (data.analysis) setAnalysis(data.analysis);
       return data;
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Save failed');
@@ -64,7 +74,16 @@ export function useFieldgraph() {
     }
   };
 
-  return { companyId, store, summary, loading, saving, load, post };
+  return {
+    companyId,
+    store,
+    summary,
+    analysis,
+    loading,
+    saving,
+    load,
+    post,
+  };
 }
 
 export function FieldgraphWorkbench({

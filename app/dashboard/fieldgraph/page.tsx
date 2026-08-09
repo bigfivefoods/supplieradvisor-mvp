@@ -43,21 +43,26 @@ type Summary = {
   cropCount: number;
   crops: string[];
   estimateTonnes: number;
+  boardEstimates?: number;
   harvestOpen: number;
   applications: number;
   regenSamples: number;
   avgSoilOrganicCarbon: number | null;
+  vehicleCount?: number;
   fleetLogs: number;
+  fuelTotalL?: number;
+  fleetHours?: number;
   labourLogs: number;
 };
 
-const MODULES: HubModule[] = [
+/** Core agri business sections — lead the module */
+const CORE_MODULES: HubModule[] = [
   {
     href: '/dashboard/fieldgraph/fields',
     icon: MapPinned,
     code: '01',
-    title: 'Fields',
-    desc: 'Multi-crop field book — code, ha, variety, ratoon, irrigation, geo.',
+    title: 'Field & agronomic data',
+    desc: 'Shared field master across all modules. Yield & quality analysis across and within seasons.',
     accent: 'from-emerald-50 to-white border-emerald-100',
   },
   {
@@ -65,32 +70,35 @@ const MODULES: HubModule[] = [
     icon: BarChart3,
     code: '02',
     title: 'Estimates',
-    desc: 'Season estimates, t/ha, quality metrics, revisions — any crop.',
+    desc: 'Field-level Estimate Manager — create, revise, Mill Group Board submissions & revision reports.',
     accent: 'from-sky-50 to-white border-sky-100',
   },
   {
     href: '/dashboard/fieldgraph/harvest',
     icon: CalendarRange,
     code: '03',
-    title: 'Harvest plan',
-    desc: 'Cut sequence, daily allocation, projected dates, mill/buyer destination.',
+    title: 'Harvest Planner',
+    desc: 'Cutting sequence + estimates + daily allocation → expected cut dates for every field.',
     accent: 'from-amber-50 to-white border-amber-100',
-  },
-  {
-    href: '/dashboard/fieldgraph/inputs',
-    icon: FlaskConical,
-    code: '04',
-    title: 'Inputs',
-    desc: 'Fertiliser, chem, seed — applications with N-P-K / ha.',
-    accent: 'from-violet-50 to-white border-violet-100',
   },
   {
     href: '/dashboard/fieldgraph/fleet',
     icon: Tractor,
-    code: '05',
-    title: 'Fleet',
-    desc: 'Vehicle activity by field, hours and fuel.',
+    code: '04',
+    title: 'Vehicle Management',
+    desc: 'Daily vehicle activity by field, fuel utilisation, and reports by vehicle & activity.',
     accent: 'from-slate-50 to-white border-slate-200',
+  },
+];
+
+const EXTENDED_MODULES: HubModule[] = [
+  {
+    href: '/dashboard/fieldgraph/inputs',
+    icon: FlaskConical,
+    code: '05',
+    title: 'Inputs',
+    desc: 'Fertiliser, chem, seed — applications with N-P-K / ha.',
+    accent: 'from-violet-50 to-white border-violet-100',
   },
   {
     href: '/dashboard/fieldgraph/labour',
@@ -194,14 +202,14 @@ function HubInner() {
         eyebrow="Primary production OS"
         title="Fieldgraph"
         titleAccent="®"
-        description="Multi-crop field book, estimates, harvest planning, inputs, regen metrics, and farm-to-buyer trade — not cane-only software. Built for growers who sell into verified networks."
+        description="Core agri: shared field & agronomic data, estimate manager, harvest planner, and vehicle management — plus inputs, regen and farm-to-buyer trade. Multi-crop, not cane-only."
         action={
           <div className="flex flex-wrap gap-2">
             <Link
               href="/dashboard/fieldgraph/fields"
               className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
             >
-              <Sprout className="w-4 h-4" /> Open fields
+              <Sprout className="w-4 h-4" /> Field & agronomic
             </Link>
             <button
               type="button"
@@ -234,7 +242,7 @@ function HubInner() {
           <TelemetryCard
             label="Estimate tonnes"
             value={String(summary?.estimateTonnes ?? 0)}
-            sub="Non-draft estimates"
+            sub={`${summary?.boardEstimates ?? 0} board / submitted`}
           />
           <TelemetryCard
             label="Harvest open"
@@ -242,13 +250,9 @@ function HubInner() {
             sub="Planned / cutting"
           />
           <TelemetryCard
-            label="Soil organic C"
-            value={
-              summary?.avgSoilOrganicCarbon != null
-                ? `${summary.avgSoilOrganicCarbon}%`
-                : '—'
-            }
-            sub={`${summary?.regenSamples ?? 0} regen samples`}
+            label="Fleet"
+            value={String(summary?.vehicleCount ?? 0)}
+            sub={`${summary?.fuelTotalL ?? 0} L fuel · ${summary?.fleetHours ?? 0} h`}
           />
         </HubTelemetryGrid>
       )}
@@ -256,20 +260,20 @@ function HubInner() {
       <div className="my-8 grid sm:grid-cols-2 gap-3">
         {[
           {
-            t: 'Multi-crop, not cane-only',
-            b: 'Sugar cane, maize, citrus, veg and more share one field book — estimates and harvest still work per crop.',
+            t: 'Shared field master',
+            b: 'One agronomic record feeds estimates, harvest, inputs, fleet and regen — consistent codes, ha and crop everywhere.',
           },
           {
-            t: 'Farm-to-buyer on the network',
-            b: 'Hand harvest destinations into mills, silos and buyers with trust, OTIFEF and settle — not a private island.',
+            t: 'Harvest dates from sequence',
+            b: 'User cutting order + estimates + daily allocation projects start/end cut dates for the whole season.',
           },
           {
-            t: 'Regen is first-class',
-            b: 'Soil carbon, cover and water sit next to yield so buyers and ESG packs see the same truth as the farm office.',
+            t: 'Board-ready estimates',
+            b: 'Revisions, board status and Mill Group Board style rows for submissions and revision reports.',
           },
           {
-            t: 'Origin into inventory',
-            b: 'Lots and stock inherit field origin for traceability — the same graph as Quality and Impact.',
+            t: 'Fleet fuel & utilisation',
+            b: 'Registry, daily activity by field, and reports of hours and L/hour by vehicle and activity.',
           },
         ].map((x) => (
           <div
@@ -285,10 +289,17 @@ function HubInner() {
       </div>
 
       <div className="mt-6">
-        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-4">
-          Workbenches
+        <h2 className="text-sm font-black uppercase tracking-widest text-emerald-800/70 mb-4">
+          Core · Field & agronomic · Estimates · Harvest · Vehicles
         </h2>
-        <HubModuleGrid modules={MODULES} />
+        <HubModuleGrid modules={CORE_MODULES} />
+      </div>
+
+      <div className="mt-10">
+        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-4">
+          Extended · Season ops & network
+        </h2>
+        <HubModuleGrid modules={EXTENDED_MODULES} />
       </div>
     </FieldgraphPage>
   );

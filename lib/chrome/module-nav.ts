@@ -492,17 +492,18 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     href: '/dashboard/fieldgraph',
     resource: 'operations',
     /**
-     * Fieldgraph® — multi-crop primary production OS (fields, estimates,
-     * harvest, inputs, fleet, labour, regen, farm-to-buyer trade).
+     * Fieldgraph® — multi-crop primary production OS.
+     * Core agri: Field & agronomic data, Estimates, Harvest Planner, Vehicle Management.
+     * Plus inputs, labour, regen, farm-to-buyer trade.
      */
     steps: [
       { name: 'Command', href: '/dashboard/fieldgraph', exact: true, desc: 'Fieldgraph home', section: 'Home' },
-      { name: 'Fields', href: '/dashboard/fieldgraph/fields', desc: 'Multi-crop field book', section: 'Land' },
-      { name: 'Estimates', href: '/dashboard/fieldgraph/estimates', desc: 'Season yield & quality', section: 'Land' },
-      { name: 'Harvest', href: '/dashboard/fieldgraph/harvest', desc: 'Cut sequence & projection', section: 'Season' },
+      { name: 'Field & agronomic', href: '/dashboard/fieldgraph/fields', desc: 'Shared field master · yield analysis', section: 'Core' },
+      { name: 'Estimates', href: '/dashboard/fieldgraph/estimates', desc: 'Estimate manager · mill board', section: 'Core' },
+      { name: 'Harvest Planner', href: '/dashboard/fieldgraph/harvest', desc: 'Sequence · allocation · cut dates', section: 'Core' },
+      { name: 'Vehicles', href: '/dashboard/fieldgraph/fleet', desc: 'Registry · fuel · utilisation', section: 'Core' },
       { name: 'Inputs', href: '/dashboard/fieldgraph/inputs', desc: 'Fert · chem · N-P-K / ha', section: 'Season' },
-      { name: 'Fleet', href: '/dashboard/fieldgraph/fleet', desc: 'Vehicles by field', section: 'Ops' },
-      { name: 'Labour', href: '/dashboard/fieldgraph/labour', desc: 'Gangs & hours', section: 'Ops' },
+      { name: 'Labour', href: '/dashboard/fieldgraph/labour', desc: 'Gangs & hours', section: 'Season' },
       { name: 'Regen', href: '/dashboard/fieldgraph/regen', desc: 'Soil · water · cover', section: 'Regen' },
       { name: 'Trade', href: '/dashboard/fieldgraph/trade', desc: 'Mill · buyer · lots', section: 'Trade' },
       { name: 'Insights', href: '/dashboard/fieldgraph/report', desc: 'Season scorecard', section: 'Insights' },
