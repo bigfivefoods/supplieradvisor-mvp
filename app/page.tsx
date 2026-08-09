@@ -1461,6 +1461,9 @@ export default function LandingPage() {
                 <a href="#roi" className="block text-slate-600 hover:text-slate-900">
                   ROI calculator
                 </a>
+                <a href="#packaging" className="block text-slate-600 hover:text-slate-900">
+                  How you assemble SupplierAdvisor®
+                </a>
                 <a href="#modules" className="block text-slate-600 hover:text-slate-900">
                   Modules
                 </a>

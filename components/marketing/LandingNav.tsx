@@ -10,6 +10,11 @@ import { useRouter } from 'next/navigation';
 const LINKS = [
   { id: 'compare', label: 'Compare' },
   { id: 'roi', label: 'ROI' },
+  {
+    id: 'packaging',
+    label: 'How you assemble',
+    /** Full section: Core OS · Sector · Industry · Government & bespoke */
+  },
   { id: 'modules', label: 'Modules' },
   { id: 'pricing', label: 'Pricing' },
   { id: 'industries', label: 'Industries', href: '/industries' as const },
