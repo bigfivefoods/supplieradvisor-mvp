@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * Core OS onboarding — Entity → Sector → Packs → Modules → Details → Review
- * Brief 2026-08-09. Preserves invite claim, referral, partner storefront handoff.
+ * Onboarding: Account → Sector → Industry → Business type → Details → Review
+ * Clear selection trail; packs follow industry; entity type from business type.
  */
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -12,14 +12,11 @@ import { usePrivy } from '@privy-io/react-auth';
 import {
   ArrowLeft,
   ArrowRight,
-  Building2,
   CheckCircle2,
-  GraduationCap,
-  Landmark,
   Loader2,
   ShieldCheck,
   Layers,
-  Package,
+  Building2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -30,31 +27,33 @@ import { resolveEntityKind } from '@/lib/entities/entity-kinds';
 import {
   CORE_OS_MONTHLY_ZAR,
   INDUSTRY_PACK_MONTHLY_ZAR,
-  INDUSTRY_PACKS,
-  OS_ENTITY_TYPES,
   OS_SECTORS,
-  defaultSectorForEntity,
   getIndustryPack,
   getOsEntityType,
   monthlyPriceZar,
-  recommendPackIds,
-  type OsEntityTypeId,
   type OsSectorId,
 } from '@/lib/product/architecture';
+import {
+  getBusinessType,
+  getIndustry,
+  industriesForSector,
+  sectorLabel,
+} from '@/lib/product/business-catalogue';
 
 const STEPS = [
   'Account',
-  'Entity',
   'Sector',
-  'Packs',
-  'Modules',
+  'Industry',
+  'Business type',
   'Details',
   'Review',
 ] as const;
 
 type FormState = {
-  os_entity_type: string;
   os_sector: string;
+  os_industry: string;
+  os_business_type: string;
+  os_entity_type: string;
   industry_packs: string[];
   industry_modules: string[];
   business_type: string;
@@ -71,14 +70,21 @@ type FormState = {
   short_description: string;
 };
 
-function mapTypeParamToEntity(typeParam: string): string {
+function mapTypeParamToSector(typeParam: string): string {
   const t = typeParam.toLowerCase();
-  if (t === 'school' || t === 'education') return 'school';
-  if (t === 'government' || t === 'gov' || t === 'dbe') return 'municipal';
-  if (t === 'provincial') return 'provincial';
-  if (t === 'national') return 'national';
-  if (t === 'municipal') return 'municipal';
-  return 'private_company';
+  if (t === 'school' || t === 'education' || t === 'government' || t === 'gov' || t === 'dbe' || t === 'provincial' || t === 'national' || t === 'municipal') {
+    return 'public_sector';
+  }
+  return '';
+}
+
+function mapTypeParamToIndustry(typeParam: string): string {
+  const t = typeParam.toLowerCase();
+  if (t === 'school' || t === 'education') return 'public_local';
+  if (t === 'dbe' || t === 'provincial') return 'public_provincial';
+  if (t === 'national') return 'public_national';
+  if (t === 'municipal' || t === 'government' || t === 'gov') return 'public_municipal';
+  return '';
 }
 
 export default function BusinessOnboardingWizard() {
@@ -90,8 +96,8 @@ export default function BusinessOnboardingWizard() {
   const prefillEmail = searchParams.get('email') || '';
   const { ready, authenticated, user, login } = usePrivy();
 
-  const initialEntity = mapTypeParamToEntity(typeParam);
-  const initialSector = defaultSectorForEntity(initialEntity);
+  const initialSector = mapTypeParamToSector(typeParam);
+  const initialIndustry = mapTypeParamToIndustry(typeParam);
 
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -104,11 +110,13 @@ export default function BusinessOnboardingWizard() {
     connectHref?: string;
   } | null>(null);
   const [form, setForm] = useState<FormState>({
-    os_entity_type: initialEntity,
     os_sector: initialSector,
+    os_industry: initialIndustry,
+    os_business_type: '',
+    os_entity_type: 'private_company',
     industry_packs: [],
     industry_modules: [],
-    business_type: getOsEntityType(initialEntity)?.businessType || 'business',
+    business_type: 'business',
     trading_name: claimName || '',
     legal_name: claimName || '',
     registration_number: '',
@@ -122,18 +130,24 @@ export default function BusinessOnboardingWizard() {
     short_description: '',
   });
 
-  // Auto sector for public entities
-  useEffect(() => {
-    const e = getOsEntityType(form.os_entity_type);
-    if (e?.publicSector && form.os_sector !== 'public_sector') {
-      setForm((f) => ({ ...f, os_sector: 'public_sector' }));
-    }
-  }, [form.os_entity_type, form.os_sector]);
+  const sectorDef = useMemo(
+    () => OS_SECTORS.find((s) => s.id === form.os_sector) || null,
+    [form.os_sector]
+  );
+  const industryDef = useMemo(
+    () => getIndustry(form.os_industry),
+    [form.os_industry]
+  );
+  const businessTypeDef = useMemo(
+    () => getBusinessType(form.os_industry, form.os_business_type),
+    [form.os_industry, form.os_business_type]
+  );
+  const entityDef = getOsEntityType(form.os_entity_type);
+  const contactRequired = entityDef?.setupPath === 'contact_required';
 
-  // Prefill recommended packs when landing on pack step empty
-  const recommended = useMemo(
-    () => recommendPackIds(form.os_entity_type, form.os_sector),
-    [form.os_entity_type, form.os_sector]
+  const industries = useMemo(
+    () => industriesForSector(form.os_sector),
+    [form.os_sector]
   );
 
   const price = useMemo(
@@ -141,42 +155,14 @@ export default function BusinessOnboardingWizard() {
     [form.industry_packs]
   );
 
-  const entityDef = getOsEntityType(form.os_entity_type);
-  const contactRequired = entityDef?.setupPath === 'contact_required';
-
-  const modulesForSelectedPacks = useMemo(() => {
-    const out: Array<{
-      packId: string;
-      packName: string;
-      id: string;
-      name: string;
-      description: string;
-    }> = [];
-    for (const pid of form.industry_packs) {
-      const pack = getIndustryPack(pid);
-      if (!pack) continue;
-      for (const m of pack.modules) {
-        out.push({
-          packId: pack.id,
-          packName: pack.shortName,
-          id: m.id,
-          name: m.name,
-          description: m.description,
-        });
-      }
-    }
-    return out;
-  }, [form.industry_packs]);
-
   const progress = ((step + 1) / STEPS.length) * 100;
 
   const canNext = useMemo(() => {
     if (step === 0) return authenticated;
-    if (step === 1) return Boolean(form.os_entity_type);
-    if (step === 2) return Boolean(form.os_sector);
-    if (step === 3) return true; // packs optional (Core only)
-    if (step === 4) return true; // modules optional
-    if (step === 5) {
+    if (step === 1) return Boolean(form.os_sector);
+    if (step === 2) return Boolean(form.os_industry);
+    if (step === 3) return Boolean(form.os_business_type);
+    if (step === 4) {
       return (
         form.trading_name.trim().length >= 2 &&
         form.contact_name.trim().length >= 2 &&
@@ -190,43 +176,42 @@ export default function BusinessOnboardingWizard() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const togglePack = (packId: string) => {
-    setForm((prev) => {
-      const has = prev.industry_packs.includes(packId);
-      const industry_packs = has
-        ? prev.industry_packs.filter((id) => id !== packId)
-        : [...prev.industry_packs, packId];
-      // Drop modules from removed packs
-      const stillValid = new Set(
-        industry_packs.flatMap(
-          (pid) => getIndustryPack(pid)?.modules.map((m) => m.id) || []
-        )
-      );
-      const industry_modules = prev.industry_modules.filter((id) =>
-        stillValid.has(id)
-      );
-      return { ...prev, industry_packs, industry_modules };
-    });
-  };
-
-  const toggleModule = (moduleId: string) => {
-    setForm((prev) => {
-      const has = prev.industry_modules.includes(moduleId);
-      return {
-        ...prev,
-        industry_modules: has
-          ? prev.industry_modules.filter((id) => id !== moduleId)
-          : [...prev.industry_modules, moduleId],
-      };
-    });
-  };
-
-  const applyRecommendedPacks = () => {
+  const selectSector = (sectorId: OsSectorId) => {
     setForm((prev) => ({
       ...prev,
-      industry_packs: [...new Set([...prev.industry_packs, ...recommended])],
+      os_sector: sectorId,
+      os_industry: '',
+      os_business_type: '',
+      industry_packs: [],
+      industry_modules: [],
+      os_entity_type:
+        sectorId === 'public_sector' ? 'municipal' : 'private_company',
+      business_type: sectorId === 'public_sector' ? 'municipal_government' : 'business',
+      industry: '',
     }));
-    toast.success('Recommended packs selected');
+  };
+
+  const selectIndustry = (industryId: string) => {
+    const ind = getIndustry(industryId);
+    setForm((prev) => ({
+      ...prev,
+      os_industry: industryId,
+      os_business_type: '',
+      industry_packs: ind ? [...ind.packIds] : [],
+      industry_modules: [],
+      industry: ind?.label || '',
+    }));
+  };
+
+  const selectBusinessType = (businessTypeId: string) => {
+    const bt = getBusinessType(form.os_industry, businessTypeId);
+    if (!bt) return;
+    setForm((prev) => ({
+      ...prev,
+      os_business_type: businessTypeId,
+      os_entity_type: bt.entityTypeId,
+      business_type: bt.profileBusinessType,
+    }));
   };
 
   const ensureAuthPrefill = () => {
@@ -243,19 +228,10 @@ export default function BusinessOnboardingWizard() {
       return;
     }
     if (step === 0) ensureAuthPrefill();
-    // Skip modules step if no packs
-    if (step === 3 && form.industry_packs.length === 0) {
-      setStep(5);
-      return;
-    }
     if (step < STEPS.length - 1) setStep((s) => s + 1);
   };
 
   const goBack = () => {
-    if (step === 5 && form.industry_packs.length === 0) {
-      setStep(3);
-      return;
-    }
     if (step > 0) setStep((s) => s - 1);
   };
 
@@ -271,7 +247,9 @@ export default function BusinessOnboardingWizard() {
     }
 
     const entity = getOsEntityType(form.os_entity_type);
-    const business_type = entity?.businessType || 'business';
+    const bt = getBusinessType(form.os_industry, form.os_business_type);
+    const business_type =
+      bt?.profileBusinessType || entity?.businessType || form.business_type || 'business';
 
     setSubmitting(true);
     try {
@@ -300,7 +278,7 @@ export default function BusinessOnboardingWizard() {
           trading_name: form.trading_name,
           legal_name: form.legal_name,
           registration_number: form.registration_number,
-          industry: form.industry || form.os_sector,
+          industry: industryDef?.label || form.industry || form.os_sector,
           country: form.country,
           city: form.city,
           website: form.website,
@@ -313,6 +291,8 @@ export default function BusinessOnboardingWizard() {
           claimProfileId: claimId || undefined,
           os_entity_type: form.os_entity_type,
           os_sector: form.os_sector,
+          os_industry: form.os_industry,
+          os_business_type_id: form.os_business_type,
           industry_packs: form.industry_packs,
           industry_modules: form.industry_modules,
         }),
@@ -446,6 +426,9 @@ export default function BusinessOnboardingWizard() {
                 ? 'Founding seat ready. Redirecting…'
                 : 'Your Core OS workspace is ready. Redirecting…'}
           </p>
+          {doneProfileId ? (
+            <p className="text-xs text-neutral-400">Workspace #{doneProfileId}</p>
+          ) : null}
         </div>
       </div>
     );
@@ -488,6 +471,55 @@ export default function BusinessOnboardingWizard() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8 pb-28">
+        {/* Selection trail — always visible after Account */}
+        {step >= 1 ? (
+          <div className="mb-6 rounded-2xl border border-sky-100 bg-gradient-to-br from-white to-sky-50/80 p-4">
+            <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6] mb-2">
+              Your selection
+            </p>
+            <ol className="flex flex-wrap items-center gap-1.5 text-sm">
+              <TrailChip
+                n={1}
+                label="Sector"
+                value={sectorDef?.label}
+                active={step === 1}
+                done={Boolean(form.os_sector) && step > 1}
+              />
+              <span className="text-slate-300 font-bold">→</span>
+              <TrailChip
+                n={2}
+                label="Industry"
+                value={industryDef?.label}
+                active={step === 2}
+                done={Boolean(form.os_industry) && step > 2}
+              />
+              <span className="text-slate-300 font-bold">→</span>
+              <TrailChip
+                n={3}
+                label="Business type"
+                value={businessTypeDef?.label}
+                active={step === 3}
+                done={Boolean(form.os_business_type) && step > 3}
+              />
+            </ol>
+            {form.industry_packs.length > 0 ? (
+              <p className="text-[11px] text-slate-600 mt-2">
+                Industry packs:{' '}
+                <strong>
+                  {form.industry_packs
+                    .map((id) => getIndustryPack(id)?.shortName || id)
+                    .join(', ')}
+                </strong>{' '}
+                · est. R{price.total}/mo
+              </p>
+            ) : form.os_sector ? (
+              <p className="text-[11px] text-slate-600 mt-2">
+                Core OS only (R{CORE_OS_MONTHLY_ZAR}/mo) until industry packs apply
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
         {/* Step 0 — Account */}
         {step === 0 ? (
           <section className="space-y-6">
@@ -496,8 +528,9 @@ export default function BusinessOnboardingWizard() {
                 Join SupplierAdvisor
               </h1>
               <p className="text-slate-600 mt-2 text-sm leading-relaxed">
-                Core OS from R{CORE_OS_MONTHLY_ZAR}/mo · Industry Packs +R
-                {INDUSTRY_PACK_MONTHLY_ZAR}/mo each · 30-day trial.
+                You&apos;ll choose <strong>Sector → Industry → Business type</strong>,
+                then company details. Core OS from R{CORE_OS_MONTHLY_ZAR}/mo ·
+                Industry Packs +R{INDUSTRY_PACK_MONTHLY_ZAR}/mo · 30-day trial.
               </p>
             </div>
             {authenticated ? (
@@ -507,7 +540,7 @@ export default function BusinessOnboardingWizard() {
                 {user?.email?.address || extractEmailFromPrivyUser(user)
                   ? ` as ${user?.email?.address || extractEmailFromPrivyUser(user)}`
                   : ''}
-                . Continue to choose your organisation type.
+                . Continue to choose your sector.
               </div>
             ) : (
               <button
@@ -518,269 +551,139 @@ export default function BusinessOnboardingWizard() {
                 Sign in to continue
               </button>
             )}
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-xs text-slate-600 space-y-1">
-              <p className="font-bold text-slate-800">How packaging works</p>
-              <p>
-                <strong>Core OS</strong> — Control Tower, Suppliers, Customers,
-                Ops, Inventory, Quality, Finance, Intelligence.
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-xs text-slate-600 space-y-2">
+              <p className="font-bold text-slate-800 flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-[#00b4d8]" />
+                Setup path
               </p>
-              <p>
-                <strong>Industry Packs</strong> — add vertical tools (+R
-                {INDUSTRY_PACK_MONTHLY_ZAR}/mo each).
-              </p>
-              <p>
-                <strong>Modules</strong> — turn pack capabilities on/off.
-              </p>
+              <ol className="list-decimal list-inside space-y-1">
+                <li>
+                  <strong>Sector</strong> — Primary, Secondary, Tertiary,
+                  Quaternary, or Public Sector
+                </li>
+                <li>
+                  <strong>Industry</strong> — e.g. Food manufacturing, Logistics,
+                  National government
+                </li>
+                <li>
+                  <strong>Business type</strong> — exhaustive role within that
+                  industry (manufacturer, school kitchen, DoE, etc.)
+                </li>
+                <li>
+                  <strong>Company details</strong> — trading name and contacts
+                </li>
+              </ol>
             </div>
           </section>
         ) : null}
 
-        {/* Step 1 — Entity type */}
+        {/* Step 1 — Sector */}
         {step === 1 ? (
           <section className="space-y-4">
             <h1 className="text-2xl font-black text-slate-900">
-              What type of organisation?
+              Which sector are you in?
             </h1>
             <p className="text-sm text-slate-600">
-              Required. Public Sector uses National → Provincial → Municipal →
-              Local (DBE is Provincial; schools are Local).
-            </p>
-            <div className="grid sm:grid-cols-2 gap-3">
-              {OS_ENTITY_TYPES.map((e) => {
-                const Icon =
-                  e.id === 'school'
-                    ? GraduationCap
-                    : e.publicSector
-                      ? Landmark
-                      : Building2;
-                const on = form.os_entity_type === e.id;
-                const tierBadge =
-                  e.publicSectorTier === 'national'
-                    ? 'National'
-                    : e.publicSectorTier === 'provincial'
-                      ? 'Provincial · DBE'
-                      : e.publicSectorTier === 'municipal'
-                        ? 'Municipal'
-                        : e.publicSectorTier === 'local'
-                          ? 'Local · Schools'
-                          : null;
-                return (
-                  <button
-                    key={e.id}
-                    type="button"
-                    onClick={() => {
-                      update('os_entity_type', e.id);
-                      update('business_type', e.businessType);
-                      if (e.publicSector) update('os_sector', 'public_sector');
-                    }}
-                    className={`text-left rounded-2xl border-2 p-4 transition ${
-                      on
-                        ? 'border-[#00b4d8] bg-sky-50 shadow-sm'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
-                    }`}
-                  >
-                    <Icon
-                      className={`w-6 h-6 mb-2 ${on ? 'text-[#0077b6]' : 'text-slate-400'}`}
-                    />
-                    <p className="font-black text-sm text-slate-900">
-                      {e.label}
-                    </p>
-                    <p className="text-[11px] text-slate-500 mt-1 leading-snug">
-                      {e.description}
-                    </p>
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {tierBadge ? (
-                        <span className="inline-block text-[10px] font-bold uppercase text-violet-800 bg-violet-100 px-2 py-0.5 rounded-full">
-                          {tierBadge}
-                        </span>
-                      ) : null}
-                      {e.setupPath === 'contact_required' ? (
-                        <span className="inline-block text-[10px] font-bold uppercase text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full">
-                          Specialist setup
-                        </span>
-                      ) : null}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        ) : null}
-
-        {/* Step 2 — Sector */}
-        {step === 2 ? (
-          <section className="space-y-4">
-            <h1 className="text-2xl font-black text-slate-900">Sector</h1>
-            <p className="text-sm text-slate-600">
-              {entityDef?.publicSector
-                ? 'Public Sector is locked for National, Provincial, Municipal, and Local (school) entities.'
-                : 'Required. Drives Industry Pack recommendations.'}
+              Required. This filters industries and modules for your workspace.
+              You will only see packs and tools for this sector.
             </p>
             <div className="grid sm:grid-cols-2 gap-3">
               {OS_SECTORS.map((s) => {
-                const locked =
-                  entityDef?.publicSector && s.id !== 'public_sector';
                 const on = form.os_sector === s.id;
                 return (
                   <button
                     key={s.id}
                     type="button"
-                    disabled={Boolean(locked)}
-                    onClick={() => update('os_sector', s.id as OsSectorId)}
+                    onClick={() => selectSector(s.id as OsSectorId)}
                     className={`text-left rounded-2xl border-2 p-4 transition ${
                       on
-                        ? 'border-[#00b4d8] bg-sky-50'
-                        : locked
-                          ? 'border-slate-100 bg-slate-50 opacity-40 cursor-not-allowed'
-                          : 'border-slate-200 bg-white hover:border-slate-300'
-                    }`}
-                  >
-                    <p className="font-black text-sm">{s.label}</p>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      {s.description}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        ) : null}
-
-        {/* Step 3 — Packs */}
-        {step === 3 ? (
-          <section className="space-y-4">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <h1 className="text-2xl font-black text-slate-900">
-                  Industry Packs
-                </h1>
-                <p className="text-sm text-slate-600 mt-1">
-                  Optional. Core OS alone is fine. Each pack +R
-                  {INDUSTRY_PACK_MONTHLY_ZAR}/mo.
-                </p>
-              </div>
-              {recommended.length ? (
-                <button
-                  type="button"
-                  onClick={applyRecommendedPacks}
-                  className="btn-secondary !py-1.5 !px-3 text-xs"
-                >
-                  Apply recommended
-                </button>
-              ) : null}
-            </div>
-            <div className="rounded-xl border border-sky-100 bg-sky-50/80 px-3 py-2 text-xs text-sky-950">
-              Recommended for your entity + sector:{' '}
-              <strong>
-                {recommended.length
-                  ? recommended
-                      .map((id) => getIndustryPack(id)?.shortName || id)
-                      .join(', ')
-                  : 'Core only'}
-              </strong>
-            </div>
-            <div className="space-y-2">
-              {INDUSTRY_PACKS.map((p) => {
-                const on = form.industry_packs.includes(p.id);
-                const rec = recommended.includes(p.id);
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => togglePack(p.id)}
-                    className={`w-full text-left rounded-2xl border-2 p-4 flex gap-3 transition ${
-                      on
-                        ? 'border-[#00b4d8] bg-sky-50'
+                        ? 'border-[#00b4d8] bg-sky-50 shadow-sm ring-2 ring-[#00b4d8]/20'
                         : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                   >
-                    <div
-                      className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${
-                        on
-                          ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
-                          : 'border-slate-300'
-                      }`}
-                    >
-                      {on ? <CheckCircle2 className="w-3.5 h-3.5" /> : null}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-black text-sm text-slate-900">
-                          {p.name}
-                        </p>
-                        <span className="text-[10px] font-bold text-slate-500">
-                          +R{p.monthlyZar}/mo
-                        </span>
-                        {rec ? (
-                          <span className="text-[10px] font-bold uppercase text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
-                            Recommended
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-1 leading-snug">
-                        {p.description}
-                      </p>
-                    </div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6]">
+                      Sector
+                    </p>
+                    <p className="font-black text-base text-slate-900 mt-0.5">
+                      {s.label}
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                      {s.description}
+                    </p>
+                    {on ? (
+                      <span className="inline-flex mt-2 text-[10px] font-black uppercase text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                        Selected
+                      </span>
+                    ) : null}
                   </button>
                 );
               })}
             </div>
-            <p className="text-xs text-slate-500">
-              Running total:{' '}
-              <strong className="text-slate-800">
-                R{price.total}/mo
-              </strong>{' '}
-              (Core R{price.core}
-              {price.packCount
-                ? ` + ${price.packCount} pack(s) R${price.packs}`
-                : ''}
-              )
-            </p>
           </section>
         ) : null}
 
-        {/* Step 4 — Modules */}
-        {step === 4 ? (
+        {/* Step 2 — Industry */}
+        {step === 2 ? (
           <section className="space-y-4">
             <h1 className="text-2xl font-black text-slate-900">
-              Industry modules
+              Which industry?
             </h1>
             <p className="text-sm text-slate-600">
-              Recommended. Leave empty to enable all modules in selected packs.
-              You can change this later under Company → Modules.
+              Industries in{' '}
+              <strong className="text-slate-900">
+                {sectorLabel(form.os_sector)}
+              </strong>
+              . Selecting an industry pre-loads recommended Industry Packs.
             </p>
-            {modulesForSelectedPacks.length === 0 ? (
-              <p className="text-sm text-slate-500">
-                No packs selected — skip to company details.
+            {!form.os_sector ? (
+              <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                Go back and choose a sector first.
               </p>
             ) : (
               <div className="space-y-2">
-                {modulesForSelectedPacks.map((m) => {
-                  const on = form.industry_modules.includes(m.id);
+                {industries.map((ind) => {
+                  const on = form.os_industry === ind.id;
+                  const packNames = ind.packIds
+                    .map((id) => getIndustryPack(id)?.shortName || id)
+                    .join(', ');
                   return (
                     <button
-                      key={m.id}
+                      key={ind.id}
                       type="button"
-                      onClick={() => toggleModule(m.id)}
-                      className={`w-full text-left rounded-xl border p-3 flex gap-3 ${
+                      onClick={() => selectIndustry(ind.id)}
+                      className={`w-full text-left rounded-2xl border-2 p-4 transition ${
                         on
-                          ? 'border-[#00b4d8] bg-sky-50'
-                          : 'border-slate-200 bg-white'
+                          ? 'border-[#00b4d8] bg-sky-50 ring-2 ring-[#00b4d8]/20'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
                       }`}
                     >
-                      <Package
-                        className={`w-4 h-4 shrink-0 mt-0.5 ${on ? 'text-[#0077b6]' : 'text-slate-400'}`}
-                      />
-                      <div>
-                        <p className="text-sm font-bold text-slate-900">
-                          {m.name}{' '}
-                          <span className="text-[10px] font-normal text-slate-400">
-                            · {m.packName}
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6]">
+                            Industry · {sectorLabel(form.os_sector)}
+                          </p>
+                          <p className="font-black text-sm text-slate-900 mt-0.5">
+                            {ind.label}
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                            {ind.description}
+                          </p>
+                          {packNames ? (
+                            <p className="text-[10px] font-semibold text-slate-600 mt-1.5">
+                              Packs: {packNames} · {ind.businessTypes.length}{' '}
+                              business types
+                            </p>
+                          ) : (
+                            <p className="text-[10px] font-semibold text-slate-600 mt-1.5">
+                              {ind.businessTypes.length} business types · Core OS
+                            </p>
+                          )}
+                        </div>
+                        {on ? (
+                          <span className="text-[10px] font-black uppercase text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full shrink-0">
+                            Selected
                           </span>
-                        </p>
-                        <p className="text-[11px] text-slate-500">
-                          {m.description}
-                        </p>
+                        ) : null}
                       </div>
                     </button>
                   );
@@ -790,12 +693,73 @@ export default function BusinessOnboardingWizard() {
           </section>
         ) : null}
 
-        {/* Step 5 — Details */}
-        {step === 5 ? (
+        {/* Step 3 — Business type */}
+        {step === 3 ? (
+          <section className="space-y-4">
+            <h1 className="text-2xl font-black text-slate-900">
+              Business type
+            </h1>
+            <p className="text-sm text-slate-600">
+              Exact role within{' '}
+              <strong className="text-slate-900">
+                {industryDef?.label || 'your industry'}
+              </strong>{' '}
+              ({sectorLabel(form.os_sector)}). Choose the best match — list is
+              exhaustive for this industry.
+            </p>
+            {!industryDef ? (
+              <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                Go back and choose an industry first.
+              </p>
+            ) : (
+              <div className="grid sm:grid-cols-2 gap-2">
+                {industryDef.businessTypes.map((bt) => {
+                  const on = form.os_business_type === bt.id;
+                  return (
+                    <button
+                      key={bt.id}
+                      type="button"
+                      onClick={() => selectBusinessType(bt.id)}
+                      className={`text-left rounded-2xl border-2 p-3.5 transition ${
+                        on
+                          ? 'border-[#00b4d8] bg-sky-50 ring-2 ring-[#00b4d8]/20'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6]">
+                        Business type
+                      </p>
+                      <p className="font-black text-sm text-slate-900 mt-0.5">
+                        {bt.label}
+                      </p>
+                      <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                        {bt.description}
+                      </p>
+                      {on ? (
+                        <span className="inline-flex mt-2 text-[10px] font-black uppercase text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                          Selected
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        ) : null}
+
+        {/* Step 4 — Details */}
+        {step === 4 ? (
           <section className="space-y-4">
             <h1 className="text-2xl font-black text-slate-900">
               Company details
             </h1>
+            <p className="text-sm text-slate-600">
+              Registering as{' '}
+              <strong>{businessTypeDef?.label || '—'}</strong> in{' '}
+              <strong>{industryDef?.label || '—'}</strong> (
+              {sectorLabel(form.os_sector)}).
+            </p>
             <div className="grid sm:grid-cols-2 gap-3">
               <label className="text-xs sm:col-span-2">
                 <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
@@ -875,26 +839,28 @@ export default function BusinessOnboardingWizard() {
           </section>
         ) : null}
 
-        {/* Step 6 — Review */}
-        {step === 6 ? (
+        {/* Step 5 — Review */}
+        {step === 5 ? (
           <section className="space-y-4">
             <h1 className="text-2xl font-black text-slate-900">
               Review & confirm
             </h1>
             <div className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3 text-sm">
+              <Row label="Sector" value={sectorDef?.label || form.os_sector} />
               <Row
-                label="Entity"
+                label="Industry"
+                value={industryDef?.label || form.os_industry}
+              />
+              <Row
+                label="Business type"
+                value={businessTypeDef?.label || form.os_business_type}
+              />
+              <Row
+                label="Entity class"
                 value={entityDef?.label || form.os_entity_type}
               />
               <Row
-                label="Sector"
-                value={
-                  OS_SECTORS.find((s) => s.id === form.os_sector)?.label ||
-                  form.os_sector
-                }
-              />
-              <Row
-                label="Packs"
+                label="Industry packs"
                 value={
                   form.industry_packs.length
                     ? form.industry_packs
@@ -903,18 +869,11 @@ export default function BusinessOnboardingWizard() {
                     : 'Core OS only'
                 }
               />
-              <Row
-                label="Modules"
-                value={
-                  form.industry_modules.length
-                    ? `${form.industry_modules.length} selected`
-                    : form.industry_packs.length
-                      ? 'All modules in selected packs'
-                      : '—'
-                }
-              />
               <Row label="Company" value={form.trading_name} />
-              <Row label="Contact" value={`${form.contact_name} · ${form.contact_email}`} />
+              <Row
+                label="Contact"
+                value={`${form.contact_name} · ${form.contact_email}`}
+              />
               <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
                 <span className="text-xs font-bold uppercase text-slate-400">
                   Est. monthly
@@ -928,13 +887,14 @@ export default function BusinessOnboardingWizard() {
                 <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-950">
                   <Layers className="w-4 h-4 inline mr-1" />
                   <strong>Specialist setup:</strong> Provincial and National
-                  government complete pack selection here; a SupplierAdvisor
+                  government complete selection here; a SupplierAdvisor
                   specialist will contact you to finish activation.
                 </div>
               ) : (
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-950">
                   Full self-serve activation after confirm (30-day trial on Core
-                  OS).
+                  OS). Your modules page will show only{' '}
+                  <strong>{sectorDef?.label}</strong> industries.
                 </div>
               )}
             </div>
@@ -979,6 +939,39 @@ export default function BusinessOnboardingWizard() {
         </div>
       </footer>
     </div>
+  );
+}
+
+function TrailChip({
+  n,
+  label,
+  value,
+  active,
+  done,
+}: {
+  n: number;
+  label: string;
+  value?: string | null;
+  active?: boolean;
+  done?: boolean;
+}) {
+  return (
+    <li
+      className={`rounded-xl border px-2.5 py-1.5 min-w-0 ${
+        active
+          ? 'border-[#00b4d8] bg-sky-50'
+          : done
+            ? 'border-emerald-200 bg-emerald-50/80'
+            : 'border-slate-200 bg-white'
+      }`}
+    >
+      <span className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+        {n}. {label}
+      </span>
+      <div className="text-xs font-bold text-slate-900 truncate max-w-[10rem] sm:max-w-[14rem]">
+        {value || '—'}
+      </div>
+    </li>
   );
 }
 

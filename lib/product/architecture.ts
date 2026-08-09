@@ -959,6 +959,10 @@ export function enabledModulesMapFromPacks(
 export type PackagingSelection = {
   entityTypeId: OsEntityTypeId | string;
   sectorId: OsSectorId | string;
+  /** Catalogue industry id (sector → industry → business type) */
+  industryId?: string | null;
+  /** Catalogue business type id */
+  businessTypeId?: string | null;
   packIds: string[];
   moduleIds: string[];
   setupPath: SetupPath;
@@ -970,12 +974,16 @@ export function packagingFromSelection(opts: {
   sectorId: string;
   packIds: string[];
   moduleIds?: string[];
+  industryId?: string | null;
+  businessTypeId?: string | null;
 }): PackagingSelection {
   const entity = getOsEntityType(opts.entityTypeId);
   const setupPath = entity?.setupPath || 'self_serve';
   return {
     entityTypeId: opts.entityTypeId,
     sectorId: opts.sectorId,
+    industryId: opts.industryId || null,
+    businessTypeId: opts.businessTypeId || null,
     packIds: [...new Set(opts.packIds)],
     moduleIds: [...new Set(opts.moduleIds || [])],
     setupPath,
@@ -993,6 +1001,8 @@ export function packagingMetadataBlob(
     os_architecture: 'core_sector_pack_module',
     os_entity_type: selection.entityTypeId,
     os_sector: selection.sectorId,
+    os_industry: selection.industryId || null,
+    os_business_type_id: selection.businessTypeId || null,
     industry_packs: selection.packIds,
     industry_modules: selection.moduleIds,
     setup_path: selection.setupPath,
@@ -1019,6 +1029,12 @@ export function readPackagingFromMetadata(
   return {
     entityTypeId: entityTypeId || 'private_company',
     sectorId: sectorId || 'secondary',
+    industryId:
+      meta.os_industry != null ? String(meta.os_industry) : null,
+    businessTypeId:
+      meta.os_business_type_id != null
+        ? String(meta.os_business_type_id)
+        : null,
     packIds,
     moduleIds,
     setupPath:

@@ -59,6 +59,11 @@ import {
   readPackBillingFromMetadata,
   readPackagingFromMetadata,
 } from '@/lib/product/architecture';
+import {
+  getBusinessType,
+  getIndustry,
+  industriesForSector,
+} from '@/lib/product/business-catalogue';
 
 export default function CompanyModulesPage() {
   return (
@@ -160,13 +165,28 @@ function ModulesInner() {
 
   const sectorGroups = useMemo(() => industryPacksBySector(), []);
 
-  /** Put the company's sector first */
+  /** Only the company's registered sector (and its industry packs) */
   const orderedSectorGroups = useMemo(() => {
     if (!yourSectorId) return sectorGroups;
-    const yours = sectorGroups.filter((g) => g.sectorId === yourSectorId);
-    const rest = sectorGroups.filter((g) => g.sectorId !== yourSectorId);
-    return [...yours, ...rest];
+    return sectorGroups.filter((g) => g.sectorId === yourSectorId);
   }, [sectorGroups, yourSectorId]);
+
+  const companyIndustry = useMemo(
+    () => getIndustry(packaging?.industryId || null),
+    [packaging?.industryId]
+  );
+  const companyBusinessType = useMemo(
+    () =>
+      getBusinessType(
+        packaging?.industryId || null,
+        packaging?.businessTypeId || null
+      ),
+    [packaging?.industryId, packaging?.businessTypeId]
+  );
+  const sectorIndustries = useMemo(
+    () => industriesForSector(yourSectorId),
+    [yourSectorId]
+  );
 
   const subscribedPacks = useMemo(
     () =>
@@ -359,13 +379,22 @@ function ModulesInner() {
               Your plan · sector & packs
             </p>
             <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
-              {entityLabel}
-              <span className="text-neutral-400 font-bold"> · </span>
               {sectorLabel}
+              {companyIndustry ? (
+                <>
+                  <span className="text-neutral-400 font-bold"> · </span>
+                  {companyIndustry.label}
+                </>
+              ) : null}
             </h2>
             <p className="text-sm text-slate-600 mt-1 max-w-2xl leading-relaxed">
-              Core OS is always included. Industry Packs unlock vertical tools and
-              recommended hubs — subscribed packs are marked below.
+              {companyBusinessType
+                ? `Business type: ${companyBusinessType.label}. `
+                : entityLabel !== 'Not set'
+                  ? `Entity: ${entityLabel}. `
+                  : ''}
+              Showing modules and Industry Packs for your registered sector only.
+              Core OS is always included.
             </p>
           </div>
           <div className="text-right shrink-0">
@@ -533,21 +562,89 @@ function ModulesInner() {
         );
       })}
 
-      {/* Sector + Industry Packs (+ programmes under Public Sector) */}
+      {/* Sector industries (registered sector only) */}
+      {yourSectorId && sectorIndustries.length > 0 ? (
+        <div className="mb-6">
+          <div className="mb-2 flex items-center gap-2">
+            <Layers className="w-4 h-4 text-[#0077b6]" />
+            <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">
+              Industries in {sectorLabel}
+            </h3>
+          </div>
+          <p className="text-xs text-neutral-500 mb-3 max-w-2xl">
+            Your registered industry is highlighted. Packs below match this sector.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {sectorIndustries.map((ind) => {
+              const isYours = packaging?.industryId === ind.id;
+              return (
+                <div
+                  key={ind.id}
+                  className={`rounded-2xl border px-3.5 py-3 ${
+                    isYours
+                      ? 'border-[#00b4d8] bg-[#00b4d8]/5 ring-1 ring-[#00b4d8]/25'
+                      : 'border-neutral-200 bg-white'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-bold text-slate-900">
+                      {ind.label}
+                    </span>
+                    {isYours ? (
+                      <span className="text-[9px] font-black uppercase tracking-wide text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
+                        Your industry
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="text-[11px] text-neutral-500 mt-0.5 leading-snug">
+                    {ind.description}
+                  </p>
+                  {ind.packIds.length ? (
+                    <p className="text-[10px] font-semibold text-neutral-600 mt-1">
+                      Packs:{' '}
+                      {ind.packIds
+                        .map((id) => getIndustryPack(id)?.shortName || id)
+                        .join(', ')}
+                    </p>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Sector + Industry Packs (registered sector only; programmes under Public Sector) */}
       <div className="mt-8 mb-2 flex items-center gap-2">
         <Package className="w-4 h-4 text-[#0077b6]" />
         <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">
-          Sector & Industry Packs
+          {sectorLabel !== 'Not set' ? `${sectorLabel} · Industry packs` : 'Industry packs'}
         </h3>
         <span className="text-[11px] text-neutral-500">
           +R{INDUSTRY_PACK_MONTHLY_ZAR}/mo each
         </span>
       </div>
       <p className="text-xs text-neutral-500 mb-4 max-w-2xl">
-        Packs are grouped by the sector they primarily serve. Your sector is listed
-        first. Public Sector is organised as National · Provincial · Municipal ·
-        Local (DBE under Provincial, schools under Local).
+        {yourSectorId
+          ? `Only packs for your registered sector (${sectorLabel}) are shown.`
+          : 'Set packaging on Company → Packaging so we can filter packs by sector.'}
+        {yourSectorId === 'public_sector'
+          ? ' Public Sector is National · Provincial · Municipal · Local (DBE provincial; schools local).'
+          : ''}
       </p>
+
+      {!yourSectorId ? (
+        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          No sector on this company yet.{' '}
+          <Link
+            href="/dashboard/my-business/packaging"
+            className="font-bold underline"
+          >
+            Set packaging
+          </Link>{' '}
+          or complete onboarding so we can show the right industry modules.
+        </div>
+      ) : null}
 
       {orderedSectorGroups.map((group) => {
         const isYours = yourSectorId === group.sectorId;
@@ -609,9 +706,11 @@ function ModulesInner() {
             </div>
 
             <div className="grid gap-4">
-              {/* Public Sector spheres: National → Provincial → Municipal → Local */}
+              {/* Public Sector spheres — only the company's tier when known */}
               {isPublicSector
-                ? PUBLIC_SECTOR_TIERS.map((tier) => {
+                ? PUBLIC_SECTOR_TIERS.filter((tier) =>
+                    yourTier ? tier.id === yourTier : true
+                  ).map((tier) => {
                     const tierIsYours = yourTier === tier.id;
                     const tierModuleIds = [
                       ...new Set(

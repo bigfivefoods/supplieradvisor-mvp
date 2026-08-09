@@ -10,9 +10,11 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { userIdMatchVariants } from '@/lib/auth/identity';
 
-/** Default operators — override with PLATFORM_OPERATOR_EMAILS in env. */
+/**
+ * Default operators when PLATFORM_OPERATOR_EMAILS is unset.
+ * Prefer env in production — do not hard-code personal inboxes.
+ */
 const DEFAULT_OPERATOR_EMAILS = [
-  'craig@bigfivefoods.com',
   'craig@bigfivegroup.africa',
   'craig@supplieradvisor.com',
 ];

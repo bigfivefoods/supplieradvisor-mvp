@@ -54,6 +54,8 @@ export async function POST(request: NextRequest) {
       // Core OS packaging
       os_entity_type,
       os_sector,
+      os_industry,
+      os_business_type_id,
       industry_packs,
       industry_modules,
     } = body;
@@ -408,6 +410,10 @@ export async function POST(request: NextRequest) {
                     ? 'national'
                     : 'private_company'),
           sectorId: os_sector ? String(os_sector) : null,
+          industryId: os_industry ? String(os_industry) : null,
+          businessTypeId: os_business_type_id
+            ? String(os_business_type_id)
+            : null,
           packIds,
           moduleIds,
         },
