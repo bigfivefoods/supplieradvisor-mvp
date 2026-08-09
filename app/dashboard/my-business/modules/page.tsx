@@ -50,6 +50,7 @@ import {
   OS_ENTITY_TYPES,
   OS_SECTORS,
   PUBLIC_SECTOR_TIERS,
+  SA_NATIONAL_DEPARTMENTS,
   appModulesUnlockedByPack,
   getIndustryPack,
   industryPacksBySector,
@@ -691,6 +692,69 @@ function ModulesInner() {
                             </div>
                           ))}
                         </div>
+
+                        {/* Full SA national department catalogue */}
+                        {tier.id === 'national' ? (
+                          <div className="border-t border-violet-100 bg-slate-50/60 p-4 sm:p-5">
+                            <div className="flex flex-wrap items-end justify-between gap-2 mb-3">
+                              <div>
+                                <div className="text-[10px] font-black uppercase tracking-widest text-violet-700">
+                                  South Africa · National departments
+                                </div>
+                                <p className="text-xs text-neutral-600 mt-0.5 max-w-2xl">
+                                  Full Cabinet portfolio list. Featured departments
+                                  (DoE, DHET, DoH, Treasury) have dedicated programmes
+                                  above; enable recommended hubs for any department
+                                  below.
+                                </p>
+                              </div>
+                              <span className="text-[11px] font-bold text-neutral-500">
+                                {SA_NATIONAL_DEPARTMENTS.length} departments
+                              </span>
+                            </div>
+                            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-2">
+                              {SA_NATIONAL_DEPARTMENTS.map((dept) => {
+                                const featured =
+                                  'featured' in dept && Boolean(dept.featured);
+                                const hubNames = (dept.moduleIds || [])
+                                  .map((id) => optionsById.get(id)?.name || id)
+                                  .join(' · ');
+                                return (
+                                  <div
+                                    key={dept.id}
+                                    className={`rounded-2xl border bg-white p-3 ${
+                                      featured
+                                        ? 'border-violet-300 ring-1 ring-violet-100'
+                                        : 'border-neutral-200'
+                                    }`}
+                                  >
+                                    <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                      <span className="text-[10px] font-black uppercase tracking-wide text-violet-800 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded">
+                                        {dept.abbr}
+                                      </span>
+                                      {featured ? (
+                                        <span className="text-[9px] font-bold uppercase text-emerald-800 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">
+                                          Featured
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    <div className="text-sm font-bold text-slate-900 leading-snug">
+                                      {dept.name}
+                                    </div>
+                                    <p className="text-[11px] text-neutral-500 mt-1 leading-snug">
+                                      {dept.focus}
+                                    </p>
+                                    {hubNames ? (
+                                      <p className="text-[10px] font-semibold text-neutral-600 mt-1.5">
+                                        Suggested hubs: {hubNames}
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                     );
                   })

@@ -4,6 +4,281 @@
  */
 
 /**
+ * South African national government departments (Cabinet / gov.za aligned).
+ * Product surfaces: Education → Schools hub; Health → Health hub;
+ * others use Core public-sector tools (network, intelligence, procurement).
+ * Source shape: official national departments list (GNU-era portfolio names).
+ */
+export const SA_NATIONAL_DEPARTMENTS = [
+  {
+    id: 'doe_basic',
+    abbr: 'DoE / DBE',
+    name: 'Department of Education (DoE) — Basic Education',
+    focus:
+      'National education policy, NSNP standards, catalogue and multi-province school nutrition oversight.',
+    moduleIds: ['schools', 'intelligence', 'network'] as const,
+    featured: true,
+  },
+  {
+    id: 'dhet',
+    abbr: 'DHET',
+    name: 'Department of Higher Education and Training',
+    focus: 'Universities, TVET, skills and post-school education.',
+    moduleIds: ['intelligence', 'network'] as const,
+    featured: true,
+  },
+  {
+    id: 'doh',
+    abbr: 'DoH',
+    name: 'Department of Health',
+    focus:
+      'National health programme — clinics, hospitals, approved foods & nutrition pathways.',
+    moduleIds: ['health', 'intelligence', 'network'] as const,
+    featured: true,
+  },
+  {
+    id: 'agriculture',
+    abbr: 'DoA',
+    name: 'Department of Agriculture',
+    focus: 'Primary production, food security and agricultural markets.',
+    moduleIds: ['suppliers', 'network', 'sustainability'] as const,
+  },
+  {
+    id: 'land_rural',
+    abbr: 'DALRRD',
+    name: 'Department of Land Reform and Rural Development',
+    focus: 'Land reform, rural development and spatial justice.',
+    moduleIds: ['network', 'intelligence'] as const,
+  },
+  {
+    id: 'dcdt',
+    abbr: 'DCDT',
+    name: 'Department of Communications and Digital Technologies',
+    focus: 'ICT policy, digital infrastructure and communications.',
+    moduleIds: ['intelligence', 'network'] as const,
+  },
+  {
+    id: 'cogta',
+    abbr: 'CoGTA',
+    name: 'Department of Cooperative Governance and Traditional Affairs',
+    focus: 'Municipal oversight, disaster management and traditional affairs.',
+    moduleIds: ['network', 'intelligence', 'quality'] as const,
+  },
+  {
+    id: 'correctional',
+    abbr: 'DCS',
+    name: 'Department of Correctional Services',
+    focus: 'Correctional facilities and rehabilitation programmes.',
+    moduleIds: ['operations', 'network'] as const,
+  },
+  {
+    id: 'defence',
+    abbr: 'DoD',
+    name: 'Department of Defence and Military Veterans',
+    focus: 'Defence, military veterans and related supply chains.',
+    moduleIds: ['operations', 'network', 'quality'] as const,
+  },
+  {
+    id: 'labour',
+    abbr: 'DEL',
+    name: 'Department of Employment and Labour',
+    focus: 'Labour market, inspections and employment services.',
+    moduleIds: ['people', 'network'] as const,
+  },
+  {
+    id: 'energy',
+    abbr: 'DMRE-E',
+    name: 'Department of Electricity and Energy',
+    focus: 'Electricity, energy policy and security of supply.',
+    moduleIds: ['operations', 'intelligence'] as const,
+  },
+  {
+    id: 'dffe',
+    abbr: 'DFFE',
+    name: 'Department of Forestry, Fisheries and the Environment',
+    focus: 'Environment, climate, forestry and fisheries.',
+    moduleIds: ['sustainability', 'intelligence'] as const,
+  },
+  {
+    id: 'dha',
+    abbr: 'DHA',
+    name: 'Department of Home Affairs',
+    focus: 'Civic services, immigration and identity systems.',
+    moduleIds: ['network', 'intelligence'] as const,
+  },
+  {
+    id: 'human_settlements',
+    abbr: 'DHS',
+    name: 'Department of Human Settlements',
+    focus: 'Housing, human settlements and spatial development.',
+    moduleIds: ['projects', 'network'] as const,
+  },
+  {
+    id: 'dirco',
+    abbr: 'DIRCO',
+    name: 'Department of International Relations and Cooperation',
+    focus: 'Foreign policy, missions and international cooperation.',
+    moduleIds: ['network', 'intelligence'] as const,
+  },
+  {
+    id: 'justice',
+    abbr: 'DoJ&CD',
+    name: 'Department of Justice and Constitutional Development',
+    focus: 'Courts, constitutional development and legal services.',
+    moduleIds: ['network', 'quality'] as const,
+  },
+  {
+    id: 'mineral_petroleum',
+    abbr: 'DMPR',
+    name: 'Department of Mineral and Petroleum Resources',
+    focus: 'Mining, petroleum resources and related regulation.',
+    moduleIds: ['suppliers', 'sustainability', 'intelligence'] as const,
+  },
+  {
+    id: 'dpme',
+    abbr: 'DPME',
+    name: 'Department of Planning, Monitoring and Evaluation',
+    focus: 'Government planning, monitoring and evaluation.',
+    moduleIds: ['intelligence', 'projects'] as const,
+  },
+  {
+    id: 'police',
+    abbr: 'SAPS / CSPS',
+    name: 'Department of Police (incl. Civilian Secretariat)',
+    focus: 'Policing policy, civilian oversight and safety.',
+    moduleIds: ['network', 'intelligence'] as const,
+  },
+  {
+    id: 'dpsa',
+    abbr: 'DPSA',
+    name: 'Department of Public Service and Administration',
+    focus: 'Public service norms, HR and administration.',
+    moduleIds: ['people', 'network'] as const,
+  },
+  {
+    id: 'dpwi',
+    abbr: 'DPWI',
+    name: 'Department of Public Works and Infrastructure',
+    focus: 'Public works, infrastructure and facilities management.',
+    moduleIds: ['projects', 'operations', 'network'] as const,
+  },
+  {
+    id: 'dsti',
+    abbr: 'DSTI',
+    name: 'Department of Science, Technology and Innovation',
+    focus: 'Science, research, technology and innovation systems.',
+    moduleIds: ['intelligence', 'network'] as const,
+  },
+  {
+    id: 'dsd',
+    abbr: 'DSD',
+    name: 'Department of Social Development',
+    focus: 'Social grants policy interface, welfare and community development.',
+    moduleIds: ['network', 'intelligence'] as const,
+  },
+  {
+    id: 'dsac',
+    abbr: 'DSAC',
+    name: 'Department of Sport, Arts and Culture',
+    focus: 'Sport, arts, culture and heritage.',
+    moduleIds: ['network', 'projects'] as const,
+  },
+  {
+    id: 'tourism',
+    abbr: 'Tourism',
+    name: 'Department of Tourism',
+    focus: 'Tourism growth, destination marketing support and sector supply.',
+    moduleIds: ['network', 'suppliers'] as const,
+  },
+  {
+    id: 'dtic',
+    abbr: 'the dtic',
+    name: 'Department of Trade, Industry and Competition',
+    focus: 'Industrial policy, trade, competition and enterprise development.',
+    moduleIds: ['suppliers', 'customers', 'intelligence'] as const,
+  },
+  {
+    id: 'transport',
+    abbr: 'DoT',
+    name: 'Department of Transport',
+    focus: 'Transport policy, logistics corridors and modal regulation.',
+    moduleIds: ['distribution', 'operations', 'network'] as const,
+  },
+  {
+    id: 'water',
+    abbr: 'DWS',
+    name: 'Department of Water and Sanitation',
+    focus: 'Water resources, sanitation and infrastructure programmes.',
+    moduleIds: ['operations', 'projects', 'sustainability'] as const,
+  },
+  {
+    id: 'dwypd',
+    abbr: 'DWYPD',
+    name: 'Department of Women, Youth and Persons with Disabilities',
+    focus: 'Women, youth and disability rights and empowerment programmes.',
+    moduleIds: ['network', 'people'] as const,
+  },
+  {
+    id: 'small_business',
+    abbr: 'DSBD',
+    name: 'Department of Small Business Development',
+    focus: 'SMME support, informal economy and enterprise development.',
+    moduleIds: ['suppliers', 'customers', 'network'] as const,
+  },
+  {
+    id: 'treasury',
+    abbr: 'NT',
+    name: 'National Treasury',
+    focus: 'Public finance, budget, procurement policy and PFMA oversight.',
+    moduleIds: ['accounting', 'intelligence', 'network'] as const,
+    featured: true,
+  },
+  {
+    id: 'presidency',
+    abbr: 'Presidency',
+    name: 'The Presidency',
+    focus: 'Presidency coordination, Cabinet support and national priorities.',
+    moduleIds: ['intelligence', 'network'] as const,
+  },
+  {
+    id: 'gcis',
+    abbr: 'GCIS',
+    name: 'Government Communication and Information System',
+    focus: 'Government communications and public information.',
+    moduleIds: ['network', 'intelligence'] as const,
+  },
+] as const;
+
+export type SaNationalDepartmentId =
+  (typeof SA_NATIONAL_DEPARTMENTS)[number]['id'];
+
+export function getSaNationalDepartment(id: string | null | undefined) {
+  return SA_NATIONAL_DEPARTMENTS.find((d) => d.id === id) || null;
+}
+
+/** Featured national programmes (DoE, DoH, Treasury, control) + full catalogue reference */
+function nationalProgrammesFromDepartments() {
+  const control = {
+    id: 'national_policy',
+    name: 'National programme control',
+    description:
+      'Multi-entity group structure, intelligence, and public procurement pathways for any national department.',
+    moduleIds: ['intelligence', 'network'] as const,
+    chips: ['Multi-entity', 'Intelligence', 'Public procurement'],
+  };
+  const fromDepts = SA_NATIONAL_DEPARTMENTS.filter(
+    (d) => 'featured' in d && d.featured
+  ).map((d) => ({
+    id: `national_${d.id}`,
+    name: d.name,
+    description: d.focus,
+    moduleIds: d.moduleIds,
+    chips: [d.abbr, 'National department'] as string[],
+  }));
+  return [control, ...fromDepts] as const;
+}
+
+/**
  * Public Sector spheres (SA-aligned).
  * National → Provincial → Municipal → Local (schools / facilities).
  */
@@ -12,27 +287,12 @@ export const PUBLIC_SECTOR_TIERS = [
     id: 'national',
     label: 'National',
     description:
-      'National government departments and agencies — policy, catalogue standards, multi-entity oversight.',
+      'South African national government departments — DoE, DoH, Treasury and full Cabinet portfolio list. Policy, catalogue standards, multi-entity oversight.',
     /** OS entity type this tier maps to */
     entityTypeId: 'national' as const,
-    programmes: [
-      {
-        id: 'national_policy',
-        name: 'National programme control',
-        description:
-          'Multi-entity group structure, intelligence, and public procurement pathways.',
-        moduleIds: ['intelligence', 'network'] as const,
-        chips: ['Multi-entity', 'Intelligence', 'Public procurement'],
-      },
-      {
-        id: 'national_doh',
-        name: 'Department of Health (DoH)',
-        description:
-          'National health programme — clinics, hospitals, approved foods & nutrition.',
-        moduleIds: ['health'] as const,
-        chips: ['DoH', 'Health facilities'],
-      },
-    ],
+    programmes: nationalProgrammesFromDepartments(),
+    /** Full national department catalogue (all SA national departments) */
+    nationalDepartments: SA_NATIONAL_DEPARTMENTS,
   },
   {
     id: 'provincial',
@@ -45,7 +305,7 @@ export const PUBLIC_SECTOR_TIERS = [
         id: 'provincial_dbe',
         name: 'DBE / Provincial Education (NSNP)',
         description:
-          'Department of Basic Education & provincial PEU tools — approve schools, catalogue, visits, claims, multi-school nutrition. Not a school kitchen.',
+          'Provincial Education / PEU tools under national DoE policy — approve schools, catalogue, visits, claims, multi-school nutrition. Not a school kitchen.',
         moduleIds: ['schools'] as const,
         chips: ['DBE', 'PEU', 'NSNP agency', 'Catalogue', 'Claims'],
       },
@@ -58,6 +318,7 @@ export const PUBLIC_SECTOR_TIERS = [
         chips: ['DoH provincial', 'Facilities'],
       },
     ],
+    nationalDepartments: null,
   },
   {
     id: 'municipal',
@@ -75,6 +336,7 @@ export const PUBLIC_SECTOR_TIERS = [
         chips: ['Procurement', 'Compliance', 'Suppliers'],
       },
     ],
+    nationalDepartments: null,
   },
   {
     id: 'local',
@@ -87,7 +349,7 @@ export const PUBLIC_SECTOR_TIERS = [
         id: 'local_schools',
         name: 'Schools (NSNP kitchen)',
         description:
-          'School kitchen workspace — learners, approved brands, SPs, feeding calendar, serve day, prizes. Local NSNP site, not the DBE agency.',
+          'School kitchen workspace — learners, approved brands, SPs, feeding calendar, serve day, prizes. Local NSNP site, not the national DoE or provincial DBE agency.',
         moduleIds: ['schools'] as const,
         chips: ['School', 'Kitchen', 'Serve day', 'NSNP local'],
       },
@@ -100,6 +362,7 @@ export const PUBLIC_SECTOR_TIERS = [
         chips: ['Clinic', 'Hospital', 'Facility'],
       },
     ],
+    nationalDepartments: null,
   },
 ] as const;
 
