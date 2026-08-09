@@ -47,7 +47,6 @@ import {
   INDUSTRY_PACK_MONTHLY_ZAR,
   OS_ENTITY_TYPES,
   OS_SECTORS,
-  type OsSectorId,
   PUBLIC_SECTOR_TIERS,
   SA_NATIONAL_DEPARTMENTS,
   appModulesUnlockedByPack,
