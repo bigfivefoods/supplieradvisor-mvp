@@ -1,11 +1,15 @@
 /**
  * Browser Paystack helpers — InlineJS v2 + Apple Pay channels.
- * Load script: https://js.paystack.co/v2/inline.js
+ * Load script: https://js.paystack.co/v2/inline.js (v2 required for Apple Pay)
+ * @see https://paystack.com/docs/payments/apple-pay/
  *
  * Apple Pay requires:
- * - Paystack Dashboard → Preferences → enable Apple Pay
- * - Domain registered + .well-known verification file hosted
- * - HTTPS (production)
+ * - Paystack Dashboard → Preferences → enable Apple Pay (+ accept terms)
+ * - Domain registered under Settings → Apple Pay → Web Domains
+ * - Verification file at /.well-known/apple-developer-merchantid-domain-association
+ *   with Content-Type: application/text
+ * - Domain verified in dashboard
+ * - HTTPS (production); Safari / Apple devices only
  */
 
 export const PAYSTACK_CHANNELS_DEFAULT = [

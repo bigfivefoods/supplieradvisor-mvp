@@ -1049,7 +1049,7 @@ function BillingInner() {
                     : ''}
                 </button>
 
-                {/* Apple Pay — Safari / iOS (Paystack InlineJS v2 paymentRequest) */}
+                {/* Apple Pay — Paystack InlineJS v2 paymentRequest (Safari / iOS) */}
                 <div className="mt-3 space-y-2">
                   <button
                     type="button"
@@ -1060,12 +1060,22 @@ function BillingInner() {
                   </button>
                   {showApplePay ? (
                     <div className="rounded-2xl border border-slate-200 bg-slate-950 p-3 space-y-2">
+                      {/* Payment request button injects into this div */}
                       <div id="paystack-apple-pay" className="min-h-[48px]" />
+                      <button
+                        type="button"
+                        id="paystack-other-channels"
+                        onClick={() => void startPay()}
+                        className="w-full rounded-xl border border-slate-600 bg-slate-900 py-2.5 text-xs font-bold text-white hover:bg-slate-800"
+                      >
+                        More payment options
+                      </button>
                       {!applePayReady ? (
                         <p className="text-[10px] text-slate-400 text-center">
-                          Apple Pay appears on Safari / iOS when enabled on your
-                          Paystack dashboard and domain is verified. Use Pay
-                          above for card, EFT, and other channels.
+                          Apple Pay mounts on Safari / iOS after the domain is
+                          verified in Paystack (Settings → Apple Pay). HTTPS
+                          required. Card, EFT and other channels work via Pay
+                          above or More payment options.
                         </p>
                       ) : (
                         <p className="text-[10px] text-emerald-400 text-center">

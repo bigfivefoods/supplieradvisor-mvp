@@ -3,13 +3,20 @@ import { APPLE_PAY_DOMAIN_ASSOCIATION_BODY } from '@/lib/billing/apple-pay-domai
 
 /**
  * Apple Pay domain verification for Paystack.
+ * @see https://paystack.com/docs/payments/apple-pay/
+ *
  * Served at: /.well-known/apple-developer-merchantid-domain-association
  *
- * Content ships in-repo (Paystack domain association payload). Env can override:
+ * Paystack requires Content-Type: application/text (not text/plain) —
+ * a wrong type can cause customer payments to fail.
+ *
+ * Content ships in-repo. Override without redeploy:
  *   APPLE_PAY_DOMAIN_ASSOCIATION or PAYSTACK_APPLE_PAY_DOMAIN_FILE
  */
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+const ASSOCIATION_CONTENT_TYPE = 'application/text';
 
 export async function GET() {
   const fromEnv =
@@ -24,7 +31,7 @@ export async function GET() {
       {
         status: 404,
         headers: {
-          'Content-Type': 'text/plain; charset=utf-8',
+          'Content-Type': ASSOCIATION_CONTENT_TYPE,
           'Cache-Control': 'no-store',
         },
       }
@@ -34,8 +41,7 @@ export async function GET() {
   return new NextResponse(body, {
     status: 200,
     headers: {
-      // Apple / Paystack expect plain text domain association body
-      'Content-Type': 'text/plain; charset=utf-8',
+      'Content-Type': ASSOCIATION_CONTENT_TYPE,
       'Cache-Control': 'public, max-age=3600',
     },
   });

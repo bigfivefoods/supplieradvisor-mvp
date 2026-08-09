@@ -32,6 +32,15 @@ const nextConfig = {
           },
         ],
       },
+      {
+        // Paystack Apple Pay: domain verification file must be application/text
+        // https://paystack.com/docs/payments/apple-pay/
+        source: '/.well-known/apple-developer-merchantid-domain-association',
+        headers: [
+          { key: 'Content-Type', value: 'application/text' },
+          { key: 'Cache-Control', value: 'public, max-age=3600' },
+        ],
+      },
     ];
   },
   async redirects() {
