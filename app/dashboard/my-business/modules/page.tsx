@@ -49,10 +49,12 @@ import {
   INDUSTRY_PACK_MONTHLY_ZAR,
   OS_ENTITY_TYPES,
   OS_SECTORS,
+  PUBLIC_SECTOR_TIERS,
   appModulesUnlockedByPack,
   getIndustryPack,
   industryPacksBySector,
   packsUnlockingAppModule,
+  publicSectorTierForEntity,
   readPackBillingFromMetadata,
   readPackagingFromMetadata,
 } from '@/lib/product/architecture';
@@ -542,15 +544,24 @@ function ModulesInner() {
       </div>
       <p className="text-xs text-neutral-500 mb-4 max-w-2xl">
         Packs are grouped by the sector they primarily serve. Your sector is listed
-        first. Public Sector includes programme hubs (NSNP schools &amp; health).
-        Subscribe under Packaging / Billing — then enable the hubs you want below.
+        first. Public Sector is organised as National · Provincial · Municipal ·
+        Local (DBE under Provincial, schools under Local).
       </p>
 
       {orderedSectorGroups.map((group) => {
         const isYours = yourSectorId === group.sectorId;
         const isPublicSector = group.sectorId === 'public_sector';
-        const programmeIds = ['schools', 'health'] as const;
-        const programmesOn = programmeIds.filter(
+        const yourTier = publicSectorTierForEntity(
+          packaging?.entityTypeId || null
+        );
+        const publicModuleIds = [
+          ...new Set(
+            PUBLIC_SECTOR_TIERS.flatMap((t) =>
+              t.programmes.flatMap((p) => [...p.moduleIds])
+            )
+          ),
+        ];
+        const programmesOn = publicModuleIds.filter(
           (id) => enabled[id] !== false && optionsById.get(id)
         ).length;
         return (
@@ -589,64 +600,101 @@ function ModulesInner() {
                 </div>
                 {isPublicSector ? (
                   <div className="mt-0.5 opacity-90">
-                    {programmesOn}/{programmeIds.length} programmes on
+                    {programmesOn}/{publicModuleIds.length} programme hubs on
+                    {yourTier ? ` · you: ${yourTier}` : ''}
                   </div>
                 ) : null}
               </div>
             </div>
 
             <div className="grid gap-4">
-              {/* Sector programmes live under Public Sector */}
-              {isPublicSector ? (
-                <div className="rounded-3xl border border-violet-200 bg-white overflow-hidden ring-1 ring-violet-100">
-                  <div className="flex flex-wrap items-start justify-between gap-3 px-4 sm:px-5 py-4 border-b border-violet-100 bg-violet-50/50">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <h4 className="text-base font-black text-slate-900">
-                          Programmes
-                        </h4>
-                        <span className="inline-flex items-center rounded-full bg-violet-100 border border-violet-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-violet-900">
-                          Sector programmes
-                        </span>
+              {/* Public Sector spheres: National → Provincial → Municipal → Local */}
+              {isPublicSector
+                ? PUBLIC_SECTOR_TIERS.map((tier) => {
+                    const tierIsYours = yourTier === tier.id;
+                    const tierModuleIds = [
+                      ...new Set(
+                        tier.programmes.flatMap((p) => [...p.moduleIds])
+                      ),
+                    ];
+                    const tierOn = tierModuleIds.filter(
+                      (id) =>
+                        enabled[id] !== false && optionsById.get(id)
+                    ).length;
+                    return (
+                      <div
+                        key={tier.id}
+                        className={`rounded-3xl border bg-white overflow-hidden ${
+                          tierIsYours
+                            ? 'border-violet-400 ring-2 ring-violet-200'
+                            : 'border-violet-200'
+                        }`}
+                      >
+                        <div
+                          className={`flex flex-wrap items-start justify-between gap-3 px-4 sm:px-5 py-4 border-b ${
+                            tierIsYours
+                              ? 'bg-violet-100/80 border-violet-200'
+                              : 'bg-violet-50/40 border-violet-100'
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-violet-700">
+                                Public sector
+                              </span>
+                              <h4 className="text-base font-black text-slate-900">
+                                {tier.label}
+                              </h4>
+                              {tierIsYours ? (
+                                <span className="inline-flex items-center rounded-full bg-violet-700 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white">
+                                  Your tier
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="text-xs text-neutral-600 leading-relaxed max-w-2xl">
+                              {tier.description}
+                            </p>
+                            <p className="text-[11px] font-semibold text-neutral-600 mt-1.5">
+                              {tierOn}/{tierModuleIds.length} hubs enabled ·{' '}
+                              {tier.programmes.length} programme
+                              {tier.programmes.length === 1 ? '' : 's'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="divide-y divide-neutral-100">
+                          {tier.programmes.map((prog) => (
+                            <div key={prog.id} className="p-4 sm:p-5">
+                              <div className="mb-2">
+                                <h5 className="text-sm font-black text-slate-900">
+                                  {prog.name}
+                                </h5>
+                                <p className="text-[11px] text-neutral-500 leading-relaxed mt-0.5 max-w-2xl">
+                                  {prog.description}
+                                </p>
+                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                  {prog.chips.map((c) => (
+                                    <span
+                                      key={c}
+                                      className="rounded-full px-2 py-0.5 text-[10px] font-bold border bg-white border-violet-200 text-violet-900"
+                                    >
+                                      {c}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                              <ul className="grid sm:grid-cols-2 xl:grid-cols-3 gap-2 mt-3">
+                                {prog.moduleIds.map((id) =>
+                                  renderModuleToggle(id, true)
+                                )}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <p className="text-xs text-neutral-600 leading-relaxed max-w-xl">
-                        Sector programmes — NSNP schools (DBE) and health facilities
-                        (DoH). Enable the hubs your organisation runs.
-                      </p>
-                      <p className="text-[11px] font-semibold text-neutral-600 mt-1.5">
-                        Opt-in · not part of private Core OS by default
-                      </p>
-                    </div>
-                    <Link
-                      href="/dashboard/my-business/packaging"
-                      className="btn-secondary !py-2 !px-3 text-xs shrink-0"
-                    >
-                      Public packs
-                    </Link>
-                  </div>
-                  <div className="px-4 sm:px-5 py-3 bg-slate-50/80 border-b border-neutral-100">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-neutral-400 mb-2">
-                      Programme includes
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold border bg-white border-violet-200 text-violet-900">
-                        NSNP schools (DBE)
-                      </span>
-                      <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold border bg-white border-violet-200 text-violet-900">
-                        Health facilities (DoH)
-                      </span>
-                    </div>
-                  </div>
-                  <div className="p-4 sm:p-5">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-neutral-400 mb-2">
-                      Workspace hubs
-                    </div>
-                    <ul className="grid sm:grid-cols-2 xl:grid-cols-3 gap-2">
-                      {programmeIds.map((id) => renderModuleToggle(id, true))}
-                    </ul>
-                  </div>
-                </div>
-              ) : null}
+                    );
+                  })
+                : null}
 
               {group.packs.map((pack) => {
                 const subscribed = subscribedPackIds.has(pack.id);

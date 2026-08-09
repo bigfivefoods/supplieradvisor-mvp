@@ -115,7 +115,7 @@ export const MODULE_CATEGORIES: Array<{
     id: 'programmes',
     title: 'Programmes',
     blurb:
-      'Sector programmes — NSNP schools (DBE) and health facilities (DoH).',
+      'Public Sector programmes — DBE under Provincial; schools under Local; health (DoH) at National / Provincial / facility Local.',
     moduleIds: ['schools', 'health'],
   },
 ];

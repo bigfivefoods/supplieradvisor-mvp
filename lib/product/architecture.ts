@@ -3,6 +3,108 @@
  * Single source of truth for packaging (brief 2026-08-09).
  */
 
+/**
+ * Public Sector spheres (SA-aligned).
+ * National → Provincial → Municipal → Local (schools / facilities).
+ */
+export const PUBLIC_SECTOR_TIERS = [
+  {
+    id: 'national',
+    label: 'National',
+    description:
+      'National government departments and agencies — policy, catalogue standards, multi-entity oversight.',
+    /** OS entity type this tier maps to */
+    entityTypeId: 'national' as const,
+    programmes: [
+      {
+        id: 'national_policy',
+        name: 'National programme control',
+        description:
+          'Multi-entity group structure, intelligence, and public procurement pathways.',
+        moduleIds: ['intelligence', 'network'] as const,
+        chips: ['Multi-entity', 'Intelligence', 'Public procurement'],
+      },
+      {
+        id: 'national_doh',
+        name: 'Department of Health (DoH)',
+        description:
+          'National health programme — clinics, hospitals, approved foods & nutrition.',
+        moduleIds: ['health'] as const,
+        chips: ['DoH', 'Health facilities'],
+      },
+    ],
+  },
+  {
+    id: 'provincial',
+    label: 'Provincial',
+    description:
+      'Provincial departments and PEUs — programme approval, visits, claims, multi-school oversight.',
+    entityTypeId: 'provincial' as const,
+    programmes: [
+      {
+        id: 'provincial_dbe',
+        name: 'DBE / Provincial Education (NSNP)',
+        description:
+          'Department of Basic Education & provincial PEU tools — approve schools, catalogue, visits, claims, multi-school nutrition. Not a school kitchen.',
+        moduleIds: ['schools'] as const,
+        chips: ['DBE', 'PEU', 'NSNP agency', 'Catalogue', 'Claims'],
+      },
+      {
+        id: 'provincial_health',
+        name: 'Provincial Health',
+        description:
+          'Provincial health programme oversight for facilities on DoH pathways.',
+        moduleIds: ['health'] as const,
+        chips: ['DoH provincial', 'Facilities'],
+      },
+    ],
+  },
+  {
+    id: 'municipal',
+    label: 'Municipal',
+    description:
+      'Municipal / metro government — public procurement, compliance, and local supply chains.',
+    entityTypeId: 'municipal' as const,
+    programmes: [
+      {
+        id: 'municipal_procure',
+        name: 'Municipal procurement & compliance',
+        description:
+          'Public procurement, quality/SHEQ trails, and supplier networks for the municipality.',
+        moduleIds: ['suppliers', 'quality', 'sheq', 'network'] as const,
+        chips: ['Procurement', 'Compliance', 'Suppliers'],
+      },
+    ],
+  },
+  {
+    id: 'local',
+    label: 'Local',
+    description:
+      'Local service sites — schools (NSNP kitchens), clinics and facilities that order and serve.',
+    entityTypeId: 'school' as const,
+    programmes: [
+      {
+        id: 'local_schools',
+        name: 'Schools (NSNP kitchen)',
+        description:
+          'School kitchen workspace — learners, approved brands, SPs, feeding calendar, serve day, prizes. Local NSNP site, not the DBE agency.',
+        moduleIds: ['schools'] as const,
+        chips: ['School', 'Kitchen', 'Serve day', 'NSNP local'],
+      },
+      {
+        id: 'local_health',
+        name: 'Clinic / hospital facility',
+        description:
+          'Health facility kitchen and ordering on DoH approved foods.',
+        moduleIds: ['health'] as const,
+        chips: ['Clinic', 'Hospital', 'Facility'],
+      },
+    ],
+  },
+] as const;
+
+export type PublicSectorTierId = (typeof PUBLIC_SECTOR_TIERS)[number]['id'];
+
 /** Onboarding entity type (step 1) */
 export const OS_ENTITY_TYPES = [
   {
@@ -14,47 +116,68 @@ export const OS_ENTITY_TYPES = [
     businessType: 'business',
     setupPath: 'self_serve' as const,
     publicSector: false,
-  },
-  {
-    id: 'school',
-    label: 'School',
-    shortLabel: 'School',
-    description: 'School kitchen & NSNP workspace — simplified navigation.',
-    businessType: 'school',
-    setupPath: 'self_serve' as const,
-    publicSector: true,
-  },
-  {
-    id: 'municipal',
-    label: 'Municipal / Local Government',
-    shortLabel: 'Municipal',
-    description: 'Local government — self-serve with public procurement tools.',
-    businessType: 'municipal_government',
-    setupPath: 'self_serve' as const,
-    publicSector: true,
-  },
-  {
-    id: 'provincial',
-    label: 'Provincial Government',
-    shortLabel: 'Provincial',
-    description: 'Provincial department — pack selection; specialist completes setup.',
-    businessType: 'provincial_government',
-    setupPath: 'contact_required' as const,
-    publicSector: true,
+    publicSectorTier: null as PublicSectorTierId | null,
   },
   {
     id: 'national',
-    label: 'National Government',
+    label: 'National',
     shortLabel: 'National',
-    description: 'National department — pack selection; specialist completes setup.',
+    description:
+      'National government department or agency — policy, multi-entity, specialist setup.',
     businessType: 'national_government',
     setupPath: 'contact_required' as const,
     publicSector: true,
+    publicSectorTier: 'national' as PublicSectorTierId,
+  },
+  {
+    id: 'provincial',
+    label: 'Provincial',
+    shortLabel: 'Provincial',
+    description:
+      'Provincial department (incl. DBE / PEU) — programme control; specialist setup.',
+    businessType: 'provincial_government',
+    setupPath: 'contact_required' as const,
+    publicSector: true,
+    publicSectorTier: 'provincial' as PublicSectorTierId,
+  },
+  {
+    id: 'municipal',
+    label: 'Municipal',
+    shortLabel: 'Municipal',
+    description:
+      'Municipal / metro government — public procurement and local supply chains.',
+    businessType: 'municipal_government',
+    setupPath: 'self_serve' as const,
+    publicSector: true,
+    publicSectorTier: 'municipal' as PublicSectorTierId,
+  },
+  {
+    id: 'school',
+    label: 'Local — School',
+    shortLabel: 'Local',
+    description:
+      'Local school kitchen & NSNP site workspace — simplified navigation.',
+    businessType: 'school',
+    setupPath: 'self_serve' as const,
+    publicSector: true,
+    publicSectorTier: 'local' as PublicSectorTierId,
   },
 ] as const;
 
 export type OsEntityTypeId = (typeof OS_ENTITY_TYPES)[number]['id'];
 export type SetupPath = 'self_serve' | 'contact_required';
+
+export function getPublicSectorTier(id: string | null | undefined) {
+  return PUBLIC_SECTOR_TIERS.find((t) => t.id === id) || null;
+}
+
+/** Map entity type → public sector tier id */
+export function publicSectorTierForEntity(
+  entityTypeId: string | null | undefined
+): PublicSectorTierId | null {
+  const e = OS_ENTITY_TYPES.find((x) => x.id === entityTypeId);
+  return e?.publicSectorTier ?? null;
+}
 
 export const OS_SECTORS = [
   {
@@ -80,7 +203,8 @@ export const OS_SECTORS = [
   {
     id: 'public_sector',
     label: 'Public Sector',
-    description: 'Government and publicly funded programmes.',
+    description:
+      'Government and publicly funded programmes — National, Provincial, Municipal, and Local.',
   },
 ] as const;
 
@@ -372,7 +496,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     name: 'Public Procurement & Compliance',
     shortName: 'Public Procure',
     description:
-      'Public procurement pathways, compliance, multi-entity, and programme control.',
+      'Public procurement pathways, compliance, multi-entity, and programme control across National → Local.',
     monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
     priority: 1,
     recommendSectors: ['public_sector'],
@@ -380,8 +504,9 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     modules: [
       {
         id: 'pp_nsnp',
-        name: 'NSNP / schools programme',
-        description: 'Schools feeding programme tools (full Schools module).',
+        name: 'NSNP programme (DBE provincial + local schools)',
+        description:
+          'Full Schools hub — DBE/PEU agency views (provincial) and school kitchen (local).',
         unlocks: ['schools'],
       },
       {
@@ -393,16 +518,16 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       {
         id: 'pp_multi',
         name: 'Multi-entity control',
-        description: 'Group and subsidiary oversight.',
+        description: 'Group and subsidiary oversight (national / provincial).',
         unlocks: ['my-business', 'network'],
       },
     ],
     industryToolsHrefs: [
-      { name: 'Schools hub', href: '/dashboard/schools', desc: 'Full NSNP OS' },
+      { name: 'Schools hub', href: '/dashboard/schools', desc: 'DBE + local NSNP OS' },
       { name: 'Approved foods', href: '/dashboard/schools/approved-list', desc: 'Catalogue' },
-      { name: 'Kitchen', href: '/dashboard/schools/kitchen', desc: 'Stock & reorder' },
+      { name: 'Kitchen', href: '/dashboard/schools/kitchen', desc: 'Local school stock' },
       { name: 'Orders / SP', href: '/dashboard/schools/orders', desc: 'School POs' },
-      { name: 'Serve day', href: '/dashboard/schools/serve-day', desc: 'Feeding' },
+      { name: 'Serve day', href: '/dashboard/schools/serve-day', desc: 'Local feeding' },
       { name: 'Group entities', href: '/dashboard/my-business/group', desc: 'Multi-entity' },
       { name: 'Quality', href: '/dashboard/quality', desc: 'Compliance' },
     ],

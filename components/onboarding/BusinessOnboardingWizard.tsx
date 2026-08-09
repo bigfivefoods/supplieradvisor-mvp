@@ -542,7 +542,8 @@ export default function BusinessOnboardingWizard() {
               What type of organisation?
             </h1>
             <p className="text-sm text-slate-600">
-              Required. This drives recommendations and public-sector rules.
+              Required. Public Sector uses National → Provincial → Municipal →
+              Local (DBE is Provincial; schools are Local).
             </p>
             <div className="grid sm:grid-cols-2 gap-3">
               {OS_ENTITY_TYPES.map((e) => {
@@ -553,6 +554,16 @@ export default function BusinessOnboardingWizard() {
                       ? Landmark
                       : Building2;
                 const on = form.os_entity_type === e.id;
+                const tierBadge =
+                  e.publicSectorTier === 'national'
+                    ? 'National'
+                    : e.publicSectorTier === 'provincial'
+                      ? 'Provincial · DBE'
+                      : e.publicSectorTier === 'municipal'
+                        ? 'Municipal'
+                        : e.publicSectorTier === 'local'
+                          ? 'Local · Schools'
+                          : null;
                 return (
                   <button
                     key={e.id}
@@ -577,11 +588,18 @@ export default function BusinessOnboardingWizard() {
                     <p className="text-[11px] text-slate-500 mt-1 leading-snug">
                       {e.description}
                     </p>
-                    {e.setupPath === 'contact_required' ? (
-                      <span className="inline-block mt-2 text-[10px] font-bold uppercase text-violet-800 bg-violet-100 px-2 py-0.5 rounded-full">
-                        Specialist setup
-                      </span>
-                    ) : null}
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {tierBadge ? (
+                        <span className="inline-block text-[10px] font-bold uppercase text-violet-800 bg-violet-100 px-2 py-0.5 rounded-full">
+                          {tierBadge}
+                        </span>
+                      ) : null}
+                      {e.setupPath === 'contact_required' ? (
+                        <span className="inline-block text-[10px] font-bold uppercase text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full">
+                          Specialist setup
+                        </span>
+                      ) : null}
+                    </div>
                   </button>
                 );
               })}
@@ -595,7 +613,7 @@ export default function BusinessOnboardingWizard() {
             <h1 className="text-2xl font-black text-slate-900">Sector</h1>
             <p className="text-sm text-slate-600">
               {entityDef?.publicSector
-                ? 'Public sector is selected for government and school entities.'
+                ? 'Public Sector is locked for National, Provincial, Municipal, and Local (school) entities.'
                 : 'Required. Drives Industry Pack recommendations.'}
             </p>
             <div className="grid sm:grid-cols-2 gap-3">
