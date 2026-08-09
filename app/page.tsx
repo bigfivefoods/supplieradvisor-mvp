@@ -35,6 +35,9 @@ import {
   Gift,
   Bot,
   Sparkles,
+  Layers,
+  Mail,
+  Puzzle,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import LandingNav from '@/components/marketing/LandingNav';
@@ -71,7 +74,11 @@ import {
   COMPANY_TRIAL_DAYS,
   formatZar,
 } from '@/lib/billing/company-subscription';
-import { INDUSTRY_PACK_MONTHLY_ZAR } from '@/lib/product/architecture';
+import {
+  CORE_OS_MONTHLY_ZAR,
+  INDUSTRY_PACK_MONTHLY_ZAR,
+  OS_SECTORS,
+} from '@/lib/product/architecture';
 import { FOUNDING_FREE_COMPANY_LIMIT } from '@/lib/billing/lifetime';
 import {
   REFERRAL_LEVEL_RATES_PCT,
@@ -764,6 +771,239 @@ export default function LandingPage() {
       <ReplaceStackDiagram />
 
       <RoiCalculator />
+
+      {/* ═══════════ CORE OS · SECTOR · INDUSTRY · GOVERNMENT · BESPOKE ═══════════ */}
+      <section
+        id="packaging"
+        className="scroll-mt-20 border-t border-slate-200 bg-white py-20 sm:py-28"
+      >
+        <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
+          <div className="mx-auto mb-12 max-w-3xl text-center sm:mb-16">
+            <SectionLabel>How you assemble SupplierAdvisor®</SectionLabel>
+            <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
+              Core OS · Sector · Industry
+              <span className="mt-2 block text-[#00b4d8]">
+                Government &amp; bespoke by design
+              </span>
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-slate-600 sm:text-lg">
+              Every company starts with the same Core operating system, then layers
+              sector and industry packs for how you actually trade. Public-sector
+              programmes and fully custom process design are specialist-led —
+              contact us to get set up.
+            </p>
+          </div>
+
+          {/* Stack visual */}
+          <div className="mx-auto mb-12 max-w-4xl">
+            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-sky-50/60 shadow-sm">
+              <div className="grid divide-y divide-slate-100 sm:grid-cols-5 sm:divide-x sm:divide-y-0">
+                {[
+                  {
+                    step: '01',
+                    title: 'Core OS',
+                    price: `R${CORE_OS_MONTHLY_ZAR}/mo`,
+                    tone: 'bg-[#00b4d8] text-white',
+                  },
+                  {
+                    step: '02',
+                    title: 'Sector',
+                    price: 'Shape the workspace',
+                    tone: 'bg-white text-slate-900',
+                  },
+                  {
+                    step: '03',
+                    title: 'Industry',
+                    price: `+R${INDUSTRY_PACK_MONTHLY_ZAR}/mo each`,
+                    tone: 'bg-white text-slate-900',
+                  },
+                  {
+                    step: '04',
+                    title: 'Government',
+                    price: 'Specialist setup',
+                    tone: 'bg-violet-50 text-violet-950',
+                  },
+                  {
+                    step: '05',
+                    title: 'Bespoke',
+                    price: 'Process design',
+                    tone: 'bg-amber-50 text-amber-950',
+                  },
+                ].map((t) => (
+                  <div
+                    key={t.step}
+                    className={`flex flex-col items-center px-3 py-5 text-center sm:py-6 ${t.tone}`}
+                  >
+                    <span className="font-mono text-[10px] font-bold tracking-widest opacity-70">
+                      {t.step}
+                    </span>
+                    <span className="mt-1 text-sm font-black sm:text-base">
+                      {t.title}
+                    </span>
+                    <span className="mt-1 text-[11px] font-semibold opacity-80">
+                      {t.price}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            {/* Core OS */}
+            <div className="rounded-[1.75rem] border border-slate-200 bg-[#f8fafc] p-6 sm:p-7 lg:col-span-1">
+              <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#00b4d8]/15 text-[#0077b6]">
+                <Layers className="h-5 w-5" />
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6]">
+                Always included
+              </p>
+              <h3 className="mt-1 text-xl font-black text-slate-900">
+                Core OS · R{CORE_OS_MONTHLY_ZAR}/mo
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                The shared operating system every company gets: Control Tower,
+                Company (identity, modules, billing), Network, Suppliers,
+                Customers, Inventory, Operations, Quality, Finance, Intelligence,
+                and Guide — one workspace, one trust fabric.
+              </p>
+              <ul className="mt-4 space-y-2 text-sm text-slate-700">
+                {[
+                  `${COMPANY_TRIAL_DAYS}-day free trial`,
+                  'Module toggles for your team',
+                  'Paystack billing · Apple Pay ready',
+                ].map((line) => (
+                  <li key={line} className="flex gap-2">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#00b4d8]" />
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/onboarding?type=business"
+                className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-[#00b4d8] hover:text-[#0077b6]"
+              >
+                Start with Core OS <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+
+            {/* Sector + Industry */}
+            <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-7 lg:col-span-1">
+              <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 text-[#00b4d8]">
+                <Package className="h-5 w-5" />
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6]">
+                Self-serve packaging
+              </p>
+              <h3 className="mt-1 text-xl font-black text-slate-900">
+                Sector &amp; industries
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                Pick your economic sector, then one or more industries. Industry
+                Packs unlock vertical hubs and tools at +R{INDUSTRY_PACK_MONTHLY_ZAR}
+                /mo each — without removing Core process trees.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-1.5">
+                {OS_SECTORS.map((s) => (
+                  <span
+                    key={s.id}
+                    className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-700"
+                  >
+                    {s.label}
+                  </span>
+                ))}
+              </div>
+              <ul className="mt-4 space-y-2 text-sm text-slate-700">
+                {[
+                  'Primary · Secondary · Tertiary · Quaternary',
+                  'Multi-industry companies supported',
+                  'Packs: agri, food mfg, logistics, ESG & more',
+                ].map((line) => (
+                  <li key={line} className="flex gap-2">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#00b4d8]" />
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/industries"
+                className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-[#00b4d8] hover:text-[#0077b6]"
+              >
+                Explore industries <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+
+            {/* Government + Bespoke */}
+            <div className="rounded-[1.75rem] border border-violet-200 bg-gradient-to-br from-violet-50/80 to-white p-6 shadow-sm sm:p-7 lg:col-span-1">
+              <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-100 text-violet-800">
+                <Landmark className="h-5 w-5" />
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-violet-700">
+                Specialist-led
+              </p>
+              <h3 className="mt-1 text-xl font-black text-slate-900">
+                Government &amp; bespoke design
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                National, provincial, municipal, and local programme workspaces
+                (e.g. DBE / NSNP schools, DoH facilities) and fully custom process
+                design for complex groups — not pure self-serve.
+              </p>
+              <div className="mt-4 space-y-3">
+                <div className="rounded-2xl border border-violet-100 bg-white/90 px-3.5 py-3">
+                  <div className="flex items-center gap-2 text-sm font-black text-slate-900">
+                    <Landmark className="h-4 w-4 text-violet-700" />
+                    Government programmes
+                  </div>
+                  <p className="mt-1 text-[12px] leading-relaxed text-slate-600">
+                    Public Sector packaging: National → Provincial → Municipal →
+                    Local. Policy, multi-entity, and programme roles configured
+                    with a specialist.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-amber-100 bg-amber-50/50 px-3.5 py-3">
+                  <div className="flex items-center gap-2 text-sm font-black text-slate-900">
+                    <Puzzle className="h-4 w-4 text-amber-700" />
+                    Bespoke process design
+                  </div>
+                  <p className="mt-1 text-[12px] leading-relaxed text-slate-600">
+                    Custom workflows, integrations, and multi-entity operating
+                    models tailored to how your group actually runs.
+                  </p>
+                </div>
+              </div>
+              <p className="mt-4 text-sm font-semibold text-violet-950">
+                To get set up for government or bespoke design, contact us:
+              </p>
+              <a
+                href="mailto:hello@supplieradvisor.com?subject=Government%20%2F%20bespoke%20setup%20%E2%80%94%20SupplierAdvisor"
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-violet-700 px-5 py-3 text-sm font-bold text-white shadow-md hover:bg-violet-800"
+              >
+                <Mail className="h-4 w-4" />
+                hello@supplieradvisor.com
+              </a>
+              <p className="mt-2 text-center text-[11px] text-slate-500">
+                We&apos;ll scope sector, industries, packs, and go-live with you.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/onboarding?type=business"
+              className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-sm font-bold text-white shadow-md shadow-cyan-200/50 hover:bg-[#0099b8]"
+            >
+              Self-serve Core OS &amp; packs <ArrowRight className="h-4 w-4" />
+            </Link>
+            <a
+              href="#modules"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-3.5 text-sm font-bold text-slate-800 hover:border-[#00b4d8]"
+            >
+              Browse modules
+            </a>
+          </div>
+        </div>
+      </section>
 
       {/* ═══════════ SYSTEMS GRID ═══════════ */}
       <section id="systems" className="relative border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28">
