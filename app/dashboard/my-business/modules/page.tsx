@@ -47,6 +47,7 @@ import {
   INDUSTRY_PACK_MONTHLY_ZAR,
   OS_ENTITY_TYPES,
   OS_SECTORS,
+  type OsSectorId,
   PUBLIC_SECTOR_TIERS,
   SA_NATIONAL_DEPARTMENTS,
   appModulesUnlockedByPack,
@@ -144,6 +145,14 @@ function ModulesInner() {
     () => readPackagingFromMetadata(metadata),
     [metadata]
   );
+
+  // Prefill draft classification from existing packaging
+  useEffect(() => {
+    if (packaging?.sectorId) setDraftSector(String(packaging.sectorId));
+    if (packaging?.industryId) setDraftIndustry(String(packaging.industryId));
+    if (packaging?.businessTypeId)
+      setDraftBusinessType(String(packaging.businessTypeId));
+  }, [packaging?.sectorId, packaging?.industryId, packaging?.businessTypeId]);
   const packBilling = useMemo(
     () => readPackBillingFromMetadata(metadata),
     [metadata]
@@ -324,6 +333,49 @@ function ModulesInner() {
     void persist(next);
   };
 
+  const draftIndustries = useMemo(
+    () => industriesForSector(draftSector || null),
+    [draftSector]
+  );
+  const draftIndustryDef = useMemo(
+    () => getIndustry(draftIndustry || null),
+    [draftIndustry]
+  );
+
+  const saveClassification = async () => {
+    if (!draftSector) {
+      toast.error('Select a sector');
+      return;
+    }
+    setClassifying(true);
+    try {
+      const res = await fetch('/api/business/packaging', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          companyId,
+          sectorId: draftSector,
+          industryId: draftIndustry || null,
+          businessTypeId: draftBusinessType || null,
+          packIds: packaging?.packIds || [],
+          moduleIds: packaging?.moduleIds || [],
+          entityTypeId: packaging?.entityTypeId,
+          suggestIndustryPacks: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not save');
+      toast.success('Sector & industry saved');
+      window.dispatchEvent(new Event('sa:company-changed'));
+      await load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setClassifying(false);
+    }
+  };
+
   const toggle = (moduleId: string, on: boolean) => {
     if (isAlwaysOnModule(moduleId)) return;
     const map: EnabledModulesMap = {
@@ -433,6 +485,157 @@ function ModulesInner() {
           {platformOperator ? null : null}
         </div>
       ) : null}
+
+      {/* Existing companies: set or change sector + industry */}
+      <div
+        className={`mb-6 rounded-3xl border p-5 sm:p-6 ${
+          !yourSectorId || !companyIndustry
+            ? 'border-amber-200 bg-amber-50/80'
+            : 'border-slate-200 bg-white'
+        }`}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-widest text-[#0077b6]">
+              {!yourSectorId || !companyIndustry
+                ? 'Action required · classification'
+                : 'Your sector & industry'}
+            </p>
+            <h2 className="text-lg font-black text-slate-900 tracking-tight">
+              {!yourSectorId || !companyIndustry
+                ? 'Select sector and industry'
+                : 'Update sector and industry'}
+            </h2>
+            <p className="text-sm text-slate-600 mt-1 max-w-2xl">
+              Already registered? Set these so Quick presets and Industry Packs
+              match your business. You can change them anytime.
+            </p>
+          </div>
+          <Link
+            href="/dashboard/my-business/packaging"
+            className="btn-secondary !py-2 !px-3 text-xs shrink-0"
+          >
+            Full packaging
+          </Link>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+              Sector
+            </p>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {OS_SECTORS.map((s) => {
+                const on = draftSector === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    disabled={classifying || govLocked}
+                    onClick={() => {
+                      setDraftSector(s.id);
+                      setDraftIndustry('');
+                      setDraftBusinessType('');
+                    }}
+                    className={`text-left rounded-xl border-2 px-3 py-2.5 transition ${
+                      on
+                        ? 'border-[#00b4d8] bg-sky-50'
+                        : 'border-neutral-200 bg-white hover:border-neutral-300'
+                    }`}
+                  >
+                    <div className="text-sm font-bold text-slate-900">
+                      {s.label}
+                    </div>
+                    <div className="text-[10px] text-neutral-500 line-clamp-2">
+                      {s.description}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {draftSector ? (
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                Industry
+              </p>
+              <div className="grid sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+                {draftIndustries.map((ind) => {
+                  const on = draftIndustry === ind.id;
+                  return (
+                    <button
+                      key={ind.id}
+                      type="button"
+                      disabled={classifying || govLocked}
+                      onClick={() => {
+                        setDraftIndustry(ind.id);
+                        setDraftBusinessType('');
+                      }}
+                      className={`text-left rounded-xl border-2 px-3 py-2.5 transition ${
+                        on
+                          ? 'border-[#00b4d8] bg-sky-50'
+                          : 'border-neutral-200 bg-white hover:border-neutral-300'
+                      }`}
+                    >
+                      <div className="text-sm font-bold text-slate-900">
+                        {ind.label}
+                      </div>
+                      <div className="text-[10px] text-neutral-500 line-clamp-2">
+                        {ind.description}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          {draftIndustryDef ? (
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                Business type (optional)
+              </p>
+              <div className="grid sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                {draftIndustryDef.businessTypes.map((bt) => {
+                  const on = draftBusinessType === bt.id;
+                  return (
+                    <button
+                      key={bt.id}
+                      type="button"
+                      disabled={classifying || govLocked}
+                      onClick={() => setDraftBusinessType(bt.id)}
+                      className={`text-left rounded-xl border px-3 py-2 transition ${
+                        on
+                          ? 'border-[#00b4d8] bg-sky-50'
+                          : 'border-neutral-200 bg-white hover:border-neutral-300'
+                      }`}
+                    >
+                      <div className="text-xs font-bold text-slate-900">
+                        {bt.label}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          <button
+            type="button"
+            disabled={classifying || govLocked || !draftSector}
+            onClick={() => void saveClassification()}
+            className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5 disabled:opacity-40"
+          >
+            {classifying ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            Save sector & industry
+          </button>
+        </div>
+      </div>
 
       {/* Subscriptions + packaging summary */}
       <div className="mb-6 rounded-3xl border border-cyan-100 bg-gradient-to-br from-white via-sky-50/60 to-cyan-50 p-5 sm:p-6">
