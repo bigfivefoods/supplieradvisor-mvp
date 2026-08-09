@@ -949,7 +949,7 @@ export default function LandingPage() {
       >
         <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
           <div className="mx-auto mb-12 max-w-3xl text-center sm:mb-16">
-            <SectionLabel>Assemble SupplierAdvisor®</SectionLabel>
+            <SectionLabel>Setup SupplierAdvisor®</SectionLabel>
             <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
               Core OS · Sector · Industry
               <span className="mt-2 block text-[#00b4d8]">
@@ -1462,7 +1462,7 @@ export default function LandingPage() {
                   ROI calculator
                 </a>
                 <a href="#packaging" className="block text-slate-600 hover:text-slate-900">
-                  Assemble
+                  Setup
                 </a>
                 <a href="#modules" className="block text-slate-600 hover:text-slate-900">
                   Modules

@@ -13,7 +13,7 @@ const LINKS = [
   { id: 'modules', label: 'Modules' },
   {
     id: 'packaging',
-    label: 'Assemble',
+    label: 'Setup',
     /** Full section: Core OS · Sector · Industry · Government & bespoke */
   },
   { id: 'pricing', label: 'Pricing' },
