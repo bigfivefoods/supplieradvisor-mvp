@@ -5,7 +5,9 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import {
+  computeLabourCost,
   emptyFieldgraphStore,
+  labourCostSummary,
   millBoardEstimateRows,
   newId,
   projectHarvestDates,
@@ -18,12 +20,15 @@ import {
   type AgriEstimate,
   type AgriField,
   type AgriFleetLog,
+  type AgriGang,
   type AgriHarvestPlanItem,
   type AgriLabourLog,
   type AgriRegenSample,
   type AgriVehicle,
   type AgriYieldActual,
   type FieldgraphStore,
+  type LabourEmploymentType,
+  type LabourRateUnit,
 } from '@/lib/agri/fieldgraph';
 
 export const runtime = 'nodejs';
@@ -36,8 +41,18 @@ type Entity =
   | 'applications'
   | 'vehicles'
   | 'fleet_logs'
+  | 'gangs'
   | 'labour_logs'
   | 'regen_samples';
+
+function analysisPayload(store: FieldgraphStore, season: string) {
+  return {
+    yieldBySeason: yieldQualityBySeason(store),
+    vehicleUtilisation: vehicleUtilisation(store),
+    millBoard: millBoardEstimateRows(store, season),
+    labourCost: labourCostSummary(store),
+  };
+}
 
 async function loadStore(companyId: number): Promise<{
   meta: Record<string, unknown>;
@@ -97,11 +112,7 @@ export async function GET(request: NextRequest) {
       success: true,
       store,
       summary: summariseFieldgraph(store),
-      analysis: {
-        yieldBySeason: yieldQualityBySeason(store),
-        vehicleUtilisation: vehicleUtilisation(store),
-        millBoard: millBoardEstimateRows(store, season),
-      },
+      analysis: analysisPayload(store, season),
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -136,11 +147,7 @@ export async function POST(request: NextRequest) {
         success: true,
         store: demo,
         summary: summariseFieldgraph(demo),
-        analysis: {
-          yieldBySeason: yieldQualityBySeason(demo),
-          vehicleUtilisation: vehicleUtilisation(demo),
-          millBoard: millBoardEstimateRows(demo, y),
-        },
+        analysis: analysisPayload(demo, y),
         message: 'Demo farm loaded',
       });
     }
@@ -162,11 +169,7 @@ export async function POST(request: NextRequest) {
         success: true,
         store,
         summary: summariseFieldgraph(store),
-        analysis: {
-          yieldBySeason: yieldQualityBySeason(store),
-          vehicleUtilisation: vehicleUtilisation(store),
-          millBoard: millBoardEstimateRows(store, season),
-        },
+        analysis: analysisPayload(store, season),
         message: 'Harvest dates projected',
       });
     }
@@ -192,11 +195,7 @@ export async function POST(request: NextRequest) {
         success: true,
         store,
         summary: summariseFieldgraph(store),
-        analysis: {
-          yieldBySeason: yieldQualityBySeason(store),
-          vehicleUtilisation: vehicleUtilisation(store),
-          millBoard: millBoardEstimateRows(store, delSeason),
-        },
+        analysis: analysisPayload(store, delSeason),
       });
     }
 
@@ -418,17 +417,78 @@ export async function POST(request: NextRequest) {
       };
       if (existing >= 0) store.fleet_logs[existing] = row;
       else store.fleet_logs.push(row);
+    } else if (entity === 'gangs') {
+      if (!store.gangs) store.gangs = [];
+      const id = String(rec.id || newId('gng'));
+      const existing = store.gangs.findIndex((g) => g.id === id);
+      const row: AgriGang = {
+        id,
+        code: String(rec.code || `G-${store.gangs.length + 1}`),
+        name: String(rec.name || 'Gang'),
+        employment_type:
+          (rec.employment_type as LabourEmploymentType) || 'gang',
+        rate_zar: Number(rec.rate_zar) || 0,
+        rate_unit: (rec.rate_unit as LabourRateUnit) || 'per_person_day',
+        active: rec.active !== false,
+        notes: rec.notes != null ? String(rec.notes) : undefined,
+        created_at:
+          existing >= 0 ? store.gangs[existing].created_at : now,
+      };
+      if (existing >= 0) store.gangs[existing] = row;
+      else store.gangs.push(row);
     } else if (entity === 'labour_logs') {
       const id = String(rec.id || newId('lab'));
       const existing = store.labour_logs.findIndex((l) => l.id === id);
+      const gangId =
+        rec.gang_id != null && String(rec.gang_id)
+          ? String(rec.gang_id)
+          : null;
+      const gang = gangId
+        ? (store.gangs || []).find((g) => g.id === gangId)
+        : null;
+      const headcount =
+        rec.headcount != null ? Number(rec.headcount) : null;
+      const hours = rec.hours != null ? Number(rec.hours) : null;
+      const quantity =
+        rec.quantity != null ? Number(rec.quantity) : null;
+      const rate_zar =
+        rec.rate_zar != null && rec.rate_zar !== ''
+          ? Number(rec.rate_zar)
+          : gang?.rate_zar ?? null;
+      const rate_unit =
+        (rec.rate_unit as LabourRateUnit | null | undefined) ||
+        gang?.rate_unit ||
+        null;
+      const employment_type =
+        (rec.employment_type as LabourEmploymentType | undefined) ||
+        gang?.employment_type ||
+        'gang';
+      const cost_zar =
+        rec.cost_zar != null && rec.cost_zar !== ''
+          ? Number(rec.cost_zar)
+          : computeLabourCost({
+              rate_zar,
+              rate_unit,
+              headcount,
+              hours,
+              quantity,
+            });
       const row: AgriLabourLog = {
         id,
         field_id: rec.field_id != null ? String(rec.field_id) : null,
+        gang_id: gangId,
         date: String(rec.date || now.slice(0, 10)),
-        gang_or_person: String(rec.gang_or_person || 'Gang'),
+        gang_or_person: String(
+          rec.gang_or_person || gang?.name || gang?.code || 'Gang'
+        ),
         activity: String(rec.activity || 'Work'),
-        headcount: rec.headcount != null ? Number(rec.headcount) : null,
-        hours: rec.hours != null ? Number(rec.hours) : null,
+        employment_type,
+        headcount,
+        hours,
+        quantity,
+        rate_zar,
+        rate_unit,
+        cost_zar,
         notes: rec.notes != null ? String(rec.notes) : undefined,
         created_at:
           existing >= 0 ? store.labour_logs[existing].created_at : now,
@@ -472,11 +532,7 @@ export async function POST(request: NextRequest) {
       success: true,
       store,
       summary: summariseFieldgraph(store),
-      analysis: {
-        yieldBySeason: yieldQualityBySeason(store),
-        vehicleUtilisation: vehicleUtilisation(store),
-        millBoard: millBoardEstimateRows(store, analysisSeason),
-      },
+      analysis: analysisPayload(store, analysisSeason),
     });
   } catch (e: unknown) {
     console.error('[fieldgraph]', e);
@@ -494,6 +550,8 @@ function seedDemo(now: string): FieldgraphStore {
   const f3 = newId('fld');
   const v1 = newId('veh');
   const v2 = newId('veh');
+  const g1 = newId('gng');
+  const g2 = newId('gng');
   return {
     fields: [
       {
@@ -714,15 +772,68 @@ function seedDemo(now: string): FieldgraphStore {
         created_at: now,
       },
     ],
+    gangs: [
+      {
+        id: g1,
+        code: 'GA',
+        name: 'Cutting gang A',
+        employment_type: 'temporary',
+        rate_zar: 280,
+        rate_unit: 'per_person_day',
+        active: true,
+        notes: 'Seasonal cutters',
+        created_at: now,
+      },
+      {
+        id: g2,
+        code: 'PERM',
+        name: 'Permanent field crew',
+        employment_type: 'permanent',
+        rate_zar: 45,
+        rate_unit: 'per_person_hour',
+        active: true,
+        created_at: now,
+      },
+    ],
     labour_logs: [
       {
         id: newId('lab'),
         field_id: f1,
+        gang_id: g1,
         date: now.slice(0, 10),
-        gang_or_person: 'Gang A',
+        gang_or_person: 'Cutting gang A',
         activity: 'Weed control',
+        employment_type: 'temporary',
         headcount: 12,
         hours: 8,
+        rate_zar: 280,
+        rate_unit: 'per_person_day',
+        cost_zar: computeLabourCost({
+          rate_zar: 280,
+          rate_unit: 'per_person_day',
+          headcount: 12,
+          hours: 8,
+        }),
+        created_at: now,
+      },
+      {
+        id: newId('lab'),
+        field_id: f1,
+        gang_id: g2,
+        date: now.slice(0, 10),
+        gang_or_person: 'Permanent field crew',
+        activity: 'Irrigation check',
+        employment_type: 'permanent',
+        headcount: 3,
+        hours: 6,
+        rate_zar: 45,
+        rate_unit: 'per_person_hour',
+        cost_zar: computeLabourCost({
+          rate_zar: 45,
+          rate_unit: 'per_person_hour',
+          headcount: 3,
+          hours: 6,
+        }),
         created_at: now,
       },
     ],

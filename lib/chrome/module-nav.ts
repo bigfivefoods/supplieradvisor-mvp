@@ -497,16 +497,16 @@ export const MODULE_NAV: readonly ModuleNav[] = [
      * Plus inputs, labour, regen, farm-to-buyer trade.
      */
     steps: [
-      { name: 'Command', href: '/dashboard/fieldgraph', exact: true, desc: 'Fieldgraph home', section: 'Home' },
+      { name: 'Command', href: '/dashboard/fieldgraph', exact: true, desc: 'Process design · workbenches', section: 'Home' },
       { name: 'Field & agronomic', href: '/dashboard/fieldgraph/fields', desc: 'Shared field master · yield analysis', section: 'Core' },
       { name: 'Estimates', href: '/dashboard/fieldgraph/estimates', desc: 'Estimate manager · mill board', section: 'Core' },
       { name: 'Harvest Planner', href: '/dashboard/fieldgraph/harvest', desc: 'Sequence · allocation · cut dates', section: 'Core' },
       { name: 'Vehicles', href: '/dashboard/fieldgraph/fleet', desc: 'Registry · fuel · utilisation', section: 'Core' },
       { name: 'Inputs', href: '/dashboard/fieldgraph/inputs', desc: 'Fert · chem · N-P-K / ha', section: 'Season' },
-      { name: 'Labour', href: '/dashboard/fieldgraph/labour', desc: 'Gangs & hours', section: 'Season' },
+      { name: 'Labour & rates', href: '/dashboard/fieldgraph/labour', desc: 'Gangs · rates · field costs', section: 'Season' },
       { name: 'Regen', href: '/dashboard/fieldgraph/regen', desc: 'Soil · water · cover', section: 'Regen' },
       { name: 'Trade', href: '/dashboard/fieldgraph/trade', desc: 'Mill · buyer · lots', section: 'Trade' },
-      { name: 'Insights', href: '/dashboard/fieldgraph/report', desc: 'Season scorecard', section: 'Insights' },
+      { name: 'Reports', href: '/dashboard/fieldgraph/report', desc: 'Slice & dice · yield · fleet · labour', section: 'Insights' },
     ],
   },
   {

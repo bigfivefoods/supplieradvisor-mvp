@@ -155,17 +155,245 @@ export type AgriFleetLog = {
   created_at: string;
 };
 
-export type AgriLabourLog = {
+/** Rate basis for gangs / field labour */
+export type LabourRateUnit =
+  | 'per_hour'
+  | 'per_day'
+  | 'per_person_hour'
+  | 'per_person_day'
+  | 'per_tonne'
+  | 'per_task';
+
+export type LabourEmploymentType =
+  | 'permanent'
+  | 'temporary'
+  | 'contractor'
+  | 'gang';
+
+/** Gang / crew register with default labour rate */
+export type AgriGang = {
   id: string;
-  field_id?: string | null;
-  date: string;
-  gang_or_person: string;
-  activity: string;
-  headcount?: number | null;
-  hours?: number | null;
+  code: string;
+  name: string;
+  employment_type: LabourEmploymentType;
+  /** Default rate in ZAR */
+  rate_zar: number;
+  rate_unit: LabourRateUnit;
+  active?: boolean;
   notes?: string;
   created_at: string;
 };
+
+export type AgriLabourLog = {
+  id: string;
+  field_id?: string | null;
+  /** Link to gang register when used */
+  gang_id?: string | null;
+  date: string;
+  gang_or_person: string;
+  activity: string;
+  employment_type?: LabourEmploymentType;
+  headcount?: number | null;
+  hours?: number | null;
+  /** Units for tonne/task rates (e.g. tonnes cut) */
+  quantity?: number | null;
+  /** Snapshot rate applied on this log (ZAR) */
+  rate_zar?: number | null;
+  rate_unit?: LabourRateUnit | null;
+  /** Computed cost for the log (ZAR) */
+  cost_zar?: number | null;
+  notes?: string;
+  created_at: string;
+};
+
+export const LABOUR_RATE_UNITS: Array<{
+  value: LabourRateUnit;
+  label: string;
+}> = [
+  { value: 'per_person_hour', label: 'R / person-hour' },
+  { value: 'per_person_day', label: 'R / person-day' },
+  { value: 'per_hour', label: 'R / hour (crew)' },
+  { value: 'per_day', label: 'R / day (crew)' },
+  { value: 'per_tonne', label: 'R / tonne' },
+  { value: 'per_task', label: 'R / task' },
+];
+
+export const LABOUR_EMPLOYMENT_TYPES: Array<{
+  value: LabourEmploymentType;
+  label: string;
+}> = [
+  { value: 'permanent', label: 'Permanent' },
+  { value: 'temporary', label: 'Temporary / seasonal' },
+  { value: 'contractor', label: 'Contractor' },
+  { value: 'gang', label: 'Gang / crew' },
+];
+
+/**
+ * Cost from rate unit, headcount, hours, and optional quantity (tonne/task).
+ * - per_person_hour: rate × headcount × hours
+ * - per_person_day: rate × headcount × days (hours/8, min 1 if headcount set)
+ * - per_hour: rate × hours (whole crew)
+ * - per_day: rate × days (hours/8)
+ * - per_tonne / per_task: rate × quantity
+ */
+export function computeLabourCost(input: {
+  rate_zar?: number | null;
+  rate_unit?: LabourRateUnit | null;
+  headcount?: number | null;
+  hours?: number | null;
+  quantity?: number | null;
+}): number | null {
+  const rate = Number(input.rate_zar);
+  if (!(rate > 0) || !input.rate_unit) return null;
+  const hc = Math.max(0, Number(input.headcount) || 0);
+  const hrs = Math.max(0, Number(input.hours) || 0);
+  const qty = Math.max(0, Number(input.quantity) || 0);
+
+  let cost = 0;
+  switch (input.rate_unit) {
+    case 'per_person_hour':
+      cost = rate * (hc || 1) * (hrs || 0);
+      break;
+    case 'per_person_day': {
+      const d = hrs > 0 ? hrs / 8 : 1;
+      cost = rate * (hc || 1) * d;
+      break;
+    }
+    case 'per_hour':
+      cost = rate * (hrs || 0);
+      break;
+    case 'per_day': {
+      const d = hrs > 0 ? hrs / 8 : 1;
+      cost = rate * d;
+      break;
+    }
+    case 'per_tonne':
+    case 'per_task':
+      cost = rate * (qty || 0);
+      break;
+    default:
+      return null;
+  }
+  return Math.round(cost * 100) / 100;
+}
+
+/** Labour cost roll-up by gang and employment type */
+export function labourCostSummary(store: FieldgraphStore): {
+  totalCost: number;
+  totalHours: number;
+  totalHeadcountDays: number;
+  byEmployment: Array<{ type: string; cost: number; logs: number; hours: number }>;
+  byGang: Array<{
+    gang: string;
+    gang_id: string | null;
+    cost: number;
+    hours: number;
+    logs: number;
+    rate_zar: number | null;
+  }>;
+  byField: Array<{ field_id: string; cost: number; hours: number; logs: number }>;
+} {
+  const byEmp = new Map<
+    string,
+    { type: string; cost: number; logs: number; hours: number }
+  >();
+  const byGang = new Map<
+    string,
+    {
+      gang: string;
+      gang_id: string | null;
+      cost: number;
+      hours: number;
+      logs: number;
+      rate_zar: number | null;
+    }
+  >();
+  const byField = new Map<
+    string,
+    { field_id: string; cost: number; hours: number; logs: number }
+  >();
+
+  let totalCost = 0;
+  let totalHours = 0;
+  let totalHeadcountDays = 0;
+
+  for (const log of store.labour_logs || []) {
+    const cost = Number(log.cost_zar) || 0;
+    const hours = Number(log.hours) || 0;
+    const hc = Number(log.headcount) || 0;
+    totalCost += cost;
+    totalHours += hours;
+    if (hc && hours) totalHeadcountDays += hc * (hours / 8);
+    else if (hc) totalHeadcountDays += hc;
+
+    const et = log.employment_type || 'gang';
+    const er = byEmp.get(et) || {
+      type: et,
+      cost: 0,
+      logs: 0,
+      hours: 0,
+    };
+    er.cost += cost;
+    er.logs += 1;
+    er.hours += hours;
+    byEmp.set(et, er);
+
+    const gKey = log.gang_id || log.gang_or_person || 'Unknown';
+    const gr = byGang.get(gKey) || {
+      gang: log.gang_or_person || gKey,
+      gang_id: log.gang_id || null,
+      cost: 0,
+      hours: 0,
+      logs: 0,
+      rate_zar: log.rate_zar ?? null,
+    };
+    gr.cost += cost;
+    gr.hours += hours;
+    gr.logs += 1;
+    byGang.set(gKey, gr);
+
+    if (log.field_id) {
+      const fr = byField.get(log.field_id) || {
+        field_id: log.field_id,
+        cost: 0,
+        hours: 0,
+        logs: 0,
+      };
+      fr.cost += cost;
+      fr.hours += hours;
+      fr.logs += 1;
+      byField.set(log.field_id, fr);
+    }
+  }
+
+  const round = (n: number) => Math.round(n * 100) / 100;
+  return {
+    totalCost: round(totalCost),
+    totalHours: round(totalHours),
+    totalHeadcountDays: round(totalHeadcountDays),
+    byEmployment: [...byEmp.values()]
+      .map((r) => ({
+        ...r,
+        cost: round(r.cost),
+        hours: round(r.hours),
+      }))
+      .sort((a, b) => b.cost - a.cost),
+    byGang: [...byGang.values()]
+      .map((r) => ({
+        ...r,
+        cost: round(r.cost),
+        hours: round(r.hours),
+      }))
+      .sort((a, b) => b.cost - a.cost),
+    byField: [...byField.values()]
+      .map((r) => ({
+        ...r,
+        cost: round(r.cost),
+        hours: round(r.hours),
+      }))
+      .sort((a, b) => b.cost - a.cost),
+  };
+}
 
 export type AgriRegenSample = {
   id: string;
@@ -188,6 +416,8 @@ export type FieldgraphStore = {
   applications: AgriApplication[];
   vehicles: AgriVehicle[];
   fleet_logs: AgriFleetLog[];
+  /** Gang / crew register with rates */
+  gangs: AgriGang[];
   labour_logs: AgriLabourLog[];
   regen_samples: AgriRegenSample[];
   updated_at?: string;
@@ -202,6 +432,7 @@ export function emptyFieldgraphStore(): FieldgraphStore {
     applications: [],
     vehicles: [],
     fleet_logs: [],
+    gangs: [],
     labour_logs: [],
     regen_samples: [],
   };
@@ -230,6 +461,7 @@ export function readFieldgraphFromMetadata(
     fleet_logs: Array.isArray(s.fleet_logs)
       ? (s.fleet_logs as AgriFleetLog[])
       : [],
+    gangs: Array.isArray(s.gangs) ? (s.gangs as AgriGang[]) : [],
     labour_logs: Array.isArray(s.labour_logs)
       ? (s.labour_logs as AgriLabourLog[])
       : [],
@@ -309,7 +541,9 @@ export function summariseFieldgraph(store: FieldgraphStore) {
     fleetLogs: store.fleet_logs.length,
     fuelTotalL: Math.round(fuelTotal * 10) / 10,
     fleetHours: Math.round(hoursTotal * 10) / 10,
+    gangCount: (store.gangs || []).filter((g) => g.active !== false).length,
     labourLogs: store.labour_logs.length,
+    labourCostZar: labourCostSummary(store).totalCost,
     yieldActuals: (store.yield_actuals || []).length,
   };
 }

@@ -27,6 +27,8 @@ import {
   FieldgraphPage,
   FieldgraphRequired,
 } from '@/components/agri/FieldgraphShell';
+import FieldgraphSystemFlow from '@/components/agri/FieldgraphSystemFlow';
+import FieldgraphProcessPdfButtons from '@/components/agri/FieldgraphProcessPdfButtons';
 import {
   RelationshipHeader,
 } from '@/components/relationship/RelationshipChrome';
@@ -136,8 +138,8 @@ const EXTENDED_MODULES: HubModule[] = [
     href: '/dashboard/fieldgraph/report',
     icon: Sparkles,
     code: '10',
-    title: 'Insights',
-    desc: 'Yield, nutrients, fleet, labour and regen on one season scorecard.',
+    title: 'Reports · Slice & dice',
+    desc: 'Period + crop/field filters across yield, harvest, fleet, labour, inputs and regen.',
     accent: 'from-fuchsia-50 to-white border-fuchsia-100',
   },
 ];
@@ -205,6 +207,7 @@ function HubInner() {
         description="Core agri: shared field & agronomic data, estimate manager, harvest planner, and vehicle management — plus inputs, regen and farm-to-buyer trade. Multi-crop, not cane-only."
         action={
           <div className="flex flex-wrap gap-2">
+            <FieldgraphProcessPdfButtons variant="header" />
             <Link
               href="/dashboard/fieldgraph/fields"
               className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
@@ -227,6 +230,8 @@ function HubInner() {
           </div>
         }
       />
+
+      <FieldgraphSystemFlow />
 
       {loading ? (
         <div className="py-16 flex justify-center">
