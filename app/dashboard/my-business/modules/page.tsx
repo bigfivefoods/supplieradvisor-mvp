@@ -91,8 +91,10 @@ function ModulesInner() {
   const [lockMessage, setLockMessage] = useState('');
   const [classifying, setClassifying] = useState(false);
   const [draftSector, setDraftSector] = useState('');
-  const [draftIndustry, setDraftIndustry] = useState('');
-  const [draftBusinessType, setDraftBusinessType] = useState('');
+  const [draftIndustryIds, setDraftIndustryIds] = useState<string[]>([]);
+  const [draftBusinessTypeIds, setDraftBusinessTypeIds] = useState<string[]>(
+    []
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -148,10 +150,25 @@ function ModulesInner() {
   // Prefill draft classification from existing packaging
   useEffect(() => {
     if (packaging?.sectorId) setDraftSector(String(packaging.sectorId));
-    if (packaging?.industryId) setDraftIndustry(String(packaging.industryId));
-    if (packaging?.businessTypeId)
-      setDraftBusinessType(String(packaging.businessTypeId));
-  }, [packaging?.sectorId, packaging?.industryId, packaging?.businessTypeId]);
+    const inds = [
+      ...(packaging?.industryIds || []),
+      ...(packaging?.industryId ? [String(packaging.industryId)] : []),
+    ];
+    setDraftIndustryIds([...new Set(inds.map(String))]);
+    const bts = [
+      ...(packaging?.businessTypeIds || []),
+      ...(packaging?.businessTypeId
+        ? [String(packaging.businessTypeId)]
+        : []),
+    ];
+    setDraftBusinessTypeIds([...new Set(bts.map(String))]);
+  }, [
+    packaging?.sectorId,
+    packaging?.industryId,
+    packaging?.industryIds,
+    packaging?.businessTypeId,
+    packaging?.businessTypeIds,
+  ]);
   const packBilling = useMemo(
     () => readPackBillingFromMetadata(metadata),
     [metadata]
@@ -183,18 +200,30 @@ function ModulesInner() {
     return sectorGroups.filter((g) => g.sectorId === yourSectorId);
   }, [sectorGroups, yourSectorId]);
 
-  const companyIndustry = useMemo(
-    () => getIndustry(packaging?.industryId || null),
-    [packaging?.industryId]
-  );
-  const companyBusinessType = useMemo(
-    () =>
-      getBusinessType(
-        packaging?.industryId || null,
-        packaging?.businessTypeId || null
-      ),
-    [packaging?.industryId, packaging?.businessTypeId]
-  );
+  const companyIndustries = useMemo(() => {
+    const ids = [
+      ...(packaging?.industryIds || []),
+      ...(packaging?.industryId ? [String(packaging.industryId)] : []),
+    ];
+    return [...new Set(ids.map(String))]
+      .map((id) => getIndustry(id))
+      .filter(Boolean) as NonNullable<ReturnType<typeof getIndustry>>[];
+  }, [packaging?.industryId, packaging?.industryIds]);
+  const companyIndustry = companyIndustries[0] || null;
+  const companyBusinessType = useMemo(() => {
+    for (const ind of companyIndustries) {
+      for (const btid of [
+        ...(packaging?.businessTypeIds || []),
+        ...(packaging?.businessTypeId
+          ? [String(packaging.businessTypeId)]
+          : []),
+      ]) {
+        const bt = getBusinessType(ind.id, btid);
+        if (bt) return bt;
+      }
+    }
+    return null;
+  }, [companyIndustries, packaging?.businessTypeId, packaging?.businessTypeIds]);
   const sectorIndustries = useMemo(
     () => industriesForSector(yourSectorId),
     [yourSectorId]
@@ -293,11 +322,10 @@ function ModulesInner() {
       });
     }
 
-    if (companyIndustry) {
-      // Industry packs; merge any explicitly selected packaging packs
+    if (companyIndustries.length) {
       const industryPacks = [
         ...new Set([
-          ...companyIndustry.packIds,
+          ...companyIndustries.flatMap((i) => i.packIds),
           ...(packaging?.packIds || []),
         ]),
       ];
@@ -309,18 +337,22 @@ function ModulesInner() {
       const packNames = industryPacks
         .map((id) => getIndustryPack(id)?.shortName || id)
         .filter(Boolean);
+      const labels = companyIndustries.map((i) => i.label).join(' · ');
       out.push({
-        id: `industry:${companyIndustry.id}`,
-        label: companyIndustry.label,
+        id: `industries:${companyIndustries.map((i) => i.id).join('+')}`,
+        label:
+          companyIndustries.length === 1
+            ? companyIndustries[0].label
+            : `${companyIndustries.length} industries`,
         description: packNames.length
-          ? `Your industry modules · packs: ${packNames.join(', ')}.`
-          : companyIndustry.description,
+          ? `${labels} · packs: ${packNames.join(', ')}.`
+          : labels,
         map,
       });
     }
 
     return out;
-  }, [yourSectorId, sectorLabel, companyIndustry, packaging]);
+  }, [yourSectorId, sectorLabel, companyIndustries, packaging]);
 
   const applySectorIndustryPreset = (map: EnabledModulesMap) => {
     const next: EnabledModulesMap = { ...map };
@@ -336,14 +368,33 @@ function ModulesInner() {
     () => industriesForSector(draftSector || null),
     [draftSector]
   );
-  const draftIndustryDef = useMemo(
-    () => getIndustry(draftIndustry || null),
-    [draftIndustry]
+  const draftSelectedIndustryDefs = useMemo(
+    () =>
+      draftIndustryIds
+        .map((id) => getIndustry(id))
+        .filter(Boolean) as NonNullable<ReturnType<typeof getIndustry>>[],
+    [draftIndustryIds]
   );
+  const draftBusinessTypeOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Array<{ id: string; label: string }> = [];
+    for (const ind of draftSelectedIndustryDefs) {
+      for (const bt of ind.businessTypes) {
+        if (seen.has(bt.id)) continue;
+        seen.add(bt.id);
+        out.push({ id: bt.id, label: bt.label });
+      }
+    }
+    return out;
+  }, [draftSelectedIndustryDefs]);
 
   const saveClassification = async () => {
     if (!draftSector) {
       toast.error('Select a sector');
+      return;
+    }
+    if (!draftIndustryIds.length) {
+      toast.error('Select at least one industry');
       return;
     }
     setClassifying(true);
@@ -355,8 +406,10 @@ function ModulesInner() {
         body: JSON.stringify({
           companyId,
           sectorId: draftSector,
-          industryId: draftIndustry || null,
-          businessTypeId: draftBusinessType || null,
+          industryIds: draftIndustryIds,
+          industryId: draftIndustryIds[0] || null,
+          businessTypeIds: draftBusinessTypeIds,
+          businessTypeId: draftBusinessTypeIds[0] || null,
           packIds: packaging?.packIds || [],
           moduleIds: packaging?.moduleIds || [],
           entityTypeId: packaging?.entityTypeId,
@@ -365,7 +418,9 @@ function ModulesInner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not save');
-      toast.success('Sector & industry saved');
+      toast.success(
+        'Sector & industries saved — company profile updated'
+      );
       window.dispatchEvent(new Event('sa:company-changed'));
       await load();
     } catch (e: unknown) {
@@ -488,7 +543,7 @@ function ModulesInner() {
       {/* Existing companies: set or change sector + industry */}
       <div
         className={`mb-6 rounded-3xl border p-5 sm:p-6 ${
-          !yourSectorId || !companyIndustry
+          !yourSectorId || !companyIndustries.length
             ? 'border-amber-200 bg-amber-50/80'
             : 'border-slate-200 bg-white'
         }`}
@@ -496,18 +551,18 @@ function ModulesInner() {
         <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
           <div>
             <p className="text-[11px] font-black uppercase tracking-widest text-[#0077b6]">
-              {!yourSectorId || !companyIndustry
+              {!yourSectorId || !companyIndustries.length
                 ? 'Action required · classification'
-                : 'Your sector & industry'}
+                : 'Your sector & industries'}
             </p>
             <h2 className="text-lg font-black text-slate-900 tracking-tight">
-              {!yourSectorId || !companyIndustry
-                ? 'Select sector and industry'
-                : 'Update sector and industry'}
+              {!yourSectorId || !companyIndustries.length
+                ? 'Select sector and industries'
+                : 'Update sector and industries'}
             </h2>
             <p className="text-sm text-slate-600 mt-1 max-w-2xl">
-              Already registered? Set these so Quick presets and Industry Packs
-              match your business. You can change them anytime.
+              Choose one sector and one or more industries. Saving updates
+              Company → Identity (profile industries) as well.
             </p>
           </div>
           <Link
@@ -533,8 +588,8 @@ function ModulesInner() {
                     disabled={classifying || govLocked}
                     onClick={() => {
                       setDraftSector(s.id);
-                      setDraftIndustry('');
-                      setDraftBusinessType('');
+                      setDraftIndustryIds([]);
+                      setDraftBusinessTypeIds([]);
                     }}
                     className={`text-left rounded-xl border-2 px-3 py-2.5 transition ${
                       on
@@ -557,19 +612,31 @@ function ModulesInner() {
           {draftSector ? (
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                Industry
+                Industries (one or more)
               </p>
               <div className="grid sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
                 {draftIndustries.map((ind) => {
-                  const on = draftIndustry === ind.id;
+                  const on = draftIndustryIds.includes(ind.id);
                   return (
                     <button
                       key={ind.id}
                       type="button"
                       disabled={classifying || govLocked}
                       onClick={() => {
-                        setDraftIndustry(ind.id);
-                        setDraftBusinessType('');
+                        setDraftIndustryIds((prev) => {
+                          const has = prev.includes(ind.id);
+                          const next = has
+                            ? prev.filter((x) => x !== ind.id)
+                            : [...prev, ind.id];
+                          setDraftBusinessTypeIds((bts) =>
+                            bts.filter((btid) =>
+                              next.some((iid) =>
+                                Boolean(getBusinessType(iid, btid))
+                              )
+                            )
+                          );
+                          return next;
+                        });
                       }}
                       className={`text-left rounded-xl border-2 px-3 py-2.5 transition ${
                         on
@@ -578,6 +645,7 @@ function ModulesInner() {
                       }`}
                     >
                       <div className="text-sm font-bold text-slate-900">
+                        {on ? '✓ ' : ''}
                         {ind.label}
                       </div>
                       <div className="text-[10px] text-neutral-500 line-clamp-2">
@@ -590,20 +658,26 @@ function ModulesInner() {
             </div>
           ) : null}
 
-          {draftIndustryDef ? (
+          {draftSelectedIndustryDefs.length > 0 ? (
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                Business type (optional)
+                Business type(s) (optional · multi)
               </p>
               <div className="grid sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
-                {draftIndustryDef.businessTypes.map((bt) => {
-                  const on = draftBusinessType === bt.id;
+                {draftBusinessTypeOptions.map((bt) => {
+                  const on = draftBusinessTypeIds.includes(bt.id);
                   return (
                     <button
                       key={bt.id}
                       type="button"
                       disabled={classifying || govLocked}
-                      onClick={() => setDraftBusinessType(bt.id)}
+                      onClick={() =>
+                        setDraftBusinessTypeIds((prev) =>
+                          prev.includes(bt.id)
+                            ? prev.filter((x) => x !== bt.id)
+                            : [...prev, bt.id]
+                        )
+                      }
                       className={`text-left rounded-xl border px-3 py-2 transition ${
                         on
                           ? 'border-[#00b4d8] bg-sky-50'
@@ -611,6 +685,7 @@ function ModulesInner() {
                       }`}
                     >
                       <div className="text-xs font-bold text-slate-900">
+                        {on ? '✓ ' : ''}
                         {bt.label}
                       </div>
                     </button>
@@ -622,7 +697,12 @@ function ModulesInner() {
 
           <button
             type="button"
-            disabled={classifying || govLocked || !draftSector}
+            disabled={
+              classifying ||
+              govLocked ||
+              !draftSector ||
+              !draftIndustryIds.length
+            }
             onClick={() => void saveClassification()}
             className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5 disabled:opacity-40"
           >
@@ -631,7 +711,7 @@ function ModulesInner() {
             ) : (
               <Save className="w-4 h-4" />
             )}
-            Save sector & industry
+            Save sector & industries
           </button>
         </div>
       </div>
@@ -648,10 +728,10 @@ function ModulesInner() {
             </p>
             <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
               {sectorLabel}
-              {companyIndustry ? (
+              {companyIndustries.length ? (
                 <>
                   <span className="text-neutral-400 font-bold"> · </span>
-                  {companyIndustry.label}
+                  {companyIndustries.map((i) => i.label).join(' · ')}
                 </>
               ) : null}
             </h2>
@@ -661,8 +741,11 @@ function ModulesInner() {
                 : entityLabel !== 'Not set'
                   ? `Entity: ${entityLabel}. `
                   : ''}
-              Showing modules and Industry Packs for your registered sector only.
-              Core OS is always included.
+              Showing modules and Industry Packs for your registered sector
+              {companyIndustries.length > 1
+                ? ` and ${companyIndustries.length} industries`
+                : ''}
+              . Core OS is always included.
             </p>
           </div>
           <div className="text-right shrink-0">
@@ -783,8 +866,8 @@ function ModulesInner() {
           <SectionLabel>Quick presets</SectionLabel>
           <p className="text-xs text-neutral-500 mt-1 mb-2">
             Only your registered sector
-            {companyIndustry ? ' and industry' : ''} — not the full preset
-            catalogue.
+            {companyIndustries.length ? ' and industries' : ''} — not the full
+            preset catalogue.
           </p>
           <div className="grid sm:grid-cols-2 gap-2 mt-2">
             {sectorIndustryPresets.map((p) => (
@@ -879,7 +962,10 @@ function ModulesInner() {
           </p>
           <div className="grid sm:grid-cols-2 gap-2">
             {sectorIndustries.map((ind) => {
-              const isYours = packaging?.industryId === ind.id;
+              const yours = new Set(
+                companyIndustries.map((i) => i.id)
+              );
+              const isYours = yours.has(ind.id);
               return (
                 <div
                   key={ind.id}
@@ -895,7 +981,7 @@ function ModulesInner() {
                     </span>
                     {isYours ? (
                       <span className="text-[9px] font-black uppercase tracking-wide text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
-                        Your industry
+                        Selected
                       </span>
                     ) : null}
                   </div>

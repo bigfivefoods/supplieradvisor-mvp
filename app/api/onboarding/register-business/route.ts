@@ -55,9 +55,12 @@ export async function POST(request: NextRequest) {
       os_entity_type,
       os_sector,
       os_industry,
+      os_industries,
       os_business_type_id,
+      os_business_type_ids,
       industry_packs,
       industry_modules,
+      industries: industriesBody,
     } = body;
 
     const _auth = await requireVerifiedUser(request, { legacyPrivyUserId: privyUserId });
@@ -245,11 +248,18 @@ export async function POST(request: NextRequest) {
       ? industry_modules.map(String)
       : [];
 
+    const industriesList = Array.isArray(industriesBody)
+      ? industriesBody.map(String).filter(Boolean)
+      : industry
+        ? [String(industry)]
+        : [];
+
     const baseInsert: Record<string, unknown> = {
       trading_name: tradingNameTrim,
       legal_name: legalNameTrim,
       registration_number: registration_number || null,
-      industry: industry || entityKind.group || null,
+      industry: industriesList[0] || industry || entityKind.group || null,
+      industries: industriesList.length ? industriesList : null,
       business_type: entityKind.business_type,
       org_type: entityKind.org_type,
       country: country || 'South Africa',
@@ -411,9 +421,19 @@ export async function POST(request: NextRequest) {
                     : 'private_company'),
           sectorId: os_sector ? String(os_sector) : null,
           industryId: os_industry ? String(os_industry) : null,
+          industryIds: Array.isArray(os_industries)
+            ? os_industries.map(String)
+            : os_industry
+              ? [String(os_industry)]
+              : [],
           businessTypeId: os_business_type_id
             ? String(os_business_type_id)
             : null,
+          businessTypeIds: Array.isArray(os_business_type_ids)
+            ? os_business_type_ids.map(String)
+            : os_business_type_id
+              ? [String(os_business_type_id)]
+              : [],
           packIds,
           moduleIds,
         },

@@ -147,43 +147,54 @@ export async function PATCH(request: NextRequest) {
       body.sectorId != null
         ? String(body.sectorId)
         : current?.sectorId || 'secondary';
-    const industryId =
-      body.industryId !== undefined
-        ? body.industryId != null
-          ? String(body.industryId)
-          : null
-        : current?.industryId || null;
-    const businessTypeId =
-      body.businessTypeId !== undefined
-        ? body.businessTypeId != null
-          ? String(body.businessTypeId)
-          : null
-        : current?.businessTypeId || null;
+
+    // Multi-industry: industryIds[] preferred; industryId still accepted
+    let industryIds: string[] = [];
+    if (body.industryIds !== undefined) {
+      industryIds = Array.isArray(body.industryIds)
+        ? body.industryIds.map(String).filter(Boolean)
+        : [];
+    } else if (body.industryId !== undefined) {
+      industryIds = body.industryId != null ? [String(body.industryId)] : [];
+    } else {
+      industryIds = [
+        ...(current?.industryIds || []),
+        ...(current?.industryId ? [String(current.industryId)] : []),
+      ];
+    }
+    industryIds = [...new Set(industryIds)];
+
+    let businessTypeIds: string[] = [];
+    if (body.businessTypeIds !== undefined) {
+      businessTypeIds = Array.isArray(body.businessTypeIds)
+        ? body.businessTypeIds.map(String).filter(Boolean)
+        : [];
+    } else if (body.businessTypeId !== undefined) {
+      businessTypeIds =
+        body.businessTypeId != null ? [String(body.businessTypeId)] : [];
+    } else {
+      businessTypeIds = [
+        ...(current?.businessTypeIds || []),
+        ...(current?.businessTypeId ? [String(current.businessTypeId)] : []),
+      ];
+    }
+    businessTypeIds = [...new Set(businessTypeIds)];
 
     let entityTypeId =
       body.entityTypeId != null
         ? String(body.entityTypeId)
         : current?.entityTypeId || 'private_company';
-    let industryLabel: string | null = null;
+    const industryLabels: string[] = [];
     let profileBusinessType: string | null = null;
-    if (industryId) {
-      try {
-        const { getIndustry, getBusinessType } = await import(
-          '@/lib/product/business-catalogue'
-        );
-        const ind = getIndustry(industryId);
-        industryLabel = ind?.label || null;
-        if (businessTypeId) {
-          const bt = getBusinessType(industryId, businessTypeId);
-          if (bt) {
-            entityTypeId = bt.entityTypeId;
-            profileBusinessType = bt.profileBusinessType;
-          }
-        }
-        // When sector changes without packs, suggest industry packs additively
+    try {
+      const { getIndustry, getBusinessType } = await import(
+        '@/lib/product/business-catalogue'
+      );
+      for (const iid of industryIds) {
+        const ind = getIndustry(iid);
+        if (ind?.label) industryLabels.push(ind.label);
         if (
-          Array.isArray(body.suggestIndustryPacks) &&
-          body.suggestIndustryPacks &&
+          body.suggestIndustryPacks === true &&
           ind?.packIds?.length
         ) {
           for (const pid of ind.packIds) {
@@ -192,17 +203,31 @@ export async function PATCH(request: NextRequest) {
             }
           }
         }
-      } catch {
-        /* soft */
       }
+      // Resolve entity from first matching business type
+      for (const btid of businessTypeIds) {
+        for (const iid of industryIds) {
+          const bt = getBusinessType(iid, btid);
+          if (bt) {
+            entityTypeId = bt.entityTypeId;
+            profileBusinessType = bt.profileBusinessType;
+            break;
+          }
+        }
+        if (profileBusinessType) break;
+      }
+    } catch {
+      /* soft */
     }
 
     // Contact-gated orgs cannot self-activate full packs changes? Allow pack selection still
     const selection = packagingFromSelection({
       entityTypeId,
       sectorId,
-      industryId,
-      businessTypeId,
+      industryIds,
+      industryId: industryIds[0] || null,
+      businessTypeIds,
+      businessTypeId: businessTypeIds[0] || null,
       packIds,
       moduleIds,
     });
@@ -249,17 +274,35 @@ export async function PATCH(request: NextRequest) {
     }
     const nextMeta = mergeEnabledModulesIntoMetadata(meta, merged);
 
+    // Keep company Identity profile in sync (visible on /my-business/profile)
     const profilePatch: Record<string, unknown> = {
       metadata: nextMeta,
       updated_at: new Date().toISOString(),
     };
-    if (industryLabel) profilePatch.industry = industryLabel;
+    if (industryLabels.length) {
+      profilePatch.industries = industryLabels;
+      profilePatch.industry = industryLabels[0];
+    }
     if (profileBusinessType) profilePatch.business_type = profileBusinessType;
+    // Surface sector on profile row when column exists; always in metadata via packBlob
+    if (sectorId) {
+      profilePatch.sector = sectorId;
+    }
 
-    const { error } = await supabase
+    let { error } = await supabase
       .from('profiles')
       .update(profilePatch)
       .eq('id', companyId);
+
+    // Retry without sector column if schema lacks it
+    if (error && /sector|column/i.test(String(error.message || ''))) {
+      delete profilePatch.sector;
+      const retry = await supabase
+        .from('profiles')
+        .update(profilePatch)
+        .eq('id', companyId);
+      error = retry.error;
+    }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });

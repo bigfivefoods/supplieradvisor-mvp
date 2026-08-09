@@ -959,9 +959,16 @@ export function enabledModulesMapFromPacks(
 export type PackagingSelection = {
   entityTypeId: OsEntityTypeId | string;
   sectorId: OsSectorId | string;
-  /** Catalogue industry id (sector → industry → business type) */
+  /**
+   * Catalogue industry ids (multi). Primary is industryIds[0] / industryId.
+   * Companies may operate in more than one industry within a sector.
+   */
+  industryIds?: string[];
+  /** @deprecated prefer industryIds — kept as first selected for older clients */
   industryId?: string | null;
-  /** Catalogue business type id */
+  /** Catalogue business type ids (multi, optional) */
+  businessTypeIds?: string[];
+  /** @deprecated prefer businessTypeIds */
   businessTypeId?: string | null;
   packIds: string[];
   moduleIds: string[];
@@ -969,21 +976,46 @@ export type PackagingSelection = {
   setupStatus: 'active' | 'contact_required' | 'pending_specialist';
 };
 
+function normalizeIdList(
+  primary?: string | null,
+  list?: string[] | null
+): string[] {
+  const out: string[] = [];
+  for (const id of list || []) {
+    const s = String(id || '').trim();
+    if (s && !out.includes(s)) out.push(s);
+  }
+  if (primary) {
+    const s = String(primary).trim();
+    if (s && !out.includes(s)) out.unshift(s);
+  }
+  return out;
+}
+
 export function packagingFromSelection(opts: {
   entityTypeId: string;
   sectorId: string;
   packIds: string[];
   moduleIds?: string[];
   industryId?: string | null;
+  industryIds?: string[] | null;
   businessTypeId?: string | null;
+  businessTypeIds?: string[] | null;
 }): PackagingSelection {
   const entity = getOsEntityType(opts.entityTypeId);
   const setupPath = entity?.setupPath || 'self_serve';
+  const industryIds = normalizeIdList(opts.industryId, opts.industryIds);
+  const businessTypeIds = normalizeIdList(
+    opts.businessTypeId,
+    opts.businessTypeIds
+  );
   return {
     entityTypeId: opts.entityTypeId,
     sectorId: opts.sectorId,
-    industryId: opts.industryId || null,
-    businessTypeId: opts.businessTypeId || null,
+    industryIds,
+    industryId: industryIds[0] || null,
+    businessTypeIds,
+    businessTypeId: businessTypeIds[0] || null,
     packIds: [...new Set(opts.packIds)],
     moduleIds: [...new Set(opts.moduleIds || [])],
     setupPath,
@@ -997,12 +1029,22 @@ export function packagingMetadataBlob(
   selection: PackagingSelection
 ): Record<string, unknown> {
   const price = monthlyPriceZar(selection.packIds);
+  const industryIds = normalizeIdList(
+    selection.industryId,
+    selection.industryIds
+  );
+  const businessTypeIds = normalizeIdList(
+    selection.businessTypeId,
+    selection.businessTypeIds
+  );
   return {
     os_architecture: 'core_sector_pack_module',
     os_entity_type: selection.entityTypeId,
     os_sector: selection.sectorId,
-    os_industry: selection.industryId || null,
-    os_business_type_id: selection.businessTypeId || null,
+    os_industry: industryIds[0] || null,
+    os_industries: industryIds,
+    os_business_type_id: businessTypeIds[0] || null,
+    os_business_type_ids: businessTypeIds,
     industry_packs: selection.packIds,
     industry_modules: selection.moduleIds,
     setup_path: selection.setupPath,
@@ -1025,16 +1067,24 @@ export function readPackagingFromMetadata(
   const moduleIds = Array.isArray(meta.industry_modules)
     ? meta.industry_modules.map(String)
     : [];
+  const industryIds = normalizeIdList(
+    meta.os_industry != null ? String(meta.os_industry) : null,
+    Array.isArray(meta.os_industries) ? meta.os_industries.map(String) : null
+  );
+  const businessTypeIds = normalizeIdList(
+    meta.os_business_type_id != null ? String(meta.os_business_type_id) : null,
+    Array.isArray(meta.os_business_type_ids)
+      ? meta.os_business_type_ids.map(String)
+      : null
+  );
   const setupStatus = String(meta.setup_status || 'active') as PackagingSelection['setupStatus'];
   return {
     entityTypeId: entityTypeId || 'private_company',
     sectorId: sectorId || 'secondary',
-    industryId:
-      meta.os_industry != null ? String(meta.os_industry) : null,
-    businessTypeId:
-      meta.os_business_type_id != null
-        ? String(meta.os_business_type_id)
-        : null,
+    industryIds,
+    industryId: industryIds[0] || null,
+    businessTypeIds,
+    businessTypeId: businessTypeIds[0] || null,
     packIds,
     moduleIds,
     setupPath:

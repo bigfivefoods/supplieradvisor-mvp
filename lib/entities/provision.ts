@@ -26,7 +26,9 @@ export async function provisionEntityWorkspace(
     /** Core OS packaging (entity type, sector, industry, packs, modules) */
     packaging?: {
       industryId?: string | null;
+      industryIds?: string[] | null;
       businessTypeId?: string | null;
+      businessTypeIds?: string[] | null;
       entityTypeId?: string | null;
       sectorId?: string | null;
       packIds?: string[] | null;
@@ -59,7 +61,9 @@ export async function provisionEntityWorkspace(
           (entity.id === 'school' ? 'school' : 'private_company'),
         sectorId: opts.packaging.sectorId || 'secondary',
         industryId: opts.packaging.industryId || null,
+        industryIds: opts.packaging.industryIds || null,
         businessTypeId: opts.packaging.businessTypeId || null,
+        businessTypeIds: opts.packaging.businessTypeIds || null,
         packIds: opts.packaging.packIds || [],
         moduleIds: opts.packaging.moduleIds || [],
       });

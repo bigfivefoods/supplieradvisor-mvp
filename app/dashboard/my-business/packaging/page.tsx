@@ -72,8 +72,8 @@ function Inner() {
   const [selectedPacks, setSelectedPacks] = useState<string[]>([]);
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
   const [sectorId, setSectorId] = useState<string>('');
-  const [industryId, setIndustryId] = useState<string>('');
-  const [businessTypeId, setBusinessTypeId] = useState<string>('');
+  const [industryIds, setIndustryIds] = useState<string[]>([]);
+  const [businessTypeIds, setBusinessTypeIds] = useState<string[]>([]);
   const [dirty, setDirty] = useState(false);
   const [businessType, setBusinessType] = useState<string | null>(null);
   const [payTermId] = useState<BillingTermId>('monthly');
@@ -91,14 +91,22 @@ function Inner() {
       setSelectedPacks(data.packaging?.packIds || []);
       setSelectedModules(data.packaging?.moduleIds || []);
       setSectorId(data.packaging?.sectorId ? String(data.packaging.sectorId) : '');
-      setIndustryId(
-        data.packaging?.industryId ? String(data.packaging.industryId) : ''
-      );
-      setBusinessTypeId(
-        data.packaging?.businessTypeId
-          ? String(data.packaging.businessTypeId)
-          : ''
-      );
+      {
+        const ids = Array.isArray(data.packaging?.industryIds)
+          ? data.packaging.industryIds.map(String)
+          : data.packaging?.industryId
+            ? [String(data.packaging.industryId)]
+            : [];
+        setIndustryIds([...new Set(ids)]);
+      }
+      {
+        const ids = Array.isArray(data.packaging?.businessTypeIds)
+          ? data.packaging.businessTypeIds.map(String)
+          : data.packaging?.businessTypeId
+            ? [String(data.packaging.businessTypeId)]
+            : [];
+        setBusinessTypeIds([...new Set(ids)]);
+      }
       setBusinessType(
         data.businessType != null ? String(data.businessType) : null
       );
@@ -126,39 +134,83 @@ function Inner() {
     OS_SECTORS.find((s) => s.id === sectorId)?.label ||
     sectorId ||
     '—';
-  const industryDef = useMemo(() => getIndustry(industryId || null), [industryId]);
-  const businessTypeDef = useMemo(
-    () => getBusinessType(industryId || null, businessTypeId || null),
-    [industryId, businessTypeId]
+  const selectedIndustryDefs = useMemo(
+    () =>
+      industryIds
+        .map((id) => getIndustry(id))
+        .filter(Boolean) as NonNullable<ReturnType<typeof getIndustry>>[],
+    [industryIds]
   );
+  const businessTypeOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Array<{
+      id: string;
+      label: string;
+      description: string;
+      industryId: string;
+    }> = [];
+    for (const ind of selectedIndustryDefs) {
+      for (const bt of ind.businessTypes) {
+        if (seen.has(bt.id)) continue;
+        seen.add(bt.id);
+        out.push({
+          id: bt.id,
+          label: bt.label,
+          description: bt.description,
+          industryId: ind.id,
+        });
+      }
+    }
+    return out;
+  }, [selectedIndustryDefs]);
+  const primaryBusinessTypeDef = useMemo(() => {
+    for (const btid of businessTypeIds) {
+      for (const ind of selectedIndustryDefs) {
+        const bt = getBusinessType(ind.id, btid);
+        if (bt) return bt;
+      }
+    }
+    return null;
+  }, [businessTypeIds, selectedIndustryDefs]);
   const industries = useMemo(
     () => industriesForSector(sectorId || null),
     [sectorId]
   );
-  const needsClassification = !sectorId || !industryId;
+  const needsClassification = !sectorId || industryIds.length === 0;
   const contactRequired =
     packaging?.setupStatus === 'contact_required' ||
     packaging?.setupStatus === 'pending_specialist';
 
   const onSelectSector = (id: OsSectorId) => {
     setSectorId(id);
-    setIndustryId('');
-    setBusinessTypeId('');
+    setIndustryIds([]);
+    setBusinessTypeIds([]);
     setDirty(true);
   };
 
-  const onSelectIndustry = (id: string) => {
+  const toggleIndustry = (id: string) => {
     const ind = getIndustry(id);
-    setIndustryId(id);
-    setBusinessTypeId('');
-    if (ind?.packIds?.length) {
-      setSelectedPacks((prev) => [...new Set([...prev, ...ind.packIds])]);
-    }
+    setIndustryIds((prev) => {
+      const has = prev.includes(id);
+      const next = has ? prev.filter((x) => x !== id) : [...prev, id];
+      // Drop business types that no longer belong to any selected industry
+      setBusinessTypeIds((bts) =>
+        bts.filter((btid) =>
+          next.some((iid) => Boolean(getBusinessType(iid, btid)))
+        )
+      );
+      if (!has && ind?.packIds?.length) {
+        setSelectedPacks((packs) => [...new Set([...packs, ...ind.packIds])]);
+      }
+      return next;
+    });
     setDirty(true);
   };
 
-  const onSelectBusinessType = (id: string) => {
-    setBusinessTypeId(id);
+  const toggleBusinessType = (id: string) => {
+    setBusinessTypeIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
     setDirty(true);
   };
 
@@ -336,16 +388,21 @@ function Inner() {
           packIds: selectedPacks,
           moduleIds: selectedModules,
           entityTypeId:
-            businessTypeDef?.entityTypeId || packaging?.entityTypeId,
+            primaryBusinessTypeDef?.entityTypeId || packaging?.entityTypeId,
           sectorId: sectorId || packaging?.sectorId || 'secondary',
-          industryId: industryId || null,
-          businessTypeId: businessTypeId || null,
+          industryIds,
+          industryId: industryIds[0] || null,
+          businessTypeIds,
+          businessTypeId: businessTypeIds[0] || null,
           suggestIndustryPacks: true,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Save failed');
-      toast.success(data.message || 'Packaging saved');
+      toast.success(
+        data.message ||
+          'Packaging saved — company profile industries updated'
+      );
       setDirty(false);
       void load();
       window.dispatchEvent(new Event('sa:company-changed'));
@@ -414,13 +471,22 @@ function Inner() {
             <Row label="Entity type" value={entityLabel} />
             <Row label="Sector" value={String(sectorLabel)} />
             <Row
-              label="Industry"
-              value={industryDef?.label || industryId || 'Not set'}
+              label="Industries"
+              value={
+                selectedIndustryDefs.length
+                  ? selectedIndustryDefs.map((i) => i.label).join(' · ')
+                  : 'Not set'
+              }
             />
             <Row
-              label="Business type"
+              label="Business type(s)"
               value={
-                businessTypeDef?.label || businessTypeId || businessType || '—'
+                businessTypeIds.length
+                  ? businessTypeOptions
+                      .filter((b) => businessTypeIds.includes(b.id))
+                      .map((b) => b.label)
+                      .join(' · ') || businessTypeIds.join(', ')
+                  : businessType || '—'
               }
             />
             <Row
@@ -482,48 +548,73 @@ function Inner() {
             {sectorId ? (
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6] mb-2">
-                  2 · Industry · {sectorLabel}
+                  2 · Industries · {sectorLabel}{' '}
+                  <span className="font-semibold normal-case tracking-normal text-slate-500">
+                    (select one or more)
+                  </span>
                 </p>
                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                   {industries.map((ind) => {
-                    const on = industryId === ind.id;
+                    const on = industryIds.includes(ind.id);
                     return (
                       <button
                         key={ind.id}
                         type="button"
-                        onClick={() => onSelectIndustry(ind.id)}
-                        className={`w-full text-left rounded-2xl border-2 p-3 transition ${
+                        onClick={() => toggleIndustry(ind.id)}
+                        className={`w-full text-left rounded-2xl border-2 p-3 transition flex gap-3 ${
                           on
                             ? 'border-[#00b4d8] bg-sky-50 ring-1 ring-[#00b4d8]/30'
                             : 'border-slate-200 bg-white hover:border-slate-300'
                         }`}
                       >
-                        <p className="font-black text-sm text-slate-900">
-                          {ind.label}
-                        </p>
-                        <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                          {ind.description}
-                        </p>
+                        <div
+                          className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${
+                            on
+                              ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
+                              : 'border-slate-300'
+                          }`}
+                        >
+                          {on ? (
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          ) : null}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-black text-sm text-slate-900">
+                            {ind.label}
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                            {ind.description}
+                          </p>
+                        </div>
                       </button>
                     );
                   })}
                 </div>
+                {industryIds.length > 0 ? (
+                  <p className="text-[11px] font-semibold text-emerald-800 mt-2">
+                    {industryIds.length} industr
+                    {industryIds.length === 1 ? 'y' : 'ies'} selected
+                  </p>
+                ) : null}
               </div>
             ) : null}
 
-            {industryDef ? (
+            {selectedIndustryDefs.length > 0 ? (
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6] mb-2">
-                  3 · Business type · {industryDef.label}
+                  3 · Business type(s){' '}
+                  <span className="font-semibold normal-case tracking-normal text-slate-500">
+                    (optional · multi-select)
+                  </span>
                 </p>
                 <div className="grid sm:grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
-                  {industryDef.businessTypes.map((bt) => {
-                    const on = businessTypeId === bt.id;
+                  {businessTypeOptions.map((bt) => {
+                    const on = businessTypeIds.includes(bt.id);
                     return (
                       <button
                         key={bt.id}
                         type="button"
-                        onClick={() => onSelectBusinessType(bt.id)}
+                        onClick={() => toggleBusinessType(bt.id)}
                         className={`text-left rounded-2xl border-2 p-3 transition ${
                           on
                             ? 'border-[#00b4d8] bg-sky-50 ring-1 ring-[#00b4d8]/30'

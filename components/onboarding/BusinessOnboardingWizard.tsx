@@ -51,8 +51,9 @@ const STEPS = [
 
 type FormState = {
   os_sector: string;
-  os_industry: string;
-  os_business_type: string;
+  /** Multi industry catalogue ids */
+  os_industries: string[];
+  os_business_types: string[];
   os_entity_type: string;
   industry_packs: string[];
   industry_modules: string[];
@@ -111,10 +112,12 @@ export default function BusinessOnboardingWizard() {
   } | null>(null);
   const [form, setForm] = useState<FormState>({
     os_sector: initialSector,
-    os_industry: initialIndustry,
-    os_business_type: '',
+    os_industries: initialIndustry ? [initialIndustry] : [],
+    os_business_types: [],
     os_entity_type: 'private_company',
-    industry_packs: [],
+    industry_packs: initialIndustry
+      ? [...(getIndustry(initialIndustry)?.packIds || [])]
+      : [],
     industry_modules: [],
     business_type: 'business',
     trading_name: claimName || '',
@@ -134,14 +137,23 @@ export default function BusinessOnboardingWizard() {
     () => OS_SECTORS.find((s) => s.id === form.os_sector) || null,
     [form.os_sector]
   );
-  const industryDef = useMemo(
-    () => getIndustry(form.os_industry),
-    [form.os_industry]
+  const industryDefs = useMemo(
+    () =>
+      form.os_industries
+        .map((id) => getIndustry(id))
+        .filter(Boolean) as NonNullable<ReturnType<typeof getIndustry>>[],
+    [form.os_industries]
   );
-  const businessTypeDef = useMemo(
-    () => getBusinessType(form.os_industry, form.os_business_type),
-    [form.os_industry, form.os_business_type]
-  );
+  const industryDef = industryDefs[0] || null;
+  const businessTypeDef = useMemo(() => {
+    for (const ind of industryDefs) {
+      for (const btid of form.os_business_types) {
+        const bt = getBusinessType(ind.id, btid);
+        if (bt) return bt;
+      }
+    }
+    return null;
+  }, [industryDefs, form.os_business_types]);
   const entityDef = getOsEntityType(form.os_entity_type);
   const contactRequired = entityDef?.setupPath === 'contact_required';
 
@@ -160,8 +172,8 @@ export default function BusinessOnboardingWizard() {
   const canNext = useMemo(() => {
     if (step === 0) return authenticated;
     if (step === 1) return Boolean(form.os_sector);
-    if (step === 2) return Boolean(form.os_industry);
-    if (step === 3) return Boolean(form.os_business_type);
+    if (step === 2) return form.os_industries.length > 0;
+    if (step === 3) return form.os_business_types.length > 0;
     if (step === 4) {
       return (
         form.trading_name.trim().length >= 2 &&
@@ -180,8 +192,8 @@ export default function BusinessOnboardingWizard() {
     setForm((prev) => ({
       ...prev,
       os_sector: sectorId,
-      os_industry: '',
-      os_business_type: '',
+      os_industries: [],
+      os_business_types: [],
       industry_packs: [],
       industry_modules: [],
       os_entity_type:
@@ -191,27 +203,54 @@ export default function BusinessOnboardingWizard() {
     }));
   };
 
-  const selectIndustry = (industryId: string) => {
-    const ind = getIndustry(industryId);
-    setForm((prev) => ({
-      ...prev,
-      os_industry: industryId,
-      os_business_type: '',
-      industry_packs: ind ? [...ind.packIds] : [],
-      industry_modules: [],
-      industry: ind?.label || '',
-    }));
+  const toggleIndustry = (industryId: string) => {
+    setForm((prev) => {
+      const has = prev.os_industries.includes(industryId);
+      const os_industries = has
+        ? prev.os_industries.filter((id) => id !== industryId)
+        : [...prev.os_industries, industryId];
+      const packs = [
+        ...new Set(
+          os_industries.flatMap((id) => getIndustry(id)?.packIds || [])
+        ),
+      ];
+      const labels = os_industries
+        .map((id) => getIndustry(id)?.label)
+        .filter(Boolean);
+      const os_business_types = prev.os_business_types.filter((btid) =>
+        os_industries.some((iid) => Boolean(getBusinessType(iid, btid)))
+      );
+      return {
+        ...prev,
+        os_industries,
+        os_business_types,
+        industry_packs: packs,
+        industry_modules: [],
+        industry: labels.join(', '),
+      };
+    });
   };
 
-  const selectBusinessType = (businessTypeId: string) => {
-    const bt = getBusinessType(form.os_industry, businessTypeId);
-    if (!bt) return;
-    setForm((prev) => ({
-      ...prev,
-      os_business_type: businessTypeId,
-      os_entity_type: bt.entityTypeId,
-      business_type: bt.profileBusinessType,
-    }));
+  const toggleBusinessType = (businessTypeId: string) => {
+    setForm((prev) => {
+      const has = prev.os_business_types.includes(businessTypeId);
+      const os_business_types = has
+        ? prev.os_business_types.filter((id) => id !== businessTypeId)
+        : [...prev.os_business_types, businessTypeId];
+      let os_entity_type = prev.os_entity_type;
+      let business_type = prev.business_type;
+      for (const iid of prev.os_industries) {
+        for (const btid of os_business_types) {
+          const bt = getBusinessType(iid, btid);
+          if (bt) {
+            os_entity_type = bt.entityTypeId;
+            business_type = bt.profileBusinessType;
+            break;
+          }
+        }
+      }
+      return { ...prev, os_business_types, os_entity_type, business_type };
+    });
   };
 
   const ensureAuthPrefill = () => {
@@ -247,7 +286,14 @@ export default function BusinessOnboardingWizard() {
     }
 
     const entity = getOsEntityType(form.os_entity_type);
-    const bt = getBusinessType(form.os_industry, form.os_business_type);
+    let bt = null as ReturnType<typeof getBusinessType>;
+    for (const iid of form.os_industries) {
+      for (const btid of form.os_business_types) {
+        bt = getBusinessType(iid, btid);
+        if (bt) break;
+      }
+      if (bt) break;
+    }
     const business_type =
       bt?.profileBusinessType || entity?.businessType || form.business_type || 'business';
 
@@ -278,7 +324,11 @@ export default function BusinessOnboardingWizard() {
           trading_name: form.trading_name,
           legal_name: form.legal_name,
           registration_number: form.registration_number,
-          industry: industryDef?.label || form.industry || form.os_sector,
+          industry:
+            industryDefs.map((i) => i.label).join(', ') ||
+            form.industry ||
+            form.os_sector,
+          industries: industryDefs.map((i) => i.label),
           country: form.country,
           city: form.city,
           website: form.website,
@@ -291,8 +341,10 @@ export default function BusinessOnboardingWizard() {
           claimProfileId: claimId || undefined,
           os_entity_type: form.os_entity_type,
           os_sector: form.os_sector,
-          os_industry: form.os_industry,
-          os_business_type_id: form.os_business_type,
+          os_industry: form.os_industries[0] || null,
+          os_industries: form.os_industries,
+          os_business_type_id: form.os_business_types[0] || null,
+          os_business_type_ids: form.os_business_types,
           industry_packs: form.industry_packs,
           industry_modules: form.industry_modules,
         }),
@@ -489,17 +541,25 @@ export default function BusinessOnboardingWizard() {
               <TrailChip
                 n={2}
                 label="Industry"
-                value={industryDef?.label}
+                value={
+                  industryDefs.length
+                    ? industryDefs.map((i) => i.label).join(' · ')
+                    : null
+                }
                 active={step === 2}
-                done={Boolean(form.os_industry) && step > 2}
+                done={form.os_industries.length > 0 && step > 2}
               />
               <span className="text-slate-300 font-bold">→</span>
               <TrailChip
                 n={3}
                 label="Business type"
-                value={businessTypeDef?.label}
+                value={
+                  form.os_business_types.length
+                    ? `${form.os_business_types.length} selected`
+                    : null
+                }
                 active={step === 3}
-                done={Boolean(form.os_business_type) && step > 3}
+                done={form.os_business_types.length > 0 && step > 3}
               />
             </ol>
             {form.industry_packs.length > 0 ? (
@@ -622,18 +682,18 @@ export default function BusinessOnboardingWizard() {
           </section>
         ) : null}
 
-        {/* Step 2 — Industry */}
+        {/* Step 2 — Industries (multi) */}
         {step === 2 ? (
           <section className="space-y-4">
             <h1 className="text-2xl font-black text-slate-900">
-              Which industry?
+              Which industries?
             </h1>
             <p className="text-sm text-slate-600">
-              Industries in{' '}
+              Select one or more industries in{' '}
               <strong className="text-slate-900">
                 {sectorLabel(form.os_sector)}
               </strong>
-              . Selecting an industry pre-loads recommended Industry Packs.
+              . Each selection adds recommended Industry Packs.
             </p>
             {!form.os_sector ? (
               <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
@@ -642,7 +702,7 @@ export default function BusinessOnboardingWizard() {
             ) : (
               <div className="space-y-2">
                 {industries.map((ind) => {
-                  const on = form.os_industry === ind.id;
+                  const on = form.os_industries.includes(ind.id);
                   const packNames = ind.packIds
                     .map((id) => getIndustryPack(id)?.shortName || id)
                     .join(', ');
@@ -650,7 +710,7 @@ export default function BusinessOnboardingWizard() {
                     <button
                       key={ind.id}
                       type="button"
-                      onClick={() => selectIndustry(ind.id)}
+                      onClick={() => toggleIndustry(ind.id)}
                       className={`w-full text-left rounded-2xl border-2 p-4 transition ${
                         on
                           ? 'border-[#00b4d8] bg-sky-50 ring-2 ring-[#00b4d8]/20'
@@ -663,6 +723,7 @@ export default function BusinessOnboardingWizard() {
                             Industry · {sectorLabel(form.os_sector)}
                           </p>
                           <p className="font-black text-sm text-slate-900 mt-0.5">
+                            {on ? '✓ ' : ''}
                             {ind.label}
                           </p>
                           <p className="text-[11px] text-slate-500 mt-1 leading-snug">
@@ -693,56 +754,61 @@ export default function BusinessOnboardingWizard() {
           </section>
         ) : null}
 
-        {/* Step 3 — Business type */}
+        {/* Step 3 — Business type(s) multi */}
         {step === 3 ? (
           <section className="space-y-4">
             <h1 className="text-2xl font-black text-slate-900">
-              Business type
+              Business type(s)
             </h1>
             <p className="text-sm text-slate-600">
-              Exact role within{' '}
+              Roles within{' '}
               <strong className="text-slate-900">
-                {industryDef?.label || 'your industry'}
+                {industryDefs.map((i) => i.label).join(' · ') ||
+                  'your industries'}
               </strong>{' '}
-              ({sectorLabel(form.os_sector)}). Choose the best match — list is
-              exhaustive for this industry.
+              ({sectorLabel(form.os_sector)}). Select one or more.
             </p>
-            {!industryDef ? (
+            {!industryDefs.length ? (
               <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
                 Go back and choose an industry first.
               </p>
             ) : (
-              <div className="grid sm:grid-cols-2 gap-2">
-                {industryDef.businessTypes.map((bt) => {
-                  const on = form.os_business_type === bt.id;
-                  return (
-                    <button
-                      key={bt.id}
-                      type="button"
-                      onClick={() => selectBusinessType(bt.id)}
-                      className={`text-left rounded-2xl border-2 p-3.5 transition ${
-                        on
-                          ? 'border-[#00b4d8] bg-sky-50 ring-2 ring-[#00b4d8]/20'
-                          : 'border-slate-200 bg-white hover:border-slate-300'
-                      }`}
-                    >
-                      <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6]">
-                        Business type
-                      </p>
-                      <p className="font-black text-sm text-slate-900 mt-0.5">
-                        {bt.label}
-                      </p>
-                      <p className="text-[11px] text-slate-500 mt-1 leading-snug">
-                        {bt.description}
-                      </p>
-                      {on ? (
-                        <span className="inline-flex mt-2 text-[10px] font-black uppercase text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
-                          Selected
-                        </span>
-                      ) : null}
-                    </button>
-                  );
-                })}
+              <div className="space-y-4">
+                {industryDefs.map((ind) => (
+                  <div key={ind.id}>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6] mb-2">
+                      {ind.label}
+                    </p>
+                    <div className="grid sm:grid-cols-2 gap-2">
+                      {ind.businessTypes.map((bt) => {
+                        const on = form.os_business_types.includes(bt.id);
+                        return (
+                          <button
+                            key={`${ind.id}-${bt.id}`}
+                            type="button"
+                            onClick={() => toggleBusinessType(bt.id)}
+                            className={`text-left rounded-2xl border-2 p-3.5 transition ${
+                              on
+                                ? 'border-[#00b4d8] bg-sky-50 ring-2 ring-[#00b4d8]/20'
+                                : 'border-slate-200 bg-white hover:border-slate-300'
+                            }`}
+                          >
+                            <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6]">
+                              Business type
+                            </p>
+                            <p className="font-black text-sm text-slate-900 mt-0.5">
+                              {on ? '✓ ' : ''}
+                              {bt.label}
+                            </p>
+                            <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                              {bt.description}
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </section>
@@ -757,8 +823,10 @@ export default function BusinessOnboardingWizard() {
             <p className="text-sm text-slate-600">
               Registering as{' '}
               <strong>{businessTypeDef?.label || '—'}</strong> in{' '}
-              <strong>{industryDef?.label || '—'}</strong> (
-              {sectorLabel(form.os_sector)}).
+              <strong>
+                {industryDefs.map((i) => i.label).join(' · ') || '—'}
+              </strong>{' '}
+              ({sectorLabel(form.os_sector)}).
             </p>
             <div className="grid sm:grid-cols-2 gap-3">
               <label className="text-xs sm:col-span-2">
@@ -848,12 +916,19 @@ export default function BusinessOnboardingWizard() {
             <div className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3 text-sm">
               <Row label="Sector" value={sectorDef?.label || form.os_sector} />
               <Row
-                label="Industry"
-                value={industryDef?.label || form.os_industry}
+                label="Industries"
+                value={
+                  industryDefs.map((i) => i.label).join(' · ') ||
+                  form.os_industries.join(', ')
+                }
               />
               <Row
-                label="Business type"
-                value={businessTypeDef?.label || form.os_business_type}
+                label="Business type(s)"
+                value={
+                  form.os_business_types.length
+                    ? `${form.os_business_types.length} selected`
+                    : '—'
+                }
               />
               <Row
                 label="Entity class"

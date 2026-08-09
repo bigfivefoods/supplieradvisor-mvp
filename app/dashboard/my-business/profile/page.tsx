@@ -219,6 +219,31 @@ function ProfileInner() {
         : profile.industry
           ? [String(profile.industry)]
           : [];
+      // Merge packaging catalogue industries (Modules / Packaging selection)
+      const packMeta =
+        profile.metadata && typeof profile.metadata === 'object'
+          ? (profile.metadata as Record<string, unknown>)
+          : {};
+      try {
+        const { readPackagingFromMetadata } = await import(
+          '@/lib/product/architecture'
+        );
+        const { getIndustry } = await import(
+          '@/lib/product/business-catalogue'
+        );
+        const pack = readPackagingFromMetadata(packMeta);
+        const packLabels = [
+          ...(pack?.industryIds || []),
+          ...(pack?.industryId ? [String(pack.industryId)] : []),
+        ]
+          .map((id) => getIndustry(id)?.label)
+          .filter(Boolean) as string[];
+        for (const label of packLabels) {
+          if (!inds.includes(label)) inds.push(label);
+        }
+      } catch {
+        /* soft */
+      }
       setSelectedIndustries(inds);
 
       const subs = Array.isArray(profile.sub_industries)
@@ -1556,8 +1581,15 @@ function ProfileInner() {
               )}
             </div>
             <div className="text-[11px] text-neutral-500 truncate">
-              {[form.industry, form.city, form.country].filter(Boolean).join(' · ') ||
-                'Complete your profile below'}
+              {[
+                selectedIndustries.length
+                  ? selectedIndustries.join(' · ')
+                  : form.industry,
+                form.city,
+                form.country,
+              ]
+                .filter(Boolean)
+                .join(' · ') || 'Complete your profile below'}
             </div>
           </div>
           <div className="shrink-0 text-right w-20">
@@ -2161,9 +2193,22 @@ function ProfileInner() {
           <Panel id="industry" title="Sector & industry">
             <div className="p-4 space-y-3">
               <p className="text-[11px] text-neutral-500 leading-relaxed">
-                Exhaustive catalogue across primary → secondary → tertiary →
-                quaternary → quinary (includes government, education, health,
-                NGOs). Search or browse by sector; then pick sub-industries.
+                Multi-select industries for your company. Selections from{' '}
+                <a
+                  href="/dashboard/my-business/modules"
+                  className="font-semibold text-[#0077b6] underline"
+                >
+                  Modules
+                </a>{' '}
+                /{' '}
+                <a
+                  href="/dashboard/my-business/packaging"
+                  className="font-semibold text-[#0077b6] underline"
+                >
+                  Packaging
+                </a>{' '}
+                (sector + industries) are written here automatically. You can
+                also edit the full catalogue below.
               </p>
               <input
                 className={inputCls}
