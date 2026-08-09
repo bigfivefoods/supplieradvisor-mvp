@@ -772,6 +772,176 @@ export default function LandingPage() {
 
       <RoiCalculator />
 
+      {/* ═══════════ SYSTEMS GRID ═══════════ */}
+      <section id="systems" className="relative border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28">
+        <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
+          <div className="mx-auto mb-14 max-w-3xl text-center">
+            <SectionLabel>Full stack</SectionLabel>
+            <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl md:text-6xl">
+              Every critical system.
+              <span className="mt-2 block text-slate-500">One company workspace.</span>
+            </h2>
+            <p className="mt-5 text-base leading-relaxed text-slate-600 sm:text-lg">
+              Not a pile of apps. A single operating system for how goods, money, and trust
+              move through African and global supply chains.
+            </p>
+          </div>
+
+          <div className="grid gap-px overflow-hidden rounded-3xl border border-slate-200 bg-slate-200 sm:grid-cols-2 lg:grid-cols-4">
+            {SYSTEMS.map((s) => (
+              <div
+                key={s.title}
+                className="group bg-white p-5 transition-colors hover:bg-sky-50/40 sm:p-6"
+              >
+                <s.icon className="mb-4 h-5 w-5 text-[#00b4d8] transition-transform group-hover:scale-110" />
+                <h3 className="text-sm font-bold text-slate-900 sm:text-base">{s.title}</h3>
+                <p className="mt-1.5 text-xs leading-relaxed text-slate-500 sm:text-[13px]">
+                  {s.body}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════ FEATURED MODULE ROTATOR ═══════════ */}
+      <section className="relative border-t border-slate-200 bg-[#f8fafc] py-16 sm:py-24">
+        <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
+          <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-12">
+            <div className="lg:col-span-4">
+              <SectionLabel>Mission control</SectionLabel>
+              <h2 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl md:text-[2.75rem]">
+                Built like a mission.
+                <span className="mt-1 block text-[#00b4d8]">Run like a business.</span>
+              </h2>
+              <p className="mt-4 text-sm leading-relaxed text-slate-600 sm:text-base">
+                Every module shares the same command chrome — telemetry, workbenches,
+                and clear process steps. Switch systems without relearning the UI.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-2">
+                {MODULES.map((m, i) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setActiveModule(i)}
+                    className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-all ${
+                      i === activeModule
+                        ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-[#0077b6]'
+                    }`}
+                  >
+                    {m.short}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-8 border-l-2 border-[#00b4d8]/50 pl-5">
+                <div className="font-mono text-[10px] tracking-widest text-slate-400">
+                  {featured.code}
+                </div>
+                <h3 className="mt-1 text-xl font-black text-slate-900">{featured.title}</h3>
+                <p className="mt-1 text-sm font-semibold text-[#00b4d8]">{featured.tagline}</p>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">{featured.body}</p>
+              </div>
+            </div>
+            <div className="relative min-w-0 lg:col-span-8">
+              <div className="pointer-events-none absolute -inset-4 rounded-[2rem] bg-[#00b4d8]/10 blur-3xl" />
+              <div className="relative overflow-hidden rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/80">
+                <ProductMockShell>
+                  <FeaturedMock />
+                </ProductMockShell>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════ MODULES ═══════════ */}
+      <section id="modules" className="border-t border-slate-200 bg-white py-20 sm:py-28">
+        <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
+          <div className="mx-auto mb-14 max-w-3xl text-center sm:mb-16">
+            <SectionLabel>Modules</SectionLabel>
+            <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
+              Fourteen systems. Zero silos.
+            </h2>
+            <p className="mt-4 text-base text-slate-600 sm:text-lg">
+              Deep capability where operators work — not marketing slides.
+            </p>
+          </div>
+
+          <div className="space-y-16 sm:space-y-20 lg:space-y-24">
+            {MODULES.map((mod) => (
+              <div
+                key={mod.id}
+                id={`module-${mod.id}`}
+                className="grid items-start gap-8 lg:grid-cols-12 lg:gap-10 xl:gap-12"
+              >
+                {/* Copy — 1/3 */}
+                <div className="lg:col-span-4 lg:sticky lg:top-28">
+                  <div className="mb-4 flex items-center gap-3">
+                    <span className="font-mono text-[11px] font-bold tracking-[0.2em] text-slate-400">
+                      {mod.code}
+                    </span>
+                    <span className="h-px w-10 bg-slate-200" />
+                    <mod.icon className="h-4 w-4 text-[#00b4d8]" />
+                  </div>
+                  <h3 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl xl:text-4xl">
+                    {mod.title}
+                  </h3>
+                  <p className="mt-2 text-base font-semibold text-[#00b4d8] sm:text-lg">
+                    {mod.tagline}
+                  </p>
+                  <p className="mt-4 max-w-md text-sm leading-relaxed text-slate-600 sm:text-base">
+                    {mod.body}
+                  </p>
+                  <ul className="mt-6 space-y-2.5">
+                    {mod.bullets.map((b) => (
+                      <li
+                        key={b}
+                        className="flex items-start gap-2.5 text-sm text-slate-700"
+                      >
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                        {b}
+                      </li>
+                    ))}
+                  </ul>
+                  <Link
+                    href="/onboarding?type=business"
+                    className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-[#0077b6] transition-colors hover:text-[#00b4d8]"
+                  >
+                    Join to use {mod.short}
+                    <ChevronRight className="h-4 w-4" />
+                  </Link>
+                </div>
+
+                {/* Three equal-height images — 2/3 */}
+                <div className="min-w-0 lg:col-span-8">
+                  <ModuleGallery moduleId={mod.id} />
+                  <p className="mt-3 text-center text-[11px] text-slate-400 sm:text-left">
+                    Three live views · same height · product-real, not stock photos
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-16 flex flex-wrap items-center justify-center gap-3 sm:mt-20">
+            <Link
+              href="/onboarding?type=business"
+              className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-sm font-bold text-white shadow-md shadow-cyan-200/50 hover:bg-[#0099b8]"
+            >
+              Start free trial — unlock all modules
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <a
+              href="#pricing"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-3.5 text-sm font-bold text-slate-800 hover:border-[#00b4d8]"
+            >
+              See pricing
+            </a>
+          </div>
+        </div>
+      </section>
+
       {/* ═══════════ CORE OS · SECTOR · INDUSTRY · GOVERNMENT · BESPOKE ═══════════ */}
       <section
         id="packaging"
@@ -779,7 +949,7 @@ export default function LandingPage() {
       >
         <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
           <div className="mx-auto mb-12 max-w-3xl text-center sm:mb-16">
-            <SectionLabel>How you assemble SupplierAdvisor®</SectionLabel>
+            <SectionLabel>Assemble SupplierAdvisor®</SectionLabel>
             <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
               Core OS · Sector · Industry
               <span className="mt-2 block text-[#00b4d8]">
@@ -994,176 +1164,6 @@ export default function LandingPage() {
               className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-sm font-bold text-white shadow-md shadow-cyan-200/50 hover:bg-[#0099b8]"
             >
               Self-serve Core OS &amp; packs <ArrowRight className="h-4 w-4" />
-            </Link>
-            <a
-              href="#modules"
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-3.5 text-sm font-bold text-slate-800 hover:border-[#00b4d8]"
-            >
-              Browse modules
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════ SYSTEMS GRID ═══════════ */}
-      <section id="systems" className="relative border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28">
-        <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
-          <div className="mx-auto mb-14 max-w-3xl text-center">
-            <SectionLabel>Full stack</SectionLabel>
-            <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl md:text-6xl">
-              Every critical system.
-              <span className="mt-2 block text-slate-500">One company workspace.</span>
-            </h2>
-            <p className="mt-5 text-base leading-relaxed text-slate-600 sm:text-lg">
-              Not a pile of apps. A single operating system for how goods, money, and trust
-              move through African and global supply chains.
-            </p>
-          </div>
-
-          <div className="grid gap-px overflow-hidden rounded-3xl border border-slate-200 bg-slate-200 sm:grid-cols-2 lg:grid-cols-4">
-            {SYSTEMS.map((s) => (
-              <div
-                key={s.title}
-                className="group bg-white p-5 transition-colors hover:bg-sky-50/40 sm:p-6"
-              >
-                <s.icon className="mb-4 h-5 w-5 text-[#00b4d8] transition-transform group-hover:scale-110" />
-                <h3 className="text-sm font-bold text-slate-900 sm:text-base">{s.title}</h3>
-                <p className="mt-1.5 text-xs leading-relaxed text-slate-500 sm:text-[13px]">
-                  {s.body}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════ FEATURED MODULE ROTATOR ═══════════ */}
-      <section className="relative border-t border-slate-200 bg-[#f8fafc] py-16 sm:py-24">
-        <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
-          <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-12">
-            <div className="lg:col-span-4">
-              <SectionLabel>Mission control</SectionLabel>
-              <h2 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl md:text-[2.75rem]">
-                Built like a mission.
-                <span className="mt-1 block text-[#00b4d8]">Run like a business.</span>
-              </h2>
-              <p className="mt-4 text-sm leading-relaxed text-slate-600 sm:text-base">
-                Every module shares the same command chrome — telemetry, workbenches,
-                and clear process steps. Switch systems without relearning the UI.
-              </p>
-              <div className="mt-6 flex flex-wrap gap-2">
-                {MODULES.map((m, i) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setActiveModule(i)}
-                    className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-all ${
-                      i === activeModule
-                        ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-[#0077b6]'
-                    }`}
-                  >
-                    {m.short}
-                  </button>
-                ))}
-              </div>
-              <div className="mt-8 border-l-2 border-[#00b4d8]/50 pl-5">
-                <div className="font-mono text-[10px] tracking-widest text-slate-400">
-                  {featured.code}
-                </div>
-                <h3 className="mt-1 text-xl font-black text-slate-900">{featured.title}</h3>
-                <p className="mt-1 text-sm font-semibold text-[#00b4d8]">{featured.tagline}</p>
-                <p className="mt-2 text-sm leading-relaxed text-slate-600">{featured.body}</p>
-              </div>
-            </div>
-            <div className="relative min-w-0 lg:col-span-8">
-              <div className="pointer-events-none absolute -inset-4 rounded-[2rem] bg-[#00b4d8]/10 blur-3xl" />
-              <div className="relative overflow-hidden rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/80">
-                <ProductMockShell>
-                  <FeaturedMock />
-                </ProductMockShell>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════ MODULES ═══════════ */}
-      <section id="modules" className="border-t border-slate-200 bg-white py-20 sm:py-28">
-        <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
-          <div className="mx-auto mb-14 max-w-3xl text-center sm:mb-16">
-            <SectionLabel>Modules</SectionLabel>
-            <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
-              Fourteen systems. Zero silos.
-            </h2>
-            <p className="mt-4 text-base text-slate-600 sm:text-lg">
-              Deep capability where operators work — not marketing slides.
-            </p>
-          </div>
-
-          <div className="space-y-16 sm:space-y-20 lg:space-y-24">
-            {MODULES.map((mod) => (
-              <div
-                key={mod.id}
-                id={`module-${mod.id}`}
-                className="grid items-start gap-8 lg:grid-cols-12 lg:gap-10 xl:gap-12"
-              >
-                {/* Copy — 1/3 */}
-                <div className="lg:col-span-4 lg:sticky lg:top-28">
-                  <div className="mb-4 flex items-center gap-3">
-                    <span className="font-mono text-[11px] font-bold tracking-[0.2em] text-slate-400">
-                      {mod.code}
-                    </span>
-                    <span className="h-px w-10 bg-slate-200" />
-                    <mod.icon className="h-4 w-4 text-[#00b4d8]" />
-                  </div>
-                  <h3 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl xl:text-4xl">
-                    {mod.title}
-                  </h3>
-                  <p className="mt-2 text-base font-semibold text-[#00b4d8] sm:text-lg">
-                    {mod.tagline}
-                  </p>
-                  <p className="mt-4 max-w-md text-sm leading-relaxed text-slate-600 sm:text-base">
-                    {mod.body}
-                  </p>
-                  <ul className="mt-6 space-y-2.5">
-                    {mod.bullets.map((b) => (
-                      <li
-                        key={b}
-                        className="flex items-start gap-2.5 text-sm text-slate-700"
-                      >
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                        {b}
-                      </li>
-                    ))}
-                  </ul>
-                  <Link
-                    href="/onboarding?type=business"
-                    className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-[#0077b6] transition-colors hover:text-[#00b4d8]"
-                  >
-                    Join to use {mod.short}
-                    <ChevronRight className="h-4 w-4" />
-                  </Link>
-                </div>
-
-                {/* Three equal-height images — 2/3 */}
-                <div className="min-w-0 lg:col-span-8">
-                  <ModuleGallery moduleId={mod.id} />
-                  <p className="mt-3 text-center text-[11px] text-slate-400 sm:text-left">
-                    Three live views · same height · product-real, not stock photos
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-16 flex flex-wrap items-center justify-center gap-3 sm:mt-20">
-            <Link
-              href="/onboarding?type=business"
-              className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-sm font-bold text-white shadow-md shadow-cyan-200/50 hover:bg-[#0099b8]"
-            >
-              Start free trial — unlock all modules
-              <ArrowRight className="h-4 w-4" />
             </Link>
             <a
               href="#pricing"
@@ -1462,7 +1462,7 @@ export default function LandingPage() {
                   ROI calculator
                 </a>
                 <a href="#packaging" className="block text-slate-600 hover:text-slate-900">
-                  How you assemble SupplierAdvisor®
+                  Assemble
                 </a>
                 <a href="#modules" className="block text-slate-600 hover:text-slate-900">
                   Modules
