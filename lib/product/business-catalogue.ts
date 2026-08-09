@@ -83,7 +83,7 @@ export const INDUSTRIES: readonly IndustryOption[] = [
     label: 'Mining & extractives',
     description: 'Minerals, quarrying and extractive supply chains.',
     sectorId: 'primary',
-    packIds: ['impact_esg', 'logistics_containers'],
+    packIds: ['quarry_aggregates', 'impact_esg', 'logistics_containers'],
     businessTypes: privateTypes([
       { id: 'mine_operator', label: 'Mine operator', description: 'Mining production company.' },
       { id: 'quarry', label: 'Quarry / aggregates', description: 'Stone, sand, aggregate extraction.' },
@@ -209,12 +209,14 @@ export const INDUSTRIES: readonly IndustryOption[] = [
   {
     id: 'fitness_wellness',
     label: 'Fitness & wellness',
-    description: 'Gyms, studios and wellness facilities.',
+    description:
+      'Tertiary services: commercial gyms, boutique studios and wellness facilities (member services, classes, coaching).',
     sectorId: 'tertiary',
     packIds: ['fitness_gym'],
     businessTypes: privateTypes([
-      { id: 'gym', label: 'Gym / health club', description: 'Fitness clubs and gyms.' },
-      { id: 'studio', label: 'Boutique studio', description: 'Yoga, pilates, specialised studios.' },
+      { id: 'gym', label: 'Gym / health club', description: 'Full-service fitness clubs and gyms.' },
+      { id: 'studio', label: 'Boutique studio', description: 'Yoga, pilates, HIIT and specialised studios.' },
+      { id: 'pt_studio', label: 'Personal training studio', description: 'PT-led studios and coaching practices.' },
       { id: 'wellness_centre', label: 'Wellness centre', description: 'Spa and wellness facilities.' },
     ]),
   },

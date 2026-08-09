@@ -15,13 +15,15 @@ import {
 export async function GET(request: NextRequest) {
   const gate = assertCronSecret(request);
   if (!gate.ok) return gate.response;
+  const status = twilioConfigStatus();
   return NextResponse.json({
     ok: true,
     configured: isTwilioWhatsAppConfigured(),
-    status: twilioConfigStatus(),
+    status,
     hint: isTwilioWhatsAppConfigured()
       ? 'POST with { "to": "whatsapp:+27…" } to send a test message'
-      : 'Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM on Vercel Production, redeploy',
+      : status.disabledReason ||
+        'Twilio is off by default. To enable later: TWILIO_WHATSAPP_ENABLED=true plus Account SID, Auth Token, and TWILIO_WHATSAPP_FROM on Vercel, then redeploy.',
     docs: 'docs/alerts-whatsapp.md',
     at: new Date().toISOString(),
   });
@@ -36,16 +38,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         ok: false,
-        error: 'Twilio WhatsApp not configured',
+        error: status.enabled
+          ? 'Twilio WhatsApp not configured'
+          : 'Twilio WhatsApp is disabled',
         status,
-        fix: [
-          'Vercel → Project → Settings → Environment Variables (Production)',
-          'TWILIO_ACCOUNT_SID=ACxxxxxxxx',
-          'TWILIO_AUTH_TOKEN=…',
-          'TWILIO_WHATSAPP_FROM=whatsapp:+14155238886  (sandbox) or your approved sender',
-          'TWILIO_WHATSAPP_TO_DEFAULT=whatsapp:+27…  (optional test inbox)',
-          'Redeploy production',
-        ],
+        fix: status.enabled
+          ? [
+              'Vercel → Project → Settings → Environment Variables (Production)',
+              'TWILIO_ACCOUNT_SID=ACxxxxxxxx',
+              'TWILIO_AUTH_TOKEN=…',
+              'TWILIO_WHATSAPP_FROM=whatsapp:+14155238886  (sandbox) or your approved sender',
+              'TWILIO_WHATSAPP_TO_DEFAULT=whatsapp:+27…  (optional test inbox)',
+              'Redeploy production',
+            ]
+          : [
+              'Twilio is intentionally off (default).',
+              'When ready: set TWILIO_WHATSAPP_ENABLED=true',
+              'Plus TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM',
+              'Redeploy production',
+            ],
       },
       { status: 503 }
     );

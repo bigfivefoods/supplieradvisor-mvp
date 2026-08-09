@@ -5,9 +5,26 @@
 | Channel | Provider | Env |
 |---------|----------|-----|
 | Email | Resend | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` |
-| WhatsApp | Twilio | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` |
+| WhatsApp | Twilio | **Off by default** — see kill switch below |
 
-Both are **soft-fail** — missing config never breaks the primary API.
+Both are **soft-fail** — missing or disabled Twilio never breaks the primary API.
+
+### Twilio kill switch (current default: OFF)
+
+WhatsApp via Twilio is **disabled unless you opt in**:
+
+| Env | Effect |
+|-----|--------|
+| *(unset)* | **Off** — no Twilio sends |
+| `TWILIO_WHATSAPP_ENABLED=true` | Allow sends when credentials are set |
+| `TWILIO_DISABLED=true` | Hard off even if enabled flag is set |
+
+Credentials (only used when enabled):
+
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+- `TWILIO_WHATSAPP_FROM` (e.g. `whatsapp:+14155238886`)
+- `TWILIO_WHATSAPP_TO_DEFAULT` (optional sandbox inbox)
 
 ## Events
 

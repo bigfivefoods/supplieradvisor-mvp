@@ -554,6 +554,54 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     ],
   },
   {
+    id: 'quarry_aggregates',
+    name: 'Quarrying & Aggregates',
+    shortName: 'Quarry',
+    description:
+      'Primary extractives: pits, reserves, production, crushing, weighbridge dispatch, fleet, QA and permits.',
+    monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
+    priority: 1,
+    recommendSectors: ['primary'],
+    recommendEntities: ['private_company'],
+    modules: [
+      {
+        id: 'qg_os',
+        name: 'Quarrygraph® production OS',
+        description:
+          'Sites, products, reserves, production plan, plant, dispatch, fleet, labour, QA, compliance.',
+        unlocks: ['quarrygraph', 'inventory', 'customers', 'distribution'],
+      },
+      {
+        id: 'qg_dispatch_trade',
+        name: 'Dispatch & trade',
+        description: 'Weighbridge tickets into customer and logistics flows.',
+        unlocks: ['quarrygraph', 'customers', 'distribution', 'network'],
+      },
+      {
+        id: 'qg_sheq_quality',
+        name: 'SHEQ & product quality',
+        description: 'Lab QA, permits and safety alignment.',
+        unlocks: ['quarrygraph', 'quality', 'sheq'],
+      },
+      {
+        id: 'qg_impact',
+        name: 'Extractives impact',
+        description: 'ESG, water and progressive rehabilitation metrics.',
+        unlocks: ['sustainability', 'intelligence', 'quarrygraph'],
+      },
+    ],
+    industryToolsHrefs: [
+      { name: 'Quarrygraph®', href: '/dashboard/quarrygraph', desc: 'Quarry OS' },
+      { name: 'Sites', href: '/dashboard/quarrygraph/sites', desc: 'Pits & faces' },
+      { name: 'Production', href: '/dashboard/quarrygraph/production', desc: 'Plan & blasts' },
+      { name: 'Dispatch', href: '/dashboard/quarrygraph/dispatch', desc: 'Weighbridge' },
+      { name: 'Compliance', href: '/dashboard/quarrygraph/compliance', desc: 'Permits' },
+      { name: 'Customers', href: '/dashboard/customers', desc: 'Offtake' },
+      { name: 'Inventory', href: '/dashboard/inventory/stock', desc: 'Lots & stock' },
+      { name: 'Ship', href: '/dashboard/distribution', desc: 'Haul logistics' },
+    ],
+  },
+  {
     id: 'food_bev_mfg',
     name: 'Food & Beverage Manufacturing',
     shortName: 'Food Mfg',
@@ -639,29 +687,44 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
   },
   {
     id: 'fitness_gym',
-    name: 'Fitness & Gym',
+    name: 'Fitness & Gym (Services)',
     shortName: 'Fitness',
     description:
-      'Facility ops, supplier book for equipment & nutrition, member-facing trade later.',
+      'Tertiary / services industry pack for gyms and studios — Fitgraph®: coaches, members, memberships, class calendar, bookings, check-ins; plus equipment & nutrition suppliers.',
     monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
     priority: 1,
-    recommendSectors: ['tertiary', 'quaternary'],
+    /** Services economy — commercial gyms & wellness (not primary production) */
+    recommendSectors: ['tertiary'],
     recommendEntities: ['private_company'],
     modules: [
       {
+        id: 'fit_os',
+        name: 'Fitgraph® gym services OS',
+        description:
+          'Coaches, clients, plans, class types, calendar, bookings and check-ins for member services.',
+        unlocks: ['fitgraph', 'customers', 'people'],
+      },
+      {
         id: 'fit_suppliers',
         name: 'Equipment & nutrition suppliers',
-        description: 'Source and rate gym suppliers.',
-        unlocks: ['suppliers', 'network'],
+        description: 'Source and rate gym service suppliers.',
+        unlocks: ['suppliers', 'network', 'fitgraph'],
       },
       {
         id: 'fit_ops',
-        name: 'Facility ops',
-        description: 'Ops checklist and inventory for sites.',
-        unlocks: ['operations', 'inventory'],
+        name: 'Facility ops & inventory',
+        description: 'Site ops and consumables inventory for the gym.',
+        unlocks: ['operations', 'inventory', 'fitgraph'],
       },
     ],
     industryToolsHrefs: [
+      { name: 'Fitgraph®', href: '/dashboard/fitgraph', desc: 'Gym services OS' },
+      { name: 'Coaches', href: '/dashboard/fitgraph/coaches', desc: 'Trainers · portals' },
+      { name: 'Clients', href: '/dashboard/fitgraph/clients', desc: 'Members' },
+      { name: 'Subscriptions', href: '/dashboard/fitgraph/subscriptions', desc: 'Member plans' },
+      { name: 'Calendar', href: '/dashboard/fitgraph/calendar', desc: 'Schedule coaches' },
+      { name: 'Website', href: '/dashboard/fitgraph/website', desc: 'Embed calendar' },
+      { name: 'Bookings', href: '/dashboard/fitgraph/bookings', desc: 'Book & attend' },
       { name: 'Suppliers', href: '/dashboard/suppliers', desc: 'Gym suppliers' },
     ],
   },
@@ -950,6 +1013,24 @@ export function enabledModulesMapFromPacks(
     unlocked.add('inventory');
     unlocked.add('sustainability');
   }
+  // Quarrying & aggregates → Quarrygraph + trade + logistics
+  if (packIds.includes('quarry_aggregates')) {
+    unlocked.add('quarrygraph');
+    unlocked.add('inventory');
+    unlocked.add('customers');
+    unlocked.add('distribution');
+    unlocked.add('quality');
+    unlocked.add('sheq');
+    unlocked.add('sustainability');
+  }
+  // Fitness & gym → Fitgraph
+  if (packIds.includes('fitness_gym')) {
+    unlocked.add('fitgraph');
+    unlocked.add('suppliers');
+    unlocked.add('customers');
+    unlocked.add('operations');
+    unlocked.add('inventory');
+  }
   // Impact pack
   if (packIds.includes('impact_esg')) {
     unlocked.add('sustainability');
@@ -1181,6 +1262,22 @@ export function appModulesUnlockedByPack(pack: IndustryPackDef): string[] {
     ids.add('suppliers');
     ids.add('inventory');
     ids.add('sustainability');
+  }
+  if (pack.id === 'quarry_aggregates') {
+    ids.add('quarrygraph');
+    ids.add('inventory');
+    ids.add('customers');
+    ids.add('distribution');
+    ids.add('quality');
+    ids.add('sheq');
+    ids.add('sustainability');
+  }
+  if (pack.id === 'fitness_gym') {
+    ids.add('fitgraph');
+    ids.add('suppliers');
+    ids.add('customers');
+    ids.add('operations');
+    ids.add('inventory');
   }
   if (pack.id === 'impact_esg') {
     ids.add('sustainability');

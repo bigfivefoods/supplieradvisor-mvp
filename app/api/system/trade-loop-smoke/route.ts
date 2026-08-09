@@ -85,20 +85,42 @@ export async function GET() {
       ? 'PAYSTACK_SECRET_KEY not set'
       : undefined,
   };
-  checks.env_twilio_whatsapp = {
-    ok: Boolean(
+  // Twilio is optional and off by default (TWILIO_WHATSAPP_ENABLED).
+  // Do not fail trade-loop health when WhatsApp is intentionally disabled.
+  {
+    const enabled = ['1', 'true', 'yes'].includes(
+      String(
+        process.env.TWILIO_WHATSAPP_ENABLED || process.env.TWILIO_ENABLED || ''
+      )
+        .trim()
+        .toLowerCase()
+    );
+    const hardOff = ['1', 'true', 'yes'].includes(
+      String(
+        process.env.TWILIO_DISABLED || process.env.TWILIO_WHATSAPP_DISABLED || ''
+      )
+        .trim()
+        .toLowerCase()
+    );
+    const creds = Boolean(
       process.env.TWILIO_ACCOUNT_SID &&
         process.env.TWILIO_AUTH_TOKEN &&
         process.env.TWILIO_WHATSAPP_FROM
-    ),
-    error: !(
-      process.env.TWILIO_ACCOUNT_SID &&
-      process.env.TWILIO_AUTH_TOKEN &&
-      process.env.TWILIO_WHATSAPP_FROM
-    )
-      ? 'Twilio incomplete — WhatsApp PDF file attach soft-fails to client share'
-      : undefined,
-  };
+    );
+    if (!enabled || hardOff) {
+      checks.env_twilio_whatsapp = {
+        ok: true,
+        detail: { status: 'disabled', optional: true },
+      };
+    } else {
+      checks.env_twilio_whatsapp = {
+        ok: creds,
+        error: !creds
+          ? 'TWILIO_WHATSAPP_ENABLED but credentials incomplete'
+          : undefined,
+      };
+    }
+  }
   checks.env_resend = {
     ok: Boolean(process.env.RESEND_API_KEY),
     error: process.env.RESEND_API_KEY ? undefined : 'RESEND_API_KEY not set',

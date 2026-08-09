@@ -28,6 +28,8 @@ import {
   School,
   HeartPulse,
   Sprout,
+  Mountain,
+  Dumbbell,
 } from 'lucide-react';
 import type { ProcessStep } from '@/components/relationship/RelationshipChrome';
 import type { PermissionResource } from '@/lib/business/permissions';
@@ -507,6 +509,57 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Regen', href: '/dashboard/fieldgraph/regen', desc: 'Soil · water · cover', section: 'Regen' },
       { name: 'Trade', href: '/dashboard/fieldgraph/trade', desc: 'Mill · buyer · lots', section: 'Trade' },
       { name: 'Reports', href: '/dashboard/fieldgraph/report', desc: 'Slice & dice · yield · fleet · labour', section: 'Insights' },
+    ],
+  },
+  {
+    id: 'quarrygraph',
+    name: 'Quarrygraph',
+    icon: Mountain,
+    href: '/dashboard/quarrygraph',
+    resource: 'operations',
+    /**
+     * Quarrygraph® — primary sector quarrying & aggregates OS.
+     * Sites, products, reserves, production, plant, dispatch, fleet, labour, QA, permits.
+     */
+    steps: [
+      { name: 'Command', href: '/dashboard/quarrygraph', exact: true, desc: 'Process design · workbenches', section: 'Home' },
+      { name: 'Quarries', href: '/dashboard/quarrygraph/quarries', desc: 'Multi-quarry registry', section: 'Core' },
+      { name: 'Sites & faces', href: '/dashboard/quarrygraph/sites', desc: 'Pits under each quarry', section: 'Core' },
+      { name: 'Products', href: '/dashboard/quarrygraph/products', desc: 'Grades · G1–G7 · stone', section: 'Core' },
+      { name: 'Reserves', href: '/dashboard/quarrygraph/reserves', desc: 'Survey · approved tonnes', section: 'Core' },
+      { name: 'Production', href: '/dashboard/quarrygraph/production', desc: 'Plan · blasts · dates', section: 'Core' },
+      { name: 'Plant & stock', href: '/dashboard/quarrygraph/plant', desc: 'Crush · pads', section: 'Ops' },
+      { name: 'Dispatch', href: '/dashboard/quarrygraph/dispatch', desc: 'Weighbridge tickets', section: 'Ops' },
+      { name: 'Vehicles', href: '/dashboard/quarrygraph/fleet', desc: 'Fleet KPIs · util · R/t', section: 'Ops' },
+      { name: 'Labour & rates', href: '/dashboard/quarrygraph/labour', desc: 'Crews · cost', section: 'Ops' },
+      { name: 'Quality', href: '/dashboard/quarrygraph/quality', desc: 'Lab · CS · grading', section: 'Assure' },
+      { name: 'Compliance', href: '/dashboard/quarrygraph/compliance', desc: 'Rights · WUL · EMP', section: 'Assure' },
+      { name: 'Reports', href: '/dashboard/quarrygraph/report', desc: 'Key management pack', section: 'Insights' },
+    ],
+  },
+  {
+    id: 'fitgraph',
+    name: 'Fitgraph',
+    icon: Dumbbell,
+    href: '/dashboard/fitgraph',
+    resource: 'operations',
+    /**
+     * Fitgraph® — tertiary / services gym OS
+     * (coaches, clients, memberships, subscriptions, classes, calendar,
+     * website embed, coach portal, bookings, check-ins).
+     */
+    steps: [
+      { name: 'Command', href: '/dashboard/fitgraph', exact: true, desc: 'Gym services home', section: 'Home' },
+      { name: 'Coaches', href: '/dashboard/fitgraph/coaches', desc: 'Trainers · portal links', section: 'People' },
+      { name: 'Clients', href: '/dashboard/fitgraph/clients', desc: 'Members & status', section: 'People' },
+      { name: 'Memberships', href: '/dashboard/fitgraph/memberships', desc: 'Plans & PT packs', section: 'Services' },
+      { name: 'Subscriptions', href: '/dashboard/fitgraph/subscriptions', desc: 'Member billing status', section: 'Services' },
+      { name: 'Classes', href: '/dashboard/fitgraph/classes', desc: 'Class types', section: 'Services' },
+      { name: 'Calendar', href: '/dashboard/fitgraph/calendar', desc: 'Schedule coaches · public', section: 'Floor' },
+      { name: 'Bookings', href: '/dashboard/fitgraph/bookings', desc: 'Class bookings', section: 'Floor' },
+      { name: 'Check-ins', href: '/dashboard/fitgraph/checkins', desc: 'Front desk', section: 'Floor' },
+      { name: 'Website', href: '/dashboard/fitgraph/website', desc: 'Embed · public calendar', section: 'Grow' },
+      { name: 'Reports', href: '/dashboard/fitgraph/report', desc: 'Attendance · members', section: 'Insights' },
     ],
   },
   {

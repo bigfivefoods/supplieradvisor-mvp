@@ -38,6 +38,10 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   sustainability: 'Carbon tracking, ESG packs & impact',
   fieldgraph:
     'Fieldgraph® — multi-crop fields, estimates, harvest, inputs, regen & farm-to-buyer trade',
+  quarrygraph:
+    'Quarrygraph® — sites, reserves, production, plant, weighbridge, fleet, QA & permits',
+  fitgraph:
+    'Fitgraph® (tertiary services) — gym coaches, members, memberships, classes, calendar, bookings & check-ins',
   intelligence: 'Pulse, forecasts, scorecards & Super-Cube® leadership',
   schools:
     'NSNP schools: kitchen, learners, SPs, approved brands, feeding, prizes (DBE only)',
@@ -56,6 +60,7 @@ export type ModuleCategoryId =
   | 'govern'
   | 'trade'
   | 'operate'
+  | 'services'
   | 'finance'
   | 'people'
   | 'assure'
@@ -85,7 +90,8 @@ export const MODULE_CATEGORIES: Array<{
   {
     id: 'operate',
     title: 'Operate',
-    blurb: 'Inventory, ops tower, make, ship, containers, and Fieldgraph agri OS.',
+    blurb:
+      'Inventory, ops tower, make, ship, containers, Fieldgraph (agri) and Quarrygraph (extractives).',
     moduleIds: [
       'inventory',
       'operations',
@@ -93,7 +99,15 @@ export const MODULE_CATEGORIES: Array<{
       'distribution',
       'containers',
       'fieldgraph',
+      'quarrygraph',
     ],
+  },
+  {
+    id: 'services',
+    title: 'Services',
+    blurb:
+      'Tertiary / services verticals — Fitgraph gym OS for member facilities.',
+    moduleIds: ['fitgraph'],
   },
   {
     id: 'finance',
@@ -356,7 +370,11 @@ export function normalizeEnabledModules(
     } else {
       // Sector programmes + Fieldgraph agri are opt-in; others default on
       map[id] =
-        id === 'schools' || id === 'health' || id === 'fieldgraph'
+        id === 'schools' ||
+        id === 'health' ||
+        id === 'fieldgraph' ||
+        id === 'quarrygraph' ||
+        id === 'fitgraph'
           ? false
           : true;
     }
@@ -384,7 +402,9 @@ export function isModuleEnabled(
     return (
       moduleId !== 'schools' &&
       moduleId !== 'health' &&
-      moduleId !== 'fieldgraph'
+      moduleId !== 'fieldgraph' &&
+      moduleId !== 'quarrygraph' &&
+      moduleId !== 'fitgraph'
     );
   }
   if (Object.prototype.hasOwnProperty.call(enabled, moduleId)) {
@@ -393,7 +413,9 @@ export function isModuleEnabled(
   return (
     moduleId !== 'schools' &&
     moduleId !== 'health' &&
-    moduleId !== 'fieldgraph'
+    moduleId !== 'fieldgraph' &&
+    moduleId !== 'quarrygraph' &&
+    moduleId !== 'fitgraph'
   );
 }
 
@@ -445,6 +467,9 @@ export function moduleIdForPath(pathname: string | null | undefined): string | n
   if (pathname.startsWith('/dashboard/projects')) return 'projects';
   if (pathname.startsWith('/dashboard/sustainability')) return 'sustainability';
   if (pathname.startsWith('/dashboard/intelligence')) return 'intelligence';
+  if (pathname.startsWith('/dashboard/fieldgraph')) return 'fieldgraph';
+  if (pathname.startsWith('/dashboard/quarrygraph')) return 'quarrygraph';
+  if (pathname.startsWith('/dashboard/fitgraph')) return 'fitgraph';
   if (pathname.startsWith('/dashboard/schools')) return 'schools';
   if (pathname.startsWith('/dashboard/health')) return 'health';
   return null;

@@ -1,0 +1,322 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import { Check, Copy, ExternalLink, RefreshCw } from 'lucide-react';
+import {
+  FitgraphWorkbench,
+  LoadingBlock,
+  useFitgraph,
+} from '@/components/fitness/FitgraphWorkbench';
+import { FormCard, StatRow, fc } from '@/components/fitness/FitForm';
+
+export default function FitgraphWebsitePage() {
+  const { store, loading, saving, post, summary } = useFitgraph();
+  const [form, setForm] = useState({
+    enabled: false,
+    brand_name: '',
+    website_url: '',
+    allow_public_booking: true,
+    show_coaches: true,
+    show_pricing: true,
+    contact_email: '',
+    contact_phone: '',
+    embed_primary_color: '#7c3aed',
+    timezone: 'Africa/Johannesburg',
+  });
+  const [copied, setCopied] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!store?.settings) return;
+    const s = store.settings;
+    setForm({
+      enabled: s.enabled === true,
+      brand_name: s.brand_name || '',
+      website_url: s.website_url || '',
+      allow_public_booking: s.allow_public_booking !== false,
+      show_coaches: s.show_coaches !== false,
+      show_pricing: s.show_pricing !== false,
+      contact_email: s.contact_email || '',
+      contact_phone: s.contact_phone || '',
+      embed_primary_color: s.embed_primary_color || '#7c3aed',
+      timezone: s.timezone || 'Africa/Johannesburg',
+    });
+  }, [store]);
+
+  const token = store?.settings?.public_token || '';
+  const origin =
+    typeof window !== 'undefined' ? window.location.origin : 'https://your-app';
+
+  const links = useMemo(() => {
+    if (!token) return { page: '', api: '', iframe: '' };
+    const page = `${origin}/embed/fitgraph/${encodeURIComponent(token)}`;
+    const api = `${origin}/api/public/fitgraph?token=${encodeURIComponent(token)}`;
+    const iframe = `<iframe src="${page}" title="Class schedule" style="width:100%;min-height:720px;border:0;border-radius:16px" loading="lazy"></iframe>`;
+    return { page, api, iframe };
+  }, [token, origin]);
+
+  const save = async () => {
+    await post({
+      action: 'update_settings',
+      settings: form,
+    });
+    toast.success('Website settings saved');
+  };
+
+  const rotate = async () => {
+    if (
+      !confirm(
+        'Rotate public token? Existing embed links on your website will stop working until you update them.'
+      )
+    ) {
+      return;
+    }
+    await post({
+      action: 'update_settings',
+      settings: form,
+      rotate_token: true,
+    });
+    toast.success('Public token rotated');
+  };
+
+  const copy = async (label: string, text: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopied(label);
+    setTimeout(() => setCopied(null), 2000);
+    toast.success('Copied');
+  };
+
+  return (
+    <FitgraphWorkbench
+      title="Website"
+      titleAccent="& embed"
+      description="Publish your class calendar and pricing on your gym website. Share one link or drop in an iframe. Coaches can also share their classes from the coach portal."
+    >
+      {loading || !store ? (
+        <LoadingBlock />
+      ) : (
+        <div className="space-y-6">
+          <StatRow
+            items={[
+              {
+                label: 'Published',
+                value: form.enabled ? 'Yes' : 'No',
+              },
+              {
+                label: 'Public sessions',
+                value: Number(summary?.publicSessionsUpcoming) || 0,
+              },
+              {
+                label: 'Online booking',
+                value: form.allow_public_booking ? 'On' : 'Off',
+              },
+            ]}
+          />
+
+          <FormCard
+            title="Public calendar settings"
+            onSubmit={() => void save()}
+            saving={saving}
+            submitLabel="Save settings"
+          >
+            <label className="flex items-center gap-2 text-sm font-medium col-span-full sm:col-span-1">
+              <input
+                type="checkbox"
+                checked={form.enabled}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, enabled: e.target.checked }))
+                }
+              />
+              Publish public calendar
+            </label>
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={form.allow_public_booking}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    allow_public_booking: e.target.checked,
+                  }))
+                }
+              />
+              Allow online booking
+            </label>
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={form.show_coaches}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, show_coaches: e.target.checked }))
+                }
+              />
+              Show coaches
+            </label>
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={form.show_pricing}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, show_pricing: e.target.checked }))
+                }
+              />
+              Show membership pricing
+            </label>
+            <input
+              className={fc()}
+              placeholder="Brand name (e.g. VUKA Fitness)"
+              value={form.brand_name}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, brand_name: e.target.value }))
+              }
+            />
+            <input
+              className={fc()}
+              placeholder="Your website URL"
+              value={form.website_url}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, website_url: e.target.value }))
+              }
+            />
+            <input
+              className={fc()}
+              placeholder="Contact email"
+              value={form.contact_email}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, contact_email: e.target.value }))
+              }
+            />
+            <input
+              className={fc()}
+              placeholder="Contact phone"
+              value={form.contact_phone}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, contact_phone: e.target.value }))
+              }
+            />
+            <input
+              className={fc()}
+              placeholder="Timezone"
+              value={form.timezone}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, timezone: e.target.value }))
+              }
+            />
+            <input
+              className={fc()}
+              type="color"
+              value={form.embed_primary_color}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  embed_primary_color: e.target.value,
+                }))
+              }
+              title="Brand colour"
+            />
+          </FormCard>
+
+          <div className="rounded-3xl border border-violet-100 bg-white p-4 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-black">Embed & share links</h3>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void rotate()}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-rose-600"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Rotate token
+              </button>
+            </div>
+            {!form.enabled && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                Publish is off — turn it on and save so the public link works.
+              </p>
+            )}
+            <Field
+              label="Public page"
+              value={links.page}
+              copied={copied === 'page'}
+              onCopy={() => void copy('page', links.page)}
+              open
+            />
+            <Field
+              label="JSON API (for custom website)"
+              value={links.api}
+              copied={copied === 'api'}
+              onCopy={() => void copy('api', links.api)}
+            />
+            <Field
+              label="Iframe snippet"
+              value={links.iframe}
+              copied={copied === 'iframe'}
+              onCopy={() => void copy('iframe', links.iframe)}
+              mono
+            />
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Mark sessions as <strong>public</strong> on the Calendar workbench
+              (or let coaches share from their portal). Only public scheduled
+              classes appear on the website.
+            </p>
+          </div>
+        </div>
+      )}
+    </FitgraphWorkbench>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onCopy,
+  copied,
+  open,
+  mono,
+}: {
+  label: string;
+  value: string;
+  onCopy: () => void;
+  copied: boolean;
+  open?: boolean;
+  mono?: boolean;
+}) {
+  return (
+    <div>
+      <div className="text-[10px] font-black uppercase text-slate-400 mb-1">
+        {label}
+      </div>
+      <div className="flex gap-2">
+        <code
+          className={`flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] break-all ${
+            mono ? 'whitespace-pre-wrap' : ''
+          }`}
+        >
+          {value || '—'}
+        </code>
+        <button
+          type="button"
+          onClick={onCopy}
+          className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-slate-600 hover:bg-slate-50"
+          title="Copy"
+        >
+          {copied ? (
+            <Check className="w-4 h-4 text-emerald-600" />
+          ) : (
+            <Copy className="w-4 h-4" />
+          )}
+        </button>
+        {open && value ? (
+          <a
+            href={value}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-slate-600 hover:bg-slate-50"
+            title="Open"
+          >
+            <ExternalLink className="w-4 h-4" />
+          </a>
+        ) : null}
+      </div>
+    </div>
+  );
+}

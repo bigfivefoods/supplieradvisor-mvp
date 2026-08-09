@@ -36,7 +36,9 @@ export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
   'intelligence',
   'sustainability', // Impact
   'fieldgraph', // Fieldgraph® agri OS — primary production
+  'quarrygraph', // Quarrygraph® quarrying & aggregates OS
   'containers', // Industry vertical — also listed under Industry Tools when packs on
+  'fitgraph', // Fitgraph® — tertiary services (gyms / studios)
   'schools', // Programme — full NSNP tree
   'health', // Programme — full DoH tree
   'network',
@@ -62,6 +64,8 @@ export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
   intelligence: 'Intelligence',
   sustainability: 'Impact',
   fieldgraph: 'Fieldgraph',
+  quarrygraph: 'Quarrygraph',
+  fitgraph: 'Fitgraph (Gym)',
   containers: 'Containers',
   schools: 'Schools',
   health: 'Health',

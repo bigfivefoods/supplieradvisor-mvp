@@ -1,14 +1,40 @@
 /**
- * Twilio WhatsApp alerts (optional).
- * Env (any alias works):
+ * Twilio WhatsApp alerts (optional — **disabled by default**).
+ *
+ * Kill switch (default off):
+ *   TWILIO_WHATSAPP_ENABLED=true|1|yes  → allow WhatsApp when credentials exist
+ *   TWILIO_DISABLED=true|1|yes          → hard off even if enabled flag set
+ *
+ * Credentials (only used when enabled):
  *   TWILIO_ACCOUNT_SID | TWILIO_SID
  *   TWILIO_AUTH_TOKEN | TWILIO_TOKEN
  *   TWILIO_WHATSAPP_FROM | TWILIO_FROM  e.g. whatsapp:+14155238886
  *   TWILIO_WHATSAPP_TO_DEFAULT optional fallback whatsapp:+27…
  *
- * Soft-fail if not configured.
+ * Soft-fail if disabled or not configured — never breaks primary APIs.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+
+/**
+ * Explicit product kill switch. Default **false** so Twilio stays off until
+ * ops opts in with TWILIO_WHATSAPP_ENABLED=true on Vercel.
+ */
+export function isTwilioWhatsAppEnabled(): boolean {
+  const hardOff = String(
+    process.env.TWILIO_DISABLED || process.env.TWILIO_WHATSAPP_DISABLED || ''
+  )
+    .trim()
+    .toLowerCase();
+  if (hardOff === '1' || hardOff === 'true' || hardOff === 'yes') {
+    return false;
+  }
+  const flag = String(
+    process.env.TWILIO_WHATSAPP_ENABLED || process.env.TWILIO_ENABLED || ''
+  )
+    .trim()
+    .toLowerCase();
+  return flag === '1' || flag === 'true' || flag === 'yes';
+}
 
 export function getTwilioAccountSid(): string {
   return String(
@@ -42,23 +68,47 @@ export function getTwilioWhatsAppFrom(): string {
   return raw ? normalizeWhatsAppAddress(raw) : '';
 }
 
-export function isTwilioWhatsAppConfigured(): boolean {
+/** Credentials present (ignores enable flag). */
+export function hasTwilioWhatsAppCredentials(): boolean {
   return Boolean(
     getTwilioAccountSid() && getTwilioAuthToken() && getTwilioWhatsAppFrom()
   );
 }
 
+/**
+ * Ready to send: must be **enabled** and fully credentialed.
+ * Default off → all WhatsApp send paths no-op.
+ */
+export function isTwilioWhatsAppConfigured(): boolean {
+  return isTwilioWhatsAppEnabled() && hasTwilioWhatsAppCredentials();
+}
+
 export function twilioConfigStatus(): {
+  enabled: boolean;
   configured: boolean;
+  hasCredentials: boolean;
   accountSid: boolean;
   authToken: boolean;
   from: boolean;
   fromPreview: string | null;
   defaultTo: boolean;
+  disabledReason: string | null;
 } {
   const from = getTwilioWhatsAppFrom();
+  const enabled = isTwilioWhatsAppEnabled();
+  const hasCredentials = hasTwilioWhatsAppCredentials();
+  let disabledReason: string | null = null;
+  if (!enabled) {
+    disabledReason =
+      'Twilio WhatsApp is disabled (default). Set TWILIO_WHATSAPP_ENABLED=true to opt in.';
+  } else if (!hasCredentials) {
+    disabledReason =
+      'Missing TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and/or TWILIO_WHATSAPP_FROM';
+  }
   return {
+    enabled,
     configured: isTwilioWhatsAppConfigured(),
+    hasCredentials,
     accountSid: Boolean(getTwilioAccountSid()),
     authToken: Boolean(getTwilioAuthToken()),
     from: Boolean(from),
@@ -66,6 +116,7 @@ export function twilioConfigStatus(): {
       ? `${from.slice(0, 14)}…${from.slice(-4)}`
       : null,
     defaultTo: Boolean(process.env.TWILIO_WHATSAPP_TO_DEFAULT),
+    disabledReason,
   };
 }
 
@@ -131,7 +182,13 @@ export async function sendWhatsApp(params: {
   mediaUrl?: string | null;
 }): Promise<{ ok: boolean; sent: number; error?: string }> {
   if (!isTwilioWhatsAppConfigured()) {
-    return { ok: false, sent: 0, error: 'Twilio WhatsApp not configured' };
+    return {
+      ok: false,
+      sent: 0,
+      error: isTwilioWhatsAppEnabled()
+        ? 'Twilio WhatsApp not configured'
+        : 'Twilio WhatsApp disabled (set TWILIO_WHATSAPP_ENABLED=true to enable)',
+    };
   }
   const sid = getTwilioAccountSid();
   const token = getTwilioAuthToken();
