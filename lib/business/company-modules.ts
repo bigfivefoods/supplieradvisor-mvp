@@ -36,6 +36,8 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   quality: 'Inspections, holds, quality assurance',
   projects: 'Portfolio, kanban, milestones & timesheets',
   sustainability: 'Carbon tracking, ESG packs & impact',
+  fieldgraph:
+    'Fieldgraph® — multi-crop fields, estimates, harvest, inputs, regen & farm-to-buyer trade',
   intelligence: 'Pulse, forecasts, scorecards & Super-Cube® leadership',
   schools:
     'NSNP schools: kitchen, learners, SPs, approved brands, feeding, prizes (DBE only)',
@@ -83,13 +85,14 @@ export const MODULE_CATEGORIES: Array<{
   {
     id: 'operate',
     title: 'Operate',
-    blurb: 'Inventory, ops tower, make, ship, and container outlets.',
+    blurb: 'Inventory, ops tower, make, ship, containers, and Fieldgraph agri OS.',
     moduleIds: [
       'inventory',
       'operations',
       'manufacturing',
       'distribution',
       'containers',
+      'fieldgraph',
     ],
   },
   {
@@ -351,8 +354,11 @@ export function normalizeEnabledModules(
     if (Object.prototype.hasOwnProperty.call(src, id)) {
       map[id] = src[id] === true || src[id] === 'true' || src[id] === 1;
     } else {
-      // Sector programmes (Schools NSNP, Health DoH) are opt-in; others default on
-      map[id] = id === 'schools' || id === 'health' ? false : true;
+      // Sector programmes + Fieldgraph agri are opt-in; others default on
+      map[id] =
+        id === 'schools' || id === 'health' || id === 'fieldgraph'
+          ? false
+          : true;
     }
   }
   return map;
@@ -374,13 +380,21 @@ export function isModuleEnabled(
 ): boolean {
   if (isAlwaysOnModule(moduleId)) return true;
   if (!enabled) {
-    // Fail open except opt-in sector programmes
-    return moduleId !== 'schools' && moduleId !== 'health';
+    // Fail open except opt-in sector programmes / Fieldgraph
+    return (
+      moduleId !== 'schools' &&
+      moduleId !== 'health' &&
+      moduleId !== 'fieldgraph'
+    );
   }
   if (Object.prototype.hasOwnProperty.call(enabled, moduleId)) {
     return enabled[moduleId] !== false;
   }
-  return moduleId !== 'schools' && moduleId !== 'health';
+  return (
+    moduleId !== 'schools' &&
+    moduleId !== 'health' &&
+    moduleId !== 'fieldgraph'
+  );
 }
 
 /** Sidebar / process rail: keep module if role allows AND company enabled it */

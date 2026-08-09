@@ -27,6 +27,7 @@ import {
   IdCard,
   School,
   HeartPulse,
+  Sprout,
 } from 'lucide-react';
 import type { ProcessStep } from '@/components/relationship/RelationshipChrome';
 import type { PermissionResource } from '@/lib/business/permissions';
@@ -482,6 +483,29 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Score', href: '/dashboard/intelligence/custom-scorecards', section: 'Score' },
       { name: 'Lab', href: '/dashboard/intelligence/simulation-lab', section: 'Lab' },
       { name: 'Lead', href: '/dashboard/intelligence/leadership-development', section: 'Lead' },
+    ],
+  },
+  {
+    id: 'fieldgraph',
+    name: 'Fieldgraph',
+    icon: Sprout,
+    href: '/dashboard/fieldgraph',
+    resource: 'operations',
+    /**
+     * Fieldgraph® — multi-crop primary production OS (fields, estimates,
+     * harvest, inputs, fleet, labour, regen, farm-to-buyer trade).
+     */
+    steps: [
+      { name: 'Command', href: '/dashboard/fieldgraph', exact: true, desc: 'Fieldgraph home', section: 'Home' },
+      { name: 'Fields', href: '/dashboard/fieldgraph/fields', desc: 'Multi-crop field book', section: 'Land' },
+      { name: 'Estimates', href: '/dashboard/fieldgraph/estimates', desc: 'Season yield & quality', section: 'Land' },
+      { name: 'Harvest', href: '/dashboard/fieldgraph/harvest', desc: 'Cut sequence & projection', section: 'Season' },
+      { name: 'Inputs', href: '/dashboard/fieldgraph/inputs', desc: 'Fert · chem · N-P-K / ha', section: 'Season' },
+      { name: 'Fleet', href: '/dashboard/fieldgraph/fleet', desc: 'Vehicles by field', section: 'Ops' },
+      { name: 'Labour', href: '/dashboard/fieldgraph/labour', desc: 'Gangs & hours', section: 'Ops' },
+      { name: 'Regen', href: '/dashboard/fieldgraph/regen', desc: 'Soil · water · cover', section: 'Regen' },
+      { name: 'Trade', href: '/dashboard/fieldgraph/trade', desc: 'Mill · buyer · lots', section: 'Trade' },
+      { name: 'Insights', href: '/dashboard/fieldgraph/report', desc: 'Season scorecard', section: 'Insights' },
     ],
   },
   {

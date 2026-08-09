@@ -516,25 +516,35 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     recommendEntities: ['private_company'],
     modules: [
       {
+        id: 'agri_fieldgraph',
+        name: 'Fieldgraph® production OS',
+        description:
+          'Multi-crop fields, estimates, harvest plan, inputs, fleet, labour, regen.',
+        unlocks: ['fieldgraph', 'suppliers', 'inventory'],
+      },
+      {
         id: 'agri_farm_book',
         name: 'Farm & grower book',
         description: 'Grower profiles, seasons, and farm supplier book.',
-        unlocks: ['suppliers', 'network'],
+        unlocks: ['suppliers', 'network', 'fieldgraph'],
       },
       {
         id: 'agri_trace',
         name: 'Lot & origin trace',
         description: 'Lots, origin, and batch handoff into inventory.',
-        unlocks: ['inventory', 'sustainability'],
+        unlocks: ['inventory', 'sustainability', 'fieldgraph'],
       },
       {
         id: 'agri_regen_metrics',
         name: 'Regen metrics',
         description: 'Soil, water, and impact metrics for buyers.',
-        unlocks: ['sustainability', 'intelligence'],
+        unlocks: ['sustainability', 'intelligence', 'fieldgraph'],
       },
     ],
     industryToolsHrefs: [
+      { name: 'Fieldgraph®', href: '/dashboard/fieldgraph', desc: 'Primary production OS' },
+      { name: 'Fields', href: '/dashboard/fieldgraph/fields', desc: 'Field book' },
+      { name: 'Harvest plan', href: '/dashboard/fieldgraph/harvest', desc: 'Cut sequence' },
       { name: 'Supplier book', href: '/dashboard/suppliers/network', desc: 'Growers & farms' },
       { name: 'Source growers', href: '/dashboard/suppliers/discover', desc: 'Find primary suppliers' },
       { name: 'Lots & stock', href: '/dashboard/inventory/lots', desc: 'Origin batches' },
@@ -933,8 +943,9 @@ export function enabledModulesMapFromPacks(
     unlocked.add('sheq');
     unlocked.add('inventory');
   }
-  // Agri → suppliers + inventory + impact
+  // Agri → Fieldgraph + suppliers + inventory + impact
   if (packIds.includes('agri_regen')) {
+    unlocked.add('fieldgraph');
     unlocked.add('suppliers');
     unlocked.add('inventory');
     unlocked.add('sustainability');
@@ -1166,6 +1177,7 @@ export function appModulesUnlockedByPack(pack: IndustryPackDef): string[] {
     ids.add('inventory');
   }
   if (pack.id === 'agri_regen') {
+    ids.add('fieldgraph');
     ids.add('suppliers');
     ids.add('inventory');
     ids.add('sustainability');

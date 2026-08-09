@@ -334,6 +334,7 @@ export const SIDEBAR_MODULE_RESOURCE: Record<string, PermissionResource> = {
   people: 'people',
   projects: 'projects',
   sustainability: 'operations',
+  fieldgraph: 'operations',
   intelligence: 'intelligence',
   guide: 'dashboard',
 };
@@ -377,6 +378,7 @@ export function resourceForPath(pathname: string | null | undefined): Permission
   if (pathname.startsWith('/dashboard/sheq')) return 'sheq';
   if (pathname.startsWith('/dashboard/projects')) return 'projects';
   if (pathname.startsWith('/dashboard/sustainability')) return 'operations';
+  if (pathname.startsWith('/dashboard/fieldgraph')) return 'operations';
   if (pathname.startsWith('/dashboard/invite-business')) return 'network';
   if (pathname.startsWith('/dashboard/procurement')) return 'suppliers';
   if (pathname.startsWith('/dashboard/supplychain')) return 'operations';

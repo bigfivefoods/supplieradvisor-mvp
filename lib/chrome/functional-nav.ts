@@ -35,6 +35,7 @@ export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
   'accounting', // Finance
   'intelligence',
   'sustainability', // Impact
+  'fieldgraph', // Fieldgraph® agri OS — primary production
   'containers', // Industry vertical — also listed under Industry Tools when packs on
   'schools', // Programme — full NSNP tree
   'health', // Programme — full DoH tree
@@ -60,6 +61,7 @@ export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
   accounting: 'Finance',
   intelligence: 'Intelligence',
   sustainability: 'Impact',
+  fieldgraph: 'Fieldgraph',
   containers: 'Containers',
   schools: 'Schools',
   health: 'Health',
