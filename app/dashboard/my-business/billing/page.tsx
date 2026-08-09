@@ -1065,7 +1065,7 @@ function BillingInner() {
                       <button
                         type="button"
                         id="paystack-other-channels"
-                        onClick={() => void startPay()}
+                        onClick={() => void startPayment()}
                         className="w-full rounded-xl border border-slate-600 bg-slate-900 py-2.5 text-xs font-bold text-white hover:bg-slate-800"
                       >
                         More payment options
