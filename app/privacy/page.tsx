@@ -42,8 +42,8 @@ export default function PrivacyPage() {
             <p>
               SupplierAdvisor® (“we”, “us”) operates the platform at supplieradvisor.com and related
               apps. Contact:{' '}
-              <a className="text-[#00b4d8] font-semibold" href="mailto:connect@supplieradvisor.com">
-                connect@supplieradvisor.com
+              <a className="text-[#00b4d8] font-semibold" href="mailto:hello@supplieradvisor.com">
+                hello@supplieradvisor.com
               </a>
               .
             </p>

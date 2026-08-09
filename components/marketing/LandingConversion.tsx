@@ -566,7 +566,7 @@ export function DemoCta() {
       </div>
       <div className="flex flex-wrap gap-2 shrink-0">
         <a
-          href="mailto:connect@supplieradvisor.com?subject=Demo%20request%20%E2%80%94%20SupplierAdvisor"
+          href="mailto:hello@supplieradvisor.com?subject=Demo%20request%20%E2%80%94%20SupplierAdvisor"
           className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-5 py-3 text-sm font-bold text-white hover:bg-[#0099b8]"
         >
           Email for demo <ArrowRight className="h-4 w-4" />

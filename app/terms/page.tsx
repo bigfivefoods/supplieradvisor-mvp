@@ -211,8 +211,8 @@ export default function TermsPage() {
             <h2 className="text-xl font-bold text-slate-900 mb-2">13. Contact</h2>
             <p>
               Questions:{' '}
-              <a className="text-[#00b4d8] font-semibold" href="mailto:connect@supplieradvisor.com">
-                connect@supplieradvisor.com
+              <a className="text-[#00b4d8] font-semibold" href="mailto:hello@supplieradvisor.com">
+                hello@supplieradvisor.com
               </a>
               .
             </p>

@@ -1256,10 +1256,10 @@ export default function LandingPage() {
                   Contact
                 </div>
                 <a
-                  href="mailto:connect@supplieradvisor.com"
+                  href="mailto:hello@supplieradvisor.com"
                   className="block break-all text-slate-600 hover:text-slate-900"
                 >
-                  connect@supplieradvisor.com
+                  hello@supplieradvisor.com
                 </a>
                 <a href="tel:+27825814215" className="block text-slate-600 hover:text-slate-900">
                   +27 (0) 82 581 4215
