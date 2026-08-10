@@ -746,7 +746,7 @@ export function FitgraphMock() {
             FitAdvisor® · Gym
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
-            Invite · portal · classes.
+            Rooms · waitlist · marketplace.
           </div>
         </div>
         <span className="rounded-full border border-violet-200 bg-violet-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
@@ -755,12 +755,12 @@ export function FitgraphMock() {
       </div>
       <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
         <Telemetry label="Members" value="842" tone="violet" />
-        <Telemetry label="Invites" value="28" tone="sky" />
-        <Telemetry label="Open cls" value="12" tone="cyan" />
+        <Telemetry label="Waitlist" value="14" tone="sky" />
+        <Telemetry label="Rooms" value="5" tone="cyan" />
         <Telemetry label="Feedback" value="4.8" tone="emerald" />
       </div>
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-        {['Portal', 'Calendar', 'Messages'].map((t) => (
+        {['Portal', 'Waitlist', 'Market'].map((t) => (
           <div
             key={t}
             className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] text-center shadow-sm sm:p-3"
@@ -784,7 +784,7 @@ export function PhysiographMock() {
             PhysioAdvisor® · Clinic
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
-            Portal · chart · scripts.
+            Waitlist · plans · rooms.
           </div>
         </div>
         <span className="rounded-full border border-teal-200 bg-teal-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
@@ -793,12 +793,12 @@ export function PhysiographMock() {
       </div>
       <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
         <Telemetry label="Patients" value="312" tone="cyan" />
-        <Telemetry label="Today" value="14" tone="teal" />
-        <Telemetry label="Scripts" value="6" tone="amber" />
-        <Telemetry label="Portal" value="On" tone="emerald" />
+        <Telemetry label="Queue" value="9" tone="teal" />
+        <Telemetry label="Plans" value="48" tone="amber" />
+        <Telemetry label="Rooms" value="6" tone="emerald" />
       </div>
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-        {['Invite', 'Diary', 'Chart'].map((t) => (
+        {['Waitlist', 'Book next', 'Chart'].map((t) => (
           <div
             key={t}
             className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] text-center shadow-sm sm:p-3"
@@ -822,7 +822,7 @@ export function DentalgraphMock() {
             DentalAdvisor® · Dental
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
-            Invite · chart · surgeries.
+            Chairs · waitlist · plans.
           </div>
         </div>
         <span className="rounded-full border border-sky-200 bg-sky-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
@@ -832,11 +832,11 @@ export function DentalgraphMock() {
       <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
         <Telemetry label="Patients" value="1.2k" tone="cyan" />
         <Telemetry label="Chairs" value="6" tone="sky" />
-        <Telemetry label="Scripts" value="11" tone="amber" />
-        <Telemetry label="Portal" value="On" tone="emerald" />
+        <Telemetry label="Queue" value="11" tone="amber" />
+        <Telemetry label="Plans" value="64" tone="emerald" />
       </div>
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-        {['Portal', 'Diary', 'Scripts'].map((t) => (
+        {['Waitlist', 'Chairs', 'Book next'].map((t) => (
           <div
             key={t}
             className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] text-center shadow-sm sm:p-3"
@@ -860,7 +860,7 @@ export function PsychiatrygraphMock() {
             PsychiatryAdvisor® · Mental health
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
-            Therapy · scripts · portal.
+            Plans · rooms · waitlist.
           </div>
         </div>
         <span className="rounded-full border border-indigo-200 bg-indigo-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
@@ -869,12 +869,12 @@ export function PsychiatrygraphMock() {
       </div>
       <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
         <Telemetry label="Patients" value="186" tone="violet" />
-        <Telemetry label="Today" value="11" tone="sky" />
-        <Telemetry label="Scripts" value="9" tone="amber" />
-        <Telemetry label="Msgs" value="7" tone="cyan" />
+        <Telemetry label="Queue" value="8" tone="sky" />
+        <Telemetry label="Plans" value="52" tone="amber" />
+        <Telemetry label="Rooms" value="4" tone="cyan" />
       </div>
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-        {['Portal', 'Diary', 'Chart'].map((t) => (
+        {['Waitlist', 'Book next', 'Portal'].map((t) => (
           <div
             key={t}
             className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] text-center shadow-sm sm:p-3"
@@ -898,7 +898,7 @@ export function MedicalgraphMock() {
             MedicalAdvisor® · Medical
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
-            Consults · Rx · portal.
+            Rooms · waitlist · Rx.
           </div>
         </div>
         <span className="rounded-full border border-emerald-200 bg-emerald-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
@@ -907,12 +907,12 @@ export function MedicalgraphMock() {
       </div>
       <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
         <Telemetry label="Patients" value="2.4k" tone="emerald" />
-        <Telemetry label="Today" value="38" tone="cyan" />
+        <Telemetry label="Queue" value="17" tone="cyan" />
         <Telemetry label="Scripts" value="24" tone="amber" />
-        <Telemetry label="Portal" value="On" tone="violet" />
+        <Telemetry label="Rooms" value="8" tone="violet" />
       </div>
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-        {['Scripts', 'Diary', 'Portal'].map((t) => (
+        {['Waitlist', 'Scripts', 'Book next'].map((t) => (
           <div
             key={t}
             className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] text-center shadow-sm sm:p-3"
@@ -1519,14 +1519,14 @@ const MODULE_GALLERIES: Record<string, GalleryScene[]> = {
   fitgraph: [
     {
       eyebrow: 'Members',
-      title: 'Subscriptions that renew',
+      title: 'Portal · waitlist · family',
       wash: 'violet',
       kind: 'ring',
       metrics: [
         { label: 'Members', value: '842' },
-        { label: 'MRR', value: 'R186k' },
+        { label: 'Queue', value: '14' },
       ],
-      caption: 'Website calendar · public book',
+      caption: 'Marketplace · rooms · in-app messages',
     },
     {
       eyebrow: 'Coaches',
@@ -1534,17 +1534,17 @@ const MODULE_GALLERIES: Record<string, GalleryScene[]> = {
       wash: 'cyan',
       kind: 'list',
       list: [
-        { left: 'Sam · HIIT', right: '92%', tone: 'emerald' },
+        { left: 'Sam · Studio A', right: '92%', tone: 'emerald' },
         { left: 'Lee · Strength', right: '88%', tone: 'cyan' },
-        { left: 'Ayo · Yoga', right: 'Open', tone: 'violet' },
+        { left: 'Ayo · Court 2', right: 'Open', tone: 'violet' },
       ],
     },
     {
-      eyebrow: 'Classes',
-      title: 'Book · check-in · retain',
+      eyebrow: 'Floor',
+      title: 'Remind · attend · recall',
       wash: 'emerald',
       kind: 'tiles',
-      tiles: ['Calendar', 'Bookings', 'Check-ins', 'Website'],
+      tiles: ['Rooms', 'Waitlist', 'Messages', 'Market'],
     },
   ],
   nav: [
@@ -1571,11 +1571,11 @@ const MODULE_GALLERIES: Record<string, GalleryScene[]> = {
       list: [
         { left: 'CropAdvisor®', right: 'Agri', tone: 'emerald' },
         { left: 'QuarryAdvisor®', right: 'Extract', tone: 'amber' },
-        { left: 'FitAdvisor®', right: 'Gym', tone: 'violet' },
-        { left: 'PhysioAdvisor®', right: 'Clinic', tone: 'cyan' },
-        { left: 'DentalAdvisor®', right: 'Dental', tone: 'sky' },
-        { left: 'PsychiatryAdvisor®', right: 'Mental', tone: 'violet' },
-        { left: 'MedicalAdvisor®', right: 'Medical', tone: 'emerald' },
+        { left: 'FitAdvisor®', right: 'Rooms · market', tone: 'violet' },
+        { left: 'PhysioAdvisor®', right: 'Waitlist · plans', tone: 'cyan' },
+        { left: 'DentalAdvisor®', right: 'Chairs · queue', tone: 'sky' },
+        { left: 'PsychiatryAdvisor®', right: 'Plans · rooms', tone: 'violet' },
+        { left: 'MedicalAdvisor®', right: 'Rooms · Rx', tone: 'emerald' },
       ],
     },
   ],

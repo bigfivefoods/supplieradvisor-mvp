@@ -9,7 +9,7 @@ import { INDUSTRY_PACK_MONTHLY_ZAR } from '@/lib/product/architecture';
 export const metadata: Metadata = {
   title: 'Industries — supply chain & services OS by sector',
   description:
-    'SupplierAdvisor® for food & beverage, agriculture (CropAdvisor®), quarry (QuarryAdvisor®), manufacturing, distribution, fitness (FitAdvisor®), physio, dental, mental health, medical practices, public sector, and multi-entity groups.',
+    'SupplierAdvisor® for food & beverage, agriculture (CropAdvisor®), quarry (QuarryAdvisor®), manufacturing, distribution, fitness (FitAdvisor® rooms · waitlist · marketplace), physio, dental, mental health and medical practices (exclusive diaries, treatment plans, waitlist desks), public sector, and multi-entity groups.',
   keywords: [
     'supply chain by industry',
     'CropAdvisor',
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Industries · SupplierAdvisor®',
     description:
-      'Sector-ready depth on one OS — agri, extractives, manufacturing, logistics, gyms, clinics, public programmes, multi-entity.',
+      'Sector-ready depth on one OS — agri, extractives, manufacturing, logistics, gyms and clinics (waitlist, rooms, treatment plans, marketplace), public programmes, multi-entity.',
     url: 'https://www.supplieradvisor.com/industries',
     type: 'website',
     images: [{ url: SA_OG_IMAGE_URL, width: 1200, height: 630 }],
@@ -122,8 +122,10 @@ export default function IndustriesIndexPage() {
         </h1>
         <p className="mt-4 max-w-2xl text-lg text-slate-600">
           Same verified network and Core modules — plus Industry Advisors for
-          agri, extractives, gyms, and clinical practices: invites, portals,
-          diaries, scripts, and in-app messages end to end.
+          agri, extractives, gyms, and clinics: exclusive diaries & rooms,
+          waitlist desks, treatment-plan book next, portals, marketplace
+          listings, and in-app care messages. SA bills the company
+          subscription — practice fees stay yours.
         </p>
         <p className="mt-3 text-sm text-slate-500">
           Industry packs from +R{INDUSTRY_PACK_MONTHLY_ZAR}/mo each · Core OS
@@ -142,7 +144,7 @@ export default function IndustriesIndexPage() {
         />
         <Section
           title="Services · fitness & clinical"
-          blurb="FitAdvisor® gyms and Physio · Dental · Psychiatry · Medical practice OS modules."
+          blurb="FitAdvisor® gyms and Physio · Dental · Psychiatry · Medical — rooms, waitlist desks, treatment plans, marketplace listings."
           items={SERVICES}
         />
         <Section

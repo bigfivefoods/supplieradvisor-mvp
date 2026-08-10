@@ -83,7 +83,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Service-module messaging · care & floor',
-        hint: 'Gym / clinic / dental / mental health / medical desk ↔ practitioners ↔ members/patients',
+        hint: 'Desk ↔ practitioners ↔ members/patients; in-app by platform system user ID once on-system',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -276,7 +276,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'FitAdvisor® · gym & fitness services',
-        hint: 'Coaches (tenure, contracts, photos), email member invites, class portal & waitlist, calendar, feedback, messages, website',
+        hint: 'Coaches (People dual-write), rooms, membership freeze & packs, waitlist, 24h reminders, recalls, in-app messages by system user ID, marketplace listing',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -284,7 +284,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'PhysioAdvisor® · physio & allied health',
-        hint: 'Practitioners, patient invites & portal, rehab packs, diary, medical chart, scripts, claims, messages',
+        hint: 'Exclusive clinician diaries + rooms, waitlist desk, treatment-plan book next, POPIA, chart/scripts, marketplace',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -292,7 +292,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'DentalAdvisor® · dental practice OS',
-        hint: 'Staff, patient invites & portal, care plans, diary, medical chart, scripts, claims, messages, website',
+        hint: 'Multi-chair practice diary (no double-book per clinician), waitlist desk, treatment plans, chart/scripts, marketplace',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -300,7 +300,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'PsychiatryAdvisor® · mental health OS',
-        hint: 'Clinicians, patients, therapy packs, diary, medical chart, scripts, portal, messages, website',
+        hint: 'Exclusive diaries + rooms, waitlist, treatment plans, chart/scripts, portal, marketplace',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -308,7 +308,39 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'MedicalAdvisor® · GP & medical practice OS',
-        hint: 'GPs & nurses, patients, consults, care packs, scripts on visits, medical chart, portal, messages',
+        hint: 'Multi-room exclusive diaries, waitlist desk, treatment plans, Rx on visits, portal, marketplace',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'Waitlist desk · other clinician · family book',
+        hint: 'Slot waitlist + next-available queue; book another clinician when preferred is full; household attendees',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'Treatment plans with one-click book next',
+        hint: 'Step care plans on the patient; book the next open diary slot from the plan',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'Rooms / chairs as diary resources',
+        hint: 'Named studios, surgeries, bays on calendar; managed under Website ops',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'Advisor marketplace listing',
+        hint: 'Opt-in public directory on /marketplace/advisors (city + blurb)',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -316,10 +348,26 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Member / patient self-serve portals',
-        hint: 'Tokenised portals — book vacancies, waitlist, feedback, shared medical summary after invite accept',
+        hint: 'Tokenised portals — book, waitlist, family, identity, feedback, shared medical summary; POPIA notice',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'In-app care messages (system user ID)',
+        hint: 'Once on SupplierAdvisor, care threads deliver in-app by platform user ID; email fan-out optional',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'Platform subscription only (no SA patient fees)',
+        hint: 'SA bills the company for the OS; gyms/clinics collect member/patient fees outside the platform',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
         sa: 'strong',
       },
       {
@@ -615,10 +663,10 @@ export default function ComparePlatforms() {
               internal and external in-app messaging
             </strong>
             , ops, finance (budgets &amp; group hierarchy), quality, people,
-            trust, and industry hubs (CropAdvisor®, QuarryAdvisor®, FitAdvisor®,
-            PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, MedicalAdvisor®) — plus
-            referral earnings when you onboard your chain (up to 10% · L1 · L2 ·
-            L3).
+            trust, and industry hubs (CropAdvisor®, QuarryAdvisor®, FitAdvisor®
+            and clinic Advisors with waitlist desks, treatment plans, rooms, and
+            marketplace listings) — plus referral earnings when you onboard your
+            chain (up to 10% · L1 · L2 · L3).
           </p>
         </div>
 
@@ -646,7 +694,7 @@ export default function ComparePlatforms() {
             {
               name: 'SupplierAdvisor®',
               who: 'The supply-chain OS',
-              body: `Network + internal & external in-app messaging + ops + finance (budgets, group structures) + people + service verticals (gym, physio, dental, psychiatry, medical). Onboard your chain and earn up to 10% back (L1 6% · L2 3% · L3 1%). ${COMPANY_TRIAL_DAYS}-day trial. From R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo.`,
+              body: `Network + in-app messaging (system user ID) + ops + finance + people + service Advisors (rooms, waitlist desks, treatment-plan book next, marketplace). Onboard your chain and earn up to 10% back (L1 6% · L2 3% · L3 1%). ${COMPANY_TRIAL_DAYS}-day trial. From R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo.`,
               icon: Sparkles,
               highlight: true,
             },

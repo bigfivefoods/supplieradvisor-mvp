@@ -128,7 +128,7 @@ const MODULE_BAND_META: Record<
   industry: {
     title: 'Industry',
     blurb:
-      'Vertical OS modules for agri, extractives, and services — CropAdvisor®, QuarryAdvisor®, FitAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, and MedicalAdvisor®.',
+      'Vertical OS modules for agri, extractives, and services — CropAdvisor®, QuarryAdvisor®, FitAdvisor® and clinic Advisors with diaries, waitlists, treatment plans, rooms, marketplace, and in-app care.',
     accent:
       'text-emerald-800 border-emerald-200 bg-emerald-50/80 dark:text-emerald-300 dark:border-emerald-500/40 dark:bg-emerald-500/10',
     step: '03',
@@ -192,8 +192,8 @@ const MODULE_OPTIONS: Array<{
     iconTone: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300',
     bullets: [
       'CropAdvisor® agri · QuarryAdvisor® aggregates',
-      'FitAdvisor® gyms · invite & member portals',
-      'Physio · Dental · Psychiatry · Medical (scripts & charts)',
+      'FitAdvisor® · rooms · waitlist · marketplace',
+      'Clinic Advisors · exclusive diaries · treatment plans',
     ],
     href: '#modules-industry',
     cta: 'Explore Industry modules',
@@ -248,7 +248,7 @@ const MODULES = [
     bullets: [
       'Core foundations first',
       'Sector make · ship · outlets',
-      'Industry: Field · Quarry · Fit · Physio · Dental · Psych · Medical',
+      'Industry: Advisors · rooms · waitlist · marketplace',
     ],
     Mock: NavMock,
     icon: PanelLeft,
@@ -452,11 +452,11 @@ const MODULES = [
     title: 'FitAdvisor®',
     short: 'FitAdvisor',
     tagline: 'Gym & fitness services OS',
-    body: 'Coaches (photos, tenure, contracts), members, email invites to join, member portal for open classes & waitlists, memberships, calendar, feedback, messaging, and website bookings — tertiary services on the same verified fabric.',
+    body: 'Coaches (People dual-write, contracts), members with invites & family booking, memberships (freeze & packs), rooms on the calendar, waitlists, 24h reminders, outcomes & recalls, in-app messaging by system user ID, staff Today PWA, website embed and marketplace listing — fees stay off-platform; SA bills the gym subscription only.',
     bullets: [
-      'Invite members · portal book / waitlist',
-      'Coaches · classes · calendar · feedback',
-      'Messages · website · check-ins',
+      'Portal book / waitlist · family · .ics',
+      'Rooms · concurrent coaches · plan vs actual',
+      'In-app messages · marketplace · recalls',
     ],
     Mock: FitgraphMock,
     icon: Dumbbell,
@@ -468,11 +468,11 @@ const MODULES = [
     title: 'PhysioAdvisor®',
     short: 'PhysioAdvisor',
     tagline: 'Physio & allied health OS',
-    body: 'Practitioners, patients, email invites & patient portal, rehab packages, diary, medical chart (aid, docs, scripts), team messaging, and clinic website — physio, OT, biokinetics and allied practices.',
+    body: 'Practitioners, POPIA-aware patients, rehab packs & treatment plans (one-click book next), exclusive clinician diaries with rooms, waitlist desk, medical chart (aid, docs, scripts), in-app care messaging, marketplace listing, and clinic website — physio, OT, biokinetics and allied practices.',
     bullets: [
-      'Invite patients · portal diary booking',
-      'Medical chart · scripts · claims',
-      'Messages · rehab packs · website',
+      'Waitlist desk · other clinician · family',
+      'Treatment plans · book next · recalls',
+      'Rooms · chart · marketplace · messages',
     ],
     Mock: PhysiographMock,
     icon: Stethoscope,
@@ -484,11 +484,11 @@ const MODULES = [
     title: 'DentalAdvisor®',
     short: 'DentalAdvisor',
     tagline: 'Dental practice OS',
-    body: 'Dentists, hygienists and staff, patients, email invites & patient portal, care plans, surgery diary, medical chart with scripts, messaging, and practice website — multi-chair ready.',
+    body: 'Dentists, hygienists and staff, POPIA-aware patients, care packs & treatment plans, multi-chair practice diary (no double-book per clinician), waitlist desk, medical chart with scripts, in-app messaging, marketplace listing, and practice website.',
     bullets: [
-      'Invite patients · portal booking',
-      'Medical chart · scripts · care plans',
-      'Messages · diary · website',
+      'Practice multi-chair · exclusive books',
+      'Waitlist desk · treatment-plan book next',
+      'Chart · scripts · marketplace · messages',
     ],
     Mock: DentalgraphMock,
     icon: Smile,
@@ -500,11 +500,11 @@ const MODULES = [
     title: 'PsychiatryAdvisor®',
     short: 'PsychiatryAdvisor',
     tagline: 'Mental health practice OS',
-    body: 'Psychiatrists and psychologists, patients, therapy packages, diary, medical chart with scripts, patient portal, messaging, and practice website — on the same verified fabric.',
+    body: 'Psychiatrists and psychologists, POPIA-aware patients, therapy packs & treatment plans, exclusive clinician diaries with rooms, waitlist desk, medical chart with scripts, patient portal, in-app messaging, marketplace listing, and practice website.',
     bullets: [
-      'Practitioners · patients · therapy packs',
-      'Diary · portal · scripts · chart',
-      'Messages · website',
+      'Exclusive diaries · rooms · waitlist',
+      'Treatment plans · recalls · portal',
+      'Chart · scripts · marketplace · messages',
     ],
     Mock: PsychiatrygraphMock,
     icon: BrainCircuit,
@@ -516,11 +516,11 @@ const MODULES = [
     title: 'MedicalAdvisor®',
     short: 'MedicalAdvisor',
     tagline: 'GP & medical practice OS',
-    body: 'GPs, specialists and nurses, patients, consults, care packages, diary, medical chart with prescriptions/scripts linked to visits, patient portal, messaging, and practice website.',
+    body: 'GPs, specialists and nurses, POPIA-aware patients, care packs & treatment plans, multi-room exclusive clinician diaries, waitlist desk, medical chart with prescriptions linked to visits, patient portal, in-app messaging, marketplace listing, and practice website.',
     bullets: [
-      'Practitioners · patients · care packs',
-      'Scripts · medical chart · portal',
-      'Diary · messages · website',
+      'Multi-room diaries · no double-book',
+      'Waitlist · book next · scripts on visits',
+      'Portal · marketplace · care messages',
     ],
     Mock: MedicalgraphMock,
     icon: Hospital,
@@ -546,7 +546,7 @@ const MODULE_SECTION_BANDS: Array<{
     id: 'industry',
     title: 'Industry',
     blurb:
-      'Vertical depth — CropAdvisor®, QuarryAdvisor®, FitAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, and MedicalAdvisor® for agri, extractives, gyms, clinics, dental, mental health, and medical practices.',
+      'Vertical depth — CropAdvisor®, QuarryAdvisor®, and service Advisors (Fit · Physio · Dental · Psychiatry · Medical) with diaries, waitlist desks, treatment plans, rooms, portals, marketplace listings, and in-app care messages — not brochure modules.',
   },
 ];
 
@@ -1049,7 +1049,7 @@ export default function LandingPage() {
               {
                 icon: Stethoscope,
                 t: 'Industry solutions that operate',
-                b: 'CropAdvisor®, QuarryAdvisor®, FitAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, and MedicalAdvisor® — people, diaries, portals, invites, scripts, and messages, not brochure modules.',
+                b: 'CropAdvisor®, QuarryAdvisor®, FitAdvisor® and clinic Advisors — exclusive diaries & rooms, waitlist desks, treatment-plan book next, POPIA-aware patients, marketplace listings, and in-app messages by system user ID. SA bills platform subscription only; practice fees stay yours.',
               },
               {
                 icon: Fingerprint,
@@ -1617,9 +1617,10 @@ export default function LandingPage() {
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-neutral-400">
                 Pick your economic sector, then one or more industries. Industry
-                Packs unlock CropAdvisor®, QuarryAdvisor®, FitAdvisor®, PhysioAdvisor®,
-                DentalAdvisor®, PsychiatryAdvisor®, and MedicalAdvisor® — portals,
-                invites, scripts, and diaries — at +R{INDUSTRY_PACK_MONTHLY_ZAR}/mo each.
+                Packs unlock CropAdvisor®, QuarryAdvisor®, FitAdvisor® and clinic
+                Advisors — waitlist desks, treatment plans, rooms, portals,
+                marketplace listings, and in-app care — at +R
+                {INDUSTRY_PACK_MONTHLY_ZAR}/mo each.
               </p>
               <div className="mt-4 flex flex-wrap gap-1.5">
                 {OS_SECTORS.map((s) => (

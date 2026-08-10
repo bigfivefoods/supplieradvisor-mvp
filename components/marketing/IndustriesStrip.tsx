@@ -52,31 +52,31 @@ const INDUSTRIES = [
   {
     slug: 'fitness-gyms',
     name: 'Fitness & gyms',
-    desc: 'FitAdvisor® — coaches, member invites & portal, calendar, feedback, class groups, coach-led or front desk.',
+    desc: 'FitAdvisor® — rooms, waitlist, freeze & packs, in-app messages by system ID, marketplace listing, coach-led or front desk.',
     icon: Dumbbell,
   },
   {
     slug: 'physio-allied-health',
     name: 'Physio & allied health',
-    desc: 'PhysioAdvisor® — practitioners, patient invites & portal, rehab packs, diary, medical chart, scripts, messages.',
+    desc: 'PhysioAdvisor® — exclusive diaries + rooms, waitlist desk, treatment-plan book next, chart/scripts, marketplace.',
     icon: Stethoscope,
   },
   {
     slug: 'dental',
     name: 'Dental practices',
-    desc: 'DentalAdvisor® — staff, patient portal & invites, care plans, surgeries, medical chart, scripts, messaging.',
+    desc: 'DentalAdvisor® — multi-chair practice diary, waitlist desk, treatment plans, chart/scripts, marketplace.',
     icon: Smile,
   },
   {
     slug: 'mental-health',
     name: 'Mental health',
-    desc: 'PsychiatryAdvisor® — clinicians, therapy packs, diary, scripts, portal, and messages.',
+    desc: 'PsychiatryAdvisor® — exclusive diaries, waitlist, treatment plans, portal, marketplace.',
     icon: BrainCircuit,
   },
   {
     slug: 'medical-practices',
     name: 'Medical practices',
-    desc: 'MedicalAdvisor® — GPs & clinics, consults, Rx on visits, portal, and messages.',
+    desc: 'MedicalAdvisor® — multi-room diaries, waitlist, treatment plans, Rx on visits, marketplace.',
     icon: Hospital,
   },
   {
@@ -109,8 +109,10 @@ export default function IndustriesStrip() {
           </h2>
           <p className="mt-4 text-base text-slate-600 sm:text-lg">
             Same platform fabric — Core OS plus vertical Industry Advisors for
-            agri, extractives, gyms, and clinical practices: invite members and
-            patients, run diaries, portals, scripts, and messages end to end.
+            agri, extractives, gyms, and clinics: exclusive diaries & rooms,
+            waitlist desks, treatment-plan book next, portals, marketplace
+            listings, and in-app care messages — SA bills the company
+            subscription, not patient fees.
           </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

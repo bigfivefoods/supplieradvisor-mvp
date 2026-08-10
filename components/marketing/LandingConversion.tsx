@@ -388,7 +388,19 @@ export function ComparisonTable() {
       sa: true,
     },
     {
-      feature: 'Service messaging (gym / clinic / dental / mental / medical)',
+      feature: 'Service messaging (system user ID · gym / clinic)',
+      sheets: false,
+      erp: false,
+      sa: true,
+    },
+    {
+      feature: 'Waitlist desk · treatment-plan book next · rooms',
+      sheets: false,
+      erp: false,
+      sa: true,
+    },
+    {
+      feature: 'Advisor marketplace listing · no SA patient fees',
       sheets: false,
       erp: false,
       sa: true,
