@@ -125,7 +125,26 @@ export default function SelectCompanyPage() {
         return;
       }
 
-      setCompanies(data.companies || []);
+      // Pin SupplierAdvisor platform company first (API also sorts; belt-and-braces)
+      const list: Company[] = Array.isArray(data.companies)
+        ? [...data.companies]
+        : [];
+      list.sort((a, b) => {
+        const aPlat =
+          a.entity_kind === 'platform' ||
+          String(a.org_type || '').toLowerCase() === 'platform' ||
+          String(a.business_type || '').toLowerCase() === 'platform' ||
+          /^supplier\s*advisor$/i.test(String(a.trading_name || '').trim());
+        const bPlat =
+          b.entity_kind === 'platform' ||
+          String(b.org_type || '').toLowerCase() === 'platform' ||
+          String(b.business_type || '').toLowerCase() === 'platform' ||
+          /^supplier\s*advisor$/i.test(String(b.trading_name || '').trim());
+        if (aPlat && !bPlat) return -1;
+        if (!aPlat && bPlat) return 1;
+        return 0;
+      });
+      setCompanies(list);
       setDeletedCompanies(data.deletedCompanies || []);
     } catch (err) {
       console.error('Error loading companies:', err);

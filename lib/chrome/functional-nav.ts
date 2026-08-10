@@ -20,13 +20,14 @@ import {
 
 /**
  * Functional ordering of existing MODULE_NAV ids (1:1, full trees preserved).
- * 1) Control Tower
+ * 1) Control Tower (+ Platform admin sits under it)
  * 2) Industry / programme OS (Fitgraph · Quarrygraph · Fieldgraph · DBE/Schools)
- * 3) Core platform modules
+ * 3) Core modules
  */
 export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
-  // 1 — Command
+  // 1 — Command / Control Tower
   'home', // Control Tower
+  'platform', // Platform admin — under Control Tower (SupplierAdvisor business)
 
   // 2 — Industry-specific / programme modules
   'fitgraph', // Fitgraph® gym / studio OS
@@ -39,7 +40,6 @@ export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
   'containers', // Industry vertical (packs)
 
   // 3 — Core modules
-  'platform', // SupplierAdvisor platform admin (opt-in)
   'my-business', // Company
   'suppliers',
   'customers',

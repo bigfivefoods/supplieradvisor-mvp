@@ -8,6 +8,7 @@ import {
 } from '@/lib/entities/entity-kinds';
 import {
   ensurePlatformCompany,
+  isPlatformCompanyProfile,
   isPlatformOwnerEmail,
   PLATFORM_OWNER_EMAILS,
 } from '@/lib/system/platform-company';
@@ -16,6 +17,42 @@ import {
   isPlatformOperatorUserId,
   resolveEmailsForUserId,
 } from '@/lib/system/platform-control';
+
+/** Pin SupplierAdvisor platform company first in Switch company lists. */
+function sortPlatformCompanyFirst<
+  T extends {
+    id: string;
+    trading_name?: string | null;
+    legal_name?: string | null;
+    entity_kind?: string | null;
+    business_type?: string | null;
+    org_type?: string | null;
+  },
+>(companies: T[]): T[] {
+  return [...companies].sort((a, b) => {
+    const aPlat = isPlatformCompanyListItem(a);
+    const bPlat = isPlatformCompanyListItem(b);
+    if (aPlat && !bPlat) return -1;
+    if (!aPlat && bPlat) return 1;
+    return 0;
+  });
+}
+
+function isPlatformCompanyListItem(c: {
+  trading_name?: string | null;
+  legal_name?: string | null;
+  entity_kind?: string | null;
+  business_type?: string | null;
+  org_type?: string | null;
+}): boolean {
+  if (c.entity_kind === 'platform') return true;
+  if (String(c.org_type || '').toLowerCase() === 'platform') return true;
+  if (String(c.business_type || '').toLowerCase() === 'platform') return true;
+  return isPlatformCompanyProfile({
+    trading_name: c.trading_name,
+    legal_name: c.legal_name,
+  });
+}
 
 /**
  * POST /api/me/companies
@@ -390,6 +427,9 @@ export async function POST(request: NextRequest) {
         /* soft */
       }
     }
+
+    // Always pin SupplierAdvisor (platform control plane) first on Switch company
+    companies = sortPlatformCompanyFirst(companies);
 
     return NextResponse.json({
       success: true,
