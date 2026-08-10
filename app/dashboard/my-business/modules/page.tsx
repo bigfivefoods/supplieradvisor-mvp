@@ -708,9 +708,15 @@ function ModulesInner() {
       <BusinessHeader
         title="Workspace"
         titleAccent="modules"
-        description={`${tradingName || 'Your company'} — set sector & industry, choose packs, then toggle hubs for the sidebar. One place for packaging and modules.`}
+        description={`${tradingName || 'Your company'} — modules you turn on here are what the team can open after login (Control Tower, Fitgraph, Fieldgraph, Quarrygraph, DBE, core hubs). Fine-tune per person under Team. Set sector/packs below, then toggle hubs.`}
         action={
           <div className="flex flex-wrap gap-2">
+            <Link
+              href="/dashboard/my-business/team"
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
+            >
+              <Users className="w-4 h-4" /> Per-user modules
+            </Link>
             {packsDirty ? (
               <button
                 type="button"

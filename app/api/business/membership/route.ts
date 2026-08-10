@@ -18,6 +18,11 @@ import {
   listCompanyModuleOptions,
   normalizeEnabledModules,
 } from '@/lib/business/company-modules';
+import {
+  effectiveModulesForMember,
+  extractAllowedModules,
+  hasCustomModuleAccess,
+} from '@/lib/business/member-modules';
 
 /**
  * GET ?companyId=&privyUserId=
@@ -50,7 +55,7 @@ export async function GET(request: NextRequest) {
     const roleMeta = TEAM_ROLE_OPTIONS.find((r) => r.value === mem.role);
 
     // Company module enablement (sidebar) — default all selected
-    let enabledModules = normalizeEnabledModules(null);
+    let companyModules = normalizeEnabledModules(null);
     let packaging: Record<string, unknown> | null = null;
     let businessType: string | null = null;
     try {
@@ -60,7 +65,7 @@ export async function GET(request: NextRequest) {
         .select('metadata, business_type')
         .eq('id', companyId)
         .maybeSingle();
-      enabledModules = extractEnabledModulesFromMetadata(prof?.metadata);
+      companyModules = extractEnabledModulesFromMetadata(prof?.metadata);
       businessType =
         prof?.business_type != null ? String(prof.business_type) : null;
       const meta =
@@ -80,6 +85,14 @@ export async function GET(request: NextRequest) {
       /* soft — fail open all modules */
     }
 
+    // What this user sees after login = company modules ∩ optional per-user allow-list
+    const allowedModules = extractAllowedModules(mem.permissions);
+    const enabledModules = effectiveModulesForMember({
+      companyEnabled: companyModules,
+      permissions: mem.permissions,
+      role: mem.role,
+    });
+
     return NextResponse.json({
       success: true,
       membership: {
@@ -96,9 +109,14 @@ export async function GET(request: NextRequest) {
         canWriteProfile: canWrite(mem.role, 'profile'),
         canWriteSettings: canWrite(mem.role, 'settings'),
         canWriteDocuments: canWrite(mem.role, 'documents'),
+        customModuleAccess: hasCustomModuleAccess(mem.permissions),
+        allowedModules,
       },
       matrix,
+      /** Effective modules for this user (sidebar + gates) */
       enabledModules,
+      /** Company-wide toggles set by owner (Company → Modules) */
+      companyModules,
       packaging,
       businessType,
       moduleOptions: listCompanyModuleOptions(),

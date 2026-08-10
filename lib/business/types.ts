@@ -191,6 +191,11 @@ export type TeamMember = {
   joined_at?: string | null;
   invited_at?: string | null;
   created_at?: string;
+  permissions?: unknown;
+  /** Derived: has custom module allow-list */
+  customModuleAccess?: boolean;
+  /** Derived: module id → true when custom */
+  allowedModules?: Record<string, boolean> | null;
 };
 
 export const DEFAULT_SETTINGS: CompanySettings = {

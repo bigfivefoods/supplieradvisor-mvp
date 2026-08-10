@@ -17,6 +17,8 @@ export type MembershipOk = {
   status: string;
   email?: string | null;
   name?: string | null;
+  /** business_users.permissions jsonb (module allow-list etc.) */
+  permissions?: unknown;
 };
 
 export type MembershipFail = {
@@ -45,7 +47,9 @@ export async function getCompanyMembership(
 
   const { data, error } = await supabase
     .from('business_users')
-    .select('id, user_id, profile_id, status, role, email, name, invited_email')
+    .select(
+      'id, user_id, profile_id, status, role, email, name, invited_email, permissions'
+    )
     .eq('profile_id', companyId)
     .eq('status', 'active')
     .in('user_id', variants)
@@ -74,7 +78,15 @@ export async function getCompanyMembership(
     };
   }
 
-  const row = data[0];
+  const row = data[0] as {
+    id: number;
+    role?: string;
+    status?: string;
+    email?: string | null;
+    invited_email?: string | null;
+    name?: string | null;
+    permissions?: unknown;
+  };
   return {
     ok: true,
     userId,
@@ -83,6 +95,7 @@ export async function getCompanyMembership(
     status: String(row.status || 'active'),
     email: row.email || row.invited_email || null,
     name: row.name || null,
+    permissions: row.permissions ?? null,
   };
 }
 

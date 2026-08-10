@@ -1,7 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, UserPlus, Trash2, Copy, RefreshCw, Shield } from 'lucide-react';
+import {
+  Loader2,
+  UserPlus,
+  Trash2,
+  Copy,
+  RefreshCw,
+  Shield,
+  LayoutGrid,
+  ChevronDown,
+} from 'lucide-react';
+import Link from 'next/link';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -17,6 +27,11 @@ import {
   type PermissionResource,
   type TeamRole,
 } from '@/lib/business/permissions';
+import {
+  isModuleEnabled,
+  type EnabledModulesMap,
+  type CompanyModuleOption,
+} from '@/lib/business/company-modules';
 import {
   CompanyRequired,
   BusinessHeader,
@@ -57,6 +72,10 @@ function TeamInner() {
   const [counts, setCounts] = useState({ total: 0, active: 0, invited: 0, owners: 0 });
   const [me, setMe] = useState<MembershipMe | null>(null);
   const [matrix, setMatrix] = useState<MatrixRow[]>([]);
+  const [companyModules, setCompanyModules] = useState<EnabledModulesMap>({});
+  const [moduleOptions, setModuleOptions] = useState<CompanyModuleOption[]>([]);
+  const [modulesOpenId, setModulesOpenId] = useState<number | null>(null);
+  const [draftModules, setDraftModules] = useState<EnabledModulesMap>({});
   const [loading, setLoading] = useState(true);
   const [inviting, setInviting] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -79,11 +98,23 @@ function TeamInner() {
       setCompanyName(
         teamData.company?.trading_name || teamData.company?.legal_name || 'Your company'
       );
+      if (teamData.companyModules) {
+        setCompanyModules(teamData.companyModules as EnabledModulesMap);
+      }
+      if (Array.isArray(teamData.moduleOptions)) {
+        setModuleOptions(teamData.moduleOptions as CompanyModuleOption[]);
+      }
 
       if (memRes.ok) {
         const memData = await memRes.json();
         setMe(memData.membership || null);
         setMatrix(memData.matrix || []);
+        if (memData.companyModules) {
+          setCompanyModules(memData.companyModules as EnabledModulesMap);
+        }
+        if (Array.isArray(memData.moduleOptions) && !teamData.moduleOptions?.length) {
+          setModuleOptions(memData.moduleOptions as CompanyModuleOption[]);
+        }
       }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
@@ -314,14 +345,87 @@ function TeamInner() {
     return ['invited', 'pending', 'removed', 'expired'].includes(status);
   };
 
+  /** Company-enabled modules the owner can assign to users (exclude always-on) */
+  const assignableModules = moduleOptions.filter(
+    (o) =>
+      !o.alwaysOn &&
+      o.id !== 'platform' &&
+      isModuleEnabled(companyModules, o.id)
+  );
+
+  const openModuleEditor = (m: TeamMember) => {
+    if (String(m.role || '').toLowerCase() === 'owner') {
+      toast.message('Owners always see all company modules');
+      return;
+    }
+    if (modulesOpenId === m.id) {
+      setModulesOpenId(null);
+      return;
+    }
+    // Seed draft: custom allow-list, or all company-enabled modules
+    const seed: EnabledModulesMap = {};
+    for (const opt of assignableModules) {
+      if (m.customModuleAccess && m.allowedModules) {
+        seed[opt.id] = m.allowedModules[opt.id] === true;
+      } else {
+        seed[opt.id] = true;
+      }
+    }
+    setDraftModules(seed);
+    setModulesOpenId(m.id);
+  };
+
+  const saveMemberModules = async (memberId: number, inherit: boolean) => {
+    if (!canManage) {
+      toast.error('Only owners and admins can change module access');
+      return;
+    }
+    setBusyId(memberId);
+    try {
+      const res = await fetch('/api/business/team', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          memberId,
+          clearModuleAccess: inherit,
+          allowedModules: inherit ? null : draftModules,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Update failed');
+      toast.success(
+        inherit
+          ? 'User will see all company modules on login'
+          : 'Module access saved for this user'
+      );
+      setModulesOpenId(null);
+      void load();
+      window.dispatchEvent(new Event('sa:company-changed'));
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const roleHelp = TEAM_ROLE_OPTIONS.find((r) => r.value === form.role);
 
   return (
     <BusinessPage>
       <BusinessHeader
         title="Team"
-        titleAccent="& roles"
-        description={`People with access to ${companyName}. Invites are emailed via Resend. Your role: ${me?.roleLabel || '…'} (${me?.rights || 'loading'}).`}
+        titleAccent="roles & modules"
+        description={`People with access to ${companyName}. Choose each user’s role and which modules they see when they log in. Company-wide modules are set under Company → Modules. Your role: ${me?.roleLabel || '…'}.`}
+        action={
+          <Link
+            href="/dashboard/my-business/modules"
+            className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1.5"
+          >
+            <LayoutGrid className="w-3.5 h-3.5" /> Company modules
+          </Link>
+        }
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
@@ -435,102 +539,200 @@ function TeamInner() {
                   const showReinvite = canManage && canReinvite(m);
                   const isRemoved =
                     String(m.status || '').toLowerCase() === 'removed';
+                  const isOwnerRow =
+                    String(m.role || '').toLowerCase() === 'owner';
+                  const modulesOpen = modulesOpenId === m.id;
                   return (
                     <li
                       key={m.id}
-                      className={`px-5 py-4 flex flex-wrap items-center justify-between gap-3 ${
-                        isRemoved ? 'opacity-70 bg-neutral-50/80' : ''
-                      }`}
+                      className={`${isRemoved ? 'opacity-70 bg-neutral-50/80' : ''}`}
                     >
-                      <div className="min-w-0">
-                        <div className="font-semibold text-slate-900 truncate">
-                          {m.name || m.email || m.invited_email || 'Member'}
-                        </div>
-                        <div className="text-xs text-neutral-500 truncate">
-                          {m.email || m.invited_email || '—'}
-                        </div>
-                        {roleMeta && (
-                          <div className="text-[10px] text-neutral-400 mt-0.5">
-                            {roleMeta.rights}
+                      <div className="px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-slate-900 truncate">
+                            {m.name || m.email || m.invited_email || 'Member'}
                           </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap justify-end">
-                        <span
-                          className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${memberStatusClass(m.status)}`}
-                        >
-                          {m.status || 'active'}
-                        </span>
-                        <select
-                          className="input !py-1.5 !px-2 !text-xs !w-auto"
-                          value={(() => {
-                            const raw = String(m.role || 'member');
-                            const known = TEAM_ROLE_OPTIONS.some((r) => r.value === raw);
-                            if (known) return raw;
-                            // Map legacy free-text titles (e.g. CEO) via normalized option if present
-                            return raw;
-                          })()}
-                          disabled={busyId === m.id || !canManage || isRemoved}
-                          onChange={(e) => void updateRole(m.id, e.target.value)}
-                          title={
-                            canManage
-                              ? isAdmin && myMemberId === m.id
-                                ? 'You can promote yourself to Owner'
-                                : 'Change role'
-                              : 'View only — cannot change roles'
-                          }
-                        >
-                          {/* Preserve legacy free-text role values as selectable until changed */}
-                          {m.role &&
-                            !TEAM_ROLE_OPTIONS.some((r) => r.value === String(m.role)) && (
-                              <option value={String(m.role)}>{String(m.role)} (current)</option>
-                            )}
-                          {TEAM_ROLE_OPTIONS.filter(
-                            (r) => r.value !== 'owner' || canAssignOwnerTo(m.id)
-                          ).map((r) => (
-                            <option key={r.value} value={r.value}>
-                              {r.label}
-                              {r.value === 'owner' &&
-                              isAdmin &&
-                              myMemberId === m.id
-                                ? ' (promote me)'
-                                : ''}
-                            </option>
-                          ))}
-                        </select>
-                        <span
-                          className={`hidden sm:inline text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${roleBadgeClass(m.role)}`}
-                        >
-                          {m.role}
-                        </span>
-                        {showReinvite && (
-                          <button
-                            type="button"
-                            disabled={busyId === m.id}
-                            onClick={() => void reinvite(m)}
-                            className="inline-flex items-center gap-1 !py-1.5 !px-2.5 text-xs font-semibold rounded-xl border border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100 disabled:opacity-50"
-                            title="Resend invitation email with a fresh join link"
+                          <div className="text-xs text-neutral-500 truncate">
+                            {m.email || m.invited_email || '—'}
+                          </div>
+                          {roleMeta && (
+                            <div className="text-[10px] text-neutral-400 mt-0.5">
+                              {roleMeta.rights}
+                              {m.customModuleAccess
+                                ? ' · custom modules'
+                                : ' · all company modules'}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap justify-end">
+                          <span
+                            className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${memberStatusClass(m.status)}`}
                           >
-                            {busyId === m.id ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <RefreshCw className="w-3.5 h-3.5" />
-                            )}
-                            Reinvite
-                          </button>
-                        )}
-                        {canManage && !isRemoved && (
-                          <button
-                            type="button"
-                            disabled={busyId === m.id}
-                            onClick={() => void remove(m.id)}
-                            className="p-2 text-red-500 hover:bg-red-50 rounded-xl"
-                            title="Remove"
+                            {m.status || 'active'}
+                          </span>
+                          <select
+                            className="input !py-1.5 !px-2 !text-xs !w-auto"
+                            value={(() => {
+                              const raw = String(m.role || 'member');
+                              const known = TEAM_ROLE_OPTIONS.some(
+                                (r) => r.value === raw
+                              );
+                              if (known) return raw;
+                              return raw;
+                            })()}
+                            disabled={busyId === m.id || !canManage || isRemoved}
+                            onChange={(e) => void updateRole(m.id, e.target.value)}
                           >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                            {m.role &&
+                              !TEAM_ROLE_OPTIONS.some(
+                                (r) => r.value === String(m.role)
+                              ) && (
+                                <option value={String(m.role)}>
+                                  {String(m.role)} (current)
+                                </option>
+                              )}
+                            {TEAM_ROLE_OPTIONS.filter(
+                              (r) => r.value !== 'owner' || canAssignOwnerTo(m.id)
+                            ).map((r) => (
+                              <option key={r.value} value={r.value}>
+                                {r.label}
+                                {r.value === 'owner' &&
+                                isAdmin &&
+                                myMemberId === m.id
+                                  ? ' (promote me)'
+                                  : ''}
+                              </option>
+                            ))}
+                          </select>
+                          {canManage && !isRemoved && !isOwnerRow && (
+                            <button
+                              type="button"
+                              onClick={() => openModuleEditor(m)}
+                              className={`inline-flex items-center gap-1 !py-1.5 !px-2.5 text-xs font-semibold rounded-xl border ${
+                                modulesOpen || m.customModuleAccess
+                                  ? 'border-violet-300 bg-violet-50 text-violet-900'
+                                  : 'border-neutral-200 bg-white text-slate-700 hover:border-violet-200'
+                              }`}
+                              title="Modules this user sees when they log in"
+                            >
+                              <LayoutGrid className="w-3.5 h-3.5" />
+                              Modules
+                              <ChevronDown
+                                className={`w-3 h-3 transition-transform ${
+                                  modulesOpen ? 'rotate-180' : ''
+                                }`}
+                              />
+                            </button>
+                          )}
+                          {showReinvite && (
+                            <button
+                              type="button"
+                              disabled={busyId === m.id}
+                              onClick={() => void reinvite(m)}
+                              className="inline-flex items-center gap-1 !py-1.5 !px-2.5 text-xs font-semibold rounded-xl border border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100 disabled:opacity-50"
+                            >
+                              {busyId === m.id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <RefreshCw className="w-3.5 h-3.5" />
+                              )}
+                              Reinvite
+                            </button>
+                          )}
+                          {canManage && !isRemoved && (
+                            <button
+                              type="button"
+                              disabled={busyId === m.id}
+                              onClick={() => void remove(m.id)}
+                              className="p-2 text-red-500 hover:bg-red-50 rounded-xl"
+                              title="Remove"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
+
+                      {modulesOpen && (
+                        <div className="px-5 pb-4 border-t border-violet-100 bg-violet-50/40">
+                          <p className="text-[11px] text-violet-900/80 pt-3 mb-2 leading-relaxed">
+                            Choose which <strong>company modules</strong> this
+                            person sees after login. Always-on: Home, Company,
+                            Guide. Turn modules on for the whole company under{' '}
+                            <Link
+                              href="/dashboard/my-business/modules"
+                              className="font-semibold underline"
+                            >
+                              Company → Modules
+                            </Link>
+                            .
+                          </p>
+                          {assignableModules.length === 0 ? (
+                            <p className="text-xs text-neutral-500 py-2">
+                              No optional modules are enabled for the company
+                              yet. Enable Fitgraph, Fieldgraph, DBE, etc. under
+                              Company → Modules first.
+                            </p>
+                          ) : (
+                            <div className="grid sm:grid-cols-2 gap-1.5 max-h-56 overflow-y-auto">
+                              {assignableModules.map((opt) => {
+                                const on = draftModules[opt.id] === true;
+                                return (
+                                  <label
+                                    key={opt.id}
+                                    className={`flex items-start gap-2 rounded-xl border px-2.5 py-2 cursor-pointer text-xs ${
+                                      on
+                                        ? 'border-violet-300 bg-white'
+                                        : 'border-neutral-200 bg-white/60 opacity-80'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      className="mt-0.5"
+                                      checked={on}
+                                      onChange={() =>
+                                        setDraftModules((prev) => ({
+                                          ...prev,
+                                          [opt.id]: !on,
+                                        }))
+                                      }
+                                    />
+                                    <span>
+                                      <span className="font-bold text-slate-900 block">
+                                        {opt.name}
+                                      </span>
+                                      <span className="text-[10px] text-neutral-500 line-clamp-2">
+                                        {opt.description}
+                                      </span>
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                          <div className="flex flex-wrap gap-2 mt-3">
+                            <button
+                              type="button"
+                              disabled={busyId === m.id}
+                              className="btn-primary !py-1.5 !px-3 text-xs"
+                              onClick={() => void saveMemberModules(m.id, false)}
+                            >
+                              {busyId === m.id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : null}{' '}
+                              Save modules for user
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busyId === m.id}
+                              className="btn-secondary !py-1.5 !px-3 text-xs"
+                              onClick={() => void saveMemberModules(m.id, true)}
+                            >
+                              Use all company modules
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </li>
                   );
                 })}

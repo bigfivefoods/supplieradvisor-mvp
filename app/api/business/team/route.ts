@@ -4,6 +4,15 @@ import { logActivity } from '@/lib/customers/access';
 import { assertCanManageTeam, getCompanyMembership } from '@/lib/business/access';
 import { canView, normalizeTeamRole } from '@/lib/business/permissions';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  extractEnabledModulesFromMetadata,
+  listCompanyModuleOptions,
+} from '@/lib/business/company-modules';
+import {
+  extractAllowedModules,
+  hasCustomModuleAccess,
+  mergeAllowedModulesIntoPermissions,
+} from '@/lib/business/member-modules';
 
 /**
  * GET ?companyId=&privyUserId=
@@ -34,14 +43,14 @@ export async function GET(request: NextRequest) {
       supabase
         .from('business_users')
         .select(
-          'id, profile_id, user_id, name, email, invited_email, role, status, joined_at, invited_at, created_at'
+          'id, profile_id, user_id, name, email, invited_email, role, status, joined_at, invited_at, created_at, permissions'
         )
         .eq('profile_id', companyId)
         .order('created_at', { ascending: false })
         .limit(200),
       supabase
         .from('profiles')
-        .select('id, trading_name, legal_name')
+        .select('id, trading_name, legal_name, metadata')
         .eq('id', companyId)
         .maybeSingle(),
     ]);
@@ -55,7 +64,17 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const list = members || [];
+    const companyModules = extractEnabledModulesFromMetadata(
+      company?.metadata
+    );
+    const list = (members || []).map((m) => {
+      const perms = (m as { permissions?: unknown }).permissions;
+      return {
+        ...m,
+        customModuleAccess: hasCustomModuleAccess(perms),
+        allowedModules: extractAllowedModules(perms),
+      };
+    });
     const counts = {
       total: list.length,
       active: list.filter((m) => m.status === 'active').length,
@@ -68,7 +87,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       members: list,
-      company: company || null,
+      company: company
+        ? {
+            id: company.id,
+            trading_name: company.trading_name,
+            legal_name: company.legal_name,
+          }
+        : null,
+      companyModules,
+      moduleOptions: listCompanyModuleOptions(),
       counts,
     });
   } catch (e: unknown) {
@@ -77,8 +104,12 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * PATCH — update role / status of a member
- * Body: { companyId, privyUserId, memberId, role?, status? }
+ * PATCH — update role / status / module access of a member
+ * Body: {
+ *   companyId, privyUserId, memberId,
+ *   role?, status?, name?,
+ *   allowedModules?: Record<string,boolean> | null  // null = inherit company modules
+ * }
  */
 export async function PATCH(request: NextRequest) {
   try {
@@ -114,6 +145,36 @@ export async function PATCH(request: NextRequest) {
     if (body.name != null) updates.name = String(body.name);
 
     const supabase = getSupabaseServer();
+
+    // Per-user module allow-list (what they see when they log in)
+    if (body.allowedModules !== undefined || body.clearModuleAccess === true) {
+      const { data: target } = await supabase
+        .from('business_users')
+        .select('id, role, permissions')
+        .eq('id', memberId)
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      if (!target) {
+        return NextResponse.json({ error: 'Member not found' }, { status: 404 });
+      }
+      if (String(target.role || '').toLowerCase() === 'owner') {
+        return NextResponse.json(
+          {
+            error:
+              'Owners always see all company modules. Change role first if you need to restrict access.',
+          },
+          { status: 400 }
+        );
+      }
+      const nextPerms = mergeAllowedModulesIntoPermissions(
+        target.permissions,
+        body.clearModuleAccess === true || body.allowedModules === null
+          ? null
+          : (body.allowedModules as Record<string, boolean>)
+      );
+      updates.permissions = nextPerms;
+    }
+
     const { data, error } = await supabase
       .from('business_users')
       .update(updates)
@@ -130,11 +191,31 @@ export async function PATCH(request: NextRequest) {
       action: 'business.team_updated',
       entity_type: 'business_users',
       entity_id: String(memberId),
-      summary: `Team member updated (${body.role || body.status || 'fields'})`,
-      metadata: updates,
+      summary: `Team member updated (${
+        body.allowedModules !== undefined || body.clearModuleAccess
+          ? 'modules'
+          : body.role || body.status || 'fields'
+      })`,
+      metadata: {
+        role: updates.role,
+        status: updates.status,
+        modules:
+          body.allowedModules !== undefined || body.clearModuleAccess
+            ? body.clearModuleAccess
+              ? 'inherit'
+              : 'custom'
+            : undefined,
+      },
     });
 
-    return NextResponse.json({ success: true, member: data });
+    return NextResponse.json({
+      success: true,
+      member: {
+        ...data,
+        customModuleAccess: hasCustomModuleAccess(data.permissions),
+        allowedModules: extractAllowedModules(data.permissions),
+      },
+    });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
   }
