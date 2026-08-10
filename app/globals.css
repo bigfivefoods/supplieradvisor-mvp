@@ -942,6 +942,107 @@ html.dark .text-red-700 {
 }
 
 /*
+ * 3b) Landing product mock frames + gallery cards
+ *     Global remaps can leave pale chips with near-white type.
+ *     Force elevated dark surfaces + high-contrast light ink.
+ */
+html.dark .sa-product-mock {
+  background-color: #0c1016 !important;
+  background-image: linear-gradient(
+    165deg,
+    #1a2330 0%,
+    #0c1016 52%,
+    #080a0e 100%
+  ) !important;
+  color: #f8fafc !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+html.dark .sa-product-mock .bg-white,
+html.dark .sa-product-mock .bg-white\/95,
+html.dark .sa-product-mock .bg-white\/90,
+html.dark .sa-product-mock .bg-white\/80,
+html.dark .sa-product-mock .bg-white\/75,
+html.dark .sa-product-mock .bg-white\/70,
+html.dark .sa-product-mock .bg-white\/60,
+html.dark .sa-product-mock .bg-slate-50,
+html.dark .sa-product-mock .bg-slate-50\/90,
+html.dark .sa-product-mock .bg-slate-50\/80,
+html.dark .sa-product-mock .bg-slate-100,
+html.dark .sa-product-mock .bg-slate-100\/90 {
+  background-color: #151c26 !important;
+  background-image: none !important;
+  color: #f8fafc !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+html.dark .sa-product-mock .text-slate-900,
+html.dark .sa-product-mock .text-slate-800,
+html.dark .sa-product-mock .text-slate-700,
+html.dark .sa-product-mock .text-neutral-900,
+html.dark .sa-product-mock .text-neutral-800 {
+  color: #f8fafc !important;
+}
+
+html.dark .sa-product-mock .text-slate-600,
+html.dark .sa-product-mock .text-slate-500,
+html.dark .sa-product-mock .text-slate-400,
+html.dark .sa-product-mock .text-neutral-400 {
+  color: #cbd5e1 !important;
+}
+
+/* Soft pastel metric fills → dark tinted chips with white values */
+html.dark .sa-product-mock .from-cyan-50,
+html.dark .sa-product-mock .from-cyan-100,
+html.dark .sa-product-mock .from-emerald-50,
+html.dark .sa-product-mock .from-emerald-100,
+html.dark .sa-product-mock .from-amber-50,
+html.dark .sa-product-mock .from-amber-100,
+html.dark .sa-product-mock .from-violet-50,
+html.dark .sa-product-mock .from-violet-100,
+html.dark .sa-product-mock .from-teal-50,
+html.dark .sa-product-mock .from-teal-100,
+html.dark .sa-product-mock .from-sky-50,
+html.dark .sa-product-mock .from-sky-100 {
+  --tw-gradient-from: #1a2430 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(8 12 16 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+html.dark .sa-product-mock .to-white,
+html.dark .sa-product-mock .to-cyan-50,
+html.dark .sa-product-mock .to-emerald-50,
+html.dark .sa-product-mock .to-amber-50,
+html.dark .sa-product-mock .to-violet-50,
+html.dark .sa-product-mock .to-teal-50,
+html.dark .sa-product-mock .to-sky-50 {
+  --tw-gradient-to: #0a0e14 var(--tw-gradient-to-position) !important;
+}
+
+html.dark .sa-gallery-card {
+  background-color: #0c1016 !important;
+  background-image: linear-gradient(
+    165deg,
+    #1a2330 0%,
+    #0c1016 55%,
+    #07090c 100%
+  ) !important;
+  color: #f8fafc !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+html.dark .sa-gallery-card .text-slate-900,
+html.dark .sa-gallery-card .text-slate-800 {
+  color: #ffffff !important;
+}
+
+html.dark .sa-gallery-card .text-slate-600,
+html.dark .sa-gallery-card .text-slate-500,
+html.dark .sa-gallery-card .text-slate-400 {
+  color: #cbd5e1 !important;
+}
+
+/*
  * 4) Shared panels / cards: dark surface + high-contrast light ink.
  *    background-image:none kills leftover pale gradients on panel wrappers
  *    so text remapped to near-white is always readable.

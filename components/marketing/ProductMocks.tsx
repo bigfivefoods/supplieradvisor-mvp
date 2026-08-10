@@ -42,21 +42,21 @@ function Frame({
 }) {
   return (
     <div
-      className={`flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden rounded-[1.25rem] border border-slate-200/90 bg-white shadow-[0_25px_60px_-20px_rgba(15,23,42,0.18)] sm:rounded-[1.75rem] ${className}`}
+      className={`sa-product-mock flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden rounded-[1.25rem] border border-slate-200/90 bg-white shadow-[0_25px_60px_-20px_rgba(15,23,42,0.18)] sm:rounded-[1.75rem] dark:border-white/12 dark:bg-[#0c1016] dark:shadow-black/50 ${className}`}
     >
-      <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 bg-slate-50/90 px-2.5 py-2 sm:px-4 sm:py-3">
+      <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 bg-slate-50/90 px-2.5 py-2 sm:px-4 sm:py-3 dark:border-white/10 dark:bg-[#121820]">
         <div className="flex shrink-0 gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-rose-300 sm:h-2.5 sm:w-2.5" />
-          <span className="h-2 w-2 rounded-full bg-amber-300 sm:h-2.5 sm:w-2.5" />
-          <span className="h-2 w-2 rounded-full bg-emerald-300 sm:h-2.5 sm:w-2.5" />
+          <span className="h-2 w-2 rounded-full bg-rose-400 sm:h-2.5 sm:w-2.5" />
+          <span className="h-2 w-2 rounded-full bg-amber-400 sm:h-2.5 sm:w-2.5" />
+          <span className="h-2 w-2 rounded-full bg-emerald-400 sm:h-2.5 sm:w-2.5" />
         </div>
         <div className="min-w-0 flex-1 sm:mx-2">
-          <div className="flex h-6 items-center truncate rounded-full border border-slate-200 bg-white px-2 text-[9px] font-medium text-slate-400 sm:h-7 sm:px-3 sm:text-[11px]">
+          <div className="flex h-6 items-center truncate rounded-full border border-slate-200 bg-white px-2 text-[9px] font-medium text-slate-500 sm:h-7 sm:px-3 sm:text-[11px] dark:border-white/12 dark:bg-[#1a222c] dark:text-slate-300">
             app.supplieradvisor.com/{title}
           </div>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-hidden bg-gradient-to-br from-[#f8fafc] via-white to-sky-50/40 p-2.5 sm:p-4">
+      <div className="min-h-0 flex-1 overflow-hidden bg-gradient-to-br from-[#f8fafc] via-white to-sky-50/40 p-2.5 sm:p-4 dark:from-[#141b24] dark:via-[#0c1016] dark:to-[#0a1218]">
         {children}
       </div>
     </div>
@@ -73,19 +73,24 @@ function Telemetry({
   tone?: 'cyan' | 'emerald' | 'amber' | 'violet' | 'teal' | 'sky';
 }) {
   const tones = {
-    cyan: 'from-cyan-50 to-white border-cyan-100',
-    emerald: 'from-emerald-50 to-white border-emerald-100',
-    amber: 'from-amber-50 to-white border-amber-100',
-    violet: 'from-violet-50 to-white border-violet-100',
-    teal: 'from-teal-50 to-white border-teal-100',
-    sky: 'from-sky-50 to-white border-sky-100',
+    cyan: 'from-cyan-100 to-cyan-50 border-cyan-200 dark:from-cyan-950 dark:to-slate-950 dark:border-cyan-800/60',
+    emerald:
+      'from-emerald-100 to-emerald-50 border-emerald-200 dark:from-emerald-950 dark:to-slate-950 dark:border-emerald-800/60',
+    amber:
+      'from-amber-100 to-amber-50 border-amber-200 dark:from-amber-950 dark:to-slate-950 dark:border-amber-800/60',
+    violet:
+      'from-violet-100 to-violet-50 border-violet-200 dark:from-violet-950 dark:to-slate-950 dark:border-violet-800/60',
+    teal: 'from-teal-100 to-teal-50 border-teal-200 dark:from-teal-950 dark:to-slate-950 dark:border-teal-800/60',
+    sky: 'from-sky-100 to-sky-50 border-sky-200 dark:from-sky-950 dark:to-slate-950 dark:border-sky-800/60',
   };
   return (
-    <div className={`rounded-xl sm:rounded-2xl border bg-gradient-to-br ${tones[tone]} px-2.5 sm:px-3 py-2 sm:py-2.5`}>
-      <div className="text-[8px] sm:text-[9px] font-black uppercase tracking-wider text-neutral-400">
+    <div
+      className={`rounded-xl sm:rounded-2xl border bg-gradient-to-br ${tones[tone]} px-2.5 sm:px-3 py-2 sm:py-2.5`}
+    >
+      <div className="text-[8px] sm:text-[9px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
         {label}
       </div>
-      <div className="text-base sm:text-xl font-black tabular-nums text-slate-900 tracking-tight">
+      <div className="text-base sm:text-xl font-black tabular-nums tracking-tight text-slate-900 dark:text-white">
         {value}
       </div>
     </div>
@@ -100,11 +105,11 @@ export function OpsMock() {
           <div className="text-[9px] font-bold uppercase tracking-widest text-[#00b4d8]">
             Operations · Command
           </div>
-          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
             One chain. Zero blind spots.
           </div>
         </div>
-        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-700">
+        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-600 bg-emerald-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
         </span>
       </div>
@@ -118,7 +123,7 @@ export function OpsMock() {
         {['Procure', 'Warehouse', 'Fulfill'].map((t, i) => (
           <div
             key={t}
-            className="rounded-xl border border-slate-100 bg-white p-2 sm:p-3 shadow-sm"
+            className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] sm:p-3 shadow-sm"
           >
             <div className="text-[9px] font-mono text-neutral-400 mb-1">0{i + 1}</div>
             <div className="text-[11px] sm:text-xs font-bold text-slate-800">{t}</div>
@@ -149,7 +154,7 @@ export function CrmMock() {
         <Telemetry label="Leads" value="18" tone="amber" />
         <Telemetry label="Won" value="R 890k" tone="cyan" />
       </div>
-      <div className="rounded-xl border border-slate-100 bg-white p-3 space-y-2">
+      <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#151c26] space-y-2">
         {['Qualified', 'Proposal', 'Negotiation', 'Closed won'].map((stage, i) => (
           <div key={stage} className="flex items-center gap-2">
             <div className="text-[9px] font-bold text-slate-400 w-20 shrink-0">{stage}</div>
@@ -178,7 +183,7 @@ export function SrmMock() {
         <Telemetry label="Connected" value="28" tone="cyan" />
         <Telemetry label="On time" value="98%" tone="violet" />
       </div>
-      <div className="rounded-xl border border-slate-100 bg-white divide-y divide-slate-50">
+      <div className="rounded-xl border border-slate-200 bg-white divide-y divide-slate-100 dark:border-white/10 dark:bg-[#151c26] dark:divide-white/10">
         {[
           { n: 'Cape Harvest Co-op', s: '99.2%' },
           { n: 'Atlas Logistics SA', s: '97.1%' },
@@ -189,7 +194,7 @@ export function SrmMock() {
               <span className="text-[9px] font-black text-neutral-300 w-4">
                 {String(i + 1).padStart(2, '0')}
               </span>
-              <span className="font-semibold text-slate-800 truncate">{r.n}</span>
+              <span className="font-semibold text-slate-800 dark:text-white truncate">{r.n}</span>
             </div>
             <span className="font-black text-[#00b4d8] tabular-nums">{r.s}</span>
           </div>
@@ -214,7 +219,7 @@ export function InventoryMock() {
         <Telemetry label="Sites" value="6" tone="emerald" />
         <Telemetry label="Low stock" value="3" tone="amber" />
       </div>
-      <div className="rounded-xl border border-slate-100 bg-white p-3">
+      <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#151c26]">
         <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-2">
           <span>Live transfers</span>
           <span className="text-emerald-600">2 en route</span>
@@ -260,7 +265,7 @@ export function ManufacturingMock() {
           { l: 'Performance', v: 88, c: 'bg-[#00b4d8]' },
           { l: 'Quality', v: 97, c: 'bg-violet-500' },
         ].map((b) => (
-          <div key={b.l} className="rounded-xl border border-slate-100 bg-white p-2.5">
+          <div key={b.l} className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26].5">
             <div className="flex justify-between text-[10px] font-bold mb-1.5">
               <span className="text-slate-500">{b.l}</span>
               <span className="text-slate-800 tabular-nums">{b.v}%</span>
@@ -289,7 +294,7 @@ export function DistributionMock() {
         <Telemetry label="OTIF" value="97%" tone="cyan" />
         <Telemetry label="Exceptions" value="1" tone="amber" />
       </div>
-      <div className="rounded-xl border border-slate-100 bg-white p-3 space-y-2">
+      <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#151c26] space-y-2">
         {[
           { id: 'SHP-1042', mode: 'Ocean', st: 'In transit', t: 'emerald' },
           { id: 'SHP-1048', mode: 'Road', st: 'At dock', t: 'cyan' },
@@ -304,10 +309,10 @@ export function DistributionMock() {
             <span
               className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
                 s.t === 'emerald'
-                  ? 'bg-emerald-50 text-emerald-700'
+                  ? 'bg-emerald-700 text-white'
                   : s.t === 'cyan'
                     ? 'bg-sky-50 text-sky-700'
-                    : 'bg-violet-50 text-violet-700'
+                    : 'bg-violet-700 text-white'
               }`}
             >
               {s.st}
@@ -343,7 +348,7 @@ export function IntelligenceMock() {
           </div>
         ))}
       </div>
-      <div className="rounded-xl border border-slate-100 bg-white p-3 space-y-2">
+      <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#151c26] space-y-2">
         {[
           { s: 'critical', t: 'AP overdue rising on 2 bills' },
           { s: 'warning', t: 'Supplier concentration 42% top 3' },
@@ -380,7 +385,7 @@ export function AccountingMock() {
         <Telemetry label="Bank" value="R 3.1M" tone="emerald" />
         <Telemetry label="Posted" value="148" tone="violet" />
       </div>
-      <div className="rounded-xl border border-slate-100 bg-white p-3">
+      <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#151c26]">
         <div className="text-[10px] font-bold text-slate-500 mb-2">P&L snapshot</div>
         <div className="flex items-end gap-1 h-16 sm:h-20">
           {[40, 55, 48, 70, 62, 78, 85].map((h, i) => (
@@ -404,11 +409,11 @@ export function SheqMock() {
           <div className="text-[9px] font-bold uppercase tracking-widest text-amber-700">
             SHEQ · Command
           </div>
-          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
             Safety · Health · Environment · Quality
           </div>
         </div>
-        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[9px] font-black uppercase text-amber-800">
+        <span className="rounded-full border border-amber-200 bg-amber-600 px-2 py-0.5 text-[9px] font-black uppercase text-white">
           ISO 45001
         </span>
       </div>
@@ -420,15 +425,15 @@ export function SheqMock() {
       </div>
       <div className="space-y-1.5">
         {[
-          { t: 'Near-miss · cold store', s: 'Investigating', c: 'bg-amber-100 text-amber-800' },
-          { t: 'NCR · lot L-2041 fail', s: 'CAPA linked', c: 'bg-violet-100 text-violet-800' },
+          { t: 'Near-miss · cold store', s: 'Investigating', c: 'bg-amber-600 text-white' },
+          { t: 'NCR · lot L-2041 fail', s: 'CAPA linked', c: 'bg-violet-700 text-white' },
           { t: 'Hazard · forklift zone', s: 'Score 12', c: 'bg-rose-100 text-rose-800' },
         ].map((r) => (
           <div
             key={r.t}
             className="flex items-center justify-between gap-2 rounded-xl border border-slate-100 bg-white px-2.5 py-2"
           >
-            <span className="text-[11px] font-semibold text-slate-800 truncate">{r.t}</span>
+            <span className="text-[11px] font-semibold text-slate-800 dark:text-white truncate">{r.t}</span>
             <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold ${r.c}`}>
               {r.s}
             </span>
@@ -454,7 +459,7 @@ export function QualityMock() {
         <Telemetry label="Lots" value="86" tone="cyan" />
         <Telemetry label="CCPs" value="12" tone="violet" />
       </div>
-      <div className="rounded-xl border border-slate-100 bg-white p-3">
+      <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#151c26]">
         <div className="text-[10px] font-bold text-slate-500 mb-2">Traceability graph</div>
         <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
           {['SKU', 'Lot L-88', 'WH-CPT', 'Ship #41', 'HACCP'].map((n, i) => (
@@ -482,11 +487,11 @@ export function ContainersMock() {
           <div className="text-[9px] font-bold uppercase tracking-widest text-emerald-700">
             Containers · Command
           </div>
-          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
             Outlet network. Jobs & meals.
           </div>
         </div>
-        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-800">
+        <span className="rounded-full border border-emerald-200 bg-emerald-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
           Live map
         </span>
       </div>
@@ -496,7 +501,7 @@ export function ContainersMock() {
         <Telemetry label="Jobs" value="96" tone="violet" />
         <Telemetry label="Fed /mo" value="12k" tone="amber" />
       </div>
-      <div className="rounded-xl border border-slate-100 bg-white p-2.5 space-y-1.5">
+      <div className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26].5 space-y-1.5">
         {[
           { n: 'CPT-07 Woodstock', s: 'Stock OK', t: 'emerald' },
           { n: 'JHB-12 Alexandra', s: 'Reorder', t: 'amber' },
@@ -506,13 +511,13 @@ export function ContainersMock() {
             key={r.n}
             className="flex items-center justify-between gap-2 rounded-lg border border-slate-50 px-2 py-1.5 text-[11px]"
           >
-            <span className="font-semibold text-slate-800 truncate">{r.n}</span>
+            <span className="font-semibold text-slate-800 dark:text-white truncate">{r.n}</span>
             <span
               className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold ${
                 r.t === 'emerald'
-                  ? 'bg-emerald-50 text-emerald-700'
+                  ? 'bg-emerald-700 text-white'
                   : r.t === 'amber'
-                    ? 'bg-amber-50 text-amber-800'
+                    ? 'bg-amber-600 text-white'
                     : 'bg-sky-50 text-sky-700'
               }`}
             >
@@ -591,7 +596,7 @@ export function ProjectsMock() {
         ].map((c) => (
           <div
             key={c.col}
-            className="rounded-xl border border-slate-100 bg-white p-2 space-y-1.5"
+            className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] space-y-1.5"
           >
             <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">
               {c.col}
@@ -619,11 +624,11 @@ export function SustainabilityMock() {
           <div className="text-[9px] font-bold uppercase tracking-widest text-emerald-700">
             Impact · ESG
           </div>
-          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
             Carbon you can act on.
           </div>
         </div>
-        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-800">
+        <span className="rounded-full border border-emerald-200 bg-emerald-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
           Scope 1–3
         </span>
       </div>
@@ -632,7 +637,7 @@ export function SustainabilityMock() {
         <Telemetry label="vs plan" value="-8%" tone="cyan" />
         <Telemetry label="Packs" value="3" tone="violet" />
       </div>
-      <div className="rounded-xl border border-slate-100 bg-white p-3">
+      <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#151c26]">
         <div className="text-[10px] font-bold text-slate-500 mb-2">Emissions mix</div>
         <div className="flex h-3 overflow-hidden rounded-full">
           <div className="bg-emerald-500 w-[38%]" title="Scope 1" />
@@ -658,11 +663,11 @@ export function FieldgraphMock() {
           <div className="text-[9px] font-bold uppercase tracking-widest text-emerald-700">
             Fieldgraph® · Agri
           </div>
-          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
             Field to buyer, one season.
           </div>
         </div>
-        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-800">
+        <span className="rounded-full border border-emerald-200 bg-emerald-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
           Primary
         </span>
       </div>
@@ -674,9 +679,9 @@ export function FieldgraphMock() {
       </div>
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
         {['Fields', 'Harvest', 'Trade'].map((t, i) => (
-          <div key={t} className="rounded-xl border border-slate-100 bg-white p-2 shadow-sm sm:p-3">
+          <div key={t} className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] shadow-sm sm:p-3">
             <div className="mb-1 text-[9px] font-mono text-neutral-400">0{i + 1}</div>
-            <div className="text-[11px] font-bold text-slate-800 sm:text-xs">{t}</div>
+            <div className="text-[11px] font-bold text-slate-800 sm:text-xs dark:text-white">{t}</div>
             <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-100">
               <div
                 className="h-full rounded-full bg-emerald-500"
@@ -699,11 +704,11 @@ export function QuarrygraphMock() {
           <div className="text-[9px] font-bold uppercase tracking-widest text-amber-700">
             Quarrygraph® · Extractives
           </div>
-          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
             Sites · plant · dispatch.
           </div>
         </div>
-        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[9px] font-black uppercase text-amber-800">
+        <span className="rounded-full border border-amber-200 bg-amber-600 px-2 py-0.5 text-[9px] font-black uppercase text-white">
           Primary
         </span>
       </div>
@@ -713,15 +718,15 @@ export function QuarrygraphMock() {
         <Telemetry label="L/km" value="0.42" tone="violet" />
         <Telemetry label="OTIF" value="97%" tone="emerald" />
       </div>
-      <div className="space-y-2 rounded-xl border border-slate-100 bg-white p-3">
+      <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#151c26]">
         {[
           { left: 'Main pit · G2 base', right: 'Active' },
           { left: 'Temp batching · N2', right: 'GPS' },
           { left: 'Weighbridge #2', right: 'Live' },
         ].map((row) => (
           <div key={row.left} className="flex items-center justify-between gap-2 text-[10px]">
-            <span className="font-semibold text-slate-800">{row.left}</span>
-            <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-black text-amber-800">
+            <span className="font-semibold text-slate-800 dark:text-white">{row.left}</span>
+            <span className="rounded-full bg-amber-600 px-1.5 py-0.5 text-[9px] font-black text-white">
               {row.right}
             </span>
           </div>
@@ -740,11 +745,11 @@ export function FitgraphMock() {
           <div className="text-[9px] font-bold uppercase tracking-widest text-violet-700">
             Fitgraph® · Gym
           </div>
-          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
             Coaches · classes · memberships.
           </div>
         </div>
-        <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[9px] font-black uppercase text-violet-800">
+        <span className="rounded-full border border-violet-200 bg-violet-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
           Tertiary
         </span>
       </div>
@@ -758,9 +763,9 @@ export function FitgraphMock() {
         {['Calendar', 'Coaches', 'Website'].map((t) => (
           <div
             key={t}
-            className="rounded-xl border border-slate-100 bg-white p-2 text-center shadow-sm sm:p-3"
+            className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] text-center shadow-sm sm:p-3"
           >
-            <div className="text-[11px] font-bold text-slate-800 sm:text-xs">{t}</div>
+            <div className="text-[11px] font-bold text-slate-800 sm:text-xs dark:text-white">{t}</div>
             <div className="mt-2 h-8 rounded-lg bg-gradient-to-br from-violet-50 to-cyan-50" />
           </div>
         ))}
@@ -778,11 +783,11 @@ export function PhysiographMock() {
           <div className="text-[9px] font-bold uppercase tracking-widest text-teal-700">
             Physiograph® · Clinic
           </div>
-          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
             Practitioners · diary · rehab.
           </div>
         </div>
-        <span className="rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[9px] font-black uppercase text-teal-800">
+        <span className="rounded-full border border-teal-200 bg-teal-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
           Tertiary
         </span>
       </div>
@@ -796,9 +801,9 @@ export function PhysiographMock() {
         {['Practitioners', 'Diary', 'Messages'].map((t) => (
           <div
             key={t}
-            className="rounded-xl border border-slate-100 bg-white p-2 text-center shadow-sm sm:p-3"
+            className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] text-center shadow-sm sm:p-3"
           >
-            <div className="text-[11px] font-bold text-slate-800 sm:text-xs">{t}</div>
+            <div className="text-[11px] font-bold text-slate-800 sm:text-xs dark:text-white">{t}</div>
             <div className="mt-2 h-8 rounded-lg bg-gradient-to-br from-teal-50 to-cyan-50" />
           </div>
         ))}
@@ -816,11 +821,11 @@ export function DentalgraphMock() {
           <div className="text-[9px] font-bold uppercase tracking-widest text-sky-700">
             Dentalgraph® · Dental
           </div>
-          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
             Staff · surgeries · care plans.
           </div>
         </div>
-        <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[9px] font-black uppercase text-sky-800">
+        <span className="rounded-full border border-sky-200 bg-sky-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
           Tertiary
         </span>
       </div>
@@ -834,9 +839,9 @@ export function DentalgraphMock() {
         {['Staff', 'Diary', 'Website'].map((t) => (
           <div
             key={t}
-            className="rounded-xl border border-slate-100 bg-white p-2 text-center shadow-sm sm:p-3"
+            className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] text-center shadow-sm sm:p-3"
           >
-            <div className="text-[11px] font-bold text-slate-800 sm:text-xs">{t}</div>
+            <div className="text-[11px] font-bold text-slate-800 sm:text-xs dark:text-white">{t}</div>
             <div className="mt-2 h-8 rounded-lg bg-gradient-to-br from-sky-50 to-indigo-50" />
           </div>
         ))}
@@ -893,7 +898,7 @@ export function NavMock() {
                       className={`rounded-md px-2 py-1 text-[10px] font-semibold ${
                         b.label === 'Core OS' && i === 4
                           ? 'bg-[#00b4d8] text-white'
-                          : 'bg-white text-slate-700 shadow-sm'
+                          : 'bg-slate-100 text-slate-800 shadow-sm dark:bg-slate-800 dark:text-white'
                       }`}
                     >
                       {item}
@@ -904,7 +909,7 @@ export function NavMock() {
             ))}
           </div>
         </div>
-        <div className="min-w-0 flex-1 rounded-xl border border-slate-100 bg-white p-2.5 sm:p-3">
+        <div className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26].5 sm:p-3">
           <div className="text-[9px] font-bold uppercase tracking-widest text-[#00b4d8]">
             Active · Operations
           </div>
@@ -1501,7 +1506,7 @@ function GalleryCard({ scene }: { scene: GalleryScene }) {
   const waveId = useId().replace(/:/g, '');
   return (
     <div
-      className={`group relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-gradient-to-br ${wash} shadow-[0_18px_40px_-18px_rgba(15,23,42,0.22)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#00b4d8]/45 hover:shadow-[0_24px_50px_-16px_rgba(0,180,216,0.28)]`}
+      className={`sa-gallery-card group relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-gradient-to-br ${wash} shadow-[0_18px_40px_-18px_rgba(15,23,42,0.22)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#00b4d8]/45 hover:shadow-[0_24px_50px_-16px_rgba(0,180,216,0.28)] dark:border-white/12 dark:from-slate-900 dark:via-slate-950 dark:to-black dark:shadow-black/40`}
     >
       {/* Decorative orbs */}
       <div
@@ -1517,7 +1522,7 @@ function GalleryCard({ scene }: { scene: GalleryScene }) {
         <div className="mb-1 text-[9px] font-black uppercase tracking-[0.18em] text-[#00b4d8]">
           {scene.eyebrow}
         </div>
-        <div className="text-[13px] font-black leading-snug tracking-tight text-slate-900 sm:text-sm">
+        <div className="text-[13px] font-black leading-snug tracking-tight text-slate-900 sm:text-sm dark:text-white">
           {scene.title}
         </div>
 
@@ -1526,12 +1531,12 @@ function GalleryCard({ scene }: { scene: GalleryScene }) {
             {scene.metrics.map((m) => (
               <div
                 key={m.label}
-                className="rounded-xl border border-white/80 bg-white/80 px-2 py-1 shadow-sm backdrop-blur-sm"
+                className="rounded-xl border border-slate-200/90 bg-slate-900/90 px-2 py-1 shadow-sm backdrop-blur-sm dark:border-white/15 dark:bg-slate-950/95"
               >
-                <div className="text-[8px] font-bold uppercase tracking-wider text-slate-400">
+                <div className="text-[8px] font-bold uppercase tracking-wider text-slate-300">
                   {m.label}
                 </div>
-                <div className="text-sm font-black tabular-nums tracking-tight text-slate-900">
+                <div className="text-sm font-black tabular-nums tracking-tight text-white">
                   {m.value}
                 </div>
               </div>
@@ -1553,7 +1558,7 @@ function GalleryCard({ scene }: { scene: GalleryScene }) {
           )}
 
           {scene.kind === 'wave' && (
-            <div className="relative h-14 overflow-hidden rounded-xl border border-cyan-100/80 bg-white/60 sm:h-16">
+            <div className="relative h-14 overflow-hidden rounded-xl border border-cyan-200/80 bg-slate-900/80 sm:h-16 dark:border-cyan-800/50 dark:bg-black/60">
               <div className="absolute inset-0 opacity-40 bg-[radial-gradient(#00b4d8_1px,transparent_1px)] bg-[length:8px_8px]" />
               <svg
                 className="absolute inset-x-0 bottom-0 h-10 w-full"
@@ -1581,22 +1586,22 @@ function GalleryCard({ scene }: { scene: GalleryScene }) {
               {scene.list.slice(0, 5).map((row) => (
                 <div
                   key={row.left}
-                  className="flex items-center justify-between gap-2 rounded-lg border border-white/70 bg-white/75 px-2 py-1 text-[10px] shadow-sm backdrop-blur-sm"
+                  className="flex items-center justify-between gap-2 rounded-lg border border-slate-700/40 bg-slate-900/90 px-2 py-1 text-[10px] shadow-sm backdrop-blur-sm dark:border-white/12 dark:bg-black/70"
                 >
-                  <span className="truncate font-semibold text-slate-800">
+                  <span className="truncate font-semibold text-white">
                     {row.left}
                   </span>
                   <span
                     className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-black ${
                       row.tone === 'emerald'
-                        ? 'bg-emerald-50 text-emerald-700'
+                        ? 'bg-emerald-600 text-white'
                         : row.tone === 'amber'
-                          ? 'bg-amber-50 text-amber-800'
+                          ? 'bg-amber-600 text-white'
                           : row.tone === 'violet'
-                            ? 'bg-violet-50 text-violet-700'
+                            ? 'bg-violet-600 text-white'
                             : row.tone === 'rose'
-                              ? 'bg-rose-50 text-rose-700'
-                              : 'bg-sky-50 text-sky-700'
+                              ? 'bg-rose-600 text-white'
+                              : 'bg-sky-600 text-white'
                     }`}
                   >
                     {row.right}
@@ -1607,7 +1612,7 @@ function GalleryCard({ scene }: { scene: GalleryScene }) {
           )}
 
           {scene.kind === 'map' && (
-            <div className="relative h-14 overflow-hidden rounded-xl border border-slate-100/80 bg-white/70 sm:h-16">
+            <div className="relative h-14 overflow-hidden rounded-xl border border-slate-700/50 bg-slate-900/80 sm:h-16 dark:border-white/10 dark:bg-black/60">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(0,180,216,0.16),transparent_55%)]" />
               <svg
                 viewBox="0 0 200 64"
@@ -1637,11 +1642,11 @@ function GalleryCard({ scene }: { scene: GalleryScene }) {
             <div className="flex flex-wrap items-center gap-1">
               {scene.stages.map((s, i) => (
                 <span key={s} className="inline-flex items-center gap-1">
-                  <span className="rounded-lg border border-cyan-100/90 bg-white/85 px-1.5 py-0.5 text-[9px] font-bold text-slate-800 shadow-sm">
+                  <span className="rounded-lg border border-slate-700/50 bg-slate-900/90 px-1.5 py-0.5 text-[9px] font-bold text-white shadow-sm dark:border-white/15 dark:bg-black/70">
                     {s}
                   </span>
                   {i < scene.stages!.length - 1 && (
-                    <span className="text-[9px] text-slate-300">→</span>
+                    <span className="text-[9px] text-slate-400">→</span>
                   )}
                 </span>
               ))}
@@ -1671,12 +1676,12 @@ function GalleryCard({ scene }: { scene: GalleryScene }) {
                     strokeLinecap="round"
                   />
                 </svg>
-                <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-slate-900">
+                <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-slate-900 dark:text-white">
                   {scene.metrics?.[0]?.value || '—'}
                 </div>
               </div>
               {scene.caption && (
-                <p className="text-[10px] font-medium leading-snug text-slate-500">
+                <p className="text-[10px] font-medium leading-snug text-slate-600 dark:text-slate-300">
                   {scene.caption}
                 </p>
               )}
@@ -1688,7 +1693,7 @@ function GalleryCard({ scene }: { scene: GalleryScene }) {
               {scene.tiles.slice(0, 4).map((t) => (
                 <div
                   key={t}
-                  className="rounded-lg border border-white/80 bg-white/80 px-2 py-1.5 text-center text-[10px] font-bold text-slate-800 shadow-sm backdrop-blur-sm"
+                  className="rounded-lg border border-slate-700/40 bg-slate-900/90 px-2 py-1.5 text-center text-[10px] font-bold text-white shadow-sm backdrop-blur-sm dark:border-white/12 dark:bg-black/70"
                 >
                   {t}
                 </div>
@@ -1701,13 +1706,13 @@ function GalleryCard({ scene }: { scene: GalleryScene }) {
               {(scene.tiles || ['To do', 'Doing', 'Done']).map((col) => (
                 <div
                   key={col}
-                  className="rounded-lg border border-white/80 bg-white/75 p-1.5 shadow-sm"
+                  className="rounded-lg border border-slate-700/40 bg-slate-900/90 p-1.5 shadow-sm dark:border-white/12 dark:bg-black/70"
                 >
-                  <div className="mb-1 text-[8px] font-black uppercase tracking-wider text-slate-400">
+                  <div className="mb-1 text-[8px] font-black uppercase tracking-wider text-slate-300">
                     {col}
                   </div>
-                  <div className="h-6 rounded bg-slate-100/90" />
-                  <div className="mt-1 h-6 rounded bg-slate-50" />
+                  <div className="h-6 rounded bg-slate-700/80" />
+                  <div className="mt-1 h-6 rounded bg-slate-800/80" />
                 </div>
               ))}
             </div>
@@ -1716,12 +1721,12 @@ function GalleryCard({ scene }: { scene: GalleryScene }) {
           {scene.caption &&
             scene.kind !== 'ring' &&
             scene.kind !== 'bars' && (
-              <p className="mt-1.5 text-[9px] font-medium text-slate-500">
+              <p className="mt-1.5 text-[9px] font-medium text-slate-600 dark:text-slate-300">
                 {scene.caption}
               </p>
             )}
           {scene.caption && scene.kind === 'bars' && (
-            <p className="mt-1 text-[9px] font-medium text-slate-500">
+            <p className="mt-1 text-[9px] font-medium text-slate-600 dark:text-slate-300">
               {scene.caption}
             </p>
           )}
