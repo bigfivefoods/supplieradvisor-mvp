@@ -266,7 +266,7 @@ function Inner() {
             <Link
               key={t.label}
               href={t.href}
-              className="rounded-3xl border border-slate-200 bg-white p-4 hover:border-amber-300 transition-all"
+              className="rounded-3xl border border-slate-200 bg-white p-4 hover:border-amber-300 transition-all dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-amber-500/50"
             >
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 {t.label}
@@ -373,7 +373,7 @@ function Inner() {
             <Link
               key={t.label}
               href={t.href}
-              className="rounded-3xl border border-slate-200 bg-white p-4 hover:border-[#00b4d8]/40 hover:shadow-md transition-all"
+              className="rounded-3xl border border-slate-200 bg-white p-4 hover:border-[#00b4d8]/40 hover:shadow-md transition-all dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-[#00b4d8]/50"
             >
               <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                 <t.icon className="w-3.5 h-3.5 text-[#00b4d8]" />
@@ -467,10 +467,14 @@ function Inner() {
             <Link
               key={x.href + x.label}
               href={x.href}
-              className="rounded-2xl border border-sky-100 bg-sky-50/50 px-4 py-4 hover:border-[#00b4d8]"
+              className="rounded-2xl border border-sky-100 bg-sky-50/50 px-4 py-4 hover:border-[#00b4d8] dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-[#00b4d8]/50"
             >
-              <p className="font-bold text-slate-900 text-sm">{x.label}</p>
-              <p className="text-xs text-slate-500 mt-1">{x.desc}</p>
+              <p className="font-bold text-slate-900 text-sm dark:text-neutral-100">
+                {x.label}
+              </p>
+              <p className="text-xs text-slate-500 mt-1 dark:text-neutral-400">
+                {x.desc}
+              </p>
             </Link>
           ))}
         </div>
@@ -767,18 +771,18 @@ function Inner() {
           <Link
             key={a.href + a.label}
             href={a.href}
-            className={`group relative overflow-hidden rounded-2xl border bg-white p-3 hover:shadow-md transition-all min-h-[7.5rem] ${
+            className={`group relative overflow-hidden rounded-2xl border p-3 hover:shadow-md transition-all min-h-[7.5rem] bg-white dark:bg-neutral-950 ${
               a.urgent
-                ? 'border-amber-300 ring-2 ring-amber-200/60'
-                : 'border-slate-200'
+                ? 'border-amber-300 ring-2 ring-amber-200/60 dark:border-amber-500 dark:ring-amber-500/30'
+                : 'border-slate-200 dark:border-neutral-800'
             }`}
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="w-6 h-6 rounded-full bg-slate-900 text-white text-[10px] font-black flex items-center justify-center">
+              <span className="w-6 h-6 rounded-full bg-slate-900 dark:bg-neutral-700 text-white text-[10px] font-black flex items-center justify-center">
                 {a.step}
               </span>
               {a.urgent ? (
-                <span className="text-[9px] font-bold uppercase text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5">
+                <span className="text-[9px] font-bold uppercase text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5 dark:text-amber-200 dark:bg-amber-950 dark:border-amber-700">
                   Now
                 </span>
               ) : null}
@@ -788,8 +792,10 @@ function Inner() {
             >
               <a.icon className="w-3.5 h-3.5" />
             </div>
-            <p className="font-black text-slate-900 text-sm">{a.label}</p>
-            <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+            <p className="font-black text-slate-900 text-sm dark:text-neutral-100">
+              {a.label}
+            </p>
+            <p className="text-[11px] text-slate-500 mt-0.5 leading-snug dark:text-neutral-400">
               {a.desc}
             </p>
           </Link>
@@ -838,13 +844,17 @@ function Inner() {
           <Link
             key={a.href}
             href={a.href}
-            className="rounded-2xl border border-slate-200 bg-white p-3 hover:border-[#00b4d8]/40 transition-all"
+            className="rounded-2xl border border-slate-200 bg-white p-3 hover:border-[#00b4d8]/40 transition-all dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-[#00b4d8]/50"
           >
             <div className="flex items-center gap-2 mb-1">
-              <a.icon className="w-3.5 h-3.5 text-[#0077b6]" />
-              <p className="font-bold text-sm text-slate-900">{a.label}</p>
+              <a.icon className="w-3.5 h-3.5 text-[#0077b6] dark:text-[#00b4d8]" />
+              <p className="font-bold text-sm text-slate-900 dark:text-neutral-100">
+                {a.label}
+              </p>
             </div>
-            <p className="text-[11px] text-slate-500">{a.desc}</p>
+            <p className="text-[11px] text-slate-500 dark:text-neutral-400">
+              {a.desc}
+            </p>
           </Link>
         ))}
       </div>

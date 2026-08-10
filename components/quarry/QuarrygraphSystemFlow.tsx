@@ -428,9 +428,31 @@ export default function QuarrygraphSystemFlow({
           </div>
 
           <div>
-            <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">
-              Who does what
-            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-400">
+                Who does what
+              </h3>
+              <div className="flex flex-wrap items-center gap-2">
+                {(
+                  [
+                    ['office', 'Quarry office'],
+                    ['ops', 'Plant & pit'],
+                    ['trade', 'Dispatch'],
+                  ] as const
+                ).map(([key, label]) => (
+                  <span
+                    key={key}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${ROLE_STYLES[key].card} ${ROLE_STYLES[key].title}`}
+                  >
+                    <span
+                      className={`h-2 w-2 rounded-full shrink-0 ${ROLE_STYLES[key].swatch}`}
+                      aria-hidden
+                    />
+                    {label}
+                  </span>
+                ))}
+              </div>
+            </div>
             <div className="grid lg:grid-cols-3 gap-3">
               {ROLE_CARDS.map((card) => (
                 <RoleCard key={card.title} {...card} />
@@ -545,6 +567,83 @@ export default function QuarrygraphSystemFlow({
   );
 }
 
+/** Role colour codes — distinct in light and dark for “Who does what”. */
+const ROLE_STYLES = {
+  office: {
+    // Amber — quarry office
+    card:
+      'border-amber-300 bg-amber-50/50 dark:border-amber-400 dark:bg-amber-950 dark:ring-1 dark:ring-amber-500/40',
+    badge: 'bg-amber-800 dark:bg-amber-500',
+    chip:
+      'bg-amber-800 text-white dark:bg-amber-500 dark:text-amber-950',
+    title: 'text-slate-900 dark:text-amber-50',
+    subtitle: 'text-slate-500 dark:text-amber-200/80',
+    doesLabel: 'text-amber-800 dark:text-amber-300',
+    doesText: 'text-slate-700 dark:text-amber-50/90',
+    link: 'text-amber-900 dark:text-amber-300',
+    swatch: 'bg-amber-600 dark:bg-amber-400',
+    label: 'Quarry office',
+  },
+  ops: {
+    // Violet — plant & pit ops (distinct from amber office)
+    card:
+      'border-violet-300 bg-violet-50/50 dark:border-violet-400 dark:bg-violet-950 dark:ring-1 dark:ring-violet-500/40',
+    badge: 'bg-violet-700 dark:bg-violet-500',
+    chip:
+      'bg-violet-700 text-white dark:bg-violet-500 dark:text-white',
+    title: 'text-slate-900 dark:text-violet-50',
+    subtitle: 'text-slate-500 dark:text-violet-200/80',
+    doesLabel: 'text-violet-700 dark:text-violet-300',
+    doesText: 'text-slate-700 dark:text-violet-50/90',
+    link: 'text-violet-800 dark:text-violet-300',
+    swatch: 'bg-violet-600 dark:bg-violet-400',
+    label: 'Plant & pit',
+  },
+  trade: {
+    // Cyan — dispatch & trade
+    card:
+      'border-cyan-300 bg-sky-50/50 dark:border-cyan-400 dark:bg-cyan-950 dark:ring-1 dark:ring-cyan-500/40',
+    badge: 'bg-sky-600 dark:bg-cyan-500',
+    chip:
+      'bg-sky-600 text-white dark:bg-cyan-500 dark:text-cyan-950',
+    title: 'text-slate-900 dark:text-cyan-50',
+    subtitle: 'text-slate-500 dark:text-cyan-200/80',
+    doesLabel: 'text-sky-700 dark:text-cyan-300',
+    doesText: 'text-slate-700 dark:text-cyan-50/90',
+    link: 'text-sky-800 dark:text-cyan-300',
+    swatch: 'bg-sky-500 dark:bg-cyan-400',
+    label: 'Dispatch',
+  },
+} as const;
+
+function roleToneFromWho(who: string): keyof typeof ROLE_STYLES {
+  const w = who.toLowerCase();
+  if (
+    w.includes('plant') ||
+    w.includes('pit') ||
+    w.includes('ops') ||
+    w.includes('fleet') ||
+    w.includes('crew') ||
+    w.includes('blast') ||
+    w.includes('crush') ||
+    w.includes('labour')
+  ) {
+    return 'ops';
+  }
+  if (
+    w.includes('dispatch') ||
+    w.includes('trade') ||
+    w.includes('weigh') ||
+    w.includes('ticket') ||
+    w.includes('qa') ||
+    w.includes('customer')
+  ) {
+    return 'trade';
+  }
+  // System / office default
+  return 'office';
+}
+
 function RoleCard({
   tone,
   icon: Icon,
@@ -562,64 +661,68 @@ function RoleCard({
   doesNot: string[];
   href: string;
 }) {
-  const ring =
-    tone === 'office'
-      ? 'border-amber-200 bg-amber-50/40'
-      : tone === 'ops'
-        ? 'border-stone-200 bg-stone-50/60'
-        : 'border-sky-200 bg-sky-50/40';
-  const badge =
-    tone === 'office'
-      ? 'bg-amber-800'
-      : tone === 'ops'
-        ? 'bg-stone-700'
-        : 'bg-sky-600';
+  const s = ROLE_STYLES[tone];
   return (
-    <div className={`rounded-2xl border p-4 flex flex-col ${ring}`}>
+    <div className={`rounded-2xl border p-4 flex flex-col ${s.card}`}>
       <div className="flex items-center gap-2 mb-2">
         <div
-          className={`w-9 h-9 rounded-xl ${badge} text-white flex items-center justify-center`}
+          className={`w-9 h-9 rounded-xl ${s.badge} text-white flex items-center justify-center shadow-sm`}
         >
           <Icon className="w-4 h-4" />
         </div>
-        <div>
-          <p className="font-black text-slate-900 text-sm">{title}</p>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className={`font-black text-sm ${s.title}`}>{title}</p>
+            <span
+              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${s.chip}`}
+            >
+              {s.label}
+            </span>
+          </div>
+          <p
+            className={`text-[10px] font-bold uppercase tracking-wider ${s.subtitle}`}
+          >
             {subtitle}
           </p>
         </div>
       </div>
-      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800 mb-1">
+      <p
+        className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${s.doesLabel}`}
+      >
         Does
       </p>
       <ul className="space-y-1 flex-1 mb-2">
         {does.map((p) => (
           <li
             key={p}
-            className="text-[12px] text-slate-700 leading-snug flex gap-1.5"
+            className={`text-[12px] leading-snug flex gap-1.5 ${s.doesText}`}
           >
-            <span className="text-emerald-600 font-bold shrink-0">✓</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-bold shrink-0">
+              ✓
+            </span>
             {p}
           </li>
         ))}
       </ul>
-      <p className="text-[10px] font-bold uppercase tracking-wider text-rose-700 mb-1">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 mb-1">
         Does not
       </p>
       <ul className="space-y-1 mb-3">
         {doesNot.map((p) => (
           <li
             key={p}
-            className="text-[12px] text-slate-600 leading-snug flex gap-1.5"
+            className="text-[12px] text-slate-600 dark:text-neutral-300 leading-snug flex gap-1.5"
           >
-            <span className="text-rose-500 font-bold shrink-0">✗</span>
+            <span className="text-rose-500 dark:text-rose-400 font-bold shrink-0">
+              ✗
+            </span>
             {p}
           </li>
         ))}
       </ul>
       <Link
         href={href}
-        className="text-[11px] font-bold text-amber-900 inline-flex items-center gap-1"
+        className={`text-[11px] font-bold inline-flex items-center gap-1 ${s.link}`}
       >
         Open workspace <ArrowRight className="w-3 h-3" />
       </Link>
@@ -629,26 +732,32 @@ function RoleCard({
 
 function PhaseStepCard({ step }: { step: PhaseStep }) {
   const Icon = step.icon;
+  const tone = roleToneFromWho(step.who);
+  const s = ROLE_STYLES[tone];
   return (
     <Link
       href={step.href}
-      className="flex-1 min-w-0 rounded-2xl border border-slate-200 bg-white px-3 py-3 hover:border-amber-300 hover:bg-amber-50/30 transition-colors"
+      className="flex-1 min-w-0 rounded-2xl border border-slate-200 bg-white px-3 py-3 hover:border-amber-300 hover:bg-amber-50/30 transition-colors dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-amber-500/40 dark:hover:bg-neutral-900"
     >
       <div className="flex items-start gap-2">
-        <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-900 flex items-center justify-center shrink-0 text-[10px] font-black">
+        <div
+          className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-[10px] font-black text-white ${s.badge}`}
+        >
           {step.n}
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
-            <Icon className="w-3.5 h-3.5 text-amber-800 shrink-0" />
-            <p className="text-xs font-black text-slate-900 truncate">
+            <Icon className={`w-3.5 h-3.5 shrink-0 ${s.doesLabel}`} />
+            <p className="text-xs font-black text-slate-900 dark:text-neutral-100 truncate">
               {step.title}
             </p>
           </div>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700/80 mt-0.5">
+          <span
+            className={`inline-flex mt-1 rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${s.chip}`}
+          >
             {step.who}
-          </p>
-          <p className="text-[11px] text-slate-600 mt-1 leading-snug">
+          </span>
+          <p className="text-[11px] text-slate-600 dark:text-neutral-400 mt-1 leading-snug">
             {step.desc}
           </p>
         </div>

@@ -524,9 +524,31 @@ export default function NsnpSystemFlow({
 
           {/* Who does what */}
           <div>
-            <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">
-              Who does what
-            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-400">
+                Who does what
+              </h3>
+              <div className="flex flex-wrap items-center gap-2">
+                {(
+                  [
+                    ['dbe', 'DBE / PEU'],
+                    ['school', 'Schools'],
+                    ['sp', 'Service providers'],
+                  ] as const
+                ).map(([key, label]) => (
+                  <span
+                    key={key}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${ROLE_STYLES[key].card} ${ROLE_STYLES[key].title}`}
+                  >
+                    <span
+                      className={`h-2 w-2 rounded-full shrink-0 ${ROLE_STYLES[key].swatch}`}
+                      aria-hidden
+                    />
+                    {label}
+                  </span>
+                ))}
+              </div>
+            </div>
             <div className="grid lg:grid-cols-3 gap-3">
               {ROLE_CARDS.map((card) => (
                 <RoleCard
@@ -644,6 +666,63 @@ export default function NsnpSystemFlow({
   );
 }
 
+/** Role colour codes — distinct in light and dark for “Who does what”. */
+const ROLE_STYLES = {
+  dbe: {
+    // Sky / SA blue — DBE / PEU
+    card:
+      'border-sky-300 bg-sky-50/50 dark:border-sky-400 dark:bg-sky-950 dark:ring-1 dark:ring-sky-500/40',
+    badge: 'bg-sky-600 dark:bg-sky-500',
+    chip: 'bg-sky-600 text-white dark:bg-sky-500 dark:text-sky-950',
+    title: 'text-slate-900 dark:text-sky-50',
+    subtitle: 'text-slate-500 dark:text-sky-200/80',
+    doesLabel: 'text-sky-700 dark:text-sky-300',
+    doesText: 'text-slate-700 dark:text-sky-50/90',
+    link: 'text-[#0077b6] dark:text-sky-300',
+    swatch: 'bg-sky-500 dark:bg-sky-400',
+    label: 'DBE / PEU',
+  },
+  school: {
+    // Emerald — schools
+    card:
+      'border-emerald-300 bg-emerald-50/50 dark:border-emerald-400 dark:bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40',
+    badge: 'bg-emerald-600 dark:bg-emerald-500',
+    chip:
+      'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-emerald-950',
+    title: 'text-slate-900 dark:text-emerald-50',
+    subtitle: 'text-slate-500 dark:text-emerald-200/80',
+    doesLabel: 'text-emerald-700 dark:text-emerald-300',
+    doesText: 'text-slate-700 dark:text-emerald-50/90',
+    link: 'text-emerald-800 dark:text-emerald-300',
+    swatch: 'bg-emerald-500 dark:bg-emerald-400',
+    label: 'School',
+  },
+  sp: {
+    // Amber — service providers
+    card:
+      'border-amber-300 bg-amber-50/50 dark:border-amber-400 dark:bg-amber-950 dark:ring-1 dark:ring-amber-500/40',
+    badge: 'bg-amber-600 dark:bg-amber-500',
+    chip:
+      'bg-amber-600 text-white dark:bg-amber-500 dark:text-amber-950',
+    title: 'text-slate-900 dark:text-amber-50',
+    subtitle: 'text-slate-500 dark:text-amber-200/80',
+    doesLabel: 'text-amber-800 dark:text-amber-300',
+    doesText: 'text-slate-700 dark:text-amber-50/90',
+    link: 'text-amber-800 dark:text-amber-300',
+    swatch: 'bg-amber-500 dark:bg-amber-400',
+    label: 'SP',
+  },
+} as const;
+
+function roleToneFromStepRole(
+  role: PhaseStep['role']
+): keyof typeof ROLE_STYLES {
+  if (role === 'school') return 'school';
+  if (role === 'sp') return 'sp';
+  // dbe, peu, shared → programme / DBE colour for shared control
+  return 'dbe';
+}
+
 function RoleCard({
   tone,
   icon: Icon,
@@ -663,73 +742,79 @@ function RoleCard({
   href: string;
   highlighted?: boolean;
 }) {
-  const ring =
-    tone === 'dbe'
-      ? 'border-sky-200 bg-sky-50/40'
-      : tone === 'school'
-        ? 'border-emerald-200 bg-emerald-50/40'
-        : 'border-amber-200 bg-amber-50/40';
-  const badge =
-    tone === 'dbe'
-      ? 'bg-sky-600'
-      : tone === 'school'
-        ? 'bg-emerald-600'
-        : 'bg-amber-600';
+  const s = ROLE_STYLES[tone];
   return (
     <div
-      className={`rounded-2xl border p-4 flex flex-col ${ring} ${
-        highlighted ? 'ring-2 ring-[#00b4d8] shadow-md' : ''
+      className={`rounded-2xl border p-4 flex flex-col ${s.card} ${
+        highlighted
+          ? 'ring-2 ring-[#00b4d8] shadow-md dark:ring-sky-400'
+          : ''
       }`}
     >
       {highlighted ? (
-        <p className="text-[10px] font-black uppercase tracking-wider text-[#0077b6] mb-2">
+        <p className="text-[10px] font-black uppercase tracking-wider text-[#0077b6] dark:text-sky-300 mb-2">
           Your role
         </p>
       ) : null}
       <div className="flex items-center gap-2 mb-2">
         <div
-          className={`w-9 h-9 rounded-xl ${badge} text-white flex items-center justify-center`}
+          className={`w-9 h-9 rounded-xl ${s.badge} text-white flex items-center justify-center shadow-sm`}
         >
           <Icon className="w-4 h-4" />
         </div>
-        <div>
-          <p className="font-black text-slate-900 text-sm">{title}</p>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className={`font-black text-sm ${s.title}`}>{title}</p>
+            <span
+              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${s.chip}`}
+            >
+              {s.label}
+            </span>
+          </div>
+          <p
+            className={`text-[10px] font-bold uppercase tracking-wider ${s.subtitle}`}
+          >
             {subtitle}
           </p>
         </div>
       </div>
-      <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 mb-1">
+      <p
+        className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${s.doesLabel}`}
+      >
         Does
       </p>
       <ul className="space-y-1 flex-1 mb-2">
         {does.map((p) => (
           <li
             key={p}
-            className="text-[12px] text-slate-700 leading-snug flex gap-1.5"
+            className={`text-[12px] leading-snug flex gap-1.5 ${s.doesText}`}
           >
-            <span className="text-emerald-600 font-bold shrink-0">✓</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-bold shrink-0">
+              ✓
+            </span>
             {p}
           </li>
         ))}
       </ul>
-      <p className="text-[10px] font-bold uppercase tracking-wider text-rose-700 mb-1">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 mb-1">
         Does not
       </p>
       <ul className="space-y-1 mb-3">
         {doesNot.map((p) => (
           <li
             key={p}
-            className="text-[12px] text-slate-600 leading-snug flex gap-1.5"
+            className="text-[12px] text-slate-600 dark:text-neutral-300 leading-snug flex gap-1.5"
           >
-            <span className="text-rose-500 font-bold shrink-0">✗</span>
+            <span className="text-rose-500 dark:text-rose-400 font-bold shrink-0">
+              ✗
+            </span>
             {p}
           </li>
         ))}
       </ul>
       <Link
         href={href}
-        className="text-[11px] font-bold text-[#0077b6] inline-flex items-center gap-1"
+        className={`text-[11px] font-bold inline-flex items-center gap-1 ${s.link}`}
       >
         Open workspace <ArrowRight className="w-3 h-3" />
       </Link>
@@ -745,33 +830,40 @@ function PhaseStepCard({
   mine: boolean;
 }) {
   const Icon = step.icon;
+  const s = ROLE_STYLES[roleToneFromStepRole(step.role)];
   return (
     <Link
       href={step.href}
-      className={`flex-1 min-w-0 rounded-2xl border px-3 py-3 transition-all hover:shadow-sm hover:bg-white group ${
+      className={`flex-1 min-w-0 rounded-2xl border px-3 py-3 transition-all hover:shadow-sm group dark:hover:bg-neutral-900 ${
         mine
-          ? 'border-[#00b4d8] bg-[#e8f8fc] ring-1 ring-[#00b4d8]/40'
-          : 'border-slate-200 bg-slate-50/80 hover:border-slate-300'
+          ? 'border-[#00b4d8] bg-[#e8f8fc] ring-1 ring-[#00b4d8]/40 dark:border-sky-500 dark:bg-sky-950/60 dark:ring-sky-500/40'
+          : 'border-slate-200 bg-slate-50/80 hover:border-slate-300 hover:bg-white dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-neutral-700'
       }`}
     >
       <div className="flex items-center gap-2 mb-1.5">
-        <span className="w-7 h-7 rounded-full bg-slate-900 text-white text-[10px] font-black flex items-center justify-center">
+        <span
+          className={`w-7 h-7 rounded-full text-white text-[10px] font-black flex items-center justify-center ${s.badge}`}
+        >
           {step.n}
         </span>
-        <Icon className="w-4 h-4 text-[#0077b6]" />
+        <Icon className={`w-4 h-4 ${s.doesLabel}`} />
         {mine ? (
-          <span className="ml-auto text-[9px] font-black uppercase tracking-wider text-[#0077b6]">
+          <span className="ml-auto text-[9px] font-black uppercase tracking-wider text-[#0077b6] dark:text-sky-300">
             You
           </span>
         ) : null}
       </div>
-      <p className="text-xs font-black text-slate-900 group-hover:text-[#0077b6]">
+      <p className="text-xs font-black text-slate-900 group-hover:text-[#0077b6] dark:text-neutral-100 dark:group-hover:text-sky-300">
         {step.title}
       </p>
-      <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-0.5">
+      <span
+        className={`inline-flex mt-1 rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${s.chip}`}
+      >
         {step.who}
+      </span>
+      <p className="text-[11px] text-slate-600 dark:text-neutral-400 mt-1 leading-snug">
+        {step.desc}
       </p>
-      <p className="text-[11px] text-slate-600 mt-1 leading-snug">{step.desc}</p>
     </Link>
   );
 }

@@ -280,19 +280,19 @@ function HubInner() {
         <h2 className="text-sm font-black uppercase tracking-widest text-amber-900/70 mb-4">
           Core · Quarries · Pits · Products · Reserves · Production
         </h2>
-        <HubModuleGrid modules={CORE} />
+        <HubModuleGrid modules={CORE} uniformDark />
       </div>
       <div className="mt-10">
         <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-4">
           Ops · Plant · Dispatch · Vehicles (metrics) · Labour
         </h2>
-        <HubModuleGrid modules={OPS} />
+        <HubModuleGrid modules={OPS} uniformDark />
       </div>
       <div className="mt-10">
         <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-4">
           Assure · Quality · Compliance · Key reports · Trade
         </h2>
-        <HubModuleGrid modules={ASSURE} />
+        <HubModuleGrid modules={ASSURE} uniformDark />
       </div>
     </QuarrygraphPage>
   );

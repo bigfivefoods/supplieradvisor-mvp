@@ -297,14 +297,14 @@ function HubInner() {
         <h2 className="text-sm font-black uppercase tracking-widest text-emerald-800/70 mb-4">
           Core · Field & agronomic · Estimates · Harvest · Vehicles
         </h2>
-        <HubModuleGrid modules={CORE_MODULES} />
+        <HubModuleGrid modules={CORE_MODULES} uniformDark />
       </div>
 
       <div className="mt-10">
         <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-4">
           Extended · Season ops & network
         </h2>
-        <HubModuleGrid modules={EXTENDED_MODULES} />
+        <HubModuleGrid modules={EXTENDED_MODULES} uniformDark />
       </div>
     </FieldgraphPage>
   );
