@@ -1,6 +1,9 @@
 /**
  * Session / care pack ledger for FitAdvisor + clinic Advisors.
  * Issue packs, consume on attendance, expiry warnings.
+ *
+ * Tracks entitlements only — does not process payment. Packs are sold and
+ * paid for outside SupplierAdvisor; SA records remaining sessions.
  */
 
 export type AdvisorPackLedgerEntry = {

@@ -11,8 +11,6 @@ export type AdvisorEventType =
   | 'pack.issued'
   | 'pack.consumed'
   | 'pack.expired_warn'
-  | 'deposit.required'
-  | 'deposit.paid'
   | 'waitlist.promoted'
   | 'reminder.sent'
   | 'recall.due'
@@ -70,27 +68,22 @@ export function appendAdvisorEvent(
 
 /**
  * Side-effect hooks — best-effort, never throws.
- * Accounting / CRM integration points for Phase D.
+ *
+ * Payments: SupplierAdvisor only collects platform subscription fees
+ * (company → SA via existing Paystack billing). Module→client money
+ * (class fees, deposits, care packs) is never processed here.
  */
 export async function dispatchAdvisorEventSideEffects(
   event: AdvisorEvent
-): Promise<{ accounting?: string; crm?: string }> {
-  const out: { accounting?: string; crm?: string } = {};
+): Promise<{ crm?: string }> {
+  const out: { crm?: string } = {};
   try {
-    // Revenue-ish events can later create AR / payment claims
-    if (
-      event.type === 'deposit.paid' ||
-      event.type === 'pack.issued' ||
-      (event.type === 'pack.consumed' && event.amount_zar)
-    ) {
-      out.accounting = 'queued'; // stub — wire to /api/accounting when ready
-    }
     if (
       event.type === 'booking.created' ||
       event.type === 'attendance.marked' ||
       event.type === 'recall.due'
     ) {
-      out.crm = 'queued'; // stub — wire to customers leads/activity
+      out.crm = 'queued'; // stub — activity feed later
     }
   } catch {
     /* soft */

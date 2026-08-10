@@ -390,7 +390,6 @@ export type DentalBooking = {
   reminder_count?: number;
   waitlist_offered_at?: string | null;
   waitlist_accepted_at?: string | null;
-  deposit?: import('@/lib/services/advisor-deposits').DepositPaymentState | null;
   /** Issued when marked attended — public feedback link */
   feedback_token?: string | null;
   feedback_requested_at?: string | null;
@@ -414,7 +413,6 @@ export type DentalPublicSettings = {
   staff_roles?: string[];
   /** Practice open days & hours for schedule calendar */
   working_hours?: import('@/lib/schedule/working-hours').WorkingHours;
-  deposit_policy?: import('@/lib/services/advisor-deposits').DepositPolicy;
   reschedule_policy?: import('@/lib/services/advisor-reschedule').ReschedulePolicy;
   marketplace?: {
     listed?: boolean;

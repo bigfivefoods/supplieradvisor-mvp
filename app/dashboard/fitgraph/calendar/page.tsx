@@ -292,7 +292,7 @@ export default function CalendarPage() {
     <FitgraphWorkbench
       title="Calendar"
       titleAccent="gym schedule"
-      description="Click empty time to schedule. Multiple coaches can run at the same time — concurrent sessions sit side-by-side on the diary (large floor / train anywhere). Member payments stay your own arrangement."
+      description="Click empty time to schedule. Multiple coaches can run at the same time — concurrent sessions sit side-by-side (large floor / train anywhere). SupplierAdvisor only bills your platform subscription — member fees stay your own arrangement."
     >
       {loading || !store ? (
         <LoadingBlock />

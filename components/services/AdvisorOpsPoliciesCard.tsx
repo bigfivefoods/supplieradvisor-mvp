@@ -28,8 +28,9 @@ type Props = {
 
 /**
  * Desk ops: reschedule rules + marketplace.
- * Client payments (deposits, packs paid online) stay off-platform —
- * practices arrange money with members themselves.
+ *
+ * Money rule: SupplierAdvisor only bills companies for the platform
+ * subscription. Gyms/clinics collect member fees outside SA.
  */
 export function AdvisorOpsPoliciesCard({
   reschedule,
@@ -70,9 +71,9 @@ export function AdvisorOpsPoliciesCard({
           Ops policies · marketplace
         </p>
         <p className="text-[11px] text-slate-500">
-          Reschedule rules and public listing. Member payments stay your own
-          arrangement — SupplierAdvisor does not collect client fees for the
-          gym.
+          Reschedule rules and public listing. The only payment SupplierAdvisor
+          manages is your company&apos;s platform subscription — member /
+          patient fees stay your own arrangement.
         </p>
       </div>
 
@@ -144,7 +145,8 @@ export function AdvisorOpsPoliciesCard({
           </label>
         </div>
         <p className="text-[10px] text-slate-400">
-          Late fee is a desk policy note only — collect outside SupplierAdvisor.
+          Late fee is a desk policy reminder only (not charged through
+          SupplierAdvisor).
         </p>
       </section>
 

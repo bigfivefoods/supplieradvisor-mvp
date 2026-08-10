@@ -522,8 +522,6 @@ export type FitBooking = {
   reminder_count?: number;
   waitlist_offered_at?: string | null;
   waitlist_accepted_at?: string | null;
-  /** Paystack / desk deposit state */
-  deposit?: import('@/lib/services/advisor-deposits').DepositPaymentState | null;
   /** Issued when marked attended — public feedback link */
   feedback_token?: string | null;
   feedback_requested_at?: string | null;
