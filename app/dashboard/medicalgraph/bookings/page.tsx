@@ -17,6 +17,7 @@ export default function BookingsPage() {
   const [form, setForm] = useState({
     appointment_id: '',
     patient_id: '',
+    family_member_id: '',
   });
 
   const add = async () => {
@@ -30,11 +31,15 @@ export default function BookingsPage() {
       record: {
         appointment_id: form.appointment_id,
         patient_id: form.patient_id,
+        family_member_id: form.family_member_id || null,
         status: 'booked',
         source: 'desk',
       },
     });
-    toast.success('Booking saved');
+    toast.success(
+      form.family_member_id ? 'Family member booked' : 'Booking saved'
+    );
+    setForm((f) => ({ ...f, family_member_id: '' }));
   };
 
   const mark = async (id: string, status: string) => {
@@ -133,16 +138,51 @@ export default function BookingsPage() {
               className={fc()}
               value={form.patient_id}
               onChange={(e) =>
-                setForm((f) => ({ ...f, patient_id: e.target.value }))
+                setForm((f) => ({
+                  ...f,
+                  patient_id: e.target.value,
+                  family_member_id: '',
+                }))
               }
             >
               <option value="">Patient…</option>
               {store.patients.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.code} · {p.name}
+                  {p.booking_soft_block ? ' ⚠ no-shows' : ''}
                 </option>
               ))}
             </select>
+            {form.patient_id
+              ? (() => {
+                  const fam = (
+                    store.patients.find((p) => p.id === form.patient_id)
+                      ?.family || []
+                  ).filter((m) => m.active !== false);
+                  if (!fam.length) return null;
+                  return (
+                    <select
+                      className={fc()}
+                      value={form.family_member_id}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          family_member_id: e.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">Attendee: account holder</option>
+                      {fam.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name}
+                          {m.relationship ? ` · ${m.relationship}` : ''}
+                          {m.is_minor ? ' (child)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  );
+                })()
+              : null}
           </FormCard>
           <DataTable
             headers={[
@@ -159,12 +199,15 @@ export default function BookingsPage() {
               );
               const svc = store.services.find((s) => s.id === apt?.service_id);
               const pat = store.patients.find((p) => p.id === b.patient_id);
+              const attendee = b.family_member_name
+                ? `${pat?.name || '—'} → ${b.family_member_name}`
+                : pat?.name || '—';
               return {
                 id: b.id,
                 cells: [
                   apt ? `${apt.date} ${apt.start_time}` : '—',
                   svc?.name || '—',
-                  pat?.name || '—',
+                  attendee,
                   b.status,
                   b.feedback_submitted_at ? (
                     <span

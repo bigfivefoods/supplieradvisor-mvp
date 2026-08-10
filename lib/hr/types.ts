@@ -48,6 +48,58 @@ export const EMPLOYMENT_TYPES: { value: EmploymentType; label: string }[] = [
   { value: 'casual', label: 'Casual' },
 ];
 
+/**
+ * People module is permanent staff only (indefinite employment).
+ * Temporary, contract, casual, intern labour stay in operational modules
+ * (CropAdvisor gangs, Quarry crews, etc.) and are not dual-written here.
+ */
+export const PEOPLE_EMPLOYMENT_TYPES: {
+  value: EmploymentType;
+  label: string;
+}[] = [
+  { value: 'full_time', label: 'Permanent · full time' },
+  { value: 'part_time', label: 'Permanent · part time' },
+];
+
+/** Permanent / indefinite employment eligible for the People directory */
+export function isPermanentEmploymentType(
+  raw?: string | null
+): boolean {
+  const t = String(raw || '')
+    .toLowerCase()
+    .trim()
+    .replace(/-/g, '_');
+  if (!t) return false;
+  return (
+    t === 'permanent' ||
+    t === 'full_time' ||
+    t === 'fulltime' ||
+    t === 'part_time' ||
+    t === 'parttime' ||
+    t === 'indefinite'
+  );
+}
+
+/** Normalise to a People employment_type column value */
+export function toPeopleEmploymentType(
+  raw?: string | null
+): 'full_time' | 'part_time' | null {
+  const t = String(raw || '')
+    .toLowerCase()
+    .trim()
+    .replace(/-/g, '_');
+  if (t === 'part_time' || t === 'parttime') return 'part_time';
+  if (
+    t === 'permanent' ||
+    t === 'full_time' ||
+    t === 'fulltime' ||
+    t === 'indefinite'
+  ) {
+    return 'full_time';
+  }
+  return null;
+}
+
 export const EMPLOYEE_STATUSES: { value: EmployeeStatus; label: string }[] = [
   { value: 'active', label: 'Active' },
   { value: 'probation', label: 'Probation' },

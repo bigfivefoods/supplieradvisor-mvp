@@ -202,9 +202,12 @@ export async function POST(request: NextRequest) {
 
     upsertEntity(store, entity, rec, now);
 
-    // Dual-write crews → People directory
-    let peopleSync: { employeeId: number | null; created?: boolean } | null =
-      null;
+    // Dual-write permanent crews only → People directory
+    let peopleSync: {
+      employeeId: number | null;
+      created?: boolean;
+      error?: string;
+    } | null = null;
     if (entity === 'crews') {
       const crewId = String(
         rec.id || store.crews[store.crews.length - 1]?.id || ''
@@ -232,9 +235,12 @@ export async function POST(request: NextRequest) {
       message:
         entity === 'crews' && peopleSync?.employeeId
           ? peopleSync.created
-            ? 'Crew saved and added to People directory'
-            : 'Crew saved and People record updated'
-          : undefined,
+            ? 'Permanent crew saved and added to People directory'
+            : 'Permanent crew saved and People record updated'
+          : entity === 'crews' && peopleSync && !peopleSync.employeeId
+            ? peopleSync.error ||
+              'Crew saved — only permanent labour is dual-written to People'
+            : undefined,
     });
   } catch (e: unknown) {
     console.error('[quarrygraph]', e);

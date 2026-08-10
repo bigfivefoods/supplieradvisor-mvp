@@ -30,6 +30,9 @@ import {
   TelemetryCard,
   type HubModule,
 } from '@/components/chrome/CommandHubChrome';
+import { AdvisorOutcomesPanel } from '@/components/services/AdvisorOutcomesPanel';
+import { AdvisorRecallPanel } from '@/components/services/AdvisorRecallPanel';
+import { AdvisorTodayBoard } from '@/components/services/AdvisorTodayBoard';
 
 function hubModules(hasFrontDesk: boolean): HubModule[] {
   return [
@@ -157,8 +160,41 @@ function Inner() {
   const [summary, setSummary] = useState<Record<string, number | boolean> | null>(
     null
   );
+  const [store, setStore] = useState<{
+    sessions?: Array<{
+      id: string;
+      date: string;
+      start_time: string;
+      class_type_id?: string;
+      coach_id?: string | null;
+      status?: string;
+      location?: string;
+    }>;
+    bookings?: Array<{
+      id: string;
+      session_id: string;
+      client_id: string;
+      status: string;
+      family_member_name?: string | null;
+    }>;
+    clients?: Array<{ id: string; name: string }>;
+    coaches?: Array<{ id: string; name: string }>;
+    class_types?: Array<{ id: string; name: string }>;
+  } | null>(null);
+  const [outcomes, setOutcomes] = useState<import('@/lib/services/advisor-outcomes').OutcomesSnapshot | null>(null);
+  const [recalls, setRecalls] = useState<
+    Array<{
+      id: string;
+      name: string;
+      email?: string;
+      last_attended: string | null;
+      days_since: number | null;
+    }>
+  >([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
+  const [remindersBusy, setRemindersBusy] = useState(false);
+  const [markBusy, setMarkBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -169,6 +205,18 @@ function Inner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
       setSummary(data.summary || null);
+      setStore(data.store || null);
+      // outcomes
+      const oRes = await fetch('/api/fitness/fitgraph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, action: 'outcomes', period_days: 30 }),
+      });
+      const oData = await oRes.json();
+      if (oRes.ok) {
+        setOutcomes(oData.outcomes || null);
+        setRecalls(oData.recalls || []);
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
     } finally {
@@ -191,13 +239,107 @@ function Inner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Seed failed');
       setSummary(data.summary || null);
+      setStore(data.store || null);
       toast.success('Demo gym loaded — coaches, classes, subscriptions, public calendar');
+      void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Seed failed');
     } finally {
       setSeeding(false);
     }
   };
+
+  const sendReminders = async () => {
+    setRemindersBusy(true);
+    try {
+      const res = await fetch('/api/fitness/fitgraph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, action: 'send_reminders' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Reminders failed');
+      toast.success(data.message || 'Reminders sent');
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Reminders failed');
+    } finally {
+      setRemindersBusy(false);
+    }
+  };
+
+  const markBooking = async (
+    bookingId: string,
+    status: 'attended' | 'no_show' | 'cancelled'
+  ) => {
+    setMarkBusy(bookingId);
+    try {
+      const res = await fetch('/api/fitness/fitgraph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          action: 'mark_attendance',
+          booking_id: bookingId,
+          status,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Update failed');
+      if (data.message) toast.success(data.message);
+      else toast.success(`Marked ${status.replace('_', ' ')}`);
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Update failed');
+    } finally {
+      setMarkBusy(null);
+    }
+  };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const todayRows = (() => {
+    if (!store) return [];
+    const sessions = (store.sessions || []).filter(
+      (s) => s.date === today && s.status !== 'cancelled'
+    );
+    const rows: import('@/components/services/AdvisorTodayBoard').TodayBoardRow[] =
+      [];
+    for (const s of sessions) {
+      const ct = store.class_types?.find((c) => c.id === s.class_type_id);
+      const coach = store.coaches?.find((c) => c.id === s.coach_id);
+      const books = (store.bookings || []).filter(
+        (b) =>
+          b.session_id === s.id &&
+          b.status !== 'cancelled'
+      );
+      if (books.length === 0) {
+        rows.push({
+          id: `s-${s.id}`,
+          time: s.start_time,
+          title: ct?.name || 'Class',
+          person: coach?.name,
+          status: 'open',
+          meta: s.location,
+          href: '/dashboard/fitgraph/calendar',
+        });
+      } else {
+        for (const b of books) {
+          const client = store.clients?.find((c) => c.id === b.client_id);
+          rows.push({
+            id: b.id,
+            time: s.start_time,
+            title: ct?.name || 'Class',
+            person: coach?.name,
+            attendee: b.family_member_name || client?.name,
+            status: b.status,
+            meta: s.location,
+            href: '/dashboard/fitgraph/bookings',
+          });
+        }
+      }
+    }
+    return rows.sort((a, b) => a.time.localeCompare(b.time));
+  })();
 
   return (
     <FitgraphPage>
@@ -242,6 +384,39 @@ function Inner() {
           <Loader2 className="w-8 h-8 animate-spin text-violet-600" />
         </div>
       ) : (
+        <>
+        <div className="space-y-4 mb-6">
+          <AdvisorOutcomesPanel
+            outcomes={outcomes}
+            accent="violet"
+            title="FitAdvisor outcomes (30 days)"
+            onRefresh={() => void load()}
+            onSendReminders={() => void sendReminders()}
+            remindersBusy={remindersBusy}
+          />
+          <AdvisorTodayBoard
+            date={today}
+            rows={todayRows}
+            title="Today's floor board"
+            accentClass="border-violet-200 dark:border-violet-800"
+            onMark={(id, status) => {
+              if (id.startsWith('s-')) {
+                toast.message('Open calendar to book members into this class');
+                return;
+              }
+              void markBooking(id, status);
+            }}
+            markBusyId={markBusy}
+          />
+          <AdvisorRecallPanel
+            rows={recalls}
+            title="Member re-engagement"
+            description="Members with no attended class in ~45 days (or never attended)."
+            onBook={() => {
+              window.location.href = '/dashboard/fitgraph/calendar';
+            }}
+          />
+        </div>
         <HubTelemetryGrid>
           <TelemetryCard
             label="Active members"
@@ -270,6 +445,7 @@ function Inner() {
             }
           />
         </HubTelemetryGrid>
+        </>
       )}
 
       <div className="mt-8">

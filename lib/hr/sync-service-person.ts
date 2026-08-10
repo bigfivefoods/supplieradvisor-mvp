@@ -6,7 +6,12 @@
  * Does not require a business unit (service staff often lack one at create).
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { defaultOnboardingChecklist, fullNameFromParts } from '@/lib/hr/types';
+import {
+  defaultOnboardingChecklist,
+  fullNameFromParts,
+  isPermanentEmploymentType,
+  toPeopleEmploymentType,
+} from '@/lib/hr/types';
 
 export type ServicePersonSource =
   | 'fitgraph_coach'
@@ -126,15 +131,27 @@ function jobTitleDefault(
   }
 }
 
-function mapEmploymentType(
+/**
+ * People only accepts permanent staff.
+ * - Explicit permanent / full_time / part_time → allowed
+ * - Explicit temporary / contractor / gang / casual → not synced
+ * - Missing type on professional service staff (coach, clinician) → treat as permanent
+ * - Missing type on field/quarry labour → not permanent (gangs/crews default temporary)
+ */
+function resolvePeopleEmploymentType(
+  source: ServicePersonSource,
   raw?: string | null
-): string {
-  const t = String(raw || '').toLowerCase();
-  if (t === 'permanent' || t === 'full_time') return 'full_time';
-  if (t === 'temporary' || t === 'seasonal') return 'temporary';
-  if (t === 'contractor' || t === 'contract') return 'contract';
-  if (t === 'gang' || t === 'crew') return 'casual';
-  if (t === 'part_time' || t === 'intern' || t === 'casual') return t;
+): 'full_time' | 'part_time' | null {
+  const trimmed = String(raw || '').trim();
+  if (trimmed) {
+    if (!isPermanentEmploymentType(trimmed)) return null;
+    return toPeopleEmploymentType(trimmed);
+  }
+  // Labour modules default non-permanent when type omitted
+  if (source === 'fieldgraph_gang' || source === 'quarrygraph_crew') {
+    return null;
+  }
+  // Coaches / clinicians without a type → permanent full time
   return 'full_time';
 }
 
@@ -209,6 +226,21 @@ export async function syncServicePersonToHr(
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return { employeeId: null, created: false, updated: false, error: 'Invalid company' };
     }
+
+    const peopleEmployment = resolvePeopleEmploymentType(
+      input.source,
+      input.employment_type
+    );
+    if (!peopleEmployment) {
+      return {
+        employeeId: null,
+        created: false,
+        updated: false,
+        error:
+          'People only holds permanent employees — temporary, contract, casual and gang labour stay in the operational module',
+      };
+    }
+
     const full_name = fullNameFromParts({ full_name: input.name });
     if (!full_name || full_name === 'Unnamed employee') {
       return {
@@ -312,10 +344,7 @@ export async function syncServicePersonToHr(
       id_number: input.id_number || existing?.id_number || null,
       job_title,
       department,
-      employment_type:
-        mapEmploymentType(input.employment_type) ||
-        existing?.employment_type ||
-        'full_time',
+      employment_type: peopleEmployment,
       status,
       start_date:
         input.start_date || existing?.start_date || now.slice(0, 10),

@@ -369,6 +369,14 @@ export type FitClient = {
    * Parent email often stays on the primary client; children listed here.
    */
   family?: import('@/lib/services/family-members').FamilyMember[];
+  /** Attendance / no-show stats (Advisor outcomes) */
+  no_show_count?: number;
+  last_no_show_at?: string | null;
+  attended_count?: number;
+  booking_soft_block?: boolean;
+  /** Membership freeze window */
+  membership_frozen_at?: string | null;
+  membership_freeze_until?: string | null;
   /** VerifyNow (SA) or Didit (international) self-serve identity check */
   identity?: import('@/lib/identity/person-verification').PersonIdentityVerification;
   /** Profile photo (public storage URL) */
@@ -505,6 +513,13 @@ export type FitBooking = {
   guest_email?: string;
   guest_phone?: string;
   notes?: string;
+  /** Parent books for child / household member */
+  family_member_id?: string | null;
+  family_member_name?: string | null;
+  reminded_at?: string | null;
+  reminder_count?: number;
+  waitlist_offered_at?: string | null;
+  waitlist_accepted_at?: string | null;
   /** Issued when marked attended — public feedback link */
   feedback_token?: string | null;
   feedback_requested_at?: string | null;

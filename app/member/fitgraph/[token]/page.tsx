@@ -18,6 +18,7 @@ import {
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
 import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
+import { VerifiedBadge } from '@/components/services/VerifiedBadge';
 
 type OpenClass = {
   id: string;
@@ -110,6 +111,7 @@ export default function MemberFitgraphPortalPage() {
   const [phone, setPhone] = useState('');
   const [idNumber, setIdNumber] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
+  const [bookForFamilyId, setBookForFamilyId] = useState('');
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -163,6 +165,7 @@ export default function MemberFitgraphPortalPage() {
       const data = await post({
         action: requestJoin ? 'request_join' : 'book',
         session_id: sessionId,
+        family_member_id: bookForFamilyId || null,
       });
       setMsg(data.booking?.message || data.message || 'Done');
     } catch (e: unknown) {
@@ -279,7 +282,15 @@ export default function MemberFitgraphPortalPage() {
               </div>
             )}
             <div>
-              <p className="font-bold">{portal.client.name}</p>
+              <p className="font-bold inline-flex flex-wrap items-center gap-2">
+                {portal.client.name}
+                <VerifiedBadge
+                  verified={portal.client.identity?.is_verified}
+                  provider={portal.client.identity?.provider}
+                  name={portal.client.identity?.verified_name}
+                  className="!bg-white/20 !text-white !border-white/30"
+                />
+              </p>
               <p className="text-xs text-white/85">
                 {[portal.client.plan_name, portal.client.membership_status]
                   .filter(Boolean)
@@ -346,6 +357,30 @@ export default function MemberFitgraphPortalPage() {
           ))}
         </div>
 
+        {(portal.client?.family || []).filter((m) => m.active !== false).length > 0 &&
+        (tab === 'open') ? (
+          <div className="rounded-2xl border border-violet-200 bg-white p-3">
+            <label className="text-[10px] font-bold uppercase text-slate-500">
+              Book for
+            </label>
+            <select
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold"
+              value={bookForFamilyId}
+              onChange={(e) => setBookForFamilyId(e.target.value)}
+            >
+              <option value="">Myself (account holder)</option>
+              {(portal.client?.family || [])
+                .filter((m) => m.active !== false)
+                .map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                    {m.relationship ? ` · ${m.relationship}` : ''}
+                    {m.is_minor ? ' (child)' : ''}
+                  </option>
+                ))}
+            </select>
+          </div>
+        ) : null}
         {!portal.allow_booking && tab === 'open' ? (
           <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
             Online booking is currently paused by the gym. You can still view
@@ -492,6 +527,12 @@ export default function MemberFitgraphPortalPage() {
                     <span className="inline-block mt-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase text-slate-700">
                       {b.status}
                     </span>
+                    <a
+                      className="block mt-1 text-[10px] font-bold text-violet-700 underline"
+                      href={`/api/public/advisor/ics?module=fitgraph&date=${encodeURIComponent(b.date)}&start=${encodeURIComponent(b.start_time)}&title=${encodeURIComponent(b.class_name)}&duration=45`}
+                    >
+                      Add to calendar
+                    </a>
                   </div>
                   {b.status === 'booked' || b.status === 'waitlist' ? (
                     <button

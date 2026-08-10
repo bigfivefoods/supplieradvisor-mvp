@@ -158,7 +158,7 @@ export default function PeopleHubPage() {
       <RelationshipHeader
         title="People"
         titleAccent="HR"
-        description="Full people lifecycle — organogram by business unit, reporting lines, performance ratings, disciplinary process, leave, payroll, and training."
+        description="Permanent staff only — organogram by business unit, reporting lines, performance, disciplinary, leave, payroll, and training. Temporary / gang labour stays in CropAdvisor and QuarryAdvisor."
         action={
           <Link
             href="/dashboard/people/directory?new=1"

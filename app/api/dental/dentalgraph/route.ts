@@ -696,6 +696,158 @@ export async function POST(request: NextRequest) {
       });
     }
 
+
+    if (action === 'send_reminders') {
+      const { sendBookingReminderEmail, needsReminder } = await import(
+        '@/lib/services/advisor-reminders'
+      );
+      let sent = 0;
+      let skipped = 0;
+      for (const b of store.bookings) {
+        if (b.status !== 'booked') continue;
+        const appt = store.appointments.find((a) => a.id === b.appointment_id);
+        if (!appt || appt.status === 'cancelled') continue;
+        if (!needsReminder(b, appt.date, appt.start_time, 24)) {
+          skipped++;
+          continue;
+        }
+        const patient = store.patients.find((p) => p.id === b.patient_id);
+        const email = patient?.email;
+        if (!email) {
+          skipped++;
+          continue;
+        }
+        const svc = store.services.find((s) => s.id === appt.service_id);
+        const result = await sendBookingReminderEmail({
+          to: email,
+          personName: b.family_member_name || patient?.name || 'Patient',
+          brand: store.settings?.brand_name || 'Practice',
+          eventTitle: svc?.name || 'Appointment',
+          date: appt.date,
+          start_time: appt.start_time,
+          location: appt.location,
+          manageUrl: patient?.portal_token
+            ? `/member/dentalgraph/${patient.portal_token}`
+            : undefined,
+          moduleLabel: 'DentalAdvisor®',
+        });
+        if (result.ok) {
+          b.reminded_at = now;
+          b.reminder_count = (Number(b.reminder_count) || 0) + 1;
+          sent++;
+        }
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseDentalgraph(store),
+        analysis: analysis(store),
+        reminders: { sent, skipped },
+        message: `Sent ${sent} reminder${sent === 1 ? '' : 's'}`,
+      });
+    }
+
+    if (action === 'outcomes') {
+      const { computeOutcomes, recallCandidates } = await import(
+        '@/lib/services/advisor-outcomes'
+      );
+      const eventNameById: Record<string, string> = {};
+      for (const a of store.appointments) {
+        const svc = store.services.find((s) => s.id === a.service_id);
+        eventNameById[a.id] = svc?.name || 'Visit';
+      }
+      const outcomes = computeOutcomes({
+        bookings: store.bookings.map((b) => ({
+          status: b.status,
+          booked_at: b.booked_at,
+          appointment_id: b.appointment_id,
+        })),
+        feedback: (store.appointment_feedback || []).map((f) => ({
+          feeling: f.feeling,
+          would_return: f.would_return,
+          created_at: f.created_at,
+          event_id: f.event_id,
+        })),
+        eventNameById,
+        peopleSoftBlocked: store.patients.filter((p) => p.booking_soft_block)
+          .length,
+        periodDays: Number(body.period_days) || 30,
+      });
+      const recalls = recallCandidates({
+        people: store.patients,
+        bookings: store.bookings.map((b) => ({
+          patient_id: b.patient_id,
+          status: b.status,
+          booked_at: b.booked_at,
+        })),
+        recallAfterDays: Number(body.recall_after_days) || 180,
+      });
+      return NextResponse.json({ success: true, outcomes, recalls });
+    }
+
+    if (action === 'mark_attendance') {
+      const bookingId = String(body.booking_id || '');
+      const status = String(body.status || 'attended');
+      const booking = store.bookings.find((b) => b.id === bookingId);
+      if (!booking) {
+        return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+      }
+      const prev = booking.status;
+      booking.status = status as typeof booking.status;
+      if (
+        (status === 'attended' || status === 'no_show') &&
+        prev !== status
+      ) {
+        const { applyAttendanceToPersonStats } = await import(
+          '@/lib/services/advisor-booking'
+        );
+        const pi = store.patients.findIndex((p) => p.id === booking.patient_id);
+        if (pi >= 0) {
+          Object.assign(
+            store.patients[pi],
+            applyAttendanceToPersonStats(store.patients[pi], status as 'attended' | 'no_show', now)
+          );
+        }
+      }
+      let promoted = null as typeof booking | null;
+      if (status === 'cancelled' && booking.appointment_id) {
+        const { promoteNextWaitlist } = await import(
+          '@/lib/services/advisor-booking'
+        );
+        const { notifyPromotedWaitlist } = await import(
+          '@/lib/services/clinic-advisor-actions'
+        );
+        promoted = promoteNextWaitlist(
+          store.bookings,
+          (b) => b.appointment_id === booking.appointment_id,
+          now
+        );
+        if (promoted) {
+          await notifyPromotedWaitlist(store, promoted, {
+            moduleLabel: 'DentalAdvisor®',
+            portalPath: 'dentalgraph',
+            brandFallback: 'Practice',
+          });
+        }
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseDentalgraph(store),
+        analysis: analysis(store),
+        waitlist_promoted: promoted
+          ? { booking_id: promoted.id, patient_id: promoted.patient_id }
+          : null,
+        message: promoted
+          ? 'Cancelled — waitlist promoted'
+          : status === 'no_show'
+            ? 'No-show recorded'
+            : undefined,
+      });
+    }
+
     if (action === 'upsert' || action === 'create' || action === 'update') {
       const rec = (body.record || body) as Record<string, unknown>;
       upsert(store, entity, rec, now);
@@ -1061,21 +1213,64 @@ function upsert(
     const id = String(rec.id || newId('bkg'));
     const i = store.bookings.findIndex((b) => b.id === id);
     const prev = i >= 0 ? store.bookings[i] : null;
+    let famId =
+      rec.family_member_id !== undefined
+        ? rec.family_member_id
+          ? String(rec.family_member_id)
+          : null
+        : prev?.family_member_id ?? null;
+    let famName = prev?.family_member_name ?? null;
+    if (rec.family_member_id) {
+      const patient = store.patients.find(
+        (p) => p.id === String(rec.patient_id || prev?.patient_id || '')
+      );
+      const m = (patient?.family || []).find((f) => f.id === famId);
+      famName = m
+        ? `${m.name}${m.relationship ? ` (${m.relationship})` : ''}`
+        : null;
+      if (!m) famId = null;
+    }
+    const nextStatus =
+      (rec.status as DentalBooking['status']) || prev?.status || 'booked';
     let row: DentalBooking = {
       id,
       appointment_id: String(
         rec.appointment_id || prev?.appointment_id || ''
       ),
       patient_id: String(rec.patient_id || prev?.patient_id || ''),
-      status: (rec.status as DentalBooking['status']) || prev?.status || 'booked',
+      status: nextStatus,
       booked_at: prev?.booked_at || now,
       source: rec.source != null ? String(rec.source) : prev?.source || 'desk',
       notes: rec.notes != null ? String(rec.notes) : prev?.notes,
+      family_member_id: famId,
+      family_member_name: famName,
+      reminded_at: prev?.reminded_at ?? null,
+      reminder_count: prev?.reminder_count,
+      waitlist_offered_at: prev?.waitlist_offered_at ?? null,
+      waitlist_accepted_at: prev?.waitlist_accepted_at ?? null,
       feedback_token: prev?.feedback_token ?? null,
       feedback_requested_at: prev?.feedback_requested_at ?? null,
       feedback_submitted_at: prev?.feedback_submitted_at ?? null,
       feedback_id: prev?.feedback_id ?? null,
     };
+    if (
+      prev &&
+      prev.status !== 'cancelled' &&
+      nextStatus === 'cancelled' &&
+      row.appointment_id
+    ) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { promoteNextWaitlist } =
+        // sync upsert helper
+        require('@/lib/services/advisor-booking') as {
+          promoteNextWaitlist: typeof import('@/lib/services/advisor-booking').promoteNextWaitlist;
+        };
+      promoteNextWaitlist(
+        store.bookings,
+        (b) => b.appointment_id === row.appointment_id && b.id !== row.id,
+        now
+      );
+    }
     if (row.status === 'attended') {
       row = issueFeedbackPrompt(row, now);
     }

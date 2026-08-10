@@ -17,6 +17,7 @@ import {
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
 import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
+import { VerifiedBadge } from '@/components/services/VerifiedBadge';
 
 type Slot = {
   id: string;
@@ -89,6 +90,7 @@ export default function MemberMedicalgraphPortalPage() {
   const [phone, setPhone] = useState('');
   const [idNumber, setIdNumber] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
+  const [bookForFamilyId, setBookForFamilyId] = useState('');
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -139,7 +141,11 @@ export default function MemberMedicalgraphPortalPage() {
     setMsg(null);
     setError(null);
     try {
-      const data = await post({ action: 'book', appointment_id: appointmentId });
+      const data = await post({
+        action: 'book',
+        appointment_id: appointmentId,
+        family_member_id: bookForFamilyId || null,
+      });
       setMsg(data.booking?.message || 'Booked');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Booking failed');
@@ -243,7 +249,13 @@ export default function MemberMedicalgraphPortalPage() {
               </div>
             )}
             <div>
-              <p className="font-bold">{portal.patient.name}</p>
+              <p className="font-bold inline-flex flex-wrap items-center gap-2">{portal.patient.name}
+                <VerifiedBadge
+                  verified={portal.patient.identity?.is_verified}
+                  provider={portal.patient.identity?.provider}
+                  name={portal.patient.identity?.verified_name}
+                  className="!bg-white/20 !text-white !border-white/30"
+                /></p>
               <p className="text-xs text-white/85">
                 {portal.patient.status || 'Patient'} · {portal.open_count} open
                 slots
@@ -292,6 +304,31 @@ export default function MemberMedicalgraphPortalPage() {
             </button>
           ))}
         </div>
+
+        {(portal.patient?.family || []).filter((m: { active?: boolean }) => m.active !== false).length >
+          0 && tab === 'open' ? (
+          <div className="rounded-2xl border border-emerald-200 bg-white p-3">
+            <label className="text-[10px] font-bold uppercase text-slate-500">
+              Book for
+            </label>
+            <select
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold"
+              value={bookForFamilyId}
+              onChange={(e) => setBookForFamilyId(e.target.value)}
+            >
+              <option value="">Myself (account holder)</option>
+              {(portal.patient?.family || [])
+                .filter((m: { active?: boolean }) => m.active !== false)
+                .map((m: { id: string; name: string; relationship?: string; is_minor?: boolean }) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                    {m.relationship ? ` · ${m.relationship}` : ''}
+                    {m.is_minor ? ' (child)' : ''}
+                  </option>
+                ))}
+            </select>
+          </div>
+        ) : null}
 
         {tab === 'open' && (
           <div className="space-y-3">
@@ -381,6 +418,12 @@ export default function MemberMedicalgraphPortalPage() {
                     <p className="text-xs text-slate-500">
                       {formatDay(b.date, b.start_time)}
                     </p>
+                    <a
+                      className="text-[11px] font-bold text-emerald-700 underline"
+                      href={`/api/public/advisor/ics?module=medicalgraph&date=${encodeURIComponent(b.date)}&start=${encodeURIComponent(b.start_time)}&title=${encodeURIComponent(b.service_name || 'Appointment')}&duration=45`}
+                    >
+                      Add to calendar
+                    </a>
                     <span className="text-[10px] font-black uppercase text-slate-600">
                       {b.status}
                     </span>

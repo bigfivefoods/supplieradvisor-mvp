@@ -58,6 +58,8 @@ export default function CalendarPage() {
     weekdays: [] as number[],
     /** Optional: book this member onto the new class */
     client_id: '',
+    /** Optional: book a family child under that member */
+    family_member_id: '',
   });
 
   const daySessions = useMemo(() => {
@@ -209,6 +211,7 @@ export default function CalendarPage() {
         record: {
           session_id: sessionId,
           client_id: form.client_id,
+          family_member_id: form.family_member_id || null,
           status: 'booked',
           source: 'desk',
         },
@@ -216,7 +219,9 @@ export default function CalendarPage() {
       toast.success(
         form.public
           ? 'Class scheduled, member booked, published to website'
-          : 'Class scheduled and member booked'
+          : form.family_member_id
+            ? 'Class scheduled — family member booked'
+            : 'Class scheduled and member booked'
       );
     } else {
       toast.success(
@@ -225,9 +230,15 @@ export default function CalendarPage() {
           : 'Class scheduled and coach assigned'
       );
     }
-    setForm((f) => ({ ...f, client_id: '' }));
+    setForm((f) => ({ ...f, client_id: '', family_member_id: '' }));
     setSlotPicked(null);
   };
+
+  const selectedClientFamily = useMemo(() => {
+    if (!store || !form.client_id) return [];
+    const c = store.clients.find((x) => x.id === form.client_id);
+    return (c?.family || []).filter((m) => m.active !== false);
+  }, [store, form.client_id]);
 
   const copyInvite = async (sessionId: string) => {
     const data = await post({
@@ -526,7 +537,11 @@ export default function CalendarPage() {
               className={fc() + ' sm:col-span-2'}
               value={form.client_id}
               onChange={(e) =>
-                setForm((f) => ({ ...f, client_id: e.target.value }))
+                setForm((f) => ({
+                  ...f,
+                  client_id: e.target.value,
+                  family_member_id: '',
+                }))
               }
             >
               <option value="">Book member onto this class (optional)…</option>
@@ -535,11 +550,41 @@ export default function CalendarPage() {
                 .map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
+                    {c.booking_soft_block ? ' ⚠ no-shows' : ''}
+                    {c.membership_status === 'frozen' ? ' · frozen' : ''}
                     {c.email ? ` · ${c.email}` : ''}
-                    {c.code ? ` (${c.code})` : ''}
                   </option>
                 ))}
             </select>
+            {form.client_id && selectedClientFamily.length > 0 ? (
+              <select
+                className={fc() + ' sm:col-span-2'}
+                value={form.family_member_id}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    family_member_id: e.target.value,
+                  }))
+                }
+              >
+                <option value="">Attendee: account holder</option>
+                {selectedClientFamily.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                    {m.relationship ? ` · ${m.relationship}` : ''}
+                    {m.is_minor ? ' (child)' : ''}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+            {form.date && form.start_time ? (
+              <a
+                className="sm:col-span-2 text-xs font-bold text-violet-700 underline"
+                href={`/api/public/advisor/ics?module=fitgraph&date=${encodeURIComponent(form.date)}&start=${encodeURIComponent(form.start_time)}&title=${encodeURIComponent('FitAdvisor class')}&duration=45&location=${encodeURIComponent(form.location || '')}`}
+              >
+                Download .ics (add to calendar)
+              </a>
+            ) : null}
             <label className="flex items-center gap-2 text-sm font-medium px-1 sm:col-span-2">
               <input
                 type="checkbox"

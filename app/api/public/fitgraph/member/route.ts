@@ -350,6 +350,20 @@ export async function POST(request: NextRequest) {
       const booked = sessionBookingCount(store, sessionId);
       const full = cap > 0 && booked >= cap;
       // Full → waitlist (join request); open → booked
+      const famId = body.family_member_id
+        ? String(body.family_member_id)
+        : body.familyMemberId
+          ? String(body.familyMemberId)
+          : null;
+      let famName: string | null = null;
+      if (famId) {
+        const m = (client.family || []).find(
+          (f) => f.id === famId && f.active !== false
+        );
+        if (m) {
+          famName = `${m.name}${m.relationship ? ` (${m.relationship})` : ''}`;
+        }
+      }
       const finalStatus: FitBooking['status'] = full ? 'waitlist' : 'booked';
 
       const row: FitBooking = {
@@ -363,6 +377,8 @@ export async function POST(request: NextRequest) {
           finalStatus === 'waitlist'
             ? 'Member portal — waitlist / join request'
             : 'Member portal booking',
+        family_member_id: famName ? famId : null,
+        family_member_name: famName,
       };
       store.bookings.push(row);
       await saveStore(companyId, meta, store);

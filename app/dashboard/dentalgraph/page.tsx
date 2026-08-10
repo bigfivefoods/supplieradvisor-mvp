@@ -7,12 +7,10 @@ import {
   ClipboardCheck,
   CreditCard,
   Globe,
-  HeartPulse,
   Loader2,
   Package,
   Sparkles,
   MessageSquare,
-  Stethoscope,
   UserRound,
   Users,
 } from 'lucide-react';
@@ -24,6 +22,9 @@ import {
 } from '@/components/dental/DentalgraphShell';
 import DentalgraphSystemFlow from '@/components/dental/DentalgraphSystemFlow';
 import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
+import { AdvisorOutcomesPanel } from '@/components/services/AdvisorOutcomesPanel';
+import { AdvisorRecallPanel } from '@/components/services/AdvisorRecallPanel';
+import { AdvisorTodayBoard } from '@/components/services/AdvisorTodayBoard';
 import {
   HubModuleGrid,
   HubTelemetryGrid,
@@ -119,8 +120,43 @@ function Inner() {
   const [summary, setSummary] = useState<Record<string, number | boolean> | null>(
     null
   );
+  const [store, setStore] = useState<{
+    appointments?: Array<{
+      id: string;
+      date: string;
+      start_time: string;
+      service_id?: string;
+      staff_id?: string | null;
+      status?: string;
+      location?: string;
+    }>;
+    bookings?: Array<{
+      id: string;
+      appointment_id: string;
+      patient_id: string;
+      status: string;
+      family_member_name?: string | null;
+    }>;
+    patients?: Array<{ id: string; name: string }>;
+    staff?: Array<{ id: string; name: string }>;
+    services?: Array<{ id: string; name: string }>;
+  } | null>(null);
+  const [outcomes, setOutcomes] = useState<
+    import('@/lib/services/advisor-outcomes').OutcomesSnapshot | null
+  >(null);
+  const [recalls, setRecalls] = useState<
+    Array<{
+      id: string;
+      name: string;
+      email?: string;
+      last_attended: string | null;
+      days_since: number | null;
+    }>
+  >([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
+  const [remindersBusy, setRemindersBusy] = useState(false);
+  const [markBusy, setMarkBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -132,6 +168,17 @@ function Inner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Load failed');
       setSummary(data.summary || null);
+      setStore(data.store || null);
+      const oRes = await fetch('/api/dental/dentalgraph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, action: 'outcomes', period_days: 30 }),
+      });
+      const oData = await oRes.json();
+      if (oRes.ok) {
+        setOutcomes(oData.outcomes || null);
+        setRecalls(oData.recalls || []);
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
     } finally {
@@ -155,12 +202,103 @@ function Inner() {
       if (!res.ok) throw new Error(data.error || 'Seed failed');
       setSummary(data.summary || null);
       toast.success('Demo practice loaded — staff, patients, diary');
+      void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Seed failed');
     } finally {
       setSeeding(false);
     }
   };
+
+  const sendReminders = async () => {
+    setRemindersBusy(true);
+    try {
+      const res = await fetch('/api/dental/dentalgraph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, action: 'send_reminders' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Reminders failed');
+      toast.success(data.message || 'Reminders sent');
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Reminders failed');
+    } finally {
+      setRemindersBusy(false);
+    }
+  };
+
+  const markBooking = async (
+    bookingId: string,
+    status: 'attended' | 'no_show' | 'cancelled'
+  ) => {
+    setMarkBusy(bookingId);
+    try {
+      const res = await fetch('/api/dental/dentalgraph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          action: 'mark_attendance',
+          booking_id: bookingId,
+          status,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Update failed');
+      if (data.message) toast.success(data.message);
+      else toast.success(`Marked ${status.replace('_', ' ')}`);
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Update failed');
+    } finally {
+      setMarkBusy(null);
+    }
+  };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const todayRows = (() => {
+    if (!store) return [];
+    const appts = (store.appointments || []).filter(
+      (a) => a.date === today && a.status !== 'cancelled'
+    );
+    const rows: import('@/components/services/AdvisorTodayBoard').TodayBoardRow[] =
+      [];
+    for (const a of appts) {
+      const svc = store.services?.find((s) => s.id === a.service_id);
+      const staff = store.staff?.find((s) => s.id === a.staff_id);
+      const books = (store.bookings || []).filter(
+        (b) => b.appointment_id === a.id && b.status !== 'cancelled'
+      );
+      if (books.length === 0) {
+        rows.push({
+          id: `a-${a.id}`,
+          time: a.start_time,
+          title: svc?.name || 'Appointment',
+          person: staff?.name,
+          status: 'open',
+          meta: a.location,
+          href: '/dashboard/dentalgraph/calendar',
+        });
+      } else {
+        for (const b of books) {
+          const patient = store.patients?.find((p) => p.id === b.patient_id);
+          rows.push({
+            id: b.id,
+            time: a.start_time,
+            title: svc?.name || 'Appointment',
+            person: staff?.name,
+            attendee: b.family_member_name || patient?.name,
+            status: b.status,
+            meta: a.location,
+            href: '/dashboard/dentalgraph/bookings',
+          });
+        }
+      }
+    }
+    return rows.sort((a, b) => a.time.localeCompare(b.time));
+  })();
 
   return (
     <DentalgraphPage>
@@ -205,32 +343,66 @@ function Inner() {
           <Loader2 className="w-8 h-8 animate-spin text-sky-600" />
         </div>
       ) : (
-        <HubTelemetryGrid>
-          <TelemetryCard
-            label="Staff"
-            value={String(summary?.staffCount ?? 0)}
-            sub="Active team"
-          />
-          <TelemetryCard
-            label="Patients"
-            value={String(summary?.patientCount ?? 0)}
-            sub={`${summary?.activePatients ?? 0} active / new`}
-          />
-          <TelemetryCard
-            label="Today"
-            value={String(summary?.appointmentsToday ?? 0)}
-            sub={`${summary?.appointmentsUpcoming ?? 0} upcoming`}
-          />
-          <TelemetryCard
-            label="Website"
-            value={summary?.websiteEnabled ? 'Live' : 'Off'}
-            sub={
-              summary?.websiteEnabled
-                ? 'Public booking ready'
-                : 'Publish from Website'
-            }
-          />
-        </HubTelemetryGrid>
+        <>
+          <div className="space-y-4 mb-6">
+            <AdvisorOutcomesPanel
+              outcomes={outcomes}
+              accent="sky"
+              title="DentalAdvisor outcomes (30 days)"
+              onRefresh={() => void load()}
+              onSendReminders={() => void sendReminders()}
+              remindersBusy={remindersBusy}
+            />
+            <AdvisorTodayBoard
+              date={today}
+              rows={todayRows}
+              title="Today's chair board"
+              accentClass="border-sky-200 dark:border-sky-800"
+              onMark={(id, status) => {
+                if (id.startsWith('a-')) {
+                  toast.message('Open diary to book a patient into this slot');
+                  return;
+                }
+                void markBooking(id, status);
+              }}
+              markBusyId={markBusy}
+            />
+            <AdvisorRecallPanel
+              rows={recalls}
+              title="Hygiene / check-up recalls"
+              description="Patients due for a follow-up (default 180 days since last attended visit)."
+              onBook={() => {
+                window.location.href = '/dashboard/dentalgraph/calendar';
+              }}
+            />
+          </div>
+          <HubTelemetryGrid>
+            <TelemetryCard
+              label="Staff"
+              value={String(summary?.staffCount ?? 0)}
+              sub="Active team"
+            />
+            <TelemetryCard
+              label="Patients"
+              value={String(summary?.patientCount ?? 0)}
+              sub={`${summary?.activePatients ?? 0} active / new`}
+            />
+            <TelemetryCard
+              label="Today"
+              value={String(summary?.appointmentsToday ?? 0)}
+              sub={`${summary?.appointmentsUpcoming ?? 0} upcoming`}
+            />
+            <TelemetryCard
+              label="Website"
+              value={summary?.websiteEnabled ? 'Live' : 'Off'}
+              sub={
+                summary?.websiteEnabled
+                  ? 'Public booking ready'
+                  : 'Publish from Website'
+              }
+            />
+          </HubTelemetryGrid>
+        </>
       )}
 
       <div className="mt-8">
@@ -245,15 +417,15 @@ function Inner() {
           },
           {
             t: 'Patients · packages',
-            b: 'Patient register with status, assigned clinician, and multi-session care plans.',
+            b: 'Patient register with status, assigned clinician, family members, and multi-session care plans.',
           },
           {
-            t: 'Diary · bookings',
-            b: 'Schedule assessments and treatments, book patients, mark attended or no-show.',
+            t: 'Diary · bookings · recalls',
+            b: 'Schedule treatments, book patients (or household), mark attended / no-show, promote waitlist, run recalls.',
           },
           {
-            t: 'Website · reports',
-            b: 'Publish practice profile and diary settings; review utilisation by clinician and service.',
+            t: 'Website · outcomes',
+            b: 'Publish practice profile; track attendance, no-shows, and feedback on the hub.',
           },
         ].map((x) => (
           <div

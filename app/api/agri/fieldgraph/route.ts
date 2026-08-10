@@ -608,9 +608,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unknown entity' }, { status: 400 });
     }
 
-    // Dual-write gangs / crews → People directory
-    let peopleSync: { employeeId: number | null; created?: boolean } | null =
-      null;
+    // Dual-write permanent gangs only → People directory
+    let peopleSync: {
+      employeeId: number | null;
+      created?: boolean;
+      error?: string;
+    } | null = null;
     if (entity === 'gangs') {
       const gangId = String(
         rec.id || store.gangs?.[store.gangs.length - 1]?.id || ''
@@ -641,9 +644,12 @@ export async function POST(request: NextRequest) {
       message:
         entity === 'gangs' && peopleSync?.employeeId
           ? peopleSync.created
-            ? 'Gang saved and added to People directory'
-            : 'Gang saved and People record updated'
-          : undefined,
+            ? 'Permanent gang saved and added to People directory'
+            : 'Permanent gang saved and People record updated'
+          : entity === 'gangs' && peopleSync && !peopleSync.employeeId
+            ? peopleSync.error ||
+              'Gang saved — only permanent labour is dual-written to People'
+            : undefined,
     });
   } catch (e: unknown) {
     console.error('[fieldgraph]', e);

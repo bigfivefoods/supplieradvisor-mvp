@@ -297,11 +297,11 @@ export const GUARDRAILS = [
 export const SYSTEM_BENEFITS = [
   {
     title: 'Multi-crop, not cane-only',
-    desc: 'Sugar cane, maize, citrus and more share one OS — estimates and harvest still work per crop.',
+    desc: 'CropAdvisor® runs sugar cane, maize, citrus and more on one OS — estimates and harvest still work per crop.',
   },
   {
     title: 'CanePro-class cores, network-native',
-    desc: 'Field master, estimates, harvest planner and vehicles — plus trade on SupplierAdvisor®.',
+    desc: 'CropAdvisor® field master, estimates, harvest planner and vehicles — plus trade on SupplierAdvisor®.',
   },
   {
     title: 'In-app messaging',
@@ -467,7 +467,7 @@ function drawHero(doc: PdfDoc, g: Geo) {
         .fontSize(8)
         .fillColor('#d1fae5')
         .text(
-          'End-to-end primary production on SupplierAdvisor® — multi-crop field OS, not cane-only software.',
+          'End-to-end primary production on SupplierAdvisor® — CropAdvisor® multi-crop OS, not cane-only software.',
           g.mx + g.contentW * 0.7,
           28,
           { width: g.contentW * 0.3 }
@@ -488,7 +488,7 @@ function drawHero(doc: PdfDoc, g: Geo) {
         .fontSize(8.5)
         .fillColor('#d1fae5')
         .text(
-          'End-to-end primary production on SupplierAdvisor® — multi-crop field OS.',
+          'End-to-end primary production on SupplierAdvisor® — CropAdvisor® multi-crop OS.',
           g.mx,
           62,
           { width: g.contentW }

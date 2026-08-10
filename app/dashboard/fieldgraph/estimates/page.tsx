@@ -129,7 +129,7 @@ export default function FieldgraphEstimatesPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `fieldgraph-mgb-estimates-${seasonFilter}.csv`;
+    a.download = `cropadvisor-mgb-estimates-${seasonFilter}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Board estimate CSV downloaded');

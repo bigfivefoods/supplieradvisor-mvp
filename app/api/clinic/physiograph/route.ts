@@ -703,6 +703,70 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (action === 'send_reminders') {
+      const {
+        clinicSendReminders,
+      } = await import('@/lib/services/clinic-advisor-actions');
+      const { sent, skipped } = await clinicSendReminders(store, {
+        moduleLabel: 'PhysioAdvisor®',
+        portalPath: 'physiograph',
+        brandFallback: 'Clinic',
+      }, now);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summarisePhysiograph(store),
+        analysis: analysis(store),
+        reminders: { sent, skipped },
+        message: `Sent ${sent} reminder${sent === 1 ? '' : 's'}`,
+      });
+    }
+
+    if (action === 'outcomes') {
+      const { clinicOutcomesAndRecalls } = await import(
+        '@/lib/services/clinic-advisor-actions'
+      );
+      const { outcomes, recalls } = clinicOutcomesAndRecalls(store, {
+        periodDays: Number(body.period_days) || 30,
+        recallAfterDays: Number(body.recall_after_days) || 180,
+      });
+      return NextResponse.json({ success: true, outcomes, recalls });
+    }
+
+    if (action === 'mark_attendance') {
+      const { clinicMarkAttendance } = await import(
+        '@/lib/services/clinic-advisor-actions'
+      );
+      const result = await clinicMarkAttendance(store, {
+        bookingId: String(body.booking_id || ''),
+        status: String(body.status || 'attended'),
+        now,
+        cfg: {
+          moduleLabel: 'PhysioAdvisor®',
+          portalPath: 'physiograph',
+          brandFallback: 'Clinic',
+        },
+      });
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 404 });
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summarisePhysiograph(store),
+        analysis: analysis(store),
+        waitlist_promoted: result.promoted
+          ? {
+              booking_id: result.promoted.id,
+              patient_id: result.promoted.patient_id,
+            }
+          : null,
+        message: result.message,
+      });
+    }
+
     if (action === 'upsert' || action === 'create' || action === 'update') {
       const rec = (body.record || body) as Record<string, unknown>;
       upsert(store, entity, rec, now);
@@ -1069,21 +1133,61 @@ function upsert(
     const id = String(rec.id || newId('bkg'));
     const i = store.bookings.findIndex((b) => b.id === id);
     const prev = i >= 0 ? store.bookings[i] : null;
+    const patientId = String(rec.patient_id || prev?.patient_id || '');
+    const patient = store.patients.find((p) => p.id === patientId);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { resolveBookingFamilyFields, notifyPromotedWaitlist } =
+      require('@/lib/services/clinic-advisor-actions') as typeof import('@/lib/services/clinic-advisor-actions');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { promoteNextWaitlist } =
+      require('@/lib/services/advisor-booking') as typeof import('@/lib/services/advisor-booking');
+    const fam = resolveBookingFamilyFields(patient, rec, prev || null);
+    const nextStatus =
+      (rec.status as PhysioBooking['status']) || prev?.status || 'booked';
     let row: PhysioBooking = {
       id,
       appointment_id: String(
         rec.appointment_id || prev?.appointment_id || ''
       ),
-      patient_id: String(rec.patient_id || prev?.patient_id || ''),
-      status: (rec.status as PhysioBooking['status']) || prev?.status || 'booked',
+      patient_id: patientId,
+      status: nextStatus,
       booked_at: prev?.booked_at || now,
       source: rec.source != null ? String(rec.source) : prev?.source || 'desk',
       notes: rec.notes != null ? String(rec.notes) : prev?.notes,
+      family_member_id: fam.family_member_id,
+      family_member_name: fam.family_member_name,
+      reminded_at: prev?.reminded_at ?? null,
+      reminder_count: prev?.reminder_count,
+      waitlist_offered_at: prev?.waitlist_offered_at ?? null,
+      waitlist_accepted_at: prev?.waitlist_accepted_at ?? null,
       feedback_token: prev?.feedback_token ?? null,
       feedback_requested_at: prev?.feedback_requested_at ?? null,
       feedback_submitted_at: prev?.feedback_submitted_at ?? null,
       feedback_id: prev?.feedback_id ?? null,
     };
+    if (
+      prev &&
+      prev.status !== 'cancelled' &&
+      nextStatus === 'cancelled' &&
+      row.appointment_id
+    ) {
+      const promoted = promoteNextWaitlist(
+        store.bookings,
+        (b) => b.appointment_id === row.appointment_id && b.id !== row.id,
+        now
+      );
+      if (promoted) {
+        void notifyPromotedWaitlist(
+          store,
+          promoted,
+          {
+            moduleLabel: 'PhysioAdvisor®',
+            portalPath: 'physiograph',
+            brandFallback: 'Clinic',
+          }
+        );
+      }
+    }
     if (row.status === 'attended') {
       row = issueFeedbackPrompt(row, now);
     }

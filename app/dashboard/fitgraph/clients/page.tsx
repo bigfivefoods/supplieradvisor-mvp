@@ -197,6 +197,22 @@ export default function ClientsPage() {
     toast.success('Member portal link copied');
   };
 
+  const freezeMembership = async (c: FitClient, freeze: boolean) => {
+    try {
+      const data = await post({
+        action: freeze ? 'freeze_membership' : 'unfreeze_membership',
+        client_id: c.id,
+      });
+      toast.success(
+        data?.message ||
+          (freeze ? 'Membership frozen' : 'Membership unfrozen')
+      );
+      await load();
+    } catch {
+      /* toast in post */
+    }
+  };
+
   const onFile = async (file: File) => {
     setImporting(true);
     try {
@@ -577,10 +593,36 @@ export default function ClientsPage() {
                           family
                         </span>
                       ) : null}
+                      {c.booking_soft_block ? (
+                        <span
+                          className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-900"
+                          title={`${c.no_show_count || 0} no-shows`}
+                        >
+                          no-show risk
+                        </span>
+                      ) : null}
                     </span>
                   ),
                   plan?.code || '—',
-                  c.membership_status || '—',
+                  (
+                    <span key="ms" className="inline-flex flex-wrap items-center gap-1">
+                      {c.membership_status || '—'}
+                      <button
+                        type="button"
+                        className="text-[10px] font-bold text-violet-700 underline"
+                        onClick={() =>
+                          void freezeMembership(
+                            c,
+                            c.membership_status !== 'frozen'
+                          )
+                        }
+                      >
+                        {c.membership_status === 'frozen'
+                          ? 'Unfreeze'
+                          : 'Freeze'}
+                      </button>
+                    </span>
+                  ),
                   coach?.name || '—',
                   (
                     <span

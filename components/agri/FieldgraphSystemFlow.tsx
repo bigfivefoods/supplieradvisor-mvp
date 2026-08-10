@@ -410,7 +410,7 @@ export default function FieldgraphSystemFlow({
             className="text-left min-w-0 flex-1"
           >
             <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">
-              Full farm OS — process design
+              CropAdvisor® — process design
             </p>
             <h2 className="text-lg sm:text-xl font-black mt-0.5 leading-tight">
               Fields → Estimates → Harvest → Ops → Messages → Trade → Sold &

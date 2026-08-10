@@ -290,6 +290,21 @@ export async function POST(request: NextRequest) {
       }
       const booked = appointmentBookingCount(store, appointmentId);
       const full = booked >= 1;
+      const famId = body.family_member_id
+        ? String(body.family_member_id)
+        : body.familyMemberId
+          ? String(body.familyMemberId)
+          : null;
+      let famName: string | null = null;
+      if (famId) {
+        const m = (patient.family || []).find(
+          (f: { id: string; active?: boolean }) =>
+            f.id === famId && f.active !== false
+        );
+        if (m) {
+          famName = `${m.name}${m.relationship ? ` (${m.relationship})` : ''}`;
+        }
+      }
       const finalStatus: DentalBooking['status'] = full ? 'waitlist' : 'booked';
       const row: DentalBooking = {
         id: newId('bk'),
@@ -302,6 +317,8 @@ export async function POST(request: NextRequest) {
           finalStatus === 'waitlist'
             ? 'Patient portal — waitlist / join request'
             : 'Patient portal booking',
+        family_member_id: famName ? famId : null,
+        family_member_name: famName,
       };
       store.bookings.push(row);
       await saveStore(companyId, meta, store);

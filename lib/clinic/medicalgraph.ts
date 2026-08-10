@@ -299,6 +299,10 @@ export type MedicalPatient = {
    * Household / family (kids, dependents) — parent email often on the primary patient.
    */
   family?: import('@/lib/services/family-members').FamilyMember[];
+  no_show_count?: number;
+  last_no_show_at?: string | null;
+  attended_count?: number;
+  booking_soft_block?: boolean;
   /** VerifyNow (SA) or Didit (international) self-serve identity check */
   identity?: import('@/lib/identity/person-verification').PersonIdentityVerification;
   start_date?: string | null;
@@ -354,6 +358,12 @@ export type MedicalBooking = {
   booked_at: string;
   source?: 'desk' | 'website' | 'practitioner' | string;
   notes?: string;
+  family_member_id?: string | null;
+  family_member_name?: string | null;
+  reminded_at?: string | null;
+  reminder_count?: number;
+  waitlist_offered_at?: string | null;
+  waitlist_accepted_at?: string | null;
   /** Issued when marked attended — public feedback link */
   feedback_token?: string | null;
   feedback_requested_at?: string | null;

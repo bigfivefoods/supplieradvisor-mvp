@@ -19,7 +19,7 @@ import {
   Panel,
 } from '@/components/relationship/RelationshipChrome';
 import {
-  EMPLOYMENT_TYPES,
+  PEOPLE_EMPLOYMENT_TYPES,
   EMPLOYEE_STATUSES,
   PAY_FREQUENCIES,
   statusBadgeClass,
@@ -266,7 +266,7 @@ function DirectoryInner() {
       <RelationshipHeader
         title="Employee"
         titleAccent="directory"
-        description="Full HR master data — personal details, job, banking, tax, and cost-centre placement."
+        description="Permanent employees only — personal details, job, banking, tax, and cost-centre placement. Temporary, contract and gang labour stay in operational modules (CropAdvisor, Quarry, etc.)."
         action={
           <button
             type="button"
@@ -551,7 +551,7 @@ function DirectoryInner() {
                         setForm({ ...form, employment_type: e.target.value })
                       }
                     >
-                      {EMPLOYMENT_TYPES.map((t) => (
+                      {PEOPLE_EMPLOYMENT_TYPES.map((t) => (
                         <option key={t.value} value={t.value}>
                           {t.label}
                         </option>

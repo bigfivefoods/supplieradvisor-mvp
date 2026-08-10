@@ -4,6 +4,8 @@ import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 import {
   defaultOnboardingChecklist,
   fullNameFromParts,
+  isPermanentEmploymentType,
+  toPeopleEmploymentType,
 } from '@/lib/hr/types';
 
 const HINT = 'Run supabase/migrations/20260723_hr_people_module.sql';
@@ -23,6 +25,12 @@ export async function GET(request: NextRequest) {
     const status = sp.get('status');
     const q = (sp.get('q') || '').trim().toLowerCase();
     const buId = Number(sp.get('businessUnitId') || 0);
+    /** permanent (default) | all — People is permanent staff only */
+    const employmentScope = (
+      sp.get('employmentType') ||
+      sp.get('employment_scope') ||
+      'permanent'
+    ).toLowerCase();
 
     const supabase = getSupabaseServer();
     let query = supabase
@@ -46,6 +54,14 @@ export async function GET(request: NextRequest) {
     }
 
     let rows = data || [];
+    // People module: only permanent (full_time / part_time) unless employmentType=all
+    if (employmentScope !== 'all') {
+      rows = rows.filter((r) =>
+        isPermanentEmploymentType(
+          (r as { employment_type?: string }).employment_type || 'full_time'
+        )
+      );
+    }
     if (q) {
       rows = rows.filter((r) => {
         const hay = [
@@ -132,6 +148,20 @@ export async function POST(request: NextRequest) {
       employee_number = `E${String((count || 0) + 1).padStart(4, '0')}`;
     }
 
+    const peopleType = toPeopleEmploymentType(
+      body.employment_type || 'full_time'
+    );
+    if (!peopleType) {
+      return NextResponse.json(
+        {
+          error:
+            'People only holds permanent employees (full time or part time). Temporary, contract, casual and intern labour belong in operational modules.',
+          code: 'PERMANENT_ONLY',
+        },
+        { status: 400 }
+      );
+    }
+
     const payload: Record<string, unknown> = {
       profile_id: companyId,
       employee_number,
@@ -159,7 +189,7 @@ export async function POST(request: NextRequest) {
       emergency_contact_relation: body.emergency_contact_relation || null,
       job_title: body.job_title || null,
       department: body.department || null,
-      employment_type: body.employment_type || 'full_time',
+      employment_type: peopleType,
       status: body.status || 'active',
       start_date: body.start_date || null,
       end_date: body.end_date || null,
@@ -354,6 +384,20 @@ export async function PATCH(request: NextRequest) {
     };
     for (const k of allowed) {
       if (body[k] !== undefined) patch[k] = body[k];
+    }
+    if (body.employment_type !== undefined) {
+      const peopleType = toPeopleEmploymentType(body.employment_type);
+      if (!peopleType) {
+        return NextResponse.json(
+          {
+            error:
+              'People only holds permanent employees (full time or part time). Temporary, contract, casual and intern labour belong in operational modules.',
+            code: 'PERMANENT_ONLY',
+          },
+          { status: 400 }
+        );
+      }
+      patch.employment_type = peopleType;
     }
     if (body.first_name !== undefined || body.last_name !== undefined) {
       if (!body.full_name) {

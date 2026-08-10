@@ -28,6 +28,8 @@ export default function CalendarPage() {
     duration_min: '45',
     location: '',
     public: true,
+    patient_id: '',
+    family_member_id: '',
   });
 
   const events: ScheduleEvent[] = useMemo(() => {
@@ -97,6 +99,12 @@ export default function CalendarPage() {
     toast.success('Working hours saved');
   };
 
+  const selectedPatientFamily = useMemo(() => {
+    if (!store || !form.patient_id) return [];
+    const p = store.patients.find((x) => x.id === form.patient_id);
+    return (p?.family || []).filter((m) => m.active !== false);
+  }, [store, form.patient_id]);
+
   const add = async () => {
     if (!form.service_id) {
       toast.error('Pick a service');
@@ -106,10 +114,14 @@ export default function CalendarPage() {
       toast.error('Assign a practitioner');
       return;
     }
+    const appointmentId = `apt_${Date.now().toString(36)}_${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
     await post({
       entity: 'appointments',
       action: 'upsert',
       record: {
+        id: appointmentId,
         service_id: form.service_id,
         practitioner_id: form.practitioner_id,
         date: form.date,
@@ -120,7 +132,27 @@ export default function CalendarPage() {
         status: 'scheduled',
       },
     });
-    toast.success('Appointment scheduled');
+    if (form.patient_id) {
+      await post({
+        entity: 'bookings',
+        action: 'upsert',
+        record: {
+          appointment_id: appointmentId,
+          patient_id: form.patient_id,
+          family_member_id: form.family_member_id || null,
+          status: 'booked',
+          source: 'desk',
+        },
+      });
+      toast.success(
+        form.family_member_id
+          ? 'Appointment scheduled — family member booked'
+          : 'Appointment scheduled and patient booked'
+      );
+    } else {
+      toast.success('Appointment scheduled');
+    }
+    setForm((f) => ({ ...f, patient_id: '', family_member_id: '' }));
   };
 
   return (
@@ -262,6 +294,57 @@ export default function CalendarPage() {
                 setForm((f) => ({ ...f, location: e.target.value }))
               }
             />
+            <select
+              className={fc()}
+              value={form.patient_id}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  patient_id: e.target.value,
+                  family_member_id: '',
+                }))
+              }
+            >
+              <option value="">Book patient (optional)…</option>
+              {store.patients
+                .filter((p) => p.active !== false)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {p.booking_soft_block ? ' ⚠ no-shows' : ''}
+                    {p.email ? ` · ${p.email}` : ''}
+                  </option>
+                ))}
+            </select>
+            {form.patient_id && selectedPatientFamily.length > 0 ? (
+              <select
+                className={fc()}
+                value={form.family_member_id}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    family_member_id: e.target.value,
+                  }))
+                }
+              >
+                <option value="">Attendee: account holder</option>
+                {selectedPatientFamily.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                    {m.relationship ? ` · ${m.relationship}` : ''}
+                    {m.is_minor ? ' (child)' : ''}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+            {form.date && form.start_time ? (
+              <a
+                className="text-xs font-bold text-teal-700 underline"
+                href={`/api/public/advisor/ics?module=physiograph&date=${encodeURIComponent(form.date)}&start=${encodeURIComponent(form.start_time)}&title=${encodeURIComponent('PhysioAdvisor appointment')}&duration=${encodeURIComponent(form.duration_min || '45')}&location=${encodeURIComponent(form.location || '')}`}
+              >
+                Download .ics (add to calendar)
+              </a>
+            ) : null}
             <label className="flex items-center gap-2 text-sm font-medium">
               <input
                 type="checkbox"

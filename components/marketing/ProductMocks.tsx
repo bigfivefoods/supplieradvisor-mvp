@@ -664,7 +664,7 @@ export function FieldgraphMock() {
             CropAdvisor® · Agri
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
-            Field to buyer, one season.
+            Crop to buyer, one season.
           </div>
         </div>
         <span className="rounded-full border border-emerald-200 bg-emerald-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">

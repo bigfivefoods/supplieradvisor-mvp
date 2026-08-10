@@ -159,7 +159,7 @@ export default function FieldgraphReportPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `fieldgraph-${report}-${period.from}_${period.to}.csv`;
+    a.download = `cropadvisor-${report}-${period.from}_${period.to}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success('CSV downloaded for current slice');

@@ -5,6 +5,10 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import {
+  promoteNextWaitlist,
+  resolveFamilyAttendee,
+} from '@/lib/services/advisor-booking';
+import {
   attendanceByClass,
   buildClassJoinPath,
   buildCoachPortalPayload,
@@ -784,6 +788,7 @@ export async function POST(request: NextRequest) {
       ) {
         return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
       }
+      const prevStatus = booking.status;
       booking.status = status;
       const session = store.sessions.find((s) => s.id === booking.session_id);
       if (
@@ -792,6 +797,62 @@ export async function POST(request: NextRequest) {
         session.status !== 'cancelled'
       ) {
         session.status = 'completed';
+      }
+      // No-show / attendance stats on client
+      if (
+        (status === 'attended' || status === 'no_show') &&
+        prevStatus !== status
+      ) {
+        const { applyAttendanceToPersonStats } = await import(
+          '@/lib/services/advisor-booking'
+        );
+        const ci = store.clients.findIndex((c) => c.id === booking.client_id);
+        if (ci >= 0) {
+          Object.assign(
+            store.clients[ci],
+            applyAttendanceToPersonStats(store.clients[ci], status, now)
+          );
+        }
+      }
+      // Cancelled → promote waitlist + email offer
+      let promoted: FitBooking | null = null;
+      if (status === 'cancelled' && booking.session_id) {
+        const { promoteNextWaitlist } = await import(
+          '@/lib/services/advisor-booking'
+        );
+        const { sendWaitlistOfferEmail } = await import(
+          '@/lib/services/advisor-reminders'
+        );
+        promoted = promoteNextWaitlist(
+          store.bookings,
+          (b) => b.session_id === booking.session_id,
+          now
+        );
+        if (promoted) {
+          const client = store.clients.find((c) => c.id === promoted!.client_id);
+          const session = store.sessions.find(
+            (s) => s.id === promoted!.session_id
+          );
+          const ct = session
+            ? store.class_types.find((t) => t.id === session.class_type_id)
+            : null;
+          if (client?.email && session) {
+            await sendWaitlistOfferEmail({
+              to: client.email,
+              personName:
+                promoted.family_member_name || client.name || 'Member',
+              brand: store.settings?.brand_name || 'Gym',
+              eventTitle: ct?.name || 'Class',
+              date: session.date,
+              start_time: session.start_time,
+              location: session.location,
+              manageUrl: client.portal_token
+                ? `/member/fitgraph/${client.portal_token}`
+                : undefined,
+              moduleLabel: 'FitAdvisor®',
+            });
+          }
+        }
       }
       let feedbackPath: string | null = null;
       if (status === 'attended') {
@@ -812,6 +873,9 @@ export async function POST(request: NextRequest) {
         store,
         summary: summariseFitgraph(store),
         analysis: analysis(store),
+        waitlist_promoted: promoted
+          ? { booking_id: promoted.id, client_id: promoted.client_id }
+          : null,
         feedback_prompt:
           status === 'attended' && booking.feedback_token
             ? {
@@ -825,8 +889,155 @@ export async function POST(request: NextRequest) {
         message:
           status === 'attended' && feedbackPath
             ? 'Marked attended — feedback link ready for the member'
-            : undefined,
+            : promoted
+              ? 'Cancelled — next waitlist member promoted to booked'
+              : status === 'no_show'
+                ? 'Marked no-show — member stats updated'
+                : undefined,
       });
+    }
+
+    /** Freeze / unfreeze membership */
+    if (
+      action === 'freeze_membership' ||
+      action === 'unfreeze_membership' ||
+      action === 'membership_freeze'
+    ) {
+      const clientId = String(body.client_id || body.id || '');
+      const client = store.clients.find((c) => c.id === clientId);
+      if (!client) {
+        return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+      }
+      const { membershipStatusAfterFreeze } = await import(
+        '@/lib/services/advisor-booking'
+      );
+      const freeze =
+        action === 'freeze_membership' ||
+        body.freeze === true ||
+        body.op === 'freeze';
+      if (freeze) {
+        client.membership_status = membershipStatusAfterFreeze(
+          client.membership_status,
+          'freeze'
+        );
+        client.membership_frozen_at = now;
+        client.membership_freeze_until = body.until
+          ? String(body.until).slice(0, 10)
+          : null;
+      } else {
+        client.membership_status = membershipStatusAfterFreeze(
+          client.membership_status,
+          'unfreeze'
+        );
+        client.membership_frozen_at = null;
+        client.membership_freeze_until = null;
+      }
+      client.updated_at = now;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        message: freeze
+          ? 'Membership frozen'
+          : 'Membership unfrozen — status active',
+      });
+    }
+
+    /** Send booking reminders (next 24h) */
+    if (action === 'send_reminders') {
+      const {
+        sendBookingReminderEmail,
+        needsReminder,
+      } = await import('@/lib/services/advisor-reminders');
+      let sent = 0;
+      let skipped = 0;
+      const errors: string[] = [];
+      for (const b of store.bookings) {
+        if (b.status !== 'booked') continue;
+        const session = store.sessions.find((s) => s.id === b.session_id);
+        if (!session || session.status === 'cancelled') continue;
+        if (!needsReminder(b, session.date, session.start_time, 24)) {
+          skipped++;
+          continue;
+        }
+        const client = store.clients.find((c) => c.id === b.client_id);
+        const email = client?.email || b.guest_email;
+        if (!email) {
+          skipped++;
+          continue;
+        }
+        const ct = store.class_types.find(
+          (c) => c.id === session.class_type_id
+        );
+        const attendee =
+          b.family_member_name || client?.name || b.guest_name || 'Member';
+        const result = await sendBookingReminderEmail({
+          to: email,
+          personName: attendee,
+          brand: store.settings?.brand_name || 'Gym',
+          eventTitle: ct?.name || 'Class',
+          date: session.date,
+          start_time: session.start_time,
+          location: session.location,
+          manageUrl: client?.portal_token
+            ? `/member/fitgraph/${client.portal_token}`
+            : undefined,
+          moduleLabel: 'FitAdvisor®',
+        });
+        if (result.ok) {
+          b.reminded_at = now;
+          b.reminder_count = (Number(b.reminder_count) || 0) + 1;
+          sent++;
+        } else {
+          errors.push(result.error || 'fail');
+        }
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        reminders: { sent, skipped, errors: errors.slice(0, 5) },
+        message: `Sent ${sent} reminder${sent === 1 ? '' : 's'}`,
+      });
+    }
+
+    /** Outcomes snapshot for hub */
+    if (action === 'outcomes') {
+      const { computeOutcomes, recallCandidates } = await import(
+        '@/lib/services/advisor-outcomes'
+      );
+      const eventNameById: Record<string, string> = {};
+      for (const s of store.sessions) {
+        const ct = store.class_types.find((c) => c.id === s.class_type_id);
+        eventNameById[s.id] = ct?.name || 'Class';
+      }
+      const soft = store.clients.filter((c) => c.booking_soft_block).length;
+      const outcomes = computeOutcomes({
+        bookings: store.bookings,
+        feedback: (store.class_feedback || []).map((f) => ({
+          feeling: f.feeling,
+          would_return: f.would_return,
+          created_at: f.created_at,
+          event_id: f.session_id,
+        })),
+        eventNameById,
+        peopleSoftBlocked: soft,
+        periodDays: Number(body.period_days) || 30,
+      });
+      const recalls = recallCandidates({
+        people: store.clients,
+        bookings: store.bookings.map((b) => ({
+          client_id: b.client_id,
+          status: b.status,
+          booked_at: b.booked_at,
+        })),
+        recallAfterDays: Number(body.recall_after_days) || 45,
+      });
+      return NextResponse.json({ success: true, outcomes, recalls });
     }
 
     /** Owner: manage coach specialty catalogue (add / rename / remove) */
@@ -1538,6 +1749,18 @@ function upsert(
       const session = store.sessions.find((s) => s.id === sessionId);
       const cap = session?.capacity ?? 999;
       const count = sessionBookingCount(store, sessionId);
+      // Family attendee resolution
+      let famIdCap =
+        rec.family_member_id != null ? String(rec.family_member_id) : null;
+      let famNameCap: string | undefined;
+      if (famIdCap) {
+        const client = store.clients.find(
+          (c) => c.id === String(rec.client_id || '')
+        );
+        const fam = resolveFamilyAttendee(client?.family, famIdCap);
+        if (fam) famNameCap = fam.label;
+        else famIdCap = null;
+      }
       if (count >= cap) {
         // auto waitlist
         const row: FitBooking = {
@@ -1553,6 +1776,8 @@ function upsert(
             rec.guest_email != null ? String(rec.guest_email) : undefined,
           guest_phone:
             rec.guest_phone != null ? String(rec.guest_phone) : undefined,
+          family_member_id: famIdCap,
+          family_member_name: famNameCap || null,
           notes: rec.notes != null ? String(rec.notes) : 'Auto waitlist — full',
         };
         store.bookings.push(row);
@@ -1560,6 +1785,34 @@ function upsert(
       }
     }
     const prev = i >= 0 ? store.bookings[i] : null;
+    let famId =
+      rec.family_member_id !== undefined
+        ? rec.family_member_id
+          ? String(rec.family_member_id)
+          : null
+        : prev?.family_member_id ?? null;
+    let famName = prev?.family_member_name ?? null;
+    if (rec.family_member_id !== undefined) {
+      const client = store.clients.find(
+        (c) => c.id === String(rec.client_id || prev?.client_id || '')
+      );
+      const fam = resolveFamilyAttendee(client?.family, famId);
+      famName = fam?.label || null;
+      if (!fam) famId = null;
+    }
+    let noteOut =
+      rec.notes != null ? String(rec.notes) : prev?.notes;
+    // Soft-block check for new bookings
+    if (i < 0 && status === 'booked') {
+      const client = store.clients.find(
+        (c) => c.id === String(rec.client_id || '')
+      );
+      if (client?.booking_soft_block && rec.force !== true) {
+        noteOut = [noteOut, 'Soft-block: high no-show history']
+          .filter(Boolean)
+          .join(' · ');
+      }
+    }
     let row: FitBooking = {
       id,
       session_id: sessionId || prev?.session_id || '',
@@ -1579,12 +1832,31 @@ function upsert(
         rec.guest_phone != null
           ? String(rec.guest_phone)
           : prev?.guest_phone,
-      notes: rec.notes != null ? String(rec.notes) : prev?.notes,
+      notes: noteOut,
+      family_member_id: famId,
+      family_member_name: famName,
+      reminded_at: prev?.reminded_at ?? null,
+      reminder_count: prev?.reminder_count,
+      waitlist_offered_at: prev?.waitlist_offered_at ?? null,
+      waitlist_accepted_at: prev?.waitlist_accepted_at ?? null,
       feedback_token: prev?.feedback_token ?? null,
       feedback_requested_at: prev?.feedback_requested_at ?? null,
       feedback_submitted_at: prev?.feedback_submitted_at ?? null,
       feedback_id: prev?.feedback_id ?? null,
     };
+    // Status transition: cancel → promote waitlist
+    if (
+      prev &&
+      prev.status !== 'cancelled' &&
+      status === 'cancelled' &&
+      row.session_id
+    ) {
+      promoteNextWaitlist(
+        store.bookings,
+        (b) => b.session_id === row.session_id && b.id !== row.id,
+        now
+      );
+    }
     if (status === 'attended') {
       row = issueFeedbackPrompt(row, now);
     }
