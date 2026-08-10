@@ -255,80 +255,95 @@ html.dark {
    Flat selectors only (no CSS nesting — Tailwind PostCSS).
    text-white / brand cyan kept intentional.
    ============================================ */
-/* Page & panel surfaces */
-html.dark .bg-white {
 
-    background-color: var(--sa-surface) !important;
+/*
+ * 1) SOLID light / grey cards → dark charcoal surface
+ *    (background-color only; gradients handled separately below)
+ */
+html.dark .bg-white,
+html.dark .bg-white\/95,
+html.dark .bg-white\/90,
+html.dark .bg-white\/80,
+html.dark .bg-white\/70,
+html.dark .bg-white\/60,
+html.dark .bg-white\/50,
+html.dark .bg-white\/40,
+html.dark .bg-white\/30,
+html.dark .bg-white\/20,
+html.dark .bg-white\/10 {
+  background-color: var(--sa-surface) !important;
 }
 
-html.dark .bg-white\/80 {
-  background-color: rgb(20 20 20 / 0.8) !important;
-}
-
-html.dark .bg-white\/90 {
-  background-color: rgb(20 20 20 / 0.9) !important;
-}
-
-html.dark .bg-white\/95 {
-  background-color: rgb(20 20 20 / 0.95) !important;
-}
-
-html.dark .bg-white\/50 {
-  background-color: rgb(20 20 20 / 0.5) !important;
-}
-
-html.dark .bg-white\/60 {
-  background-color: rgb(20 20 20 / 0.6) !important;
-}
-
-html.dark .bg-white\/70 {
-  background-color: rgb(20 20 20 / 0.7) !important;
-}
-
-/* Page / muted panels — always dark charcoal, never pale grey */
 html.dark .bg-\[\#f8fafc\],
+html.dark .bg-\[\#fafafa\],
+html.dark .bg-\[\#f8f7f5\],
+html.dark .bg-\[\#e8f8fc\],
+html.dark .bg-\[\#e0f7fc\],
 html.dark .bg-slate-50,
+html.dark .bg-slate-50\/30,
 html.dark .bg-slate-50\/40,
 html.dark .bg-slate-50\/50,
 html.dark .bg-slate-50\/60,
+html.dark .bg-slate-50\/70,
 html.dark .bg-slate-50\/80,
 html.dark .bg-slate-50\/90,
 html.dark .bg-neutral-50,
+html.dark .bg-neutral-50\/30,
 html.dark .bg-neutral-50\/40,
 html.dark .bg-neutral-50\/50,
+html.dark .bg-neutral-50\/60,
+html.dark .bg-neutral-50\/70,
 html.dark .bg-neutral-50\/80,
+html.dark .bg-neutral-50\/90,
 html.dark .bg-gray-50,
+html.dark .bg-gray-50\/40,
 html.dark .bg-gray-50\/50,
-html.dark .bg-gray-50\/80 {
+html.dark .bg-gray-50\/80,
+html.dark .bg-stone-50,
+html.dark .bg-stone-50\/60,
+html.dark .bg-zinc-50,
+html.dark .bg-zinc-50\/50,
+html.dark .bg-zinc-100 {
   background-color: var(--sa-bg-elevated) !important;
 }
 
 html.dark .bg-slate-100,
 html.dark .bg-slate-100\/50,
 html.dark .bg-slate-100\/80,
+html.dark .bg-slate-100\/90,
 html.dark .bg-neutral-100,
 html.dark .bg-neutral-100\/50,
 html.dark .bg-neutral-100\/80,
 html.dark .bg-gray-100,
+html.dark .bg-stone-100,
 html.dark .hover\:bg-slate-50:hover,
 html.dark .hover\:bg-slate-100:hover,
 html.dark .hover\:bg-neutral-50:hover,
-html.dark .hover\:bg-neutral-100:hover {
+html.dark .hover\:bg-neutral-100:hover,
+html.dark .hover\:bg-white:hover,
+html.dark .hover\:bg-white\/80:hover,
+html.dark .hover\:bg-white\/90:hover {
   background-color: #171717 !important;
 }
 
 html.dark .bg-slate-200\/80,
 html.dark .bg-slate-200,
+html.dark .bg-slate-300,
 html.dark .bg-neutral-200,
-html.dark .bg-gray-200 {
+html.dark .bg-neutral-300,
+html.dark .bg-gray-200,
+html.dark .bg-zinc-200,
+html.dark .bg-stone-200 {
   background-color: #2a2a2a !important;
 }
 
-/* Soft tints → dark charcoal panels with subtle hue (readable with light text) */
+/* Soft pastel fills → dark tinted panels */
 html.dark .bg-sky-50,
+html.dark .bg-sky-50\/30,
 html.dark .bg-sky-50\/40,
 html.dark .bg-sky-50\/50,
 html.dark .bg-sky-50\/60,
+html.dark .bg-sky-50\/70,
 html.dark .bg-sky-50\/80,
 html.dark .bg-sky-50\/90,
 html.dark .bg-cyan-50,
@@ -338,7 +353,8 @@ html.dark .bg-cyan-50\/80,
 html.dark .bg-sky-100,
 html.dark .bg-sky-100\/40,
 html.dark .bg-sky-100\/50,
-html.dark .bg-sky-100\/80 {
+html.dark .bg-sky-100\/80,
+html.dark .bg-sky-100\/90 {
   background-color: var(--sa-sky-soft) !important;
 }
 
@@ -391,84 +407,222 @@ html.dark .bg-teal-50 {
   background-color: #0c1a18 !important;
 }
 
-/* Text hierarchy — light on dark only (panels above are dark) */
+/*
+ * 2) PALE GRADIENT CARDS
+ *    background-color remaps never paint over linear-gradient images.
+ *    Collapse pale from/via/to stops to dark charcoal so light ink stays readable.
+ */
+html.dark .from-white {
+  --tw-gradient-from: #121212 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(18 18 18 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+html.dark .via-white {
+  --tw-gradient-to: rgb(18 18 18 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), #121212 var(--tw-gradient-via-position),
+    var(--tw-gradient-to) !important;
+}
+html.dark .to-white {
+  --tw-gradient-to: #121212 var(--tw-gradient-to-position) !important;
+}
+
+html.dark .from-slate-50,
+html.dark .from-slate-50\/90,
+html.dark .from-neutral-50,
+html.dark .from-sky-50,
+html.dark .from-sky-50\/50,
+html.dark .from-sky-50\/80,
+html.dark .from-sky-100,
+html.dark .from-cyan-50,
+html.dark .from-cyan-50\/80 {
+  --tw-gradient-from: #121212 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(18 18 18 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+html.dark .via-sky-50,
+html.dark .via-sky-50\/40,
+html.dark .via-sky-50\/50,
+html.dark .via-sky-50\/60,
+html.dark .via-sky-50\/70,
+html.dark .via-sky-50\/80,
+html.dark .via-sky-50\/90 {
+  --tw-gradient-to: rgb(18 18 18 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), #0f1720 var(--tw-gradient-via-position),
+    var(--tw-gradient-to) !important;
+}
+
+html.dark .to-slate-50,
+html.dark .to-neutral-50,
+html.dark .to-sky-50,
+html.dark .to-sky-50\/30,
+html.dark .to-sky-50\/40,
+html.dark .to-sky-50\/50,
+html.dark .to-sky-50\/60,
+html.dark .to-sky-50\/80,
+html.dark .to-sky-100,
+html.dark .to-sky-100\/80,
+html.dark .to-cyan-50,
+html.dark .to-cyan-50\/40,
+html.dark .to-cyan-50\/60,
+html.dark .to-cyan-50\/90 {
+  --tw-gradient-to: #0a1620 var(--tw-gradient-to-position) !important;
+}
+
+/*
+ * 3) TEXT — readable ink on dark surfaces (cards forced dark above).
+ *    Primary body ink is near-white; muted labels stay mid-grey but not pale.
+ */
 html.dark .text-slate-900,
 html.dark .text-neutral-900,
 html.dark .text-gray-900,
+html.dark .text-zinc-900,
+html.dark .text-stone-900,
 html.dark .text-black {
-  color: #f5f5f5 !important;
+  color: #fafafa !important;
 }
 
 html.dark .text-slate-800,
 html.dark .text-neutral-800,
-html.dark .text-gray-800 {
-  color: #eeeeee !important;
+html.dark .text-gray-800,
+html.dark .text-zinc-800,
+html.dark .text-stone-800 {
+  color: #f0f0f0 !important;
 }
 
 html.dark .text-slate-700,
 html.dark .text-neutral-700,
-html.dark .text-gray-700 {
-  color: #e0e0e0 !important;
+html.dark .text-gray-700,
+html.dark .text-zinc-700,
+html.dark .text-stone-700 {
+  color: #e8e8e8 !important;
 }
 
 html.dark .text-slate-600,
 html.dark .text-neutral-600,
-html.dark .text-gray-600 {
-  color: #cfcfcf !important;
+html.dark .text-gray-600,
+html.dark .text-zinc-600,
+html.dark .text-stone-600 {
+  color: #d4d4d4 !important;
 }
 
 html.dark .text-slate-500,
 html.dark .text-neutral-500,
-html.dark .text-gray-500 {
-  color: #a8a8a8 !important;
+html.dark .text-gray-500,
+html.dark .text-zinc-500,
+html.dark .text-stone-500 {
+  color: #c4c4c4 !important;
 }
 
 html.dark .text-slate-400,
 html.dark .text-neutral-400,
-html.dark .text-gray-400 {
-  color: #8f8f8f !important;
-}
-
-html.dark .text-slate-300,
-html.dark .text-neutral-300 {
+html.dark .text-gray-400,
+html.dark .text-zinc-400,
+html.dark .text-stone-400 {
   color: #b0b0b0 !important;
 }
 
-/*
- * Soft pastel TEXT (emerald-700, amber-800, etc.) is unreadable on dark
- * panels — lift them to readable light tints.
- */
+html.dark .text-slate-300,
+html.dark .text-neutral-300,
+html.dark .text-gray-300,
+html.dark .text-zinc-300 {
+  color: #d4d4d4 !important;
+}
+
+/* Soft pastel status TEXT → brighter tints on dark panels */
+html.dark .text-emerald-600,
 html.dark .text-emerald-700,
 html.dark .text-emerald-800,
 html.dark .text-emerald-900 {
   color: #6ee7b7 !important;
 }
+html.dark .text-amber-600,
 html.dark .text-amber-700,
 html.dark .text-amber-800,
 html.dark .text-amber-900 {
   color: #fcd34d !important;
 }
+html.dark .text-rose-600,
 html.dark .text-rose-700,
 html.dark .text-rose-800,
 html.dark .text-rose-900 {
   color: #fda4af !important;
 }
+html.dark .text-sky-600,
 html.dark .text-sky-700,
 html.dark .text-sky-800,
 html.dark .text-sky-900,
+html.dark .text-cyan-600,
 html.dark .text-cyan-700,
 html.dark .text-cyan-800,
 html.dark .text-cyan-900 {
   color: #67e8f9 !important;
 }
+html.dark .text-violet-600,
 html.dark .text-violet-700,
 html.dark .text-violet-800,
 html.dark .text-violet-900 {
   color: #c4b5fd !important;
 }
+html.dark .text-orange-600,
 html.dark .text-orange-700,
 html.dark .text-orange-800 {
   color: #fdba74 !important;
+}
+html.dark .text-red-600,
+html.dark .text-red-700 {
+  color: #fca5a5 !important;
+}
+
+/*
+ * 4) Shared panels / cards: dark surface + high-contrast light ink.
+ *    background-image:none kills leftover pale gradients on panel wrappers
+ *    so text remapped to near-white is always readable.
+ */
+html.dark .card,
+html.dark .sa-panel,
+html.dark .sa-metric-card,
+html.dark .sa-hero {
+  background-color: var(--sa-surface) !important;
+  background-image: none !important;
+  color: var(--sa-text) !important;
+  border-color: var(--sa-border) !important;
+}
+
+/*
+ * Pale gradient hero/section cards (from-white / to-sky-50 / to-cyan-50, etc.)
+ * paint via background-image, so solid bg remaps alone never win. When a pale
+ * gradient stop is present, drop the image and use a dark panel fill so the
+ * light text remaps below are always readable.
+ */
+html.dark .from-white,
+html.dark .from-slate-50,
+html.dark .from-neutral-50,
+html.dark .from-sky-50,
+html.dark .from-cyan-50,
+html.dark .to-sky-50,
+html.dark .to-cyan-50,
+html.dark .to-slate-50,
+html.dark .to-neutral-50 {
+  background-image: none !important;
+  background-color: var(--sa-surface) !important;
+}
+html.dark .sa-metric-value {
+  color: #fafafa !important;
+}
+html.dark .sa-metric-label {
+  color: #a3a3a3 !important;
+}
+
+/* Brand fills keep pure white labels (do not grey out text-white) */
+html.dark .btn-primary,
+html.dark .bg-\[\#00b4d8\],
+html.dark .bg-\[\#0099b8\],
+html.dark .bg-\[\#0096c7\],
+html.dark .bg-\[\#0077b6\],
+html.dark .bg-emerald-500,
+html.dark .bg-emerald-600 {
+  color: #ffffff !important;
 }
 
 /* SupplierAdvisor blues — keep product brand on black */
@@ -492,11 +646,12 @@ html.dark .hover\:text-\[\#00b4d8\]:hover {
 html.dark .border-slate-200,
 html.dark .border-neutral-200,
 html.dark .border-gray-200,
+html.dark .border-zinc-200,
+html.dark .border-stone-200,
 html.dark .border-slate-200\/80,
 html.dark .border-slate-200\/90,
 html.dark .border-neutral-200\/90 {
-
-    border-color: var(--sa-border) !important;
+  border-color: var(--sa-border) !important;
 }
 
 html.dark .border-slate-100,
@@ -525,83 +680,52 @@ html.dark .border-sky-200 {
 }
 
 html.dark .border-emerald-200 {
-
-    border-color: rgba(16, 185, 129, 0.3) !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
 }
 
 html.dark .border-amber-200 {
-
-    border-color: rgba(245, 158, 11, 0.3) !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
 }
 
 html.dark .border-rose-200 {
-
-    border-color: rgba(244, 63, 94, 0.3) !important;
+  border-color: rgba(244, 63, 94, 0.3) !important;
 }
 
 html.dark .border-violet-200 {
-
-    border-color: rgba(139, 92, 246, 0.3) !important;
+  border-color: rgba(139, 92, 246, 0.3) !important;
 }
 
 html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
 html.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]),
 html.dark .divide-y > :not([hidden]) ~ :not([hidden]) {
-
-    border-color: var(--sa-border);
+  border-color: var(--sa-border);
 }
 
 /* Rings / focus */
 html.dark .ring-slate-200 {
-
-    --tw-ring-color: var(--sa-border) !important;
-}
-
-/* Soft brand fills used on chips */
-html.dark .from-white {
-  --tw-gradient-from: var(--sa-surface) var(--tw-gradient-from-position) !important;
-  --tw-gradient-to: rgb(0 0 0 / 0) var(--tw-gradient-to-position) !important;
-  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
-}
-
-html.dark .via-white {
-  --tw-gradient-to: rgb(0 0 0 / 0) var(--tw-gradient-to-position) !important;
-  --tw-gradient-stops: var(--tw-gradient-from), var(--sa-surface) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
-}
-
-html.dark .to-white {
-  --tw-gradient-to: var(--sa-surface) var(--tw-gradient-to-position) !important;
-}
-
-html.dark .from-sky-50,
-html.dark .from-cyan-50 {
-  --tw-gradient-from: rgba(0, 180, 216, 0.12) var(--tw-gradient-from-position) !important;
+  --tw-ring-color: var(--sa-border) !important;
 }
 
 /* Placeholder */
 html.dark .placeholder\:text-slate-400::placeholder,
 html.dark .placeholder-slate-400::placeholder {
-
-    color: var(--sa-faint) !important;
+  color: var(--sa-faint) !important;
 }
 
 /* Shadows slightly deeper */
 html.dark .shadow-sm {
-
-    --tw-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.35) !important;
-    --tw-shadow-colored: 0 1px 2px 0 var(--tw-shadow-color) !important;
-    box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow) !important;
+  --tw-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.35) !important;
+  --tw-shadow-colored: 0 1px 2px 0 var(--tw-shadow-color) !important;
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow) !important;
 }
 
 html.dark .shadow-xl {
-
-    --tw-shadow: 0 20px 40px -12px rgb(0 0 0 / 0.55) !important;
+  --tw-shadow: 0 20px 40px -12px rgb(0 0 0 / 0.55) !important;
 }
 
 /* Scrollbars */
 html.dark .sa-scroll-x::-webkit-scrollbar-thumb {
-
-    background: var(--sa-scrollbar);
+  background: var(--sa-scrollbar);
 }
 
 /* Keep pure white text on filled brand buttons (no .text-white selector — breaks @apply) */
