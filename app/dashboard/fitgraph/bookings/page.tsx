@@ -7,12 +7,13 @@ import {
   LoadingBlock,
   useFitgraph,
 } from '@/components/fitness/FitgraphWorkbench';
-import { Share2 } from 'lucide-react';
+import { Copy, Share2 } from 'lucide-react';
 import { DataTable, FormCard, StatRow, fc } from '@/components/fitness/FitForm';
 import { sessionBookingCount } from '@/lib/fitness/fitgraph';
+import { buildPublicFeedbackPath } from '@/lib/services/booking-feedback';
 
 export default function BookingsPage() {
-  const { store, loading, saving, post, summary } = useFitgraph();
+  const { companyId, store, loading, saving, post, summary } = useFitgraph();
   const [form, setForm] = useState({
     session_id: '',
     client_id: '',
@@ -50,19 +51,42 @@ export default function BookingsPage() {
   const mark = async (id: string, status: string) => {
     const b = store?.bookings.find((x) => x.id === id);
     if (!b) return;
-    await post({
+    const data = await post({
       entity: 'bookings',
       action: 'upsert',
       record: { ...b, status },
     });
+    if (status === 'attended') {
+      const updated = (data?.store?.bookings || []).find(
+        (x: { id: string }) => x.id === id
+      ) as { feedback_token?: string } | undefined;
+      const tok = updated?.feedback_token;
+      if (tok) {
+        const path = buildPublicFeedbackPath('fitgraph', companyId, tok);
+        const url = `${window.location.origin}${path}`;
+        try {
+          await navigator.clipboard.writeText(url);
+          toast.success('Attended — feedback link copied for the member');
+        } catch {
+          toast.success('Attended — share the feedback link below');
+        }
+        return;
+      }
+    }
     toast.success(`Marked ${status}`);
+  };
+
+  const copyFeedback = async (token: string) => {
+    const path = buildPublicFeedbackPath('fitgraph', companyId, token);
+    await navigator.clipboard.writeText(`${window.location.origin}${path}`);
+    toast.success('Feedback link copied');
   };
 
   return (
     <FitgraphWorkbench
       title="Bookings"
       titleAccent="classes"
-      description="Add members to classes (owner/coach desk), or copy a B2C join link so they book themselves and add the class to their calendar."
+      description="Add members to classes, or copy a join link. When you mark attended, a feedback link is issued so the member can rate the class."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -73,6 +97,10 @@ export default function BookingsPage() {
               {
                 label: 'Open bookings',
                 value: Number(summary?.bookingsOpen) || 0,
+              },
+              {
+                label: 'Feedback pending',
+                value: Number(summary?.pendingFeedback) || 0,
               },
             ]}
           />
@@ -164,19 +192,19 @@ export default function BookingsPage() {
                 return (
                   <div
                     key={b.id}
-                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs flex gap-2 items-center"
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs flex gap-2 items-center dark:border-neutral-700 dark:bg-neutral-950"
                   >
                     <span className="font-bold">{client?.name || 'Client'}</span>
                     <button
                       type="button"
-                      className="text-emerald-700 font-bold"
+                      className="text-emerald-700 font-bold dark:text-emerald-300"
                       onClick={() => void mark(b.id, 'attended')}
                     >
                       Attended
                     </button>
                     <button
                       type="button"
-                      className="text-rose-600 font-bold"
+                      className="text-rose-600 font-bold dark:text-rose-300"
                       onClick={() => void mark(b.id, 'no_show')}
                     >
                       No-show
@@ -185,6 +213,57 @@ export default function BookingsPage() {
                 );
               })}
           </div>
+
+          {/* Pending post-class feedback links */}
+          {store.bookings.some(
+            (b) =>
+              b.status === 'attended' &&
+              b.feedback_token &&
+              !b.feedback_submitted_at
+          ) ? (
+            <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4 dark:border-violet-700/40 dark:bg-violet-950/30">
+              <h3 className="text-sm font-black text-violet-950 dark:text-violet-100">
+                Feedback requested
+              </h3>
+              <p className="text-[11px] text-violet-900/80 dark:text-violet-200/80 mt-0.5 mb-3">
+                Share these links with members after class (WhatsApp / SMS /
+                email).
+              </p>
+              <ul className="space-y-1.5">
+                {store.bookings
+                  .filter(
+                    (b) =>
+                      b.status === 'attended' &&
+                      b.feedback_token &&
+                      !b.feedback_submitted_at
+                  )
+                  .map((b) => {
+                    const client = store.clients.find(
+                      (c) => c.id === b.client_id
+                    );
+                    return (
+                      <li
+                        key={b.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-100 bg-white px-3 py-2 text-xs dark:border-violet-800 dark:bg-violet-950"
+                      >
+                        <span className="font-bold">
+                          {client?.name || b.guest_name || 'Member'}
+                        </span>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 font-bold text-violet-700 dark:text-violet-300"
+                          onClick={() =>
+                            void copyFeedback(b.feedback_token!)
+                          }
+                        >
+                          <Copy className="w-3 h-3" /> Copy feedback link
+                        </button>
+                      </li>
+                    );
+                  })}
+              </ul>
+            </div>
+          ) : null}
         </div>
       )}
     </FitgraphWorkbench>

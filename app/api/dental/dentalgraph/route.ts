@@ -29,6 +29,7 @@ import {
   threadsForDesk,
   totalUnread,
 } from '@/lib/messaging/service-inbox';
+import { issueFeedbackPrompt } from '@/lib/services/booking-feedback';
 
 export const runtime = 'nodejs';
 
@@ -462,7 +463,7 @@ function upsert(
     const id = String(rec.id || newId('bkg'));
     const i = store.bookings.findIndex((b) => b.id === id);
     const prev = i >= 0 ? store.bookings[i] : null;
-    const row: DentalBooking = {
+    let row: DentalBooking = {
       id,
       appointment_id: String(
         rec.appointment_id || prev?.appointment_id || ''
@@ -472,7 +473,14 @@ function upsert(
       booked_at: prev?.booked_at || now,
       source: rec.source != null ? String(rec.source) : prev?.source || 'desk',
       notes: rec.notes != null ? String(rec.notes) : prev?.notes,
+      feedback_token: prev?.feedback_token ?? null,
+      feedback_requested_at: prev?.feedback_requested_at ?? null,
+      feedback_submitted_at: prev?.feedback_submitted_at ?? null,
+      feedback_id: prev?.feedback_id ?? null,
     };
+    if (row.status === 'attended') {
+      row = issueFeedbackPrompt(row, now);
+    }
     if (i >= 0) store.bookings[i] = row;
     else store.bookings.push(row);
   }

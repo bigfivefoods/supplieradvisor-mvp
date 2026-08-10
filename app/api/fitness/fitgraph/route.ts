@@ -52,6 +52,10 @@ import {
   threadsForDesk,
   totalUnread,
 } from '@/lib/messaging/service-inbox';
+import {
+  buildPublicFeedbackPath,
+  issueFeedbackPrompt,
+} from '@/lib/services/booking-feedback';
 
 export const runtime = 'nodejs';
 
@@ -573,12 +577,39 @@ export async function POST(request: NextRequest) {
       ) {
         session.status = 'completed';
       }
+      let feedbackPath: string | null = null;
+      if (status === 'attended') {
+        const prompted = issueFeedbackPrompt(booking, now);
+        booking.feedback_token = prompted.feedback_token;
+        booking.feedback_requested_at = prompted.feedback_requested_at;
+        if (booking.feedback_token) {
+          feedbackPath = buildPublicFeedbackPath(
+            'fitgraph',
+            companyId,
+            booking.feedback_token
+          );
+        }
+      }
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
         store,
         summary: summariseFitgraph(store),
         analysis: analysis(store),
+        feedback_prompt:
+          status === 'attended' && booking.feedback_token
+            ? {
+                booking_id: booking.id,
+                token: booking.feedback_token,
+                path: feedbackPath,
+                requested_at: booking.feedback_requested_at,
+                submitted: Boolean(booking.feedback_submitted_at),
+              }
+            : null,
+        message:
+          status === 'attended' && feedbackPath
+            ? 'Marked attended — feedback link ready for the member'
+            : undefined,
       });
     }
 
@@ -1232,21 +1263,35 @@ function upsert(
         return;
       }
     }
-    const row: FitBooking = {
+    const prev = i >= 0 ? store.bookings[i] : null;
+    let row: FitBooking = {
       id,
-      session_id: sessionId,
-      client_id: String(rec.client_id || ''),
+      session_id: sessionId || prev?.session_id || '',
+      client_id: String(rec.client_id || prev?.client_id || ''),
       status,
-      booked_at: i >= 0 ? store.bookings[i].booked_at : now,
-      source: String(rec.source || 'desk'),
+      booked_at: prev?.booked_at || now,
+      source: String(rec.source || prev?.source || 'desk'),
       guest_name:
-        rec.guest_name != null ? String(rec.guest_name) : undefined,
+        rec.guest_name != null
+          ? String(rec.guest_name)
+          : prev?.guest_name,
       guest_email:
-        rec.guest_email != null ? String(rec.guest_email) : undefined,
+        rec.guest_email != null
+          ? String(rec.guest_email)
+          : prev?.guest_email,
       guest_phone:
-        rec.guest_phone != null ? String(rec.guest_phone) : undefined,
-      notes: rec.notes != null ? String(rec.notes) : undefined,
+        rec.guest_phone != null
+          ? String(rec.guest_phone)
+          : prev?.guest_phone,
+      notes: rec.notes != null ? String(rec.notes) : prev?.notes,
+      feedback_token: prev?.feedback_token ?? null,
+      feedback_requested_at: prev?.feedback_requested_at ?? null,
+      feedback_submitted_at: prev?.feedback_submitted_at ?? null,
+      feedback_id: prev?.feedback_id ?? null,
     };
+    if (status === 'attended') {
+      row = issueFeedbackPrompt(row, now);
+    }
     if (i >= 0) store.bookings[i] = row;
     else store.bookings.push(row);
 

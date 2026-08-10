@@ -30,6 +30,10 @@ import {
   threadsForParticipant,
   totalUnread,
 } from '@/lib/messaging/service-inbox';
+import {
+  buildPublicFeedbackPath,
+  issueFeedbackPrompt,
+} from '@/lib/services/booking-feedback';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -644,10 +648,31 @@ export async function POST(request: NextRequest) {
         session.status =
           session.status === 'cancelled' ? session.status : 'completed';
       }
+      let feedbackPath: string | null = null;
+      if (nextStatus === 'attended') {
+        const prompted = issueFeedbackPrompt(booking, now);
+        booking.feedback_token = prompted.feedback_token;
+        booking.feedback_requested_at = prompted.feedback_requested_at;
+        if (booking.feedback_token) {
+          feedbackPath = buildPublicFeedbackPath(
+            'fitgraph',
+            companyId,
+            booking.feedback_token
+          );
+        }
+      }
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
         portal: buildCoachPortalPayload(store, coach),
+        feedback_prompt:
+          nextStatus === 'attended' && booking.feedback_token
+            ? {
+                booking_id: booking.id,
+                token: booking.feedback_token,
+                path: feedbackPath,
+              }
+            : null,
       });
     }
 

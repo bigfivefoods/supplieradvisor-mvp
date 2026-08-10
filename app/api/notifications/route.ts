@@ -605,6 +605,75 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Service verticals: members/patients pending post-visit feedback
+    try {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('metadata')
+        .eq('id', companyId)
+        .maybeSingle();
+      const meta =
+        prof?.metadata && typeof prof.metadata === 'object'
+          ? (prof.metadata as Record<string, unknown>)
+          : {};
+      const countPending = (key: string) => {
+        const raw = meta[key];
+        if (!raw || typeof raw !== 'object') return 0;
+        const bookings = (raw as { bookings?: unknown[] }).bookings;
+        if (!Array.isArray(bookings)) return 0;
+        return bookings.filter((b) => {
+          const row = b as {
+            status?: string;
+            feedback_token?: string;
+            feedback_submitted_at?: string;
+          };
+          return (
+            row.status === 'attended' &&
+            row.feedback_token &&
+            !row.feedback_submitted_at
+          );
+        }).length;
+      };
+      const fitN = countPending('fitgraph');
+      const physN = countPending('physiograph');
+      const denN = countPending('dentalgraph');
+      if (fitN > 0) {
+        notifications.push({
+          id: 'fitgraph-feedback-pending',
+          severity: fitN >= 5 ? 'warning' : 'info',
+          title: `${fitN} class feedback request${fitN === 1 ? '' : 's'} open`,
+          body: 'Members marked attended — share feedback links from Bookings',
+          href: '/dashboard/fitgraph/bookings',
+          created_at: new Date().toISOString(),
+          source: 'fitgraph',
+        });
+      }
+      if (physN > 0) {
+        notifications.push({
+          id: 'physiograph-feedback-pending',
+          severity: physN >= 5 ? 'warning' : 'info',
+          title: `${physN} patient feedback request${physN === 1 ? '' : 's'} open`,
+          body: 'Visits completed — copy patient feedback links from Bookings',
+          href: '/dashboard/physiograph/bookings',
+          created_at: new Date().toISOString(),
+          source: 'physiograph',
+        });
+      }
+      if (denN > 0) {
+        notifications.push({
+          id: 'dentalgraph-feedback-pending',
+          severity: denN >= 5 ? 'warning' : 'info',
+          title: `${denN} dental feedback request${denN === 1 ? '' : 's'} open`,
+          body: 'Visits completed — share patient feedback links from Bookings',
+          href: '/dashboard/dentalgraph/bookings',
+          created_at: new Date().toISOString(),
+          source: 'dentalgraph',
+        });
+      }
+    } catch {
+      /* soft */
+    }
+
     // Severity sort: critical > warning > info > positive
     const rank = { critical: 0, warning: 1, info: 2, positive: 3 };
     notifications.sort(

@@ -2,15 +2,17 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { Copy, Link2 } from 'lucide-react';
 import {
   LoadingBlock,
   DentalgraphWorkbench,
   useDentalgraph,
 } from '@/components/dental/DentalgraphWorkbench';
 import { DataTable, FormCard, StatRow, fc } from '@/components/dental/DentalForm';
+import { buildPublicFeedbackPath } from '@/lib/services/booking-feedback';
 
 export default function BookingsPage() {
-  const { store, loading, saving, post, summary } = useDentalgraph();
+  const { companyId, store, loading, saving, post, summary } = useDentalgraph();
   const [form, setForm] = useState({
     appointment_id: '',
     patient_id: '',
@@ -37,19 +39,54 @@ export default function BookingsPage() {
   const mark = async (id: string, status: string) => {
     const b = store?.bookings.find((x) => x.id === id);
     if (!b) return;
-    await post({
+    const data = await post({
       entity: 'bookings',
       action: 'upsert',
       record: { ...b, status },
     });
+    if (status === 'attended') {
+      const updated = (data?.store?.bookings || []).find(
+        (x: { id: string }) => x.id === id
+      ) as { feedback_token?: string } | undefined;
+      const tok = updated?.feedback_token;
+      if (tok) {
+        const path = buildPublicFeedbackPath('dentalgraph', companyId, tok);
+        const url =
+          typeof window !== 'undefined'
+            ? `${window.location.origin}${path}`
+            : path;
+        try {
+          await navigator.clipboard.writeText(url);
+          toast.success('Attended — feedback link copied for the patient');
+        } catch {
+          toast.success('Attended — share the feedback link from the table');
+        }
+        return;
+      }
+    }
     toast.success(`Marked ${status}`);
   };
+
+  const copyFeedback = async (token: string) => {
+    const path = buildPublicFeedbackPath('dentalgraph', companyId, token);
+    const url = `${window.location.origin}${path}`;
+    await navigator.clipboard.writeText(url);
+    toast.success('Feedback link copied');
+  };
+
+  const pending =
+    store?.bookings.filter(
+      (b) =>
+        b.status === 'attended' &&
+        b.feedback_token &&
+        !b.feedback_submitted_at
+    ).length || 0;
 
   return (
     <DentalgraphWorkbench
       title="Bookings"
       titleAccent="front desk"
-      description="Book patients onto diary slots and mark attended or no-show."
+      description="Book patients onto diary slots. When you mark attended, a feedback link is issued so the patient can rate the visit."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -62,8 +99,12 @@ export default function BookingsPage() {
                 value: Number(summary?.bookingsOpen) || 0,
               },
               {
-                label: 'All bookings',
-                value: store.bookings.length,
+                label: 'Feedback pending',
+                value: Number(summary?.pendingFeedback) || pending,
+              },
+              {
+                label: 'Feedback received',
+                value: Number(summary?.feedbackCount) || 0,
               },
             ]}
           />
@@ -108,7 +149,7 @@ export default function BookingsPage() {
               'Service',
               'Patient',
               'Status',
-              'Source',
+              'Feedback',
               'Actions',
             ]}
             rows={store.bookings.map((b) => {
@@ -124,9 +165,27 @@ export default function BookingsPage() {
                   svc?.name || '—',
                   pat?.name || '—',
                   b.status,
-                  b.source || '—',
+                  b.feedback_submitted_at ? (
+                    <span
+                      key="fb"
+                      className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300"
+                    >
+                      Received
+                    </span>
+                  ) : b.feedback_token && b.status === 'attended' ? (
+                    <button
+                      key="fb"
+                      type="button"
+                      className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-700 dark:text-sky-300"
+                      onClick={() => void copyFeedback(b.feedback_token!)}
+                    >
+                      <Copy className="w-3 h-3" /> Send link
+                    </button>
+                  ) : (
+                    '—'
+                  ),
                   (
-                    <span key="a" className="flex gap-1">
+                    <span key="a" className="flex flex-wrap gap-1">
                       <button
                         type="button"
                         className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300"
@@ -150,6 +209,13 @@ export default function BookingsPage() {
               void post({ entity: 'bookings', action: 'delete', id })
             }
           />
+          {pending > 0 ? (
+            <p className="text-[11px] text-slate-500 flex items-center gap-1">
+              <Link2 className="w-3.5 h-3.5" />
+              {pending} patient(s) still need feedback — copy and send their
+              link (SMS / WhatsApp / email).
+            </p>
+          ) : null}
         </div>
       )}
     </DentalgraphWorkbench>

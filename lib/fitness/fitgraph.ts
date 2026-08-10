@@ -469,6 +469,11 @@ export type FitBooking = {
   guest_email?: string;
   guest_phone?: string;
   notes?: string;
+  /** Issued when marked attended — public feedback link */
+  feedback_token?: string | null;
+  feedback_requested_at?: string | null;
+  feedback_submitted_at?: string | null;
+  feedback_id?: string | null;
 };
 
 /** Gym-level website / portal settings */
@@ -889,6 +894,12 @@ export function summariseFitgraph(store: FitgraphStore) {
     feedbackCount: (store.class_feedback || []).length,
     memberFeedbackCount: (store.class_feedback || []).filter(
       (f) => f.role === 'member'
+    ).length,
+    pendingFeedback: (store.bookings || []).filter(
+      (b) =>
+        b.status === 'attended' &&
+        b.feedback_token &&
+        !b.feedback_submitted_at
     ).length,
     threadCount: (store.threads || []).filter((t) => !t.archived).length,
     unreadMessages: totalUnread(store.threads || [], 'desk', 'desk'),

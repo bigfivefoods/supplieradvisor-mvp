@@ -146,6 +146,11 @@ export type DentalBooking = {
   booked_at: string;
   source?: 'desk' | 'website' | 'practitioner' | string;
   notes?: string;
+  /** Issued when marked attended — public feedback link */
+  feedback_token?: string | null;
+  feedback_requested_at?: string | null;
+  feedback_submitted_at?: string | null;
+  feedback_id?: string | null;
 };
 
 export type DentalPublicSettings = {
@@ -173,6 +178,8 @@ export type DentalgraphStore = {
   bookings: DentalBooking[];
   /** Desk · practitioner · patient messaging threads */
   threads?: import('@/lib/messaging/service-inbox').ServiceThread[];
+  /** Patient post-visit feedback */
+  appointment_feedback?: import('@/lib/services/booking-feedback').ServiceFeedback[];
   settings?: DentalPublicSettings;
   updated_at?: string;
 };
@@ -206,6 +213,7 @@ export function emptyDentalgraphStore(): DentalgraphStore {
     appointments: [],
     bookings: [],
     threads: [],
+    appointment_feedback: [],
     settings: defaultDentalPublicSettings(),
   };
 }
@@ -319,6 +327,13 @@ export function summariseDentalgraph(store: DentalgraphStore) {
     websiteEnabled: store.settings?.enabled === true,
     threadCount: (store.threads || []).filter((t) => !t.archived).length,
     unreadMessages: totalUnread(store.threads || [], 'desk', 'desk'),
+    pendingFeedback: (store.bookings || []).filter(
+      (b) =>
+        b.status === 'attended' &&
+        b.feedback_token &&
+        !b.feedback_submitted_at
+    ).length,
+    feedbackCount: (store.appointment_feedback || []).length,
   };
 }
 
