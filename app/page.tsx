@@ -129,7 +129,7 @@ const MODULE_BAND_META: Record<
 };
 
 const MODULE_OPTIONS: Array<{
-  id: 'core' | 'sector' | 'industry' | 'bespoke';
+  id: 'core' | 'sector' | 'industry' | 'government' | 'bespoke';
   step: string;
   title: string;
   price: string;
@@ -140,6 +140,8 @@ const MODULE_OPTIONS: Array<{
   bullets: string[];
   href: string;
   cta: string;
+  /** Specialist cards list bullets instead of MODULES links */
+  specialist?: boolean;
 }> = [
   {
     id: 'core',
@@ -185,8 +187,26 @@ const MODULE_OPTIONS: Array<{
     cta: 'Explore Industry modules',
   },
   {
-    id: 'bespoke',
+    id: 'government',
     step: '04',
+    title: 'Government',
+    price: 'Specialist setup',
+    eyebrow: 'Public programmes',
+    body: 'National → Provincial → Municipal → Local programme workspaces — DBE / NSNP schools, DoH facilities, multi-entity roles.',
+    tone: 'border-violet-200 bg-gradient-to-br from-violet-50/80 to-white dark:border-violet-500/30 dark:from-violet-500/10 dark:to-black',
+    iconTone: 'bg-violet-100 text-violet-800 dark:bg-violet-500/15 dark:text-violet-300',
+    bullets: [
+      'Schools (NSNP / DBE)',
+      'Health (DoH facilities)',
+      'National · Provincial · Municipal · Local',
+    ],
+    href: '#modules-government',
+    cta: 'Talk about government',
+    specialist: true,
+  },
+  {
+    id: 'bespoke',
+    step: '05',
     title: 'Bespoke',
     price: 'Process design',
     eyebrow: 'Specialist-led',
@@ -200,6 +220,7 @@ const MODULE_OPTIONS: Array<{
     ],
     href: '#modules-bespoke',
     cta: 'Talk about bespoke',
+    specialist: true,
   },
 ];
 
@@ -1109,31 +1130,36 @@ export default function LandingPage() {
           <div className="mx-auto mb-12 max-w-3xl text-center sm:mb-16">
             <SectionLabel>Modules</SectionLabel>
             <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 dark:text-white sm:text-5xl">
-              Core · Sector · Industry
-              <span className="mt-2 block text-[#00b4d8]">Bespoke by design</span>
+              Core OS · Sector · Industry
+              <span className="mt-2 block text-[#00b4d8]">
+                Government &amp; bespoke by design
+              </span>
             </h2>
             <p className="mt-4 text-base leading-relaxed text-slate-600 dark:text-neutral-400 sm:text-lg">
               Same packaging stack as setup — pick the layer that matches how you trade,
-              then dive into the modules inside each band.
+              then dive into the modules inside each band. Public programmes and fully
+              custom process design are specialist-led.
             </p>
           </div>
 
-          {/* Stack strip — mirrors Setup section */}
-          <div className="mx-auto mb-10 max-w-4xl sm:mb-12">
+          {/* Stack strip — mirrors Setup section (5 steps) */}
+          <div className="mx-auto mb-10 max-w-5xl sm:mb-12">
             <div className="overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-sky-50/60 shadow-sm dark:border-neutral-800 dark:from-neutral-950 dark:via-black dark:to-neutral-950">
-              <div className="grid divide-y divide-slate-100 dark:divide-neutral-800 sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+              <div className="grid divide-y divide-slate-100 dark:divide-neutral-800 sm:grid-cols-5 sm:divide-x sm:divide-y-0">
                 {MODULE_OPTIONS.map((t) => (
                   <a
                     key={t.id}
                     href={t.href}
-                    className={`flex flex-col items-center px-3 py-5 text-center transition-colors sm:py-6 ${
+                    className={`flex flex-col items-center px-2 py-5 text-center transition-colors sm:px-3 sm:py-6 ${
                       t.id === 'core'
                         ? 'bg-[#00b4d8] text-white hover:bg-[#0099b8]'
-                        : t.id === 'bespoke'
-                          ? 'bg-amber-50 text-amber-950 hover:bg-amber-100/80 dark:bg-amber-500/10 dark:text-amber-100 dark:hover:bg-amber-500/15'
-                          : t.id === 'industry'
-                            ? 'bg-white text-slate-900 hover:bg-emerald-50/50 dark:bg-black dark:text-white dark:hover:bg-emerald-500/10'
-                            : 'bg-white text-slate-900 hover:bg-sky-50/50 dark:bg-black dark:text-white dark:hover:bg-sky-500/10'
+                        : t.id === 'government'
+                          ? 'bg-violet-50 text-violet-950 hover:bg-violet-100/80 dark:bg-violet-500/15 dark:text-violet-100 dark:hover:bg-violet-500/20'
+                          : t.id === 'bespoke'
+                            ? 'bg-amber-50 text-amber-950 hover:bg-amber-100/80 dark:bg-amber-500/10 dark:text-amber-100 dark:hover:bg-amber-500/15'
+                            : t.id === 'industry'
+                              ? 'bg-white text-slate-900 hover:bg-emerald-50/50 dark:bg-black dark:text-white dark:hover:bg-emerald-500/10'
+                              : 'bg-white text-slate-900 hover:bg-sky-50/50 dark:bg-black dark:text-white dark:hover:bg-sky-500/10'
                     }`}
                   >
                     <span className="font-mono text-[10px] font-bold tracking-widest opacity-70">
@@ -1147,8 +1173,8 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Four distinct option cards */}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {/* Five distinct option cards */}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             {MODULE_OPTIONS.map((opt) => {
               const Icon =
                 opt.id === 'core'
@@ -1157,17 +1183,37 @@ export default function LandingPage() {
                     ? Package
                     : opt.id === 'industry'
                       ? Factory
-                      : Puzzle;
+                      : opt.id === 'government'
+                        ? Landmark
+                        : Puzzle;
               const bandMods =
-                opt.id === 'bespoke'
+                opt.specialist || opt.id === 'government' || opt.id === 'bespoke'
                   ? []
                   : MODULES.filter((m) => m.band === opt.id);
+              const checkTone =
+                opt.id === 'government'
+                  ? 'text-violet-600 dark:text-violet-400'
+                  : opt.id === 'bespoke'
+                    ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-emerald-600 dark:text-emerald-400';
+              const ctaTone =
+                opt.id === 'government'
+                  ? 'text-violet-700 hover:text-violet-600 dark:text-violet-300'
+                  : opt.id === 'bespoke'
+                    ? 'text-amber-700 hover:text-amber-600 dark:text-amber-300'
+                    : 'text-[#00b4d8] hover:text-[#0077b6]';
               return (
                 <div
                   key={opt.id}
-                  id={opt.id === 'bespoke' ? 'modules-bespoke' : undefined}
-                  className={`flex flex-col rounded-[1.75rem] border p-6 sm:p-7 ${opt.tone} ${
-                    opt.id === 'bespoke' ? 'scroll-mt-24' : ''
+                  id={
+                    opt.id === 'bespoke'
+                      ? 'modules-bespoke'
+                      : opt.id === 'government'
+                        ? 'modules-government'
+                        : undefined
+                  }
+                  className={`flex flex-col rounded-[1.75rem] border p-5 sm:p-6 ${opt.tone} ${
+                    opt.specialist ? 'scroll-mt-24' : ''
                   }`}
                 >
                   <div
@@ -1175,7 +1221,15 @@ export default function LandingPage() {
                   >
                     <Icon className="h-5 w-5" />
                   </div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6] dark:text-[#00b4d8]">
+                  <p
+                    className={`text-[10px] font-black uppercase tracking-widest ${
+                      opt.id === 'government'
+                        ? 'text-violet-700 dark:text-violet-300'
+                        : opt.id === 'bespoke'
+                          ? 'text-amber-800 dark:text-amber-300'
+                          : 'text-[#0077b6] dark:text-[#00b4d8]'
+                    }`}
+                  >
                     {opt.eyebrow}
                   </p>
                   <h3 className="mt-1 text-xl font-black text-slate-900 dark:text-white">
@@ -1209,7 +1263,9 @@ export default function LandingPage() {
                     <ul className="mt-4 flex-1 space-y-2 text-sm text-slate-700 dark:text-neutral-300">
                       {opt.bullets.map((line) => (
                         <li key={line} className="flex gap-2">
-                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                          <CheckCircle2
+                            className={`mt-0.5 h-4 w-4 shrink-0 ${checkTone}`}
+                          />
                           <span>{line}</span>
                         </li>
                       ))}
@@ -1217,12 +1273,14 @@ export default function LandingPage() {
                   )}
 
                   <Link
-                    href={opt.id === 'bespoke' ? '/demo' : opt.href}
-                    className={`mt-6 inline-flex items-center gap-1.5 text-sm font-bold ${
-                      opt.id === 'bespoke'
-                        ? 'text-amber-700 hover:text-amber-600 dark:text-amber-300'
-                        : 'text-[#00b4d8] hover:text-[#0077b6]'
-                    }`}
+                    href={
+                      opt.specialist
+                        ? opt.id === 'government'
+                          ? 'mailto:hello@supplieradvisor.com?subject=Government%20setup%20%E2%80%94%20SupplierAdvisor'
+                          : '/demo'
+                        : opt.href
+                    }
+                    className={`mt-6 inline-flex items-center gap-1.5 text-sm font-bold ${ctaTone}`}
                   >
                     {opt.cta} <ArrowRight className="h-4 w-4" />
                   </Link>
