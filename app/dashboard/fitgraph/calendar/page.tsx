@@ -22,6 +22,8 @@ import {
   PracticeScheduleCalendar,
   type ScheduleEvent,
 } from '@/components/schedule/PracticeScheduleCalendar';
+import { WorkingHoursEditor } from '@/components/schedule/WorkingHoursEditor';
+import { normalizeWorkingHours } from '@/lib/schedule/working-hours';
 
 const WEEKDAYS = [
   { v: 1, l: 'Mon' },
@@ -36,6 +38,7 @@ const WEEKDAYS = [
 export default function CalendarPage() {
   const { store, loading, saving, post, summary } = useFitgraph();
   const [day, setDay] = useState(new Date().toISOString().slice(0, 10));
+  const [personFilter, setPersonFilter] = useState('');
   const [form, setForm] = useState({
     class_type_id: '',
     coach_id: '',
@@ -91,9 +94,29 @@ export default function CalendarPage() {
     () =>
       (store?.coaches || [])
         .filter((c) => c.active !== false)
-        .map((c) => ({ id: c.id, name: c.name })),
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          role: (c.specialties || []).slice(0, 2).join(', ') || undefined,
+        })),
     [store]
   );
+
+  const workingHours = useMemo(
+    () => normalizeWorkingHours(store?.settings?.working_hours),
+    [store?.settings?.working_hours]
+  );
+
+  const saveHours = async (hours: typeof workingHours) => {
+    await post({
+      action: 'update_settings',
+      settings: {
+        ...(store?.settings || {}),
+        working_hours: hours,
+      },
+    });
+    toast.success('Gym working hours saved');
+  };
 
   const add = async () => {
     if (!form.class_type_id) {
@@ -199,7 +222,7 @@ export default function CalendarPage() {
     <FitgraphWorkbench
       title="Calendar"
       titleAccent="gym schedule"
-      description="Day, week and month views of all classes — filter by coach. Schedule sessions, publish to the website, and copy B2C join links."
+      description="Day, week and month views — set gym hours, filter by coach, schedule sessions and publish to the website."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -217,10 +240,19 @@ export default function CalendarPage() {
                 value: Number(summary?.publicSessionsUpcoming) || 0,
               },
               {
-                label: 'Website',
-                value: store.settings?.enabled ? 'Live' : 'Off',
+                label: 'Coaches',
+                value: schedulePeople.length,
               },
             ]}
+          />
+
+          <WorkingHoursEditor
+            value={workingHours}
+            onSave={saveHours}
+            saving={saving}
+            title="Gym working hours"
+            description="Open days and studio hours. Closed days are dimmed on the calendar; day view follows your open window."
+            accentClass="border-violet-200 dark:border-violet-800"
           />
 
           <PracticeScheduleCalendar
@@ -228,6 +260,13 @@ export default function CalendarPage() {
             accent="violet"
             events={scheduleEvents}
             people={schedulePeople}
+            peopleLabel="Coach"
+            workingHours={workingHours}
+            personFilter={personFilter}
+            onPersonFilterChange={(id) => {
+              setPersonFilter(id);
+              if (id) setForm((f) => ({ ...f, coach_id: id }));
+            }}
             initialDate={day}
             emptyLabel="No classes"
             onSelectDate={(date) => {

@@ -947,6 +947,8 @@ function upsert(
         rec.medical !== undefined
           ? mergeMedicalRecord(prev?.medical, rec.medical)
           : prev?.medical,
+      identity: prev?.identity,
+      family: prev?.family,
       start_date:
         rec.start_date !== undefined
           ? rec.start_date

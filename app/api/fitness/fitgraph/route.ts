@@ -1146,6 +1146,13 @@ function upsert(
       name: String(rec.name || 'Coach'),
       email: rec.email != null ? String(rec.email) : prev?.email,
       phone: rec.phone != null ? String(rec.phone) : prev?.phone,
+      id_number:
+        rec.id_number !== undefined
+          ? rec.id_number
+            ? String(rec.id_number).trim()
+            : undefined
+          : prev?.id_number,
+      identity: prev?.identity,
       specialties: Array.isArray(rec.specialties)
         ? (rec.specialties as string[])
         : rec.specialty
@@ -1238,6 +1245,14 @@ function upsert(
             ? String(rec.id_number).trim()
             : undefined
           : prev?.id_number,
+      /** Portal self-serve verification — never wipe on desk save */
+      identity: prev?.identity,
+      family:
+        rec.family !== undefined
+          ? Array.isArray(rec.family)
+            ? (rec.family as FitClient['family'])
+            : prev?.family
+          : prev?.family,
       photo_url:
         rec.photo_url !== undefined
           ? rec.photo_url

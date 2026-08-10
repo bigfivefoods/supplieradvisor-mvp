@@ -16,6 +16,8 @@ import {
   X,
 } from 'lucide-react';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
+import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
+import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
 
 type OpenClass = {
   id: string;
@@ -67,6 +69,25 @@ type Portal = {
     membership_status?: string;
     plan_name?: string;
     coach_name?: string;
+    identity?: {
+      status?: string;
+      provider?: string | null;
+      verified_at?: string | null;
+      verified_name?: string | null;
+      status_text?: string | null;
+      is_verified?: boolean;
+    };
+    family?: Array<{
+      id: string;
+      name: string;
+      relationship: string;
+      date_of_birth?: string | null;
+      id_number?: string;
+      phone?: string;
+      notes?: string;
+      is_minor?: boolean;
+      active?: boolean;
+    }>;
   };
   open_classes: OpenClass[];
   vacancies: OpenClass[];
@@ -492,8 +513,9 @@ export default function MemberFitgraphPortalPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
             <p className="text-sm font-black text-slate-900">Your profile</p>
             <p className="text-xs text-slate-500">
-              Changes sync to the gym desk. Email is used for invites and care
-              messages — keep it current.
+              Changes sync to the gym desk. Email is usually the parent/guardian
+              contact for invites and care messages — add kids under Family
+              members.
             </p>
             {companyId != null ? (
               <ProfilePhotoField
@@ -558,6 +580,59 @@ export default function MemberFitgraphPortalPage() {
                 Saved on your gym member record for desk staff.
               </span>
             </label>
+            <PortalFamilyMembers
+              family={portal.client.family || []}
+              busy={busyId === 'family'}
+              context="gym"
+              accentClass="border-violet-200"
+              buttonClass="bg-violet-600 hover:bg-violet-700"
+              onSave={async (member) => {
+                setBusyId('family');
+                try {
+                  const data = await post({
+                    action: 'family_upsert',
+                    member,
+                  });
+                  if (data.portal) setPortal(data.portal);
+                  setMsg(data.message || 'Family member saved');
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+              onRemove={async (id) => {
+                setBusyId('family');
+                try {
+                  const data = await post({
+                    action: 'family_remove',
+                    member_id: id,
+                  });
+                  if (data.portal) setPortal(data.portal);
+                  setMsg(data.message || 'Removed');
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+            />
+            <PortalIdentityVerify
+              module="fitgraph"
+              role="member"
+              token={token}
+              idNumber={idNumber}
+              onIdNumberChange={setIdNumber}
+              identity={portal.client.identity}
+              onIdentityChange={(id) =>
+                setPortal((p) =>
+                  p
+                    ? {
+                        ...p,
+                        client: { ...p.client, identity: id },
+                      }
+                    : p
+                )
+              }
+              accentClass="border-violet-200"
+              buttonClass="bg-violet-600 hover:bg-violet-700"
+            />
             <button
               type="button"
               disabled={busyId === 'profile'}

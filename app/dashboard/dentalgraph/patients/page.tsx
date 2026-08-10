@@ -309,6 +309,30 @@ export default function PatientsPage() {
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
             />
+            {editing &&
+            store.patients.find((x) => x.id === form.id)?.family?.length ? (
+              <div className="sm:col-span-2 lg:col-span-3 rounded-2xl border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 p-3">
+                <p className="text-[10px] font-black uppercase tracking-wide text-sky-800 dark:text-sky-200 mb-1.5">
+                  Family members (from patient portal)
+                </p>
+                <ul className="space-y-1 text-sm text-slate-700 dark:text-slate-200">
+                  {(
+                    store.patients.find((x) => x.id === form.id)?.family || []
+                  )
+                    .filter((m) => m.active !== false)
+                    .map((m) => (
+                      <li key={m.id} className="flex flex-wrap gap-x-2">
+                        <span className="font-semibold">{m.name}</span>
+                        <span className="text-xs text-slate-500 capitalize">
+                          {m.relationship}
+                          {m.is_minor ? ' · minor' : ''}
+                          {m.date_of_birth ? ` · DOB ${m.date_of_birth}` : ''}
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            ) : null}
             <InjuryProfileFields
               variant="clinic"
               clinical

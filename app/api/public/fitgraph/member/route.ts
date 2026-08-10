@@ -216,6 +216,56 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (action === 'family_upsert' || action === 'family_save') {
+      const c = store.clients[ci];
+      const { upsertFamilyMember } = await import(
+        '@/lib/services/family-members'
+      );
+      const patch = (body.member || body.record || body) as Record<
+        string,
+        unknown
+      >;
+      const { list, member, error } = upsertFamilyMember(c.family, patch, now);
+      if (error) {
+        return NextResponse.json({ error }, { status: 400 });
+      }
+      c.family = list;
+      c.updated_at = now;
+      store.clients[ci] = c;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        member,
+        portal: buildMemberPortalPayload(store, c),
+        message: patch.id
+          ? 'Family member updated'
+          : 'Family member added — synced to gym desk',
+      });
+    }
+
+    if (action === 'family_remove' || action === 'family_delete') {
+      const c = store.clients[ci];
+      const { removeFamilyMember } = await import(
+        '@/lib/services/family-members'
+      );
+      const famId = String(body.member_id || body.id || '');
+      if (!famId) {
+        return NextResponse.json(
+          { error: 'member_id required' },
+          { status: 400 }
+        );
+      }
+      c.family = removeFamilyMember(c.family, famId);
+      c.updated_at = now;
+      store.clients[ci] = c;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        portal: buildMemberPortalPayload(store, c),
+        message: 'Family member removed',
+      });
+    }
+
     if (action === 'cancel' || action === 'cancel_booking') {
       const bookingId = String(body.booking_id || body.bookingId || '');
       const bi = store.bookings.findIndex(

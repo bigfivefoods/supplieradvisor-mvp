@@ -16,6 +16,8 @@ import {
   X,
 } from 'lucide-react';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
+import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
+import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
 
 type Slot = {
   id: string;
@@ -42,6 +44,25 @@ type Portal = {
     id_number?: string;
     photo_url?: string;
     status?: string;
+    identity?: {
+      status?: string;
+      provider?: string | null;
+      verified_at?: string | null;
+      verified_name?: string | null;
+      status_text?: string | null;
+      is_verified?: boolean;
+    };
+    family?: Array<{
+      id: string;
+      name: string;
+      relationship: string;
+      date_of_birth?: string | null;
+      id_number?: string;
+      phone?: string;
+      notes?: string;
+      is_minor?: boolean;
+      active?: boolean;
+    }>;
   };
   shares?: { schedule?: boolean; feedback?: boolean; medical?: boolean };
   medical_share?: Record<string, unknown> | null;
@@ -471,7 +492,7 @@ export default function MemberPhysiographPortalPage() {
                 onChange={(e) => setEmail(e.target.value)}
               />
               <span className="mt-1 block text-[10px] text-slate-400">
-                Care messages and invites follow this address.
+                Usually the parent/guardian contact for messages and invites.
               </span>
             </label>
             <label className="block">
@@ -501,6 +522,60 @@ export default function MemberPhysiographPortalPage() {
                 Saved on your medical chart for the clinic.
               </span>
             </label>
+
+            <PortalFamilyMembers
+              family={portal.patient.family || []}
+              busy={busyId === 'family'}
+              context="clinic"
+              accentClass="border-teal-200"
+              buttonClass="bg-teal-600 hover:bg-teal-700"
+              onSave={async (member) => {
+                setBusyId('family');
+                try {
+                  const data = await post({
+                    action: 'family_upsert',
+                    member,
+                  });
+                  if (data.portal) setPortal(data.portal);
+                  setMsg(data.message || 'Family member saved');
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+              onRemove={async (id) => {
+                setBusyId('family');
+                try {
+                  const data = await post({
+                    action: 'family_remove',
+                    member_id: id,
+                  });
+                  if (data.portal) setPortal(data.portal);
+                  setMsg(data.message || 'Removed');
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+            />
+            <PortalIdentityVerify
+              module="physiograph"
+              role="patient"
+              token={token}
+              idNumber={idNumber}
+              onIdNumberChange={setIdNumber}
+              identity={portal.patient.identity}
+              onIdentityChange={(id) =>
+                setPortal((p) =>
+                  p
+                    ? {
+                        ...p,
+                        patient: { ...p.patient, identity: id },
+                      }
+                    : p
+                )
+              }
+              accentClass="border-teal-200"
+              buttonClass="bg-teal-600 hover:bg-teal-700"
+            />
             <button
               type="button"
               disabled={busyId === 'profile'}

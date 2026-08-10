@@ -423,6 +423,11 @@ export async function POST(request: NextRequest) {
       if (body.phone !== undefined) {
         prev.phone = body.phone ? String(body.phone).trim() : undefined;
       }
+      if (body.id_number !== undefined) {
+        prev.id_number = body.id_number
+          ? String(body.id_number).trim()
+          : undefined;
+      }
       if (body.bio !== undefined) {
         prev.bio = String(body.bio);
       }

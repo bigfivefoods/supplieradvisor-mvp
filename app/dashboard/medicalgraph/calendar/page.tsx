@@ -12,9 +12,12 @@ import {
   PracticeScheduleCalendar,
   type ScheduleEvent,
 } from '@/components/schedule/PracticeScheduleCalendar';
+import { WorkingHoursEditor } from '@/components/schedule/WorkingHoursEditor';
+import { normalizeWorkingHours } from '@/lib/schedule/working-hours';
 
 export default function CalendarPage() {
   const { store, loading, saving, post, summary } = useMedicalgraph();
+  const [personFilter, setPersonFilter] = useState('');
   const [form, setForm] = useState({
     service_id: '',
     practitioner_id: '',
@@ -64,12 +67,33 @@ export default function CalendarPage() {
 
   const people = useMemo(
     () =>
-      (store?.practitioners || []).map((p) => ({
-        id: p.id,
-        name: p.name,
-      })),
+      (store?.practitioners || [])
+        .filter((p) => p.active !== false)
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          role: (p.disciplines || [])
+            .slice(0, 2)
+            .join(', ') || undefined,
+        })),
     [store]
   );
+
+  const workingHours = useMemo(
+    () => normalizeWorkingHours(store?.settings?.working_hours),
+    [store?.settings?.working_hours]
+  );
+
+  const saveHours = async (hours: typeof workingHours) => {
+    await post({
+      action: 'update_settings',
+      settings: {
+        ...(store?.settings || {}),
+        working_hours: hours,
+      },
+    });
+    toast.success('Working hours saved');
+  };
 
   const add = async () => {
     if (!form.service_id) {
@@ -101,7 +125,7 @@ export default function CalendarPage() {
     <MedicalgraphWorkbench
       title="Calendar"
       titleAccent="practice diary"
-      description="Day, week and month views of surgeries and appointments — filter by practitioner. Schedule new slots below."
+      description="Day, week and month views — set working hours, filter by practitioner. Schedule new slots below."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -124,11 +148,27 @@ export default function CalendarPage() {
             ]}
           />
 
+          <WorkingHoursEditor
+            value={workingHours}
+            onSave={saveHours}
+            saving={saving}
+            title="Clinic working hours"
+            description="Open days and times for this medical practice. Closed days are dimmed; day view uses your open window."
+            accentClass="border-emerald-200 dark:border-emerald-800"
+          />
+
           <PracticeScheduleCalendar
             title="Clinic schedule"
             accent="emerald"
             events={events}
             people={people}
+            peopleLabel="Practitioner"
+            workingHours={workingHours}
+            personFilter={personFilter}
+            onPersonFilterChange={(id) => {
+              setPersonFilter(id);
+              if (id) setForm((f) => ({ ...f, practitioner_id: id }));
+            }}
             initialDate={form.date}
             emptyLabel="No appointments"
             onSelectDate={(date) => setForm((f) => ({ ...f, date }))}

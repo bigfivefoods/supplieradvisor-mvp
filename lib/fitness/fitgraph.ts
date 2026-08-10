@@ -238,6 +238,10 @@ export type FitCoach = {
   name: string;
   email?: string;
   phone?: string;
+  /** SA ID / passport for identity verification */
+  id_number?: string;
+  /** VerifyNow (SA) or Didit (international) self-serve identity check */
+  identity?: import('@/lib/identity/person-verification').PersonIdentityVerification;
   specialties?: string[];
   bio?: string;
   /** Public bio for website / coach cards */
@@ -358,6 +362,13 @@ export type FitClient = {
    * Used for gym records and identity on the member portal.
    */
   id_number?: string;
+  /**
+   * Household / family on this membership (kids, spouse, etc.).
+   * Parent email often stays on the primary client; children listed here.
+   */
+  family?: import('@/lib/services/family-members').FamilyMember[];
+  /** VerifyNow (SA) or Didit (international) self-serve identity check */
+  identity?: import('@/lib/identity/person-verification').PersonIdentityVerification;
   /** Profile photo (public storage URL) */
   photo_url?: string;
   /** Token for member self-serve portal (book classes, see vacancies) */
@@ -538,6 +549,8 @@ export type FitPublicSettings = {
    * When false, ops and messaging are coach–member led (owner-coach studio).
    */
   has_front_desk?: boolean;
+  /** Gym open days & hours for schedule calendar */
+  working_hours?: import('@/lib/schedule/working-hours').WorkingHours;
 };
 
 /** Front desk enabled unless owner explicitly turns it off */
@@ -1011,6 +1024,24 @@ export function buildMemberPortalPayload(
       plan_code: plan?.code,
       coach_name: assignedCoach?.name,
       invite_status: client.invite_status || null,
+      identity: (() => {
+        try {
+          // lazy to avoid circular weight — inline mini view
+          const id = client.identity;
+          const status = String(id?.status || 'unverified');
+          return {
+            status,
+            provider: id?.provider || null,
+            verified_at: id?.verified_at || null,
+            verified_name: id?.verified_name || null,
+            status_text: id?.status_text || null,
+            is_verified: status === 'verified',
+          };
+        } catch {
+          return { status: 'unverified', is_verified: false };
+        }
+      })(),
+      family: Array.isArray(client.family) ? client.family : [],
     },
     shares: {
       schedule: shareSchedule,
@@ -1533,6 +1564,7 @@ export function buildCoachPortalPayload(
       name: coach.name,
       email: coach.email || '',
       phone: coach.phone || '',
+      id_number: coach.id_number || '',
       specialties: coach.specialties || [],
       bio: coach.bio || '',
       public_bio: coach.public_bio || coach.bio || '',
@@ -1549,6 +1581,14 @@ export function buildCoachPortalPayload(
       history: coach.history || [],
       active: coach.active !== false,
       can_manage_classes: coach.can_manage_classes !== false,
+      identity: {
+        status: String(coach.identity?.status || 'unverified'),
+        provider: coach.identity?.provider || null,
+        verified_at: coach.identity?.verified_at || null,
+        verified_name: coach.identity?.verified_name || null,
+        status_text: coach.identity?.status_text || null,
+        is_verified: coach.identity?.status === 'verified',
+      },
     },
     /** Full specialty catalogue for profile multi-select (owner-managed) */
     specialty_options: getCoachSpecialtyOptions(store),

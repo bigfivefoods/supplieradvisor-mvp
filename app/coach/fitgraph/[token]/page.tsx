@@ -33,6 +33,7 @@ import {
   healthToForm,
   type InjuryFormState,
 } from '@/components/health/InjuryProfileFields';
+import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
 
 type RosterRow = {
   booking_id: string;
@@ -102,6 +103,7 @@ type Portal = {
     name: string;
     email?: string;
     phone?: string;
+    id_number?: string;
     specialties?: string[];
     bio?: string;
     public_bio?: string;
@@ -114,6 +116,14 @@ type Portal = {
     rate_basis?: string;
     rate_note?: string;
     active?: boolean;
+    identity?: {
+      status?: string;
+      provider?: string | null;
+      verified_at?: string | null;
+      verified_name?: string | null;
+      status_text?: string | null;
+      is_verified?: boolean;
+    };
     history?: Array<{
       id: string;
       start_date: string;
@@ -220,6 +230,7 @@ export default function CoachFitgraphPortalPage() {
     name: '',
     email: '',
     phone: '',
+    id_number: '',
     bio: '',
     public_bio: '',
     photo_url: '',
@@ -295,6 +306,7 @@ export default function CoachFitgraphPortalPage() {
           name: c.name || '',
           email: c.email || '',
           phone: c.phone || '',
+          id_number: c.id_number || '',
           bio: c.bio || '',
           public_bio: c.public_bio || '',
           photo_url: c.photo_url || '',
@@ -983,11 +995,38 @@ export default function CoachFitgraphPortalPage() {
             />
             <input
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              placeholder="SA ID / passport number"
+              value={profile.id_number}
+              onChange={(e) =>
+                setProfile((p) => ({ ...p, id_number: e.target.value }))
+              }
+            />
+            <input
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
               placeholder="Photo URL (https://…)"
               value={profile.photo_url}
               onChange={(e) =>
                 setProfile((p) => ({ ...p, photo_url: e.target.value }))
               }
+            />
+            <PortalIdentityVerify
+              module="fitgraph"
+              role="coach"
+              token={token}
+              idNumber={profile.id_number}
+              onIdNumberChange={(v) =>
+                setProfile((p) => ({ ...p, id_number: v }))
+              }
+              identity={portal.coach.identity}
+              onIdentityChange={(id) =>
+                setPortal((p) =>
+                  p
+                    ? { ...p, coach: { ...p.coach, identity: id } }
+                    : p
+                )
+              }
+              accentClass="border-amber-500/40"
+              buttonClass="bg-amber-500 hover:bg-amber-400 text-amber-950"
             />
             <div>
               <p className="text-[10px] font-black uppercase text-amber-400 mb-1.5">
@@ -1056,6 +1095,7 @@ export default function CoachFitgraphPortalPage() {
                   name: profile.name.trim(),
                   email: profile.email.trim() || null,
                   phone: profile.phone.trim() || null,
+                  id_number: profile.id_number.trim() || null,
                   bio: profile.bio,
                   public_bio: profile.public_bio,
                   photo_url: profile.photo_url.trim() || null,

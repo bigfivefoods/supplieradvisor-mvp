@@ -2,16 +2,23 @@
 
 /**
  * Day / week / month calendar for gym sessions and clinic appointments.
- * Presentational — parent supplies normalized events and optional filters.
+ * Presentational — parent supplies normalized events, people filter, working hours.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
   LayoutGrid,
   List,
+  User,
 } from 'lucide-react';
+import {
+  hourBounds,
+  isClosedOn,
+  openCloseOn,
+  type WorkingHours,
+} from '@/lib/schedule/working-hours';
 
 export type ScheduleEvent = {
   id: string;
@@ -33,6 +40,8 @@ export type ScheduleEvent = {
 export type SchedulePerson = {
   id: string;
   name: string;
+  /** Optional role / specialty shown in filter dropdown */
+  role?: string;
 };
 
 type ViewMode = 'day' | 'week' | 'month';
@@ -40,8 +49,18 @@ type ViewMode = 'day' | 'week' | 'month';
 type Props = {
   events: ScheduleEvent[];
   people?: SchedulePerson[];
+  /**
+   * Label for the people filter — e.g. "Dentist", "Coach", "Practitioner".
+   * Dropdown shows "All {peopleLabel}s" / each person.
+   */
+  peopleLabel?: string;
+  /** Practice / gym working hours (dims closed days, sets day timeline bounds) */
+  workingHours?: WorkingHours | null;
   /** Initial date YYYY-MM-DD */
   initialDate?: string;
+  /** Controlled person filter (optional) */
+  personFilter?: string;
+  onPersonFilterChange?: (personId: string) => void;
   accent?: ScheduleEvent['tone'];
   title?: string;
   emptyLabel?: string;
@@ -126,13 +145,6 @@ function minutesFromMidnight(t: string): number {
   return (h || 0) * 60 + (m || 0);
 }
 
-const HOUR_START = 6;
-const HOUR_END = 21;
-const HOURS = Array.from(
-  { length: HOUR_END - HOUR_START + 1 },
-  (_, i) => HOUR_START + i
-);
-
 function formatDayLabel(date: string, opts?: { weekday?: boolean }) {
   const d = parseIso(date);
   return d.toLocaleDateString(undefined, {
@@ -146,7 +158,11 @@ function formatDayLabel(date: string, opts?: { weekday?: boolean }) {
 export function PracticeScheduleCalendar({
   events,
   people = [],
+  peopleLabel = 'person',
+  workingHours,
   initialDate,
+  personFilter: personFilterProp,
+  onPersonFilterChange,
   accent = 'violet',
   title = 'Schedule',
   emptyLabel = 'Nothing scheduled',
@@ -156,9 +172,26 @@ export function PracticeScheduleCalendar({
   const today = toIsoDate(new Date());
   const [view, setView] = useState<ViewMode>('week');
   const [cursor, setCursor] = useState(initialDate || today);
-  const [personFilter, setPersonFilter] = useState('');
+  const [personFilterLocal, setPersonFilterLocal] = useState(
+    personFilterProp || ''
+  );
+
+  useEffect(() => {
+    if (personFilterProp !== undefined) setPersonFilterLocal(personFilterProp);
+  }, [personFilterProp]);
+
+  const personFilter = personFilterProp ?? personFilterLocal;
+  const setPersonFilter = (id: string) => {
+    setPersonFilterLocal(id);
+    onPersonFilterChange?.(id);
+  };
 
   const tone = TONE[accent];
+
+  const peopleLabelPlural =
+    peopleLabel.endsWith('s') || peopleLabel.toLowerCase() === 'staff'
+      ? peopleLabel
+      : `${peopleLabel}s`;
 
   const filtered = useMemo(() => {
     let list = events.filter((e) => e.status !== 'cancelled');
@@ -167,6 +200,19 @@ export function PracticeScheduleCalendar({
     }
     return list;
   }, [events, personFilter]);
+
+  const selectedPerson = people.find((p) => p.id === personFilter);
+
+  const bounds = useMemo(
+    () => hourBounds(workingHours, view === 'day' ? cursor : undefined),
+    [workingHours, view, cursor]
+  );
+  const HOUR_START = bounds.startHour;
+  const HOUR_END = bounds.endHour;
+  const HOURS = Array.from(
+    { length: Math.max(1, HOUR_END - HOUR_START + 1) },
+    (_, i) => HOUR_START + i
+  );
 
   const weekStart = startOfWeek(cursor);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -264,9 +310,33 @@ export function PracticeScheduleCalendar({
     const pxPerMin = 1.1;
     const totalMin = (HOUR_END - HOUR_START) * 60;
     const height = totalMin * pxPerMin;
+    const oc = openCloseOn(workingHours, date);
+    const closed = oc.closed;
+
+    // Shade non-working hours within the day strip
+    const openMin = minutesFromMidnight(oc.open);
+    const closeMin = minutesFromMidnight(oc.close);
+    const stripStart = HOUR_START * 60;
+    const beforeH = closed
+      ? height
+      : Math.max(0, (openMin - stripStart) * pxPerMin);
+    const afterTop = closed
+      ? 0
+      : Math.max(0, (closeMin - stripStart) * pxPerMin);
+    const afterH = closed ? 0 : Math.max(0, height - afterTop);
 
     return (
       <div className="relative border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden bg-white dark:bg-slate-950">
+        {closed ? (
+          <div className="px-3 py-2 text-[11px] font-bold text-amber-800 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-200 border-b border-amber-100 dark:border-amber-900">
+            Closed today (per working hours)
+          </div>
+        ) : (
+          <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-500 border-b border-slate-100 dark:border-slate-800">
+            Open {oc.open} – {oc.close}
+            {selectedPerson ? ` · ${selectedPerson.name}` : ''}
+          </div>
+        )}
         <div className="grid" style={{ gridTemplateColumns: '3rem 1fr' }}>
           <div className="border-r border-slate-100 dark:border-slate-800">
             {HOURS.map((h) => (
@@ -280,6 +350,21 @@ export function PracticeScheduleCalendar({
             ))}
           </div>
           <div className="relative" style={{ height }}>
+            {!closed && beforeH > 0 ? (
+              <div
+                className="absolute left-0 right-0 bg-slate-100/80 dark:bg-slate-900/60 pointer-events-none"
+                style={{ top: 0, height: beforeH }}
+              />
+            ) : null}
+            {!closed && afterH > 0 ? (
+              <div
+                className="absolute left-0 right-0 bg-slate-100/80 dark:bg-slate-900/60 pointer-events-none"
+                style={{ top: afterTop, height: afterH }}
+              />
+            ) : null}
+            {closed ? (
+              <div className="absolute inset-0 bg-slate-100/70 dark:bg-slate-900/50 pointer-events-none" />
+            ) : null}
             {HOURS.map((h) => (
               <div
                 key={h}
@@ -318,7 +403,7 @@ export function PracticeScheduleCalendar({
             })}
             {dayEv.length === 0 ? (
               <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-400">
-                {emptyLabel}
+                {closed ? 'Closed' : emptyLabel}
               </div>
             ) : null}
           </div>
@@ -342,24 +427,36 @@ export function PracticeScheduleCalendar({
             <div className="text-[11px] text-slate-500 font-medium">
               {rangeLabel} · {filtered.length} event
               {filtered.length === 1 ? '' : 's'}
-              {personFilter ? ' (filtered)' : ''}
+              {selectedPerson
+                ? ` · ${selectedPerson.name}`
+                : people.length
+                  ? ` · all ${peopleLabelPlural.toLowerCase()}`
+                  : ''}
             </div>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {people.length > 0 ? (
-            <select
-              className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold max-w-[10rem]"
-              value={personFilter}
-              onChange={(e) => setPersonFilter(e.target.value)}
-            >
-              <option value="">Everyone</option>
-              {people.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
+            <label className="inline-flex items-center gap-1.5 min-w-0">
+              <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="sr-only">View calendar for {peopleLabel}</span>
+              <select
+                className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold max-w-[14rem] sm:max-w-[16rem]"
+                value={personFilter}
+                onChange={(e) => setPersonFilter(e.target.value)}
+                title={`Filter by ${peopleLabel.toLowerCase()}`}
+              >
+                <option value="">
+                  All {peopleLabelPlural}
                 </option>
-              ))}
-            </select>
+                {people.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {p.role ? ` · ${p.role}` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
           ) : null}
           <div className="inline-flex rounded-xl border border-slate-200 dark:border-slate-600 p-0.5 bg-slate-50 dark:bg-slate-900">
             {(
@@ -422,6 +519,8 @@ export function PracticeScheduleCalendar({
                 const isToday = date === today;
                 const isCursor = date === cursor;
                 const list = eventsOn(date);
+                const closed = isClosedOn(workingHours, date);
+                const oc = openCloseOn(workingHours, date);
                 return (
                   <div
                     key={date}
@@ -429,7 +528,13 @@ export function PracticeScheduleCalendar({
                       isToday
                         ? 'border-violet-400 dark:border-violet-500'
                         : 'border-slate-200 dark:border-slate-700'
-                    } ${isCursor ? tone.soft : 'bg-slate-50/50 dark:bg-slate-900/40'}`}
+                    } ${
+                      closed
+                        ? 'bg-slate-100/80 dark:bg-slate-900/70 opacity-80'
+                        : isCursor
+                          ? tone.soft
+                          : 'bg-slate-50/50 dark:bg-slate-900/40'
+                    }`}
                   >
                     <button
                       type="button"
@@ -449,12 +554,18 @@ export function PracticeScheduleCalendar({
                         {parseIso(date).getDate()}
                       </div>
                       <div className="text-[10px] text-slate-400">
-                        {list.length} slot{list.length === 1 ? '' : 's'}
+                        {closed
+                          ? 'Closed'
+                          : `${oc.open}–${oc.close} · ${list.length} slot${
+                              list.length === 1 ? '' : 's'
+                            }`}
                       </div>
                     </button>
                     <div className="flex-1 p-1 space-y-1 overflow-y-auto max-h-[320px]">
                       {list.length === 0 ? (
-                        <p className="text-[10px] text-slate-400 px-1 py-2">—</p>
+                        <p className="text-[10px] text-slate-400 px-1 py-2">
+                          {closed ? 'Closed' : '—'}
+                        </p>
                       ) : (
                         list.map((ev) => (
                           <EventChip key={ev.id} ev={ev} dense />
@@ -486,6 +597,7 @@ export function PracticeScheduleCalendar({
                   parseIso(date).getMonth() === parseIso(cursor).getMonth();
                 const isToday = date === today;
                 const list = eventsOn(date);
+                const closed = isClosedOn(workingHours, date);
                 return (
                   <button
                     key={date}
@@ -493,18 +605,25 @@ export function PracticeScheduleCalendar({
                     onClick={() => pickDate(date)}
                     className={`min-h-[88px] sm:min-h-[100px] rounded-xl border p-1 text-left transition hover:border-violet-300 dark:hover:border-violet-600 ${
                       inMonth
-                        ? 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950'
+                        ? closed
+                          ? 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/80'
+                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950'
                         : 'border-transparent bg-slate-50/50 dark:bg-slate-900/30 opacity-50'
                     } ${isToday ? 'ring-2 ring-violet-400/60' : ''}`}
                   >
                     <div
-                      className={`text-[11px] font-bold mb-0.5 ${
+                      className={`text-[11px] font-bold mb-0.5 flex items-center justify-between gap-1 ${
                         isToday
                           ? 'text-violet-700 dark:text-violet-300'
                           : 'text-slate-600 dark:text-slate-300'
                       }`}
                     >
-                      {parseIso(date).getDate()}
+                      <span>{parseIso(date).getDate()}</span>
+                      {closed && inMonth ? (
+                        <span className="text-[8px] font-black uppercase text-slate-400">
+                          off
+                        </span>
+                      ) : null}
                     </div>
                     <div className="space-y-0.5">
                       {list.slice(0, 3).map((ev) => (

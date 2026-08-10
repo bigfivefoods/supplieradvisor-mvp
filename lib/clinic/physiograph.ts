@@ -303,6 +303,12 @@ export type PhysioPatient = {
   clinical?: PhysioClinicalProfile;
   /** Full medical chart: aid, documents, claims */
   medical?: import('@/lib/clinic/patient-medical').PatientMedicalRecord;
+  /**
+   * Household / family (kids, dependents) — parent email often on the primary patient.
+   */
+  family?: import('@/lib/services/family-members').FamilyMember[];
+  /** VerifyNow (SA) or Didit (international) self-serve identity check */
+  identity?: import('@/lib/identity/person-verification').PersonIdentityVerification;
   start_date?: string | null;
   active?: boolean;
   created_at: string;
@@ -377,6 +383,8 @@ export type PhysioPublicSettings = {
   contact_phone?: string;
   embed_primary_color?: string;
   practitioner_disciplines?: string[];
+  /** Clinic open days & hours for schedule calendar */
+  working_hours?: import('@/lib/schedule/working-hours').WorkingHours;
 };
 
 export type PhysiographStore = {
@@ -652,6 +660,15 @@ export function buildPatientPortalPayload(
       photo_url: patient.photo_url,
       status: patient.status,
       invite_status: patient.invite_status || null,
+      identity: {
+        status: String(patient.identity?.status || 'unverified'),
+        provider: patient.identity?.provider || null,
+        verified_at: patient.identity?.verified_at || null,
+        verified_name: patient.identity?.verified_name || null,
+        status_text: patient.identity?.status_text || null,
+        is_verified: patient.identity?.status === 'verified',
+      },
+      family: Array.isArray(patient.family) ? patient.family : [],
     },
     shares: {
       schedule: shareSchedule,

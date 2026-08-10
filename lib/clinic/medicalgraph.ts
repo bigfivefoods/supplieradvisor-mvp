@@ -293,6 +293,12 @@ export type MedicalPatient = {
   clinical?: MedicalClinicalProfile;
   /** Full medical chart: aid, documents, claims */
   medical?: import('@/lib/clinic/patient-medical').PatientMedicalRecord;
+  /**
+   * Household / family (kids, dependents) — parent email often on the primary patient.
+   */
+  family?: import('@/lib/services/family-members').FamilyMember[];
+  /** VerifyNow (SA) or Didit (international) self-serve identity check */
+  identity?: import('@/lib/identity/person-verification').PersonIdentityVerification;
   start_date?: string | null;
   active?: boolean;
   created_at: string;
@@ -367,6 +373,8 @@ export type MedicalPublicSettings = {
   contact_phone?: string;
   embed_primary_color?: string;
   practitioner_disciplines?: string[];
+  /** Clinic open days & hours for schedule calendar */
+  working_hours?: import('@/lib/schedule/working-hours').WorkingHours;
 };
 
 export type MedicalgraphStore = {
@@ -584,6 +592,15 @@ export function buildPatientPortalPayload(
       id_number: patient.medical?.id_number || undefined,
       photo_url: patient.photo_url,
       status: patient.status,
+      identity: {
+        status: String(patient.identity?.status || 'unverified'),
+        provider: patient.identity?.provider || null,
+        verified_at: patient.identity?.verified_at || null,
+        verified_name: patient.identity?.verified_name || null,
+        status_text: patient.identity?.status_text || null,
+        is_verified: patient.identity?.status === 'verified',
+      },
+      family: Array.isArray(patient.family) ? patient.family : [],
     },
     open_slots,
     vacancies: open_slots.filter((s) => !s.full && !s.my_status),

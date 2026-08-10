@@ -12,9 +12,12 @@ import {
   PracticeScheduleCalendar,
   type ScheduleEvent,
 } from '@/components/schedule/PracticeScheduleCalendar';
+import { WorkingHoursEditor } from '@/components/schedule/WorkingHoursEditor';
+import { normalizeWorkingHours } from '@/lib/schedule/working-hours';
 
 export default function CalendarPage() {
   const { store, loading, saving, post, summary } = useDentalgraph();
+  const [personFilter, setPersonFilter] = useState('');
   const [form, setForm] = useState({
     service_id: '',
     staff_id: '',
@@ -64,12 +67,31 @@ export default function CalendarPage() {
 
   const people = useMemo(
     () =>
-      (store?.staff || []).map((p) => ({
-        id: p.id,
-        name: p.name,
-      })),
+      (store?.staff || [])
+        .filter((p) => p.active !== false)
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          role: (p.roles || []).slice(0, 2).join(', ') || undefined,
+        })),
     [store]
   );
+
+  const workingHours = useMemo(
+    () => normalizeWorkingHours(store?.settings?.working_hours),
+    [store?.settings?.working_hours]
+  );
+
+  const saveHours = async (hours: typeof workingHours) => {
+    await post({
+      action: 'update_settings',
+      settings: {
+        ...(store?.settings || {}),
+        working_hours: hours,
+      },
+    });
+    toast.success('Working hours saved');
+  };
 
   const add = async () => {
     if (!form.service_id) {
@@ -101,7 +123,7 @@ export default function CalendarPage() {
     <DentalgraphWorkbench
       title="Calendar"
       titleAccent="practice diary"
-      description="Day, week and month views of surgeries and appointments — filter by clinician. Schedule new slots below."
+      description="Day, week and month views — set working hours, then filter by dentist or clinician. Schedule new slots below."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -121,7 +143,20 @@ export default function CalendarPage() {
                 label: 'On board',
                 value: events.filter((e) => e.status === 'scheduled').length,
               },
+              {
+                label: 'Clinicians',
+                value: people.length,
+              },
             ]}
+          />
+
+          <WorkingHoursEditor
+            value={workingHours}
+            onSave={saveHours}
+            saving={saving}
+            title="Practice working hours"
+            description="Open days and times for this dental practice. Closed days are dimmed on the schedule; day view snaps to your open window."
+            accentClass="border-sky-200 dark:border-sky-800"
           />
 
           <PracticeScheduleCalendar
@@ -129,6 +164,13 @@ export default function CalendarPage() {
             accent="sky"
             events={events}
             people={people}
+            peopleLabel="Clinician"
+            workingHours={workingHours}
+            personFilter={personFilter}
+            onPersonFilterChange={(id) => {
+              setPersonFilter(id);
+              if (id) setForm((f) => ({ ...f, staff_id: id }));
+            }}
             initialDate={form.date}
             emptyLabel="No appointments"
             onSelectDate={(date) => setForm((f) => ({ ...f, date }))}
@@ -162,11 +204,16 @@ export default function CalendarPage() {
               }
             >
               <option value="">Clinician…</option>
-              {store.staff.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
+              {store.staff
+                .filter((p) => p.active !== false)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {(p.roles || []).length
+                      ? ` · ${(p.roles || []).join(', ')}`
+                      : ''}
+                  </option>
+                ))}
             </select>
             <input
               className={fc()}

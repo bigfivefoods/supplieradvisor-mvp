@@ -15,6 +15,7 @@ export type OpsBoardSnapshot = {
     cronSecret: boolean;
     opsAlertEmail: boolean;
     verifynow: boolean;
+    didit: boolean;
   };
   paystack: Awaited<ReturnType<typeof loadPaystackWebhookPulse>>;
   schema: {
@@ -68,6 +69,9 @@ export async function loadOpsBoard(): Promise<OpsBoardSnapshot> {
         process.env.PAYSTACK_OPS_EMAIL
     ),
     verifynow: Boolean(process.env.VERIFYNOW_API_KEY),
+    didit: Boolean(
+      process.env.DIDIT_API_KEY?.trim() && process.env.DIDIT_WORKFLOW_ID?.trim()
+    ),
   };
 
   let paystack = await loadPaystackWebhookPulse();
@@ -206,6 +210,8 @@ export async function loadOpsBoard(): Promise<OpsBoardSnapshot> {
   if (!env.opsAlertEmail)
     warnings.push('Ops alert email not set (OPS_ALERT_EMAIL or OPS_EMAIL_ALERT)');
   if (!env.verifynow) warnings.push('VERIFYNOW_API_KEY missing (CIPC soft-fails)');
+  if (!env.didit)
+    warnings.push('DIDIT_API_KEY / DIDIT_WORKFLOW_ID missing (international ID verify)');
   if (schema.arLedger === false) blockers.push('Run 20260717_ar_ledger.sql');
   if (schema.paymentClaims === false)
     warnings.push('Run 20260717_payment_claims_and_ledger_fx.sql');

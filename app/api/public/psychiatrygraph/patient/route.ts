@@ -179,6 +179,57 @@ export async function POST(request: NextRequest) {
       });
     }
 
+
+    if (action === 'family_upsert' || action === 'family_save') {
+      const p = store.patients[pi];
+      const { upsertFamilyMember } = await import(
+        '@/lib/services/family-members'
+      );
+      const patch = (body.member || body.record || body) as Record<
+        string,
+        unknown
+      >;
+      const { list, member, error } = upsertFamilyMember(p.family, patch, now);
+      if (error) {
+        return NextResponse.json({ error }, { status: 400 });
+      }
+      p.family = list;
+      p.updated_at = now;
+      store.patients[pi] = p;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        member,
+        portal: buildPatientPortalPayload(store, p),
+        message: patch.id
+          ? 'Family member updated'
+          : 'Family member added — synced to the practice',
+      });
+    }
+
+    if (action === 'family_remove' || action === 'family_delete') {
+      const p = store.patients[pi];
+      const { removeFamilyMember } = await import(
+        '@/lib/services/family-members'
+      );
+      const famId = String(body.member_id || body.id || '');
+      if (!famId) {
+        return NextResponse.json(
+          { error: 'member_id required' },
+          { status: 400 }
+        );
+      }
+      p.family = removeFamilyMember(p.family, famId);
+      p.updated_at = now;
+      store.patients[pi] = p;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        portal: buildPatientPortalPayload(store, p),
+        message: 'Family member removed',
+      });
+    }
+
     if (action === 'cancel' || action === 'cancel_booking') {
       const bookingId = String(body.booking_id || body.bookingId || '');
       const bi = store.bookings.findIndex(
