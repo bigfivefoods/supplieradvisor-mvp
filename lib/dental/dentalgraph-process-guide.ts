@@ -55,7 +55,7 @@ export const ROLE_CARDS = [
     does: [
       'Keep own bio / roles current for website',
       'Update oral-health clinical notes (site, goals, mods)',
-      'Medical chart: medical aid, documents, claims',
+      'Medical chart: medical aid, documents, claims, scripts, scripts',
       'Run appointments; mark attended / no-show',
       'Reply on care threads with desk and patients',
       'Request post-visit feedback after attendance',
@@ -163,7 +163,7 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '4a',
         title: 'Book patient',
         who: 'Reception / website',
-        desc: 'Book onto slot; waitlist when full; desk or public booking.',
+        desc: 'Book onto slot; waitlist when full; desk, patient portal, or public booking.',
       },
       {
         n: '4b',

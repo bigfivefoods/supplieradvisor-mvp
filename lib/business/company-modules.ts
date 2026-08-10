@@ -41,15 +41,15 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   quarrygraph:
     'QuarryAdvisor® — sites, reserves, production, plant, weighbridge, fleet, QA & permits',
   fitgraph:
-    'FitAdvisor® (tertiary services) — gym coaches, members, memberships, classes, calendar, bookings & check-ins',
+    'FitAdvisor® (tertiary services) — coaches, member invites & portal, memberships, classes, calendar, feedback, messages & check-ins',
   physiograph:
-    'PhysioAdvisor® (tertiary services) — physio / OT / biokinetics: practitioners, patients, services, packages, diary & bookings',
+    'PhysioAdvisor® (tertiary services) — practitioners, patient invites & portal, packages, diary, medical chart, scripts, bookings & messages',
   dentalgraph:
-    'DentalAdvisor® (tertiary services) — dentists, hygienists & staff: patients, services, care plans, diary, bookings & messages',
+    'DentalAdvisor® (tertiary services) — staff, patient invites & portal, care plans, diary, medical chart, scripts, bookings & messages',
   psychiatrygraph:
-    'PsychiatryAdvisor® (tertiary services) — psychiatry & psychology: practitioners, patients, therapy packages, diary & bookings',
+    'PsychiatryAdvisor® (tertiary services) — clinicians, patients, therapy packs, diary, medical chart, scripts, portal, bookings & messages',
   medicalgraph:
-    'MedicalAdvisor® (tertiary services) — GP / medical practice: practitioners, patients, consults, care packs, diary & bookings',
+    'MedicalAdvisor® (tertiary services) — GPs & nurses, patients, consults, care packs, diary, scripts, medical chart, portal & messages',
   intelligence: 'Pulse, forecasts, scorecards & Super-Cube® leadership',
   schools:
     'NSNP schools: kitchen, learners, SPs, approved brands, feeding, prizes (DBE only)',
@@ -175,7 +175,7 @@ export const MODULE_CATEGORIES: ModuleCategory[] = [
     band: 'industry',
     title: 'Services',
     blurb:
-      'FitAdvisor® (gyms), PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor® and MedicalAdvisor® practice OS modules.',
+      'FitAdvisor® (gyms · invites · portals), PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor® and MedicalAdvisor® (charts · scripts · portals).',
     moduleIds: [
       'fitgraph',
       'physiograph',

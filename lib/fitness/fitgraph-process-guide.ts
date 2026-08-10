@@ -40,7 +40,7 @@ export const ROLE_CARDS = [
     does: [
       'Register & edit coaches; manage specialty catalogue',
       'Set engagement dates, rates, PDF contracts; end / rehire tenure',
-      'Import / export member list (.xlsx); assign plans & coaches',
+      'Import / export members; email invites to portal; assign plans & coaches',
       'Schedule classes, coach calendar (plan vs actual), B2C join links',
       'In-app messages: desk · coaches · members (and company trade partners)',
       'Gym bio, public PDF contracts, website embed',
@@ -73,7 +73,7 @@ export const ROLE_CARDS = [
     subtitle: 'Book · attend · feedback',
     does: [
       'See public schedule on gym website / embed (bio + contracts)',
-      'Book via website, member portal, or B2C class join link (or waitlist)',
+      'Accept email invite; book via website, member portal, or B2C class join link (or waitlist)',
       'Add class to phone calendar (Google / .ics)',
       'Hold active subscription or class pack; check in at desk',
       'Message the desk / coach on care threads when linked',
@@ -342,7 +342,7 @@ export const SYSTEM_BENEFITS = [
 ];
 
 export const ONE_SENTENCE =
-  'Register coaches (specialties, tenure, rates, contracts) and members (or .xlsx) → sell plans and track subs → define class types → schedule coaches, set class plans and join links → book and mark plan vs actual on the floor → message desk, coaches and members in-app → leave post-class feedback → publish website bio/contracts and slice-and-dice reports.';
+  'Register coaches (specialties, tenure, rates, contracts, photos) and members (or .xlsx) → email invites so members join portals → sell plans and track subs → define class types → schedule coaches, set class plans and join links → book and mark plan vs actual on the floor → message desk, coaches and members in-app → leave post-class feedback → publish website bio/contracts and slice-and-dice reports.';
 
 // ── PDF (violet brand) ──────────────────────────────────────────────────
 

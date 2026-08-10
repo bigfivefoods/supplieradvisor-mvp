@@ -690,7 +690,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     name: 'Fitness & Gym (Services)',
     shortName: 'Fitness',
     description:
-      'Tertiary / services industry pack for gyms and studios — FitAdvisor®: coaches, members, memberships, class calendar, bookings, check-ins; plus equipment & nutrition suppliers.',
+      'Tertiary / services industry pack for gyms and studios — FitAdvisor®: coaches, email member invites & portal, memberships, class calendar, feedback, bookings, check-ins; plus equipment & nutrition suppliers.',
     monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
     priority: 1,
     /** Services economy — commercial gyms & wellness (not primary production) */
@@ -701,7 +701,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
         id: 'fit_os',
         name: 'FitAdvisor® gym services OS',
         description:
-          'Coaches, clients, plans, class types, calendar, bookings and check-ins for member services.',
+          'Coaches, member invites & portal, plans, classes, calendar, feedback, bookings and check-ins.',
         unlocks: ['fitgraph', 'customers', 'people'],
       },
       {
@@ -720,7 +720,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     industryToolsHrefs: [
       { name: 'FitAdvisor®', href: '/dashboard/fitgraph', desc: 'Gym services OS' },
       { name: 'Coaches', href: '/dashboard/fitgraph/coaches', desc: 'Trainers · portals' },
-      { name: 'Clients', href: '/dashboard/fitgraph/clients', desc: 'Members' },
+      { name: 'Clients', href: '/dashboard/fitgraph/clients', desc: 'Members · invites · portal' },
       { name: 'Subscriptions', href: '/dashboard/fitgraph/subscriptions', desc: 'Member plans' },
       { name: 'Calendar', href: '/dashboard/fitgraph/calendar', desc: 'Schedule coaches' },
       { name: 'Website', href: '/dashboard/fitgraph/website', desc: 'Embed calendar' },
@@ -733,7 +733,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     name: 'Physio & Allied Health (Services)',
     shortName: 'Clinic',
     description:
-      'Tertiary / services industry pack for physio, OT, biokinetics and allied health — PhysioAdvisor®: practitioners, patients, services, packages, diary, bookings and clinic website.',
+      'Tertiary / services industry pack for physio, OT, biokinetics and allied health — PhysioAdvisor®: practitioners, patient invites & portal, packages, diary, medical chart, scripts, bookings and clinic website.',
     monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
     priority: 1,
     recommendSectors: ['tertiary'],
@@ -743,7 +743,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
         id: 'physio_os',
         name: 'PhysioAdvisor® clinic OS',
         description:
-          'Practitioners, patients, service catalogue, rehab packs, appointment diary and bookings.',
+          'Practitioners, patient invites & portal, catalogue, rehab packs, diary, medical chart and scripts.',
         unlocks: ['physiograph', 'customers', 'people'],
       },
       {
@@ -769,7 +769,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       {
         name: 'Patients',
         href: '/dashboard/physiograph/patients',
-        desc: 'Patient register',
+        desc: 'Register · invites · chart · scripts',
       },
       {
         name: 'Services',
@@ -798,7 +798,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     name: 'Dental Practice (Services)',
     shortName: 'Dental',
     description:
-      'Tertiary / services industry pack for dental practices — DentalAdvisor®: dentists & staff, patients, services, care plans, diary, bookings, messages and practice website, plus procurement.',
+      'Tertiary / services industry pack for dental practices — DentalAdvisor®: staff, patient invites & portal, care plans, diary, medical chart, scripts, bookings, messages and practice website, plus procurement.',
     monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
     priority: 1,
     recommendSectors: ['tertiary', 'quaternary'],
@@ -808,7 +808,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
         id: 'den_os',
         name: 'DentalAdvisor® practice OS',
         description:
-          'Staff, patients, treatment catalogue, care plans, appointment diary, bookings and messages.',
+          'Staff, patient invites & portal, care plans, diary, medical chart, scripts, bookings and messages.',
         unlocks: ['dentalgraph', 'customers', 'people'],
       },
       {
@@ -834,7 +834,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       {
         name: 'Patients',
         href: '/dashboard/dentalgraph/patients',
-        desc: 'Patient register',
+        desc: 'Register · invites · chart · scripts',
       },
       {
         name: 'Calendar',

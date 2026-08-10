@@ -14,6 +14,7 @@ import {
   Smile,
   BrainCircuit,
   Hospital,
+  Mountain,
 } from 'lucide-react';
 
 const INDUSTRIES = [
@@ -26,8 +27,14 @@ const INDUSTRIES = [
   {
     slug: 'agriculture',
     name: 'Agriculture & inputs',
-    desc: 'FieldAdvisor® fields, harvest, inputs, fleet fuel, and farm-to-buyer trade.',
+    desc: 'FieldAdvisor® — multi-crop fields, harvest, inputs, fleet fuel, regen, and farm-to-buyer trade.',
     icon: Leaf,
+  },
+  {
+    href: '/#modules-industry',
+    name: 'Quarry & aggregates',
+    desc: 'QuarryAdvisor® — sites, reserves, plant, weighbridge, fleet, QA, and permits.',
+    icon: Mountain,
   },
   {
     slug: 'manufacturing',
@@ -44,37 +51,37 @@ const INDUSTRIES = [
   {
     href: '/#modules-industry',
     name: 'Fitness & gyms',
-    desc: 'FitAdvisor® — coaches, members, classes, calendar, messaging, and website bookings.',
+    desc: 'FitAdvisor® — coaches, email member invites, class portal, calendar, feedback, messaging, and website bookings.',
     icon: Dumbbell,
   },
   {
     href: '/#modules-industry',
     name: 'Physio & allied health',
-    desc: 'PhysioAdvisor® — practitioners, patients, rehab packs, diary, and clinic messages.',
+    desc: 'PhysioAdvisor® — practitioners, patient invites & portal, rehab packs, diary, medical chart, scripts, and messages.',
     icon: Stethoscope,
   },
   {
     href: '/#modules-industry',
     name: 'Dental practices',
-    desc: 'DentalAdvisor® — dentists & staff, patients, care plans, surgeries, and messaging.',
+    desc: 'DentalAdvisor® — staff, patient portal & invites, care plans, surgeries, medical chart, scripts, and messaging.',
     icon: Smile,
   },
   {
     href: '/#modules-industry',
     name: 'Mental health',
-    desc: 'PsychiatryAdvisor® — psychiatry & psychology, patients, therapy packs, diary, portal, and messages.',
+    desc: 'PsychiatryAdvisor® — clinicians, patients, therapy packs, diary, scripts, portal, and messages.',
     icon: BrainCircuit,
   },
   {
     href: '/#modules-industry',
     name: 'Medical practices',
-    desc: 'MedicalAdvisor® — GPs & clinics, patients, consults, care packs, diary, portal, and messages.',
+    desc: 'MedicalAdvisor® — GPs & clinics, consults, care packs, prescriptions on visits, portal, and messages.',
     icon: Hospital,
   },
   {
     slug: 'public-sector',
     name: 'Public sector (B2G)',
-    desc: 'Transparent procurement trails, verification, and audit-ready packs.',
+    desc: 'Transparent procurement trails, verification, NSNP / Health programmes, and audit-ready packs.',
     icon: Landmark,
   },
   {
@@ -100,8 +107,9 @@ export default function IndustriesStrip() {
             One OS. Sector-ready depth.
           </h2>
           <p className="mt-4 text-base text-slate-600 sm:text-lg">
-            Same platform fabric — tuned messaging for how you buy, make, ship,
-            and prove.
+            Same platform fabric — Core OS plus vertical Industry Advisors for
+            agri, extractives, gyms, and clinical practices: invite members and
+            patients, run diaries, portals, scripts, and messages end to end.
           </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

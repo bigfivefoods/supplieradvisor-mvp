@@ -55,7 +55,7 @@ export const ROLE_CARDS = [
     does: [
       'Keep own bio / disciplines current for website',
       'Update patient clinical notes (region, goals, cautions)',
-      'Medical chart: medical aid, documents, claims',
+      'Medical chart: medical aid, documents, claims, scripts, scripts',
       'Run sessions; mark attended / no-show',
       'Reply on care threads with desk and patients',
       'Request post-visit feedback after attendance',
@@ -97,7 +97,7 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '1b',
         title: 'Patients',
         who: 'Owner / desk',
-        desc: 'Patient book; status; assign practitioner and package.',
+        desc: 'Patient book; email invite & portal; assign practitioner and package.',
       },
       {
         n: '1c',
@@ -163,7 +163,7 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '4a',
         title: 'Book patient',
         who: 'Desk / website',
-        desc: 'Book onto slot; waitlist when full; desk or public booking.',
+        desc: 'Book onto slot; waitlist when full; desk, patient portal, or public booking.',
       },
       {
         n: '4b',

@@ -94,7 +94,7 @@ export const SYSTEM_OVERVIEW = {
     },
     {
       title: 'Flow of goods',
-      body: 'Inventory, operations, manufacturing, distribution, and containers move product with lots and holds. Industry packs add FieldAdvisor (agri), QuarryAdvisor (aggregates), FitAdvisor (gyms), PhysioAdvisor (clinics), and DentalAdvisor (dental).',
+      body: 'Inventory, operations, manufacturing, distribution, and containers move product with lots and holds. Industry packs add FieldAdvisor (agri), QuarryAdvisor (aggregates), FitAdvisor (gyms), PhysioAdvisor (clinics), DentalAdvisor (dental), PsychiatryAdvisor, and MedicalAdvisor (scripts & portals).',
     },
     {
       title: 'Flow of money',
@@ -132,7 +132,7 @@ export const SYSTEM_OVERVIEW = {
     },
     {
       name: 'Services verticals',
-      body: 'FitAdvisor gym · PhysioAdvisor clinic · DentalAdvisor dental · diary · bookings · messages',
+      body: 'FitAdvisor · PhysioAdvisor · DentalAdvisor · PsychiatryAdvisor · MedicalAdvisor — invites, portals, diary, scripts, bookings, messages',
       tone: 'violet',
     },
     {

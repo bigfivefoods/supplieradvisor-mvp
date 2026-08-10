@@ -746,7 +746,7 @@ export function FitgraphMock() {
             FitAdvisor® · Gym
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
-            Coaches · classes · memberships.
+            Invite · portal · classes.
           </div>
         </div>
         <span className="rounded-full border border-violet-200 bg-violet-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
@@ -755,12 +755,12 @@ export function FitgraphMock() {
       </div>
       <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
         <Telemetry label="Members" value="842" tone="violet" />
-        <Telemetry label="Classes" value="36" tone="cyan" />
-        <Telemetry label="MRR" value="R 186k" tone="emerald" />
-        <Telemetry label="Check-in" value="94%" tone="amber" />
+        <Telemetry label="Invites" value="28" tone="sky" />
+        <Telemetry label="Open cls" value="12" tone="cyan" />
+        <Telemetry label="Feedback" value="4.8" tone="emerald" />
       </div>
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-        {['Calendar', 'Coaches', 'Website'].map((t) => (
+        {['Portal', 'Calendar', 'Messages'].map((t) => (
           <div
             key={t}
             className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] text-center shadow-sm sm:p-3"
@@ -784,7 +784,7 @@ export function PhysiographMock() {
             PhysioAdvisor® · Clinic
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
-            Practitioners · diary · rehab.
+            Portal · chart · scripts.
           </div>
         </div>
         <span className="rounded-full border border-teal-200 bg-teal-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
@@ -794,11 +794,11 @@ export function PhysiographMock() {
       <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
         <Telemetry label="Patients" value="312" tone="cyan" />
         <Telemetry label="Today" value="14" tone="teal" />
-        <Telemetry label="Packs" value="68" tone="emerald" />
-        <Telemetry label="Msgs" value="9" tone="violet" />
+        <Telemetry label="Scripts" value="6" tone="amber" />
+        <Telemetry label="Portal" value="On" tone="emerald" />
       </div>
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-        {['Practitioners', 'Diary', 'Messages'].map((t) => (
+        {['Invite', 'Diary', 'Chart'].map((t) => (
           <div
             key={t}
             className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] text-center shadow-sm sm:p-3"
@@ -822,7 +822,7 @@ export function DentalgraphMock() {
             DentalAdvisor® · Dental
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
-            Staff · surgeries · care plans.
+            Invite · chart · surgeries.
           </div>
         </div>
         <span className="rounded-full border border-sky-200 bg-sky-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
@@ -832,11 +832,11 @@ export function DentalgraphMock() {
       <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
         <Telemetry label="Patients" value="1.2k" tone="cyan" />
         <Telemetry label="Chairs" value="6" tone="sky" />
-        <Telemetry label="Today" value="22" tone="amber" />
-        <Telemetry label="Hygiene" value="8" tone="emerald" />
+        <Telemetry label="Scripts" value="11" tone="amber" />
+        <Telemetry label="Portal" value="On" tone="emerald" />
       </div>
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-        {['Staff', 'Diary', 'Website'].map((t) => (
+        {['Portal', 'Diary', 'Scripts'].map((t) => (
           <div
             key={t}
             className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] text-center shadow-sm sm:p-3"
@@ -860,7 +860,7 @@ export function PsychiatrygraphMock() {
             PsychiatryAdvisor® · Mental health
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
-            Clinicians · therapy · diary.
+            Therapy · scripts · portal.
           </div>
         </div>
         <span className="rounded-full border border-indigo-200 bg-indigo-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
@@ -870,11 +870,11 @@ export function PsychiatrygraphMock() {
       <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
         <Telemetry label="Patients" value="186" tone="violet" />
         <Telemetry label="Today" value="11" tone="sky" />
-        <Telemetry label="Packs" value="42" tone="emerald" />
+        <Telemetry label="Scripts" value="9" tone="amber" />
         <Telemetry label="Msgs" value="7" tone="cyan" />
       </div>
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-        {['Practitioners', 'Diary', 'Messages'].map((t) => (
+        {['Portal', 'Diary', 'Chart'].map((t) => (
           <div
             key={t}
             className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] text-center shadow-sm sm:p-3"
@@ -898,7 +898,7 @@ export function MedicalgraphMock() {
             MedicalAdvisor® · Medical
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
-            GPs · consults · care packs.
+            Consults · Rx · portal.
           </div>
         </div>
         <span className="rounded-full border border-emerald-200 bg-emerald-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
@@ -908,11 +908,11 @@ export function MedicalgraphMock() {
       <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
         <Telemetry label="Patients" value="2.4k" tone="emerald" />
         <Telemetry label="Today" value="38" tone="cyan" />
-        <Telemetry label="Rooms" value="8" tone="sky" />
-        <Telemetry label="Msgs" value="14" tone="violet" />
+        <Telemetry label="Scripts" value="24" tone="amber" />
+        <Telemetry label="Portal" value="On" tone="violet" />
       </div>
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-        {['Practitioners', 'Diary', 'Website'].map((t) => (
+        {['Scripts', 'Diary', 'Portal'].map((t) => (
           <div
             key={t}
             className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] text-center shadow-sm sm:p-3"

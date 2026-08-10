@@ -276,7 +276,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'FitAdvisor® · gym & fitness services',
-        hint: 'Coaches (tenure, contracts), members, classes, calendar, portal, injury notes, messages, website',
+        hint: 'Coaches (tenure, contracts, photos), email member invites, class portal & waitlist, calendar, feedback, messages, website',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -284,7 +284,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'PhysioAdvisor® · physio & allied health',
-        hint: 'Practitioners, patients, rehab packs, diary, medical chart, patient portal, messages',
+        hint: 'Practitioners, patient invites & portal, rehab packs, diary, medical chart, scripts, claims, messages',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -292,7 +292,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'DentalAdvisor® · dental practice OS',
-        hint: 'Staff, patients, care plans, diary, medical chart, patient portal, messages, website',
+        hint: 'Staff, patient invites & portal, care plans, diary, medical chart, scripts, claims, messages, website',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -300,7 +300,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'PsychiatryAdvisor® · mental health OS',
-        hint: 'Psychiatry & psychology practitioners, patients, therapy packs, diary, portal, messages',
+        hint: 'Clinicians, patients, therapy packs, diary, medical chart, scripts, portal, messages, website',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -308,10 +308,18 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'MedicalAdvisor® · GP & medical practice OS',
-        hint: 'GPs, specialists & nurses, patients, consults, care packs, diary, portal, messages',
+        hint: 'GPs & nurses, patients, consults, care packs, scripts on visits, medical chart, portal, messages',
         excel: 'no',
         xero: 'no',
         erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'Member / patient self-serve portals',
+        hint: 'Tokenised portals — book vacancies, waitlist, feedback, shared medical summary after invite accept',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
         sa: 'strong',
       },
       {

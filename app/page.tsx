@@ -191,9 +191,9 @@ const MODULE_OPTIONS: Array<{
     tone: 'border-emerald-200/80 bg-gradient-to-br from-emerald-50/50 to-white dark:border-emerald-500/30 dark:from-emerald-500/10 dark:to-black',
     iconTone: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300',
     bullets: [
-      'FieldAdvisor® · agri · QuarryAdvisor® · aggregates',
-      'FitAdvisor® · gyms · PhysioAdvisor® · clinics',
-      'DentalAdvisor® · PsychiatryAdvisor® · MedicalAdvisor®',
+      'FieldAdvisor® agri · QuarryAdvisor® aggregates',
+      'FitAdvisor® gyms · invite & member portals',
+      'Physio · Dental · Psychiatry · Medical (scripts & charts)',
     ],
     href: '#modules-industry',
     cta: 'Explore Industry modules',
@@ -248,7 +248,7 @@ const MODULES = [
     bullets: [
       'Core foundations first',
       'Sector make · ship · outlets',
-      'Industry hubs: Field · Quarry · Fit · Physio · Dental',
+      'Industry: Field · Quarry · Fit · Physio · Dental · Psych · Medical',
     ],
     Mock: NavMock,
     icon: PanelLeft,
@@ -452,10 +452,10 @@ const MODULES = [
     title: 'FitAdvisor®',
     short: 'FitAdvisor',
     tagline: 'Gym & fitness services OS',
-    body: 'Gym coaches, members, memberships, classes, calendar, public website bookings, coach share, subscriptions, messaging, and check-ins — tertiary services on the same verified fabric.',
+    body: 'Coaches (photos, tenure, contracts), members, email invites to join, member portal for open classes & waitlists, memberships, calendar, feedback, messaging, and website bookings — tertiary services on the same verified fabric.',
     bullets: [
-      'Coaches · classes · calendar',
-      'Memberships · injury notes',
+      'Invite members · portal book / waitlist',
+      'Coaches · classes · calendar · feedback',
       'Messages · website · check-ins',
     ],
     Mock: FitgraphMock,
@@ -468,11 +468,11 @@ const MODULES = [
     title: 'PhysioAdvisor®',
     short: 'PhysioAdvisor',
     tagline: 'Physio & allied health OS',
-    body: 'Practitioners, patients, rehab packages, appointment diary, bookings, clinical injury notes, team messaging, and clinic website — for physio, OT, biokinetics and allied practices.',
+    body: 'Practitioners, patients, email invites & patient portal, rehab packages, diary, medical chart (aid, docs, scripts), team messaging, and clinic website — physio, OT, biokinetics and allied practices.',
     bullets: [
-      'Practitioners · patients · packages',
-      'Diary · bookings · clinical notes',
-      'Messages · clinic website',
+      'Invite patients · portal diary booking',
+      'Medical chart · scripts · claims',
+      'Messages · rehab packs · website',
     ],
     Mock: PhysiographMock,
     icon: Stethoscope,
@@ -484,11 +484,11 @@ const MODULES = [
     title: 'DentalAdvisor®',
     short: 'DentalAdvisor',
     tagline: 'Dental practice OS',
-    body: 'Dentists, hygienists and staff, patients, treatment catalogue, care plans, surgery diary, bookings, oral-health notes, messaging, and practice website — multi-chair ready.',
+    body: 'Dentists, hygienists and staff, patients, email invites & patient portal, care plans, surgery diary, medical chart with scripts, messaging, and practice website — multi-chair ready.',
     bullets: [
-      'Staff · patients · care plans',
-      'Diary · bookings · clinical notes',
-      'Messages · practice website',
+      'Invite patients · portal booking',
+      'Medical chart · scripts · care plans',
+      'Messages · diary · website',
     ],
     Mock: DentalgraphMock,
     icon: Smile,
@@ -500,10 +500,10 @@ const MODULES = [
     title: 'PsychiatryAdvisor®',
     short: 'PsychiatryAdvisor',
     tagline: 'Mental health practice OS',
-    body: 'Psychiatrists and psychologists, patients, therapy packages, diary, bookings, medical chart, patient portal, messaging, and practice website — on the same verified fabric.',
+    body: 'Psychiatrists and psychologists, patients, therapy packages, diary, medical chart with scripts, patient portal, messaging, and practice website — on the same verified fabric.',
     bullets: [
-      'Practitioners · patients · care packs',
-      'Diary · portal · clinical notes',
+      'Practitioners · patients · therapy packs',
+      'Diary · portal · scripts · chart',
       'Messages · website',
     ],
     Mock: PsychiatrygraphMock,
@@ -516,11 +516,11 @@ const MODULES = [
     title: 'MedicalAdvisor®',
     short: 'MedicalAdvisor',
     tagline: 'GP & medical practice OS',
-    body: 'GPs, specialists and nurses, patients, consults, care packages, diary, bookings, medical chart, patient portal, messaging, and practice website — multi-room ready.',
+    body: 'GPs, specialists and nurses, patients, consults, care packages, diary, medical chart with prescriptions/scripts linked to visits, patient portal, messaging, and practice website.',
     bullets: [
       'Practitioners · patients · care packs',
-      'Diary · portal · consults',
-      'Messages · website',
+      'Scripts · medical chart · portal',
+      'Diary · messages · website',
     ],
     Mock: MedicalgraphMock,
     icon: Hospital,
@@ -1044,7 +1044,12 @@ export default function LandingPage() {
               {
                 icon: Workflow,
                 t: 'Full stack, zero silos',
-                b: 'Network, SRM, CRM, inventory, manufacturing, distribution, finance, SHEQ, projects, ESG, and intelligence share one workspace.',
+                b: 'Network, SRM, CRM, inventory, manufacturing, distribution, finance, SHEQ, projects, ESG, intelligence — plus industry packs for agri, quarry, gyms, and clinical practices — share one workspace.',
+              },
+              {
+                icon: Stethoscope,
+                t: 'Industry solutions that operate',
+                b: 'FieldAdvisor®, QuarryAdvisor®, FitAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, and MedicalAdvisor® — people, diaries, portals, invites, scripts, and messages, not brochure modules.',
               },
               {
                 icon: Fingerprint,
@@ -1612,8 +1617,9 @@ export default function LandingPage() {
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-neutral-400">
                 Pick your economic sector, then one or more industries. Industry
-                Packs unlock vertical hubs and tools at +R{INDUSTRY_PACK_MONTHLY_ZAR}
-                /mo each — without removing Core process trees.
+                Packs unlock FieldAdvisor®, QuarryAdvisor®, FitAdvisor®, PhysioAdvisor®,
+                DentalAdvisor®, PsychiatryAdvisor®, and MedicalAdvisor® — portals,
+                invites, scripts, and diaries — at +R{INDUSTRY_PACK_MONTHLY_ZAR}/mo each.
               </p>
               <div className="mt-4 flex flex-wrap gap-1.5">
                 {OS_SECTORS.map((s) => (
