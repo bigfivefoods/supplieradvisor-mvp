@@ -121,13 +121,14 @@ function AppShellInner({
                 <Image
                   src="/sa-logo.png"
                   alt=""
-                  width={72}
-                  height={32}
-                  className="h-8 w-auto object-contain shrink-0"
+                  width={56}
+                  height={24}
+                  className="sa-logo h-7 w-auto object-contain shrink-0"
                   priority
                 />
-                <span className="font-black text-base tracking-[-0.5px] text-sa-text truncate">
-                  SupplierAdvisor®
+                <span className="sa-wordmark font-black text-base tracking-[-0.5px]">
+                  SupplierAdvisor
+                  <span className="sa-wordmark-mark">®</span>
                 </span>
               </Link>
               <button

@@ -257,9 +257,9 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
             <Image
               src="/sa-logo.png"
               alt="SupplierAdvisor"
-              width={80}
-              height={36}
-              className="h-9 w-auto object-contain"
+              width={64}
+              height={28}
+              className="sa-logo h-8 w-auto object-contain"
               priority
             />
           </Link>
@@ -324,17 +324,21 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
       >
         {!forceExpanded && (
           <div className="flex items-start justify-between gap-2">
-            <Link href={homePath || '/dashboard'} className="flex items-center gap-3 min-w-0">
+            <Link
+              href={homePath || '/dashboard'}
+              className="flex items-center gap-2.5 min-w-0"
+            >
               <Image
                 src="/sa-logo.png"
-                alt="SupplierAdvisor"
-                width={96}
-                height={42}
-                className="h-10 w-auto object-contain shrink-0"
+                alt=""
+                width={64}
+                height={28}
+                className="sa-logo h-8 w-auto object-contain shrink-0"
                 priority
               />
-              <div className="font-black text-lg tracking-[-1px] leading-none text-slate-900 truncate">
-                SupplierAdvisor®
+              <div className="sa-wordmark font-black text-base sm:text-lg tracking-[-1px] leading-none">
+                SupplierAdvisor
+                <span className="sa-wordmark-mark">®</span>
               </div>
             </Link>
             <button

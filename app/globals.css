@@ -543,14 +543,25 @@ html.dark .bg-\[\#0099b8\] {
 }
 
 /*
- * Brand logo → white in dark mode.
- * Matches /sa-logo.png and Next.js /_next/image?url=...sa-logo...
- * Also .sa-logo for explicit opt-in.
+ * Brand monogram → white in dark mode (image only).
+ * Wordmark text stays slate-900 / #00b4d8 and is not filtered.
  */
 html.dark img.sa-logo,
 html.dark img[src*='sa-logo'],
 html.dark img[src*='sa-icon'] {
   filter: brightness(0) invert(1);
+}
+
+/* Wordmark: never inherit image filter; keep product colours */
+.sa-wordmark {
+  color: #0f172a;
+  white-space: nowrap;
+}
+html.dark .sa-wordmark {
+  color: #ffffff;
+}
+.sa-wordmark .sa-wordmark-mark {
+  color: #00b4d8;
 }
 
 /* Sonner / toast dark polish */

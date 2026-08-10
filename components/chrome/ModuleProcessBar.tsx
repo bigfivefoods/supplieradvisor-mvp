@@ -114,19 +114,20 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
 
           <Link
             href="/dashboard"
-            className="md:hidden flex items-center gap-1.5 sm:gap-2 shrink-0 min-w-0"
+            className="md:hidden flex items-center gap-1.5 sm:gap-2 shrink-0"
             aria-label="SupplierAdvisor home"
           >
             <Image
               src="/sa-logo.png"
               alt=""
-              width={64}
-              height={28}
-              className="h-7 w-auto object-contain shrink-0"
+              width={56}
+              height={24}
+              className="sa-logo h-6 w-auto object-contain shrink-0"
               priority
             />
-            <span className="hidden min-[380px]:inline font-black text-xs sm:text-sm tracking-[-0.5px] text-slate-900 truncate max-w-[7rem] sm:max-w-[10rem]">
-              SupplierAdvisor®
+            <span className="sa-wordmark hidden min-[360px]:inline font-black text-xs sm:text-sm tracking-[-0.5px]">
+              SupplierAdvisor
+              <span className="sa-wordmark-mark">®</span>
             </span>
           </Link>
 

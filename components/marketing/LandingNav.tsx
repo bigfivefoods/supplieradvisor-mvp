@@ -107,20 +107,21 @@ export default function LandingNav() {
         <div className="mx-auto flex h-14 sm:h-[4.25rem] max-w-screen-2xl items-center justify-between gap-2 sm:gap-3 px-3 sm:px-6 lg:px-10">
           <Link
             href="/"
-            className="relative z-[210] flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2.5"
+            className="relative z-[210] flex shrink-0 items-center gap-2 sm:gap-2.5"
             onClick={() => setOpen(false)}
           >
+            {/* Monogram only — wordmark is separate text (original colours) */}
             <Image
               src="/sa-logo.png"
-              alt="SupplierAdvisor"
-              width={120}
-              height={52}
-              className="h-8 w-auto sm:h-9 md:h-10 object-contain"
+              alt=""
+              width={72}
+              height={32}
+              className="sa-logo h-7 w-auto sm:h-8 object-contain shrink-0"
               priority
             />
-            <span className="truncate text-sm sm:text-base font-black tracking-tight text-slate-900 sm:text-xl max-w-[9.5rem] min-[400px]:max-w-none">
+            <span className="sa-wordmark text-sm font-black tracking-tight sm:text-base md:text-xl">
               SupplierAdvisor
-              <span className="text-[#00b4d8]">®</span>
+              <span className="sa-wordmark-mark">®</span>
             </span>
           </Link>
 
