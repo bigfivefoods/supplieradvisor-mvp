@@ -12,13 +12,24 @@ import type { LucideIcon } from 'lucide-react';
 export const PRODUCT_MOCK_HEIGHT =
   'h-[280px] sm:h-[340px] lg:h-[400px] xl:h-[420px]';
 
+/** Hero product frame — fits first viewport with headline (not full modules-section scale). */
+export const PRODUCT_MOCK_HEIGHT_HERO =
+  'h-[200px] sm:h-[220px] md:h-[240px] lg:h-[260px] xl:h-[280px]';
+
 /** Equal height for 2–3 scene cards in the Modules section. */
 export const MODULE_GALLERY_HEIGHT =
   'h-[200px] sm:h-[220px] lg:h-[236px]';
 
+/** Hero scene cards — compact strip under chrome. */
+export const MODULE_GALLERY_HEIGHT_HERO =
+  'h-[100px] sm:h-[112px] lg:h-[120px]';
+
 /** Fixed-size outer box for hero gallery row (prevents sm→1col height swing). */
 export const MODULE_GALLERY_ROW =
   'min-h-[200px] sm:min-h-[220px] lg:min-h-[236px]';
+
+export const MODULE_GALLERY_ROW_HERO =
+  'min-h-0 sm:min-h-[112px] lg:min-h-[120px]';
 
 function Frame({
   title,
@@ -1640,19 +1651,26 @@ function GalleryCard({ scene }: { scene: GalleryScene }) {
 export function ModuleGallery({
   moduleId,
   className = '',
+  variant = 'default',
 }: {
   moduleId: string;
   className?: string;
+  /** hero = compact first-viewport strip; default = modules section */
+  variant?: 'default' | 'hero';
 }) {
   const scenes = MODULE_GALLERIES[moduleId] || MODULE_GALLERIES.ops;
+  const row =
+    variant === 'hero' ? MODULE_GALLERY_ROW_HERO : MODULE_GALLERY_ROW;
+  const cardH =
+    variant === 'hero' ? MODULE_GALLERY_HEIGHT_HERO : MODULE_GALLERY_HEIGHT;
   return (
     <div
-      className={`grid w-full grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-3.5 ${MODULE_GALLERY_ROW} ${className}`}
+      className={`grid w-full grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-2.5 lg:gap-3 ${row} ${className}`}
     >
       {scenes.slice(0, 3).map((scene) => (
         <div
           key={`${moduleId}-${scene.eyebrow}-${scene.title}`}
-          className={`w-full min-w-0 ${MODULE_GALLERY_HEIGHT}`}
+          className={`w-full min-w-0 ${cardH}`}
         >
           <GalleryCard scene={scene} />
         </div>
@@ -1665,13 +1683,18 @@ export function ModuleGallery({
 export function ProductMockShell({
   children,
   className = '',
+  variant = 'default',
 }: {
   children: React.ReactNode;
   className?: string;
+  /** hero = fits landing first viewport; default = full modules section */
+  variant?: 'default' | 'hero';
 }) {
+  const height =
+    variant === 'hero' ? PRODUCT_MOCK_HEIGHT_HERO : PRODUCT_MOCK_HEIGHT;
   return (
     <div
-      className={`relative w-full shrink-0 overflow-hidden ${PRODUCT_MOCK_HEIGHT} ${className}`}
+      className={`relative w-full shrink-0 overflow-hidden ${height} ${className}`}
     >
       <div className="absolute inset-0 h-full w-full [&_>_*]:h-full [&_>_*]:w-full">
         {children}

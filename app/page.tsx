@@ -592,7 +592,7 @@ export default function LandingPage() {
       {/* ═══════════ HERO ═══════════ */}
       <section
         id="platform"
-        className="relative flex min-h-[calc(100svh-4rem)] flex-col justify-center overflow-x-clip sm:min-h-[calc(100svh-4.25rem)]"
+        className="relative flex flex-col justify-center overflow-x-clip pt-20 sm:pt-[5.25rem] lg:min-h-[calc(100svh-0.5rem)]"
       >
         {/* Light / dark washes */}
         <div
@@ -612,43 +612,43 @@ export default function LandingPage() {
           aria-hidden
         />
 
-        <div className="relative z-[1] mx-auto w-full max-w-screen-2xl px-4 py-12 sm:px-6 sm:py-16 lg:px-10 lg:py-20">
-          {/* Hero: 1/3 text · 2/3 images */}
-          <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-12 xl:gap-14">
+        <div className="relative z-[1] mx-auto w-full max-w-screen-2xl px-4 py-8 sm:px-6 sm:py-10 lg:px-10 lg:py-12">
+          {/* Hero: 1/3 text · 2/3 images — sized to fit first viewport */}
+          <div className="grid items-center gap-8 lg:grid-cols-12 lg:gap-10 xl:gap-12">
             {/* ── Text (1/3) ── */}
             <div className="flex flex-col justify-center text-center lg:col-span-4 lg:text-left">
-              <h1 className="text-[2.75rem] font-black leading-[1.02] tracking-[-0.045em] text-slate-900 sm:text-6xl md:text-7xl lg:text-[3.15rem] xl:text-[3.65rem] 2xl:text-[4rem] lg:tracking-[-0.05em]">
+              <h1 className="text-[2.35rem] font-black leading-[1.04] tracking-[-0.045em] text-slate-900 sm:text-5xl md:text-6xl lg:text-[2.75rem] xl:text-[3.25rem] 2xl:text-[3.5rem] lg:tracking-[-0.05em] dark:text-white">
                 The world&apos;s most trusted
-                <span className="mt-2 block bg-gradient-to-r from-[#00b4d8] via-[#0096c7] to-[#0077b6] bg-clip-text text-transparent">
+                <span className="mt-1.5 block bg-gradient-to-r from-[#00b4d8] via-[#0096c7] to-[#0077b6] bg-clip-text text-transparent sm:mt-2">
                   supplier advice — and OS.
                 </span>
               </h1>
 
-              <p className="mx-auto mt-5 max-w-md text-base leading-relaxed text-slate-600 sm:mt-6 sm:text-lg lg:mx-0">
+              <p className="mx-auto mt-4 max-w-md text-[15px] leading-relaxed text-slate-600 sm:mt-5 sm:text-base lg:mx-0 dark:text-neutral-400">
                 SupplierAdvisor® unites{' '}
-                <strong className="font-semibold text-slate-900">B2B</strong>,{' '}
-                <strong className="font-semibold text-slate-900">B2G</strong>, and{' '}
-                <strong className="font-semibold text-slate-900">B2C</strong> on one
+                <strong className="font-semibold text-slate-900 dark:text-white">B2B</strong>,{' '}
+                <strong className="font-semibold text-slate-900 dark:text-white">B2G</strong>, and{' '}
+                <strong className="font-semibold text-slate-900 dark:text-white">B2C</strong> on one
                 verified network — watch the key modules rotate live.
               </p>
 
-              <div className="mt-8 flex flex-col items-stretch gap-3 sm:mx-auto sm:max-w-md sm:flex-row sm:items-center lg:mx-0 lg:max-w-none lg:flex-col xl:flex-row">
+              <div className="mt-6 flex flex-col items-stretch gap-2.5 sm:mx-auto sm:max-w-md sm:flex-row sm:items-center lg:mx-0 lg:max-w-none lg:flex-col xl:flex-row">
                 <Link
                   href="/onboarding?type=business"
-                  className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-base font-semibold text-white shadow-lg shadow-cyan-500/25 transition-all hover:bg-[#0099b8] active:scale-[0.99]"
+                  className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-[15px] font-semibold text-white shadow-lg shadow-cyan-500/25 transition-all hover:bg-[#0099b8] active:scale-[0.99] sm:px-7 sm:py-3.5 sm:text-base"
                 >
                   Start {COMPANY_TRIAL_DAYS}-day free trial
                   <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
                 </Link>
                 <Link
                   href="/demo"
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-3.5 text-base font-semibold text-slate-800 shadow-sm transition-all hover:border-[#00b4d8] hover:text-[#0077b6] dark:border-neutral-700 dark:bg-neutral-950 dark:text-white dark:hover:border-[#00b4d8]"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3 text-[15px] font-semibold text-slate-800 shadow-sm transition-all hover:border-[#00b4d8] hover:text-[#0077b6] dark:border-neutral-700 dark:bg-neutral-950 dark:text-white dark:hover:border-[#00b4d8] sm:px-7 sm:py-3.5 sm:text-base"
                 >
                   Book a demo
                 </Link>
               </div>
 
-              <p className="mt-5 text-xs leading-relaxed text-slate-500 sm:text-sm">
+              <p className="mt-4 text-xs leading-relaxed text-slate-500 sm:text-sm dark:text-neutral-500">
                 Not Excel. Not accounting-only. Not a multi-year ERP project.{' '}
                 <a
                   href="#compare"
@@ -660,16 +660,16 @@ export default function LandingPage() {
               </p>
             </div>
 
-            {/* ── Images (2/3) — fixed HxW gallery + product frame (no layout jump) ── */}
+            {/* ── Images (2/3) — compact hero mocks that fit the viewport ── */}
             <div className="min-w-0 lg:col-span-8">
               <div className="relative">
                 <div
-                  className="pointer-events-none absolute -inset-3 rounded-[2rem] bg-gradient-to-tr from-cyan-200/45 via-transparent to-violet-200/35 blur-2xl sm:-inset-5"
+                  className="pointer-events-none absolute -inset-2 rounded-[2rem] bg-gradient-to-tr from-cyan-200/40 via-transparent to-violet-200/30 blur-2xl sm:-inset-3 dark:from-cyan-500/15 dark:to-[#00b4d8]/10"
                   aria-hidden
                 />
 
                 {/* Band navigation: Core · Sector · Industry · All */}
-                <div className="relative mb-3 flex flex-wrap items-center gap-1.5">
+                <div className="relative mb-2 flex flex-wrap items-center gap-1 sm:mb-2.5 sm:gap-1.5">
                   {(
                     [
                       { id: 'all' as const, label: 'All modules' },
@@ -682,10 +682,10 @@ export default function LandingPage() {
                       key={b.id}
                       type="button"
                       onClick={() => setHeroBand(b.id)}
-                      className={`rounded-full border px-3 py-1.5 text-[11px] font-bold transition-all touch-manipulation ${
+                      className={`rounded-full border px-2.5 py-1 text-[10px] font-bold transition-all touch-manipulation sm:px-3 sm:py-1.5 sm:text-[11px] ${
                         heroBand === b.id
                           ? 'border-[#00b4d8] bg-[#00b4d8] text-white shadow-sm'
-                          : 'border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-[#0077b6]'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-[#0077b6] dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-300'
                       }`}
                       aria-pressed={heroBand === b.id}
                     >
@@ -694,24 +694,24 @@ export default function LandingPage() {
                   ))}
                 </div>
 
-                {/* Module chrome — fixed min-height so titles never reflow the column */}
-                <div className="relative mb-3 flex min-h-[4.25rem] flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200/90 bg-white/95 px-4 py-3 shadow-sm sm:min-h-[4.5rem] sm:px-5">
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <featured.icon className="h-5 w-5 shrink-0 text-[#00b4d8]" />
+                {/* Module chrome — compact */}
+                <div className="relative mb-2 flex min-h-[3.25rem] flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2 shadow-sm sm:mb-2.5 sm:min-h-[3.5rem] sm:rounded-2xl sm:px-4 dark:border-neutral-800 dark:bg-neutral-950/95">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <featured.icon className="h-4 w-4 shrink-0 text-[#00b4d8] sm:h-5 sm:w-5" />
                     <div className="min-w-0">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                      <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400 sm:text-[10px]">
                         {bandLabel} · {featured.code} /{' '}
                         {String(heroModules.length).padStart(2, '0')}
                       </div>
-                      <div className="truncate text-sm font-black text-slate-900 sm:text-base">
+                      <div className="truncate text-xs font-black text-slate-900 sm:text-sm dark:text-white">
                         {featured.title}
-                        <span className="ml-2 font-semibold text-[#00b4d8]">
+                        <span className="ml-1.5 font-semibold text-[#00b4d8] sm:ml-2">
                           {featured.tagline}
                         </span>
                       </div>
                     </div>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-800">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-800 sm:px-2.5 sm:py-1 sm:text-[10px] dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
                     <span className="relative flex h-1.5 w-1.5">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                       <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -720,29 +720,29 @@ export default function LandingPage() {
                   </span>
                 </div>
 
-                {/* Three equal-height scene images (fixed frame) */}
-                <div className="w-full">
-                  <ModuleGallery moduleId={featured.id} />
+                {/* Three scene cards — hide on phone (stacked height blows the hero) */}
+                <div className="mb-2 hidden w-full sm:mb-2.5 sm:block">
+                  <ModuleGallery moduleId={featured.id} variant="hero" />
                 </div>
 
-                {/* Full product frame — exact same height family every rotate */}
-                <div className="relative mt-3 w-full overflow-hidden rounded-[1.5rem] border border-slate-200/90 bg-white shadow-xl shadow-slate-200/80 sm:rounded-[1.75rem]">
-                  <ProductMockShell>
+                {/* Main product frame — hero-sized, fixed HxW */}
+                <div className="relative w-full overflow-hidden rounded-[1.25rem] border border-slate-200/90 bg-white shadow-xl shadow-slate-200/70 sm:rounded-[1.5rem] dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-black/50">
+                  <ProductMockShell variant="hero">
                     <FeaturedMock />
                   </ProductMockShell>
                 </div>
 
                 {/* Module picker */}
-                <div className="mt-3 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 scrollbar-thin sm:mt-4 sm:flex-wrap sm:justify-center lg:justify-start">
+                <div className="mt-2 -mx-1 flex gap-1 overflow-x-auto px-1 pb-0.5 scrollbar-thin sm:mt-2.5 sm:gap-1.5 sm:flex-wrap sm:justify-center lg:justify-start">
                   {heroModules.map((m, i) => (
                     <button
                       key={m.id}
                       type="button"
                       onClick={() => setActiveModule(i)}
-                      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[10px] font-bold transition-all touch-manipulation sm:px-3 sm:text-xs ${
+                      className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-bold transition-all touch-manipulation sm:gap-1.5 sm:px-2.5 sm:py-1.5 sm:text-xs ${
                         i === activeModule
                           ? 'border-[#00b4d8] bg-[#00b4d8] text-white shadow-sm shadow-cyan-200/60'
-                          : 'border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-[#0077b6]'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-[#0077b6] dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-300'
                       }`}
                       aria-pressed={i === activeModule}
                       aria-label={`Show ${m.title} module`}
@@ -752,15 +752,15 @@ export default function LandingPage() {
                     </button>
                   ))}
                 </div>
-                <p className="mt-2 text-center text-[11px] text-slate-400 lg:text-left">
-                  Auto-rotates · Core, Sector &amp; Industry screenshots · fixed size (no page jump)
+                <p className="mt-1.5 text-center text-[10px] text-slate-400 sm:text-[11px] lg:text-left">
+                  Auto-rotates · Core, Sector &amp; Industry · fixed size
                 </p>
               </div>
             </div>
           </div>
 
           {/* Accurate commercial strip under hero (not competing with headline) */}
-          <div className="mt-10 flex flex-col items-center gap-3 border-t border-slate-200/80 pt-8 sm:mt-12">
+          <div className="mt-8 flex flex-col items-center gap-3 border-t border-slate-200/80 pt-6 sm:mt-10 sm:pt-8 dark:border-neutral-800">
             <p className="text-center text-sm text-slate-500">
               Core OS from {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo ·
               Industry Packs +{formatZar(INDUSTRY_PACK_MONTHLY_ZAR)}/mo each ·
