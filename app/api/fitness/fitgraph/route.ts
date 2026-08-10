@@ -6,6 +6,8 @@ import {
 } from '@/lib/auth/api-auth';
 import {
   attendanceByClass,
+  buildCoachPortalPayload,
+  createSessionsFromTemplate,
   defaultPublicSettings,
   ensurePublicToken,
   issueCoachPortalToken,
@@ -22,6 +24,7 @@ import {
   type FitCoach,
   type FitMembershipPlan,
   type FitPtPack,
+  type FitRecurrence,
   type FitSession,
   type FitSubscription,
   type FitgraphStore,
@@ -184,6 +187,166 @@ export async function POST(request: NextRequest) {
         store,
         summary: summariseFitgraph(store),
         portal_token: coach.portal_token,
+        analysis: analysis(store),
+      });
+    }
+
+    /** Owner: coach calendar payload (plan vs actual) */
+    if (action === 'coach_calendar') {
+      const coachId = String(body.coachId || body.coach_id || '');
+      const coach = store.coaches.find((c) => c.id === coachId);
+      if (!coach) {
+        return NextResponse.json({ error: 'Coach not found' }, { status: 404 });
+      }
+      const from = body.from ? String(body.from) : undefined;
+      const to = body.to ? String(body.to) : undefined;
+      return NextResponse.json({
+        success: true,
+        portal: buildCoachPortalPayload(store, coach, from, to),
+        store,
+        summary: summariseFitgraph(store),
+      });
+    }
+
+    /** Create one-off or weekly series of sessions (owner or for a coach) */
+    if (action === 'create_session_series' || action === 'create_session') {
+      const coachId = String(body.coach_id || body.coachId || '');
+      const classTypeId = String(body.class_type_id || '');
+      const date = String(body.date || now.slice(0, 10));
+      const startTime = String(body.start_time || '06:00');
+      if (!coachId || !classTypeId) {
+        return NextResponse.json(
+          { error: 'coach_id and class_type_id required' },
+          { status: 400 }
+        );
+      }
+      if (!store.coaches.find((c) => c.id === coachId)) {
+        return NextResponse.json({ error: 'Coach not found' }, { status: 404 });
+      }
+      if (!store.class_types.find((c) => c.id === classTypeId)) {
+        return NextResponse.json(
+          { error: 'Class type not found' },
+          { status: 404 }
+        );
+      }
+      let recurrence: FitRecurrence | null = null;
+      if (
+        action === 'create_session_series' ||
+        body.repeat === 'weekly' ||
+        body.frequency === 'weekly'
+      ) {
+        recurrence = {
+          frequency: 'weekly',
+          weekdays: Array.isArray(body.weekdays)
+            ? (body.weekdays as number[]).map(Number)
+            : undefined,
+          until: body.until ? String(body.until) : null,
+          count: body.count != null ? Number(body.count) : 8,
+        };
+      } else {
+        recurrence = { frequency: 'none' };
+      }
+      const created = createSessionsFromTemplate(
+        store,
+        {
+          class_type_id: classTypeId,
+          coach_id: coachId,
+          date,
+          start_time: startTime,
+          end_time: body.end_time != null ? String(body.end_time) : null,
+          duration_min:
+            body.duration_min != null ? Number(body.duration_min) : null,
+          capacity: body.capacity != null ? Number(body.capacity) : null,
+          location: body.location != null ? String(body.location) : undefined,
+          public: body.public === true,
+          notes: body.notes != null ? String(body.notes) : undefined,
+          public_notes:
+            body.public_notes != null ? String(body.public_notes) : undefined,
+          origin: 'owner',
+        },
+        recurrence,
+        now
+      );
+      store.sessions.push(...created);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        created: created.length,
+        sessions: created,
+        message:
+          created.length > 1
+            ? `Scheduled ${created.length} classes in series`
+            : 'Bespoke class scheduled',
+      });
+    }
+
+    if (action === 'mark_attendance') {
+      const bookingId = String(body.booking_id || '');
+      const status = String(body.status || 'attended') as FitBooking['status'];
+      const booking = store.bookings.find((b) => b.id === bookingId);
+      if (!booking) {
+        return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+      }
+      if (
+        status !== 'attended' &&
+        status !== 'no_show' &&
+        status !== 'booked' &&
+        status !== 'cancelled'
+      ) {
+        return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+      }
+      booking.status = status;
+      const session = store.sessions.find((s) => s.id === booking.session_id);
+      if (
+        session &&
+        (status === 'attended' || status === 'no_show') &&
+        session.status !== 'cancelled'
+      ) {
+        session.status = 'completed';
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+      });
+    }
+
+    if (action === 'mark_attendance_bulk') {
+      const sessionId = String(body.session_id || '');
+      const marks = Array.isArray(body.marks) ? body.marks : [];
+      for (const m of marks) {
+        const bid = String((m as { booking_id?: string }).booking_id || '');
+        const st = String((m as { status?: string }).status || '');
+        const booking = store.bookings.find(
+          (b) =>
+            b.id === bid && (!sessionId || b.session_id === sessionId)
+        );
+        if (
+          booking &&
+          (st === 'attended' ||
+            st === 'no_show' ||
+            st === 'booked' ||
+            st === 'cancelled')
+        ) {
+          booking.status = st as FitBooking['status'];
+        }
+      }
+      if (sessionId) {
+        const session = store.sessions.find((s) => s.id === sessionId);
+        if (session && session.status !== 'cancelled' && marks.length > 0) {
+          session.status = 'completed';
+        }
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
         analysis: analysis(store),
       });
     }
@@ -456,6 +619,16 @@ function upsert(
         rec.public_notes != null
           ? String(rec.public_notes)
           : prev?.public_notes,
+      series_id:
+        rec.series_id !== undefined
+          ? rec.series_id
+            ? String(rec.series_id)
+            : null
+          : prev?.series_id ?? null,
+      origin:
+        rec.origin != null
+          ? String(rec.origin)
+          : prev?.origin ?? 'owner',
       created_at: prev?.created_at || now,
     };
     if (i >= 0) store.sessions[i] = row;

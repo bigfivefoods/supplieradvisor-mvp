@@ -133,7 +133,26 @@ export type FitSession = {
   notes?: string;
   /** Customer-facing blurb when shared */
   public_notes?: string;
+  /**
+   * Recurring series id — all occurrences of a weekly/bespoke series share this.
+   * One-off bespoke classes have series_id null/undefined.
+   */
+  series_id?: string | null;
+  /** How this row was created */
+  origin?: 'one_off' | 'series' | 'owner' | 'coach' | string;
   created_at: string;
+};
+
+/** Weekly recurrence rule for expanding sessions */
+export type FitRecurrence = {
+  /** weekly = same weekday(s) each week */
+  frequency: 'none' | 'weekly';
+  /** 0=Sun … 6=Sat; empty = use start date's weekday */
+  weekdays?: number[];
+  /** Inclusive end date YYYY-MM-DD */
+  until?: string | null;
+  /** Or number of occurrences including the first (max 52) */
+  count?: number | null;
 };
 
 export type FitBooking = {
@@ -465,18 +484,147 @@ export function buildPublicCalendarPayload(
   };
 }
 
-/** Coach portal view of their sessions + roster */
+/** Add calendar days to YYYY-MM-DD (local noon to avoid DST edge). */
+export function addDaysIso(dateIso: string, days: number): string {
+  const d = new Date(dateIso + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+export function weekdayOf(dateIso: string): number {
+  return new Date(dateIso + 'T12:00:00').getDay();
+}
+
+/**
+ * Expand a session template + recurrence into concrete session date list.
+ * First date is always included; weekly repeats on matching weekdays until until/count.
+ */
+export function expandRecurrenceDates(
+  startDate: string,
+  recurrence?: FitRecurrence | null
+): string[] {
+  if (!recurrence || recurrence.frequency === 'none') {
+    return [startDate];
+  }
+  const weekdays =
+    recurrence.weekdays && recurrence.weekdays.length > 0
+      ? [...new Set(recurrence.weekdays)].sort()
+      : [weekdayOf(startDate)];
+  const maxCount = Math.min(
+    52,
+    Math.max(1, Number(recurrence.count) || 0) || 12
+  );
+  const until = recurrence.until || addDaysIso(startDate, 7 * 12);
+  const out: string[] = [];
+  // Walk day-by-day from start
+  let cur = startDate;
+  let guard = 0;
+  while (cur <= until && out.length < maxCount && guard < 400) {
+    if (weekdays.includes(weekdayOf(cur))) {
+      out.push(cur);
+    }
+    cur = addDaysIso(cur, 1);
+    guard += 1;
+  }
+  if (!out.includes(startDate) && out.length < maxCount) {
+    out.unshift(startDate);
+    out.sort();
+  }
+  return out.slice(0, maxCount);
+}
+
+/** Build one or many sessions for coach/owner scheduling */
+export function createSessionsFromTemplate(
+  store: FitgraphStore,
+  template: {
+    class_type_id: string;
+    coach_id: string;
+    date: string;
+    start_time: string;
+    end_time?: string | null;
+    duration_min?: number | null;
+    capacity?: number | null;
+    location?: string;
+    public?: boolean;
+    notes?: string;
+    public_notes?: string;
+    origin?: string;
+  },
+  recurrence?: FitRecurrence | null,
+  nowIso?: string
+): FitSession[] {
+  const now = nowIso || new Date().toISOString();
+  const dates = expandRecurrenceDates(template.date, recurrence);
+  const seriesId =
+    dates.length > 1 ? newId('ser') : (null as string | null);
+  const ct = classTypeById(store, template.class_type_id);
+  const makePublic = template.public === true;
+  return dates.map((date) => {
+    const id = newId('ses');
+    return {
+      id,
+      class_type_id: template.class_type_id,
+      coach_id: template.coach_id,
+      date,
+      start_time: template.start_time,
+      end_time: template.end_time ?? null,
+      duration_min:
+        template.duration_min ?? ct?.default_duration_min ?? 45,
+      capacity: template.capacity ?? ct?.capacity ?? 20,
+      location: template.location,
+      status: 'scheduled' as const,
+      public: makePublic,
+      share_code: makePublic
+        ? `s_${Math.random().toString(36).slice(2, 10)}`
+        : null,
+      notes: template.notes,
+      public_notes: template.public_notes,
+      series_id: seriesId,
+      origin:
+        template.origin ||
+        (dates.length > 1 ? 'series' : 'one_off'),
+      created_at: now,
+    };
+  });
+}
+
+export type CoachRosterRow = {
+  booking_id: string;
+  client_id: string;
+  status: string;
+  /** Plan = booked / waitlist; Actual = attended / no_show */
+  plan: boolean;
+  actual: 'pending' | 'attended' | 'no_show' | 'cancelled';
+  name: string;
+  email?: string;
+  phone?: string;
+};
+
+export type CoachSessionCard = {
+  session: FitSession;
+  class_name?: string;
+  class_code?: string;
+  capacity: number;
+  /** Planned attendance (booked + attended, not waitlist) */
+  planned: number;
+  waitlist: number;
+  attended: number;
+  no_show: number;
+  pending: number;
+  roster: CoachRosterRow[];
+};
+
+/** Coach portal / coach calendar: sessions + plan vs actual roster */
 export function buildCoachPortalPayload(
   store: FitgraphStore,
   coach: FitCoach,
-  from?: string
+  from?: string,
+  to?: string
 ) {
   const start = from || new Date().toISOString().slice(0, 10);
-  const endD = new Date(start + 'T12:00:00');
-  endD.setDate(endD.getDate() + 14);
-  const end = endD.toISOString().slice(0, 10);
+  const end = to || addDaysIso(start, 27);
 
-  const mySessions = store.sessions
+  const mySessions: CoachSessionCard[] = store.sessions
     .filter(
       (s) =>
         s.coach_id === coach.id &&
@@ -486,31 +634,87 @@ export function buildCoachPortalPayload(
     )
     .map((s) => {
       const ct = classTypeById(store, s.class_type_id);
-      const booked = store.bookings.filter(
-        (b) =>
-          b.session_id === s.id &&
-          (b.status === 'booked' ||
+      const rows = store.bookings.filter((b) => b.session_id === s.id);
+      const roster: CoachRosterRow[] = rows.map((b) => {
+        const client = clientById(store, b.client_id);
+        const actual: CoachRosterRow['actual'] =
+          b.status === 'attended'
+            ? 'attended'
+            : b.status === 'no_show'
+              ? 'no_show'
+              : b.status === 'cancelled'
+                ? 'cancelled'
+                : 'pending';
+        return {
+          booking_id: b.id,
+          client_id: b.client_id,
+          status: b.status,
+          plan:
+            b.status === 'booked' ||
             b.status === 'attended' ||
-            b.status === 'waitlist')
-      );
+            b.status === 'no_show' ||
+            b.status === 'waitlist',
+          actual,
+          name: client?.name || b.guest_name || 'Guest',
+          email: client?.email || b.guest_email,
+          phone: client?.phone || b.guest_phone,
+        };
+      });
+      const planned = roster.filter(
+        (r) =>
+          r.status === 'booked' ||
+          r.status === 'attended' ||
+          r.status === 'no_show'
+      ).length;
       return {
         session: s,
         class_name: ct?.name,
+        class_code: ct?.code,
         capacity: s.capacity ?? ct?.capacity ?? 0,
-        booked: booked.filter((b) => b.status !== 'waitlist').length,
-        waitlist: booked.filter((b) => b.status === 'waitlist').length,
-        roster: booked.map((b) => {
-          const client = clientById(store, b.client_id);
-          return {
-            booking_id: b.id,
-            status: b.status,
-            name: client?.name || b.guest_name || 'Guest',
-            email: client?.email || b.guest_email,
-            phone: client?.phone || b.guest_phone,
-          };
-        }),
+        planned,
+        waitlist: roster.filter((r) => r.status === 'waitlist').length,
+        attended: roster.filter((r) => r.actual === 'attended').length,
+        no_show: roster.filter((r) => r.actual === 'no_show').length,
+        pending: roster.filter(
+          (r) => r.actual === 'pending' && r.status === 'booked'
+        ).length,
+        roster,
       };
-    });
+    })
+    .sort((a, b) =>
+      a.session.date === b.session.date
+        ? a.session.start_time.localeCompare(b.session.start_time)
+        : a.session.date.localeCompare(b.session.date)
+    );
+
+  const members = store.clients
+    .filter((c) => c.active !== false)
+    .map((c) => ({
+      id: c.id,
+      code: c.code,
+      name: c.name,
+      membership_status: c.membership_status,
+      coach_id: c.coach_id,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const classTypes = store.class_types
+    .filter((c) => c.active !== false)
+    .map((c) => ({
+      id: c.id,
+      code: c.code,
+      name: c.name,
+      default_duration_min: c.default_duration_min,
+      capacity: c.capacity,
+    }));
+
+  // Group by date for calendar view
+  const byDate: Record<string, CoachSessionCard[]> = {};
+  for (const card of mySessions) {
+    const d = card.session.date;
+    if (!byDate[d]) byDate[d] = [];
+    byDate[d].push(card);
+  }
 
   return {
     coach: {
@@ -522,6 +726,9 @@ export function buildCoachPortalPayload(
     from: start,
     to: end,
     sessions: mySessions,
+    by_date: byDate,
+    members,
+    class_types: classTypes,
   };
 }
 

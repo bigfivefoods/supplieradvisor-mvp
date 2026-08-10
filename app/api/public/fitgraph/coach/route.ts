@@ -9,6 +9,7 @@ import { clientIp, rateLimit } from '@/lib/security/rate-limit';
 import {
   FITGRAPH_COACH_TOKENS_KEY,
   buildCoachPortalPayload,
+  createSessionsFromTemplate,
   newId,
   parseCompanyIdFromToken,
   readFitgraphFromMetadata,
@@ -17,6 +18,7 @@ import {
   type FitBooking,
   type FitClient,
   type FitCoach,
+  type FitRecurrence,
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
 
@@ -135,10 +137,12 @@ export async function GET(request: NextRequest) {
     }
 
     const from = request.nextUrl.searchParams.get('from') || undefined;
+    const to = request.nextUrl.searchParams.get('to') || undefined;
     const portal = buildCoachPortalPayload(
       resolved.store,
       resolved.coach,
-      from || undefined
+      from || undefined,
+      to || undefined
     );
     const brand = resolved.store.settings?.brand_name || 'Gym';
 
@@ -325,7 +329,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    if (action === 'mark_attended') {
+    if (action === 'mark_attended' || action === 'mark_attendance') {
       const bookingId = String(body.booking_id || '');
       const booking = store.bookings.find((b) => b.id === bookingId);
       if (!booking) {
@@ -335,11 +339,185 @@ export async function POST(request: NextRequest) {
       if (!session || session.coach_id !== coach.id) {
         return NextResponse.json({ error: 'Not your session' }, { status: 403 });
       }
-      booking.status = 'attended';
+      const nextStatus = String(body.status || 'attended');
+      if (
+        nextStatus !== 'attended' &&
+        nextStatus !== 'no_show' &&
+        nextStatus !== 'booked' &&
+        nextStatus !== 'cancelled'
+      ) {
+        return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+      }
+      booking.status = nextStatus as FitBooking['status'];
+      if (nextStatus === 'attended' || nextStatus === 'no_show') {
+        session.status =
+          session.status === 'cancelled' ? session.status : 'completed';
+      }
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
         portal: buildCoachPortalPayload(store, coach),
+      });
+    }
+
+    if (action === 'mark_attendance_bulk') {
+      const marks = Array.isArray(body.marks) ? body.marks : [];
+      if (!sessionId) {
+        return NextResponse.json(
+          { error: 'session_id required' },
+          { status: 400 }
+        );
+      }
+      const session = store.sessions.find(
+        (s) => s.id === sessionId && s.coach_id === coach.id
+      );
+      if (!session) {
+        return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+      }
+      for (const m of marks) {
+        const bid = String((m as { booking_id?: string }).booking_id || '');
+        const st = String((m as { status?: string }).status || '');
+        const booking = store.bookings.find(
+          (b) => b.id === bid && b.session_id === sessionId
+        );
+        if (
+          booking &&
+          (st === 'attended' ||
+            st === 'no_show' ||
+            st === 'booked' ||
+            st === 'cancelled')
+        ) {
+          booking.status = st as FitBooking['status'];
+        }
+      }
+      if (marks.length > 0) {
+        session.status =
+          session.status === 'cancelled' ? session.status : 'completed';
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        portal: buildCoachPortalPayload(store, coach),
+      });
+    }
+
+    if (action === 'book_member') {
+      const session = store.sessions.find(
+        (s) => s.id === sessionId && s.coach_id === coach.id
+      );
+      if (!session || session.status === 'cancelled') {
+        return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+      }
+      const clientId = String(body.client_id || '');
+      const client = store.clients.find((c) => c.id === clientId);
+      if (!client) {
+        return NextResponse.json({ error: 'Member not found' }, { status: 404 });
+      }
+      const existing = store.bookings.find(
+        (b) =>
+          b.session_id === sessionId &&
+          b.client_id === clientId &&
+          b.status !== 'cancelled'
+      );
+      if (existing) {
+        return NextResponse.json(
+          { error: 'Already on this class', booking: existing },
+          { status: 409 }
+        );
+      }
+      const cap = session.capacity ?? 999;
+      const count = sessionBookingCount(store, sessionId);
+      const status: FitBooking['status'] = count >= cap ? 'waitlist' : 'booked';
+      const booking: FitBooking = {
+        id: newId('bkg'),
+        session_id: sessionId,
+        client_id: clientId,
+        status,
+        booked_at: now,
+        source: 'coach',
+      };
+      store.bookings.push(booking);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        booking: { id: booking.id, status },
+        portal: buildCoachPortalPayload(store, coach),
+      });
+    }
+
+    if (action === 'create_session' || action === 'create_series') {
+      const classTypeId = String(body.class_type_id || '');
+      const date = String(body.date || now.slice(0, 10));
+      const startTime = String(body.start_time || '06:00');
+      if (!classTypeId) {
+        return NextResponse.json(
+          { error: 'class_type_id required' },
+          { status: 400 }
+        );
+      }
+      const ct = store.class_types.find((c) => c.id === classTypeId);
+      if (!ct) {
+        return NextResponse.json(
+          { error: 'Class type not found' },
+          { status: 404 }
+        );
+      }
+
+      let recurrence: FitRecurrence | null = null;
+      if (action === 'create_series' || body.repeat === 'weekly') {
+        const weekdays = Array.isArray(body.weekdays)
+          ? (body.weekdays as number[]).map(Number)
+          : undefined;
+        recurrence = {
+          frequency: 'weekly',
+          weekdays,
+          until: body.until ? String(body.until) : null,
+          count: body.count != null ? Number(body.count) : 8,
+        };
+      } else {
+        recurrence = { frequency: 'none' };
+      }
+
+      const created = createSessionsFromTemplate(
+        store,
+        {
+          class_type_id: classTypeId,
+          coach_id: coach.id,
+          date,
+          start_time: startTime,
+          end_time: body.end_time != null ? String(body.end_time) : null,
+          duration_min:
+            body.duration_min != null
+              ? Number(body.duration_min)
+              : ct.default_duration_min ?? 45,
+          capacity:
+            body.capacity != null ? Number(body.capacity) : ct.capacity ?? 20,
+          location: body.location != null ? String(body.location) : undefined,
+          public: body.public === true,
+          notes: body.notes != null ? String(body.notes) : undefined,
+          public_notes:
+            body.public_notes != null ? String(body.public_notes) : undefined,
+          origin: 'coach',
+        },
+        recurrence,
+        now
+      );
+      store.sessions.push(...created);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        created: created.length,
+        sessions: created.map((s) => ({
+          id: s.id,
+          date: s.date,
+          start_time: s.start_time,
+          series_id: s.series_id,
+        })),
+        portal: buildCoachPortalPayload(store, coach),
+        message:
+          created.length > 1
+            ? `Created ${created.length} repeating classes`
+            : 'Bespoke class created',
       });
     }
 

@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Copy, Link2 } from 'lucide-react';
+import { CalendarDays, Copy, Link2 } from 'lucide-react';
+import Link from 'next/link';
 import {
   FitgraphWorkbench,
   LoadingBlock,
@@ -80,12 +81,20 @@ export default function CoachesPage() {
     <FitgraphWorkbench
       title="Coaches"
       titleAccent="trainers"
-      description="Register coaches, assign them on the calendar, and issue portal links so they can share classes with customers and manage rosters."
+      description="Register coaches, issue portal links, and open each coach’s calendar for planned classes, member rosters, and actual attendance."
     >
       {loading || !store ? (
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/dashboard/fitgraph/coach-calendar"
+              className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 dark:!border-amber-400 dark:!bg-amber-950 dark:text-amber-200"
+            >
+              <CalendarDays className="w-3.5 h-3.5" /> Open coach calendar
+            </Link>
+          </div>
           <StatRow
             tone="coach"
             items={[

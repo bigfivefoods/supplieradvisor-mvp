@@ -40,6 +40,14 @@ const MODULES: HubModule[] = [
     accent: 'from-violet-50 to-white border-violet-100',
   },
   {
+    href: '/dashboard/fitgraph/coach-calendar',
+    icon: CalendarDays,
+    code: '01b',
+    title: 'Coach calendar',
+    desc: 'Per-coach plan, actual attendance, bespoke & weekly series.',
+    accent: 'from-amber-50 to-white border-amber-100',
+  },
+  {
     href: '/dashboard/fitgraph/clients',
     icon: Users,
     code: '02',
