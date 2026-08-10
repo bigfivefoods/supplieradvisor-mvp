@@ -1191,7 +1191,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     ],
     flow: [
       { id: 'a', label: 'Fields', hint: 'Shared master', tone: 'emerald' },
-      { id: 'b', label: 'Estimates', hint: 'Board pack', tone: 'sky' },
+      { id: 'b', label: 'Estimates', hint: 'Board pack', tone: 'cyan' },
       { id: 'c', label: 'Harvest', hint: 'Cut dates', tone: 'amber' },
       { id: 'd', label: 'Ops', hint: 'Inputs · fleet', tone: 'violet' },
       { id: 'e', label: 'Regen', hint: 'Soil proof', tone: 'emerald' },
@@ -1278,7 +1278,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     flow: [
       { id: 'a', label: 'Locations', hint: 'Perm · temp · batch', tone: 'amber' },
       { id: 'b', label: 'Sites', hint: 'Pits · grades', tone: 'slate' },
-      { id: 'c', label: 'Reserves', hint: 'Plan · blast', tone: 'sky' },
+      { id: 'c', label: 'Reserves', hint: 'Plan · blast', tone: 'cyan' },
       { id: 'd', label: 'Plant', hint: 'Crush · pads', tone: 'violet' },
       { id: 'e', label: 'Dispatch', hint: 'Weighbridge', tone: 'emerald' },
       { id: 'f', label: 'Ops', hint: 'Fleet · labour', tone: 'rose' },
@@ -1366,7 +1366,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       { id: 'a', label: 'People', hint: 'Coaches · members', tone: 'violet' },
       { id: 'b', label: 'Plans', hint: 'Subs · packs', tone: 'emerald' },
       { id: 'c', label: 'Classes', hint: 'Types', tone: 'amber' },
-      { id: 'd', label: 'Calendar', hint: 'Schedule coach', tone: 'sky' },
+      { id: 'd', label: 'Calendar', hint: 'Schedule coach', tone: 'cyan' },
       { id: 'e', label: 'Floor', hint: 'Book · check-in', tone: 'rose' },
       { id: 'f', label: 'Website', hint: 'Embed · portal', tone: 'violet' },
     ],
@@ -1433,7 +1433,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       { id: 'b', label: 'Leave', hint: 'Balances', tone: 'emerald' },
       { id: 'c', label: 'Payroll', hint: 'Inputs', tone: 'amber' },
       { id: 'd', label: 'Org', hint: 'Chart', tone: 'violet' },
-      { id: 'e', label: 'Train', hint: 'Records', tone: 'sky' },
+      { id: 'e', label: 'Train', hint: 'Records', tone: 'cyan' },
     ],
     processes: [
       {
