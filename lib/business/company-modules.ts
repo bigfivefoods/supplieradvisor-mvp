@@ -54,96 +54,124 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
 
 /**
  * Logical groups for the Modules workspace UI.
- * Short section titles mirror Schools-DBE sidebar style (Govern · Insights · Field …).
+ * Two bands: Core OS · Sector & industry — keep subsections short.
  */
-export type ModuleCategoryId =
-  | 'govern'
-  | 'trade'
-  | 'operate'
-  | 'services'
-  | 'finance'
-  | 'people'
-  | 'assure'
-  | 'insights'
-  | 'impact'
-  | 'programme';
+export type ModuleBandId = 'core' | 'industry';
 
-export const MODULE_CATEGORIES: Array<{
+export type ModuleCategoryId =
+  | 'core_home'
+  | 'core_trade'
+  | 'core_operate'
+  | 'core_finance'
+  | 'core_people'
+  | 'core_assure'
+  | 'core_insights'
+  | 'ind_primary'
+  | 'ind_services'
+  | 'ind_programme';
+
+export type ModuleCategory = {
   id: ModuleCategoryId;
-  /** Short sticky-style section label (like DBE Govern / Field) */
+  /** Parent band for page grouping */
+  band: ModuleBandId;
   title: string;
   blurb: string;
   moduleIds: string[];
+};
+
+export const MODULE_BANDS: Array<{
+  id: ModuleBandId;
+  title: string;
+  blurb: string;
 }> = [
   {
-    id: 'govern',
-    title: 'Govern',
-    blurb: 'Command centre, company identity, and help — always on.',
+    id: 'core',
+    title: 'Core OS',
+    blurb: 'Platform foundations — trade, ops, finance, people, and insight.',
+  },
+  {
+    id: 'industry',
+    title: 'Sector & industry',
+    blurb:
+      'Vertical modules for agri, extractives, fitness, and public programmes.',
+  },
+];
+
+export const MODULE_CATEGORIES: ModuleCategory[] = [
+  {
+    id: 'core_home',
+    band: 'core',
+    title: 'Home & company',
+    blurb: 'Always on — command centre, company, and training guide.',
     moduleIds: ['home', 'my-business', 'guide'],
   },
   {
-    id: 'trade',
+    id: 'core_trade',
+    band: 'core',
     title: 'Trade',
     blurb: 'Network, suppliers, customers, and sales portal.',
     moduleIds: ['network', 'suppliers', 'customers', 'sales-portal'],
   },
   {
-    id: 'operate',
+    id: 'core_operate',
+    band: 'core',
     title: 'Operate',
-    blurb:
-      'Inventory, ops tower, make, ship, containers, Fieldgraph (agri) and Quarrygraph (extractives).',
+    blurb: 'Inventory, ops tower, make, ship, and containers.',
     moduleIds: [
       'inventory',
       'operations',
       'manufacturing',
       'distribution',
       'containers',
-      'fieldgraph',
-      'quarrygraph',
     ],
   },
   {
-    id: 'services',
-    title: 'Services',
-    blurb:
-      'Tertiary / services verticals — Fitgraph gym OS for member facilities.',
-    moduleIds: ['fitgraph'],
-  },
-  {
-    id: 'finance',
+    id: 'core_finance',
+    band: 'core',
     title: 'Finance',
-    blurb: 'Books, bank, tax, and management packs.',
+    blurb: 'Books, bank, tax — Owner and Finance roles only in the sidebar.',
     moduleIds: ['accounting'],
   },
   {
-    id: 'people',
+    id: 'core_people',
+    band: 'core',
     title: 'People',
-    blurb: 'HR directory, payroll, leave, and org beyond Company → Team.',
+    blurb: 'HR directory, payroll, leave, and org chart.',
     moduleIds: ['people'],
   },
   {
-    id: 'assure',
+    id: 'core_assure',
+    band: 'core',
     title: 'Assure',
-    blurb: 'SHEQ, quality holds, and projects.',
+    blurb: 'SHEQ, quality, and projects.',
     moduleIds: ['sheq', 'quality', 'projects'],
   },
   {
-    id: 'insights',
-    title: 'Insights',
-    blurb: 'Pulse, forecasts, scorecards, Super-Cube® leadership.',
-    moduleIds: ['intelligence'],
+    id: 'core_insights',
+    band: 'core',
+    title: 'Insights & impact',
+    blurb: 'Pulse, Super-Cube®, ESG, and sustainability.',
+    moduleIds: ['intelligence', 'sustainability'],
   },
   {
-    id: 'impact',
-    title: 'Impact',
-    blurb: 'ESG, carbon, and regenerative metrics.',
-    moduleIds: ['sustainability'],
+    id: 'ind_primary',
+    band: 'industry',
+    title: 'Primary production',
+    blurb: 'Fieldgraph® (farming) and Quarrygraph® (aggregates).',
+    moduleIds: ['fieldgraph', 'quarrygraph'],
   },
   {
-    id: 'programme',
-    title: 'Programme',
-    blurb:
-      'Public sector programmes — schools (DBE / NSNP) and health (DoH).',
+    id: 'ind_services',
+    band: 'industry',
+    title: 'Services',
+    blurb: 'Fitgraph® — gym coaches, classes, subscriptions, website calendar.',
+    moduleIds: ['fitgraph'],
+  },
+  {
+    id: 'ind_programme',
+    band: 'industry',
+    title: 'Public programmes',
+    blurb: 'Schools (NSNP / DBE) and Health (DoH).',
     moduleIds: ['schools', 'health'],
   },
 ];

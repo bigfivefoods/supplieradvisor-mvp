@@ -31,6 +31,7 @@ import {
 } from '@/components/business/BusinessShell';
 import { SectionLabel } from '@/components/relationship/RelationshipChrome';
 import {
+  MODULE_BANDS,
   MODULE_CATEGORIES,
   countEnabledOptionalModules,
   extractEnabledModulesFromMetadata,
@@ -514,7 +515,7 @@ function ModulesInner() {
       <BusinessHeader
         title="Workspace"
         titleAccent="modules"
-        description={`${tradingName || 'Your company'} — modules grouped by Core OS, sector, and Industry Packs. Toggle what appears in the sidebar.`}
+        description={`${tradingName || 'Your company'} — Core OS first, then sector & industry verticals. Toggle what appears in the sidebar.`}
         action={
           <button
             type="button"
@@ -904,7 +905,7 @@ function ModulesInner() {
         </div>
       )}
 
-      {/* Workspace modules — sectioned like Schools-DBE (Govern · Trade · Operate …) */}
+      {/* Workspace modules — Core first, then sector & industry */}
       <div className="mb-2 flex items-center gap-2">
         <Layers className="w-4 h-4 text-[#0077b6]" />
         <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">
@@ -914,36 +915,80 @@ function ModulesInner() {
           Core OS · R{CORE_OS_MONTHLY_ZAR}/mo
         </span>
       </div>
-      <p className="text-xs text-neutral-500 mb-4 max-w-2xl">
-        Grouped like Schools (Govern · Trade · Operate · Insights …). Toggle which
-        hubs appear in the sidebar. Hubs unlocked by a subscribed pack show a
-        green &ldquo;via pack&rdquo; badge.
+      <p className="text-xs text-neutral-500 mb-5 max-w-2xl">
+        Core platform hubs first, then industry verticals. Toggle what appears in
+        the sidebar. Pack-unlocked hubs show a green badge when subscribed.
       </p>
 
-      {MODULE_CATEGORIES.map((cat) => {
-        const opts = cat.moduleIds
-          .map((id) => optionsById.get(id))
-          .filter(Boolean) as ReturnType<typeof listCompanyModuleOptions>;
-        if (!opts.length) return null;
+      {MODULE_BANDS.map((band) => {
+        const cats = MODULE_CATEGORIES.filter((c) => c.band === band.id);
+        const bandOn = cats.reduce((n, cat) => {
+          return (
+            n +
+            cat.moduleIds.filter(
+              (id) => optionsById.get(id) && enabled[id] !== false
+            ).length
+          );
+        }, 0);
+        const bandTotal = cats.reduce((n, cat) => {
+          return n + cat.moduleIds.filter((id) => optionsById.get(id)).length;
+        }, 0);
         return (
-          <div key={cat.id} className="mb-5">
-            {/* Sticky-style section band (matches DBE sidebar section labels) */}
-            <div className="rounded-2xl bg-slate-100 px-4 py-2.5 mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div key={band.id} className="mb-8">
+            <div
+              className={`rounded-2xl px-4 py-3 mb-4 flex flex-wrap items-center justify-between gap-2 ${
+                band.id === 'core'
+                  ? 'bg-slate-900 text-white'
+                  : 'bg-[#0077b6] text-white'
+              }`}
+            >
               <div>
-                <div className="text-[10px] font-black uppercase tracking-widest text-[#0077b6]">
-                  Section
+                <div className="text-[10px] font-black uppercase tracking-widest text-white/70">
+                  {band.id === 'core' ? '01 · Platform' : '02 · Verticals'}
                 </div>
-                <div className="text-base font-black text-slate-900 tracking-tight">
-                  {cat.title}
+                <div className="text-lg font-black tracking-tight">
+                  {band.title}
+                </div>
+                <p className="text-xs text-white/80 mt-0.5 max-w-xl">
+                  {band.blurb}
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-xl font-black tabular-nums">
+                  {bandOn}
+                  <span className="text-sm font-bold text-white/60">
+                    /{bandTotal}
+                  </span>
+                </div>
+                <div className="text-[10px] font-bold uppercase tracking-wide text-white/60">
+                  on
                 </div>
               </div>
-              <p className="text-[11px] text-slate-500 max-w-md text-right leading-snug">
-                {cat.blurb}
-              </p>
             </div>
-            <ul className="grid sm:grid-cols-2 xl:grid-cols-3 gap-2">
-              {opts.map((opt) => renderModuleToggle(opt.id, true))}
-            </ul>
+
+            <div className="space-y-5">
+              {cats.map((cat) => {
+                const ids = cat.moduleIds.filter((id) => optionsById.get(id));
+                if (!ids.length) return null;
+                return (
+                  <div key={cat.id}>
+                    <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2 px-0.5">
+                      <div>
+                        <h4 className="text-sm font-black text-slate-900">
+                          {cat.title}
+                        </h4>
+                        <p className="text-[11px] text-slate-500 leading-snug">
+                          {cat.blurb}
+                        </p>
+                      </div>
+                    </div>
+                    <ul className="grid sm:grid-cols-2 xl:grid-cols-3 gap-2">
+                      {ids.map((id) => renderModuleToggle(id, true))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         );
       })}
