@@ -25,20 +25,20 @@ export default function SocialProofStrip() {
   return (
     <section
       id="proof"
-      className="scroll-mt-20 border-t border-slate-200 bg-white py-14 sm:py-16"
+      className="scroll-mt-20 border-t border-slate-200 bg-white py-14 dark:border-neutral-800 dark:bg-black sm:py-16"
     >
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
-        <p className="mb-6 text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">
+        <p className="mb-6 text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400 dark:text-neutral-500">
           Built for operators across sectors
         </p>
         <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
           {SEGMENTS.map((s) => (
             <div
               key={s.name}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50/80 px-3.5 py-2 text-xs font-bold text-slate-700 shadow-sm sm:text-sm"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-bold text-slate-800 shadow-sm dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 sm:text-sm"
             >
-              <s.icon className="h-3.5 w-3.5 text-[#00b4d8]" />
-              {s.name}
+              <s.icon className="h-3.5 w-3.5 shrink-0 text-[#00b4d8]" aria-hidden />
+              <span className="text-slate-800 dark:text-neutral-100">{s.name}</span>
             </div>
           ))}
         </div>
@@ -47,12 +47,12 @@ export default function SocialProofStrip() {
           {METRICS.map((m) => (
             <div
               key={m.label}
-              className="rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-sky-50/40 px-3 py-4 text-center shadow-sm"
+              className="rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-sky-50/40 px-3 py-4 text-center shadow-sm dark:border-neutral-800 dark:from-neutral-950 dark:to-neutral-900"
             >
-              <div className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+              <div className="text-2xl font-black tracking-tight text-slate-900 dark:text-white sm:text-3xl">
                 {m.value}
               </div>
-              <div className="mt-1 text-[10px] font-semibold uppercase leading-snug tracking-wider text-slate-500 sm:text-[11px]">
+              <div className="mt-1 text-[10px] font-semibold uppercase leading-snug tracking-wider text-slate-500 dark:text-neutral-400 sm:text-[11px]">
                 {m.label}
               </div>
             </div>
