@@ -477,19 +477,11 @@ export default function SelectCompanyPage() {
               Your organisations
             </p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {companies.map((company, i) => {
+              {companies.map((company) => {
                 const isSales = String(company.role || '')
                   .toLowerCase()
                   .replace(/[\s-]+/g, '_')
                   .includes('sales_contractor');
-                const accents = [
-                  'from-cyan-50 to-white border-cyan-100',
-                  'from-violet-50 to-white border-violet-100',
-                  'from-emerald-50 to-white border-emerald-100',
-                  'from-sky-50 to-white border-sky-100',
-                  'from-amber-50 to-white border-amber-100',
-                ];
-                const accent = accents[i % accents.length];
                 return (
                   <button
                     key={company.id}
@@ -502,38 +494,38 @@ export default function SelectCompanyPage() {
                         company.home_path
                       )
                     }
-                    className={`group rounded-3xl border bg-gradient-to-br ${accent} p-5 text-left shadow-sm transition-all hover:border-[#00b4d8]/50 hover:shadow-md active:scale-[0.99] touch-manipulation sm:p-6`}
+                    className="group rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition-all hover:border-[#00b4d8]/50 hover:shadow-md active:scale-[0.99] touch-manipulation dark:border-neutral-800 dark:bg-neutral-950 sm:p-6"
                   >
                     <div className="mb-4 flex items-start justify-between gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white bg-white shadow-sm text-[#0077b6]">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 text-[#0077b6] shadow-sm dark:border-neutral-800 dark:bg-neutral-900 dark:text-[#00b4d8]">
                         <Building2 className="h-5 w-5" />
                       </div>
                       <div className="flex flex-col items-end gap-1.5">
                         {company.entity_badge ? (
-                          <span className="rounded-full border border-[#00b4d8]/30 bg-[#00b4d8]/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#0077b6]">
+                          <span className="rounded-full border border-[#00b4d8]/30 bg-[#00b4d8]/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#0077b6] dark:text-[#00b4d8]">
                             {company.entity_badge}
                           </span>
                         ) : null}
-                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
                           {String(company.role || 'member').replace(/_/g, ' ')}
                         </span>
                         {company.verification_status === 'verified' && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
                             <ShieldCheck className="h-3 w-3" /> Verified
                           </span>
                         )}
                       </div>
                     </div>
-                    <h3 className="mb-1 text-lg font-black tracking-tight text-slate-900 transition-colors group-hover:text-[#0077b6] sm:text-xl">
+                    <h3 className="mb-1 text-lg font-black tracking-tight text-slate-900 transition-colors group-hover:text-[#0077b6] dark:text-white dark:group-hover:text-[#00b4d8] sm:text-xl">
                       {company.trading_name || 'Untitled organisation'}
                     </h3>
                     {company.legal_name && company.legal_name !== company.trading_name && (
-                      <p className="mb-3 truncate text-xs text-neutral-500 sm:text-sm">
+                      <p className="mb-3 truncate text-xs text-neutral-500 sm:text-sm dark:text-neutral-400">
                         {company.legal_name}
                       </p>
                     )}
-                    <div className="mt-4 flex items-center justify-between border-t border-white/80 pt-4">
-                      <span className="text-xs font-semibold text-neutral-500">
+                    <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 dark:border-neutral-800">
+                      <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">
                         {isSales
                           ? 'Open sales portal'
                           : company.entity_kind === 'nsnp_isp'
