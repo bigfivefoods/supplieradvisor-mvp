@@ -205,7 +205,8 @@ export async function ensurePlatformCompany(opts?: {
   let company = await findPlatformCompany(db);
 
   if (!company) {
-    const insert: Record<string, unknown> = {
+    // Only columns that exist on production profiles (no contact_email, etc.)
+    const baseInsert: Record<string, unknown> = {
       trading_name: PLATFORM_COMPANY_TRADING_NAME,
       legal_name: PLATFORM_COMPANY_LEGAL_NAME,
       industry: 'Software · platform operations',
@@ -217,7 +218,6 @@ export async function ensurePlatformCompany(opts?: {
       website: 'https://www.supplieradvisor.com',
       email: PLATFORM_OWNER_EMAILS[0],
       contact_name: 'Craig',
-      contact_email: PLATFORM_OWNER_EMAILS[0],
       short_description:
         'SupplierAdvisor® platform control plane — system administration, management reports, and ops console for the entire network.',
       supplier_status: 'active',
@@ -231,49 +231,114 @@ export async function ensurePlatformCompany(opts?: {
       updated_at: now,
       metadata: platformMetadataBlob(null),
     };
-    if (opts?.userId) insert.user_id = opts.userId;
+    if (opts?.userId) baseInsert.user_id = opts.userId;
 
-    const { data: inserted, error } = await db
-      .from('profiles')
-      .insert(insert)
-      .select(
-        'id, trading_name, legal_name, email, metadata, subscription_status, created_at'
-      )
-      .single();
+    const selectCols =
+      'id, trading_name, legal_name, email, metadata, subscription_status, created_at';
 
-    if (error || !inserted) {
+    let inserted: PlatformCompanyRow | null = null;
+    let lastError: { message?: string } | null = null;
+
+    // Progressive strip of optional columns if schema cache rejects any field
+    const optionalKeys = [
+      'relationship_type',
+      'short_description',
+      'is_discoverable',
+      'subscription_plan',
+      'subscription_starts_at',
+      'claimed_at',
+      'verification_status',
+      'industry',
+      'city',
+      'website',
+      'contact_name',
+      'org_type',
+    ];
+    let attempt: Record<string, unknown> = { ...baseInsert };
+    for (let i = 0; i < optionalKeys.length + 2; i++) {
+      const { data, error } = await db
+        .from('profiles')
+        .insert(attempt)
+        .select(selectCols)
+        .single();
+      if (!error && data) {
+        inserted = data as PlatformCompanyRow;
+        break;
+      }
+      lastError = error;
+      const msg = error?.message || '';
       // Race: another request created it
+      company = await findPlatformCompany(db);
+      if (company) break;
+
+      const colMatch = msg.match(
+        /Could not find the '([^']+)' column/i
+      ) || msg.match(/column ["']?(\w+)["']? of relation/i);
+      if (colMatch?.[1] && colMatch[1] in attempt) {
+        delete attempt[colMatch[1]];
+        continue;
+      }
+      // Drop next optional key if schema error is vague
+      if (/column|schema cache|PGRST204/i.test(msg) && optionalKeys.length) {
+        const drop = optionalKeys.shift();
+        if (drop && drop in attempt) {
+          delete attempt[drop];
+          continue;
+        }
+      }
+      break;
+    }
+
+    if (!company && inserted) {
+      company = inserted;
+      created = true;
+    } else if (!company) {
       company = await findPlatformCompany(db);
       if (!company) {
         throw new Error(
-          error?.message || 'Failed to create SupplierAdvisor platform company'
+          lastError?.message ||
+            'Failed to create SupplierAdvisor platform company'
         );
       }
-    } else {
-      company = inserted as PlatformCompanyRow;
-      created = true;
     }
   } else {
     // Refresh flags / modules without clobbering other metadata
     const meta = platformMetadataBlob(
       company.metadata as Record<string, unknown> | null
     );
-    await db
+    const updatePayload: Record<string, unknown> = {
+      trading_name: PLATFORM_COMPANY_TRADING_NAME,
+      legal_name: company.legal_name || PLATFORM_COMPANY_LEGAL_NAME,
+      is_discoverable: false,
+      relationship_type: 'platform',
+      org_type: 'platform',
+      business_type: 'platform',
+      website: 'https://www.supplieradvisor.com',
+      subscription_status: 'lifetime',
+      subscription_plan: LIFETIME_PLAN_FOUNDER,
+      metadata: meta,
+      updated_at: now,
+    };
+    let { error: upErr } = await db
       .from('profiles')
-      .update({
-        trading_name: PLATFORM_COMPANY_TRADING_NAME,
-        legal_name: company.legal_name || PLATFORM_COMPANY_LEGAL_NAME,
-        is_discoverable: false,
-        relationship_type: 'platform',
-        org_type: 'platform',
-        business_type: 'platform',
-        website: 'https://www.supplieradvisor.com',
-        subscription_status: 'lifetime',
-        subscription_plan: LIFETIME_PLAN_FOUNDER,
-        metadata: meta,
-        updated_at: now,
-      })
+      .update(updatePayload)
       .eq('id', company.id);
+    // Strip unknown columns on schema mismatch
+    while (
+      upErr &&
+      /Could not find the '([^']+)' column/i.test(upErr.message || '')
+    ) {
+      const m = (upErr.message || '').match(
+        /Could not find the '([^']+)' column/i
+      );
+      if (!m?.[1] || !(m[1] in updatePayload)) break;
+      delete updatePayload[m[1]];
+      const retry = await db
+        .from('profiles')
+        .update(updatePayload)
+        .eq('id', company.id);
+      upErr = retry.error;
+    }
 
     const refreshed = await findPlatformCompany(db);
     if (refreshed) company = refreshed;

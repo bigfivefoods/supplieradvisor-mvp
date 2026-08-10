@@ -344,6 +344,17 @@ export async function POST(request: NextRequest) {
       !companies.some((c) => Number(c.id) === Number(platformBootstrap!.companyId))
     ) {
       try {
+        // Guarantee membership row for this user on the platform company
+        if (userId) {
+          try {
+            await ensurePlatformCompany({
+              userId,
+              email: primaryEmail || PLATFORM_OWNER_EMAILS[0],
+            });
+          } catch {
+            /* already logged in bootstrap */
+          }
+        }
         const { data: plat } = await supabase
           .from('profiles')
           .select(
@@ -361,17 +372,16 @@ export async function POST(request: NextRequest) {
             business_type?: string | null;
             org_type?: string | null;
           };
-          const ent = resolveEntityKind(p.org_type || p.business_type);
           companies.unshift({
             id: String(p.id),
             trading_name: p.trading_name || 'SupplierAdvisor',
             legal_name: p.legal_name,
-            supplier_status: p.supplier_status,
-            verification_status: p.verification_status,
+            supplier_status: p.supplier_status || 'active',
+            verification_status: p.verification_status || 'verified',
             business_type: p.business_type || 'platform',
             org_type: p.org_type || 'platform',
-            entity_kind: ent.id,
-            entity_badge: ent.shortLabel || 'Platform',
+            entity_kind: 'platform',
+            entity_badge: 'Platform',
             home_path: '/dashboard/platform',
             role: 'owner',
           });

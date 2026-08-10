@@ -8,6 +8,7 @@
  * used when unset so production operators can work without redeploying secrets.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { userIdMatchVariants } from '@/lib/auth/identity';
 
 /**
@@ -49,11 +50,20 @@ export async function isPlatformOperatorUserId(
   return emails.some((e) => isPlatformOperatorEmail(e));
 }
 
+function dbForIdentity() {
+  // Prefer service role so Privy-only sessions still resolve emails under RLS
+  try {
+    return getSupabaseAdmin();
+  } catch {
+    return getSupabaseServer();
+  }
+}
+
 export async function resolveEmailsForUserId(
   userId: string
 ): Promise<string[]> {
   try {
-    const supabase = getSupabaseServer();
+    const supabase = dbForIdentity();
     const variants = userIdMatchVariants(userId);
     const out = new Set<string>();
 
@@ -67,20 +77,15 @@ export async function resolveEmailsForUserId(
       if (row.invited_email) out.add(String(row.invited_email).toLowerCase());
     }
 
-    // Also pick up contact emails on profiles owned by this user
+    // Also pick up emails on profiles owned by this user
     try {
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('email, contact_email')
+        .select('email')
         .in('user_id', variants)
         .limit(20);
       for (const p of profiles || []) {
         if (p.email) out.add(String(p.email).toLowerCase());
-        if ((p as { contact_email?: string }).contact_email) {
-          out.add(
-            String((p as { contact_email?: string }).contact_email).toLowerCase()
-          );
-        }
       }
     } catch {
       /* soft */
