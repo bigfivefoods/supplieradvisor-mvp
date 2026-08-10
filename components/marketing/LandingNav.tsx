@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { ArrowRight, Menu, X } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
+import ThemeToggle from '@/components/theme/ThemeToggle';
+import { useTheme } from '@/components/theme/ThemeProvider';
 
 const LINKS = [
   { id: 'compare', label: 'Compare' },
@@ -26,6 +28,7 @@ const LINKS = [
 export default function LandingNav() {
   const { user, ready } = usePrivy();
   const router = useRouter();
+  const { resolved } = useTheme();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -81,12 +84,24 @@ export default function LandingNav() {
   return (
     <>
       <header
-        className="fixed top-0 left-0 right-0 z-[200] w-full border-b border-slate-200/80 bg-white/95 pt-safe"
+        className="fixed top-0 left-0 right-0 z-[200] w-full border-b border-slate-200/80 dark:border-slate-800/90 bg-white/95 dark:bg-slate-950/95 pt-safe"
         style={{
-          backgroundColor: scrolled || open ? 'rgba(255,255,255,0.98)' : 'rgba(255,255,255,0.95)',
+          backgroundColor:
+            resolved === 'dark'
+              ? scrolled || open
+                ? 'rgba(11,18,32,0.98)'
+                : 'rgba(11,18,32,0.94)'
+              : scrolled || open
+                ? 'rgba(255,255,255,0.98)'
+                : 'rgba(255,255,255,0.95)',
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
-          boxShadow: scrolled || open ? '0 1px 3px 0 rgb(0 0 0 / 0.06)' : 'none',
+          boxShadow:
+            scrolled || open
+              ? resolved === 'dark'
+                ? '0 1px 3px 0 rgb(0 0 0 / 0.35)'
+                : '0 1px 3px 0 rgb(0 0 0 / 0.06)'
+              : 'none',
         }}
       >
         <div className="mx-auto flex h-14 sm:h-[4.25rem] max-w-screen-2xl items-center justify-between gap-2 sm:gap-3 px-3 sm:px-6 lg:px-10">
@@ -98,9 +113,9 @@ export default function LandingNav() {
             <Image
               src="/sa-logo.png"
               alt="SupplierAdvisor"
-              width={40}
-              height={40}
-              className="h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10 rounded-2xl object-contain"
+              width={120}
+              height={52}
+              className="h-8 w-auto sm:h-9 md:h-10 object-contain"
               priority
             />
             <span className="truncate text-sm sm:text-base font-black tracking-tight text-slate-900 sm:text-xl max-w-[9.5rem] min-[400px]:max-w-none">
@@ -136,10 +151,11 @@ export default function LandingNav() {
           </nav>
 
           <div className="hidden items-center gap-2 lg:flex shrink-0">
+            <ThemeToggle />
             <button
               type="button"
               onClick={goLogin}
-              className="rounded-full border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition-all hover:border-[#00b4d8] hover:text-[#0077b6] lg:px-5 lg:py-2.5 min-h-[40px]"
+              className="rounded-full border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition-all hover:border-[#00b4d8] hover:text-[#0077b6] lg:px-5 lg:py-2.5 min-h-[40px] dark:border-slate-700 dark:text-slate-200"
             >
               Log in
             </button>
@@ -154,27 +170,31 @@ export default function LandingNav() {
 
           {/* Compact login on tablet when hamburger is showing */}
           <div className="hidden md:flex lg:hidden items-center gap-1.5 shrink-0">
+            <ThemeToggle />
             <button
               type="button"
               onClick={goLogin}
-              className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 min-h-[40px]"
+              className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 min-h-[40px] dark:border-slate-700 dark:text-slate-200"
             >
               Log in
             </button>
           </div>
 
-          <button
-            type="button"
-            className="relative z-[210] inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 touch-manipulation lg:hidden"
-            aria-label={open ? 'Close menu' : 'Open menu'}
-            aria-expanded={open}
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpen((v) => !v);
-            }}
-          >
-            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
+          <div className="flex items-center gap-1.5 lg:hidden shrink-0">
+            <ThemeToggle className="md:hidden" />
+            <button
+              type="button"
+              className="relative z-[210] inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 touch-manipulation dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              aria-label={open ? 'Close menu' : 'Open menu'}
+              aria-expanded={open}
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpen((v) => !v);
+              }}
+            >
+              {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          </div>
         </div>
       </header>
 

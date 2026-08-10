@@ -21,6 +21,7 @@ import {
 /** Functional ordering of existing MODULE_NAV ids (1:1, full trees preserved). */
 export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
   'home', // Control Tower (command center)
+  'platform', // SupplierAdvisor platform admin (opt-in / platform company only)
   'my-business', // Company — directly below command
   'suppliers',
   'customers',
@@ -49,6 +50,7 @@ export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
 /** Display labels for functional chrome (hrefs + steps unchanged). */
 export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
   home: 'Control Tower',
+  platform: 'Platform',
   'my-business': 'Company',
   suppliers: 'Suppliers',
   customers: 'Customers',

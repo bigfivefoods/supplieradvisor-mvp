@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  darkMode: 'class',
   content: [
     './app/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
@@ -20,9 +21,21 @@ module.exports = {
           500: '#00b4d8',
           400: '#22d3ee',
         },
+        // Semantic tokens (use with bg-sa-bg, text-sa-text, etc.)
+        sa: {
+          bg: 'var(--sa-bg)',
+          surface: 'var(--sa-surface)',
+          border: 'var(--sa-border)',
+          text: 'var(--sa-text)',
+          muted: 'var(--sa-muted)',
+          brand: 'var(--sa-brand)',
+          deep: 'var(--sa-brand-deep)',
+        },
       },
       boxShadow: {
         premium: '0 25px 50px -12px rgb(0 0 0 / 0.15)',
+        'sa': 'var(--sa-shadow)',
+        'sa-lg': 'var(--sa-shadow-lg)',
       },
       zIndex: {
         header: '200',
@@ -56,5 +69,6 @@ module.exports = {
     'bg-white/90',
     'bg-white/95',
     'bg-white',
+    'dark',
   ],
 };

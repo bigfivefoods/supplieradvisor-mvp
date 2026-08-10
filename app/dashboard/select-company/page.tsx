@@ -272,9 +272,9 @@ export default function SelectCompanyPage() {
             <Image
               src="/sa-logo.png"
               alt="SupplierAdvisor"
-              width={40}
-              height={40}
-              className="h-9 w-9 rounded-2xl object-contain sm:h-10 sm:w-10"
+              width={120}
+              height={52}
+              className="h-9 w-auto object-contain sm:h-10"
               priority
             />
             <span className="truncate text-base font-black tracking-tight text-slate-900 sm:text-lg">

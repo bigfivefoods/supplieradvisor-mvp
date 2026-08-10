@@ -47,7 +47,7 @@ export default function ContractorLayout({ children }: { children: React.ReactNo
       <header className="bg-white/95 backdrop-blur-xl border-b border-neutral-200 sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <Link href="/contractor" className="flex items-center gap-2 min-w-0 touch-manipulation">
-            <Image src="/sa-logo.png" alt="SA" width={36} height={36} className="rounded-xl flex-shrink-0" />
+            <Image src="/sa-logo.png" alt="SA" width={80} height={36} className="h-9 w-auto object-contain flex-shrink-0" />
             <div className="min-w-0">
               <div className="font-black text-sm tracking-tight text-slate-900">Operator portal</div>
               <div className="text-[10px] text-neutral-500 truncate">

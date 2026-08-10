@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import { ArrowRight, Loader2, ShieldCheck, Smartphone, Sparkles } from 'lucide-react';
 import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
+import ThemeToggle from '@/components/theme/ThemeToggle';
 
 function LoginForm() {
   const router = useRouter();
@@ -114,9 +115,9 @@ function LoginForm() {
           <Image
             src="/sa-logo.png"
             alt="SupplierAdvisor"
-            width={48}
-            height={48}
-            className="rounded-2xl"
+            width={140}
+            height={60}
+            className="h-12 w-auto object-contain"
             priority
           />
           <span className="font-black text-2xl tracking-[-1px] text-slate-900">
@@ -199,7 +200,10 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-4 sm:px-6 py-10">
+    <div className="relative min-h-screen flex items-center justify-center bg-sa-bg px-4 sm:px-6 py-10">
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-10">
+        <ThemeToggle />
+      </div>
       <Suspense
         fallback={
           <div className="w-full max-w-md text-center text-neutral-500">

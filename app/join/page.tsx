@@ -44,9 +44,9 @@ export default function JoinPage() {
             <Image
               src="/sa-logo.png"
               alt="SupplierAdvisor"
-              width={40}
-              height={40}
-              className="rounded-xl"
+              width={100}
+              height={44}
+              className="h-9 w-auto object-contain"
             />
             <span className="font-black text-xl tracking-[-1px] text-slate-900">
               SupplierAdvisor®

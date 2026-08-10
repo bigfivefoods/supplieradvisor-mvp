@@ -297,7 +297,7 @@ export default function InviteClaimFlow({ token, kind }: InviteClaimFlowProps) {
     <div className="min-h-screen bg-[#f8fafc]">
       <div className="max-w-5xl mx-auto px-6 py-10 md:py-16">
         <div className="flex items-center gap-3 mb-10">
-          <Image src="/sa-logo.png" alt="SupplierAdvisor" width={40} height={40} className="rounded-xl" />
+          <Image src="/sa-logo.png" alt="SupplierAdvisor" width={100} height={44} className="h-10 w-auto object-contain" />
           <span className="font-black text-xl tracking-[-1px] text-slate-900">SupplierAdvisor®</span>
         </div>
 

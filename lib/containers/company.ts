@@ -11,6 +11,21 @@ export function getSelectedCompanyId(): number | null {
   }
 }
 
+export function setSelectedCompanyId(
+  companyId: number,
+  opts?: { name?: string | null }
+): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem('selectedCompanyId', String(companyId));
+    if (opts?.name) {
+      localStorage.setItem('selectedCompanyName', String(opts.name));
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 export function getSelectedCompanyName(): string {
   if (typeof window === 'undefined') return 'Your company';
   try {

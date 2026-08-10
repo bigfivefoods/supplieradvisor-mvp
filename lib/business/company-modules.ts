@@ -47,6 +47,8 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
     'NSNP schools: kitchen, learners, SPs, approved brands, feeding, prizes (DBE only)',
   health:
     'Department of Health: clinics, hospitals, SPs, approved foods & nutrition',
+  platform:
+    'SupplierAdvisor platform admin console — system & management reports for the whole network',
   home: 'Command centre home',
   'my-business': 'Company profile, team, modules, billing & trust',
   guide: 'In-app training curriculum',
@@ -402,7 +404,8 @@ export function normalizeEnabledModules(
         id === 'health' ||
         id === 'fieldgraph' ||
         id === 'quarrygraph' ||
-        id === 'fitgraph'
+        id === 'fitgraph' ||
+        id === 'platform'
           ? false
           : true;
     }
@@ -426,13 +429,14 @@ export function isModuleEnabled(
 ): boolean {
   if (isAlwaysOnModule(moduleId)) return true;
   if (!enabled) {
-    // Fail open except opt-in sector programmes / Fieldgraph
+    // Fail open except opt-in sector programmes / Fieldgraph / platform console
     return (
       moduleId !== 'schools' &&
       moduleId !== 'health' &&
       moduleId !== 'fieldgraph' &&
       moduleId !== 'quarrygraph' &&
-      moduleId !== 'fitgraph'
+      moduleId !== 'fitgraph' &&
+      moduleId !== 'platform'
     );
   }
   if (Object.prototype.hasOwnProperty.call(enabled, moduleId)) {
@@ -443,7 +447,8 @@ export function isModuleEnabled(
     moduleId !== 'health' &&
     moduleId !== 'fieldgraph' &&
     moduleId !== 'quarrygraph' &&
-    moduleId !== 'fitgraph'
+    moduleId !== 'fitgraph' &&
+    moduleId !== 'platform'
   );
 }
 
@@ -500,6 +505,7 @@ export function moduleIdForPath(pathname: string | null | undefined): string | n
   if (pathname.startsWith('/dashboard/fitgraph')) return 'fitgraph';
   if (pathname.startsWith('/dashboard/schools')) return 'schools';
   if (pathname.startsWith('/dashboard/health')) return 'health';
+  if (pathname.startsWith('/dashboard/platform')) return 'platform';
   return null;
 }
 

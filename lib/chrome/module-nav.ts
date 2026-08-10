@@ -30,6 +30,7 @@ import {
   Sprout,
   Mountain,
   Dumbbell,
+  Shield,
 } from 'lucide-react';
 import type { ProcessStep } from '@/components/relationship/RelationshipChrome';
 import type { PermissionResource } from '@/lib/business/permissions';
@@ -84,6 +85,52 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     href: '/dashboard',
     steps: [],
     resource: 'dashboard',
+  },
+  {
+    id: 'platform',
+    name: 'Platform',
+    icon: Shield,
+    href: '/dashboard/platform',
+    resource: 'platform',
+    steps: [
+      {
+        name: 'Console',
+        href: '/dashboard/platform',
+        exact: true,
+        desc: 'SupplierAdvisor admin console',
+        section: 'Control',
+      },
+      {
+        name: 'System',
+        href: '/dashboard/platform/system',
+        desc: 'Health, integrations, schema, deploy',
+        section: 'Reports',
+      },
+      {
+        name: 'Management',
+        href: '/dashboard/platform/management',
+        desc: 'Companies, people, trade, commercial',
+        section: 'Reports',
+      },
+      {
+        name: 'Gov control',
+        href: '/dashboard/my-business/platform',
+        desc: 'Activate government departments',
+        section: 'Ops',
+      },
+      {
+        name: 'Ops board',
+        href: '/dashboard/my-business/ops',
+        desc: 'Paystack · CIPC · settle readiness',
+        section: 'Ops',
+      },
+      {
+        name: 'Referrals',
+        href: '/dashboard/my-business/referral-ops',
+        desc: 'Referral earnings ops',
+        section: 'Ops',
+      },
+    ],
   },
   {
     id: 'sales-portal',

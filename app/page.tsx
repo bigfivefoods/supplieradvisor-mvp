@@ -38,8 +38,12 @@ import {
   Layers,
   Mail,
   Puzzle,
+  Sprout,
+  Mountain,
+  Dumbbell,
+  PanelLeft,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import LandingNav from '@/components/marketing/LandingNav';
 import HomePricing from '@/components/marketing/HomePricing';
 import FoundingCounterStrip from '@/components/marketing/FoundingCounterStrip';
@@ -66,6 +70,10 @@ import {
   NetworkMock,
   ProjectsMock,
   SustainabilityMock,
+  FieldgraphMock,
+  QuarrygraphMock,
+  FitgraphMock,
+  NavMock,
   ModuleGallery,
   ProductMockShell,
 } from '@/components/marketing/ProductMocks';
@@ -85,9 +93,48 @@ import {
   REFERRAL_TOTAL_CAP_PCT,
 } from '@/lib/billing/supply-chain-referral';
 
+type ModuleBand = 'core' | 'sector' | 'industry' | 'nav';
+
+const MODULE_BAND_META: Record<
+  Exclude<ModuleBand, 'nav'>,
+  { title: string; blurb: string; accent: string }
+> = {
+  core: {
+    title: 'Core OS',
+    blurb:
+      'The shared operating system every company gets — trade, ops, assure, finance, and insight on one fabric.',
+    accent: 'text-[#0077b6] border-[#00b4d8]/40 bg-cyan-50/80',
+  },
+  sector: {
+    title: 'Sector',
+    blurb:
+      'Shape the workspace for how you produce and move goods — secondary manufacturing, logistics, and last-mile outlets.',
+    accent: 'text-sky-800 border-sky-200 bg-sky-50/80',
+  },
+  industry: {
+    title: 'Industry',
+    blurb:
+      'Vertical OS modules for agri, extractives, and services — Fieldgraph®, Quarrygraph®, and Fitgraph®.',
+    accent: 'text-emerald-800 border-emerald-200 bg-emerald-50/80',
+  },
+};
+
 const MODULES = [
   {
+    id: 'nav',
+    band: 'nav' as ModuleBand,
+    code: '00',
+    title: 'Navigation',
+    short: 'Nav',
+    tagline: 'Core · Sector · Industry in one sidebar',
+    body: 'Your company workspace groups modules the way you buy them — Core OS always on, sector modules for how you make and move, industry hubs when vertical depth matters.',
+    bullets: ['Core foundations first', 'Sector make · ship · outlets', 'Industry hubs on demand'],
+    Mock: NavMock,
+    icon: PanelLeft,
+  },
+  {
     id: 'ops',
+    band: 'core' as ModuleBand,
     code: '01',
     title: 'Operations',
     short: 'Ops',
@@ -99,6 +146,7 @@ const MODULES = [
   },
   {
     id: 'srm',
+    band: 'core' as ModuleBand,
     code: '02',
     title: 'Suppliers (SRM)',
     short: 'Suppliers',
@@ -110,6 +158,7 @@ const MODULES = [
   },
   {
     id: 'crm',
+    band: 'core' as ModuleBand,
     code: '03',
     title: 'Customers (CRM)',
     short: 'Customers',
@@ -120,19 +169,9 @@ const MODULES = [
     icon: ShoppingCart,
   },
   {
-    id: 'ctr',
-    code: '04',
-    title: 'Containers',
-    short: 'Containers',
-    tagline: 'Outlet network that feeds people',
-    body: 'Deploy container retail outlets, contractors and resellers, live stock, impact (jobs & meals), and feasibility models — one command centre for the last mile.',
-    bullets: ['Map, stock & resellers', 'Food security & jobs impact', 'Deploy feasibility model'],
-    Mock: ContainersMock,
-    icon: Container,
-  },
-  {
     id: 'inv',
-    code: '05',
+    band: 'core' as ModuleBand,
+    code: '04',
     title: 'Inventory',
     short: 'Inventory',
     tagline: 'Every unit has a home',
@@ -142,30 +181,9 @@ const MODULES = [
     icon: Package,
   },
   {
-    id: 'mfg',
-    code: '06',
-    title: 'Manufacturing',
-    short: 'Make',
-    tagline: 'Factory physics, not spreadsheets',
-    body: 'BOMs, master production schedules, MRP explosion, work centers, and work orders with OEE-style throughput on every refresh.',
-    bullets: ['BOM & work cells', 'MPS / MRP', 'Work order execution'],
-    Mock: ManufacturingMock,
-    icon: Factory,
-  },
-  {
-    id: 'dst',
-    code: '07',
-    title: 'Distribution',
-    short: 'Ship',
-    tagline: 'Door to destination',
-    body: 'Inbound and outbound logistics, carriers, fleet & drivers, Incoterms® 2020, and event-level tracking across road, ocean, and air.',
-    bullets: ['Inbound & outbound', 'Carriers & fleet', 'Live tracking & OTIF'],
-    Mock: DistributionMock,
-    icon: Ship,
-  },
-  {
     id: 'net',
-    code: '08',
+    band: 'core' as ModuleBand,
+    code: '05',
     title: 'Network',
     short: 'Network',
     tagline: 'Verified trading graph',
@@ -176,7 +194,8 @@ const MODULES = [
   },
   {
     id: 'sheq',
-    code: '09',
+    band: 'core' as ModuleBand,
+    code: '06',
     title: 'SHEQ',
     short: 'SHEQ',
     tagline: 'ISO 45001-ready control tower',
@@ -187,7 +206,8 @@ const MODULES = [
   },
   {
     id: 'qa',
-    code: '10',
+    band: 'core' as ModuleBand,
+    code: '07',
     title: 'Quality & food safety',
     short: 'Quality',
     tagline: 'Inspect · hold · trace · recall',
@@ -198,7 +218,8 @@ const MODULES = [
   },
   {
     id: 'fin',
-    code: '11',
+    band: 'core' as ModuleBand,
+    code: '08',
     title: 'Finance',
     short: 'Finance',
     tagline: 'One ledger of truth',
@@ -209,7 +230,8 @@ const MODULES = [
   },
   {
     id: 'prj',
-    code: '12',
+    band: 'core' as ModuleBand,
+    code: '09',
     title: 'Projects',
     short: 'Projects',
     tagline: 'Portfolio that ships',
@@ -220,7 +242,8 @@ const MODULES = [
   },
   {
     id: 'esg',
-    code: '13',
+    band: 'core' as ModuleBand,
+    code: '10',
     title: 'Impact (ESG)',
     short: 'Impact',
     tagline: 'Carbon you can act on',
@@ -231,7 +254,8 @@ const MODULES = [
   },
   {
     id: 'bi',
-    code: '14',
+    band: 'core' as ModuleBand,
+    code: '11',
     title: 'Intelligence',
     short: 'Insights',
     tagline: 'Signal over noise',
@@ -240,7 +264,101 @@ const MODULES = [
     Mock: IntelligenceMock,
     icon: Brain,
   },
+  {
+    id: 'mfg',
+    band: 'sector' as ModuleBand,
+    code: 'S1',
+    title: 'Manufacturing',
+    short: 'Make',
+    tagline: 'Secondary sector · factory physics',
+    body: 'BOMs, master production schedules, MRP explosion, work centers, and work orders with OEE-style throughput — how secondary-sector producers run make.',
+    bullets: ['BOM & work cells', 'MPS / MRP', 'Work order execution'],
+    Mock: ManufacturingMock,
+    icon: Factory,
+  },
+  {
+    id: 'dst',
+    band: 'sector' as ModuleBand,
+    code: 'S2',
+    title: 'Distribution',
+    short: 'Ship',
+    tagline: 'Tertiary sector · door to destination',
+    body: 'Inbound and outbound logistics, carriers, fleet & drivers, Incoterms® 2020, and event-level tracking across road, ocean, and air.',
+    bullets: ['Inbound & outbound', 'Carriers & fleet', 'Live tracking & OTIF'],
+    Mock: DistributionMock,
+    icon: Ship,
+  },
+  {
+    id: 'ctr',
+    band: 'sector' as ModuleBand,
+    code: 'S3',
+    title: 'Containers',
+    short: 'Containers',
+    tagline: 'Last-mile outlet network',
+    body: 'Deploy container retail outlets, contractors and resellers, live stock, impact (jobs & meals), and feasibility models — one command centre for the last mile.',
+    bullets: ['Map, stock & resellers', 'Food security & jobs impact', 'Deploy feasibility model'],
+    Mock: ContainersMock,
+    icon: Container,
+  },
+  {
+    id: 'fieldgraph',
+    band: 'industry' as ModuleBand,
+    code: 'I1',
+    title: 'Fieldgraph®',
+    short: 'Fieldgraph',
+    tagline: 'Agri production OS',
+    body: 'Multi-crop fields, estimates, harvest plans, inputs, fleet fuel (L/h · L/km · R/km), labour, regen metrics, and farm-to-buyer trade — primary production without the spreadsheet sprawl.',
+    bullets: ['Fields · estimates · harvest', 'Inputs, fleet & labour', 'Regen metrics · trade handoff'],
+    Mock: FieldgraphMock,
+    icon: Sprout,
+  },
+  {
+    id: 'quarrygraph',
+    band: 'industry' as ModuleBand,
+    code: 'I2',
+    title: 'Quarrygraph®',
+    short: 'Quarrygraph',
+    tagline: 'Aggregates & extractives OS',
+    body: 'Permanent and temporary sites, batching plants with GPS, reserves, production, plant, weighbridge, fleet fuel, QA, permits, and resource allocation across the pit network.',
+    bullets: ['Sites · reserves · production', 'Plant, fleet & weighbridge', 'Temp / batching · GPS allocate'],
+    Mock: QuarrygraphMock,
+    icon: Mountain,
+  },
+  {
+    id: 'fitgraph',
+    band: 'industry' as ModuleBand,
+    code: 'I3',
+    title: 'Fitgraph®',
+    short: 'Fitgraph',
+    tagline: 'Fitness & services OS',
+    body: 'Gym coaches, members, memberships, classes, calendar, public website bookings, coach share, subscriptions, and check-ins — tertiary services on the same verified fabric.',
+    bullets: ['Coaches · classes · calendar', 'Memberships & subscriptions', 'Public website · check-ins'],
+    Mock: FitgraphMock,
+    icon: Dumbbell,
+  },
 ] as const;
+
+const MODULE_SECTION_BANDS: Array<{
+  id: Exclude<ModuleBand, 'nav'>;
+  title: string;
+  blurb: string;
+}> = [
+  {
+    id: 'core',
+    title: 'Core OS',
+    blurb: 'Platform foundations — trade, ops, finance, people assurance, and insight.',
+  },
+  {
+    id: 'sector',
+    title: 'Sector',
+    blurb: 'How you make and move — manufacturing, distribution, and container outlets.',
+  },
+  {
+    id: 'industry',
+    title: 'Industry',
+    blurb: 'Vertical depth — Fieldgraph®, Quarrygraph®, and Fitgraph® for agri, extractives, and fitness.',
+  },
+];
 
 /** Every major platform surface — called out in the systems grid */
 const SYSTEMS = [
@@ -357,16 +475,31 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 export default function LandingPage() {
   const [activeModule, setActiveModule] = useState(0);
+  const [heroBand, setHeroBand] = useState<'all' | Exclude<ModuleBand, 'nav'>>('all');
+
+  const heroModules = useMemo(() => {
+    if (heroBand === 'all') return MODULES;
+    return MODULES.filter((m) => m.band === heroBand || m.band === 'nav');
+  }, [heroBand]);
+
+  useEffect(() => {
+    setActiveModule(0);
+  }, [heroBand]);
 
   useEffect(() => {
     const t = setInterval(() => {
-      setActiveModule((i) => (i + 1) % MODULES.length);
+      setActiveModule((i) => (i + 1) % heroModules.length);
     }, 6500);
     return () => clearInterval(t);
-  }, []);
+  }, [heroModules.length]);
 
-  const featured = MODULES[activeModule];
+  const featured = heroModules[activeModule] ?? MODULES[0];
   const FeaturedMock = featured.Mock;
+  const bandLabel =
+    featured.band === 'nav'
+      ? 'Navigation'
+      : MODULE_BAND_META[featured.band as Exclude<ModuleBand, 'nav'>]?.title ||
+        featured.band;
 
   return (
     <div className="relative z-0 min-h-dvh bg-[#f8fafc] text-slate-900 antialiased selection:bg-cyan-100">
@@ -443,7 +576,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            {/* ── Images (2/3) — three equal-height views + live product frame ── */}
+            {/* ── Images (2/3) — fixed HxW gallery + product frame (no layout jump) ── */}
             <div className="min-w-0 lg:col-span-8">
               <div className="relative">
                 <div
@@ -451,14 +584,40 @@ export default function LandingPage() {
                   aria-hidden
                 />
 
-                {/* Module chrome */}
-                <div className="relative mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200/90 bg-white/95 px-4 py-3 shadow-sm sm:px-5">
-                  <div className="min-w-0 flex items-center gap-2.5">
+                {/* Band navigation: Core · Sector · Industry · All */}
+                <div className="relative mb-3 flex flex-wrap items-center gap-1.5">
+                  {(
+                    [
+                      { id: 'all' as const, label: 'All modules' },
+                      { id: 'core' as const, label: 'Core OS' },
+                      { id: 'sector' as const, label: 'Sector' },
+                      { id: 'industry' as const, label: 'Industry' },
+                    ] as const
+                  ).map((b) => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => setHeroBand(b.id)}
+                      className={`rounded-full border px-3 py-1.5 text-[11px] font-bold transition-all touch-manipulation ${
+                        heroBand === b.id
+                          ? 'border-[#00b4d8] bg-[#00b4d8] text-white shadow-sm'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-[#0077b6]'
+                      }`}
+                      aria-pressed={heroBand === b.id}
+                    >
+                      {b.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Module chrome — fixed min-height so titles never reflow the column */}
+                <div className="relative mb-3 flex min-h-[4.25rem] flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200/90 bg-white/95 px-4 py-3 shadow-sm sm:min-h-[4.5rem] sm:px-5">
+                  <div className="flex min-w-0 items-center gap-2.5">
                     <featured.icon className="h-5 w-5 shrink-0 text-[#00b4d8]" />
                     <div className="min-w-0">
                       <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                        Live module · {featured.code} /{' '}
-                        {String(MODULES.length).padStart(2, '0')}
+                        {bandLabel} · {featured.code} /{' '}
+                        {String(heroModules.length).padStart(2, '0')}
                       </div>
                       <div className="truncate text-sm font-black text-slate-900 sm:text-base">
                         {featured.title}
@@ -477,11 +636,13 @@ export default function LandingPage() {
                   </span>
                 </div>
 
-                {/* Three equal-height scene images */}
-                <ModuleGallery moduleId={featured.id} />
+                {/* Three equal-height scene images (fixed frame) */}
+                <div className="w-full">
+                  <ModuleGallery moduleId={featured.id} />
+                </div>
 
-                {/* Full product frame (same fixed height family) */}
-                <div className="relative mt-3 overflow-hidden rounded-[1.5rem] border border-slate-200/90 bg-white shadow-xl shadow-slate-200/80 sm:rounded-[1.75rem]">
+                {/* Full product frame — exact same height family every rotate */}
+                <div className="relative mt-3 w-full overflow-hidden rounded-[1.5rem] border border-slate-200/90 bg-white shadow-xl shadow-slate-200/80 sm:rounded-[1.75rem]">
                   <ProductMockShell>
                     <FeaturedMock />
                   </ProductMockShell>
@@ -489,7 +650,7 @@ export default function LandingPage() {
 
                 {/* Module picker */}
                 <div className="mt-3 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 scrollbar-thin sm:mt-4 sm:flex-wrap sm:justify-center lg:justify-start">
-                  {MODULES.map((m, i) => (
+                  {heroModules.map((m, i) => (
                     <button
                       key={m.id}
                       type="button"
@@ -508,7 +669,7 @@ export default function LandingPage() {
                   ))}
                 </div>
                 <p className="mt-2 text-center text-[11px] text-slate-400 lg:text-left">
-                  Auto-rotates every few seconds · tap a module · all images share the same height
+                  Auto-rotates · Core, Sector &amp; Industry screenshots · fixed size (no page jump)
                 </p>
               </div>
             </div>
@@ -819,7 +980,7 @@ export default function LandingPage() {
                 and clear process steps. Switch systems without relearning the UI.
               </p>
               <div className="mt-6 flex flex-wrap gap-2">
-                {MODULES.map((m, i) => (
+                {heroModules.map((m, i) => (
                   <button
                     key={m.id}
                     type="button"
@@ -855,73 +1016,213 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ═══════════ MODULES ═══════════ */}
+      {/* ═══════════ MODULES — Core · Sector · Industry ═══════════ */}
       <section id="modules" className="border-t border-slate-200 bg-white py-20 sm:py-28">
         <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
           <div className="mx-auto mb-14 max-w-3xl text-center sm:mb-16">
             <SectionLabel>Modules</SectionLabel>
             <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
-              Fourteen systems. Zero silos.
+              Core · Sector · Industry.
+              <span className="mt-2 block text-slate-500">Zero silos.</span>
             </h2>
             <p className="mt-4 text-base text-slate-600 sm:text-lg">
-              Deep capability where operators work — not marketing slides.
+              Deep capability where operators work — grouped the way you enable them
+              in the product. Plus bespoke company processes when your group runs differently.
             </p>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+              {MODULE_SECTION_BANDS.map((b) => (
+                <a
+                  key={b.id}
+                  href={`#modules-${b.id}`}
+                  className={`rounded-full border px-3.5 py-1.5 text-[11px] font-bold transition-colors hover:border-[#00b4d8] ${MODULE_BAND_META[b.id].accent}`}
+                >
+                  {b.title}
+                </a>
+              ))}
+              <a
+                href="#modules-bespoke"
+                className="rounded-full border border-amber-200 bg-amber-50/90 px-3.5 py-1.5 text-[11px] font-bold text-amber-900 transition-colors hover:border-amber-400"
+              >
+                Bespoke processes
+              </a>
+            </div>
           </div>
 
-          <div className="space-y-16 sm:space-y-20 lg:space-y-24">
-            {MODULES.map((mod) => (
-              <div
-                key={mod.id}
-                id={`module-${mod.id}`}
-                className="grid items-start gap-8 lg:grid-cols-12 lg:gap-10 xl:gap-12"
-              >
-                {/* Copy — 1/3 */}
-                <div className="lg:col-span-4 lg:sticky lg:top-28">
-                  <div className="mb-4 flex items-center gap-3">
-                    <span className="font-mono text-[11px] font-bold tracking-[0.2em] text-slate-400">
-                      {mod.code}
-                    </span>
-                    <span className="h-px w-10 bg-slate-200" />
-                    <mod.icon className="h-4 w-4 text-[#00b4d8]" />
-                  </div>
-                  <h3 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl xl:text-4xl">
-                    {mod.title}
-                  </h3>
-                  <p className="mt-2 text-base font-semibold text-[#00b4d8] sm:text-lg">
-                    {mod.tagline}
-                  </p>
-                  <p className="mt-4 max-w-md text-sm leading-relaxed text-slate-600 sm:text-base">
-                    {mod.body}
-                  </p>
-                  <ul className="mt-6 space-y-2.5">
-                    {mod.bullets.map((b) => (
-                      <li
-                        key={b}
-                        className="flex items-start gap-2.5 text-sm text-slate-700"
+          <div className="space-y-20 sm:space-y-24 lg:space-y-28">
+            {MODULE_SECTION_BANDS.map((band) => {
+              const bandModules = MODULES.filter((m) => m.band === band.id);
+              return (
+                <div key={band.id} id={`modules-${band.id}`} className="scroll-mt-24">
+                  <div className="mb-10 flex flex-col gap-3 border-b border-slate-100 pb-6 sm:mb-12 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <p
+                        className={`mb-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${MODULE_BAND_META[band.id].accent}`}
                       >
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                        {b}
+                        {band.title}
+                      </p>
+                      <h3 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+                        {band.title} modules
+                      </h3>
+                      <p className="mt-2 max-w-2xl text-sm text-slate-600 sm:text-base">
+                        {band.blurb}
+                      </p>
+                    </div>
+                    <span className="font-mono text-[11px] font-bold text-slate-400">
+                      {String(bandModules.length).padStart(2, '0')} modules
+                    </span>
+                  </div>
+
+                  <div className="space-y-16 sm:space-y-20">
+                    {bandModules.map((mod) => (
+                      <div
+                        key={mod.id}
+                        id={`module-${mod.id}`}
+                        className="grid items-start gap-8 lg:grid-cols-12 lg:gap-10 xl:gap-12"
+                      >
+                        <div className="lg:col-span-4 lg:sticky lg:top-28">
+                          <div className="mb-4 flex items-center gap-3">
+                            <span className="font-mono text-[11px] font-bold tracking-[0.2em] text-slate-400">
+                              {mod.code}
+                            </span>
+                            <span className="h-px w-10 bg-slate-200" />
+                            <mod.icon className="h-4 w-4 text-[#00b4d8]" />
+                          </div>
+                          <h3 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl xl:text-4xl">
+                            {mod.title}
+                          </h3>
+                          <p className="mt-2 text-base font-semibold text-[#00b4d8] sm:text-lg">
+                            {mod.tagline}
+                          </p>
+                          <p className="mt-4 max-w-md text-sm leading-relaxed text-slate-600 sm:text-base">
+                            {mod.body}
+                          </p>
+                          <ul className="mt-6 space-y-2.5">
+                            {mod.bullets.map((b) => (
+                              <li
+                                key={b}
+                                className="flex items-start gap-2.5 text-sm text-slate-700"
+                              >
+                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                                {b}
+                              </li>
+                            ))}
+                          </ul>
+                          <Link
+                            href="/onboarding?type=business"
+                            className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-[#0077b6] transition-colors hover:text-[#00b4d8]"
+                          >
+                            Join to use {mod.short}
+                            <ChevronRight className="h-4 w-4" />
+                          </Link>
+                        </div>
+
+                        <div className="min-w-0 lg:col-span-8">
+                          <div className="mb-3 overflow-hidden rounded-[1.5rem] border border-slate-200/90 bg-white shadow-lg shadow-slate-200/60">
+                            <ProductMockShell>
+                              <mod.Mock />
+                            </ProductMockShell>
+                          </div>
+                          <ModuleGallery moduleId={mod.id} />
+                          <p className="mt-3 text-center text-[11px] text-slate-400 sm:text-left">
+                            Product frame + three live views · fixed height · not stock photos
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Bespoke company processes */}
+            <div
+              id="modules-bespoke"
+              className="scroll-mt-24 overflow-hidden rounded-[1.75rem] border border-amber-200/90 bg-gradient-to-br from-amber-50 via-white to-violet-50/50 shadow-sm"
+            >
+              <div className="grid items-center gap-8 p-6 sm:p-8 lg:grid-cols-12 lg:gap-10 lg:p-10">
+                <div className="lg:col-span-5">
+                  <p className="mb-2 inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-amber-900">
+                    Bespoke
+                  </p>
+                  <h3 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+                    Bespoke company processes
+                  </h3>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">
+                    Core, sector, and industry modules cover most operators out of the box.
+                    When your group needs custom workflows, multi-entity operating models,
+                    integrations, or process trees that only exist in your organisation —
+                    we design and ship them with you. Specialist-led, not a bolt-on form
+                    builder.
+                  </p>
+                  <ul className="mt-5 space-y-2.5">
+                    {[
+                      'Custom process trees & approvals',
+                      'Multi-entity / group operating models',
+                      'Integrations into how you already work',
+                    ].map((line) => (
+                      <li key={line} className="flex items-start gap-2.5 text-sm text-slate-700">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                        {line}
                       </li>
                     ))}
                   </ul>
-                  <Link
-                    href="/onboarding?type=business"
-                    className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-[#0077b6] transition-colors hover:text-[#00b4d8]"
-                  >
-                    Join to use {mod.short}
-                    <ChevronRight className="h-4 w-4" />
-                  </Link>
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <Link
+                      href="/demo"
+                      className="inline-flex items-center gap-2 rounded-full bg-amber-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-amber-700"
+                    >
+                      Talk about bespoke
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                    <a
+                      href="#packaging"
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-800 hover:border-amber-300"
+                    >
+                      Packaging stack
+                    </a>
+                  </div>
                 </div>
-
-                {/* Three equal-height images — 2/3 */}
-                <div className="min-w-0 lg:col-span-8">
-                  <ModuleGallery moduleId={mod.id} />
-                  <p className="mt-3 text-center text-[11px] text-slate-400 sm:text-left">
-                    Three live views · same height · product-real, not stock photos
-                  </p>
+                <div className="min-w-0 lg:col-span-7">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    {[
+                      {
+                        eyebrow: 'Discover',
+                        title: 'Map how you really run',
+                        body: 'Process interviews, systems, and edge cases.',
+                      },
+                      {
+                        eyebrow: 'Design',
+                        title: 'Fit the SA fabric',
+                        body: 'Workflows on Core, sector, and industry rails.',
+                      },
+                      {
+                        eyebrow: 'Ship',
+                        title: 'Live in your workspace',
+                        body: 'Trained teams, guides, and measurable ops.',
+                      },
+                    ].map((card) => (
+                      <div
+                        key={card.eyebrow}
+                        className="flex min-h-[200px] flex-col rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm sm:min-h-[220px]"
+                      >
+                        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-700">
+                          {card.eyebrow}
+                        </div>
+                        <div className="mt-1 text-sm font-black text-slate-900">
+                          {card.title}
+                        </div>
+                        <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                          {card.body}
+                        </p>
+                        <div className="mt-auto pt-4">
+                          <div className="h-16 rounded-xl bg-gradient-to-br from-amber-100/80 via-white to-violet-100/60" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-            ))}
+            </div>
           </div>
 
           <div className="mt-16 flex flex-wrap items-center justify-center gap-3 sm:mt-20">

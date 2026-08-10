@@ -9,6 +9,7 @@ import {
   SITE_NAME,
   SITE_URL,
 } from '@/lib/seo/site';
+import { THEME_BOOT_SCRIPT } from '@/lib/theme/theme';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -110,22 +111,24 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#00b4d8' },
-    { media: '(prefers-color-scheme: dark)', color: '#0f172a' },
+    { media: '(prefers-color-scheme: dark)', color: '#0b1220' },
   ],
-  colorScheme: 'light',
+  colorScheme: 'light dark',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="scroll-smooth">
+    <html lang="en" className="scroll-smooth" suppressHydrationWarning>
       <head>
         <JsonLd />
+        {/* Apply stored theme before paint — avoids light flash in dark mode */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         {/* Explicit PWA / iOS home-screen tags */}
         <link rel="manifest" href="/manifest.webmanifest" />
         <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180" />
         <link rel="apple-touch-icon" href="/sa-icon-192.png" sizes="192x192" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="SupplierAdvisor" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="application-name" content="SupplierAdvisor" />
@@ -144,7 +147,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Paystack InlineJS v2 — required for Apple Pay + modern checkout */}
         <script src="https://js.paystack.co/v2/inline.js" async />
       </head>
-      <body className="min-h-dvh antialiased text-slate-900">
+      <body className="min-h-dvh antialiased bg-sa-bg text-sa-text">
         <Providers>{children}</Providers>
       </body>
     </html>

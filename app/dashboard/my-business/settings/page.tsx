@@ -20,6 +20,7 @@ import {
 } from '@/components/business/BusinessShell';
 import { Panel } from '@/components/relationship/RelationshipChrome';
 import EnablePushButton from '@/components/pwa/EnablePushButton';
+import ThemeToggle from '@/components/theme/ThemeToggle';
 
 export default function BusinessSettingsPage() {
   return (
@@ -177,6 +178,19 @@ function SettingsInner() {
       />
 
       <div className="grid lg:grid-cols-2 gap-4 sm:gap-5 max-w-5xl">
+        <Panel title="Appearance" className="lg:col-span-2">
+          <div className="p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <p className="text-sm font-bold text-slate-900">Colour theme</p>
+              <p className="mt-1 text-xs text-slate-500 max-w-md">
+                Light is the classic SupplierAdvisor look. Dark is a deep navy-slate console
+                with cyan accents — saved on this device.
+              </p>
+            </div>
+            <ThemeToggle variant="segmented" />
+          </div>
+        </Panel>
+
         <Panel title="Locale & commercial">
           <div className="p-5 space-y-4">
             <div>

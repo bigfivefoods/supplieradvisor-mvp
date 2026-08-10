@@ -69,10 +69,10 @@ function AppShellInner({
   const asideWidth = collapsed ? 'md:w-[72px] lg:w-[72px]' : 'md:w-64 lg:w-72';
 
   return (
-    <div className="flex min-h-[100dvh] bg-[#f8fafc] w-full max-w-[100vw] overflow-x-clip">
+    <div className="flex min-h-[100dvh] bg-sa-bg w-full max-w-[100vw] overflow-x-clip">
       {!hideChrome && (
         <aside
-          className={`hidden md:flex flex-col flex-shrink-0 border-r border-neutral-200 bg-white sticky top-0 h-[100dvh] overflow-hidden z-20 transition-[width] duration-200 ease-out ${asideWidth}`}
+          className={`hidden md:flex flex-col flex-shrink-0 border-r border-sa-border bg-sa-surface sticky top-0 h-[100dvh] overflow-hidden z-20 transition-[width] duration-200 ease-out ${asideWidth}`}
         >
           <Sidebar />
         </aside>
@@ -110,8 +110,8 @@ function AppShellInner({
             aria-label="Close menu"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          <div className="absolute left-0 top-0 bottom-0 w-[min(18rem,88vw)] bg-white shadow-2xl flex flex-col z-10 pointer-events-auto pt-safe pb-safe">
-            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b shrink-0">
+          <div className="absolute left-0 top-0 bottom-0 w-[min(18rem,88vw)] bg-sa-surface shadow-2xl flex flex-col z-10 pointer-events-auto pt-safe pb-safe border-r border-sa-border">
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-sa-border shrink-0">
               <Link
                 href="/dashboard"
                 onClick={() => setIsMobileMenuOpen(false)}
@@ -121,19 +121,19 @@ function AppShellInner({
                 <Image
                   src="/sa-logo.png"
                   alt=""
-                  width={32}
+                  width={72}
                   height={32}
-                  className="rounded-lg shrink-0"
+                  className="h-8 w-auto object-contain shrink-0"
                   priority
                 />
-                <span className="font-black text-base tracking-[-0.5px] text-slate-900 truncate">
+                <span className="font-black text-base tracking-[-0.5px] text-sa-text truncate">
                   SupplierAdvisor®
                 </span>
               </Link>
               <button
                 type="button"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="p-2.5 min-h-[44px] min-w-[44px] rounded-xl hover:bg-neutral-100 cursor-pointer shrink-0 inline-flex items-center justify-center"
+                className="p-2.5 min-h-[44px] min-w-[44px] rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer shrink-0 inline-flex items-center justify-center text-sa-text"
                 aria-label="Close menu"
               >
                 <X size={22} />

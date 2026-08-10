@@ -53,7 +53,9 @@ export type PermissionResource =
   /** HR / People — employees, leave, payroll */
   | 'people'
   /** Schools / NSNP kitchen, learners, SP procurement, prizes */
-  | 'schools';
+  | 'schools'
+  /** Platform control plane — SupplierAdvisor admin console only */
+  | 'platform';
 
 const ALL_RESOURCES: PermissionResource[] = [
   'dashboard',
@@ -83,6 +85,7 @@ const ALL_RESOURCES: PermissionResource[] = [
   'sheq',
   'people',
   'schools',
+  'platform',
 ];
 
 const LEVEL_RANK: Record<AccessLevel, number> = {
@@ -114,6 +117,8 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     // Finance module is owner + finance only (books, bank, tax)
     accounting: 'none',
     banking: 'none',
+    // Platform console is owner-first; admin can view on platform company
+    platform: 'view',
   },
   member: {
     ...fullAccess('write'),
@@ -123,6 +128,7 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     verification: 'view',
     invites: 'none',
     accounting: 'none',
+    platform: 'none',
   },
   viewer: {
     ...fullAccess('view'),
@@ -130,6 +136,7 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     banking: 'none',
     accounting: 'none',
     verification: 'view',
+    platform: 'none',
   },
   finance: {
     ...fullAccess('view'),
@@ -140,6 +147,7 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     customers: 'write',
     sales_portal: 'admin',
     invites: 'none',
+    platform: 'none',
   },
   operations: {
     ...fullAccess('view'),
@@ -157,6 +165,7 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     invites: 'none',
     accounting: 'none',
     banking: 'none',
+    platform: 'none',
   },
   sales: {
     ...fullAccess('view'),
@@ -167,6 +176,7 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     banking: 'none',
     accounting: 'none',
     invites: 'none',
+    platform: 'none',
   },
   /**
    * Independent sales contractors: ONLY the /sales portal UI.
@@ -179,6 +189,7 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     sales_portal: 'write',
     dashboard: 'none',
     buyer: 'none',
+    platform: 'none',
   },
 };
 
@@ -347,6 +358,7 @@ export const SIDEBAR_MODULE_RESOURCE: Record<string, PermissionResource> = {
   fitgraph: 'operations',
   intelligence: 'intelligence',
   guide: 'dashboard',
+  platform: 'platform',
 };
 
 /**
@@ -396,6 +408,7 @@ export function resourceForPath(pathname: string | null | undefined): Permission
   if (pathname.startsWith('/dashboard/supplychain')) return 'operations';
   if (pathname.startsWith('/dashboard/people')) return 'people';
   if (pathname.startsWith('/dashboard/schools')) return 'schools';
+  if (pathname.startsWith('/dashboard/platform')) return 'platform';
   return 'dashboard';
 }
 
@@ -472,6 +485,7 @@ export function resourceLabel(resource: PermissionResource): string {
     sheq: 'SHEQ',
     people: 'People (HR)',
     schools: 'Schools (NSNP)',
+    platform: 'Platform console',
   };
   return map[resource];
 }

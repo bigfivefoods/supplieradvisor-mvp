@@ -100,6 +100,24 @@ export async function requireReferralOps(
     );
   }
 
+  // Platform operators + SupplierAdvisor platform company owners
+  try {
+    const { canAccessPlatformConsole } = await import(
+      '@/lib/system/platform-company'
+    );
+    const plat = await canAccessPlatformConsole(user.userId);
+    if (plat.ok) {
+      return {
+        ok: true,
+        userId: user.userId,
+        verified: user.verified,
+        via: 'root_owner',
+      };
+    }
+  } catch {
+    /* soft */
+  }
+
   const allowed = parseOpsProfileIds();
   const root = getRootId();
   if (!allowed.includes(root)) allowed.push(root);

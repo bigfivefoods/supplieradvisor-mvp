@@ -20,7 +20,7 @@ export default function TermsPage() {
       <header className="border-b border-slate-100 bg-white">
         <div className="max-w-3xl mx-auto px-6 py-5 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
-            <Image src="/sa-logo.png" alt="SupplierAdvisor" width={40} height={40} className="rounded-2xl" />
+            <Image src="/sa-logo.png" alt="SupplierAdvisor" width={100} height={44} className="h-9 w-auto object-contain" />
             <span className="font-black tracking-[-1px] text-xl">SupplierAdvisor®</span>
           </Link>
           <Link href="/" className="text-sm font-semibold text-[#00b4d8] inline-flex items-center gap-1">

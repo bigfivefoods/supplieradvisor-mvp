@@ -264,7 +264,7 @@ function InviteContent() {
     <div className="min-h-screen bg-[#f8fafc] py-8 px-4">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center gap-3 mb-8">
-          <Image src="/sa-logo.png" alt="SA" width={40} height={40} className="rounded-xl" />
+          <Image src="/sa-logo.png" alt="SA" width={100} height={44} className="h-10 w-auto object-contain" />
           <div>
             <div className="font-black text-lg text-slate-900">Operator invitation</div>
             <div className="text-xs text-neutral-500">SupplierAdvisor® Independent Contractor</div>

@@ -257,9 +257,9 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
             <Image
               src="/sa-logo.png"
               alt="SupplierAdvisor"
-              width={36}
+              width={80}
               height={36}
-              className="rounded-xl"
+              className="h-9 w-auto object-contain"
               priority
             />
           </Link>
@@ -328,9 +328,9 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
               <Image
                 src="/sa-logo.png"
                 alt="SupplierAdvisor"
-                width={40}
-                height={40}
-                className="rounded-xl shrink-0"
+                width={96}
+                height={42}
+                className="h-10 w-auto object-contain shrink-0"
                 priority
               />
               <div className="font-black text-lg tracking-[-1px] leading-none text-slate-900 truncate">

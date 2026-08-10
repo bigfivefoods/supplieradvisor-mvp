@@ -12,6 +12,7 @@ import SchemaHealthBanner from '@/components/system/SchemaHealthBanner';
 import OpsLiveBanner from '@/components/system/OpsLiveBanner';
 import InstallAppBanner from '@/components/pwa/InstallAppBanner';
 import ServiceWorkerRegister from '@/components/pwa/ServiceWorkerRegister';
+import { ThemeProvider, useTheme } from '@/components/theme/ThemeProvider';
 import '@rainbow-me/rainbowkit/styles.css';
 
 const walletConnectProjectId =
@@ -43,6 +44,19 @@ const LOGIN_METHODS = (
     : (['email', 'google', 'apple'] as const)
 ).slice();
 
+function ThemedToaster() {
+  const { resolved } = useTheme();
+  return (
+    <Toaster
+      position="top-center"
+      richColors
+      closeButton
+      expand={false}
+      theme={resolved}
+    />
+  );
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
   const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID || '';
@@ -52,46 +66,51 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <PrivyProvider
-      appId={privyAppId}
-      config={{
-        loginMethods: LOGIN_METHODS as ('email' | 'google' | 'apple' | 'wallet')[],
-        appearance: {
-          theme: 'light',
-          accentColor: '#00b4d8',
-          logo: '/sa-logo.png',
-          showWalletLoginFirst: false,
-          landingHeader: 'Sign in to SupplierAdvisor',
-          loginMessage: 'Use the email address your invitation was sent to.',
-        },
-        // Do NOT auto-create embedded wallets on email login.
-        // Wallet creation failures surface as "Something went wrong / Try again later"
-        // and block contractor email OTP sign-in. Business users can link wallets later.
-        embeddedWallets: {
-          ethereum: {
-            createOnLogin: 'off',
+    <ThemeProvider>
+      <PrivyProvider
+        appId={privyAppId}
+        config={{
+          loginMethods: LOGIN_METHODS as ('email' | 'google' | 'apple' | 'wallet')[],
+          appearance: {
+            // Keep Privy modal stable — app shell follows ThemeProvider dark/light
+            theme: 'light',
+            accentColor: '#00b4d8',
+            logo: '/sa-logo.png',
+            showWalletLoginFirst: false,
+            landingHeader: 'Sign in to SupplierAdvisor',
+            loginMessage: 'Use the email address your invitation was sent to.',
           },
-        },
-      }}
-    >
-      <WagmiProvider config={wagmiConfig}>
-        <QueryClientProvider client={queryClient}>
-          <RainbowKitProvider>
-            {/*
-              Do not use overflow/transform/z-0 wrappers that trap position:fixed
-              (landing header must stay viewport-fixed). Isolation is fine.
-            */}
-            <ApiAuthBridge>
-              <ServiceWorkerRegister />
-              <SchemaHealthBanner />
-              <OpsLiveBanner />
-              <div className="min-h-dvh pointer-events-auto isolate">{children}</div>
-              <InstallAppBanner />
-            </ApiAuthBridge>
-            <Toaster position="top-center" richColors closeButton expand={false} />
-          </RainbowKitProvider>
-        </QueryClientProvider>
-      </WagmiProvider>
-    </PrivyProvider>
+          // Do NOT auto-create embedded wallets on email login.
+          // Wallet creation failures surface as "Something went wrong / Try again later"
+          // and block contractor email OTP sign-in. Business users can link wallets later.
+          embeddedWallets: {
+            ethereum: {
+              createOnLogin: 'off',
+            },
+          },
+        }}
+      >
+        <WagmiProvider config={wagmiConfig}>
+          <QueryClientProvider client={queryClient}>
+            <RainbowKitProvider>
+              {/*
+                Do not use overflow/transform/z-0 wrappers that trap position:fixed
+                (landing header must stay viewport-fixed). Isolation is fine.
+              */}
+              <ApiAuthBridge>
+                <ServiceWorkerRegister />
+                <SchemaHealthBanner />
+                <OpsLiveBanner />
+                <div className="min-h-dvh pointer-events-auto isolate bg-sa-bg text-sa-text">
+                  {children}
+                </div>
+                <InstallAppBanner />
+              </ApiAuthBridge>
+              <ThemedToaster />
+            </RainbowKitProvider>
+          </QueryClientProvider>
+        </WagmiProvider>
+      </PrivyProvider>
+    </ThemeProvider>
   );
 }

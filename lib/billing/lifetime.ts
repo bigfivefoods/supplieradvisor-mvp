@@ -26,6 +26,8 @@ export const FOUNDER_LIFETIME_NAME_PATTERNS: RegExp[] = [
   /^easta?\s*africa\s*big\s*five/i,
   /^vuka(\s+fitness)?$/i,
   /^vuka\s*fitness/i,
+  /^supplier\s*advisor/i,
+  /^supplieradvisor/i,
 ];
 
 /** How many earliest companies get free lifetime access. */

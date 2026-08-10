@@ -15,6 +15,7 @@ import { userIdMatchVariants } from '@/lib/auth/identity';
  * Prefer env in production — do not hard-code personal inboxes.
  */
 const DEFAULT_OPERATOR_EMAILS = [
+  'craig@bigfivefoods.com',
   'craig@bigfivegroup.africa',
   'craig@supplieradvisor.com',
 ];
@@ -54,16 +55,37 @@ export async function resolveEmailsForUserId(
   try {
     const supabase = getSupabaseServer();
     const variants = userIdMatchVariants(userId);
+    const out = new Set<string>();
+
     const { data } = await supabase
       .from('business_users')
       .select('email, invited_email')
       .in('user_id', variants)
-      .limit(20);
-    const out = new Set<string>();
+      .limit(40);
     for (const row of data || []) {
       if (row.email) out.add(String(row.email).toLowerCase());
       if (row.invited_email) out.add(String(row.invited_email).toLowerCase());
     }
+
+    // Also pick up contact emails on profiles owned by this user
+    try {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('email, contact_email')
+        .in('user_id', variants)
+        .limit(20);
+      for (const p of profiles || []) {
+        if (p.email) out.add(String(p.email).toLowerCase());
+        if ((p as { contact_email?: string }).contact_email) {
+          out.add(
+            String((p as { contact_email?: string }).contact_email).toLowerCase()
+          );
+        }
+      }
+    } catch {
+      /* soft */
+    }
+
     return [...out];
   } catch {
     return [];

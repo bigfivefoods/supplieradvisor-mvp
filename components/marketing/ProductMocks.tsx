@@ -7,7 +7,7 @@ import type { LucideIcon } from 'lucide-react';
 
 /**
  * Fixed heights — every module frame / gallery card shares the same height
- * so rotation and grids never reflow the page.
+ * so rotation and grids never reflow the page (no layout jump on scroll/rotate).
  */
 export const PRODUCT_MOCK_HEIGHT =
   'h-[280px] sm:h-[340px] lg:h-[400px] xl:h-[420px]';
@@ -15,6 +15,10 @@ export const PRODUCT_MOCK_HEIGHT =
 /** Equal height for 2–3 scene cards in the Modules section. */
 export const MODULE_GALLERY_HEIGHT =
   'h-[200px] sm:h-[220px] lg:h-[236px]';
+
+/** Fixed-size outer box for hero gallery row (prevents sm→1col height swing). */
+export const MODULE_GALLERY_ROW =
+  'min-h-[200px] sm:min-h-[220px] lg:min-h-[236px]';
 
 function Frame({
   title,
@@ -632,6 +636,199 @@ export function SustainabilityMock() {
   );
 }
 
+/** Industry — agri production OS */
+export function FieldgraphMock() {
+  return (
+    <Frame title="dashboard/fieldgraph">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[9px] font-bold uppercase tracking-widest text-emerald-700">
+            Fieldgraph® · Agri
+          </div>
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+            Field to buyer, one season.
+          </div>
+        </div>
+        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-800">
+          Primary
+        </span>
+      </div>
+      <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
+        <Telemetry label="Fields" value="18" tone="emerald" />
+        <Telemetry label="Ha" value="420" tone="cyan" />
+        <Telemetry label="Est. t" value="1.8k" tone="amber" />
+        <Telemetry label="R/km" value="4.2" tone="violet" />
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+        {['Fields', 'Harvest', 'Trade'].map((t, i) => (
+          <div key={t} className="rounded-xl border border-slate-100 bg-white p-2 shadow-sm sm:p-3">
+            <div className="mb-1 text-[9px] font-mono text-neutral-400">0{i + 1}</div>
+            <div className="text-[11px] font-bold text-slate-800 sm:text-xs">{t}</div>
+            <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-emerald-500"
+                style={{ width: `${60 + i * 12}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+/** Industry — aggregates / quarry OS */
+export function QuarrygraphMock() {
+  return (
+    <Frame title="dashboard/quarrygraph">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[9px] font-bold uppercase tracking-widest text-amber-700">
+            Quarrygraph® · Extractives
+          </div>
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+            Sites · plant · dispatch.
+          </div>
+        </div>
+        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[9px] font-black uppercase text-amber-800">
+          Primary
+        </span>
+      </div>
+      <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
+        <Telemetry label="Sites" value="5" tone="amber" />
+        <Telemetry label="t MTD" value="48k" tone="cyan" />
+        <Telemetry label="L/km" value="0.42" tone="violet" />
+        <Telemetry label="OTIF" value="97%" tone="emerald" />
+      </div>
+      <div className="space-y-2 rounded-xl border border-slate-100 bg-white p-3">
+        {[
+          { left: 'Main pit · G2 base', right: 'Active' },
+          { left: 'Temp batching · N2', right: 'GPS' },
+          { left: 'Weighbridge #2', right: 'Live' },
+        ].map((row) => (
+          <div key={row.left} className="flex items-center justify-between gap-2 text-[10px]">
+            <span className="font-semibold text-slate-800">{row.left}</span>
+            <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-black text-amber-800">
+              {row.right}
+            </span>
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+/** Industry — fitness / tertiary services OS */
+export function FitgraphMock() {
+  return (
+    <Frame title="dashboard/fitgraph">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[9px] font-bold uppercase tracking-widest text-violet-700">
+            Fitgraph® · Services
+          </div>
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+            Coaches · classes · memberships.
+          </div>
+        </div>
+        <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[9px] font-black uppercase text-violet-800">
+          Tertiary
+        </span>
+      </div>
+      <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
+        <Telemetry label="Members" value="842" tone="violet" />
+        <Telemetry label="Classes" value="36" tone="cyan" />
+        <Telemetry label="MRR" value="R 186k" tone="emerald" />
+        <Telemetry label="Check-in" value="94%" tone="amber" />
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+        {['Calendar', 'Coaches', 'Website'].map((t) => (
+          <div
+            key={t}
+            className="rounded-xl border border-slate-100 bg-white p-2 text-center shadow-sm sm:p-3"
+          >
+            <div className="text-[11px] font-bold text-slate-800 sm:text-xs">{t}</div>
+            <div className="mt-2 h-8 rounded-lg bg-gradient-to-br from-violet-50 to-cyan-50" />
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+/** App navigation — Core · Sector · Industry modules */
+export function NavMock() {
+  const bands = [
+    {
+      label: 'Core OS',
+      tone: 'text-[#0077b6]',
+      items: ['Home', 'Network', 'Suppliers', 'Customers', 'Ops', 'Finance'],
+    },
+    {
+      label: 'Sector',
+      tone: 'text-sky-700',
+      items: ['Make', 'Ship', 'Containers'],
+    },
+    {
+      label: 'Industry',
+      tone: 'text-emerald-700',
+      items: ['Fieldgraph®', 'Quarrygraph®', 'Fitgraph®'],
+    },
+  ];
+  return (
+    <Frame title="dashboard">
+      <div className="flex h-full min-h-0 gap-2">
+        <div className="flex w-[42%] shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50/90 sm:w-[38%]">
+          <div className="border-b border-slate-200 px-2.5 py-2">
+            <div className="text-[9px] font-black uppercase tracking-widest text-[#00b4d8]">
+              Navigation
+            </div>
+            <div className="text-[11px] font-black text-slate-900">Module workspace</div>
+          </div>
+          <div className="min-h-0 flex-1 space-y-2 overflow-hidden p-2">
+            {bands.map((b) => (
+              <div key={b.label}>
+                <div className={`mb-1 text-[8px] font-black uppercase tracking-wider ${b.tone}`}>
+                  {b.label}
+                </div>
+                <div className="space-y-0.5">
+                  {b.items.map((item, i) => (
+                    <div
+                      key={item}
+                      className={`rounded-md px-2 py-1 text-[10px] font-semibold ${
+                        b.label === 'Core OS' && i === 4
+                          ? 'bg-[#00b4d8] text-white'
+                          : 'bg-white text-slate-700 shadow-sm'
+                      }`}
+                    >
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="min-w-0 flex-1 rounded-xl border border-slate-100 bg-white p-2.5 sm:p-3">
+          <div className="text-[9px] font-bold uppercase tracking-widest text-[#00b4d8]">
+            Active · Operations
+          </div>
+          <div className="mt-0.5 text-sm font-black text-slate-900">Command tower</div>
+          <div className="mt-3 grid grid-cols-2 gap-1.5">
+            <Telemetry label="Open POs" value="12" tone="violet" />
+            <Telemetry label="Exceptions" value="3" tone="amber" />
+            <Telemetry label="Inbound" value="4" tone="cyan" />
+            <Telemetry label="Ship" value="9" tone="emerald" />
+          </div>
+          <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-2 py-2 text-[9px] font-medium leading-relaxed text-slate-500">
+            Toggle modules in My Business · packs unlock industry hubs without removing Core.
+          </div>
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
 export type ModuleDef = {
   id: string;
   code: string;
@@ -1081,6 +1278,125 @@ const MODULE_GALLERIES: Record<string, GalleryScene[]> = {
       tiles: ['Ask SAM', 'Forecast', 'Cube', 'Guide'],
     },
   ],
+  fieldgraph: [
+    {
+      eyebrow: 'Fields',
+      title: 'Multi-crop command',
+      wash: 'emerald',
+      kind: 'map',
+      metrics: [
+        { label: 'Fields', value: '18' },
+        { label: 'Ha', value: '420' },
+      ],
+    },
+    {
+      eyebrow: 'Season plan',
+      title: 'Estimate → harvest → trade',
+      wash: 'sky',
+      kind: 'pipeline',
+      stages: ['Plant', 'Input', 'Estimate', 'Harvest', 'Trade'],
+    },
+    {
+      eyebrow: 'Fleet & cost',
+      title: 'L/h · L/km · R/km live',
+      wash: 'cyan',
+      kind: 'list',
+      list: [
+        { left: 'Tractor T-04', right: 'R 4.2/km', tone: 'emerald' },
+        { left: 'Harvester H-1', right: '18 L/h', tone: 'amber' },
+        { left: 'Bakkie B-12', right: '0.11 L/km', tone: 'cyan' },
+      ],
+    },
+  ],
+  quarrygraph: [
+    {
+      eyebrow: 'Sites',
+      title: 'Permanent · temp · batching',
+      wash: 'amber',
+      kind: 'map',
+      metrics: [
+        { label: 'Sites', value: '5' },
+        { label: 't MTD', value: '48k' },
+      ],
+    },
+    {
+      eyebrow: 'Production',
+      title: 'Reserves → plant → dispatch',
+      wash: 'cyan',
+      kind: 'pipeline',
+      stages: ['Reserve', 'Blast', 'Crush', 'Stock', 'Weigh'],
+    },
+    {
+      eyebrow: 'Resources',
+      title: 'Plant · fleet · GPS allocate',
+      wash: 'violet',
+      kind: 'list',
+      list: [
+        { left: 'Crusher C-2', right: 'Running', tone: 'emerald' },
+        { left: 'ADTs · pit road', right: '4 active', tone: 'cyan' },
+        { left: 'Batch plant N2', right: 'GPS 12km', tone: 'amber' },
+      ],
+    },
+  ],
+  fitgraph: [
+    {
+      eyebrow: 'Members',
+      title: 'Subscriptions that renew',
+      wash: 'violet',
+      kind: 'ring',
+      metrics: [
+        { label: 'Members', value: '842' },
+        { label: 'MRR', value: 'R186k' },
+      ],
+      caption: 'Website calendar · public book',
+    },
+    {
+      eyebrow: 'Coaches',
+      title: 'Schedule · share · fill',
+      wash: 'cyan',
+      kind: 'list',
+      list: [
+        { left: 'Sam · HIIT', right: '92%', tone: 'emerald' },
+        { left: 'Lee · Strength', right: '88%', tone: 'cyan' },
+        { left: 'Ayo · Yoga', right: 'Open', tone: 'violet' },
+      ],
+    },
+    {
+      eyebrow: 'Classes',
+      title: 'Book · check-in · retain',
+      wash: 'emerald',
+      kind: 'tiles',
+      tiles: ['Calendar', 'Bookings', 'Check-ins', 'Website'],
+    },
+  ],
+  nav: [
+    {
+      eyebrow: 'Core OS',
+      title: 'Always-on foundation',
+      wash: 'cyan',
+      kind: 'tiles',
+      tiles: ['Network', 'Trade', 'Ops', 'Finance'],
+      caption: 'One workspace · module toggles',
+    },
+    {
+      eyebrow: 'Sector shape',
+      title: 'Make · ship · outlets',
+      wash: 'sky',
+      kind: 'pipeline',
+      stages: ['Primary', 'Secondary', 'Tertiary', 'Public'],
+    },
+    {
+      eyebrow: 'Industry hubs',
+      title: 'Vertical OS modules',
+      wash: 'emerald',
+      kind: 'list',
+      list: [
+        { left: 'Fieldgraph®', right: 'Agri', tone: 'emerald' },
+        { left: 'Quarrygraph®', right: 'Extract', tone: 'amber' },
+        { left: 'Fitgraph®', right: 'Fitness', tone: 'violet' },
+      ],
+    },
+  ],
 };
 
 function GalleryCard({ scene }: { scene: GalleryScene }) {
@@ -1088,7 +1404,7 @@ function GalleryCard({ scene }: { scene: GalleryScene }) {
   const waveId = useId().replace(/:/g, '');
   return (
     <div
-      className={`group relative flex ${MODULE_GALLERY_HEIGHT} w-full flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-gradient-to-br ${wash} shadow-[0_18px_40px_-18px_rgba(15,23,42,0.22)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#00b4d8]/45 hover:shadow-[0_24px_50px_-16px_rgba(0,180,216,0.28)]`}
+      className={`group relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-gradient-to-br ${wash} shadow-[0_18px_40px_-18px_rgba(15,23,42,0.22)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#00b4d8]/45 hover:shadow-[0_24px_50px_-16px_rgba(0,180,216,0.28)]`}
     >
       {/* Decorative orbs */}
       <div
@@ -1331,16 +1647,21 @@ export function ModuleGallery({
   const scenes = MODULE_GALLERIES[moduleId] || MODULE_GALLERIES.ops;
   return (
     <div
-      className={`grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-3.5 ${className}`}
+      className={`grid w-full grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-3.5 ${MODULE_GALLERY_ROW} ${className}`}
     >
       {scenes.slice(0, 3).map((scene) => (
-        <GalleryCard key={`${moduleId}-${scene.eyebrow}-${scene.title}`} scene={scene} />
+        <div
+          key={`${moduleId}-${scene.eyebrow}-${scene.title}`}
+          className={`w-full min-w-0 ${MODULE_GALLERY_HEIGHT}`}
+        >
+          <GalleryCard scene={scene} />
+        </div>
       ))}
     </div>
   );
 }
 
-/** Hero / featured shell — fixed height wrapper for rotating mocks */
+/** Hero / featured shell — fixed height + width so rotation never reflows the page */
 export function ProductMockShell({
   children,
   className = '',
@@ -1349,8 +1670,12 @@ export function ProductMockShell({
   className?: string;
 }) {
   return (
-    <div className={`relative w-full ${PRODUCT_MOCK_HEIGHT} ${className}`}>
-      <div className="absolute inset-0">{children}</div>
+    <div
+      className={`relative w-full shrink-0 overflow-hidden ${PRODUCT_MOCK_HEIGHT} ${className}`}
+    >
+      <div className="absolute inset-0 h-full w-full [&_>_*]:h-full [&_>_*]:w-full">
+        {children}
+      </div>
     </div>
   );
 }

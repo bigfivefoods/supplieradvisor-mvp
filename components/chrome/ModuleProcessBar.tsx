@@ -10,6 +10,7 @@ import {
 } from '@/lib/chrome/module-lifecycles';
 import { groupNavSteps } from '@/lib/chrome/module-nav';
 import NotificationBell from '@/components/chrome/NotificationBell';
+import ThemeToggle from '@/components/theme/ThemeToggle';
 import { useProgrammeRole } from '@/lib/schools/useProgrammeRole';
 import { stepVisibleForRole } from '@/lib/schools/programme-role';
 import { useHealthProgrammeRole } from '@/lib/health/useProgrammeRole';
@@ -119,9 +120,9 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
             <Image
               src="/sa-logo.png"
               alt=""
-              width={28}
+              width={64}
               height={28}
-              className="rounded-lg shrink-0"
+              className="h-7 w-auto object-contain shrink-0"
               priority
             />
             <span className="hidden min-[380px]:inline font-black text-xs sm:text-sm tracking-[-0.5px] text-slate-900 truncate max-w-[7rem] sm:max-w-[10rem]">
@@ -224,16 +225,17 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
             )}
           </div>
 
-          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0 pl-1 sm:pl-2 border-l border-neutral-200">
+          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0 pl-1 sm:pl-2 border-l border-neutral-200 dark:border-slate-700">
             <button
               type="button"
               onClick={openPalette}
-              className="p-2 sm:p-2.5 min-h-[40px] min-w-[40px] rounded-xl hover:bg-neutral-100 text-slate-600 inline-flex items-center justify-center touch-manipulation"
+              className="p-2 sm:p-2.5 min-h-[40px] min-w-[40px] rounded-xl hover:bg-neutral-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 inline-flex items-center justify-center touch-manipulation"
               aria-label="Open command palette"
               title="Search (⌘K)"
             >
               <Search className="w-4 h-4" />
             </button>
+            <ThemeToggle className="!h-9 !w-9 !rounded-xl" />
             <span className="hidden xl:inline text-[10px] font-black uppercase tracking-[0.12em] text-neutral-400">
               Actions
             </span>

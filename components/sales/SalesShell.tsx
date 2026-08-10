@@ -143,9 +143,9 @@ export default function SalesShell({ children }: { children: React.ReactNode }) 
               <Image
                 src="/sa-logo.png"
                 alt="SA"
-                width={40}
-                height={40}
-                className="rounded-xl ring-2 ring-[#00b4d8]/30"
+                width={96}
+                height={42}
+                className="h-10 w-auto object-contain"
               />
               <Sparkles className="w-3.5 h-3.5 text-amber-500 absolute -top-1 -right-1" />
             </div>
