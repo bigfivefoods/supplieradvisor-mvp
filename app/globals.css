@@ -542,6 +542,17 @@ html.dark .bg-\[\#0099b8\] {
   color: #ffffff !important;
 }
 
+/*
+ * Brand logo → white in dark mode.
+ * Matches /sa-logo.png and Next.js /_next/image?url=...sa-logo...
+ * Also .sa-logo for explicit opt-in.
+ */
+html.dark img.sa-logo,
+html.dark img[src*='sa-logo'],
+html.dark img[src*='sa-icon'] {
+  filter: brightness(0) invert(1);
+}
+
 /* Sonner / toast dark polish */
 html.dark [data-sonner-toaster] [data-sonner-toast] {
 
