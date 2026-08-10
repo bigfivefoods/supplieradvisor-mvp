@@ -24,6 +24,7 @@ import {
   type FitRecurrence,
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
+import { mergeHealthProfile } from '@/lib/health/body-map';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -205,6 +206,84 @@ export async function POST(request: NextRequest) {
     const { companyId, meta, store, coach } = resolved;
     const now = new Date().toISOString();
     const sessionId = String(body.session_id || body.sessionId || '');
+
+    /**
+     * Member profile + injury awareness — coaches update so the floor knows
+     * what to adapt. Does not require can_manage_classes.
+     */
+    if (
+      action === 'update_client' ||
+      action === 'update_client_health' ||
+      action === 'update_member'
+    ) {
+      const clientId = String(body.client_id || body.id || '').trim();
+      if (!clientId) {
+        return NextResponse.json(
+          { error: 'client_id required' },
+          { status: 400 }
+        );
+      }
+      const idx = store.clients.findIndex((c) => c.id === clientId);
+      if (idx < 0) {
+        return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+      }
+      const prev = store.clients[idx];
+      if (body.name != null && String(body.name).trim()) {
+        prev.name = String(body.name).trim();
+      }
+      if (body.email !== undefined) {
+        prev.email = body.email ? String(body.email).trim() : undefined;
+      }
+      if (body.phone !== undefined) {
+        prev.phone = body.phone ? String(body.phone).trim() : undefined;
+      }
+      if (body.emergency_contact !== undefined) {
+        prev.emergency_contact = body.emergency_contact
+          ? String(body.emergency_contact).trim()
+          : undefined;
+      }
+      if (body.notes !== undefined) {
+        prev.notes = body.notes ? String(body.notes) : undefined;
+      }
+      const healthPatch =
+        body.health !== undefined ||
+        body.injured !== undefined ||
+        body.injury_areas !== undefined ||
+        body.injury_notes !== undefined ||
+        body.injury_status !== undefined ||
+        body.injury_side !== undefined ||
+        body.injury_onset !== undefined ||
+        body.training_modifications !== undefined ||
+        body.goals !== undefined ||
+        body.pain_score !== undefined ||
+        body.medical_clearance !== undefined;
+      if (healthPatch) {
+        prev.health = mergeHealthProfile(prev.health, body, {
+          now,
+          updatedBy: `coach:${coach.name}`,
+        });
+      }
+      prev.updated_at = now;
+      store.clients[idx] = prev;
+      await saveStore(companyId, meta, store);
+      const from = body.from ? String(body.from) : undefined;
+      const to = body.to ? String(body.to) : undefined;
+      return NextResponse.json({
+        success: true,
+        message: 'Member profile updated',
+        client: {
+          id: prev.id,
+          code: prev.code,
+          name: prev.name,
+          email: prev.email,
+          phone: prev.phone,
+          emergency_contact: prev.emergency_contact,
+          notes: prev.notes,
+          health: prev.health,
+        },
+        portal: buildCoachPortalPayload(store, coach, from, to),
+      });
+    }
 
     /**
      * Profile self-service — every coach with a portal can update bio etc.

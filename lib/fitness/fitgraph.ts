@@ -329,6 +329,12 @@ export function reopenCoachEngagement(
   };
 }
 
+/**
+ * Injury / training-awareness profile — coaches and desk can update so the
+ * floor knows what to adapt (knee load, shoulder range, etc.).
+ */
+export type FitClientHealth = import('@/lib/health/body-map').PersonHealthProfile;
+
 export type FitClient = {
   id: string;
   code: string;
@@ -342,6 +348,8 @@ export type FitClient = {
   coach_id?: string | null;
   emergency_contact?: string;
   notes?: string;
+  /** Injury, pain, modifications & goals for coach awareness */
+  health?: FitClientHealth;
   active?: boolean;
   created_at: string;
   updated_at: string;
@@ -1101,6 +1109,9 @@ export type CoachRosterRow = {
   name: string;
   email?: string;
   phone?: string;
+  health?: FitClientHealth;
+  injured?: boolean;
+  health_label?: string;
 };
 
 export type CoachSessionCard = {
@@ -1173,6 +1184,28 @@ export function buildCoachPortalPayload(
           name: client?.name || b.guest_name || 'Guest',
           email: client?.email || b.guest_email,
           phone: client?.phone || b.guest_phone,
+          health: client?.health,
+          injured: client?.health
+            ? client.health.injured === true ||
+              (Array.isArray(client.health.injury_areas) &&
+                client.health.injury_areas.length > 0 &&
+                client.health.injury_status !== 'cleared' &&
+                client.health.injury_status !== 'none')
+            : false,
+          health_label: client?.health
+            ? [
+                (client.health.injury_areas || []).slice(0, 2).join(', '),
+                client.health.injury_side && client.health.injury_side !== 'n/a'
+                  ? client.health.injury_side
+                  : null,
+                client.health.injury_status &&
+                client.health.injury_status !== 'none'
+                  ? client.health.injury_status
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(' · ') || (client.health.injured ? 'Injured' : '')
+            : '',
         };
       });
       const planned = roster.filter(
@@ -1222,8 +1255,13 @@ export function buildCoachPortalPayload(
       id: c.id,
       code: c.code,
       name: c.name,
+      email: c.email,
+      phone: c.phone,
+      emergency_contact: c.emergency_contact,
+      notes: c.notes,
       membership_status: c.membership_status,
       coach_id: c.coach_id,
+      health: c.health,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Download, Upload } from 'lucide-react';
+import { Download, Pencil, Upload, X } from 'lucide-react';
 import {
   FitgraphWorkbench,
   LoadingBlock,
@@ -14,7 +14,15 @@ import {
   StatRow,
   fc,
 } from '@/components/fitness/FitForm';
-import { MEMBERSHIP_STATUSES } from '@/lib/fitness/fitgraph';
+import { MEMBERSHIP_STATUSES, type FitClient } from '@/lib/fitness/fitgraph';
+import { healthSummaryLabel, isInjured } from '@/lib/health/body-map';
+import {
+  InjuryProfileFields,
+  emptyInjuryForm,
+  formToHealthPayload,
+  healthToForm,
+  type InjuryFormState,
+} from '@/components/health/InjuryProfileFields';
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -29,38 +37,90 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
+type ClientForm = {
+  id?: string;
+  code: string;
+  name: string;
+  email: string;
+  phone: string;
+  membership_plan_id: string;
+  membership_status: string;
+  coach_id: string;
+  start_date: string;
+  emergency_contact: string;
+  notes: string;
+  health: InjuryFormState;
+};
+
+const blankForm = (): ClientForm => ({
+  code: '',
+  name: '',
+  email: '',
+  phone: '',
+  membership_plan_id: '',
+  membership_status: 'active',
+  coach_id: '',
+  start_date: new Date().toISOString().slice(0, 10),
+  emergency_contact: '',
+  notes: '',
+  health: emptyInjuryForm(),
+});
+
 export default function ClientsPage() {
   const { companyId, store, loading, saving, post, load, summary } =
     useFitgraph();
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
-  const [form, setForm] = useState({
-    code: '',
-    name: '',
-    email: '',
-    phone: '',
-    membership_plan_id: '',
-    membership_status: 'active',
-    coach_id: '',
-    start_date: new Date().toISOString().slice(0, 10),
-  });
+  const [form, setForm] = useState<ClientForm>(blankForm);
+  const [editing, setEditing] = useState(false);
 
-  const add = async () => {
+  const openEdit = (c: FitClient) => {
+    setForm({
+      id: c.id,
+      code: c.code || '',
+      name: c.name || '',
+      email: c.email || '',
+      phone: c.phone || '',
+      membership_plan_id: c.membership_plan_id || '',
+      membership_status: c.membership_status || 'active',
+      coach_id: c.coach_id || '',
+      start_date:
+        c.start_date || new Date().toISOString().slice(0, 10),
+      emergency_contact: c.emergency_contact || '',
+      notes: c.notes || '',
+      health: healthToForm(c.health),
+    });
+    setEditing(true);
+  };
+
+  const save = async () => {
     if (!form.name.trim()) {
       toast.error('Name required');
       return;
     }
+    const health = formToHealthPayload(form.health);
     await post({
       entity: 'clients',
       action: 'upsert',
       record: {
-        ...form,
+        id: form.id,
+        code: form.code,
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
         membership_plan_id: form.membership_plan_id || null,
+        membership_status: form.membership_status,
         coach_id: form.coach_id || null,
+        start_date: form.start_date,
+        emergency_contact: form.emergency_contact,
+        notes: form.notes,
+        health,
+        health_updated_by: 'desk',
       },
     });
-    toast.success('Client saved');
-    setForm((f) => ({ ...f, code: '', name: '', email: '', phone: '' }));
+    toast.success(form.id ? 'Client profile updated' : 'Client saved');
+    setForm(blankForm());
+    setEditing(false);
   };
 
   const downloadXlsx = (kind: 'clients' | 'clients_template') => {
@@ -120,7 +180,6 @@ export default function ClientsPage() {
       }
       await load();
     } catch (e: unknown) {
-      // post() already toasts on failure
       if (!(e instanceof Error)) toast.error('Import failed');
     } finally {
       setImporting(false);
@@ -128,11 +187,14 @@ export default function ClientsPage() {
     }
   };
 
+  const injuredCount =
+    store?.clients.filter((c) => isInjured(c.health)).length || 0;
+
   return (
     <FitgraphWorkbench
       title="Clients / members"
       titleAccent="member book"
-      description="Member register with plan, status and optional coach assignment. Download the client list as .xlsx, or upload a filled template to add / update members in bulk."
+      description="Member register with plan, coach assignment, and injury / recovery profile so coaches know where they are injured and how to help them improve safely."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -143,10 +205,10 @@ export default function ClientsPage() {
             items={[
               { label: 'Clients', value: Number(summary?.clientCount) || 0 },
               { label: 'Active', value: Number(summary?.activeMembers) || 0 },
+              { label: 'Injured / recovering', value: injuredCount },
             ]}
           />
 
-          {/* Excel export / import */}
           <div className="rounded-2xl border border-sky-200 bg-sky-50/70 p-4 dark:border-sky-700/50 dark:bg-sky-950/40">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -154,10 +216,8 @@ export default function ClientsPage() {
                   Client list (.xlsx)
                 </h3>
                 <p className="text-[11px] text-sky-900/80 dark:text-sky-200/80 mt-0.5 max-w-xl">
-                  Download your current members, or a blank template with Plans
-                  and Coaches reference sheets. Fill rows and upload to create
-                  or update clients (match by <strong>code</strong> or{' '}
-                  <strong>email</strong>).
+                  Download your current members, or a blank template. Coaches can
+                  also update injury profiles from the coach portal.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -198,19 +258,34 @@ export default function ClientsPage() {
                 />
               </div>
             </div>
-            <p className="text-[10px] text-sky-800/70 dark:text-sky-300/70 mt-2">
-              Columns: code, name*, email, phone, membership_plan_code,
-              membership_status, coach_code, start_date, end_date,
-              emergency_contact, notes, active (Y/N). *name required.
-            </p>
           </div>
 
           <FormCard
             tone="member"
-            title="Add client / member"
-            onSubmit={() => void add()}
+            title={editing ? 'Edit client profile' : 'Add client / member'}
+            description={
+              editing
+                ? 'Update contact details and injury awareness for coaches on the floor.'
+                : 'Register a member; add injury details anytime so coaches can adapt sessions.'
+            }
+            onSubmit={() => void save()}
             saving={saving}
+            submitLabel={editing ? 'Save profile' : 'Add client'}
           >
+            {editing ? (
+              <div className="sm:col-span-2 lg:col-span-3 flex justify-end">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-800"
+                  onClick={() => {
+                    setForm(blankForm());
+                    setEditing(false);
+                  }}
+                >
+                  <X className="w-3.5 h-3.5" /> Cancel edit
+                </button>
+              </div>
+            ) : null}
             <input
               className={fc()}
               placeholder="Code"
@@ -221,7 +296,7 @@ export default function ClientsPage() {
             />
             <input
               className={fc()}
-              placeholder="Name"
+              placeholder="Name *"
               value={form.name}
               onChange={(e) =>
                 setForm((f) => ({ ...f, name: e.target.value }))
@@ -298,15 +373,50 @@ export default function ClientsPage() {
                 setForm((f) => ({ ...f, start_date: e.target.value }))
               }
             />
+            <input
+              className={fc()}
+              placeholder="Emergency contact"
+              value={form.emergency_contact}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  emergency_contact: e.target.value,
+                }))
+              }
+            />
+            <input
+              className={fc() + ' sm:col-span-2'}
+              placeholder="Desk notes"
+              value={form.notes}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, notes: e.target.value }))
+              }
+            />
+            <InjuryProfileFields
+              variant="coach"
+              value={form.health}
+              onChange={(health) => setForm((f) => ({ ...f, health }))}
+              inputClass={fc()}
+            />
           </FormCard>
+
           <DataTable
             tone="member"
-            headers={['Code', 'Name', 'Plan', 'Status', 'Coach', 'Phone']}
+            headers={[
+              'Code',
+              'Name',
+              'Plan',
+              'Status',
+              'Coach',
+              'Injury / recovery',
+              '',
+            ]}
             rows={store.clients.map((c) => {
               const plan = store.membership_plans.find(
                 (p) => p.id === c.membership_plan_id
               );
               const coach = store.coaches.find((x) => x.id === c.coach_id);
+              const injured = isInjured(c.health);
               return {
                 id: c.id,
                 cells: [
@@ -315,7 +425,29 @@ export default function ClientsPage() {
                   plan?.code || '—',
                   c.membership_status || '—',
                   coach?.name || '—',
-                  c.phone || '—',
+                  (
+                    <span
+                      key="h"
+                      className={
+                        injured
+                          ? 'inline-flex rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800 dark:bg-rose-950 dark:text-rose-200'
+                          : 'text-[11px] text-slate-500'
+                      }
+                      title={c.health?.training_modifications || c.health?.injury_notes || ''}
+                    >
+                      {healthSummaryLabel(c.health)}
+                    </span>
+                  ),
+                  (
+                    <button
+                      key="e"
+                      type="button"
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-700 dark:text-cyan-300"
+                      onClick={() => openEdit(c)}
+                    >
+                      <Pencil className="w-3 h-3" /> Edit
+                    </button>
+                  ),
                 ],
               };
             })}

@@ -51,6 +51,13 @@ export type PhysioPractitioner = {
   created_at: string;
 };
 
+/**
+ * Clinical / injury awareness — practitioners update so the whole team
+ * knows body region, side, status, goals and contraindications.
+ */
+export type PhysioClinicalProfile =
+  import('@/lib/health/body-map').PersonHealthProfile;
+
 export type PhysioPatient = {
   id: string;
   code: string;
@@ -60,8 +67,12 @@ export type PhysioPatient = {
   status?: (typeof PATIENT_STATUSES)[number] | string;
   practitioner_id?: string | null;
   package_id?: string | null;
+  /** @deprecated prefer clinical.diagnosis_notes — kept for older records */
   diagnosis_notes?: string;
   emergency_contact?: string;
+  notes?: string;
+  /** Injury, diagnosis, pain, goals, contraindications */
+  clinical?: PhysioClinicalProfile;
   start_date?: string | null;
   active?: boolean;
   created_at: string;
@@ -379,6 +390,22 @@ export function seedDemoPhysiograph(
         practitioner_id: p1,
         package_id: pkg1,
         start_date: d(-30),
+        clinical: {
+          injured: true,
+          injury_areas: ['Knee'],
+          injury_side: 'right',
+          injury_status: 'recovering',
+          injury_onset: d(-45),
+          injury_notes: 'Post-ACL reconstruction week 8 — swelling intermittent.',
+          training_modifications: 'No deep knee flexion load; closed-chain only as prescribed.',
+          diagnosis_notes: 'ACL reconstruction (right) · progressive return to run.',
+          treatment_goals: 'Full ROM · light jog by week 12 · return-to-play criteria.',
+          pain_score: 3,
+          contraindications: 'Open-chain terminal extension resistance early.',
+          updated_at: now,
+          updated_by: 'prac:Dr Priya Reddy',
+        },
+        diagnosis_notes: 'ACL reconstruction (right) · progressive return to run.',
         active: true,
         created_at: now,
         updated_at: now,
@@ -391,6 +418,19 @@ export function seedDemoPhysiograph(
         status: 'new',
         practitioner_id: p2,
         start_date: d(-3),
+        clinical: {
+          injured: true,
+          injury_areas: ['Shoulder'],
+          injury_side: 'left',
+          injury_status: 'acute',
+          injury_onset: d(-10),
+          injury_notes: 'Rotator cuff irritation after overhead work.',
+          training_modifications: 'Avoid overhead press and kipping until cleared.',
+          treatment_goals: 'Pain-free ADLs · restore scapular control.',
+          pain_score: 5,
+          updated_at: now,
+          updated_by: 'prac:Johan Meyer',
+        },
         active: true,
         created_at: now,
         updated_at: now,

@@ -46,6 +46,7 @@ import {
   FIT_CLIENT_XLSX_MIME,
   parseFitClientsImport,
 } from '@/lib/fitness/fitgraph-clients-xlsx';
+import { mergeHealthProfile } from '@/lib/health/body-map';
 
 export const runtime = 'nodejs';
 
@@ -923,27 +924,80 @@ function upsert(
   } else if (entity === 'clients') {
     const id = String(rec.id || newId('cli'));
     const i = store.clients.findIndex((c) => c.id === id);
+    const prev = i >= 0 ? store.clients[i] : null;
+    const healthPatch =
+      rec.health !== undefined ||
+      rec.injured !== undefined ||
+      rec.injury_areas !== undefined ||
+      rec.injury_notes !== undefined ||
+      rec.injury_status !== undefined ||
+      rec.training_modifications !== undefined ||
+      rec.goals !== undefined ||
+      rec.pain_score !== undefined;
     const row: FitClient = {
       id,
-      code: String(rec.code || `M-${store.clients.length + 1}`),
-      name: String(rec.name || 'Client'),
-      email: rec.email != null ? String(rec.email) : undefined,
-      phone: rec.phone != null ? String(rec.phone) : undefined,
+      code: String(rec.code || prev?.code || `M-${store.clients.length + 1}`),
+      name: String(rec.name || prev?.name || 'Client'),
+      email:
+        rec.email !== undefined
+          ? rec.email
+            ? String(rec.email)
+            : undefined
+          : prev?.email,
+      phone:
+        rec.phone !== undefined
+          ? rec.phone
+            ? String(rec.phone)
+            : undefined
+          : prev?.phone,
       membership_plan_id:
-        rec.membership_plan_id != null
-          ? String(rec.membership_plan_id)
-          : null,
-      membership_status: String(rec.membership_status || 'active'),
-      start_date: rec.start_date != null ? String(rec.start_date) : null,
-      end_date: rec.end_date != null ? String(rec.end_date) : null,
-      coach_id: rec.coach_id != null ? String(rec.coach_id) : null,
+        rec.membership_plan_id !== undefined
+          ? rec.membership_plan_id
+            ? String(rec.membership_plan_id)
+            : null
+          : prev?.membership_plan_id ?? null,
+      membership_status: String(
+        rec.membership_status || prev?.membership_status || 'active'
+      ),
+      start_date:
+        rec.start_date !== undefined
+          ? rec.start_date
+            ? String(rec.start_date).slice(0, 10)
+            : null
+          : prev?.start_date ?? null,
+      end_date:
+        rec.end_date !== undefined
+          ? rec.end_date
+            ? String(rec.end_date).slice(0, 10)
+            : null
+          : prev?.end_date ?? null,
+      coach_id:
+        rec.coach_id !== undefined
+          ? rec.coach_id
+            ? String(rec.coach_id)
+            : null
+          : prev?.coach_id ?? null,
       emergency_contact:
-        rec.emergency_contact != null
-          ? String(rec.emergency_contact)
-          : undefined,
-      notes: rec.notes != null ? String(rec.notes) : undefined,
-      active: rec.active !== false,
-      created_at: i >= 0 ? store.clients[i].created_at : now,
+        rec.emergency_contact !== undefined
+          ? rec.emergency_contact
+            ? String(rec.emergency_contact)
+            : undefined
+          : prev?.emergency_contact,
+      notes:
+        rec.notes !== undefined
+          ? rec.notes
+            ? String(rec.notes)
+            : undefined
+          : prev?.notes,
+      health: healthPatch
+        ? mergeHealthProfile(prev?.health, rec, {
+            now,
+            updatedBy: String(rec.health_updated_by || 'desk'),
+          })
+        : prev?.health,
+      active:
+        rec.active !== undefined ? rec.active !== false : prev?.active !== false,
+      created_at: prev?.created_at || now,
       updated_at: now,
     };
     if (i >= 0) store.clients[i] = row;
@@ -1408,6 +1462,21 @@ function seedDemo(now: string, companyId?: number): FitgraphStore {
         membership_status: 'active',
         start_date: d(-30),
         coach_id: c2,
+        health: {
+          injured: true,
+          injury_areas: ['Shoulder'],
+          injury_side: 'left',
+          injury_status: 'recovering',
+          injury_onset: d(-21),
+          injury_notes: 'Rotator cuff irritation — mild after overhead work.',
+          training_modifications:
+            'Avoid kipping and heavy overhead press; band external rotations OK.',
+          goals: 'Pain-free overhead press by next month.',
+          pain_score: 3,
+          medical_clearance: true,
+          updated_at: now,
+          updated_by: 'desk',
+        },
         active: true,
         created_at: now,
         updated_at: now,
@@ -1432,6 +1501,20 @@ function seedDemo(now: string, companyId?: number): FitgraphStore {
         membership_status: 'trial',
         start_date: d(-3),
         coach_id: c1,
+        health: {
+          injured: true,
+          injury_areas: ['Knee'],
+          injury_side: 'right',
+          injury_status: 'acute',
+          injury_onset: d(-5),
+          injury_notes: 'Twinge on lunges — possible patellofemoral irritation.',
+          training_modifications:
+            'No deep lunges or box jumps; bike and glute bridges preferred.',
+          goals: 'Return to HIIT without knee flare-ups.',
+          pain_score: 4,
+          updated_at: now,
+          updated_by: 'desk',
+        },
         active: true,
         created_at: now,
         updated_at: now,

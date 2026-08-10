@@ -115,6 +115,7 @@ export function FormCard({
   saving,
   submitLabel = 'Save',
   tone = 'owner',
+  description,
 }: {
   title: string;
   children: ReactNode;
@@ -123,10 +124,16 @@ export function FormCard({
   submitLabel?: string;
   /** Match process role: owner (violet) · coach (amber) · member (cyan) */
   tone?: FitTone;
+  description?: string;
 }) {
   return (
     <div className={`rounded-3xl border p-4 space-y-2 ${TONE_CARD[tone]}`}>
       <h3 className={`text-sm font-black ${TONE_TITLE[tone]}`}>{title}</h3>
+      {description ? (
+        <p className="text-[11px] text-slate-600 dark:text-slate-300/90 -mt-1 mb-1">
+          {description}
+        </p>
+      ) : null}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">{children}</div>
       <button
         type="button"
@@ -156,7 +163,7 @@ export function DataTable({
   tone = 'owner',
 }: {
   headers: string[];
-  rows: Array<{ id: string; cells: Array<string | number> }>;
+  rows: Array<{ id: string; cells: Array<string | number | ReactNode> }>;
   onDelete?: (id: string) => void;
   tone?: FitTone;
 }) {

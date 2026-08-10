@@ -6,6 +6,7 @@ import {
   usePhysiograph,
 } from '@/components/clinic/PhysiographWorkbench';
 import { DataTable, StatRow } from '@/components/clinic/PhysioForm';
+import { healthSummaryLabel, isInjured } from '@/lib/health/body-map';
 
 export default function ReportPage() {
   const { store, loading, summary, analysis } = usePhysiograph();
@@ -19,12 +20,14 @@ export default function ReportPage() {
       status: string;
       booked: number;
     }>) || [];
+  const injured =
+    store?.patients.filter((p) => isInjured(p.clinical)).length || 0;
 
   return (
     <PhysiographWorkbench
       title="Reports"
       titleAccent="clinic pulse"
-      description="Practitioner load, patient book, and this week’s diary utilisation."
+      description="Practitioner load, injury awareness, patient book, and this week’s diary utilisation."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -41,12 +44,12 @@ export default function ReportPage() {
                 value: Number(summary?.activePatients) || 0,
               },
               {
-                label: 'Appts today',
-                value: Number(summary?.appointmentsToday) || 0,
+                label: 'Injured / recovering',
+                value: injured,
               },
               {
-                label: 'Open bookings',
-                value: Number(summary?.bookingsOpen) || 0,
+                label: 'Appts today',
+                value: Number(summary?.appointmentsToday) || 0,
               },
             ]}
           />
@@ -69,6 +72,34 @@ export default function ReportPage() {
                 ],
               };
             })}
+          />
+          <DataTable
+            headers={[
+              'Patient',
+              'Injury / clinical',
+              'Pain',
+              'Modifications',
+              'Practitioner',
+            ]}
+            rows={store.patients
+              .filter((p) => isInjured(p.clinical) || p.clinical?.injury_notes)
+              .map((p) => {
+                const prac = store.practitioners.find(
+                  (x) => x.id === p.practitioner_id
+                );
+                return {
+                  id: p.id,
+                  cells: [
+                    p.name,
+                    healthSummaryLabel(p.clinical),
+                    p.clinical?.pain_score != null
+                      ? String(p.clinical.pain_score)
+                      : '—',
+                    (p.clinical?.training_modifications || '—').slice(0, 60),
+                    prac?.name || '—',
+                  ],
+                };
+              })}
           />
           <DataTable
             headers={['Practitioner', 'Disciplines', 'Rate', 'Patients assigned']}

@@ -24,6 +24,13 @@ import {
 } from 'lucide-react';
 import { addDaysIso } from '@/lib/fitness/fitgraph';
 import { FitClassFeedbackForm } from '@/components/fitness/FitClassFeedbackForm';
+import type { PersonHealthProfile } from '@/lib/health/body-map';
+import {
+  InjuryProfileFields,
+  formToHealthPayload,
+  healthToForm,
+  type InjuryFormState,
+} from '@/components/health/InjuryProfileFields';
 
 type RosterRow = {
   booking_id: string;
@@ -34,6 +41,9 @@ type RosterRow = {
   name: string;
   email?: string;
   phone?: string;
+  health?: PersonHealthProfile;
+  injured?: boolean;
+  health_label?: string;
 };
 
 type PortalSession = {
@@ -117,7 +127,18 @@ type Portal = {
   to: string;
   sessions: PortalSession[];
   by_date: Record<string, PortalSession[]>;
-  members: Array<{ id: string; code: string; name: string }>;
+  members: Array<{
+    id: string;
+    code: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    emergency_contact?: string;
+    notes?: string;
+    membership_status?: string;
+    coach_id?: string | null;
+    health?: PersonHealthProfile;
+  }>;
   class_types: Array<{
     id: string;
     code: string;
@@ -183,6 +204,39 @@ export default function CoachFitgraphPortalPage() {
     photo_url: '',
     specialties: [] as string[],
   });
+  const [memberEdit, setMemberEdit] = useState<{
+    id: string;
+    code: string;
+    name: string;
+    email: string;
+    phone: string;
+    emergency_contact: string;
+    notes: string;
+    health: InjuryFormState;
+  } | null>(null);
+
+  const openMemberEdit = (m: {
+    id: string;
+    code?: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    emergency_contact?: string;
+    notes?: string;
+    health?: PersonHealthProfile;
+  }) => {
+    if (!m.id || m.id.startsWith('guest')) return;
+    setMemberEdit({
+      id: m.id,
+      code: m.code || '',
+      name: m.name || '',
+      email: m.email || '',
+      phone: m.phone || '',
+      emergency_contact: m.emergency_contact || '',
+      notes: m.notes || '',
+      health: healthToForm(m.health),
+    });
+  };
 
   const weekEnd = useMemo(() => addDaysIso(weekStart, 6), [weekStart]);
   const days = useMemo(
@@ -335,6 +389,27 @@ export default function CoachFitgraphPortalPage() {
               </button>
               <button
                 type="button"
+                onClick={() => {
+                  if (!portal.members.length) {
+                    setError(
+                      'No members yet — book a guest or ask the desk to add clients.'
+                    );
+                    return;
+                  }
+                  // Prefer injured members first so coaches act on them
+                  const injured = portal.members.find(
+                    (m) =>
+                      m.health?.injured ||
+                      (m.health?.injury_areas || []).length > 0
+                  );
+                  openMemberEdit(injured || portal.members[0]);
+                }}
+                className="inline-flex items-center gap-1 rounded-full border border-rose-700/60 bg-rose-950/40 px-3 py-1.5 text-xs font-bold text-rose-100"
+              >
+                <UserPlus className="w-3.5 h-3.5" /> Member health
+              </button>
+              <button
+                type="button"
                 onClick={() => setShowCreate(true)}
                 className="inline-flex items-center gap-1 rounded-full bg-amber-500 text-amber-950 px-3 py-1.5 text-xs font-black"
               >
@@ -343,7 +418,7 @@ export default function CoachFitgraphPortalPage() {
             </div>
           </div>
           <p className="text-[11px] text-slate-400 mt-1">
-            Update your bio · plan classes · mark who came
+            Update your bio · member injury notes · plan classes · mark who came
           </p>
           <div className="flex items-center gap-2 mt-3">
             <button
@@ -567,19 +642,73 @@ export default function CoachFitgraphPortalPage() {
                 <p className="text-sm text-slate-500">Nobody on the plan yet.</p>
               ) : (
                 <ul className="space-y-2">
-                  {openCard.roster.map((r) => (
+                  {openCard.roster.map((r) => {
+                    const member = portal.members.find(
+                      (m) => m.id === r.client_id
+                    );
+                    return (
                     <li
                       key={r.booking_id}
                       className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-700 px-3 py-2"
                     >
-                      <div>
-                        <div className="text-sm font-bold">{r.name}</div>
+                      <div className="min-w-0">
+                        <button
+                          type="button"
+                          className="text-sm font-bold text-left hover:text-amber-300"
+                          title="Edit member profile & injury notes"
+                          onClick={() =>
+                            openMemberEdit({
+                              id: r.client_id,
+                              code: member?.code,
+                              name: r.name,
+                              email: r.email || member?.email,
+                              phone: r.phone || member?.phone,
+                              emergency_contact: member?.emergency_contact,
+                              notes: member?.notes,
+                              health: r.health || member?.health,
+                            })
+                          }
+                        >
+                          {r.name}
+                        </button>
                         <div className="text-[10px] uppercase text-slate-500">
                           Plan {r.status} · Actual{' '}
                           {r.actual === 'pending' ? '—' : r.actual}
                         </div>
+                        {(r.injured || r.health_label) && (
+                          <div
+                            className="mt-0.5 text-[10px] font-bold text-rose-300/90"
+                            title={
+                              r.health?.training_modifications ||
+                              r.health?.injury_notes ||
+                              ''
+                            }
+                          >
+                            ⚠ {r.health_label || 'Injured — tap name to update'}
+                          </div>
+                        )}
                       </div>
                       <div className="flex gap-1">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          className="p-1.5 rounded-lg border border-slate-600 text-xs"
+                          title="Health profile"
+                          onClick={() =>
+                            openMemberEdit({
+                              id: r.client_id,
+                              code: member?.code,
+                              name: r.name,
+                              email: r.email || member?.email,
+                              phone: r.phone || member?.phone,
+                              emergency_contact: member?.emergency_contact,
+                              notes: member?.notes,
+                              health: r.health || member?.health,
+                            })
+                          }
+                        >
+                          <User className="w-3.5 h-3.5" />
+                        </button>
                         <button
                           type="button"
                           disabled={busy}
@@ -634,7 +763,8 @@ export default function CoachFitgraphPortalPage() {
                         </button>
                       </div>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               )}
             </div>
@@ -898,6 +1028,136 @@ export default function CoachFitgraphPortalPage() {
                 <Loader2 className="w-4 h-4 animate-spin inline" />
               ) : null}{' '}
               Save profile
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Member profile + injury awareness (coach can update) */}
+      {memberEdit && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-3">
+          <div className="w-full max-w-md max-h-[92dvh] overflow-y-auto rounded-3xl border border-slate-700 bg-slate-900 p-5 space-y-3">
+            <div className="flex justify-between items-center">
+              <h3 className="font-black">Member profile</h3>
+              <button type="button" onClick={() => setMemberEdit(null)}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Update contact details and injury / recovery notes so you and other
+              coaches know where they are injured and how to help them improve
+              safely.
+            </p>
+            <div>
+              <p className="text-[10px] font-black uppercase text-amber-400 mb-1">
+                Pick member
+              </p>
+              <select
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                value={memberEdit.id}
+                onChange={(e) => {
+                  const m = portal.members.find((x) => x.id === e.target.value);
+                  if (m) openMemberEdit(m);
+                }}
+              >
+                {portal.members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.code} · {m.name}
+                    {m.health?.injured ||
+                    (m.health?.injury_areas || []).length
+                      ? ' ⚠'
+                      : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <input
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              placeholder="Name"
+              value={memberEdit.name}
+              onChange={(e) =>
+                setMemberEdit((f) =>
+                  f ? { ...f, name: e.target.value } : f
+                )
+              }
+            />
+            <input
+              type="email"
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              placeholder="Email"
+              value={memberEdit.email}
+              onChange={(e) =>
+                setMemberEdit((f) =>
+                  f ? { ...f, email: e.target.value } : f
+                )
+              }
+            />
+            <input
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              placeholder="Phone"
+              value={memberEdit.phone}
+              onChange={(e) =>
+                setMemberEdit((f) =>
+                  f ? { ...f, phone: e.target.value } : f
+                )
+              }
+            />
+            <input
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              placeholder="Emergency contact"
+              value={memberEdit.emergency_contact}
+              onChange={(e) =>
+                setMemberEdit((f) =>
+                  f ? { ...f, emergency_contact: e.target.value } : f
+                )
+              }
+            />
+            <textarea
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[2.5rem] resize-y"
+              placeholder="Coach / desk notes"
+              value={memberEdit.notes}
+              onChange={(e) =>
+                setMemberEdit((f) =>
+                  f ? { ...f, notes: e.target.value } : f
+                )
+              }
+            />
+            <InjuryProfileFields
+              dark
+              variant="coach"
+              value={memberEdit.health}
+              onChange={(health) =>
+                setMemberEdit((f) => (f ? { ...f, health } : f))
+              }
+            />
+            <button
+              type="button"
+              disabled={busy || !memberEdit.name.trim()}
+              className="w-full rounded-xl bg-rose-500 text-white py-2.5 text-sm font-black disabled:opacity-50"
+              onClick={() => {
+                const health = formToHealthPayload(memberEdit.health);
+                void post({
+                  action: 'update_client',
+                  client_id: memberEdit.id,
+                  name: memberEdit.name.trim(),
+                  email: memberEdit.email.trim() || null,
+                  phone: memberEdit.phone.trim() || null,
+                  emergency_contact:
+                    memberEdit.emergency_contact.trim() || null,
+                  notes: memberEdit.notes || null,
+                  health,
+                  from: weekStart,
+                  to: weekEnd,
+                }).then(() => {
+                  setMemberEdit(null);
+                  void load();
+                });
+              }}
+            >
+              {busy ? (
+                <Loader2 className="w-4 h-4 animate-spin inline" />
+              ) : null}{' '}
+              Save member profile
             </button>
           </div>
         </div>

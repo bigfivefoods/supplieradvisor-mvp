@@ -23,6 +23,7 @@ import {
   type PhysioService,
   type PhysiographStore,
 } from '@/lib/clinic/physiograph';
+import { mergeHealthProfile } from '@/lib/health/body-map';
 
 export const runtime = 'nodejs';
 
@@ -259,32 +260,95 @@ function upsert(
     const id = String(rec.id || newId('pat'));
     const i = store.patients.findIndex((p) => p.id === id);
     const prev = i >= 0 ? store.patients[i] : null;
+    const clinicalPatch =
+      rec.clinical !== undefined ||
+      rec.health !== undefined ||
+      rec.injured !== undefined ||
+      rec.injury_areas !== undefined ||
+      rec.injury_notes !== undefined ||
+      rec.injury_status !== undefined ||
+      rec.injury_side !== undefined ||
+      rec.injury_onset !== undefined ||
+      rec.training_modifications !== undefined ||
+      rec.goals !== undefined ||
+      rec.pain_score !== undefined ||
+      rec.treatment_goals !== undefined ||
+      rec.contraindications !== undefined ||
+      rec.functional_limitations !== undefined ||
+      rec.progress_notes !== undefined ||
+      rec.diagnosis_notes !== undefined;
+    const clinical = clinicalPatch
+      ? mergeHealthProfile(
+          prev?.clinical ||
+            (prev?.diagnosis_notes
+              ? { diagnosis_notes: prev.diagnosis_notes }
+              : undefined),
+          {
+            ...rec,
+            health: rec.clinical || rec.health || rec,
+            diagnosis_notes:
+              rec.diagnosis_notes ??
+              (rec.clinical as { diagnosis_notes?: string } | undefined)
+                ?.diagnosis_notes,
+          },
+          {
+            now,
+            updatedBy: String(rec.clinical_updated_by || rec.health_updated_by || 'desk'),
+          }
+        )
+      : prev?.clinical;
     const row: PhysioPatient = {
       id,
       code: String(rec.code || prev?.code || `P-${store.patients.length + 1}`),
       name: String(rec.name || prev?.name || 'Patient'),
-      email: rec.email != null ? String(rec.email) : prev?.email,
-      phone: rec.phone != null ? String(rec.phone) : prev?.phone,
+      email:
+        rec.email !== undefined
+          ? rec.email
+            ? String(rec.email)
+            : undefined
+          : prev?.email,
+      phone:
+        rec.phone !== undefined
+          ? rec.phone
+            ? String(rec.phone)
+            : undefined
+          : prev?.phone,
       status: String(rec.membership_status || rec.status || prev?.status || 'active'),
       practitioner_id:
-        rec.practitioner_id != null
-          ? String(rec.practitioner_id) || null
+        rec.practitioner_id !== undefined
+          ? rec.practitioner_id
+            ? String(rec.practitioner_id)
+            : null
           : prev?.practitioner_id ?? null,
       package_id:
-        rec.package_id != null
-          ? String(rec.package_id) || null
+        rec.package_id !== undefined
+          ? rec.package_id
+            ? String(rec.package_id)
+            : null
           : prev?.package_id ?? null,
       diagnosis_notes:
-        rec.diagnosis_notes != null
+        clinical?.diagnosis_notes ||
+        (rec.diagnosis_notes !== undefined
           ? String(rec.diagnosis_notes)
-          : prev?.diagnosis_notes,
+          : prev?.diagnosis_notes),
       emergency_contact:
-        rec.emergency_contact != null
-          ? String(rec.emergency_contact)
+        rec.emergency_contact !== undefined
+          ? rec.emergency_contact
+            ? String(rec.emergency_contact)
+            : undefined
           : prev?.emergency_contact,
+      notes:
+        rec.notes !== undefined
+          ? rec.notes
+            ? String(rec.notes)
+            : undefined
+          : prev?.notes,
+      clinical,
       start_date:
-        rec.start_date != null
-          ? String(rec.start_date).slice(0, 10)
+        rec.start_date !== undefined
+          ? rec.start_date
+            ? String(rec.start_date).slice(0, 10)
+            : null
           : prev?.start_date || now.slice(0, 10),
       active: rec.active !== undefined ? rec.active !== false : prev?.active !== false,
       created_at: prev?.created_at || now,
