@@ -26,9 +26,23 @@ export default function CoachesPage() {
     name: '',
     email: '',
     phone: '',
-    specialty: 'General',
+    specialties: ['General'] as string[],
     public_bio: '',
   });
+
+  const toggleSpecialty = (s: string) => {
+    setForm((f) => {
+      const has = f.specialties.includes(s);
+      if (has) {
+        const next = f.specialties.filter((x) => x !== s);
+        return { ...f, specialties: next.length ? next : ['General'] };
+      }
+      return {
+        ...f,
+        specialties: [...f.specialties.filter((x) => x !== 'General'), s],
+      };
+    });
+  };
 
   const add = async () => {
     if (!form.name.trim()) {
@@ -39,8 +53,14 @@ export default function CoachesPage() {
       entity: 'coaches',
       action: 'upsert',
       record: {
-        ...form,
-        specialties: form.specialty ? [form.specialty] : [],
+        code: form.code,
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
+        public_bio: form.public_bio,
+        specialties: form.specialties.length
+          ? form.specialties
+          : ['General'],
         can_manage_classes: true,
       },
     });
@@ -50,7 +70,7 @@ export default function CoachesPage() {
       name: '',
       email: '',
       phone: '',
-      specialty: 'General',
+      specialties: ['General'],
       public_bio: '',
     });
   };
@@ -146,21 +166,32 @@ export default function CoachesPage() {
                 setForm((f) => ({ ...f, phone: e.target.value }))
               }
             />
-            <select
-              className={fc()}
-              value={form.specialty}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, specialty: e.target.value }))
-              }
-            >
-              {COACH_SPECIALTIES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+            <div className="sm:col-span-2 lg:col-span-3">
+              <p className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 mb-1.5">
+                Specialties (select all that apply)
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {COACH_SPECIALTIES.map((s) => {
+                  const on = form.specialties.includes(s);
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => toggleSpecialty(s)}
+                      className={`rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors ${
+                        on
+                          ? 'border-amber-500 bg-amber-500 text-white'
+                          : 'border-amber-200 bg-white text-amber-900 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-100'
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <input
-              className={fc()}
+              className={fc() + ' sm:col-span-2'}
               placeholder="Public bio (website)"
               value={form.public_bio}
               onChange={(e) =>

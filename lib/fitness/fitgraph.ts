@@ -582,9 +582,8 @@ export function createSessionsFromTemplate(
       location: template.location,
       status: 'scheduled' as const,
       public: makePublic,
-      share_code: makePublic
-        ? `s_${Math.random().toString(36).slice(2, 10)}`
-        : null,
+      // Always issue a share code so B2C join links work (invite-only or public)
+      share_code: `s_${Math.random().toString(36).slice(2, 12)}`,
       notes: template.notes,
       public_notes: template.public_notes,
       class_plan: template.class_plan,
@@ -750,6 +749,167 @@ export function sessionBookingCount(
       b.session_id === sessionId &&
       (b.status === 'booked' || b.status === 'attended')
   ).length;
+}
+
+/** Ensure session has a share_code for B2C join links */
+export function ensureSessionShareCode(session: FitSession): string {
+  if (session.share_code) return session.share_code;
+  session.share_code = `s_${Math.random().toString(36).slice(2, 12)}`;
+  return session.share_code;
+}
+
+/** Absolute join URL for a class (B2C) */
+export function buildClassJoinPath(
+  publicToken: string,
+  shareCode: string
+): string {
+  return `/join/fitgraph/${encodeURIComponent(publicToken)}/${encodeURIComponent(shareCode)}`;
+}
+
+/** Find session by public share_code */
+export function sessionByShareCode(
+  store: FitgraphStore,
+  shareCode: string
+): FitSession | undefined {
+  const code = String(shareCode || '').trim();
+  if (!code) return undefined;
+  return store.sessions.find(
+    (s) => s.share_code === code && s.status !== 'cancelled'
+  );
+}
+
+/** Public detail payload for a single class join page */
+export function buildClassJoinPayload(
+  store: FitgraphStore,
+  shareCode: string
+): {
+  session: {
+    id: string;
+    date: string;
+    start_time: string;
+    end_time?: string | null;
+    duration_min?: number | null;
+    location?: string;
+    capacity: number;
+    spots_left: number;
+    full: boolean;
+    class_name: string;
+    class_plan?: string;
+    public_notes?: string;
+    coach_name?: string;
+    share_code: string;
+  };
+  brand: string;
+  timezone: string;
+  contact_email?: string;
+  contact_phone?: string;
+  allow_booking: boolean;
+} | null {
+  const session = sessionByShareCode(store, shareCode);
+  if (!session) return null;
+  const ct = classTypeById(store, session.class_type_id);
+  const coach = coachById(store, session.coach_id);
+  const booked = sessionBookingCount(store, session.id);
+  const cap = session.capacity ?? ct?.capacity ?? 0;
+  return {
+    session: {
+      id: session.id,
+      date: session.date,
+      start_time: session.start_time,
+      end_time: session.end_time,
+      duration_min: session.duration_min ?? ct?.default_duration_min ?? 45,
+      location: session.location,
+      capacity: cap,
+      spots_left: Math.max(0, cap - booked),
+      full: cap > 0 && booked >= cap,
+      class_name: ct?.name || 'Class',
+      class_plan: session.class_plan || session.public_notes,
+      public_notes: session.public_notes,
+      coach_name: coach?.name,
+      share_code: session.share_code || shareCode,
+    },
+    brand: store.settings?.brand_name || 'Gym',
+    timezone: store.settings?.timezone || 'Africa/Johannesburg',
+    contact_email: store.settings?.contact_email,
+    contact_phone: store.settings?.contact_phone,
+    allow_booking: store.settings?.allow_public_booking !== false,
+  };
+}
+
+/** Build .ics body for “Add to calendar” */
+export function buildSessionIcs(opts: {
+  sessionId: string;
+  title: string;
+  date: string;
+  start_time: string;
+  duration_min?: number | null;
+  location?: string;
+  description?: string;
+  brand?: string;
+}): string {
+  const dur = Math.max(15, Number(opts.duration_min) || 45);
+  const [hh, mm] = opts.start_time.split(':').map(Number);
+  const start = new Date(`${opts.date}T${String(hh).padStart(2, '0')}:${String(mm || 0).padStart(2, '0')}:00`);
+  const end = new Date(start.getTime() + dur * 60_000);
+  const fmt = (d: Date) =>
+    d
+      .toISOString()
+      .replace(/[-:]/g, '')
+      .replace(/\.\d{3}/, '');
+  const uid = `${opts.sessionId}@supplieradvisor.fitgraph`;
+  const desc = (opts.description || '')
+    .replace(/\r?\n/g, '\\n')
+    .replace(/,/g, '\\,');
+  const loc = (opts.location || '').replace(/,/g, '\\,');
+  const summary = (opts.title || 'Class').replace(/,/g, '\\,');
+  return [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//SupplierAdvisor//Fitgraph//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${fmt(new Date())}`,
+    `DTSTART:${fmt(start)}`,
+    `DTEND:${fmt(end)}`,
+    `SUMMARY:${summary}`,
+    loc ? `LOCATION:${loc}` : '',
+    desc ? `DESCRIPTION:${desc}` : '',
+    opts.brand ? `ORGANIZER;CN=${opts.brand.replace(/,/g, '')}:MAILTO:noreply@supplieradvisor.com` : '',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ]
+    .filter(Boolean)
+    .join('\r\n');
+}
+
+/** Google Calendar “add event” URL */
+export function buildGoogleCalendarUrl(opts: {
+  title: string;
+  date: string;
+  start_time: string;
+  duration_min?: number | null;
+  location?: string;
+  description?: string;
+}): string {
+  const dur = Math.max(15, Number(opts.duration_min) || 45);
+  const [hh, mm] = opts.start_time.split(':').map(Number);
+  const start = new Date(`${opts.date}T${String(hh).padStart(2, '0')}:${String(mm || 0).padStart(2, '0')}:00`);
+  const end = new Date(start.getTime() + dur * 60_000);
+  const fmt = (d: Date) =>
+    d
+      .toISOString()
+      .replace(/[-:]/g, '')
+      .replace(/\.\d{3}/, '');
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: opts.title,
+    dates: `${fmt(start)}/${fmt(end)}`,
+    details: opts.description || '',
+    location: opts.location || '',
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
 export function coachById(store: FitgraphStore, id?: string | null) {

@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
+import { Link2, Repeat, Share2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   FitgraphWorkbench,
@@ -17,6 +19,16 @@ import {
 } from '@/components/fitness/FitForm';
 import { sessionBookingCount } from '@/lib/fitness/fitgraph';
 
+const WEEKDAYS = [
+  { v: 1, l: 'Mon' },
+  { v: 2, l: 'Tue' },
+  { v: 3, l: 'Wed' },
+  { v: 4, l: 'Thu' },
+  { v: 5, l: 'Fri' },
+  { v: 6, l: 'Sat' },
+  { v: 0, l: 'Sun' },
+];
+
 export default function CalendarPage() {
   const { store, loading, saving, post, summary } = useFitgraph();
   const [day, setDay] = useState(new Date().toISOString().slice(0, 10));
@@ -29,6 +41,10 @@ export default function CalendarPage() {
     capacity: '',
     public: true,
     public_notes: '',
+    class_plan: '',
+    repeat: 'none' as 'none' | 'weekly',
+    count: '8',
+    weekdays: [] as number[],
   });
 
   const daySessions = useMemo(() => {
@@ -47,22 +63,67 @@ export default function CalendarPage() {
       toast.error('Assign a coach');
       return;
     }
+    if (form.repeat === 'weekly') {
+      const data = await post({
+        action: 'create_session_series',
+        coach_id: form.coach_id,
+        class_type_id: form.class_type_id,
+        date: form.date,
+        start_time: form.start_time,
+        location: form.location || undefined,
+        capacity: form.capacity ? Number(form.capacity) : undefined,
+        public: form.public,
+        public_notes: form.public_notes || undefined,
+        class_plan: form.class_plan.trim() || undefined,
+        repeat: 'weekly',
+        count: Number(form.count) || 8,
+        weekdays:
+          form.weekdays.length > 0
+            ? form.weekdays
+            : [new Date(form.date + 'T12:00:00').getDay()],
+      });
+      toast.success(data.message || 'Series scheduled');
+      return;
+    }
     await post({
       entity: 'sessions',
       action: 'upsert',
       record: {
-        ...form,
+        class_type_id: form.class_type_id,
         coach_id: form.coach_id || null,
+        date: form.date,
+        start_time: form.start_time,
+        location: form.location,
         capacity: form.capacity ? Number(form.capacity) : null,
         public: form.public,
         public_notes: form.public_notes || undefined,
+        class_plan: form.class_plan.trim() || undefined,
+        origin: 'owner',
       },
     });
     toast.success(
       form.public
-        ? 'Session scheduled and published to website'
-        : 'Session scheduled (private)'
+        ? 'Class scheduled, coach assigned, published to website'
+        : 'Class scheduled and coach assigned'
     );
+  };
+
+  const copyInvite = async (sessionId: string) => {
+    const data = await post({
+      action: 'issue_class_invite',
+      session_id: sessionId,
+    });
+    const inv = data.invite as
+      | { path?: string; text?: string }
+      | undefined;
+    if (!inv?.path || typeof window === 'undefined') {
+      toast.error('Could not create invite link');
+      return;
+    }
+    const url = `${window.location.origin}${inv.path}`;
+    const full = `${inv.text || 'Join this class'}\n${url}`;
+    await navigator.clipboard.writeText(full);
+    toast.success('B2C join link copied — send via WhatsApp / email');
   };
 
   const togglePublic = async (id: string, next: boolean) => {
@@ -96,8 +157,8 @@ export default function CalendarPage() {
   return (
     <FitgraphWorkbench
       title="Calendar"
-      titleAccent="sessions"
-      description="Owner schedules classes and assigns coaches. Mark sessions public so they appear on your website embed; coaches can also share from their portal."
+      titleAccent="owner schedule"
+      description="Set out classes, assign coaches (filter by specialty), publish to the website, and copy B2C join links so members can book and add the class to their phone calendar."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -136,11 +197,14 @@ export default function CalendarPage() {
               },
             ]}
           />
-          <FormCard tone="owner"
-            title="Schedule session (assign coach)"
+          <FormCard
+            tone="owner"
+            title="Set out class · assign coach"
             onSubmit={() => void add()}
             saving={saving}
-            submitLabel="Schedule"
+            submitLabel={
+              form.repeat === 'weekly' ? 'Schedule series' : 'Schedule class'
+            }
           >
             <select
               className={fc()}
@@ -169,6 +233,9 @@ export default function CalendarPage() {
                 .map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
+                    {(c.specialties || []).length
+                      ? ` · ${(c.specialties || []).join(', ')}`
+                      : ''}
                   </option>
                 ))}
             </select>
@@ -205,15 +272,80 @@ export default function CalendarPage() {
                 setForm((f) => ({ ...f, capacity: e.target.value }))
               }
             />
-            <input
-              className={fc()}
-              placeholder="Public notes (for website)"
-              value={form.public_notes}
+            <textarea
+              className={fc() + ' min-h-[4rem] resize-y sm:col-span-2'}
+              placeholder="Class plan / activities (members see this)"
+              value={form.class_plan}
               onChange={(e) =>
-                setForm((f) => ({ ...f, public_notes: e.target.value }))
+                setForm((f) => ({ ...f, class_plan: e.target.value }))
               }
             />
-            <label className="flex items-center gap-2 text-sm font-medium px-1">
+            <div className="sm:col-span-2 lg:col-span-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={`rounded-xl border px-3 py-1.5 text-xs font-bold ${
+                  form.repeat === 'none'
+                    ? 'bg-violet-600 text-white border-violet-600'
+                    : 'border-slate-200 dark:border-violet-600'
+                }`}
+                onClick={() => setForm((f) => ({ ...f, repeat: 'none' }))}
+              >
+                One-off
+              </button>
+              <button
+                type="button"
+                className={`rounded-xl border px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1 ${
+                  form.repeat === 'weekly'
+                    ? 'bg-violet-600 text-white border-violet-600'
+                    : 'border-slate-200 dark:border-violet-600'
+                }`}
+                onClick={() => setForm((f) => ({ ...f, repeat: 'weekly' }))}
+              >
+                <Repeat className="w-3 h-3" /> Weekly series
+              </button>
+            </div>
+            {form.repeat === 'weekly' && (
+              <>
+                <div className="sm:col-span-2 flex flex-wrap gap-1">
+                  {WEEKDAYS.map((w) => {
+                    const on = form.weekdays.includes(w.v);
+                    return (
+                      <button
+                        key={w.v}
+                        type="button"
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold border ${
+                          on
+                            ? 'bg-violet-600 text-white border-violet-600'
+                            : 'border-slate-200 dark:border-violet-600'
+                        }`}
+                        onClick={() =>
+                          setForm((f) => ({
+                            ...f,
+                            weekdays: on
+                              ? f.weekdays.filter((x) => x !== w.v)
+                              : [...f.weekdays, w.v],
+                          }))
+                        }
+                      >
+                        {w.l}
+                      </button>
+                    );
+                  })}
+                </div>
+                <input
+                  className={fc()}
+                  type="number"
+                  min={1}
+                  max={52}
+                  placeholder="Weeks"
+                  value={form.count}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, count: e.target.value }))
+                  }
+                />
+              </>
+            )}
+            <label className="flex items-center gap-2 text-sm font-medium px-1 sm:col-span-2">
               <input
                 type="checkbox"
                 checked={form.public}
@@ -221,9 +353,21 @@ export default function CalendarPage() {
                   setForm((f) => ({ ...f, public: e.target.checked }))
                 }
               />
-              Publish on website calendar
+              List on public website calendar
             </label>
           </FormCard>
+
+          <p className="text-xs text-slate-500">
+            After scheduling, use <strong>Copy join link</strong> on a class to
+            WhatsApp/email members (B2C). They book and add to calendar.{' '}
+            <Link
+              href="/dashboard/fitgraph/coach-calendar"
+              className="font-bold text-violet-700 underline"
+            >
+              Coach calendar
+            </Link>{' '}
+            for plan/actuals.
+          </p>
 
           <div className="space-y-2">
             {daySessions.length === 0 ? (
@@ -244,6 +388,14 @@ export default function CalendarPage() {
                     tone="owner"
                     actions={
                       <>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 text-xs font-bold text-violet-700 dark:text-violet-300"
+                          onClick={() => void copyInvite(s.id)}
+                          title="Copy B2C join link for members"
+                        >
+                          <Share2 className="w-3.5 h-3.5" /> Join link
+                        </button>
                         <button
                           type="button"
                           className={`text-xs font-bold ${toneLinkClass('owner')}`}
@@ -276,14 +428,27 @@ export default function CalendarPage() {
                           </span>
                         ) : (
                           <span className="ml-2 text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded dark:text-neutral-400 dark:bg-neutral-800">
-                            Private
+                            Invite
                           </span>
                         )}
+                        {s.series_id ? (
+                          <span className="ml-1 text-[10px] font-black uppercase text-amber-700">
+                            series
+                          </span>
+                        ) : null}
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-violet-200/80">
-                        {coach?.name || 'No coach'} · {s.location || '—'} ·{' '}
-                        {booked}/{cap} booked
+                        {coach?.name || 'No coach'}
+                        {(coach?.specialties || []).length
+                          ? ` (${(coach?.specialties || []).join(', ')})`
+                          : ''}{' '}
+                        · {s.location || '—'} · {booked}/{cap} booked
                       </div>
+                      {s.class_plan ? (
+                        <p className="text-[11px] text-violet-800 dark:text-violet-200 whitespace-pre-wrap line-clamp-3">
+                          {s.class_plan}
+                        </p>
+                      ) : null}
                       <div className="flex flex-wrap gap-2 items-center">
                         <span className="text-[10px] font-black uppercase text-violet-600/80 dark:text-violet-300/80">
                           Coach

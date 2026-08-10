@@ -14,6 +14,7 @@ import {
   Loader2,
   Plus,
   Repeat,
+  Share2,
   UserX,
   Users,
   X,
@@ -220,6 +221,21 @@ export default function CoachCalendarPage() {
     });
     toast.success('Class plan saved — members & coaches can see it');
     await loadPortal();
+  };
+
+  const copyInvite = async (sessionId: string) => {
+    const data = await post({
+      action: 'issue_class_invite',
+      session_id: sessionId,
+    });
+    const inv = data.invite as { path?: string; text?: string } | undefined;
+    if (!inv?.path || typeof window === 'undefined') {
+      toast.error('Could not create join link');
+      return;
+    }
+    const url = `${window.location.origin}${inv.path}`;
+    await navigator.clipboard.writeText(`${inv.text || 'Join class'}\n${url}`);
+    toast.success('B2C join link copied — send to members');
   };
 
   const bookMember = async (sessionId: string) => {
@@ -445,17 +461,27 @@ export default function CoachCalendarPage() {
                     value={classPlanDraft}
                     onChange={(e) => setClassPlanDraft(e.target.value)}
                   />
-                  <button
-                    type="button"
-                    disabled={saving}
-                    className="btn-primary !py-1.5 !px-3 text-xs mt-2"
-                    onClick={() => void saveClassPlan(openCard.session.id)}
-                  >
-                    {saving ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
-                    ) : null}{' '}
-                    Save class plan
-                  </button>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <button
+                      type="button"
+                      disabled={saving}
+                      className="btn-primary !py-1.5 !px-3 text-xs"
+                      onClick={() => void saveClassPlan(openCard.session.id)}
+                    >
+                      {saving ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
+                      ) : null}{' '}
+                      Save class plan
+                    </button>
+                    <button
+                      type="button"
+                      disabled={saving}
+                      className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+                      onClick={() => void copyInvite(openCard.session.id)}
+                    >
+                      <Share2 className="w-3.5 h-3.5" /> Copy join link
+                    </button>
+                  </div>
                 </div>
 
                 <div>

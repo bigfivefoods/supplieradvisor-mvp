@@ -6,10 +6,12 @@ import {
 } from '@/lib/auth/api-auth';
 import {
   attendanceByClass,
+  buildClassJoinPath,
   buildCoachPortalPayload,
   createSessionsFromTemplate,
   defaultPublicSettings,
   ensurePublicToken,
+  ensureSessionShareCode,
   issueCoachPortalToken,
   newId,
   readFitgraphFromMetadata,
@@ -282,6 +284,57 @@ export async function POST(request: NextRequest) {
           created.length > 1
             ? `Scheduled ${created.length} classes in series`
             : 'Bespoke class scheduled',
+      });
+    }
+
+    /**
+     * Issue / refresh B2C join link for a class.
+     * Ensures public token + share_code; returns join URL for WhatsApp/email.
+     */
+    if (action === 'issue_class_invite') {
+      const sessionId = String(body.session_id || body.id || '');
+      const session = store.sessions.find((s) => s.id === sessionId);
+      if (!session) {
+        return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+      }
+      store.settings = ensurePublicToken(store.settings, companyId);
+      // Keep calendar usable for invites even if not fully published
+      if (store.settings.allow_public_booking === false) {
+        store.settings.allow_public_booking = true;
+      }
+      const shareCode = ensureSessionShareCode(session);
+      await saveStore(companyId, meta, store);
+      const path = buildClassJoinPath(
+        store.settings.public_token,
+        shareCode
+      );
+      const ct = store.class_types.find((c) => c.id === session.class_type_id);
+      const coach = store.coaches.find((c) => c.id === session.coach_id);
+      const brand = store.settings.brand_name || 'Gym';
+      const inviteText = [
+        `You're invited to ${ct?.name || 'class'} at ${brand}`,
+        `${session.date} at ${session.start_time}`,
+        coach?.name ? `Coach: ${coach.name}` : '',
+        session.location ? `Where: ${session.location}` : '',
+        session.class_plan ? `\nPlan:\n${session.class_plan}` : '',
+        `\nJoin / add to calendar:`,
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        invite: {
+          share_code: shareCode,
+          path,
+          // Client prepends origin
+          text: inviteText,
+          class_name: ct?.name,
+          date: session.date,
+          start_time: session.start_time,
+        },
       });
     }
 

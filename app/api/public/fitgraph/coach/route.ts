@@ -8,8 +8,10 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
 import {
   FITGRAPH_COACH_TOKENS_KEY,
+  buildClassJoinPath,
   buildCoachPortalPayload,
   createSessionsFromTemplate,
+  ensureSessionShareCode,
   newId,
   parseCompanyIdFromToken,
   readFitgraphFromMetadata,
@@ -210,6 +212,48 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString();
     const sessionId = String(body.session_id || body.sessionId || '');
 
+    if (action === 'issue_class_invite') {
+      const session = store.sessions.find(
+        (s) => s.id === sessionId && s.coach_id === coach.id
+      );
+      if (!session) {
+        return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+      }
+      if (!store.settings) {
+        const { defaultPublicSettings } = await import('@/lib/fitness/fitgraph');
+        store.settings = defaultPublicSettings(companyId);
+      }
+      if (!store.settings.public_token) {
+        store.settings.public_token = `fg_${companyId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+      }
+      store.settings.allow_public_booking = true;
+      const shareCode = ensureSessionShareCode(session);
+      await saveStore(companyId, meta, store);
+      const path = buildClassJoinPath(store.settings.public_token, shareCode);
+      const ct = store.class_types.find((c) => c.id === session.class_type_id);
+      const brand = store.settings.brand_name || 'Gym';
+      const inviteText = [
+        `You're invited to ${ct?.name || 'class'} at ${brand}`,
+        `${session.date} at ${session.start_time}`,
+        `Coach: ${coach.name}`,
+        session.location ? `Where: ${session.location}` : '',
+        session.class_plan ? `\nPlan:\n${session.class_plan}` : '',
+        `\nJoin / add to calendar:`,
+      ]
+        .filter(Boolean)
+        .join('\n');
+      return NextResponse.json({
+        success: true,
+        portal: buildCoachPortalPayload(store, coach),
+        invite: {
+          share_code: shareCode,
+          path,
+          text: inviteText,
+        },
+        public_token: store.settings.public_token,
+      });
+    }
+
     if (action === 'share_session') {
       const session = store.sessions.find(
         (s) => s.id === sessionId && s.coach_id === coach.id
@@ -218,8 +262,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Session not found' }, { status: 404 });
       }
       session.public = body.public !== false;
-      if (session.public && !session.share_code) {
-        session.share_code = `s_${Math.random().toString(36).slice(2, 10)}`;
+      if (session.public) {
+        ensureSessionShareCode(session);
       }
       if (body.public_notes != null) {
         session.public_notes = String(body.public_notes);

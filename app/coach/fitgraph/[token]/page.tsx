@@ -380,6 +380,28 @@ export default function CoachFitgraphPortalPage() {
               >
                 <UserPlus className="w-3 h-3" /> Walk-in guest
               </button>
+              <button
+                type="button"
+                disabled={busy}
+                className="inline-flex items-center gap-1 rounded-xl border border-amber-500/50 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-bold text-amber-200"
+                onClick={() =>
+                  void post({
+                    action: 'issue_class_invite',
+                    session_id: openCard.session.id,
+                  }).then(async (data) => {
+                    const inv = data.invite as
+                      | { path?: string; text?: string }
+                      | undefined;
+                    if (!inv?.path) return;
+                    const url = `${window.location.origin}${inv.path}`;
+                    await navigator.clipboard.writeText(
+                      `${inv.text || 'Join class'}\n${url}`
+                    );
+                  })
+                }
+              >
+                <Share2 className="w-3 h-3" /> Copy join link
+              </button>
             </div>
 
             <div>

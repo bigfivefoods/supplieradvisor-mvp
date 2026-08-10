@@ -7,6 +7,7 @@ import {
   LoadingBlock,
   useFitgraph,
 } from '@/components/fitness/FitgraphWorkbench';
+import { Share2 } from 'lucide-react';
 import { DataTable, FormCard, StatRow, fc } from '@/components/fitness/FitForm';
 import { sessionBookingCount } from '@/lib/fitness/fitgraph';
 
@@ -28,7 +29,22 @@ export default function BookingsPage() {
       action: 'upsert',
       record: form,
     });
-    toast.success('Booking saved (waitlist if full)');
+    toast.success('Member added to class (waitlist if full)');
+  };
+
+  const copyInvite = async (sessionId: string) => {
+    const data = await post({
+      action: 'issue_class_invite',
+      session_id: sessionId,
+    });
+    const inv = data.invite as { path?: string; text?: string } | undefined;
+    if (!inv?.path || typeof window === 'undefined') {
+      toast.error('Could not create join link');
+      return;
+    }
+    const url = `${window.location.origin}${inv.path}`;
+    await navigator.clipboard.writeText(`${inv.text || 'Join class'}\n${url}`);
+    toast.success('B2C join link copied');
   };
 
   const mark = async (id: string, status: string) => {
@@ -46,7 +62,7 @@ export default function BookingsPage() {
     <FitgraphWorkbench
       title="Bookings"
       titleAccent="classes"
-      description="Book members into scheduled sessions. Capacity full → automatic waitlist."
+      description="Add members to classes (owner/coach desk), or copy a B2C join link so they book themselves and add the class to their calendar."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -60,28 +76,63 @@ export default function BookingsPage() {
               },
             ]}
           />
-          <FormCard tone="owner" title="Book client into session" onSubmit={() => void add()} saving={saving} submitLabel="Book">
-            <select className={fc()} value={form.session_id} onChange={(e) => setForm((f) => ({ ...f, session_id: e.target.value }))}>
-              <option value="">Session…</option>
+          <FormCard
+            tone="owner"
+            title="Add member to class"
+            onSubmit={() => void add()}
+            saving={saving}
+            submitLabel="Add to class"
+          >
+            <select
+              className={fc()}
+              value={form.session_id}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, session_id: e.target.value }))
+              }
+            >
+              <option value="">Class…</option>
               {[...store.sessions]
                 .filter((s) => s.status === 'scheduled')
                 .sort((a, b) => a.date.localeCompare(b.date))
                 .map((s) => {
-                  const ct = store.class_types.find((c) => c.id === s.class_type_id);
+                  const ct = store.class_types.find(
+                    (c) => c.id === s.class_type_id
+                  );
+                  const coach = store.coaches.find((c) => c.id === s.coach_id);
                   const booked = sessionBookingCount(store, s.id);
                   return (
                     <option key={s.id} value={s.id}>
-                      {s.date} {s.start_time} · {ct?.name} ({booked}/{s.capacity ?? '—'})
+                      {s.date} {s.start_time} · {ct?.name}
+                      {coach ? ` · ${coach.name}` : ''} ({booked}/
+                      {s.capacity ?? '—'})
                     </option>
                   );
                 })}
             </select>
-            <select className={fc()} value={form.client_id} onChange={(e) => setForm((f) => ({ ...f, client_id: e.target.value }))}>
-              <option value="">Client…</option>
+            <select
+              className={fc()}
+              value={form.client_id}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, client_id: e.target.value }))
+              }
+            >
+              <option value="">Member…</option>
               {store.clients.map((c) => (
-                <option key={c.id} value={c.id}>{c.code} · {c.name}</option>
+                <option key={c.id} value={c.id}>
+                  {c.code} · {c.name}
+                </option>
               ))}
             </select>
+            {form.session_id ? (
+              <button
+                type="button"
+                className="sm:col-span-2 inline-flex items-center gap-1.5 text-xs font-bold text-violet-700"
+                onClick={() => void copyInvite(form.session_id)}
+              >
+                <Share2 className="w-3.5 h-3.5" /> Copy B2C join link for this
+                class
+              </button>
+            ) : null}
           </FormCard>
           <DataTable tone="owner"
             headers={['Session', 'Client', 'Status', 'Booked at', 'Actions']}

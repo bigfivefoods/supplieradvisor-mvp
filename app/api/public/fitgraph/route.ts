@@ -8,11 +8,15 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
 import {
   FITGRAPH_PUBLIC_TOKEN_KEY,
+  buildClassJoinPayload,
+  buildGoogleCalendarUrl,
   buildPublicCalendarPayload,
+  buildSessionIcs,
   newId,
   parseCompanyIdFromToken,
   readFitgraphFromMetadata,
   sessionBookingCount,
+  sessionByShareCode,
   writeFitgraphToMetadata,
   type FitBooking,
   type FitClient,
@@ -43,7 +47,8 @@ async function resolveByToken(
         ? { ...(byIndex.metadata as Record<string, unknown>) }
         : {};
     const store = readFitgraphFromMetadata(meta);
-    if (store.settings?.public_token === clean && store.settings?.enabled) {
+    // Accept token even if website toggle is off — join links still work
+    if (store.settings?.public_token === clean) {
       return { companyId: Number(byIndex.id), meta, store };
     }
   }
@@ -62,7 +67,7 @@ async function resolveByToken(
           ? { ...(prof.metadata as Record<string, unknown>) }
           : {};
       const store = readFitgraphFromMetadata(meta);
-      if (store.settings?.public_token === clean && store.settings?.enabled) {
+      if (store.settings?.public_token === clean) {
         return { companyId: Number(prof.id), meta, store };
       }
     }
@@ -122,6 +127,62 @@ export async function GET(request: NextRequest) {
     const from = request.nextUrl.searchParams.get('from') || undefined;
     const to = request.nextUrl.searchParams.get('to') || undefined;
     const coachId = request.nextUrl.searchParams.get('coachId') || undefined;
+    const shareCode = request.nextUrl.searchParams.get('shareCode') ||
+      request.nextUrl.searchParams.get('class') ||
+      undefined;
+
+    // Single-class join detail (B2C invite link)
+    if (shareCode) {
+      const join = buildClassJoinPayload(resolved.store, shareCode);
+      if (!join) {
+        return NextResponse.json(
+          { error: 'Class not found or cancelled' },
+          { status: 404 }
+        );
+      }
+      const ics = buildSessionIcs({
+        sessionId: join.session.id,
+        title: `${join.session.class_name} · ${join.brand}`,
+        date: join.session.date,
+        start_time: join.session.start_time,
+        duration_min: join.session.duration_min,
+        location: join.session.location,
+        description: [
+          join.session.coach_name
+            ? `Coach: ${join.session.coach_name}`
+            : '',
+          join.session.class_plan || '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        brand: join.brand,
+      });
+      const gcal = buildGoogleCalendarUrl({
+        title: `${join.session.class_name} · ${join.brand}`,
+        date: join.session.date,
+        start_time: join.session.start_time,
+        duration_min: join.session.duration_min,
+        location: join.session.location,
+        description: join.session.class_plan || '',
+      });
+      return NextResponse.json({
+        success: true,
+        join,
+        calendar_links: {
+          google: gcal,
+          ics,
+        },
+        companyId: resolved.companyId,
+      });
+    }
+
+    // Full calendar still requires website published
+    if (resolved.store.settings?.enabled !== true) {
+      return NextResponse.json(
+        { error: 'Calendar not found or not published' },
+        { status: 404 }
+      );
+    }
 
     const calendar = buildPublicCalendarPayload(resolved.store, {
       from: from || undefined,
@@ -183,11 +244,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (action !== 'book') {
+    if (action !== 'book' && action !== 'book_class') {
       return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
     }
 
-    const sessionId = String(body.session_id || body.sessionId || '');
+    const shareCode = String(body.share_code || body.shareCode || '').trim();
+    let sessionId = String(body.session_id || body.sessionId || '');
+    if (!sessionId && shareCode) {
+      const byCode = sessionByShareCode(store, shareCode);
+      if (byCode) sessionId = byCode.id;
+    }
     const name = String(body.name || body.guest_name || '').trim();
     const email = body.email || body.guest_email
       ? String(body.email || body.guest_email).trim()
@@ -198,13 +264,19 @@ export async function POST(request: NextRequest) {
 
     if (!sessionId || !name) {
       return NextResponse.json(
-        { error: 'session_id and name required' },
+        { error: 'session_id (or share_code) and name required' },
         { status: 400 }
       );
     }
 
     const session = store.sessions.find((s) => s.id === sessionId);
-    if (!session || session.public !== true || session.status !== 'scheduled') {
+    // Allow booking via share link even if not listed on public calendar
+    const inviteOnly = Boolean(session?.share_code);
+    if (
+      !session ||
+      session.status !== 'scheduled' ||
+      (session.public !== true && !inviteOnly)
+    ) {
       return NextResponse.json(
         { error: 'Session not available for booking' },
         { status: 404 }
@@ -273,6 +345,29 @@ export async function POST(request: NextRequest) {
     store.bookings.push(booking);
     await saveStore(companyId, meta, store);
 
+    const ctName =
+      store.class_types.find((c) => c.id === session.class_type_id)?.name ||
+      'Class';
+    const brand = store.settings?.brand_name || 'Gym';
+    const ics = buildSessionIcs({
+      sessionId: session.id,
+      title: `${ctName} · ${brand}`,
+      date: session.date,
+      start_time: session.start_time,
+      duration_min: session.duration_min,
+      location: session.location,
+      description: session.class_plan || session.public_notes || '',
+      brand,
+    });
+    const gcal = buildGoogleCalendarUrl({
+      title: `${ctName} · ${brand}`,
+      date: session.date,
+      start_time: session.start_time,
+      duration_min: session.duration_min,
+      location: session.location,
+      description: session.class_plan || '',
+    });
+
     return NextResponse.json({
       success: true,
       booking: {
@@ -283,6 +378,10 @@ export async function POST(request: NextRequest) {
           status === 'waitlist'
             ? 'Class is full — you are on the waitlist'
             : 'Booked successfully',
+      },
+      calendar_links: {
+        google: gcal,
+        ics,
       },
       calendar: buildPublicCalendarPayload(store),
     });
