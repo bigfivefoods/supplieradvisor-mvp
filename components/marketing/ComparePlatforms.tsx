@@ -340,32 +340,142 @@ const COLS = [
   },
 ];
 
-function CellMark({ value }: { value: Cell }) {
+function CellMark({
+  value,
+  size = 'md',
+}: {
+  value: Cell;
+  size?: 'sm' | 'md';
+}) {
+  const dim = size === 'sm' ? 'h-7 w-7' : 'h-8 w-8';
+  const icon = size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4';
   if (value === 'strong') {
     return (
-      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm shadow-emerald-200">
-        <Check className="h-4 w-4 stroke-[3]" aria-label="Best-in-class" />
+      <span
+        className={`inline-flex ${dim} items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm shadow-emerald-200 dark:shadow-emerald-900/40`}
+      >
+        <Check className={`${icon} stroke-[3]`} aria-label="Best-in-class" />
       </span>
     );
   }
   if (value === 'yes') {
     return (
-      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-        <Check className="h-4 w-4" aria-label="Yes" />
+      <span
+        className={`inline-flex ${dim} items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300`}
+      >
+        <Check className={icon} aria-label="Yes" />
       </span>
     );
   }
   if (value === 'partial') {
     return (
-      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-amber-50 text-amber-700 border border-amber-100">
-        <Minus className="h-4 w-4" aria-label="Partial" />
+      <span
+        className={`inline-flex ${dim} items-center justify-center rounded-full border border-amber-100 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300`}
+      >
+        <Minus className={icon} aria-label="Partial" />
       </span>
     );
   }
   return (
-    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-      <X className="h-3.5 w-3.5" aria-label="No" />
+    <span
+      className={`inline-flex ${dim} items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-neutral-800 dark:text-neutral-500`}
+    >
+      <X className={size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5'} aria-label="No" />
     </span>
+  );
+}
+
+function Legend({ className = '' }: { className?: string }) {
+  return (
+    <div
+      className={`flex flex-wrap gap-3 text-[11px] text-slate-500 dark:text-neutral-400 sm:gap-4 ${className}`}
+    >
+      <span className="inline-flex items-center gap-1.5">
+        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white">
+          <Check className="h-3 w-3" />
+        </span>
+        Best-in-class
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
+          <Check className="h-3 w-3" />
+        </span>
+        Covered
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-amber-100 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300">
+          <Minus className="h-3 w-3" />
+        </span>
+        Partial / bolt-on
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-neutral-800 dark:text-neutral-500">
+          <X className="h-3 w-3" />
+        </span>
+        Not designed for this
+      </span>
+    </div>
+  );
+}
+
+/** Phone-friendly: capability cards instead of a 5-column table */
+function MobileCompareCards() {
+  return (
+    <div className="space-y-6 lg:hidden">
+      <p className="text-center text-[11px] font-semibold text-slate-500 dark:text-neutral-400">
+        Scroll the list · each card shows Excel · Xero · ERP · SupplierAdvisor
+      </p>
+      {SECTIONS.map((section) => (
+        <div key={section.title} className="space-y-3">
+          <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0077b6] dark:text-[#00b4d8]">
+            {section.title}
+          </h3>
+          {section.rows.map((row) => (
+            <article
+              key={row.capability}
+              className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950"
+            >
+              <div className="font-bold leading-snug text-slate-900 dark:text-white">
+                {row.capability}
+              </div>
+              {row.hint && (
+                <p className="mt-1 text-[12px] leading-snug text-slate-500 dark:text-neutral-400">
+                  {row.hint}
+                </p>
+              )}
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {COLS.map((col) => (
+                  <div
+                    key={col.key}
+                    className={`flex items-center gap-2 rounded-xl border px-2.5 py-2 ${
+                      col.highlight
+                        ? 'border-[#00b4d8]/40 bg-sky-50/80 dark:border-[#00b4d8]/40 dark:bg-[#00b4d8]/10'
+                        : 'border-slate-100 bg-slate-50/80 dark:border-neutral-800 dark:bg-black'
+                    }`}
+                  >
+                    <CellMark value={row[col.key]} size="sm" />
+                    <div className="min-w-0">
+                      <div
+                        className={`truncate text-[11px] font-black leading-tight ${
+                          col.highlight
+                            ? 'text-[#0077b6] dark:text-[#00b4d8]'
+                            : 'text-slate-700 dark:text-neutral-200'
+                        }`}
+                      >
+                        {col.key === 'sa' ? 'SA®' : col.name.split(' ')[0]}
+                      </div>
+                      <div className="truncate text-[9px] font-medium text-slate-400 dark:text-neutral-500">
+                        {col.sub}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -375,20 +485,20 @@ export default function ComparePlatforms() {
   return (
     <section
       id="compare"
-      className="scroll-mt-20 border-t border-slate-200 bg-white py-20 sm:py-28"
+      className="scroll-mt-20 border-t border-slate-200 bg-white py-20 dark:border-neutral-800 dark:bg-black sm:py-28"
     >
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
         <div className="mx-auto mb-12 max-w-3xl text-center sm:mb-14">
           <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#00b4d8]">
             Compare
           </p>
-          <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
+          <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 dark:text-white sm:text-5xl">
             Excel. Xero. Enterprise ERP.
             <span className="mt-2 block text-[#00b4d8]">
               Or the operating system they never became.
             </span>
           </h2>
-          <p className="mt-5 text-base leading-relaxed text-slate-600 sm:text-lg">
+          <p className="mt-5 text-base leading-relaxed text-slate-600 dark:text-neutral-400 sm:text-lg">
             Spreadsheets fragment truth. Accounting clouds stop at the books.
             Major ERPs take years and seven figures. SupplierAdvisor® is the
             supply-chain OS — network, ops, finance (including budgets &amp; group
@@ -430,8 +540,8 @@ export default function ComparePlatforms() {
               key={c.name}
               className={`rounded-3xl border p-5 sm:p-6 transition-all ${
                 c.highlight
-                  ? 'border-[#00b4d8]/50 bg-gradient-to-b from-sky-50 to-white shadow-md shadow-sky-100/80 ring-1 ring-[#00b4d8]/20'
-                  : 'border-slate-200 bg-white shadow-sm hover:border-slate-300'
+                  ? 'border-[#00b4d8]/50 bg-gradient-to-b from-sky-50 to-white shadow-md shadow-sky-100/80 ring-1 ring-[#00b4d8]/20 dark:from-[#00b4d8]/10 dark:to-black dark:shadow-none'
+                  : 'border-slate-200 bg-white shadow-sm hover:border-slate-300 dark:border-neutral-800 dark:bg-neutral-950'
               }`}
             >
               <c.icon
@@ -440,19 +550,26 @@ export default function ComparePlatforms() {
               <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 {c.who}
               </div>
-              <h3 className="mt-1 text-lg font-black text-slate-900">{c.name}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600">{c.body}</p>
+              <h3 className="mt-1 text-lg font-black text-slate-900 dark:text-white">
+                {c.name}
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-neutral-400">
+                {c.body}
+              </p>
             </div>
           ))}
         </div>
 
-        {/* Comparison matrix */}
-        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
+        {/* ── Mobile: readable cards (not a sideways table) ── */}
+        <MobileCompareCards />
+
+        {/* ── Desktop / tablet: full matrix ── */}
+        <div className="hidden overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 lg:block">
+          <div className="overflow-x-auto overscroll-x-contain">
             <table className="w-full min-w-[720px] border-collapse text-left text-sm">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/90">
-                  <th className="sticky left-0 z-10 bg-slate-50/95 px-4 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-400 sm:px-5">
+                <tr className="border-b border-slate-200 bg-slate-50/90 dark:border-neutral-800 dark:bg-neutral-900">
+                  <th className="sticky left-0 z-10 min-w-[200px] bg-slate-50 px-4 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:bg-neutral-900 sm:px-5">
                     Capability
                   </th>
                   {COLS.map((col) => (
@@ -460,8 +577,8 @@ export default function ComparePlatforms() {
                       key={col.key}
                       className={`px-3 py-4 text-center sm:px-4 ${
                         col.highlight
-                          ? 'bg-sky-50/90 text-[#0077b6]'
-                          : 'text-slate-700'
+                          ? 'bg-sky-50/90 text-[#0077b6] dark:bg-[#00b4d8]/10 dark:text-[#00b4d8]'
+                          : 'text-slate-700 dark:text-neutral-200'
                       }`}
                     >
                       <div className="flex flex-col items-center gap-1">
@@ -482,31 +599,35 @@ export default function ComparePlatforms() {
               <tbody>
                 {SECTIONS.map((section) => (
                   <Fragment key={section.title}>
-                    <tr className="border-b border-slate-200">
+                    <tr className="border-b border-slate-200 dark:border-neutral-800">
                       <td
                         colSpan={5}
-                        className="sticky left-0 z-10 bg-slate-100/95 px-4 py-2.5 sm:px-5"
+                        className="sticky left-0 z-10 bg-slate-100 px-4 py-2.5 dark:bg-neutral-900 sm:px-5"
                       >
-                        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0077b6]">
+                        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0077b6] dark:text-[#00b4d8]">
                           {section.title}
                         </span>
                       </td>
                     </tr>
                     {section.rows.map((row) => {
                       const i = rowIndex++;
+                      const zebra =
+                        i % 2 === 0
+                          ? 'bg-white dark:bg-neutral-950'
+                          : 'bg-slate-50/60 dark:bg-neutral-900/50';
                       return (
                         <tr
                           key={row.capability}
-                          className={`border-b border-slate-100 ${
-                            i % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'
-                          }`}
+                          className={`border-b border-slate-100 dark:border-neutral-800/80 ${zebra}`}
                         >
-                          <td className="sticky left-0 z-10 bg-inherit px-4 py-3.5 sm:px-5">
-                            <div className="font-semibold text-slate-900">
+                          <td
+                            className={`sticky left-0 z-10 max-w-[280px] px-4 py-3.5 sm:px-5 ${zebra}`}
+                          >
+                            <div className="font-semibold text-slate-900 dark:text-white">
                               {row.capability}
                             </div>
                             {row.hint && (
-                              <div className="mt-0.5 text-[11px] leading-snug text-slate-400">
+                              <div className="mt-0.5 text-[11px] leading-snug text-slate-400 dark:text-neutral-500">
                                 {row.hint}
                               </div>
                             )}
@@ -515,7 +636,9 @@ export default function ComparePlatforms() {
                             <td
                               key={col.key}
                               className={`px-3 py-3.5 text-center sm:px-4 ${
-                                col.highlight ? 'bg-sky-50/50' : ''
+                                col.highlight
+                                  ? 'bg-sky-50/50 dark:bg-[#00b4d8]/5'
+                                  : ''
                               }`}
                             >
                               <div className="flex justify-center">
@@ -532,33 +655,8 @@ export default function ComparePlatforms() {
             </table>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 bg-slate-50/60 px-4 py-4 sm:px-6">
-            <div className="flex flex-wrap gap-4 text-[11px] text-slate-500">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white">
-                  <Check className="h-3 w-3" />
-                </span>
-                Best-in-class
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                  <Check className="h-3 w-3" />
-                </span>
-                Covered
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-amber-100 bg-amber-50 text-amber-700">
-                  <Minus className="h-3 w-3" />
-                </span>
-                Partial / bolt-on
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-                  <X className="h-3 w-3" />
-                </span>
-                Not designed for this
-              </span>
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 bg-slate-50/60 px-4 py-4 dark:border-neutral-800 dark:bg-neutral-900/60 sm:px-6">
+            <Legend />
             <Link
               href="/onboarding?type=business"
               className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#0099b8]"
@@ -568,7 +666,18 @@ export default function ComparePlatforms() {
           </div>
         </div>
 
-        <p className="mx-auto mt-6 max-w-3xl text-center text-[12px] leading-relaxed text-slate-400">
+        {/* Mobile legend + CTA */}
+        <div className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-neutral-800 dark:bg-neutral-950 lg:hidden">
+          <Legend />
+          <Link
+            href="/onboarding?type=business"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#0099b8]"
+          >
+            Start free trial <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+
+        <p className="mx-auto mt-6 max-w-3xl text-center text-[12px] leading-relaxed text-slate-400 dark:text-neutral-500">
           Comparison is illustrative of typical capability classes (spreadsheets,
           cloud accounting, enterprise ERP suites). Individual products and
           add-ons vary. SupplierAdvisor® is a unified operating system — not a
