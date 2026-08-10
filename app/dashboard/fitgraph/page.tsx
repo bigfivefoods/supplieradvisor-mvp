@@ -197,7 +197,7 @@ function Inner() {
     <FitgraphPage>
       <RelationshipHeader
         eyebrow="Tertiary · Services · Fitness & wellness"
-        title="Fitgraph"
+        title="FitAdvisor"
         titleAccent="®"
         description="Gym services OS: coaches with tenure, rates and contracts; members (incl. .xlsx); plan vs actual; post-class feedback; website embed; slice-and-dice reports."
         action={

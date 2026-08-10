@@ -94,7 +94,7 @@ export const SYSTEM_OVERVIEW = {
     },
     {
       title: 'Flow of goods',
-      body: 'Inventory, operations, manufacturing, distribution, and containers move product with lots and holds. Industry packs add Fieldgraph (agri), Quarrygraph (aggregates), Fitgraph (gyms), Physiograph (clinics), and Dentalgraph (dental).',
+      body: 'Inventory, operations, manufacturing, distribution, and containers move product with lots and holds. Industry packs add FieldAdvisor (agri), QuarryAdvisor (aggregates), FitAdvisor (gyms), PhysioAdvisor (clinics), and DentalAdvisor (dental).',
     },
     {
       title: 'Flow of money',
@@ -127,12 +127,12 @@ export const SYSTEM_OVERVIEW = {
     },
     {
       name: 'Physical ops',
-      body: 'Inventory lots · transfers · make · ship · containers · Fieldgraph · Quarrygraph · ops tower',
+      body: 'Inventory lots · transfers · make · ship · containers · FieldAdvisor · QuarryAdvisor · ops tower',
       tone: 'emerald',
     },
     {
       name: 'Services verticals',
-      body: 'Fitgraph gym · Physiograph clinic · Dentalgraph dental · diary · bookings · messages',
+      body: 'FitAdvisor gym · PhysioAdvisor clinic · DentalAdvisor dental · diary · bookings · messages',
       tone: 'violet',
     },
     {
@@ -203,7 +203,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         summary: 'Make the company findable, pick modules, staff the workspace.',
         steps: [
           'Company → Profile — trading name, industry, contacts (completeness ≥ 60% auto-ticks)',
-          'Company → Modules — enable only what you run (Fieldgraph, Quarrygraph, Fitgraph, Physiograph, Dentalgraph, trade, ops…); Guide mirrors this list',
+          'Company → Modules — enable only what you run (FieldAdvisor, QuarryAdvisor, FitAdvisor, PhysioAdvisor, DentalAdvisor, trade, ops…); Guide mirrors this list',
           'Company → Team — invite at least one colleague',
           'Return to Dashboard — golden path shows Auto badges when detected',
         ],
@@ -1164,7 +1164,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
   {
     slug: 'fieldgraph',
     moduleId: 'fieldgraph',
-    title: 'Fieldgraph®',
+    title: 'FieldAdvisor®',
     tagline: 'Fields → estimates → harvest → fleet/labour → trade',
     purpose:
       'Primary multi-crop farm OS: shared field master, season estimates (with revisions), harvest planner, inputs, vehicle fuel util (L/h · L/km · R/km), gangs & rates, regen samples, and farm-to-buyer trade with origin lots. Download the 2-page process design PDF from the command hub.',
@@ -1203,7 +1203,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         href: '/dashboard/fieldgraph/estimates',
         summary: 'Draft → revise → board submit → actuals.',
         steps: [
-          'Fieldgraph → Fields — register / update field book',
+          'FieldAdvisor → Fields — register / update field book',
           'Estimates — create season tonnes & quality',
           'Revise as crop progresses (history snapshots)',
           'Submit board / mill pack when ready',
@@ -1229,9 +1229,9 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           'Register vehicles with R/h, R/km, fuel R/L, book L/h',
           'Log activity: hours, fuel L, km (or odometer)',
           'Open Utilisation report — fuel util and R/km by vehicle',
-          'Export fleet sheet from Fieldgraph Reports',
+          'Export fleet sheet from FieldAdvisor Reports',
         ],
-        tip: 'Download Landscape/Portrait process design PDF from the Fieldgraph hub.',
+        tip: 'Download Landscape/Portrait process design PDF from the FieldAdvisor hub.',
       },
     ],
     concepts: [
@@ -1250,7 +1250,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
   {
     slug: 'quarrygraph',
     moduleId: 'quarrygraph',
-    title: 'Quarrygraph®',
+    title: 'QuarryAdvisor®',
     tagline: 'Locations → reserves → plant → dispatch → compliant',
     purpose:
       'Primary quarrying & aggregates OS: permanent / temporary / batching locations with GPS, pits & products, reserves, production plan, plant & stockpiles, weighbridge, fleet fuel util (L/h · R/km), labour, resource allocation to projects, QA and permits. Process design PDF on the hub.',
@@ -1318,7 +1318,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           'KPI board — review util and cost metrics',
           'Reports — management pack by quarry / vehicle',
         ],
-        tip: 'Download Landscape/Portrait process design PDF from the Quarrygraph hub.',
+        tip: 'Download Landscape/Portrait process design PDF from the QuarryAdvisor hub.',
       },
     ],
     concepts: [
@@ -1337,7 +1337,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
   {
     slug: 'fitgraph',
     moduleId: 'fitgraph',
-    title: 'Fitgraph®',
+    title: 'FitAdvisor®',
     tagline: 'Coaches → calendar → bookings → website',
     purpose:
       'Tertiary gym / studio OS: coaches (portal links), members, membership plans & subscriptions, class types, calendar with coach assignment and public publish, bookings/waitlist, check-ins, coach portal share, and website embed + JSON API. Process design PDF on the hub.',
@@ -1404,7 +1404,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           'Share session publicly or book a guest',
           'Mark roster attended after class',
         ],
-        tip: 'Download Landscape/Portrait process design PDF from the Fitgraph hub.',
+        tip: 'Download Landscape/Portrait process design PDF from the FitAdvisor hub.',
       },
     ],
     concepts: [
@@ -1423,10 +1423,10 @@ export const GUIDE_SECTIONS: GuideSection[] = [
   {
     slug: 'physiograph',
     moduleId: 'physiograph',
-    title: 'Physiograph®',
+    title: 'PhysioAdvisor®',
     tagline: 'Practitioners → diary → bookings → website',
     purpose:
-      'Tertiary clinic OS for physio, OT, biokinetics and allied health: practitioners (disciplines & rates), patients, service catalogue, rehab packages, appointment diary, bookings/attendance, messages, and clinic website profile settings. Expandable end-to-end process design + Landscape/Portrait PDF on the Physiograph command hub (same pattern as Fitgraph). Seed a demo clinic from the hub to explore the flow.',
+      'Tertiary clinic OS for physio, OT, biokinetics and allied health: practitioners (disciplines & rates), patients, service catalogue, rehab packages, appointment diary, bookings/attendance, messages, and clinic website profile settings. Expandable end-to-end process design + Landscape/Portrait PDF on the PhysioAdvisor command hub (same pattern as FitAdvisor). Seed a demo clinic from the hub to explore the flow.',
     who: ['Practice owner', 'Practitioner', 'Front desk', 'Patient (public)'],
     principles: [
       {
@@ -1487,7 +1487,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           'Set brand name, contact, public bio',
           'Copy public token for future embed endpoints',
         ],
-        tip: 'Download Landscape/Portrait process design PDF from the Physiograph hub.',
+        tip: 'Download Landscape/Portrait process design PDF from the PhysioAdvisor hub.',
       },
     ],
     concepts: [
@@ -1519,10 +1519,10 @@ export const GUIDE_SECTIONS: GuideSection[] = [
   {
     slug: 'dentalgraph',
     moduleId: 'dentalgraph',
-    title: 'Dentalgraph®',
+    title: 'DentalAdvisor®',
     tagline: 'Staff → diary → bookings → messages',
     purpose:
-      'Tertiary dental practice OS: dentists, hygienists and assistants (staff roles & rates), patients with oral-health clinical notes, treatment catalogue, care plans, appointment diary, bookings/attendance, team messaging, and practice website profile. Expandable end-to-end process design + Landscape/Portrait PDF on the Dentalgraph command hub (same pattern as Fitgraph). Seed a demo practice from the hub to explore the flow.',
+      'Tertiary dental practice OS: dentists, hygienists and assistants (staff roles & rates), patients with oral-health clinical notes, treatment catalogue, care plans, appointment diary, bookings/attendance, team messaging, and practice website profile. Expandable end-to-end process design + Landscape/Portrait PDF on the DentalAdvisor command hub (same pattern as FitAdvisor). Seed a demo practice from the hub to explore the flow.',
     who: ['Practice owner', 'Dentist', 'Hygienist', 'Reception', 'Patient (public)'],
     principles: [
       {
@@ -1583,7 +1583,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           'Reply as desk or as clinician',
           'Archive when episode of care is closed',
         ],
-        tip: 'Download Landscape/Portrait process design PDF from the Dentalgraph hub.',
+        tip: 'Download Landscape/Portrait process design PDF from the DentalAdvisor hub.',
       },
     ],
     concepts: [
@@ -1610,7 +1610,141 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       'Messages or website settings opened once',
       'Opened process design once',
     ],
-    related: ['physiograph', 'fitgraph', 'customers', 'golden-path'],
+    related: ['physiograph', 'fitgraph', 'psychiatrygraph', 'medicalgraph', 'customers', 'golden-path'],
+  },
+  {
+    slug: 'psychiatrygraph',
+    moduleId: 'psychiatrygraph',
+    title: 'PsychiatryAdvisor®',
+    tagline: 'Practitioners → diary → bookings → website',
+    purpose:
+      'Tertiary mental health OS for psychiatry and psychology: practitioners (disciplines & rates), patients, service catalogue, care packages, appointment diary, bookings/attendance, messages, and practice website. Expandable end-to-end process design + Landscape/Portrait PDF on the command hub. Seed a demo practice from the hub.',
+    who: ['Practice owner', 'Psychiatrist', 'Psychologist', 'Front desk', 'Patient (public)'],
+    principles: [
+      {
+        title: 'Assign clinicians',
+        body: 'Every diary slot should have a practitioner; reassign on the calendar anytime.',
+      },
+      {
+        title: 'Public = published',
+        body: 'Only appointments marked public and a published website profile are ready for online booking.',
+      },
+      {
+        title: 'Patient portal',
+        body: 'Issue portal links so registered patients can see open vacancies and book or join waitlists.',
+      },
+    ],
+    outcomes: [
+      'Practitioners registered with disciplines',
+      'Services + at least one package',
+      'Diary slots scheduled with practitioner',
+      'Patient booked and portal understood',
+    ],
+    flow: [
+      { id: 'a', label: 'People', hint: 'Practitioners · patients', tone: 'violet' },
+      { id: 'b', label: 'Services', hint: 'Catalogue · packs', tone: 'emerald' },
+      { id: 'c', label: 'Diary', hint: 'Schedule', tone: 'cyan' },
+      { id: 'd', label: 'Floor', hint: 'Book · attend', tone: 'rose' },
+      { id: 'e', label: 'Website', hint: 'Profile · token', tone: 'violet' },
+      { id: 'f', label: 'Reports', hint: 'Utilisation', tone: 'amber' },
+    ],
+    processes: [
+      {
+        name: 'Schedule and book a session',
+        href: '/dashboard/psychiatrygraph/calendar',
+        summary: 'Service + practitioner + patient booking.',
+        steps: [
+          'Services — define assessment / therapy duration & price',
+          'Practitioners — register psychiatrist or psychologist',
+          'Calendar — schedule appointment, assign practitioner, optional public',
+          'Bookings — book patient onto the slot; mark attended',
+        ],
+        tip: 'Download Landscape/Portrait process design PDF from the PsychiatryAdvisor hub.',
+      },
+    ],
+    concepts: [
+      {
+        term: 'Practitioner',
+        meaning: 'Psychiatrist, psychologist or counsellor with disciplines, rate and public bio.',
+      },
+      {
+        term: 'Patient portal',
+        meaning: 'Token URL so a registered patient can book open public diary slots.',
+      },
+    ],
+    checklist: [
+      'Practitioner + service + scheduled appointment',
+      'One patient booking or demo seed loaded',
+      'Opened process design once',
+    ],
+    related: ['medicalgraph', 'physiograph', 'dentalgraph', 'customers', 'golden-path'],
+  },
+  {
+    slug: 'medicalgraph',
+    moduleId: 'medicalgraph',
+    title: 'MedicalAdvisor®',
+    tagline: 'Practitioners → diary → bookings → website',
+    purpose:
+      'Tertiary medical practice OS for GPs, specialists and nursing: practitioners (disciplines & rates), patients, consult catalogue, care packages, appointment diary, bookings/attendance, messages, and practice website. Expandable end-to-end process design + Landscape/Portrait PDF on the command hub. Seed a demo practice from the hub.',
+    who: ['Practice owner', 'GP', 'Nurse', 'Front desk', 'Patient (public)'],
+    principles: [
+      {
+        title: 'Assign clinicians',
+        body: 'Every diary slot should have a practitioner; reassign on the calendar anytime.',
+      },
+      {
+        title: 'Public = published',
+        body: 'Only appointments marked public and a published website profile are ready for online booking.',
+      },
+      {
+        title: 'Patient portal',
+        body: 'Issue portal links so registered patients can see open vacancies and book or join waitlists.',
+      },
+    ],
+    outcomes: [
+      'Practitioners registered with disciplines',
+      'Services + at least one package',
+      'Diary slots scheduled with practitioner',
+      'Patient booked and portal understood',
+    ],
+    flow: [
+      { id: 'a', label: 'People', hint: 'Practitioners · patients', tone: 'violet' },
+      { id: 'b', label: 'Services', hint: 'Catalogue · packs', tone: 'emerald' },
+      { id: 'c', label: 'Diary', hint: 'Schedule', tone: 'cyan' },
+      { id: 'd', label: 'Floor', hint: 'Book · attend', tone: 'rose' },
+      { id: 'e', label: 'Website', hint: 'Profile · token', tone: 'violet' },
+      { id: 'f', label: 'Reports', hint: 'Utilisation', tone: 'amber' },
+    ],
+    processes: [
+      {
+        name: 'Schedule and book a consult',
+        href: '/dashboard/medicalgraph/calendar',
+        summary: 'Service + practitioner + patient booking.',
+        steps: [
+          'Services — define consult / procedure duration & price',
+          'Practitioners — register GP, specialist or nurse',
+          'Calendar — schedule appointment, assign practitioner, optional public',
+          'Bookings — book patient onto the slot; mark attended',
+        ],
+        tip: 'Download Landscape/Portrait process design PDF from the MedicalAdvisor hub.',
+      },
+    ],
+    concepts: [
+      {
+        term: 'Practitioner',
+        meaning: 'GP, specialist or nurse with disciplines, rate and public bio.',
+      },
+      {
+        term: 'Patient portal',
+        meaning: 'Token URL so a registered patient can book open public diary slots.',
+      },
+    ],
+    checklist: [
+      'Practitioner + service + scheduled appointment',
+      'One patient booking or demo seed loaded',
+      'Opened process design once',
+    ],
+    related: ['psychiatrygraph', 'physiograph', 'dentalgraph', 'customers', 'golden-path'],
   },
   {
     slug: 'people',
@@ -1618,7 +1752,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     title: 'People (HR)',
     tagline: 'Directory → leave → payroll → org · training',
     purpose:
-      'HR workspace: employee directory, leave, payroll inputs, organogram, training and performance — separate from field gangs or quarry crews (those live on Fieldgraph / Quarrygraph rates).',
+      'HR workspace: employee directory, leave, payroll inputs, organogram, training and performance — separate from field gangs or quarry crews (those live on FieldAdvisor / QuarryAdvisor rates).',
     who: ['HR', 'Owner', 'Payroll admin'],
     flow: [
       { id: 'a', label: 'Directory', hint: 'Employees', tone: 'cyan' },
@@ -1679,7 +1813,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     title: 'Schools (NSNP)',
     tagline: 'DBE → school → SP → learners · process design',
     purpose:
-      'National School Nutrition Programme OS: department govern, school kitchen & learners, SP supply. Expandable process design + printable PDF on Schools hubs (same pattern as Fieldgraph).',
+      'National School Nutrition Programme OS: department govern, school kitchen & learners, SP supply. Expandable process design + printable PDF on Schools hubs (same pattern as FieldAdvisor).',
     who: ['DBE / PEU', 'School kitchen', 'Service provider'],
     flow: [
       { id: 'a', label: 'Govern', hint: 'DBE', tone: 'slate' },
@@ -1828,7 +1962,13 @@ export function buildGuideNavSteps(
       id === 'quarrygraph'
     )
       return 'Operate';
-    if (id === 'fitgraph' || id === 'physiograph' || id === 'dentalgraph')
+    if (
+      id === 'fitgraph' ||
+      id === 'physiograph' ||
+      id === 'dentalgraph' ||
+      id === 'psychiatrygraph' ||
+      id === 'medicalgraph'
+    )
       return 'Services';
     if (id === 'accounting') return 'Money';
     if (id === 'quality' || id === 'sheq') return 'Assure';
@@ -1849,11 +1989,13 @@ export function buildGuideNavSteps(
     make: 'Make',
     ship: 'Ship',
     containers: 'Containers',
-    fieldgraph: 'Fieldgraph',
-    quarrygraph: 'Quarrygraph',
-    fitgraph: 'Fitgraph',
-    physiograph: 'Physiograph',
-    dentalgraph: 'Dentalgraph',
+    fieldgraph: 'FieldAdvisor',
+    quarrygraph: 'QuarryAdvisor',
+    fitgraph: 'FitAdvisor',
+    physiograph: 'PhysioAdvisor',
+    dentalgraph: 'DentalAdvisor',
+    psychiatrygraph: 'PsychiatryAdvisor',
+    medicalgraph: 'MedicalAdvisor',
     quality: 'Assure',
     finance: 'Money',
     projects: 'Projects',

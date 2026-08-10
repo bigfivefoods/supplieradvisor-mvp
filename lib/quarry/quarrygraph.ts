@@ -1,5 +1,5 @@
 /**
- * Quarrygraph® — primary-sector OS for quarrying & aggregates.
+ * QuarryAdvisor® — primary-sector OS for quarrying & aggregates.
  * Sites, reserves, production, plant, stockpiles, weighbridge, fleet,
  * labour rates, quality, permits, trade. Stored on profiles.metadata.quarrygraph.
  */

@@ -98,11 +98,11 @@ export function QuarrygraphWorkbench({
             href="/dashboard/quarrygraph"
             className="inline-flex items-center gap-1 text-xs font-bold text-amber-800 hover:text-amber-950"
           >
-            <ArrowLeft className="w-3.5 h-3.5" /> Quarrygraph
+            <ArrowLeft className="w-3.5 h-3.5" /> QuarryAdvisor
           </Link>
         </div>
         <RelationshipHeader
-          eyebrow="Quarrygraph®"
+          eyebrow="QuarryAdvisor®"
           title={title}
           titleAccent={titleAccent}
           description={description}

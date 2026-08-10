@@ -1,5 +1,5 @@
 /**
- * Service vertical messaging (Fitgraph · Physiograph).
+ * Service vertical messaging (FitAdvisor · PhysioAdvisor).
  * Threads between desk, coaches/practitioners, and members/patients.
  * Stored on the vertical store (fitgraph.threads / physiograph.threads).
  */

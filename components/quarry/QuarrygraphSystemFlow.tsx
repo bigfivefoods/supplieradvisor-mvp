@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * End-to-end Quarrygraph® process design:
- * Locations → Sites → Reserves → Plant → Dispatch → Sold & compliant
+ * End-to-end QuarryAdvisor® process design:
+ * Locations → Sites → Reserves → Plant → Dispatch → Messages → Sold & compliant
  *
- * Expandable on the Quarrygraph command hub; downloadable A4 PDF
- * (landscape + portrait) — same pattern as NSNP / Fieldgraph.
+ * Expandable on the QuarryAdvisor command hub; downloadable A4 PDF
+ * (landscape + portrait) — same pattern as NSNP / FieldAdvisor.
  */
 import { useState } from 'react';
 import Link from 'next/link';
@@ -16,6 +16,7 @@ import {
   Factory,
   HardHat,
   MapPin,
+  MessageSquare,
   Mountain,
   Scale,
   ShieldCheck,
@@ -228,13 +229,47 @@ const PHASES: Phase[] = [
     ],
   },
   {
+    id: 'messages',
+    title: '6 · Messages (internal & trade)',
+    subtitle: 'Quarry office · plant · dispatch · customers',
+    steps: [
+      {
+        id: 'office-pit',
+        n: '6a',
+        title: 'Office · pit threads',
+        who: 'Quarry office / Plant',
+        desc: 'In-app colleague chat for blasts, plant runs and stock hand-offs.',
+        href: '/dashboard/messages',
+        icon: MessageSquare,
+      },
+      {
+        id: 'dispatch-cust',
+        n: '6b',
+        title: 'Dispatch · customer messages',
+        who: 'Dispatch / Trade',
+        desc: 'Coordinate tickets and deliveries with customers on company inbox.',
+        href: '/dashboard/messages',
+        icon: MessageSquare,
+      },
+      {
+        id: 'close-msg',
+        n: '6c',
+        title: 'Close the loop',
+        who: 'Team',
+        desc: 'Keep operational decisions on threads next to the quarry book.',
+        href: '/dashboard/messages',
+        icon: MessageSquare,
+      },
+    ],
+  },
+  {
     id: 'outcome',
-    title: '6 · Reports & sold & compliant',
+    title: '7 · Reports & sold & compliant',
     subtitle: 'Management pack next to every tonne',
     steps: [
       {
         id: 'report',
-        n: '6a',
+        n: '7a',
         title: 'Key reports',
         who: 'Quarry office',
         desc: 'By quarry, vehicle KPIs, product balance, labour.',
@@ -243,7 +278,7 @@ const PHASES: Phase[] = [
       },
       {
         id: 'sold',
-        n: '6b',
+        n: '7b',
         title: 'Sold & compliant',
         who: 'Trade',
         desc: 'Dispatch with permits valid and QA on the trail.',
@@ -266,6 +301,7 @@ const ROLE_CARDS = [
       'Survey reserves and production sequence',
       'Allocate fleet / crews to project locations',
       'Review management pack (t, fuel util, R/km)',
+      'Message plant, dispatch and trade partners in-app',
     ],
     doesNot: [
       'Does not invent pit codes mid-blast',
@@ -284,6 +320,7 @@ const ROLE_CARDS = [
       'Log fleet hours, fuel, km (L/h · R/km)',
       'Cost labour gangs with rates',
       'Feed hoppers and pads for dispatch',
+      'Message office on plant and blast threads',
     ],
     doesNot: [
       'Does not dispatch without product / site link',
@@ -302,6 +339,7 @@ const ROLE_CARDS = [
       'Attach lab QA to product and site',
       'Serve permanent yards and project plants',
       'Export key reports for management',
+      'Message customers on company inbox for tickets',
     ],
     doesNot: [
       'Does not ship without permits in view',
@@ -349,7 +387,7 @@ export default function QuarrygraphSystemFlow({
       className={`rounded-3xl border border-slate-200 bg-white overflow-hidden ${
         compact ? 'mb-4' : 'mb-6'
       }`}
-      aria-label="Quarrygraph full process design"
+      aria-label="QuarryAdvisor full process design"
       id="quarrygraph-system-flow"
     >
       <div className="bg-gradient-to-r from-stone-900 via-amber-900 to-orange-700 px-5 py-4 text-white">
@@ -363,11 +401,13 @@ export default function QuarrygraphSystemFlow({
               Full quarry OS — process design
             </p>
             <h2 className="text-lg sm:text-xl font-black mt-0.5 leading-tight">
-              Locations → Sites → Reserves → Plant → Dispatch → Sold & compliant
+              Locations → Sites → Reserves → Plant → Dispatch → Messages → Sold
+              & compliant
             </h2>
             <p className="text-sm text-white/90 mt-1.5 max-w-3xl leading-snug">
               Permanent and temporary quarries, batching plants, GPS distances,
-              fuel util and weighbridge — one process from pit to ticket.
+              fuel util and weighbridge — with in-app office, pit and trade
+              messaging — one process from pit to ticket.
             </p>
           </button>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -397,6 +437,7 @@ export default function QuarrygraphSystemFlow({
               { label: 'Reserves · plan', sub: 'Blast · allocate', tone: 'sky' },
               { label: 'Plant · stock', sub: 'Crush · pads', tone: 'violet' },
               { label: 'Dispatch · ops', sub: 'Ticket · fleet', tone: 'emerald' },
+              { label: 'Messages', sub: 'Office · pit · trade', tone: 'fuchsia' },
               { label: 'Sold & compliant', sub: 'QA · report', tone: 'rose' },
             ].map((node, i, arr) => (
               <div key={node.label} className="contents">
@@ -412,6 +453,8 @@ export default function QuarrygraphSystemFlow({
                             ? 'border-violet-200 bg-violet-50'
                             : node.tone === 'emerald'
                               ? 'border-emerald-200 bg-emerald-50'
+                              : node.tone === 'fuchsia'
+                                ? 'border-fuchsia-200 bg-fuchsia-50'
                               : 'border-rose-200 bg-rose-50'
                   }`}
                 >

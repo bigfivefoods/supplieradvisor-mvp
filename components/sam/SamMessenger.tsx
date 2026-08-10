@@ -177,7 +177,9 @@ function formatInline(s: string): React.ReactNode {
 
 /**
  * SAM — Supplier Advisor Messenger
- * Floating Grok-powered help for the SupplierAdvisor OS.
+ * Grok-powered help for the SupplierAdvisor OS.
+ * Mobile: open from the top process bar (`sa:open-sam`) so Save/Edit stay tappable.
+ * Desktop/tablet: also a bottom-right floating launcher.
  */
 export default function SamMessenger() {
   const pathname = usePathname();
@@ -341,6 +343,16 @@ export default function SamMessenger() {
     [authenticated, messages, pathname, privyUserId, ready, sending]
   );
 
+  // Open from process-bar control (mobile-safe — no floating FAB over Save)
+  useEffect(() => {
+    const onOpen = () => {
+      setOpen(true);
+      setView('chat');
+    };
+    window.addEventListener('sa:open-sam', onOpen);
+    return () => window.removeEventListener('sa:open-sam', onOpen);
+  }, []);
+
   // Hide on pure marketing pages if ever mounted globally
   if (
     pathname === '/' ||
@@ -354,12 +366,16 @@ export default function SamMessenger() {
 
   return (
     <>
-      {/* Floating launcher */}
+      {/*
+        Floating launcher — desktop/tablet only.
+        On mobile the control lives in the top process bar so it never covers
+        full-width Save / Edit buttons at the bottom of workbench forms.
+      */}
       {!open && (
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-[90] group flex items-center gap-2 rounded-full bg-gradient-to-r from-[#00b4d8] to-[#0077b6] pl-3 pr-4 py-3 min-h-[48px] text-white shadow-2xl shadow-sky-300/40 hover:scale-[1.03] active:scale-[0.98] transition touch-manipulation"
+          className="hidden md:flex fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-[90] group items-center gap-2 rounded-full bg-gradient-to-r from-[#00b4d8] to-[#0077b6] pl-3 pr-4 py-3 min-h-[48px] text-white shadow-2xl shadow-sky-300/40 hover:scale-[1.03] active:scale-[0.98] transition touch-manipulation"
           aria-label="Open SAM — Supplier Advisor Messenger"
         >
           <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white/15">
@@ -381,7 +397,7 @@ export default function SamMessenger() {
       {/* Panel */}
       {open && (
         <div
-          className="fixed bottom-0 right-0 left-0 sm:left-auto sm:bottom-[max(1.25rem,env(safe-area-inset-bottom))] sm:right-[max(1.25rem,env(safe-area-inset-right))] z-[90] flex h-[min(92dvh,640px)] w-full sm:w-[min(400px,calc(100vw-2rem))] flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl border border-slate-200 bg-white shadow-2xl pb-safe"
+          className="fixed inset-x-0 bottom-0 md:inset-x-auto md:bottom-[max(1.25rem,env(safe-area-inset-bottom))] md:right-[max(1.25rem,env(safe-area-inset-right))] z-[90] flex h-[min(92dvh,640px)] w-full md:w-[min(400px,calc(100vw-2rem))] flex-col overflow-hidden rounded-t-3xl md:rounded-3xl border border-slate-200 bg-white shadow-2xl pb-safe"
           role="dialog"
           aria-label="SAM chat"
         >

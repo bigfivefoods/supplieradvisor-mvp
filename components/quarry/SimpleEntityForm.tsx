@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Quarrygraph form + table — process role tones:
+ * QuarryAdvisor form + table — process role tones:
  * qg-office (amber) · qg-ops (violet) · qg-trade (cyan)
  */
 import type { ReactNode } from 'react';

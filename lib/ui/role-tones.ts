@@ -106,18 +106,18 @@ const SKY: TonePack = {
 
 /** Process-role packs by semantic key */
 export const ROLE_TONES: Record<string, TonePack> = {
-  // Fitgraph
+  // FitAdvisor
   owner: VIOLET,
   coach: AMBER,
   member: CYAN,
-  // Fieldgraph
+  // FieldAdvisor
   'fg-office': EMERALD,
   'fg-ops': AMBER,
   'fg-trade': CYAN,
   office: EMERALD,
   ops: AMBER,
   trade: CYAN,
-  // Quarrygraph
+  // QuarryAdvisor
   'qg-office': AMBER,
   'qg-ops': VIOLET,
   'qg-trade': CYAN,

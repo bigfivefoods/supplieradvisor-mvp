@@ -2,7 +2,7 @@
 
 /**
  * Patient medical chart — demographics, medical aid, documents, claims.
- * Used by Physiograph and Dentalgraph patient record pages.
+ * Used by PhysioAdvisor and DentalAdvisor patient record pages.
  */
 import { useRef, useState } from 'react';
 import {

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Quarrygraph® — quarrying & aggregates command centre (primary sector).
+ * QuarryAdvisor® — quarrying & aggregates command centre (primary sector).
  */
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -217,7 +217,7 @@ function HubInner() {
     <QuarrygraphPage>
       <RelationshipHeader
         eyebrow="Primary sector · extractives"
-        title="Quarrygraph"
+        title="QuarryAdvisor"
         titleAccent="®"
         description="Multi-quarry aggregates OS: register many quarries, pits, reserves, production, plant, weighbridge, vehicle KPIs, labour, lab QA and permits — with management reports by quarry and fleet."
         action={

@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * End-to-end Physiograph® process design:
+ * End-to-end PhysioAdvisor® process design:
  * People → Services · packs → Diary → Floor → Messages → Website · reports
  *
- * Expandable on the Physiograph command hub; downloadable A4 PDF
- * (landscape + portrait) — same pattern as Fitgraph / Fieldgraph.
+ * Expandable on the PhysioAdvisor command hub; downloadable A4 PDF
+ * (landscape + portrait) — same pattern as FitAdvisor / FieldAdvisor.
  * Content kept in sync with lib/clinic/physiograph-process-guide.ts
  */
 import { useState } from 'react';
@@ -191,25 +191,34 @@ const PHASES: Phase[] = [
   },
   {
     id: 'messages',
-    title: '5 · Messages',
-    subtitle: 'Desk · practitioners · patients',
+    title: '5 · Messages (internal · care · trade)',
+    subtitle: 'Desk · clinicians · patients · company inbox',
     steps: [
       {
-        id: 'threads',
+        id: 'internal',
         n: '5a',
-        title: 'Care threads',
-        who: 'Desk / practitioner',
-        desc: 'Colleague and patient care messages for hand-offs.',
+        title: 'Internal team threads',
+        who: 'Desk / team',
+        desc: 'Colleague chat for hand-offs, schedule notes and practice ops.',
         href: '/dashboard/physiograph/messages',
         icon: MessageSquare,
       },
       {
-        id: 'close',
+        id: 'care',
         n: '5b',
-        title: 'Close the loop',
-        who: 'Team',
-        desc: 'Reply and archive when the episode of care is done.',
+        title: 'Care · patient threads',
+        who: 'Desk / clinician',
+        desc: 'Patient care messages so the whole team stays aligned.',
         href: '/dashboard/physiograph/messages',
+        icon: MessageSquare,
+      },
+      {
+        id: 'company-inbox',
+        n: '5c',
+        title: 'Company inbox (external)',
+        who: 'Owner',
+        desc: 'Trade partners on the platform company inbox.',
+        href: '/dashboard/messages',
         icon: MessageSquare,
       },
     ],
@@ -340,7 +349,7 @@ const GUARDRAILS = [
   },
   {
     title: 'One clinic book',
-    desc: 'People, diary, bookings, messages and website share one Physiograph store.',
+    desc: 'People, diary, bookings, messages and website share one PhysioAdvisor store.',
   },
 ];
 
@@ -355,7 +364,7 @@ export default function PhysiographSystemFlow({
       className={`rounded-3xl border border-slate-200 bg-white overflow-hidden ${
         compact ? 'mb-4' : 'mb-6'
       }`}
-      aria-label="Physiograph full process design"
+      aria-label="PhysioAdvisor full process design"
       id="physiograph-system-flow"
     >
       <div className="bg-gradient-to-r from-teal-950 via-teal-800 to-cyan-700 px-5 py-4 text-white">
@@ -417,7 +426,7 @@ export default function PhysiographSystemFlow({
                 sub: 'Book · attend · feedback',
                 tone: 'amber',
               },
-              { label: 'Messages', sub: 'Desk · care', tone: 'fuchsia' },
+              { label: 'Messages', sub: 'Internal · care · trade', tone: 'fuchsia' },
               {
                 label: 'Website · reports',
                 sub: 'Publish · utilisation',
@@ -553,7 +562,7 @@ export default function PhysiographSystemFlow({
                   <strong className="font-black">One sentence:</strong> Register
                   practitioners and patients → define services and rehab packs →
                   schedule diary with practitioners → book and mark attended →
-                  message the care team → publish the clinic website and review
+                  message team, patients and trade partners in-app → publish the clinic website and review
                   utilisation.
                 </p>
               </div>

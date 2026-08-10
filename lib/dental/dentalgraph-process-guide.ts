@@ -1,5 +1,5 @@
 /**
- * Dentalgraph® end-to-end process guide content + PDF.
+ * DentalAdvisor® end-to-end process guide content + PDF.
  * People → Services · care plans → Diary → Floor → Messages → Website · reports
  * Pure pdfkit — works on Vercel serverless.
  *
@@ -28,7 +28,7 @@ export const PROCESS_CHAIN = [
   { label: 'Services · plans', sub: 'Catalogue · care plans' },
   { label: 'Diary', sub: 'Schedule · assign' },
   { label: 'Floor', sub: 'Book · attend · feedback' },
-  { label: 'Messages', sub: 'Desk · care threads' },
+  { label: 'Messages', sub: 'Internal · care · trade' },
   { label: 'Website · reports', sub: 'Publish · utilisation' },
 ] as const;
 
@@ -180,20 +180,26 @@ export const PROCESS_PHASES: ProcessPhase[] = [
     ],
   },
   {
-    title: '5 · Messages',
-    subtitle: 'Desk · staff · patients',
+    title: '5 · Messages (internal · care · trade)',
+    subtitle: 'Desk · clinicians · patients · company inbox',
     steps: [
       {
         n: '5a',
-        title: 'Care threads',
-        who: 'Reception / clinician',
-        desc: 'Colleague and patient care messages for hand-offs.',
+        title: 'Internal team threads',
+        who: 'Desk / team',
+        desc: 'Colleague chat for hand-offs, schedule notes and practice ops.',
       },
       {
         n: '5b',
-        title: 'Close the loop',
-        who: 'Team',
-        desc: 'Reply and archive when the episode of care is done.',
+        title: 'Care · patient threads',
+        who: 'Desk / clinician',
+        desc: 'Patient care messages so the whole team stays aligned.',
+      },
+      {
+        n: '5c',
+        title: 'Company inbox (external)',
+        who: 'Owner',
+        desc: 'Trade partners (suppliers / customers) on the platform company inbox.',
       },
     ],
   },
@@ -254,7 +260,7 @@ export const GUARDRAILS = [
   },
   {
     title: 'One practice book',
-    desc: 'People, diary, bookings, messages and website share one Dentalgraph store.',
+    desc: 'People, diary, bookings, messages and website share one DentalAdvisor store.',
   },
 ];
 
@@ -294,7 +300,7 @@ export const SYSTEM_BENEFITS = [
 ];
 
 export const ONE_SENTENCE =
-  'Register staff and patients (clinical + medical chart) → define services and care plans → schedule diary slots with clinicians → book patients and mark attended → message the care team → publish the practice website and review utilisation reports.';
+  'Register staff and patients (clinical + medical chart) → define services and care plans → schedule diary slots with clinicians → book patients and mark attended → message team, patients and trade partners in-app → publish the practice website and review utilisation reports.';
 
 // ── PDF (sky brand) ─────────────────────────────────────────────────────
 
@@ -378,7 +384,7 @@ function drawFooter(doc: PdfDoc, g: Geo, pageNum: number, total: number) {
       .fontSize(7)
       .fillColor(MUTED)
       .text(
-        `SupplierAdvisor® · Dentalgraph® · ${orientLabel} · Dental practice OS`,
+        `SupplierAdvisor® · DentalAdvisor® · ${orientLabel} · Dental practice OS`,
         g.mx,
         y + 4,
         { width: g.contentW * 0.72, align: 'left' }
@@ -691,11 +697,11 @@ export async function buildDentalgraphProcessGuidePdf(opts?: {
       margins: { top: 0, bottom: 28, left: g.mx, right: g.mx },
       info: {
         Title:
-          'Dentalgraph® Process Design — Staff → Diary → Website',
+          'DentalAdvisor® Process Design — Staff → Diary → Website',
         Author: 'SupplierAdvisor®',
-        Subject: `Dentalgraph dental practice end-to-end process (A4 ${orientation})`,
+        Subject: `DentalAdvisor dental practice end-to-end process (A4 ${orientation})`,
         Keywords:
-          'Dentalgraph, dental, dentist, diary, care plans, process guide',
+          'DentalAdvisor, dental, dentist, diary, care plans, process guide',
         CreationDate: generated,
       },
     });
@@ -769,5 +775,5 @@ export function parseDentalgraphProcessGuideOrientation(
 export function dentalgraphProcessGuideFilename(
   orientation: DentalgraphProcessGuideOrientation
 ): string {
-  return `Dentalgraph-Process-Design-A4-${orientation}.pdf`;
+  return `DentalAdvisor-Process-Design-A4-${orientation}.pdf`;
 }

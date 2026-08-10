@@ -224,7 +224,7 @@ export const INDUSTRIES: readonly IndustryOption[] = [
     id: 'dental_clinical',
     label: 'Dental practices',
     description:
-      'Dental practices and groups — Dentalgraph® diary, staff, patients, care plans and practice website.',
+      'Dental practices and groups — DentalAdvisor® diary, staff, patients, care plans and practice website.',
     sectorId: 'tertiary',
     packIds: ['dental'],
     businessTypes: privateTypes([
@@ -237,7 +237,7 @@ export const INDUSTRIES: readonly IndustryOption[] = [
     id: 'allied_health_private',
     label: 'Allied health (private)',
     description:
-      'Physio, OT, biokinetics and private multi-disciplinary clinics (Physiograph® diary, practitioners, patients, packages).',
+      'Physio, OT, biokinetics and private multi-disciplinary clinics (PhysioAdvisor® diary, practitioners, patients, packages).',
     sectorId: 'tertiary',
     packIds: ['allied_health_clinic'],
     businessTypes: privateTypes([

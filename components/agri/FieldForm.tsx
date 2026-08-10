@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Fieldgraph form + table — process role tones:
+ * FieldAdvisor form + table — process role tones:
  * fg-office / office (emerald) · fg-ops / ops (amber) · fg-trade / trade (cyan)
  */
 import type { ReactNode } from 'react';

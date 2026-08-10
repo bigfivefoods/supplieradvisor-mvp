@@ -252,7 +252,7 @@ export function HubModuleGrid({
 }: {
   modules: HubModule[];
   className?: string;
-  /** Dark theme: every card the same charcoal surface (Fitgraph workbenches). */
+  /** Dark theme: every card the same charcoal surface (FitAdvisor workbenches). */
   uniformDark?: boolean;
 }) {
   return (

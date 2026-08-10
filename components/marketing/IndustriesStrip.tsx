@@ -12,6 +12,8 @@ import {
   Dumbbell,
   Stethoscope,
   Smile,
+  BrainCircuit,
+  Hospital,
 } from 'lucide-react';
 
 const INDUSTRIES = [
@@ -24,7 +26,7 @@ const INDUSTRIES = [
   {
     slug: 'agriculture',
     name: 'Agriculture & inputs',
-    desc: 'Fieldgraph® fields, harvest, inputs, fleet fuel, and farm-to-buyer trade.',
+    desc: 'FieldAdvisor® fields, harvest, inputs, fleet fuel, and farm-to-buyer trade.',
     icon: Leaf,
   },
   {
@@ -42,20 +44,32 @@ const INDUSTRIES = [
   {
     href: '/#modules-industry',
     name: 'Fitness & gyms',
-    desc: 'Fitgraph® — coaches, members, classes, calendar, messaging, and website bookings.',
+    desc: 'FitAdvisor® — coaches, members, classes, calendar, messaging, and website bookings.',
     icon: Dumbbell,
   },
   {
     href: '/#modules-industry',
     name: 'Physio & allied health',
-    desc: 'Physiograph® — practitioners, patients, rehab packs, diary, and clinic messages.',
+    desc: 'PhysioAdvisor® — practitioners, patients, rehab packs, diary, and clinic messages.',
     icon: Stethoscope,
   },
   {
     href: '/#modules-industry',
     name: 'Dental practices',
-    desc: 'Dentalgraph® — dentists & staff, patients, care plans, surgeries, and messaging.',
+    desc: 'DentalAdvisor® — dentists & staff, patients, care plans, surgeries, and messaging.',
     icon: Smile,
+  },
+  {
+    href: '/#modules-industry',
+    name: 'Mental health',
+    desc: 'PsychiatryAdvisor® — psychiatry & psychology, patients, therapy packs, diary, portal, and messages.',
+    icon: BrainCircuit,
+  },
+  {
+    href: '/#modules-industry',
+    name: 'Medical practices',
+    desc: 'MedicalAdvisor® — GPs & clinics, patients, consults, care packs, diary, portal, and messages.',
+    icon: Hospital,
   },
   {
     slug: 'public-sector',

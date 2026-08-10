@@ -775,11 +775,11 @@ export function ManagementReportView({
             {[
               ['Schools / NSNP', mod?.schoolsEnabled],
               ['Health / DoH', mod?.healthEnabled],
-              ['Fieldgraph®', mod?.fieldgraphEnabled],
-              ['Quarrygraph®', mod?.quarrygraphEnabled],
-              ['Fitgraph®', mod?.fitgraphEnabled],
-              ['Physiograph®', mod?.physiographEnabled],
-              ['Dentalgraph®', mod?.dentalgraphEnabled],
+              ['FieldAdvisor®', mod?.fieldgraphEnabled],
+              ['QuarryAdvisor®', mod?.quarrygraphEnabled],
+              ['FitAdvisor®', mod?.fitgraphEnabled],
+              ['PhysioAdvisor®', mod?.physiographEnabled],
+              ['DentalAdvisor®', mod?.dentalgraphEnabled],
             ].map(([label, val]) => (
               <div
                 key={String(label)}

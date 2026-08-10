@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
 
 /**
- * Fitgraph role tones — match end-to-end process “Who does what”:
+ * FitAdvisor role tones — match end-to-end process “Who does what”:
  * owner = violet · coach = amber · member = cyan
  * (`default` is an alias of owner for owner workbenches.)
  */

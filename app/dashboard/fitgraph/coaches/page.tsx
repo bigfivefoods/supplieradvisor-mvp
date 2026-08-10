@@ -25,6 +25,7 @@ import {
   type FitContractDoc,
 } from '@/lib/fitness/fitgraph';
 import { FitContractDocsPanel } from '@/components/fitness/FitContractDocs';
+import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -728,13 +729,15 @@ export default function CoachesPage() {
                 })}
               </div>
             </div>
-            <input
-              className={fc()}
-              placeholder="Photo URL (optional)"
+            <ProfilePhotoField
+              companyId={companyId}
               value={form.photo_url}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, photo_url: e.target.value }))
-              }
+              onChange={(url) => setForm((f) => ({ ...f, photo_url: url }))}
+              kind="coach_photo"
+              label="Coach photo"
+              description="Upload a headshot for the coach bio and website (JPG/PNG/WebP · under 8MB)."
+              disabled={saving}
+              accentClass="border-amber-300 dark:border-amber-500"
             />
             <textarea
               className={fc() + ' min-h-[3.5rem] resize-y sm:col-span-2'}
@@ -916,21 +919,20 @@ export default function CoachesPage() {
                                 }
                               />
                             </label>
-                            <label className="block sm:col-span-2">
-                              <span className="text-[10px] text-slate-600 dark:text-amber-200/70">
-                                Photo URL
-                              </span>
-                              <input
-                                className={fc() + ' mt-0.5'}
+                            <div className="sm:col-span-2">
+                              <ProfilePhotoField
+                                companyId={companyId}
                                 value={profile.photo_url}
-                                placeholder="https://…"
-                                onChange={(e) =>
-                                  setProfile(c.id, {
-                                    photo_url: e.target.value,
-                                  })
+                                onChange={(url) =>
+                                  setProfile(c.id, { photo_url: url })
                                 }
+                                kind="coach_photo"
+                                label="Coach photo"
+                                description="Upload or replace the coach headshot."
+                                disabled={saving}
+                                accentClass="border-amber-300 dark:border-amber-500"
                               />
-                            </label>
+                            </div>
                             <label className="block">
                               <span className="text-[10px] text-slate-600 dark:text-amber-200/70">
                                 Colour

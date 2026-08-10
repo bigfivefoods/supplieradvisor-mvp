@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * End-to-end Fieldgraph® process design:
- * Fields → Estimates → Harvest → Ops → Trade → Sold & proven
+ * End-to-end FieldAdvisor® process design:
+ * Fields → Estimates → Harvest → Ops → Messages → Trade → Sold & proven
  *
- * Expandable on the Fieldgraph command hub; downloadable A4 PDF
+ * Expandable on the FieldAdvisor command hub; downloadable A4 PDF
  * (landscape + portrait) — same pattern as NSNP schools flow.
  */
 import { useState } from 'react';
@@ -18,6 +18,7 @@ import {
   FlaskConical,
   Leaf,
   MapPinned,
+  MessageSquare,
   ShoppingCart,
   ShieldCheck,
   Sparkles,
@@ -231,13 +232,47 @@ const PHASES: Phase[] = [
     ],
   },
   {
+    id: 'messages',
+    title: '6 · Messages (internal & trade)',
+    subtitle: 'Farm office · field ops · mill / buyer partners',
+    steps: [
+      {
+        id: 'office-field',
+        n: '6a',
+        title: 'Office · field threads',
+        who: 'Farm office / Field ops',
+        desc: 'In-app colleague chat for cut plans, inputs and harvest hand-offs.',
+        href: '/dashboard/messages',
+        icon: MessageSquare,
+      },
+      {
+        id: 'trade-msg',
+        n: '6b',
+        title: 'Trade partner messages',
+        who: 'Trade',
+        desc: 'Message mills, silos and buyers on the platform company inbox.',
+        href: '/dashboard/messages',
+        icon: MessageSquare,
+      },
+      {
+        id: 'close-msg',
+        n: '6c',
+        title: 'Close the loop',
+        who: 'Team',
+        desc: 'Keep operational decisions on threads next to the field book.',
+        href: '/dashboard/messages',
+        icon: MessageSquare,
+      },
+    ],
+  },
+  {
     id: 'trade',
-    title: '6 · Trade · lots · insights',
+    title: '7 · Trade · lots · insights',
     subtitle: 'Farm to mill / buyer on the network',
     steps: [
       {
         id: 'trade',
-        n: '6a',
+        n: '7a',
         title: 'Trade destinations',
         who: 'Trade',
         desc: 'Hand harvest into mills, silos and buyers with trust and OTIF.',
@@ -246,7 +281,7 @@ const PHASES: Phase[] = [
       },
       {
         id: 'lots',
-        n: '6b',
+        n: '7b',
         title: 'Origin lots',
         who: 'Trade',
         desc: 'Field origin into Inventory lots for chain of custody.',
@@ -255,7 +290,7 @@ const PHASES: Phase[] = [
       },
       {
         id: 'insights',
-        n: '6c',
+        n: '7c',
         title: 'Season insights',
         who: 'Farm office',
         desc: 'Yield, nutrients, fleet, labour cost and regen on one scorecard.',
@@ -278,6 +313,7 @@ const ROLE_CARDS = [
       'Submit mill / board estimate packs',
       'Set harvest sequence & daily allocation',
       'Review season scorecard & yield graphs',
+      'Message field ops and trade partners in-app',
     ],
     doesNot: [
       'Does not invent mill board rules alone',
@@ -296,6 +332,7 @@ const ROLE_CARDS = [
       'Register gangs with labour rates',
       'Log daily labour cost by field',
       'Capture regen samples (SOC, cover, water)',
+      'Message farm office on ops and cut plan threads',
     ],
     doesNot: [
       'Does not change shared field codes casually',
@@ -314,6 +351,7 @@ const ROLE_CARDS = [
       'Trade on SupplierAdvisor network',
       'Carry OTIFEF / trust into settlement',
       'Show regen proof next to yield',
+      'Message mill / buyer partners on company inbox',
     ],
     doesNot: [
       'Does not farm offline in a private island',
@@ -361,7 +399,7 @@ export default function FieldgraphSystemFlow({
       className={`rounded-3xl border border-slate-200 bg-white overflow-hidden ${
         compact ? 'mb-4' : 'mb-6'
       }`}
-      aria-label="Fieldgraph full process design: fields to estimates to harvest to trade"
+      aria-label="FieldAdvisor full process design: fields to estimates to harvest to trade"
       id="fieldgraph-system-flow"
     >
       <div className="bg-gradient-to-r from-emerald-900 via-emerald-700 to-teal-600 px-5 py-4 text-white">
@@ -375,12 +413,14 @@ export default function FieldgraphSystemFlow({
               Full farm OS — process design
             </p>
             <h2 className="text-lg sm:text-xl font-black mt-0.5 leading-tight">
-              Fields → Estimates → Harvest → Ops → Trade → Sold & proven
+              Fields → Estimates → Harvest → Ops → Messages → Trade → Sold &
+              proven
             </h2>
             <p className="text-sm text-white/90 mt-1.5 max-w-3xl leading-snug">
               Shared field master feeds estimates and harvest planning; vehicles
-              and labour rates cost the season; regen and lots carry proof into
-              mill and buyer trade. Multi-crop — not cane-only.
+              and labour rates cost the season; office, field and trade partners
+              message in-app; regen and lots carry proof into mill and buyer
+              trade. Multi-crop — not cane-only.
             </p>
           </button>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -410,6 +450,7 @@ export default function FieldgraphSystemFlow({
               { label: 'Estimates', sub: 'Season · board', tone: 'sky' },
               { label: 'Harvest Planner', sub: 'Cut dates', tone: 'amber' },
               { label: 'Ops · regen', sub: 'Fleet · rates', tone: 'violet' },
+              { label: 'Messages', sub: 'Office · field · trade', tone: 'fuchsia' },
               { label: 'Sold & proven', sub: 'Trade · lots', tone: 'rose' },
             ].map((node, i, arr) => (
               <div key={node.label} className="contents">
@@ -423,6 +464,8 @@ export default function FieldgraphSystemFlow({
                           ? 'border-amber-200 bg-amber-50'
                           : node.tone === 'violet'
                             ? 'border-violet-200 bg-violet-50'
+                            : node.tone === 'fuchsia'
+                              ? 'border-fuchsia-200 bg-fuchsia-50'
                             : 'border-rose-200 bg-rose-50'
                   }`}
                 >

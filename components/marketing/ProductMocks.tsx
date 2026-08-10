@@ -661,7 +661,7 @@ export function FieldgraphMock() {
       <div className="mb-2 flex items-center justify-between gap-2">
         <div>
           <div className="text-[9px] font-bold uppercase tracking-widest text-emerald-700">
-            Fieldgraph® · Agri
+            FieldAdvisor® · Agri
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
             Field to buyer, one season.
@@ -702,7 +702,7 @@ export function QuarrygraphMock() {
       <div className="mb-2 flex items-center justify-between gap-2">
         <div>
           <div className="text-[9px] font-bold uppercase tracking-widest text-amber-700">
-            Quarrygraph® · Extractives
+            QuarryAdvisor® · Extractives
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
             Sites · plant · dispatch.
@@ -743,7 +743,7 @@ export function FitgraphMock() {
       <div className="mb-2 flex items-center justify-between gap-2">
         <div>
           <div className="text-[9px] font-bold uppercase tracking-widest text-violet-700">
-            Fitgraph® · Gym
+            FitAdvisor® · Gym
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
             Coaches · classes · memberships.
@@ -781,7 +781,7 @@ export function PhysiographMock() {
       <div className="mb-2 flex items-center justify-between gap-2">
         <div>
           <div className="text-[9px] font-bold uppercase tracking-widest text-teal-700">
-            Physiograph® · Clinic
+            PhysioAdvisor® · Clinic
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
             Practitioners · diary · rehab.
@@ -819,7 +819,7 @@ export function DentalgraphMock() {
       <div className="mb-2 flex items-center justify-between gap-2">
         <div>
           <div className="text-[9px] font-bold uppercase tracking-widest text-sky-700">
-            Dentalgraph® · Dental
+            DentalAdvisor® · Dental
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
             Staff · surgeries · care plans.
@@ -850,6 +850,82 @@ export function DentalgraphMock() {
   );
 }
 
+/** Industry — mental health practice OS */
+export function PsychiatrygraphMock() {
+  return (
+    <Frame title="dashboard/psychiatrygraph">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[9px] font-bold uppercase tracking-widest text-indigo-700">
+            PsychiatryAdvisor® · Mental health
+          </div>
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
+            Clinicians · therapy · diary.
+          </div>
+        </div>
+        <span className="rounded-full border border-indigo-200 bg-indigo-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
+          Tertiary
+        </span>
+      </div>
+      <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
+        <Telemetry label="Patients" value="186" tone="violet" />
+        <Telemetry label="Today" value="11" tone="sky" />
+        <Telemetry label="Packs" value="42" tone="emerald" />
+        <Telemetry label="Msgs" value="7" tone="cyan" />
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+        {['Practitioners', 'Diary', 'Messages'].map((t) => (
+          <div
+            key={t}
+            className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] text-center shadow-sm sm:p-3"
+          >
+            <div className="text-[11px] font-bold text-slate-800 sm:text-xs dark:text-white">{t}</div>
+            <div className="mt-2 h-8 rounded-lg bg-gradient-to-br from-indigo-50 to-violet-50" />
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+/** Industry — medical / GP practice OS */
+export function MedicalgraphMock() {
+  return (
+    <Frame title="dashboard/medicalgraph">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[9px] font-bold uppercase tracking-widest text-emerald-700">
+            MedicalAdvisor® · Medical
+          </div>
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
+            GPs · consults · care packs.
+          </div>
+        </div>
+        <span className="rounded-full border border-emerald-200 bg-emerald-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
+          Tertiary
+        </span>
+      </div>
+      <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
+        <Telemetry label="Patients" value="2.4k" tone="emerald" />
+        <Telemetry label="Today" value="38" tone="cyan" />
+        <Telemetry label="Rooms" value="8" tone="sky" />
+        <Telemetry label="Msgs" value="14" tone="violet" />
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+        {['Practitioners', 'Diary', 'Website'].map((t) => (
+          <div
+            key={t}
+            className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] text-center shadow-sm sm:p-3"
+          >
+            <div className="text-[11px] font-bold text-slate-800 sm:text-xs dark:text-white">{t}</div>
+            <div className="mt-2 h-8 rounded-lg bg-gradient-to-br from-emerald-50 to-teal-50" />
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
 /** App navigation — Core · Sector · Industry modules */
 export function NavMock() {
   const bands = [
@@ -867,11 +943,13 @@ export function NavMock() {
       label: 'Industry',
       tone: 'text-emerald-700',
       items: [
-        'Fieldgraph®',
-        'Quarrygraph®',
-        'Fitgraph®',
-        'Physiograph®',
-        'Dentalgraph®',
+        'FieldAdvisor®',
+        'QuarryAdvisor®',
+        'FitAdvisor®',
+        'PhysioAdvisor®',
+        'DentalAdvisor®',
+        'PsychiatryAdvisor®',
+        'MedicalAdvisor®',
       ],
     },
   ];
@@ -1491,11 +1569,13 @@ const MODULE_GALLERIES: Record<string, GalleryScene[]> = {
       wash: 'emerald',
       kind: 'list',
       list: [
-        { left: 'Fieldgraph®', right: 'Agri', tone: 'emerald' },
-        { left: 'Quarrygraph®', right: 'Extract', tone: 'amber' },
-        { left: 'Fitgraph®', right: 'Gym', tone: 'violet' },
-        { left: 'Physiograph®', right: 'Clinic', tone: 'cyan' },
-        { left: 'Dentalgraph®', right: 'Dental', tone: 'sky' },
+        { left: 'FieldAdvisor®', right: 'Agri', tone: 'emerald' },
+        { left: 'QuarryAdvisor®', right: 'Extract', tone: 'amber' },
+        { left: 'FitAdvisor®', right: 'Gym', tone: 'violet' },
+        { left: 'PhysioAdvisor®', right: 'Clinic', tone: 'cyan' },
+        { left: 'DentalAdvisor®', right: 'Dental', tone: 'sky' },
+        { left: 'PsychiatryAdvisor®', right: 'Mental', tone: 'violet' },
+        { left: 'MedicalAdvisor®', right: 'Medical', tone: 'emerald' },
       ],
     },
   ],

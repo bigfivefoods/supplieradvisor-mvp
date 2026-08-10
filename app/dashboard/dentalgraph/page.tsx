@@ -166,7 +166,7 @@ function Inner() {
     <DentalgraphPage>
       <RelationshipHeader
         eyebrow="Tertiary · Services · Dental"
-        title="Dentalgraph"
+        title="DentalAdvisor"
         titleAccent="®"
         description="Dental practice OS for dentists, hygienists and the practice team: staff, patients, services, care plans, diary, bookings, messages and website."
         action={

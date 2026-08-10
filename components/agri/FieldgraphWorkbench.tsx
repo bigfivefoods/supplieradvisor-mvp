@@ -105,11 +105,11 @@ export function FieldgraphWorkbench({
             href="/dashboard/fieldgraph"
             className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 dark:text-white hover:text-emerald-900 dark:text-white dark:hover:text-white"
           >
-            <ArrowLeft className="w-3.5 h-3.5" /> Fieldgraph
+            <ArrowLeft className="w-3.5 h-3.5" /> FieldAdvisor
           </Link>
         </div>
         <RelationshipHeader
-          eyebrow="Fieldgraph®"
+          eyebrow="FieldAdvisor®"
           title={title}
           titleAccent={titleAccent}
           description={description}

@@ -89,11 +89,11 @@ export function PhysiographWorkbench({
             href="/dashboard/physiograph"
             className="inline-flex items-center gap-1 text-xs font-bold text-teal-700 hover:text-teal-900 dark:text-teal-300 dark:hover:text-white"
           >
-            <ArrowLeft className="w-3.5 h-3.5" /> Physiograph
+            <ArrowLeft className="w-3.5 h-3.5" /> PhysioAdvisor
           </Link>
         </div>
         <RelationshipHeader
-          eyebrow="Physiograph®"
+          eyebrow="PhysioAdvisor®"
           title={title}
           titleAccent={titleAccent}
           description={description}

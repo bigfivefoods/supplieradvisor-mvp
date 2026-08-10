@@ -66,11 +66,27 @@ const SECTIONS: Section[] = [
         sa: 'strong',
       },
       {
-        capability: 'Platform messaging · colleagues & trade partners',
-        hint: 'Team inbox plus connected suppliers / customers on one thread model',
+        capability: 'In-app messaging · internal (colleagues)',
+        hint: 'Company team inbox — desk, owners, and staff threads without leaving the OS',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'In-app messaging · external (trade partners)',
+        hint: 'Connected suppliers & customers on the same thread model — not email silos',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'Service-module messaging · care & floor',
+        hint: 'Gym / clinic / dental / mental health / medical desk ↔ practitioners ↔ members/patients',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
         sa: 'strong',
       },
     ],
@@ -243,7 +259,7 @@ const SECTIONS: Section[] = [
     title: 'Industry vertical OS modules',
     rows: [
       {
-        capability: 'Fieldgraph® · agri production',
+        capability: 'FieldAdvisor® · agri production',
         hint: 'Fields, harvest, inputs, fleet fuel, labour, regen, farm-to-buyer',
         excel: 'partial',
         xero: 'no',
@@ -251,7 +267,7 @@ const SECTIONS: Section[] = [
         sa: 'strong',
       },
       {
-        capability: 'Quarrygraph® · aggregates & extractives',
+        capability: 'QuarryAdvisor® · aggregates & extractives',
         hint: 'Sites, reserves, plant, weighbridge, fleet, QA, permits',
         excel: 'partial',
         xero: 'no',
@@ -259,24 +275,40 @@ const SECTIONS: Section[] = [
         sa: 'strong',
       },
       {
-        capability: 'Fitgraph® · gym & fitness services',
-        hint: 'Coaches, members, classes, calendar, injury notes, messages, website',
+        capability: 'FitAdvisor® · gym & fitness services',
+        hint: 'Coaches (tenure, contracts), members, classes, calendar, portal, injury notes, messages, website',
         excel: 'no',
         xero: 'no',
         erp: 'no',
         sa: 'strong',
       },
       {
-        capability: 'Physiograph® · physio & allied health',
-        hint: 'Practitioners, patients, rehab packs, diary, clinical notes, messages',
+        capability: 'PhysioAdvisor® · physio & allied health',
+        hint: 'Practitioners, patients, rehab packs, diary, medical chart, patient portal, messages',
         excel: 'no',
         xero: 'no',
         erp: 'no',
         sa: 'strong',
       },
       {
-        capability: 'Dentalgraph® · dental practice OS',
-        hint: 'Dentists & staff, patients, care plans, surgeries, messages, website',
+        capability: 'DentalAdvisor® · dental practice OS',
+        hint: 'Staff, patients, care plans, diary, medical chart, patient portal, messages, website',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'PsychiatryAdvisor® · mental health OS',
+        hint: 'Psychiatry & psychology practitioners, patients, therapy packs, diary, portal, messages',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'MedicalAdvisor® · GP & medical practice OS',
+        hint: 'GPs, specialists & nurses, patients, consults, care packs, diary, portal, messages',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -342,7 +374,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Industry packs opt-in (vertical hubs)',
-        hint: 'Enable Fieldgraph, Quarrygraph, Fitgraph, Physiograph, Dentalgraph only when you need them',
+        hint: 'Enable FieldAdvisor, QuarryAdvisor, FitAdvisor, PhysioAdvisor, DentalAdvisor, PsychiatryAdvisor, MedicalAdvisor only when you need them',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
@@ -367,7 +399,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'One OS instead of a tool pile',
-        hint: 'Network, messaging, ops, finance, people, and industry verticals in one membership',
+        hint: 'Network, internal & external in-app messaging, ops, finance, people, and industry verticals in one membership',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
@@ -570,10 +602,15 @@ export default function ComparePlatforms() {
           <p className="mt-5 text-base leading-relaxed text-slate-600 dark:text-neutral-400 sm:text-lg">
             Spreadsheets fragment truth. Accounting clouds stop at the books.
             Major ERPs take years and seven figures. SupplierAdvisor® is the
-            supply-chain OS — network messaging, ops, finance (budgets &amp; group
-            hierarchy), quality, people, trust, and industry hubs (Fieldgraph®,
-            Quarrygraph®, Fitgraph®, Physiograph®, Dentalgraph®) — plus referral
-            earnings when you onboard your chain (up to 10% · L1 · L2 · L3).
+            supply-chain OS — network with{' '}
+            <strong className="font-semibold text-slate-800 dark:text-neutral-200">
+              internal and external in-app messaging
+            </strong>
+            , ops, finance (budgets &amp; group hierarchy), quality, people,
+            trust, and industry hubs (FieldAdvisor®, QuarryAdvisor®, FitAdvisor®,
+            PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, MedicalAdvisor®) — plus
+            referral earnings when you onboard your chain (up to 10% · L1 · L2 ·
+            L3).
           </p>
         </div>
 
@@ -601,7 +638,7 @@ export default function ComparePlatforms() {
             {
               name: 'SupplierAdvisor®',
               who: 'The supply-chain OS',
-              body: `Network + ops + finance (budgets, plan vs actual, holding structures) + people. Onboard your supply chain and earn up to 10% back (L1 6% · L2 3% · L3 1%) on their subscriptions. ${COMPANY_TRIAL_DAYS}-day trial. From R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo.`,
+              body: `Network + internal & external in-app messaging + ops + finance (budgets, group structures) + people + service verticals (gym, physio, dental, psychiatry, medical). Onboard your chain and earn up to 10% back (L1 6% · L2 3% · L3 1%). ${COMPANY_TRIAL_DAYS}-day trial. From R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo.`,
               icon: Sparkles,
               highlight: true,
             },

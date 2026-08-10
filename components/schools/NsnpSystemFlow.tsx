@@ -2,7 +2,7 @@
 
 /**
  * End-to-end NSNP diagram:
- * DBE → Schools → Service providers → Children fed
+ * DBE → Schools → Service providers → Messages → Children fed
  *
  * Shown on DBE, School, and SP command hubs so every role sees the same
  * full process, with their own swimlane highlighted.
@@ -22,6 +22,7 @@ import {
   ClipboardCheck,
   Handshake,
   Landmark,
+  MessageSquare,
   Package,
   ShoppingCart,
   ShieldCheck,
@@ -277,13 +278,50 @@ const PHASES: Phase[] = [
     ],
   },
   {
+    id: 'messages',
+    title: '6 · Messages (programme network)',
+    subtitle: 'DBE · PEU · schools · SPs — in-app',
+    steps: [
+      {
+        id: 'school-sp',
+        n: '6a',
+        title: 'School ↔ SP threads',
+        who: 'All',
+        desc: 'In-app messages on orders, deliveries and POD queries (school ↔ SP).',
+        href: '/dashboard/messages',
+        icon: MessageSquare,
+        role: 'shared',
+      },
+      {
+        id: 'dbe-coord',
+        n: '6b',
+        title: 'DBE / PEU coordination',
+        who: 'DBE',
+        desc: 'Programme messages for joins, monitoring and claim queries.',
+        href: '/dashboard/messages',
+        icon: MessageSquare,
+        role: 'dbe',
+      },
+      {
+        id: 'company-inbox',
+        n: '6c',
+        title: 'Company inbox',
+        who: 'All',
+        desc: 'External partners stay on the platform inbox — not email as SoR.',
+        href: '/dashboard/messages',
+        icon: MessageSquare,
+        role: 'shared',
+      },
+    ],
+  },
+  {
     id: 'close',
-    title: '6 · Verify, pay, reward',
+    title: '7 · Verify, pay, reward',
     subtitle: 'Close the loop without DBE ordering food',
     steps: [
       {
         id: 'monitor',
-        n: '6a',
+        n: '7a',
         title: 'PEU monitoring',
         who: 'PEU',
         desc: 'Field visits and NSNP monitoring scores.',
@@ -293,7 +331,7 @@ const PHASES: Phase[] = [
       },
       {
         id: 'claim',
-        n: '6b',
+        n: '7b',
         title: 'School claim pack',
         who: 'School',
         desc: 'Submit claim with evidence after feeding.',
@@ -303,7 +341,7 @@ const PHASES: Phase[] = [
       },
       {
         id: 'review',
-        n: '6c',
+        n: '7c',
         title: 'DBE reviews claims',
         who: 'DBE',
         desc: 'Approve or query claims — not GRN or warehouse.',
@@ -313,7 +351,7 @@ const PHASES: Phase[] = [
       },
       {
         id: 'prizes',
-        n: '6d',
+        n: '7d',
         title: 'Prizes & preferred SPs',
         who: 'DBE',
         desc: 'Reward school compliance and on-catalogue SPs.',
@@ -347,6 +385,7 @@ const ROLE_CARDS: Array<{
       'PEU visits and monitoring',
       'Review and approve claim packs',
       'Run prizes and preferred-SP scoring',
+      'Message schools and SPs in-app on programme threads',
     ],
     doesNot: [
       'Does not raise school POs',
@@ -367,6 +406,7 @@ const ROLE_CARDS: Array<{
       'Raise PO to SP when short',
       'Receive stock (GRN) into kitchen',
       'Serve meals on feed days · claim',
+      'Message SPs on order and delivery threads',
     ],
     doesNot: [
       'Does not invent the national menu',
@@ -386,6 +426,7 @@ const ROLE_CARDS: Array<{
       'Procure approved catalogue items',
       'Deliver with DN + photo POD',
       'Earn preferred score and OTIF',
+      'Message schools on PO and POD threads',
     ],
     doesNot: [
       'Does not set DBE menus',
@@ -461,7 +502,7 @@ export default function NsnpSystemFlow({
               {copy.eyebrow}
             </p>
             <h2 className="text-lg sm:text-xl font-black mt-0.5 leading-tight">
-              DBE → Schools → Service providers → Children fed
+              DBE → Schools → Service providers → Messages → Children fed
             </h2>
             <p className="text-sm text-white/90 mt-1.5 max-w-3xl leading-snug">
               {copy.lead}
@@ -496,6 +537,7 @@ export default function NsnpSystemFlow({
               { label: 'DBE / PEU', sub: 'Sets rules', tone: 'sky' },
               { label: 'Schools', sub: 'Stock · order · serve', tone: 'emerald' },
               { label: 'Service providers', sub: 'Procure · deliver', tone: 'amber' },
+              { label: 'Messages', sub: 'DBE · school · SP', tone: 'fuchsia' },
               { label: 'Children fed', sub: 'Outcome', tone: 'rose' },
             ].map((node, i, arr) => (
               <div key={node.label} className="contents">
@@ -507,6 +549,8 @@ export default function NsnpSystemFlow({
                         ? 'border-emerald-200 bg-emerald-50'
                         : node.tone === 'amber'
                           ? 'border-amber-200 bg-amber-50'
+                          : node.tone === 'fuchsia'
+                            ? 'border-fuchsia-200 bg-fuchsia-50'
                           : 'border-rose-200 bg-rose-50'
                   }`}
                 >

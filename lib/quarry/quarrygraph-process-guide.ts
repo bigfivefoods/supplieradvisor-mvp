@@ -1,5 +1,5 @@
 /**
- * Quarrygraph® end-to-end process guide content + PDF.
+ * QuarryAdvisor® end-to-end process guide content + PDF.
  * Locations → Sites → Reserves → Plant → Dispatch → Sold & compliant
  * Pure pdfkit — works on Vercel serverless.
  *
@@ -29,6 +29,7 @@ export const PROCESS_CHAIN = [
   { label: 'Reserves · plan', sub: 'Blast · allocate' },
   { label: 'Plant · stock', sub: 'Crush · pads' },
   { label: 'Dispatch · ops', sub: 'Ticket · fleet · labour' },
+  { label: 'Messages', sub: 'Office · pit · trade' },
   { label: 'Sold & compliant', sub: 'QA · permits · report' },
 ] as const;
 
@@ -42,6 +43,7 @@ export const ROLE_CARDS = [
       'Survey reserves and production sequence',
       'Allocate fleet / crews to project locations',
       'Review management pack (t, fuel util, R/km)',
+      'Message plant, dispatch and trade partners in-app',
     ],
     doesNot: [
       'Does not invent pit codes mid-blast without master update',
@@ -57,6 +59,7 @@ export const ROLE_CARDS = [
       'Log fleet hours, fuel, km (L/h · L/km · R/km)',
       'Cost labour gangs permanent / temp / contractor',
       'Feed hoppers and pads for dispatch',
+      'Message office on plant and blast threads',
     ],
     doesNot: [
       'Does not dispatch without a product / site link',
@@ -72,6 +75,7 @@ export const ROLE_CARDS = [
       'Attach lab QA to product and site',
       'Serve permanent yards and project batch plants',
       'Export key reports for management',
+      'Message customers on company inbox for tickets',
     ],
     doesNot: [
       'Does not ship without valid / non-expired permits in view',
@@ -207,24 +211,49 @@ export const PROCESS_PHASES: ProcessPhase[] = [
       },
     ],
   },
+
   {
-    title: '6 · Quality, reports & outcome',
-    subtitle: 'QA next to every tonne sold',
+    title: '6 · Messages (internal & trade)',
+    subtitle: 'Quarry office · plant · dispatch · customers',
     steps: [
       {
         n: '6a',
+        title: 'Office · pit threads',
+        who: 'Quarry office / Plant',
+        desc: 'In-app colleague chat for blasts, plant runs and stock hand-offs.',
+      },
+      {
+        n: '6b',
+        title: 'Dispatch · customer messages',
+        who: 'Dispatch / Trade',
+        desc: 'Coordinate tickets and deliveries with customers on the company inbox.',
+      },
+      {
+        n: '6c',
+        title: 'Close the loop',
+        who: 'Team',
+        desc: 'Keep operational decisions on threads next to the quarry book of truth.',
+      },
+    ],
+  },
+  {
+    title: '7 · Quality, reports & outcome',
+    subtitle: 'QA next to every tonne sold',
+    steps: [
+      {
+        n: '7a',
         title: 'Lab QA',
         who: 'Dispatch',
         desc: 'CS / grading pass-fail linked to site and product.',
       },
       {
-        n: '6b',
+        n: '7b',
         title: 'Key reports',
         who: 'Quarry office',
         desc: 'By quarry, vehicle KPIs, product balance, labour cost pack.',
       },
       {
-        n: '6c',
+        n: '7c',
         title: 'Sold & compliant',
         who: 'Trade',
         desc: 'Dispatch with permits valid and QA on the ticket trail.',
@@ -255,6 +284,10 @@ export const GUARDRAILS = [
     desc: 'Dispatch can deduct stockpile balance when weighbridge tickets post.',
   },
   {
+    title: 'Messages stay in-app',
+    desc: 'Office, plant and customers coordinate on OS threads — not a side WhatsApp as system of record.',
+  },
+  {
     title: 'Permits auto-flag',
     desc: 'Expiring / expired rights and WUL visible next to production.',
   },
@@ -272,6 +305,10 @@ export const SYSTEM_BENEFITS = [
   {
     title: 'Allocate mobile plant',
     desc: 'Put ADTs, loaders and crews on a job with start/end dates.',
+  },
+  {
+    title: 'In-app messaging',
+    desc: 'Internal office/pit threads plus external customers on the company inbox.',
   },
   {
     title: 'Fleet economics',
@@ -296,9 +333,9 @@ export const SYSTEM_BENEFITS = [
 ];
 
 export const ONE_SENTENCE =
-  'Register permanent, temporary and batching locations with GPS → sites and products under each → survey reserves and plan blasts → crush to stockpiles → allocate fleet/labour → weighbridge dispatch with QA and valid permits → report fuel util, R/km and tonnes by quarry.';
+  'Register locations and sites → plan reserves and production → run plant and stockpiles → ticket dispatch with fleet and labour → message office, pit and trade partners in-app → prove QA and permits on every tonne sold.';
 
-// ── PDF (same structure as Fieldgraph; amber/stone brand) ───────────────
+// ── PDF (same structure as FieldAdvisor; amber/stone brand) ───────────────
 
 const A4_PORTRAIT_W = 595.28;
 const A4_PORTRAIT_H = 841.89;
@@ -380,7 +417,7 @@ function drawFooter(doc: PdfDoc, g: Geo, pageNum: number, total: number) {
       .fontSize(7)
       .fillColor(MUTED)
       .text(
-        `SupplierAdvisor® · Quarrygraph® · ${orientLabel} · Quarrying & aggregates OS`,
+        `SupplierAdvisor® · QuarryAdvisor® · ${orientLabel} · Quarrying & aggregates OS`,
         g.mx,
         y + 4,
         { width: g.contentW * 0.72, align: 'left' }
@@ -686,10 +723,10 @@ export async function buildQuarrygraphProcessGuidePdf(opts?: {
       margins: { top: 0, bottom: 28, left: g.mx, right: g.mx },
       info: {
         Title:
-          'Quarrygraph® Process Design — Locations → Dispatch → Sold & compliant',
+          'QuarryAdvisor® Process Design — Locations → Dispatch → Sold & compliant',
         Author: 'SupplierAdvisor®',
-        Subject: `Quarrygraph quarrying end-to-end process (A4 ${orientation})`,
-        Keywords: 'Quarrygraph, aggregates, quarry, batching, fleet, process guide',
+        Subject: `QuarryAdvisor quarrying end-to-end process (A4 ${orientation})`,
+        Keywords: 'QuarryAdvisor, aggregates, quarry, batching, fleet, process guide',
         CreationDate: generated,
       },
     });
@@ -727,7 +764,7 @@ export async function buildQuarrygraphProcessGuidePdf(opts?: {
         .fontSize(g.isLandscape ? 11 : 10)
         .fillColor('#ffffff')
         .text(
-          'Process continued · Dispatch · Fleet · QA · Guardrails',
+          'Process continued · Dispatch · Messages · QA · Guardrails',
           g.mx,
           g.isLandscape ? 12 : 14,
           { width: g.contentW }
@@ -763,5 +800,5 @@ export function parseQuarrygraphProcessGuideOrientation(
 export function quarrygraphProcessGuideFilename(
   orientation: QuarrygraphProcessGuideOrientation
 ): string {
-  return `Quarrygraph-Process-Design-A4-${orientation}.pdf`;
+  return `QuarryAdvisor-Process-Design-A4-${orientation}.pdf`;
 }

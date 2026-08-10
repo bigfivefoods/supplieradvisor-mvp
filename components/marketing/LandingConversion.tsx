@@ -376,9 +376,21 @@ export function ComparisonTable() {
       sa: true,
     },
     {
-      feature: 'Platform messaging (team + trade partners)',
+      feature: 'In-app messaging · internal (colleagues)',
       sheets: false,
       erp: 'Partial',
+      sa: true,
+    },
+    {
+      feature: 'In-app messaging · external (trade partners)',
+      sheets: false,
+      erp: 'Partial',
+      sa: true,
+    },
+    {
+      feature: 'Service messaging (gym / clinic / dental / mental / medical)',
+      sheets: false,
+      erp: false,
       sa: true,
     },
     {
@@ -406,7 +418,8 @@ export function ComparisonTable() {
       sa: true,
     },
     {
-      feature: 'Industry hubs (Field · Quarry · Fit · Physio · Dental)',
+      feature:
+        'Industry hubs (Field · Quarry · Fit · Physio · Dental · Psychiatry · Medical)',
       sheets: false,
       erp: false,
       sa: true,

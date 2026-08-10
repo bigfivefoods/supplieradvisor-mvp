@@ -1,5 +1,5 @@
 /**
- * Fitgraph® — tertiary / services gym OS (Fitness & wellness industry).
+ * FitAdvisor® — tertiary / services gym OS (Fitness & wellness industry).
  * Coaches, clients/members, memberships, class types, calendar sessions,
  * bookings, check-ins, PT packs. Stored on profiles.metadata.fitgraph.
  */
@@ -225,6 +225,10 @@ export const FIT_CONTRACT_KINDS = [
   'waiver',
   'terms',
   'coach_agreement',
+  'practitioner_agreement',
+  'staff_agreement',
+  'nda',
+  'rate_letter',
   'other',
 ] as const;
 
@@ -349,6 +353,20 @@ export type FitClient = {
   name: string;
   email?: string;
   phone?: string;
+  /** Profile photo (public storage URL) */
+  photo_url?: string;
+  /** Token for member self-serve portal (book classes, see vacancies) */
+  portal_token?: string | null;
+  /** Email invite to join as a member and open the portal */
+  invite_token?: string | null;
+  invite_status?: string | null;
+  invite_email?: string | null;
+  invite_sent_at?: string | null;
+  invite_accepted_at?: string | null;
+  invite_expires_at?: string | null;
+  /** Share flags for portal after invite accepted */
+  share_schedule?: boolean;
+  share_feedback?: boolean;
   membership_plan_id?: string | null;
   membership_status?: (typeof MEMBERSHIP_STATUSES)[number] | string;
   start_date?: string | null;
@@ -792,6 +810,7 @@ export function readFitgraphFromMetadata(
 /** Metadata root indexes for public token lookup (no full table scan). */
 export const FITGRAPH_PUBLIC_TOKEN_KEY = 'fitgraph_public_token';
 export const FITGRAPH_COACH_TOKENS_KEY = 'fitgraph_coach_tokens';
+export const FITGRAPH_CLIENT_TOKENS_KEY = 'fitgraph_client_tokens';
 
 export function writeFitgraphToMetadata(
   meta: Record<string, unknown>,
@@ -801,6 +820,10 @@ export function writeFitgraphToMetadata(
   for (const c of store.coaches || []) {
     if (c.portal_token) coachTokens[String(c.portal_token)] = c.id;
   }
+  const clientTokens: Record<string, string> = {};
+  for (const c of store.clients || []) {
+    if (c.portal_token) clientTokens[String(c.portal_token)] = c.id;
+  }
   return {
     ...meta,
     [FITGRAPH_META_KEY]: {
@@ -809,6 +832,7 @@ export function writeFitgraphToMetadata(
     },
     [FITGRAPH_PUBLIC_TOKEN_KEY]: store.settings?.public_token || null,
     [FITGRAPH_COACH_TOKENS_KEY]: coachTokens,
+    [FITGRAPH_CLIENT_TOKENS_KEY]: clientTokens,
   };
 }
 
@@ -817,13 +841,167 @@ export function issueCoachPortalToken(companyId: number): string {
   return `coach_${companyId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/** Parse companyId from coach_* or fg_{companyId}_* tokens when present. */
+/** Issue a member / client portal token for self-serve class booking. */
+export function issueClientPortalToken(companyId: number): string {
+  return `member_${companyId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/** Parse companyId from coach_* , member_* or fg_{companyId}_* tokens when present. */
 export function parseCompanyIdFromToken(token: string): number | null {
   const coach = /^coach_(\d+)_/.exec(token);
   if (coach) return Number(coach[1]);
+  const member = /^member_(\d+)_/.exec(token);
+  if (member) return Number(member[1]);
   const fg = /^fg_(\d+)_/.exec(token);
   if (fg) return Number(fg[1]);
   return null;
+}
+
+/**
+ * Member portal: open classes with vacancies + this client's bookings.
+ * Only public scheduled sessions appear as open diary vacancies.
+ */
+export function buildMemberPortalPayload(
+  store: FitgraphStore,
+  client: FitClient,
+  from?: string,
+  to?: string
+) {
+  const start = from || new Date().toISOString().slice(0, 10);
+  const endDate = new Date(start + 'T12:00:00');
+  endDate.setDate(endDate.getDate() + 28);
+  const end = to || endDate.toISOString().slice(0, 10);
+
+  const shareSchedule = client.share_schedule !== false;
+  const shareFeedback = client.share_feedback !== false;
+
+  const open_classes = shareSchedule
+    ? store.sessions
+        .filter(
+          (s) =>
+            s.public === true &&
+            s.status === 'scheduled' &&
+            s.date >= start &&
+            s.date <= end
+        )
+        .map((s) => {
+          const ct = classTypeById(store, s.class_type_id);
+          const coach = coachById(store, s.coach_id);
+          const booked = sessionBookingCount(store, s.id);
+          const cap = s.capacity ?? ct?.capacity ?? 0;
+          const myBooking = store.bookings.find(
+            (b) =>
+              b.session_id === s.id &&
+              b.client_id === client.id &&
+              (b.status === 'booked' ||
+                b.status === 'waitlist' ||
+                b.status === 'attended')
+          );
+          return {
+            id: s.id,
+            date: s.date,
+            start_time: s.start_time,
+            end_time: s.end_time,
+            duration_min: s.duration_min ?? ct?.default_duration_min ?? 45,
+            class_name: ct?.name || 'Class',
+            class_code: ct?.code,
+            category: ct?.category,
+            coach_name: coach?.name,
+            location: s.location,
+            capacity: cap,
+            spots_left: Math.max(0, cap - booked),
+            full: cap > 0 && booked >= cap,
+            public_notes: s.public_notes,
+            class_plan: s.class_plan || s.public_notes || undefined,
+            share_code: s.share_code,
+            my_status: myBooking?.status || null,
+            my_booking_id: myBooking?.id || null,
+          };
+        })
+        .sort((a, b) =>
+          a.date === b.date
+            ? a.start_time.localeCompare(b.start_time)
+            : a.date.localeCompare(b.date)
+        )
+    : [];
+
+  const my_bookings = shareSchedule
+    ? store.bookings
+        .filter(
+          (b) =>
+            b.client_id === client.id &&
+            b.status !== 'cancelled' &&
+            (() => {
+              const s = store.sessions.find((x) => x.id === b.session_id);
+              return s && s.date >= start;
+            })()
+        )
+        .map((b) => {
+          const s = store.sessions.find((x) => x.id === b.session_id)!;
+          const ct = classTypeById(store, s.class_type_id);
+          const coach = coachById(store, s.coach_id);
+          return {
+            booking_id: b.id,
+            status: b.status,
+            session_id: s.id,
+            date: s.date,
+            start_time: s.start_time,
+            class_name: ct?.name || 'Class',
+            coach_name: coach?.name,
+            location: s.location,
+            feedback_token: shareFeedback ? b.feedback_token || null : null,
+          };
+        })
+        .sort((a, b) =>
+          a.date === b.date
+            ? a.start_time.localeCompare(b.start_time)
+            : a.date.localeCompare(b.date)
+        )
+    : [];
+
+  const plan = client.membership_plan_id
+    ? store.membership_plans.find((p) => p.id === client.membership_plan_id)
+    : null;
+  const assignedCoach = client.coach_id
+    ? store.coaches.find((c) => c.id === client.coach_id)
+    : null;
+
+  return {
+    brand:
+      store.settings?.brand_name ||
+      store.settings?.public_bio?.slice(0, 40) ||
+      'Gym',
+    bio: store.settings?.public_bio,
+    timezone: store.settings?.timezone || 'Africa/Johannesburg',
+    allow_booking: store.settings?.allow_public_booking !== false,
+    contact_email: store.settings?.contact_email,
+    contact_phone: store.settings?.contact_phone,
+    primary_color: store.settings?.embed_primary_color || '#7c3aed',
+    from: start,
+    to: end,
+    client: {
+      id: client.id,
+      code: client.code,
+      name: client.name,
+      email: client.email,
+      phone: client.phone,
+      photo_url: client.photo_url,
+      membership_status: client.membership_status,
+      plan_name: plan?.name,
+      plan_code: plan?.code,
+      coach_name: assignedCoach?.name,
+      invite_status: client.invite_status || null,
+    },
+    shares: {
+      schedule: shareSchedule,
+      feedback: shareFeedback,
+    },
+    open_classes,
+    vacancies: open_classes.filter((c) => !c.full && !c.my_status),
+    my_bookings,
+    open_count: open_classes.filter((c) => !c.full).length,
+    full_count: open_classes.filter((c) => c.full && !c.my_status).length,
+  };
 }
 
 export function ensurePublicToken(
@@ -1489,7 +1667,7 @@ export function buildSessionIcs(opts: {
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//SupplierAdvisor//Fitgraph//EN',
+    'PRODID:-//SupplierAdvisor//FitAdvisor//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',

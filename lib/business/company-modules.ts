@@ -37,15 +37,19 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   projects: 'Portfolio, kanban, milestones & timesheets',
   sustainability: 'Carbon tracking, ESG packs & impact',
   fieldgraph:
-    'Fieldgraph® — multi-crop fields, estimates, harvest, inputs, regen & farm-to-buyer trade',
+    'FieldAdvisor® — multi-crop fields, estimates, harvest, inputs, regen & farm-to-buyer trade',
   quarrygraph:
-    'Quarrygraph® — sites, reserves, production, plant, weighbridge, fleet, QA & permits',
+    'QuarryAdvisor® — sites, reserves, production, plant, weighbridge, fleet, QA & permits',
   fitgraph:
-    'Fitgraph® (tertiary services) — gym coaches, members, memberships, classes, calendar, bookings & check-ins',
+    'FitAdvisor® (tertiary services) — gym coaches, members, memberships, classes, calendar, bookings & check-ins',
   physiograph:
-    'Physiograph® (tertiary services) — physio / OT / biokinetics: practitioners, patients, services, packages, diary & bookings',
+    'PhysioAdvisor® (tertiary services) — physio / OT / biokinetics: practitioners, patients, services, packages, diary & bookings',
   dentalgraph:
-    'Dentalgraph® (tertiary services) — dentists, hygienists & staff: patients, services, care plans, diary, bookings & messages',
+    'DentalAdvisor® (tertiary services) — dentists, hygienists & staff: patients, services, care plans, diary, bookings & messages',
+  psychiatrygraph:
+    'PsychiatryAdvisor® (tertiary services) — psychiatry & psychology: practitioners, patients, therapy packages, diary & bookings',
+  medicalgraph:
+    'MedicalAdvisor® (tertiary services) — GP / medical practice: practitioners, patients, consults, care packs, diary & bookings',
   intelligence: 'Pulse, forecasts, scorecards & Super-Cube® leadership',
   schools:
     'NSNP schools: kitchen, learners, SPs, approved brands, feeding, prizes (DBE only)',
@@ -163,7 +167,7 @@ export const MODULE_CATEGORIES: ModuleCategory[] = [
     id: 'ind_primary',
     band: 'industry',
     title: 'Primary production',
-    blurb: 'Fieldgraph® (farming) and Quarrygraph® (aggregates).',
+    blurb: 'FieldAdvisor® (farming) and QuarryAdvisor® (aggregates).',
     moduleIds: ['fieldgraph', 'quarrygraph'],
   },
   {
@@ -171,8 +175,14 @@ export const MODULE_CATEGORIES: ModuleCategory[] = [
     band: 'industry',
     title: 'Services',
     blurb:
-      'Fitgraph® (gyms), Physiograph® (physio / allied) and Dentalgraph® (dental practices).',
-    moduleIds: ['fitgraph', 'physiograph', 'dentalgraph'],
+      'FitAdvisor® (gyms), PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor® and MedicalAdvisor® practice OS modules.',
+    moduleIds: [
+      'fitgraph',
+      'physiograph',
+      'dentalgraph',
+      'psychiatrygraph',
+      'medicalgraph',
+    ],
   },
   {
     id: 'ind_programme',
@@ -403,7 +413,7 @@ export function normalizeEnabledModules(
     if (Object.prototype.hasOwnProperty.call(src, id)) {
       map[id] = src[id] === true || src[id] === 'true' || src[id] === 1;
     } else {
-      // Sector programmes + Fieldgraph agri are opt-in; others default on
+      // Sector programmes + FieldAdvisor agri are opt-in; others default on
       map[id] =
         id === 'schools' ||
         id === 'health' ||
@@ -412,6 +422,8 @@ export function normalizeEnabledModules(
         id === 'fitgraph' ||
         id === 'physiograph' ||
         id === 'dentalgraph' ||
+        id === 'psychiatrygraph' ||
+        id === 'medicalgraph' ||
         id === 'platform'
           ? false
           : true;
@@ -436,7 +448,7 @@ export function isModuleEnabled(
 ): boolean {
   if (isAlwaysOnModule(moduleId)) return true;
   if (!enabled) {
-    // Fail open except opt-in sector programmes / Fieldgraph / platform console
+    // Fail open except opt-in sector programmes / FieldAdvisor / platform console
     return (
       moduleId !== 'schools' &&
       moduleId !== 'health' &&
@@ -445,6 +457,8 @@ export function isModuleEnabled(
       moduleId !== 'fitgraph' &&
       moduleId !== 'physiograph' &&
       moduleId !== 'dentalgraph' &&
+      moduleId !== 'psychiatrygraph' &&
+      moduleId !== 'medicalgraph' &&
       moduleId !== 'platform'
     );
   }
@@ -459,6 +473,8 @@ export function isModuleEnabled(
     moduleId !== 'fitgraph' &&
     moduleId !== 'physiograph' &&
     moduleId !== 'dentalgraph' &&
+    moduleId !== 'psychiatrygraph' &&
+    moduleId !== 'medicalgraph' &&
     moduleId !== 'platform'
   );
 }
@@ -517,6 +533,8 @@ export function moduleIdForPath(pathname: string | null | undefined): string | n
   if (pathname.startsWith('/dashboard/fitgraph')) return 'fitgraph';
   if (pathname.startsWith('/dashboard/physiograph')) return 'physiograph';
   if (pathname.startsWith('/dashboard/dentalgraph')) return 'dentalgraph';
+  if (pathname.startsWith('/dashboard/psychiatrygraph')) return 'psychiatrygraph';
+  if (pathname.startsWith('/dashboard/medicalgraph')) return 'medicalgraph';
   if (pathname.startsWith('/dashboard/schools')) return 'schools';
   if (pathname.startsWith('/dashboard/health')) return 'health';
   if (pathname.startsWith('/dashboard/platform')) return 'platform';

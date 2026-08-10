@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Physiograph form surfaces — clinic teal via shared role tones (trade/cyan).
+ * PhysioAdvisor form surfaces — clinic teal via shared role tones (trade/cyan).
  */
 import type { ReactNode } from 'react';
 import {

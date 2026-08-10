@@ -1,5 +1,5 @@
 /**
- * Dentalgraph® — tertiary / services dental practice OS.
+ * DentalAdvisor® — tertiary / services dental practice OS.
  * Dentists, hygienists, assistants (staff), patients, services, care plans, diary, bookings.
  * Stored on profiles.metadata.dentalgraph.
  */
@@ -51,25 +51,234 @@ export const PATIENT_STATUSES = [
   'cancelled',
 ] as const;
 
+/** How the owner pays / prices a staff member */
+export const STAFF_RATE_BASES = [
+  'hourly',
+  'per_session',
+  'per_appointment',
+  'monthly',
+  'fixed',
+  'package',
+] as const;
+
+export type DentalRateBasis = (typeof STAFF_RATE_BASES)[number] | string;
+
+/** One closed employment / engagement period for a staff member */
+export type DentalEngagement = {
+  id: string;
+  /** YYYY-MM-DD */
+  start_date: string;
+  /** YYYY-MM-DD */
+  end_date: string;
+  note?: string;
+  ended_reason?: string;
+  rate_zar?: number | null;
+  rate_basis?: DentalRateBasis;
+};
+
+/** PDF (or doc) contract attached to a staff engagement */
+export type DentalContractDoc = {
+  id: string;
+  title: string;
+  file_name: string;
+  /** Public storage URL */
+  url: string;
+  uploaded_at: string;
+  /** staff_agreement | nda | rate_letter | other */
+  kind?: string;
+};
+
+export const DENTAL_CONTRACT_KINDS = [
+  'staff_agreement',
+  'nda',
+  'rate_letter',
+  'terms',
+  'other',
+] as const;
+
 export type DentalStaff = {
   id: string;
   code: string;
   name: string;
   email?: string;
   phone?: string;
+  /** Roles / skills (owner-managed catalogue) */
   roles?: string[];
   bio?: string;
   public_bio?: string;
   photo_url?: string;
   rate_zar?: number | null;
-  /** hourly | per_session | package */
-  rate_basis?: string | null;
+  /** hourly | per_session | per_appointment | monthly | fixed | package */
+  rate_basis?: DentalRateBasis | null;
+  /** Optional owner note about rate */
+  rate_note?: string;
   active?: boolean;
+  /**
+   * Current engagement start (owner-set).
+   * Defaults to created_at date when first saved.
+   */
   start_date?: string | null;
+  /**
+   * Current engagement end (owner-set).
+   * Null while still active; set when leaving / contract ends.
+   */
   end_date?: string | null;
+  /** Owner-uploaded PDF contracts (agreements, NDAs, rate letters) */
+  contracts?: DentalContractDoc[];
+  /** Closed past engagements (keep history when staff returns) */
+  history?: DentalEngagement[];
   portal_token?: string | null;
+  /** Can manage own diary slots */
+  can_manage?: boolean;
   created_at: string;
 };
+
+export function formatStaffRate(
+  rateZar?: number | null,
+  basis?: DentalRateBasis | null
+): string {
+  if (rateZar == null || !Number.isFinite(Number(rateZar))) return '—';
+  const n = Number(rateZar);
+  const money = `R${n.toLocaleString('en-ZA', {
+    minimumFractionDigits: n % 1 ? 2 : 0,
+    maximumFractionDigits: 2,
+  })}`;
+  const b = String(basis || 'per_session').replace(/_/g, ' ');
+  return `${money} / ${b}`;
+}
+
+/** Archive current stint into history when ending engagement */
+export function closeStaffEngagement(
+  person: DentalStaff,
+  endDate: string,
+  opts?: { note?: string; reason?: string; nowIso?: string }
+): DentalStaff {
+  const start =
+    person.start_date ||
+    (person.created_at || opts?.nowIso || new Date().toISOString()).slice(0, 10);
+  const end = endDate || new Date().toISOString().slice(0, 10);
+  const hist = [...(person.history || [])];
+  const already = hist.some(
+    (h) => h.start_date === start && h.end_date === end
+  );
+  if (!already && start) {
+    hist.push({
+      id: newId('eng'),
+      start_date: start,
+      end_date: end,
+      note: opts?.note,
+      ended_reason: opts?.reason,
+      rate_zar:
+        person.rate_zar != null && Number.isFinite(Number(person.rate_zar))
+          ? Number(person.rate_zar)
+          : null,
+      rate_basis: person.rate_basis || undefined,
+    });
+  }
+  hist.sort((a, b) => b.start_date.localeCompare(a.start_date));
+  return {
+    ...person,
+    history: hist,
+    start_date: start,
+    end_date: end,
+    active: false,
+  };
+}
+
+/** Start a new engagement (rehire) — keeps history */
+export function reopenStaffEngagement(
+  person: DentalStaff,
+  startDate: string
+): DentalStaff {
+  return {
+    ...person,
+    start_date: startDate,
+    end_date: null,
+    active: true,
+  };
+}
+
+/** Rename a role across the catalogue and all staff */
+export function renameStaffRole(
+  store: DentalgraphStore,
+  from: string,
+  to: string
+): { ok: true; options: string[] } | { ok: false; error: string } {
+  const src = String(from || '').trim();
+  const dest = String(to || '').trim();
+  if (!src) return { ok: false, error: 'Current role name required' };
+  if (!dest) return { ok: false, error: 'New role name required' };
+  if (src.toLowerCase() === dest.toLowerCase() && src === dest) {
+    return { ok: true, options: getStaffRoleOptions(store) };
+  }
+
+  const options = getStaffRoleOptions(store).filter(
+    (s) => s.toLowerCase() !== src.toLowerCase()
+  );
+  if (!options.some((s) => s.toLowerCase() === dest.toLowerCase())) {
+    options.push(dest);
+  }
+  if (!store.settings) store.settings = defaultDentalPublicSettings();
+  store.settings.staff_roles = options;
+
+  for (const p of store.staff || []) {
+    if (!p.roles?.length) continue;
+    p.roles = p.roles.map((s) =>
+      s.toLowerCase() === src.toLowerCase() ? dest : s
+    );
+    const seen = new Set<string>();
+    p.roles = p.roles.filter((s) => {
+      const k = s.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }
+  return { ok: true, options: getStaffRoleOptions(store) };
+}
+
+/** Add a role to the practice catalogue */
+export function addStaffRole(
+  store: DentalgraphStore,
+  name: string
+): { ok: true; options: string[] } | { ok: false; error: string } {
+  const n = String(name || '').trim();
+  if (!n) return { ok: false, error: 'Role name required' };
+  if (n.length > 48) return { ok: false, error: 'Keep role under 48 characters' };
+  const options = getStaffRoleOptions(store);
+  if (options.some((s) => s.toLowerCase() === n.toLowerCase())) {
+    return { ok: false, error: 'That role already exists' };
+  }
+  if (!store.settings) store.settings = defaultDentalPublicSettings();
+  store.settings.staff_roles = [...options, n];
+  return { ok: true, options: store.settings.staff_roles };
+}
+
+/** Remove from catalogue (optionally strip from staff) */
+export function removeStaffRole(
+  store: DentalgraphStore,
+  name: string,
+  opts?: { stripFromStaff?: boolean }
+): { ok: true; options: string[] } | { ok: false; error: string } {
+  const n = String(name || '').trim();
+  if (!n) return { ok: false, error: 'Role name required' };
+  const options = getStaffRoleOptions(store).filter(
+    (s) => s.toLowerCase() !== n.toLowerCase()
+  );
+  if (!options.length) {
+    return { ok: false, error: 'Keep at least one role' };
+  }
+  if (!store.settings) store.settings = defaultDentalPublicSettings();
+  store.settings.staff_roles = options;
+  if (opts?.stripFromStaff) {
+    for (const p of store.staff || []) {
+      if (!p.roles?.length) continue;
+      p.roles = p.roles.filter((s) => s.toLowerCase() !== n.toLowerCase());
+      if (!p.roles.length) p.roles = ['General'];
+    }
+  }
+  return { ok: true, options };
+}
 
 /**
  * Clinical / injury awareness — staff update so the whole team
@@ -84,6 +293,21 @@ export type DentalPatient = {
   name: string;
   email?: string;
   phone?: string;
+  /** Profile photo (public storage URL) */
+  photo_url?: string;
+  /** Token for patient self-serve portal (book open diary slots) */
+  portal_token?: string | null;
+  /** Email invite to join as a patient and open the portal */
+  invite_token?: string | null;
+  invite_status?: string | null;
+  invite_email?: string | null;
+  invite_sent_at?: string | null;
+  invite_accepted_at?: string | null;
+  invite_expires_at?: string | null;
+  /** Share medical chart summary on patient portal (default true after invite) */
+  share_medical?: boolean;
+  share_schedule?: boolean;
+  share_feedback?: boolean;
   status?: (typeof PATIENT_STATUSES)[number] | string;
   staff_id?: string | null;
   package_id?: string | null;
@@ -244,16 +468,201 @@ export function readDentalgraphFromMetadata(
   return e;
 }
 
+export const DENTALGRAPH_PATIENT_TOKENS_KEY = 'dentalgraph_patient_tokens';
+
 export function writeDentalgraphToMetadata(
   meta: Record<string, unknown>,
   store: DentalgraphStore
 ): Record<string, unknown> {
+  const patientTokens: Record<string, string> = {};
+  for (const p of store.patients || []) {
+    if (p.portal_token) patientTokens[String(p.portal_token)] = p.id;
+  }
   return {
     ...meta,
     [DENTALGRAPH_META_KEY]: {
       ...store,
       updated_at: new Date().toISOString(),
     },
+    [DENTALGRAPH_PATIENT_TOKENS_KEY]: patientTokens,
+  };
+}
+
+/** Issue patient portal token (self-serve diary booking). */
+export function issueDentalPatientPortalToken(companyId: number): string {
+  return `dpat_${companyId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function parseDentalCompanyIdFromToken(token: string): number | null {
+  const m = /^dpat_(\d+)_/.exec(token);
+  if (m) return Number(m[1]);
+  const dg = /^dg_(\d+)_/.exec(token);
+  if (dg) return Number(dg[1]);
+  return null;
+}
+
+/**
+ * Patient portal: open public diary slots with vacancies + this patient's bookings.
+ */
+export function buildDentalPatientPortalPayload(
+  store: DentalgraphStore,
+  patient: DentalPatient,
+  from?: string,
+  to?: string
+) {
+  const start = from || new Date().toISOString().slice(0, 10);
+  const endDate = new Date(start + 'T12:00:00');
+  endDate.setDate(endDate.getDate() + 28);
+  const end = to || endDate.toISOString().slice(0, 10);
+
+  const shareSchedule = patient.share_schedule !== false;
+  const shareFeedback = patient.share_feedback !== false;
+  const shareMedical = patient.share_medical !== false;
+
+  const open_slots = shareSchedule
+    ? store.appointments
+        .filter(
+          (a) =>
+            a.public === true &&
+            a.status === 'scheduled' &&
+            a.date >= start &&
+            a.date <= end
+        )
+        .map((a) => {
+          const svc = store.services.find((s) => s.id === a.service_id);
+          const staff = store.staff.find((p) => p.id === a.staff_id);
+          const booked = appointmentBookingCount(store, a.id);
+          const capacity = 1;
+          const full = booked >= capacity;
+          const myBooking = store.bookings.find(
+            (b) =>
+              b.appointment_id === a.id &&
+              b.patient_id === patient.id &&
+              (b.status === 'booked' ||
+                b.status === 'waitlist' ||
+                b.status === 'attended')
+          );
+          return {
+            id: a.id,
+            date: a.date,
+            start_time: a.start_time,
+            end_time: a.end_time,
+            duration_min: a.duration_min ?? svc?.default_duration_min ?? 30,
+            service_name: svc?.name || 'Appointment',
+            clinician_name: staff?.name,
+            location: a.location,
+            capacity,
+            spots_left: Math.max(0, capacity - booked),
+            full,
+            public_notes: a.public_notes,
+            my_status: myBooking?.status || null,
+            my_booking_id: myBooking?.id || null,
+          };
+        })
+        .sort((a, b) =>
+          a.date === b.date
+            ? a.start_time.localeCompare(b.start_time)
+            : a.date.localeCompare(b.date)
+        )
+    : [];
+
+  const my_bookings = shareSchedule
+    ? store.bookings
+        .filter((b) => {
+          if (b.patient_id !== patient.id || b.status === 'cancelled')
+            return false;
+          const a = store.appointments.find((x) => x.id === b.appointment_id);
+          return a && a.date >= start;
+        })
+        .map((b) => {
+          const a = store.appointments.find((x) => x.id === b.appointment_id)!;
+          const svc = store.services.find((s) => s.id === a.service_id);
+          const staff = store.staff.find((p) => p.id === a.staff_id);
+          return {
+            booking_id: b.id,
+            status: b.status,
+            appointment_id: a.id,
+            date: a.date,
+            start_time: a.start_time,
+            service_name: svc?.name || 'Appointment',
+            clinician_name: staff?.name,
+            location: a.location,
+            feedback_token: shareFeedback
+              ? (b as { feedback_token?: string }).feedback_token || null
+              : null,
+          };
+        })
+        .sort((a, b) =>
+          a.date === b.date
+            ? a.start_time.localeCompare(b.start_time)
+            : a.date.localeCompare(b.date)
+        )
+    : [];
+
+  let medical_share: Record<string, unknown> | null = null;
+  if (shareMedical) {
+    const clinical = patient.clinical;
+    const medical = patient.medical;
+    const summary: Record<string, unknown> = {};
+    if (clinical?.injury_status) summary.injury_status = clinical.injury_status;
+    if (clinical?.injury_areas?.length)
+      summary.injury_areas = clinical.injury_areas;
+    if (clinical?.injury_notes) summary.injury_notes = clinical.injury_notes;
+    if (clinical?.diagnosis_notes || patient.diagnosis_notes) {
+      summary.diagnosis_notes =
+        clinical?.diagnosis_notes || patient.diagnosis_notes;
+    }
+    if (clinical?.training_modifications)
+      summary.care_notes = clinical.training_modifications;
+    if (clinical?.goals) summary.goals = clinical.goals;
+    if (clinical?.pain_score != null) summary.pain_score = clinical.pain_score;
+    if (medical?.allergies) summary.allergies = medical.allergies;
+    if (medical?.chronic_conditions)
+      summary.chronic_conditions = medical.chronic_conditions;
+    if (medical?.current_meds) summary.current_meds = medical.current_meds;
+    if (medical?.medical_aid?.scheme_name) {
+      summary.medical_aid = {
+        scheme_name: medical.medical_aid.scheme_name,
+        plan_name: medical.medical_aid.plan_name,
+        membership_number: medical.medical_aid.membership_number
+          ? `••••${String(medical.medical_aid.membership_number).slice(-4)}`
+          : undefined,
+      };
+    }
+    medical_share = Object.keys(summary).length ? summary : null;
+  }
+
+  return {
+    brand: store.settings?.brand_name || 'Practice',
+    bio: store.settings?.public_bio,
+    timezone: store.settings?.timezone || 'Africa/Johannesburg',
+    allow_booking: store.settings?.allow_public_booking !== false,
+    contact_email: store.settings?.contact_email,
+    contact_phone: store.settings?.contact_phone,
+    primary_color: store.settings?.embed_primary_color || '#0284c7',
+    from: start,
+    to: end,
+    patient: {
+      id: patient.id,
+      code: patient.code,
+      name: patient.name,
+      email: patient.email,
+      phone: patient.phone,
+      photo_url: patient.photo_url,
+      status: patient.status,
+      invite_status: patient.invite_status || null,
+    },
+    shares: {
+      schedule: shareSchedule,
+      feedback: shareFeedback,
+      medical: shareMedical,
+    },
+    medical_share,
+    open_slots,
+    vacancies: open_slots.filter((s) => !s.full && !s.my_status),
+    my_bookings,
+    open_count: open_slots.filter((s) => !s.full).length,
+    full_count: open_slots.filter((s) => s.full && !s.my_status).length,
   };
 }
 

@@ -29,6 +29,7 @@ export const PROCESS_CHAIN = [
   { label: 'DBE / PEU', sub: 'Sets rules & checks' },
   { label: 'Schools', sub: 'Stock · order · serve' },
   { label: 'Service providers', sub: 'Procure · deliver' },
+  { label: 'Messages', sub: 'DBE · school · SP' },
   { label: 'Children fed', sub: 'Authorised meals' },
 ] as const;
 
@@ -42,6 +43,7 @@ export const ROLE_CARDS = [
       'PEU visits and monitoring',
       'Review and approve claim packs',
       'Run prizes and preferred-SP scoring',
+      'Message schools and SPs in-app on programme threads',
     ],
     doesNot: [
       'Does not raise school POs',
@@ -58,6 +60,7 @@ export const ROLE_CARDS = [
       'Raise PO to SP when short',
       'Receive stock (GRN) into kitchen',
       'Serve meals on feed days · claim',
+      'Message SPs on order and delivery threads',
     ],
     doesNot: [
       'Does not invent the national menu',
@@ -73,6 +76,7 @@ export const ROLE_CARDS = [
       'Procure approved catalogue items',
       'Deliver with DN + photo POD',
       'Earn preferred score and OTIF',
+      'Message schools on PO and POD threads',
     ],
     doesNot: [
       'Does not set DBE menus',
@@ -208,30 +212,55 @@ export const PROCESS_PHASES: ProcessPhase[] = [
       },
     ],
   },
+
   {
-    title: '6 · Verify, pay, reward',
-    subtitle: 'Close the loop without DBE ordering food',
+    title: '6 · Messages (programme network)',
+    subtitle: 'DBE · PEU · schools · SPs — in-app',
     steps: [
       {
         n: '6a',
+        title: 'School ↔ SP threads',
+        who: 'School / SP',
+        desc: 'In-app messages on orders, deliveries and POD queries.',
+      },
+      {
+        n: '6b',
+        title: 'DBE / PEU coordination',
+        who: 'DBE / PEU',
+        desc: 'Programme messages for joins, monitoring and claim queries.',
+      },
+      {
+        n: '6c',
+        title: 'Company inbox',
+        who: 'All',
+        desc: 'External partners stay on the platform inbox — not email as system of record.',
+      },
+    ],
+  },
+  {
+    title: '7 · Verify, pay, reward',
+    subtitle: 'Close the loop without DBE ordering food',
+    steps: [
+      {
+        n: '7a',
         title: 'PEU monitoring',
         who: 'PEU',
         desc: 'Field visits and NSNP monitoring scores.',
       },
       {
-        n: '6b',
+        n: '7b',
         title: 'School claim pack',
         who: 'School',
         desc: 'Submit claim with evidence after feeding.',
       },
       {
-        n: '6c',
+        n: '7c',
         title: 'DBE reviews claims',
         who: 'DBE',
         desc: 'Approve or query claims — not GRN or warehouse.',
       },
       {
-        n: '6d',
+        n: '7d',
         title: 'Prizes & preferred SPs',
         who: 'DBE',
         desc: 'Reward school compliance and on-catalogue SPs.',
@@ -262,6 +291,10 @@ export const COMPLIANCE_GATES = [
     desc: 'Monitoring checks that meals match the authorised programme.',
   },
   {
+    title: 'Messages stay in-app',
+    desc: 'DBE, schools and SPs coordinate on OS threads — not a side WhatsApp as system of record.',
+  },
+  {
     title: 'Claims only after feeding',
     desc: 'DBE pays claims backed by serve-day and compliance evidence.',
   },
@@ -272,6 +305,10 @@ export const SYSTEM_BENEFITS = [
   {
     title: 'One programme OS',
     desc: 'Catalogue, menus, stock, orders, deliveries, serve logs, monitoring and claims live in one verified network — not scattered spreadsheets.',
+  },
+  {
+    title: 'In-app messaging',
+    desc: 'Programme network threads for school↔SP and DBE/PEU coordination on the same OS.',
   },
   {
     title: 'Clear role boundaries',
@@ -312,7 +349,7 @@ export const SYSTEM_BENEFITS = [
 ];
 
 export const ONE_SENTENCE =
-  'DBE sets catalogue, menus and calendar → schools check stock and order from SPs when short → SPs procure and deliver → schools GRN and serve → PEU verifies → DBE pays claims and rewards compliance.';
+  'DBE sets catalogue, menu and calendar → schools stock-check and order from linked SPs → SPs procure and deliver with POD → schools GRN and serve meals → message DBE, schools and SPs in-app → PEU monitors and claims close the loop.';
 
 // ── PDF geometry (A4 landscape | portrait) ──────────────────────────────
 

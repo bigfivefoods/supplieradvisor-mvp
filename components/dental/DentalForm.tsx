@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Dentalgraph form surfaces — practice sky via shared role tones.
+ * DentalAdvisor form surfaces — practice sky via shared role tones.
  */
 import type { ReactNode } from 'react';
 import {

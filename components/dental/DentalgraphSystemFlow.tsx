@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * End-to-end Dentalgraph® process design:
+ * End-to-end DentalAdvisor® process design:
  * People → Services · care plans → Diary → Floor → Messages → Website · reports
  *
- * Expandable on the Dentalgraph command hub; downloadable A4 PDF
- * (landscape + portrait) — same pattern as Fitgraph / Physiograph.
+ * Expandable on the DentalAdvisor command hub; downloadable A4 PDF
+ * (landscape + portrait) — same pattern as FitAdvisor / PhysioAdvisor.
  * Content kept in sync with lib/dental/dentalgraph-process-guide.ts
  */
 import { useState } from 'react';
@@ -190,25 +190,34 @@ const PHASES: Phase[] = [
   },
   {
     id: 'messages',
-    title: '5 · Messages',
-    subtitle: 'Desk · staff · patients',
+    title: '5 · Messages (internal · care · trade)',
+    subtitle: 'Desk · clinicians · patients · company inbox',
     steps: [
       {
-        id: 'threads',
+        id: 'internal',
         n: '5a',
-        title: 'Care threads',
-        who: 'Reception / clinician',
-        desc: 'Colleague and patient care messages for hand-offs.',
+        title: 'Internal team threads',
+        who: 'Desk / team',
+        desc: 'Colleague chat for hand-offs, schedule notes and practice ops.',
         href: '/dashboard/dentalgraph/messages',
         icon: MessageSquare,
       },
       {
-        id: 'close',
+        id: 'care',
         n: '5b',
-        title: 'Close the loop',
-        who: 'Team',
-        desc: 'Reply and archive when the episode of care is done.',
+        title: 'Care · patient threads',
+        who: 'Desk / clinician',
+        desc: 'Patient care messages so the whole team stays aligned.',
         href: '/dashboard/dentalgraph/messages',
+        icon: MessageSquare,
+      },
+      {
+        id: 'company-inbox',
+        n: '5c',
+        title: 'Company inbox (external)',
+        who: 'Owner',
+        desc: 'Trade partners on the platform company inbox.',
+        href: '/dashboard/messages',
         icon: MessageSquare,
       },
     ],
@@ -339,7 +348,7 @@ const GUARDRAILS = [
   },
   {
     title: 'One practice book',
-    desc: 'People, diary, bookings, messages and website share one Dentalgraph store.',
+    desc: 'People, diary, bookings, messages and website share one DentalAdvisor store.',
   },
 ];
 
@@ -354,7 +363,7 @@ export default function DentalgraphSystemFlow({
       className={`rounded-3xl border border-slate-200 bg-white overflow-hidden ${
         compact ? 'mb-4' : 'mb-6'
       }`}
-      aria-label="Dentalgraph full process design"
+      aria-label="DentalAdvisor full process design"
       id="dentalgraph-system-flow"
     >
       <div className="bg-gradient-to-r from-sky-950 via-sky-800 to-cyan-700 px-5 py-4 text-white">
@@ -411,7 +420,7 @@ export default function DentalgraphSystemFlow({
                 sub: 'Book · attend · feedback',
                 tone: 'amber',
               },
-              { label: 'Messages', sub: 'Desk · care', tone: 'fuchsia' },
+              { label: 'Messages', sub: 'Internal · care · trade', tone: 'fuchsia' },
               {
                 label: 'Website · reports',
                 sub: 'Publish · utilisation',

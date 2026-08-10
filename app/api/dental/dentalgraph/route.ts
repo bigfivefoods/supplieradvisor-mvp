@@ -5,12 +5,19 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import {
+  addStaffRole,
   appointmentBookingCount,
   appointmentsInRange,
+  closeStaffEngagement,
   defaultDentalPublicSettings,
   ensureDentalPublicToken,
+  getStaffRoleOptions,
+  issueDentalPatientPortalToken,
   newId,
   readDentalgraphFromMetadata,
+  removeStaffRole,
+  renameStaffRole,
+  reopenStaffEngagement,
   seedDemoDentalgraph,
   summariseDentalgraph,
   writeDentalgraphToMetadata,
@@ -37,6 +44,17 @@ import {
   submitMedicalClaim,
   upsertMedicalClaim,
 } from '@/lib/clinic/patient-medical';
+import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
+import {
+  buildServiceMemberInviteLink,
+  buildServiceMemberPortalLink,
+  defaultShareFlags,
+  inviteExpiryIso,
+  issueServiceMemberInviteToken,
+  mergeInviteFieldsFromRecord,
+  serviceMemberInviteEmailHtml,
+  serviceMemberInviteEmailText,
+} from '@/lib/services/member-invite';
 
 export const runtime = 'nodejs';
 
@@ -271,6 +289,334 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    /** Owner: end current staff engagement and archive to history */
+    if (
+      action === 'close_staff_engagement' ||
+      action === 'end_staff_engagement' ||
+      action === 'close_engagement'
+    ) {
+      const personId = String(body.staffId || body.staff_id || body.id || '');
+      const idx = store.staff.findIndex((p) => p.id === personId);
+      if (idx < 0) {
+        return NextResponse.json({ error: 'Staff not found' }, { status: 404 });
+      }
+      const endDate = body.end_date
+        ? String(body.end_date).slice(0, 10)
+        : now.slice(0, 10);
+      store.staff[idx] = closeStaffEngagement(store.staff[idx], endDate, {
+        note: body.note != null ? String(body.note) : undefined,
+        reason: body.reason != null ? String(body.reason) : undefined,
+        nowIso: now,
+      });
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseDentalgraph(store),
+        analysis: analysis(store),
+        message: 'Staff engagement ended and saved to history',
+      });
+    }
+
+    /** Owner: rehire / start a new engagement (keeps prior history) */
+    if (
+      action === 'reopen_staff_engagement' ||
+      action === 'rehire_staff' ||
+      action === 'rehire'
+    ) {
+      const personId = String(body.staffId || body.staff_id || body.id || '');
+      const idx = store.staff.findIndex((p) => p.id === personId);
+      if (idx < 0) {
+        return NextResponse.json({ error: 'Staff not found' }, { status: 404 });
+      }
+      const startDate = body.start_date
+        ? String(body.start_date).slice(0, 10)
+        : now.slice(0, 10);
+      let person = store.staff[idx];
+      if (person.active !== false && !person.end_date) {
+        const endBefore = body.end_before
+          ? String(body.end_before).slice(0, 10)
+          : startDate;
+        person = closeStaffEngagement(person, endBefore, {
+          note: 'Closed before rehire',
+          reason: 'rehire',
+          nowIso: now,
+        });
+      }
+      store.staff[idx] = reopenStaffEngagement(person, startDate);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseDentalgraph(store),
+        analysis: analysis(store),
+        message: 'Staff engagement reopened',
+      });
+    }
+
+    /** Owner: manage staff role / skills catalogue */
+    if (
+      action === 'manage_roles' ||
+      action === 'manage_skills' ||
+      action === 'staff_roles'
+    ) {
+      const op = String(body.op || body.operation || 'list');
+      if (!store.settings) store.settings = defaultDentalPublicSettings(companyId);
+      if (
+        !Array.isArray(store.settings.staff_roles) ||
+        store.settings.staff_roles.length === 0
+      ) {
+        store.settings.staff_roles = getStaffRoleOptions(store);
+      }
+
+      if (op === 'list') {
+        return NextResponse.json({
+          success: true,
+          roles: getStaffRoleOptions(store),
+          store,
+          summary: summariseDentalgraph(store),
+        });
+      }
+
+      if (op === 'add') {
+        const result = addStaffRole(
+          store,
+          String(body.name || body.role || body.skill || '')
+        );
+        if (!result.ok) {
+          return NextResponse.json({ error: result.error }, { status: 400 });
+        }
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          roles: result.options,
+          store,
+          summary: summariseDentalgraph(store),
+          analysis: analysis(store),
+          message: 'Role added',
+        });
+      }
+
+      if (op === 'rename' || op === 'edit') {
+        const result = renameStaffRole(
+          store,
+          String(body.from || body.old_name || body.old || ''),
+          String(body.to || body.new_name || body.name || '')
+        );
+        if (!result.ok) {
+          return NextResponse.json({ error: result.error }, { status: 400 });
+        }
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          roles: result.options,
+          store,
+          summary: summariseDentalgraph(store),
+          analysis: analysis(store),
+          message: 'Role updated',
+        });
+      }
+
+      if (op === 'remove' || op === 'delete') {
+        const result = removeStaffRole(
+          store,
+          String(body.name || body.role || body.from || ''),
+          {
+            stripFromStaff:
+              body.strip_from_staff === true || body.strip_from_people === true,
+          }
+        );
+        if (!result.ok) {
+          return NextResponse.json({ error: result.error }, { status: 400 });
+        }
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          roles: result.options,
+          store,
+          summary: summariseDentalgraph(store),
+          analysis: analysis(store),
+          message: 'Role removed from catalogue',
+        });
+      }
+
+      return NextResponse.json({ error: 'Unknown role op' }, { status: 400 });
+    }
+
+    /** Owner: issue patient portal so they can book open diary slots */
+    if (
+      action === 'issue_patient_portal' ||
+      action === 'issue_member_portal'
+    ) {
+      const patientId = String(body.patientId || body.patient_id || body.id || '');
+      const patient = store.patients.find((p) => p.id === patientId);
+      if (!patient) {
+        return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+      }
+      patient.portal_token = issueDentalPatientPortalToken(companyId);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseDentalgraph(store),
+        portal_token: patient.portal_token,
+        analysis: analysis(store),
+        message: 'Patient portal link issued',
+      });
+    }
+
+    /** Owner: email invite so patient can join the portal */
+    if (
+      action === 'invite_patient' ||
+      action === 'invite_member' ||
+      action === 'send_member_invite'
+    ) {
+      const patientId = String(
+        body.patientId || body.patient_id || body.id || ''
+      );
+      const patient = store.patients.find((p) => p.id === patientId);
+      if (!patient) {
+        return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+      }
+      const email = String(body.email || patient.email || '')
+        .toLowerCase()
+        .trim();
+      if (!email || !email.includes('@')) {
+        return NextResponse.json(
+          { error: 'A valid email is required to send a patient invite' },
+          { status: 400 }
+        );
+      }
+
+      const nowIso = new Date().toISOString();
+      const defaults = defaultShareFlags('dentalgraph');
+      const inviteToken = issueServiceMemberInviteToken(
+        'dentalgraph',
+        companyId
+      );
+      if (!patient.portal_token) {
+        patient.portal_token = issueDentalPatientPortalToken(companyId);
+      }
+      patient.email = email;
+      patient.invite_token = inviteToken;
+      patient.invite_status = 'pending';
+      patient.invite_email = email;
+      patient.invite_sent_at = nowIso;
+      patient.invite_accepted_at = null;
+      patient.invite_expires_at = inviteExpiryIso(14);
+      patient.share_schedule =
+        body.share_schedule !== undefined
+          ? body.share_schedule !== false
+          : patient.share_schedule !== false;
+      patient.share_feedback =
+        body.share_feedback !== undefined
+          ? body.share_feedback !== false
+          : patient.share_feedback !== false;
+      patient.share_medical =
+        body.share_medical !== undefined
+          ? body.share_medical !== false
+          : patient.share_medical !== false
+            ? true
+            : defaults.share_medical === true;
+      patient.updated_at = nowIso;
+
+      const supabase = getSupabaseServer();
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('trading_name, legal_name')
+        .eq('id', companyId)
+        .maybeSingle();
+      const businessName =
+        store.settings?.brand_name ||
+        prof?.trading_name ||
+        prof?.legal_name ||
+        'Your practice';
+      const invitedBy = String(
+        body.invitedBy || body.invited_by || 'Your dental team'
+      );
+      const inviteLink = buildServiceMemberInviteLink(
+        'dentalgraph',
+        inviteToken
+      );
+
+      let emailWarning: string | undefined;
+      try {
+        const resend = getResend();
+        const { error: emailError } = await resend.emails.send({
+          from: getResendFrom(),
+          replyTo: getResendReplyTo(),
+          to: email,
+          subject: `${businessName} invited you to DentalAdvisor®`,
+          html: serviceMemberInviteEmailHtml({
+            inviteeName: patient.name,
+            businessName,
+            invitedBy,
+            inviteLink,
+            module: 'dentalgraph',
+          }),
+          text: serviceMemberInviteEmailText({
+            inviteeName: patient.name,
+            businessName,
+            invitedBy,
+            inviteLink,
+            module: 'dentalgraph',
+          }),
+        });
+        if (emailError) {
+          emailWarning = `Invite saved but email failed: ${emailError.message}`;
+        }
+      } catch (emailErr: unknown) {
+        const msg =
+          emailErr instanceof Error ? emailErr.message : 'Email failed';
+        emailWarning = `Invite saved but email failed: ${msg}`;
+      }
+
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseDentalgraph(store),
+        analysis: analysis(store),
+        invite_token: inviteToken,
+        invite_link: inviteLink,
+        portal_token: patient.portal_token,
+        portal_link: buildServiceMemberPortalLink(
+          'dentalgraph',
+          patient.portal_token!
+        ),
+        email_sent: !emailWarning,
+        warning: emailWarning,
+        message: emailWarning
+          ? emailWarning
+          : `Patient invite sent to ${email}`,
+      });
+    }
+
+    if (
+      action === 'revoke_member_invite' ||
+      action === 'revoke_patient_invite'
+    ) {
+      const patientId = String(
+        body.patientId || body.patient_id || body.id || ''
+      );
+      const patient = store.patients.find((p) => p.id === patientId);
+      if (!patient) {
+        return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+      }
+      patient.invite_status = 'revoked';
+      patient.invite_token = null;
+      patient.invite_expires_at = null;
+      patient.updated_at = new Date().toISOString();
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseDentalgraph(store),
+        analysis: analysis(store),
+        message: 'Patient invite revoked',
+      });
+    }
+
     if (action === 'delete') {
       const id = String(body.id || '');
       if (!id || !entity) {
@@ -325,6 +671,40 @@ function upsert(
     const id = String(rec.id || newId('stf'));
     const i = store.staff.findIndex((p) => p.id === id);
     const prev = i >= 0 ? store.staff[i] : null;
+    const startDate =
+      rec.start_date != null && String(rec.start_date).trim()
+        ? String(rec.start_date).slice(0, 10)
+        : prev?.start_date || now.slice(0, 10);
+    let endDate: string | null =
+      rec.end_date !== undefined
+        ? rec.end_date
+          ? String(rec.end_date).slice(0, 10)
+          : null
+        : prev?.end_date ?? null;
+    let history = Array.isArray(prev?.history)
+      ? [...(prev!.history || [])]
+      : Array.isArray(rec.history)
+        ? (rec.history as DentalStaff['history'])
+        : [];
+    if (endDate && prev && !prev.end_date && startDate) {
+      const closed = closeStaffEngagement(
+        { ...prev, start_date: startDate, history },
+        endDate,
+        {
+          note:
+            rec.ended_note != null ? String(rec.ended_note) : undefined,
+          reason:
+            rec.ended_reason != null ? String(rec.ended_reason) : undefined,
+          nowIso: now,
+        }
+      );
+      history = closed.history || history;
+    }
+    if (endDate === null && prev?.end_date && rec.end_date !== undefined) {
+      history = Array.isArray(prev.history) ? [...prev.history] : history;
+    }
+    const activeExplicit =
+      rec.active !== undefined ? rec.active !== false : undefined;
     const row: DentalStaff = {
       id,
       code: String(rec.code || prev?.code || `ST-${store.staff.length + 1}`),
@@ -333,12 +713,18 @@ function upsert(
       phone: rec.phone != null ? String(rec.phone) : prev?.phone,
       roles: Array.isArray(rec.roles)
         ? (rec.roles as string[])
-        : prev?.roles || [],
+        : rec.skills
+          ? (rec.skills as string[])
+          : prev?.roles || [],
       bio: rec.bio != null ? String(rec.bio) : prev?.bio,
       public_bio:
         rec.public_bio != null ? String(rec.public_bio) : prev?.public_bio,
       photo_url:
-        rec.photo_url != null ? String(rec.photo_url) : prev?.photo_url,
+        rec.photo_url !== undefined
+          ? rec.photo_url
+            ? String(rec.photo_url)
+            : undefined
+          : prev?.photo_url,
       rate_zar:
         rec.rate_zar !== undefined
           ? rec.rate_zar === null || rec.rate_zar === ''
@@ -346,24 +732,35 @@ function upsert(
             : Number(rec.rate_zar)
           : prev?.rate_zar ?? null,
       rate_basis:
-        rec.rate_basis != null ? String(rec.rate_basis) : prev?.rate_basis,
-      start_date:
-        rec.start_date != null
-          ? String(rec.start_date).slice(0, 10)
-          : prev?.start_date || now.slice(0, 10),
-      end_date:
-        rec.end_date !== undefined
-          ? rec.end_date
-            ? String(rec.end_date).slice(0, 10)
+        rec.rate_basis !== undefined
+          ? rec.rate_basis
+            ? String(rec.rate_basis)
             : null
-          : prev?.end_date ?? null,
+          : prev?.rate_basis ?? 'per_session',
+      rate_note:
+        rec.rate_note != null ? String(rec.rate_note) : prev?.rate_note,
+      start_date: startDate,
+      end_date: endDate,
+      contracts: Array.isArray(rec.contracts)
+        ? (rec.contracts as DentalStaff['contracts'])
+        : prev?.contracts || [],
+      history,
       portal_token:
         rec.portal_token !== undefined
           ? rec.portal_token
             ? String(rec.portal_token)
             : null
           : prev?.portal_token ?? null,
-      active: rec.active !== undefined ? rec.active !== false : prev?.active !== false,
+      can_manage:
+        rec.can_manage !== undefined
+          ? rec.can_manage !== false
+          : prev?.can_manage !== false,
+      active:
+        activeExplicit !== undefined
+          ? activeExplicit
+          : endDate
+            ? false
+            : prev?.active !== false,
       created_at: prev?.created_at || now,
     };
     if (i >= 0) store.staff[i] = row;
@@ -425,6 +822,31 @@ function upsert(
             ? String(rec.phone)
             : undefined
           : prev?.phone,
+      photo_url:
+        rec.photo_url !== undefined
+          ? rec.photo_url
+            ? String(rec.photo_url)
+            : undefined
+          : prev?.photo_url,
+      portal_token:
+        rec.portal_token !== undefined
+          ? rec.portal_token
+            ? String(rec.portal_token)
+            : null
+          : prev?.portal_token ?? null,
+      ...mergeInviteFieldsFromRecord(prev, rec as Record<string, unknown>),
+      share_schedule:
+        rec.share_schedule !== undefined
+          ? rec.share_schedule !== false
+          : prev?.share_schedule !== false,
+      share_feedback:
+        rec.share_feedback !== undefined
+          ? rec.share_feedback !== false
+          : prev?.share_feedback !== false,
+      share_medical:
+        rec.share_medical !== undefined
+          ? rec.share_medical !== false
+          : prev?.share_medical !== false,
       status: String(rec.membership_status || rec.status || prev?.status || 'active'),
       staff_id:
         rec.staff_id !== undefined

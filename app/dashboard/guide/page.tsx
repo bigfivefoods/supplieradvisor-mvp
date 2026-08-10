@@ -54,7 +54,7 @@ export default function SystemGuideHome() {
           </p>
           <p className="text-[12px] text-slate-600 mt-0.5 leading-relaxed">
             Always on: activation, company, SAM, security, action centre. Industry
-            packs (Fieldgraph, Quarrygraph, Fitgraph, Physiograph, Dentalgraph, Schools, Health) appear when
+            packs (FieldAdvisor, QuarryAdvisor, FitAdvisor, PhysioAdvisor, DentalAdvisor, Schools, Health) appear when
             enabled.
             {hiddenCount > 0
               ? ` ${hiddenCount} chapter${hiddenCount === 1 ? '' : 's'} hidden because those modules are off.`
@@ -179,7 +179,7 @@ export default function SystemGuideHome() {
           </p>
           <p>
             <strong className="text-slate-800">3. Open process design PDFs</strong>{' '}
-            — Fieldgraph, Quarrygraph, Fitgraph, Physiograph, Dentalgraph, and Schools hubs have expandable
+            — FieldAdvisor, QuarryAdvisor, FitAdvisor, PhysioAdvisor, DentalAdvisor, PsychiatryAdvisor, MedicalAdvisor, and Schools hubs have expandable
             end-to-end designs with landscape/portrait A4 downloads.
           </p>
           <p>
@@ -221,7 +221,7 @@ export default function SystemGuideHome() {
               href="/dashboard/guide/fieldgraph"
               className="font-bold text-emerald-700 hover:underline"
             >
-              Fieldgraph®
+              FieldAdvisor®
             </Link>
           )}
           {isCompanyModuleEnabled('quarrygraph') && (
@@ -229,7 +229,7 @@ export default function SystemGuideHome() {
               href="/dashboard/guide/quarrygraph"
               className="font-bold text-amber-800 hover:underline"
             >
-              Quarrygraph®
+              QuarryAdvisor®
             </Link>
           )}
           {isCompanyModuleEnabled('fitgraph') && (
@@ -237,7 +237,7 @@ export default function SystemGuideHome() {
               href="/dashboard/guide/fitgraph"
               className="font-bold text-violet-700 hover:underline"
             >
-              Fitgraph®
+              FitAdvisor®
             </Link>
           )}
           {isCompanyModuleEnabled('physiograph') && (
@@ -245,7 +245,7 @@ export default function SystemGuideHome() {
               href="/dashboard/guide/physiograph"
               className="font-bold text-teal-700 hover:underline"
             >
-              Physiograph®
+              PhysioAdvisor®
             </Link>
           )}
           {isCompanyModuleEnabled('dentalgraph') && (
@@ -253,7 +253,23 @@ export default function SystemGuideHome() {
               href="/dashboard/guide/dentalgraph"
               className="font-bold text-sky-700 hover:underline"
             >
-              Dentalgraph®
+              DentalAdvisor®
+            </Link>
+          )}
+          {isCompanyModuleEnabled('psychiatrygraph') && (
+            <Link
+              href="/dashboard/guide/psychiatrygraph"
+              className="font-bold text-indigo-700 hover:underline"
+            >
+              PsychiatryAdvisor®
+            </Link>
+          )}
+          {isCompanyModuleEnabled('medicalgraph') && (
+            <Link
+              href="/dashboard/guide/medicalgraph"
+              className="font-bold text-emerald-700 hover:underline"
+            >
+              MedicalAdvisor®
             </Link>
           )}
         </div>

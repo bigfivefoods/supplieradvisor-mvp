@@ -517,7 +517,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     modules: [
       {
         id: 'agri_fieldgraph',
-        name: 'Fieldgraph® production OS',
+        name: 'FieldAdvisor® production OS',
         description:
           'Multi-crop fields, estimates, harvest plan, inputs, fleet, labour, regen.',
         unlocks: ['fieldgraph', 'suppliers', 'inventory'],
@@ -542,7 +542,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       },
     ],
     industryToolsHrefs: [
-      { name: 'Fieldgraph®', href: '/dashboard/fieldgraph', desc: 'Primary production OS' },
+      { name: 'FieldAdvisor®', href: '/dashboard/fieldgraph', desc: 'Primary production OS' },
       { name: 'Fields', href: '/dashboard/fieldgraph/fields', desc: 'Field book' },
       { name: 'Harvest plan', href: '/dashboard/fieldgraph/harvest', desc: 'Cut sequence' },
       { name: 'Supplier book', href: '/dashboard/suppliers/network', desc: 'Growers & farms' },
@@ -566,7 +566,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     modules: [
       {
         id: 'qg_os',
-        name: 'Quarrygraph® production OS',
+        name: 'QuarryAdvisor® production OS',
         description:
           'Sites, products, reserves, production plan, plant, dispatch, fleet, labour, QA, compliance.',
         unlocks: ['quarrygraph', 'inventory', 'customers', 'distribution'],
@@ -591,7 +591,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       },
     ],
     industryToolsHrefs: [
-      { name: 'Quarrygraph®', href: '/dashboard/quarrygraph', desc: 'Quarry OS' },
+      { name: 'QuarryAdvisor®', href: '/dashboard/quarrygraph', desc: 'Quarry OS' },
       { name: 'Sites', href: '/dashboard/quarrygraph/sites', desc: 'Pits & faces' },
       { name: 'Production', href: '/dashboard/quarrygraph/production', desc: 'Plan & blasts' },
       { name: 'Dispatch', href: '/dashboard/quarrygraph/dispatch', desc: 'Weighbridge' },
@@ -690,7 +690,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     name: 'Fitness & Gym (Services)',
     shortName: 'Fitness',
     description:
-      'Tertiary / services industry pack for gyms and studios — Fitgraph®: coaches, members, memberships, class calendar, bookings, check-ins; plus equipment & nutrition suppliers.',
+      'Tertiary / services industry pack for gyms and studios — FitAdvisor®: coaches, members, memberships, class calendar, bookings, check-ins; plus equipment & nutrition suppliers.',
     monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
     priority: 1,
     /** Services economy — commercial gyms & wellness (not primary production) */
@@ -699,7 +699,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     modules: [
       {
         id: 'fit_os',
-        name: 'Fitgraph® gym services OS',
+        name: 'FitAdvisor® gym services OS',
         description:
           'Coaches, clients, plans, class types, calendar, bookings and check-ins for member services.',
         unlocks: ['fitgraph', 'customers', 'people'],
@@ -718,7 +718,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       },
     ],
     industryToolsHrefs: [
-      { name: 'Fitgraph®', href: '/dashboard/fitgraph', desc: 'Gym services OS' },
+      { name: 'FitAdvisor®', href: '/dashboard/fitgraph', desc: 'Gym services OS' },
       { name: 'Coaches', href: '/dashboard/fitgraph/coaches', desc: 'Trainers · portals' },
       { name: 'Clients', href: '/dashboard/fitgraph/clients', desc: 'Members' },
       { name: 'Subscriptions', href: '/dashboard/fitgraph/subscriptions', desc: 'Member plans' },
@@ -733,7 +733,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     name: 'Physio & Allied Health (Services)',
     shortName: 'Clinic',
     description:
-      'Tertiary / services industry pack for physio, OT, biokinetics and allied health — Physiograph®: practitioners, patients, services, packages, diary, bookings and clinic website.',
+      'Tertiary / services industry pack for physio, OT, biokinetics and allied health — PhysioAdvisor®: practitioners, patients, services, packages, diary, bookings and clinic website.',
     monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
     priority: 1,
     recommendSectors: ['tertiary'],
@@ -741,7 +741,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     modules: [
       {
         id: 'physio_os',
-        name: 'Physiograph® clinic OS',
+        name: 'PhysioAdvisor® clinic OS',
         description:
           'Practitioners, patients, service catalogue, rehab packs, appointment diary and bookings.',
         unlocks: ['physiograph', 'customers', 'people'],
@@ -760,7 +760,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       },
     ],
     industryToolsHrefs: [
-      { name: 'Physiograph®', href: '/dashboard/physiograph', desc: 'Clinic OS' },
+      { name: 'PhysioAdvisor®', href: '/dashboard/physiograph', desc: 'Clinic OS' },
       {
         name: 'Practitioners',
         href: '/dashboard/physiograph/practitioners',
@@ -798,7 +798,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     name: 'Dental Practice (Services)',
     shortName: 'Dental',
     description:
-      'Tertiary / services industry pack for dental practices — Dentalgraph®: dentists & staff, patients, services, care plans, diary, bookings, messages and practice website, plus procurement.',
+      'Tertiary / services industry pack for dental practices — DentalAdvisor®: dentists & staff, patients, services, care plans, diary, bookings, messages and practice website, plus procurement.',
     monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
     priority: 1,
     recommendSectors: ['tertiary', 'quaternary'],
@@ -806,7 +806,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     modules: [
       {
         id: 'den_os',
-        name: 'Dentalgraph® practice OS',
+        name: 'DentalAdvisor® practice OS',
         description:
           'Staff, patients, treatment catalogue, care plans, appointment diary, bookings and messages.',
         unlocks: ['dentalgraph', 'customers', 'people'],
@@ -825,7 +825,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       },
     ],
     industryToolsHrefs: [
-      { name: 'Dentalgraph®', href: '/dashboard/dentalgraph', desc: 'Practice OS' },
+      { name: 'DentalAdvisor®', href: '/dashboard/dentalgraph', desc: 'Practice OS' },
       {
         name: 'Staff',
         href: '/dashboard/dentalgraph/staff',
@@ -864,7 +864,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     name: 'Allied Health / Physio & Biokinetics',
     shortName: 'Allied Health',
     description:
-      'Legacy alias for physio / allied clinics — prefer Physio & Allied Health (Services) for Physiograph®. Still unlocks clinic OS + procurement.',
+      'Legacy alias for physio / allied clinics — prefer Physio & Allied Health (Services) for PhysioAdvisor®. Still unlocks clinic OS + procurement.',
     monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
     priority: 1,
     recommendSectors: ['tertiary', 'quaternary'],
@@ -872,7 +872,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     modules: [
       {
         id: 'ah_os',
-        name: 'Physiograph® clinic OS',
+        name: 'PhysioAdvisor® clinic OS',
         description:
           'Practitioners, patients, services, packages, diary and bookings.',
         unlocks: ['physiograph', 'customers', 'people'],
@@ -885,7 +885,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       },
     ],
     industryToolsHrefs: [
-      { name: 'Physiograph®', href: '/dashboard/physiograph', desc: 'Clinic OS' },
+      { name: 'PhysioAdvisor®', href: '/dashboard/physiograph', desc: 'Clinic OS' },
       { name: 'Suppliers', href: '/dashboard/suppliers', desc: 'Clinic supply' },
     ],
   },
@@ -1111,14 +1111,14 @@ export function enabledModulesMapFromPacks(
     unlocked.add('sheq');
     unlocked.add('inventory');
   }
-  // Agri → Fieldgraph + suppliers + inventory + impact
+  // Agri → FieldAdvisor + suppliers + inventory + impact
   if (packIds.includes('agri_regen')) {
     unlocked.add('fieldgraph');
     unlocked.add('suppliers');
     unlocked.add('inventory');
     unlocked.add('sustainability');
   }
-  // Quarrying & aggregates → Quarrygraph + trade + logistics
+  // Quarrying & aggregates → QuarryAdvisor + trade + logistics
   if (packIds.includes('quarry_aggregates')) {
     unlocked.add('quarrygraph');
     unlocked.add('inventory');
@@ -1128,7 +1128,7 @@ export function enabledModulesMapFromPacks(
     unlocked.add('sheq');
     unlocked.add('sustainability');
   }
-  // Fitness & gym → Fitgraph
+  // Fitness & gym → FitAdvisor
   if (packIds.includes('fitness_gym')) {
     unlocked.add('fitgraph');
     unlocked.add('suppliers');
@@ -1136,7 +1136,7 @@ export function enabledModulesMapFromPacks(
     unlocked.add('operations');
     unlocked.add('inventory');
   }
-  // Physio / allied health clinic → Physiograph
+  // Physio / allied health clinic → PhysioAdvisor
   if (
     packIds.includes('allied_health_clinic') ||
     packIds.includes('allied_health')
@@ -1148,7 +1148,7 @@ export function enabledModulesMapFromPacks(
     unlocked.add('inventory');
     unlocked.add('people');
   }
-  // Dental practice → Dentalgraph
+  // Dental practice → DentalAdvisor
   if (packIds.includes('dental')) {
     unlocked.add('dentalgraph');
     unlocked.add('suppliers');

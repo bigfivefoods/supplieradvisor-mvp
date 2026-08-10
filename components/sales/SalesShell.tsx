@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import { useEffect, useState } from 'react';
 import {
+  Bot,
   LayoutDashboard,
   LogOut,
   Loader2,
@@ -160,6 +161,16 @@ export default function SalesShell({ children }: { children: React.ReactNode }) 
             </div>
           </Link>
           <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event('sa:open-sam'))}
+              className="relative p-2 min-h-[40px] min-w-[40px] rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 inline-flex items-center justify-center touch-manipulation"
+              aria-label="Ask SAM — Grok assistant"
+              title="Ask SAM (Grok)"
+            >
+              <Bot className="w-4 h-4" />
+              <span className="absolute top-1.5 right-1.5 flex h-1.5 w-1.5 rounded-full bg-emerald-400 ring-1 ring-white" />
+            </button>
             <EnablePushButton compact />
             <Link
               href="/dashboard/select-company"

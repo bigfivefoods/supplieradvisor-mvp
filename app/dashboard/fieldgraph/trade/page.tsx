@@ -21,7 +21,7 @@ export default function FieldgraphTradePage() {
     <FieldgraphWorkbench
       title="Trade"
       titleAccent="farm → buyer"
-      description="This is where Fieldgraph leaves cane-only software behind: harvest destinations connect to mills, silos, and verified buyers on the SupplierAdvisor network — with OTIFEF, settle, and origin lots."
+      description="This is where FieldAdvisor leaves cane-only software behind: harvest destinations connect to mills, silos, and verified buyers on the SupplierAdvisor network — with OTIFEF, settle, and origin lots."
     >
       {loading || !store ? (
         <LoadingBlock />

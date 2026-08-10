@@ -1,5 +1,5 @@
 /**
- * Physiograph® end-to-end process guide content + PDF.
+ * PhysioAdvisor® end-to-end process guide content + PDF.
  * People → Services · packs → Diary → Floor → Messages → Website · reports
  * Pure pdfkit — works on Vercel serverless.
  *
@@ -28,7 +28,7 @@ export const PROCESS_CHAIN = [
   { label: 'Services · packs', sub: 'Catalogue · rehab' },
   { label: 'Diary', sub: 'Schedule · assign' },
   { label: 'Floor', sub: 'Book · attend · feedback' },
-  { label: 'Messages', sub: 'Desk · care threads' },
+  { label: 'Messages', sub: 'Internal · care · trade' },
   { label: 'Website · reports', sub: 'Publish · utilisation' },
 ] as const;
 
@@ -180,20 +180,26 @@ export const PROCESS_PHASES: ProcessPhase[] = [
     ],
   },
   {
-    title: '5 · Messages',
-    subtitle: 'Desk · practitioners · patients',
+    title: '5 · Messages (internal · care · trade)',
+    subtitle: 'Desk · clinicians · patients · company inbox',
     steps: [
       {
         n: '5a',
-        title: 'Care threads',
-        who: 'Desk / practitioner',
-        desc: 'Colleague and patient care messages for hand-offs.',
+        title: 'Internal team threads',
+        who: 'Desk / team',
+        desc: 'Colleague chat for hand-offs, schedule notes and practice ops.',
       },
       {
         n: '5b',
-        title: 'Close the loop',
-        who: 'Team',
-        desc: 'Reply and archive when the episode of care is done.',
+        title: 'Care · patient threads',
+        who: 'Desk / clinician',
+        desc: 'Patient care messages so the whole team stays aligned.',
+      },
+      {
+        n: '5c',
+        title: 'Company inbox (external)',
+        who: 'Owner',
+        desc: 'Trade partners (suppliers / customers) on the platform company inbox.',
       },
     ],
   },
@@ -254,7 +260,7 @@ export const GUARDRAILS = [
   },
   {
     title: 'One clinic book',
-    desc: 'People, diary, bookings, messages and website share one Physiograph store.',
+    desc: 'People, diary, bookings, messages and website share one PhysioAdvisor store.',
   },
 ];
 
@@ -294,7 +300,7 @@ export const SYSTEM_BENEFITS = [
 ];
 
 export const ONE_SENTENCE =
-  'Register practitioners and patients (clinical + medical chart) → define services and rehab packages → schedule diary slots with practitioners → book patients and mark attended → message the care team → publish the clinic website and review utilisation reports.';
+  'Register practitioners and patients (clinical + medical chart) → define services and rehab packages → schedule diary slots with practitioners → book patients and mark attended → message team, patients and trade partners in-app → publish the clinic website and review utilisation reports.';
 
 // ── PDF (teal brand) ────────────────────────────────────────────────────
 
@@ -378,7 +384,7 @@ function drawFooter(doc: PdfDoc, g: Geo, pageNum: number, total: number) {
       .fontSize(7)
       .fillColor(MUTED)
       .text(
-        `SupplierAdvisor® · Physiograph® · ${orientLabel} · Clinic services OS`,
+        `SupplierAdvisor® · PhysioAdvisor® · ${orientLabel} · Clinic services OS`,
         g.mx,
         y + 4,
         { width: g.contentW * 0.72, align: 'left' }
@@ -691,11 +697,11 @@ export async function buildPhysiographProcessGuidePdf(opts?: {
       margins: { top: 0, bottom: 28, left: g.mx, right: g.mx },
       info: {
         Title:
-          'Physiograph® Process Design — Practitioners → Diary → Website',
+          'PhysioAdvisor® Process Design — Practitioners → Diary → Website',
         Author: 'SupplierAdvisor®',
-        Subject: `Physiograph clinic services end-to-end process (A4 ${orientation})`,
+        Subject: `PhysioAdvisor clinic services end-to-end process (A4 ${orientation})`,
         Keywords:
-          'Physiograph, clinic, physio, practitioners, diary, packages, process guide',
+          'PhysioAdvisor, clinic, physio, practitioners, diary, packages, process guide',
         CreationDate: generated,
       },
     });
@@ -769,5 +775,5 @@ export function parsePhysiographProcessGuideOrientation(
 export function physiographProcessGuideFilename(
   orientation: PhysiographProcessGuideOrientation
 ): string {
-  return `Physiograph-Process-Design-A4-${orientation}.pdf`;
+  return `PhysioAdvisor-Process-Design-A4-${orientation}.pdf`;
 }

@@ -176,7 +176,7 @@ export default function WebsitePage() {
           ) : null}
           <p className="text-[11px] text-slate-500 dark:text-slate-400">
             Website enabled: {summary?.websiteEnabled ? 'yes' : 'no'}. Public
-            embed endpoints can be wired next (same pattern as Fitgraph).
+            embed endpoints can be wired next (same pattern as FitAdvisor).
           </p>
         </div>
       )}

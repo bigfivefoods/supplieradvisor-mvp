@@ -1,5 +1,5 @@
 /**
- * Fieldgraph® — primary production OS for farms & grower networks.
+ * FieldAdvisor® — primary production OS for farms & grower networks.
  * Multi-crop field book, estimates, harvest plan, inputs, regen, farm-to-buyer trade.
  * Stored on profiles.metadata.fieldgraph (no migration required).
  */

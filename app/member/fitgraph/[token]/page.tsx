@@ -1,0 +1,545 @@
+'use client';
+
+/**
+ * FitAdvisor® member portal — registered clients book open classes,
+ * see vacancies, join waitlist when full, manage their bookings.
+ */
+import { useCallback, useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import {
+  CalendarDays,
+  Check,
+  Loader2,
+  MapPin,
+  User,
+  Users,
+  X,
+} from 'lucide-react';
+import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
+
+type OpenClass = {
+  id: string;
+  date: string;
+  start_time: string;
+  end_time?: string | null;
+  duration_min?: number;
+  class_name: string;
+  coach_name?: string;
+  location?: string;
+  capacity: number;
+  spots_left: number;
+  full: boolean;
+  public_notes?: string;
+  class_plan?: string;
+  my_status?: string | null;
+  my_booking_id?: string | null;
+};
+
+type MyBooking = {
+  booking_id: string;
+  status: string;
+  session_id: string;
+  date: string;
+  start_time: string;
+  class_name: string;
+  coach_name?: string;
+  location?: string;
+};
+
+type Portal = {
+  brand: string;
+  bio?: string;
+  timezone?: string;
+  allow_booking: boolean;
+  contact_email?: string;
+  contact_phone?: string;
+  primary_color?: string;
+  from: string;
+  to: string;
+  client: {
+    id: string;
+    code: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    photo_url?: string;
+    membership_status?: string;
+    plan_name?: string;
+    coach_name?: string;
+  };
+  open_classes: OpenClass[];
+  vacancies: OpenClass[];
+  my_bookings: MyBooking[];
+  open_count: number;
+  full_count: number;
+};
+
+export default function MemberFitgraphPortalPage() {
+  const { token } = useParams() as { token: string };
+  const [portal, setPortal] = useState<Portal | null>(null);
+  const [companyId, setCompanyId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [tab, setTab] = useState<'open' | 'mine' | 'profile'>('open');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [photoUrl, setPhotoUrl] = useState('');
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/public/fitgraph/member?token=${encodeURIComponent(token)}`,
+        { cache: 'no-store' }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Portal not found');
+      setPortal(data.portal);
+      setCompanyId(data.companyId ?? null);
+      const c = data.portal?.client;
+      if (c) {
+        setName(c.name || '');
+        setEmail(c.email || '');
+        setPhone(c.phone || '');
+        setPhotoUrl(c.photo_url || '');
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to load');
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const post = async (body: Record<string, unknown>) => {
+    const res = await fetch('/api/public/fitgraph/member', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, ...body }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Request failed');
+    if (data.portal) setPortal(data.portal);
+    return data;
+  };
+
+  const book = async (sessionId: string, requestJoin = false) => {
+    setBusyId(sessionId);
+    setMsg(null);
+    setError(null);
+    try {
+      const data = await post({
+        action: requestJoin ? 'request_join' : 'book',
+        session_id: sessionId,
+      });
+      setMsg(data.booking?.message || data.message || 'Done');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Booking failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const cancel = async (bookingId: string) => {
+    if (!confirm('Cancel this booking?')) return;
+    setBusyId(bookingId);
+    setMsg(null);
+    setError(null);
+    try {
+      const data = await post({
+        action: 'cancel',
+        booking_id: bookingId,
+      });
+      setMsg(data.message || 'Cancelled');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Cancel failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const saveProfile = async () => {
+    setBusyId('profile');
+    setMsg(null);
+    setError(null);
+    try {
+      const data = await post({
+        action: 'update_profile',
+        name,
+        email,
+        phone,
+        photo_url: photoUrl,
+      });
+      setMsg(data.message || 'Profile saved');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const color = portal?.primary_color || '#7c3aed';
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <Loader2 className="w-8 h-8 animate-spin text-violet-600" />
+      </div>
+    );
+  }
+
+  if (error && !portal) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+        <div className="max-w-md rounded-2xl border border-rose-200 bg-white p-6 text-center">
+          <p className="font-black text-slate-900">Member portal unavailable</p>
+          <p className="text-sm text-slate-600 mt-2">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!portal) return null;
+
+  const formatDay = (date: string, time: string) => {
+    try {
+      const d = new Date(`${date}T12:00:00`);
+      return `${d.toLocaleDateString(undefined, {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+      })} · ${time}`;
+    } catch {
+      return `${date} · ${time}`;
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-violet-50 to-slate-50">
+      <header
+        className="px-4 py-6 text-white"
+        style={{
+          background: `linear-gradient(135deg, ${color}, #4c1d95)`,
+        }}
+      >
+        <div className="max-w-lg mx-auto">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">
+            Member portal · FitAdvisor®
+          </p>
+          <h1 className="text-xl font-black mt-1">{portal.brand}</h1>
+          <div className="mt-3 flex items-center gap-3">
+            {portal.client.photo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={portal.client.photo_url}
+                alt=""
+                className="h-12 w-12 rounded-full object-cover border-2 border-white/40"
+              />
+            ) : (
+              <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
+                <User className="w-6 h-6" />
+              </div>
+            )}
+            <div>
+              <p className="font-bold">{portal.client.name}</p>
+              <p className="text-xs text-white/85">
+                {[portal.client.plan_name, portal.client.membership_status]
+                  .filter(Boolean)
+                  .join(' · ') || 'Member'}
+                {portal.client.coach_name
+                  ? ` · Coach ${portal.client.coach_name}`
+                  : ''}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-bold">
+            <span className="rounded-full bg-white/20 px-2.5 py-1">
+              {portal.open_count} open spots
+            </span>
+            <span className="rounded-full bg-white/20 px-2.5 py-1">
+              {portal.my_bookings.length} my bookings
+            </span>
+            {portal.full_count > 0 ? (
+              <span className="rounded-full bg-white/20 px-2.5 py-1">
+                {portal.full_count} full (waitlist)
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-lg mx-auto px-4 py-5 space-y-4">
+        {(msg || error) && (
+          <div
+            className={`rounded-xl border px-3 py-2 text-sm ${
+              error
+                ? 'border-rose-200 bg-rose-50 text-rose-800'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-900'
+            }`}
+          >
+            {error || msg}
+          </div>
+        )}
+
+        <div className="flex gap-1 rounded-2xl bg-white border border-slate-200 p-1">
+          {(
+            [
+              ['open', 'Open classes'],
+              ['mine', 'My bookings'],
+              ['profile', 'My profile'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => {
+                setTab(id);
+                setError(null);
+                setMsg(null);
+              }}
+              className={`flex-1 rounded-xl py-2 text-xs font-bold ${
+                tab === id
+                  ? 'bg-violet-600 text-white'
+                  : 'text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {!portal.allow_booking && tab === 'open' ? (
+          <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+            Online booking is currently paused by the gym. You can still view
+            your bookings.
+          </p>
+        ) : null}
+
+        {tab === 'open' && (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">
+              Classes with open vacancies — book a spot or request to join the
+              waitlist when full.
+            </p>
+            {portal.open_classes.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+                No public classes in the next 4 weeks yet.
+              </div>
+            ) : (
+              portal.open_classes.map((c) => (
+                <div
+                  key={c.id}
+                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-black text-slate-900">{c.class_name}</p>
+                      <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                        <CalendarDays className="w-3.5 h-3.5" />
+                        {formatDay(c.date, c.start_time)}
+                      </p>
+                      {c.coach_name ? (
+                        <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                          <User className="w-3.5 h-3.5" />
+                          {c.coach_name}
+                        </p>
+                      ) : null}
+                      {c.location ? (
+                        <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5" />
+                          {c.location}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${
+                          c.my_status
+                            ? 'bg-violet-100 text-violet-800'
+                            : c.full
+                              ? 'bg-rose-100 text-rose-800'
+                              : 'bg-emerald-100 text-emerald-800'
+                        }`}
+                      >
+                        <Users className="w-3 h-3" />
+                        {c.my_status
+                          ? c.my_status
+                          : c.full
+                            ? 'Full'
+                            : `${c.spots_left} left`}
+                      </span>
+                    </div>
+                  </div>
+                  {c.class_plan ? (
+                    <p className="text-[11px] text-slate-600 mt-2 leading-snug">
+                      {c.class_plan}
+                    </p>
+                  ) : null}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {c.my_status ? (
+                      <>
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-violet-700">
+                          <Check className="w-3.5 h-3.5" />
+                          You&apos;re {c.my_status}
+                        </span>
+                        {c.my_booking_id &&
+                        c.my_status !== 'attended' &&
+                        c.my_status !== 'waitlist' ? (
+                          <button
+                            type="button"
+                            disabled={busyId === c.my_booking_id}
+                            onClick={() => void cancel(c.my_booking_id!)}
+                            className="text-xs font-bold text-rose-600 inline-flex items-center gap-1"
+                          >
+                            <X className="w-3.5 h-3.5" /> Cancel
+                          </button>
+                        ) : null}
+                      </>
+                    ) : portal.allow_booking ? (
+                      c.full ? (
+                        <button
+                          type="button"
+                          disabled={busyId === c.id}
+                          onClick={() => void book(c.id, true)}
+                          className="rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-50"
+                        >
+                          {busyId === c.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
+                          ) : (
+                            'Request join (waitlist)'
+                          )}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={busyId === c.id}
+                          onClick={() => void book(c.id, false)}
+                          className="rounded-xl bg-violet-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-50"
+                        >
+                          {busyId === c.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
+                          ) : (
+                            'Book this class'
+                          )}
+                        </button>
+                      )
+                    ) : null}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {tab === 'mine' && (
+          <div className="space-y-3">
+            {portal.my_bookings.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+                No upcoming bookings. Open classes to book a spot.
+              </div>
+            ) : (
+              portal.my_bookings.map((b) => (
+                <div
+                  key={b.booking_id}
+                  className="rounded-2xl border border-slate-200 bg-white p-4 flex items-start justify-between gap-3"
+                >
+                  <div>
+                    <p className="font-black text-slate-900">{b.class_name}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {formatDay(b.date, b.start_time)}
+                    </p>
+                    {b.coach_name ? (
+                      <p className="text-xs text-slate-500">{b.coach_name}</p>
+                    ) : null}
+                    <span className="inline-block mt-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase text-slate-700">
+                      {b.status}
+                    </span>
+                  </div>
+                  {b.status === 'booked' || b.status === 'waitlist' ? (
+                    <button
+                      type="button"
+                      disabled={busyId === b.booking_id}
+                      onClick={() => void cancel(b.booking_id)}
+                      className="text-xs font-bold text-rose-600 shrink-0"
+                    >
+                      Cancel
+                    </button>
+                  ) : null}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {tab === 'profile' && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
+            <p className="text-sm font-black text-slate-900">Your profile</p>
+            {companyId != null ? (
+              <ProfilePhotoField
+                companyId={companyId}
+                value={photoUrl}
+                onChange={setPhotoUrl}
+                kind="client_photo"
+                label="Your photo"
+                description="Update your member photo (JPG/PNG/WebP · under 8MB)."
+                disabled={busyId === 'profile'}
+                accentClass="border-violet-300"
+              />
+            ) : null}
+            <label className="block">
+              <span className="text-[10px] font-bold uppercase text-slate-500">
+                Name
+              </span>
+              <input
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-bold uppercase text-slate-500">
+                Email
+              </span>
+              <input
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-bold uppercase text-slate-500">
+                Phone
+              </span>
+              <input
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              disabled={busyId === 'profile'}
+              onClick={() => void saveProfile()}
+              className="w-full rounded-xl bg-violet-600 py-2.5 text-sm font-bold text-white hover:bg-violet-700 disabled:opacity-50"
+            >
+              {busyId === 'profile' ? 'Saving…' : 'Save profile'}
+            </button>
+          </div>
+        )}
+
+        <p className="text-center text-[10px] text-slate-400 pb-8">
+          Powered by FitAdvisor® · SupplierAdvisor
+        </p>
+      </main>
+    </div>
+  );
+}

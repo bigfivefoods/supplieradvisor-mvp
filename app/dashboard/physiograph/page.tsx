@@ -166,7 +166,7 @@ function Inner() {
     <PhysiographPage>
       <RelationshipHeader
         eyebrow="Tertiary · Services · Allied health"
-        title="Physiograph"
+        title="PhysioAdvisor"
         titleAccent="®"
         description="Clinic OS for physios, OTs, biokinetics and allied health: practitioners, patients, services, packages, diary, bookings and website."
         action={

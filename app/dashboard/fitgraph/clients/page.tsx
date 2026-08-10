@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Download, Pencil, Upload, X } from 'lucide-react';
+import { Copy, Download, Link2, Mail, Pencil, Upload, X } from 'lucide-react';
 import {
   FitgraphWorkbench,
   LoadingBlock,
@@ -23,6 +23,7 @@ import {
   healthToForm,
   type InjuryFormState,
 } from '@/components/health/InjuryProfileFields';
+import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -43,6 +44,7 @@ type ClientForm = {
   name: string;
   email: string;
   phone: string;
+  photo_url: string;
   membership_plan_id: string;
   membership_status: string;
   coach_id: string;
@@ -57,6 +59,7 @@ const blankForm = (): ClientForm => ({
   name: '',
   email: '',
   phone: '',
+  photo_url: '',
   membership_plan_id: '',
   membership_status: 'active',
   coach_id: '',
@@ -81,6 +84,7 @@ export default function ClientsPage() {
       name: c.name || '',
       email: c.email || '',
       phone: c.phone || '',
+      photo_url: c.photo_url || '',
       membership_plan_id: c.membership_plan_id || '',
       membership_status: c.membership_status || 'active',
       coach_id: c.coach_id || '',
@@ -108,6 +112,7 @@ export default function ClientsPage() {
         name: form.name,
         email: form.email,
         phone: form.phone,
+        photo_url: form.photo_url || '',
         membership_plan_id: form.membership_plan_id || null,
         membership_status: form.membership_status,
         coach_id: form.coach_id || null,
@@ -126,6 +131,66 @@ export default function ClientsPage() {
   const downloadXlsx = (kind: 'clients' | 'clients_template') => {
     const url = `/api/fitness/fitgraph?companyId=${companyId}&export=${kind}`;
     window.open(url, '_blank');
+  };
+
+  const issuePortal = async (clientId: string) => {
+    try {
+      const data = await post({
+        action: 'issue_client_portal',
+        clientId,
+      });
+      const tok = data?.portal_token as string | undefined;
+      if (tok && typeof window !== 'undefined') {
+        const url = `${window.location.origin}/member/fitgraph/${encodeURIComponent(tok)}`;
+        await navigator.clipboard.writeText(url);
+        toast.success('Member portal link copied — share so they can book open classes');
+      } else {
+        toast.success('Member portal issued');
+      }
+      await load();
+    } catch {
+      /* toast in post */
+    }
+  };
+
+  const inviteMember = async (c: FitClient) => {
+    if (!c.email?.trim()) {
+      toast.error('Add an email on the client profile before inviting');
+      return;
+    }
+    try {
+      const data = await post({
+        action: 'invite_client',
+        clientId: c.id,
+        email: c.email,
+      });
+      const link = data?.invite_link as string | undefined;
+      if (link && typeof window !== 'undefined') {
+        try {
+          await navigator.clipboard.writeText(link);
+        } catch {
+          /* ignore clipboard */
+        }
+      }
+      if (data?.warning) {
+        toast.warning(String(data.warning));
+      } else {
+        toast.success(
+          data?.message ||
+            `Invite sent to ${c.email} — they can join and book classes`
+        );
+      }
+      await load();
+    } catch {
+      /* toast in post */
+    }
+  };
+
+  const copyPortal = async (tok: string) => {
+    if (typeof window === 'undefined') return;
+    const url = `${window.location.origin}/member/fitgraph/${encodeURIComponent(tok)}`;
+    await navigator.clipboard.writeText(url);
+    toast.success('Member portal link copied');
   };
 
   const onFile = async (file: File) => {
@@ -194,7 +259,7 @@ export default function ClientsPage() {
     <FitgraphWorkbench
       title="Clients / members"
       titleAccent="member book"
-      description="Member register with plan, coach assignment, and injury / recovery profile so coaches know where they are injured and how to help them improve safely."
+      description="Member register with plan, coach assignment, injury profile, email invites, and member portals so clients can join, book open classes, leave feedback, and manage their profile."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -318,6 +383,16 @@ export default function ClientsPage() {
                 setForm((f) => ({ ...f, phone: e.target.value }))
               }
             />
+            <ProfilePhotoField
+              companyId={companyId}
+              value={form.photo_url}
+              onChange={(url) => setForm((f) => ({ ...f, photo_url: url }))}
+              kind="client_photo"
+              label="Member photo"
+              description="Upload a profile photo for this client (JPG/PNG/WebP · under 8MB)."
+              disabled={saving}
+              accentClass="border-sky-300 dark:border-cyan-500"
+            />
             <select
               className={fc()}
               value={form.membership_plan_id}
@@ -403,12 +478,14 @@ export default function ClientsPage() {
           <DataTable
             tone="member"
             headers={[
+              '',
               'Code',
               'Name',
               'Plan',
               'Status',
               'Coach',
               'Injury / recovery',
+              'Portal',
               '',
             ]}
             rows={store.clients.map((c) => {
@@ -420,6 +497,18 @@ export default function ClientsPage() {
               return {
                 id: c.id,
                 cells: [
+                  c.photo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={c.photo_url}
+                      alt=""
+                      className="h-8 w-8 rounded-full object-cover border border-sky-200"
+                    />
+                  ) : (
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-400">
+                      —
+                    </span>
+                  ),
                   c.code,
                   c.name,
                   plan?.code || '—',
@@ -437,6 +526,55 @@ export default function ClientsPage() {
                     >
                       {healthSummaryLabel(c.health)}
                     </span>
+                  ),
+                  (
+                    <div key="p" className="flex flex-wrap gap-1">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 dark:text-indigo-300"
+                        onClick={() => void inviteMember(c)}
+                        title="Email invite so they can join as a member and open their portal"
+                      >
+                        <Mail className="w-3 h-3" />
+                        {c.invite_status === 'pending'
+                          ? 'Resend invite'
+                          : c.invite_status === 'accepted'
+                            ? 'Re-invite'
+                            : 'Invite'}
+                      </button>
+                      {c.invite_status ? (
+                        <span
+                          className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full ${
+                            c.invite_status === 'accepted'
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200'
+                              : c.invite_status === 'pending'
+                                ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200'
+                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                          }`}
+                        >
+                          {c.invite_status}
+                        </span>
+                      ) : null}
+                      {c.portal_token ? (
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-violet-700 dark:text-violet-300"
+                          onClick={() => void copyPortal(c.portal_token!)}
+                          title="Copy member portal link"
+                        >
+                          <Copy className="w-3 h-3" /> Copy
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-violet-800 dark:text-violet-200"
+                        onClick={() => void issuePortal(c.id)}
+                        title="Issue member portal so they can book open classes"
+                      >
+                        <Link2 className="w-3 h-3" />
+                        {c.portal_token ? 'Re-issue' : 'Issue portal'}
+                      </button>
+                    </div>
                   ),
                   (
                     <button

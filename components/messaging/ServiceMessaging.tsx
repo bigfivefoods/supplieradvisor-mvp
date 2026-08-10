@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Inbox UI for Fitgraph (gym) and Physiograph (clinic).
+ * Inbox UI for FitAdvisor (gym) and PhysioAdvisor (clinic).
  * Colleagues, desk ↔ coach/practitioner, coach/practitioner ↔ member/patient.
  */
 import { useEffect, useMemo, useState } from 'react';
@@ -31,7 +31,12 @@ export type MessagingDirectory = {
 };
 
 export type ServiceMessagingProps = {
-  variant: 'fitgraph' | 'physiograph' | 'dentalgraph';
+  variant:
+    | 'fitgraph'
+    | 'physiograph'
+    | 'dentalgraph'
+    | 'psychiatrygraph'
+    | 'medicalgraph';
   threads: ServiceThread[];
   directory: MessagingDirectory;
   saving?: boolean;

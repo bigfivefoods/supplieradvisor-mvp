@@ -44,6 +44,8 @@ import {
   Stethoscope,
   Smile,
   PanelLeft,
+  BrainCircuit,
+  Hospital,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import LandingNav from '@/components/marketing/LandingNav';
@@ -77,6 +79,8 @@ import {
   FitgraphMock,
   PhysiographMock,
   DentalgraphMock,
+  PsychiatrygraphMock,
+  MedicalgraphMock,
   NavMock,
   ModuleGallery,
   ProductMockShell,
@@ -124,7 +128,7 @@ const MODULE_BAND_META: Record<
   industry: {
     title: 'Industry',
     blurb:
-      'Vertical OS modules for agri, extractives, and services — Fieldgraph®, Quarrygraph®, Fitgraph®, Physiograph®, and Dentalgraph®.',
+      'Vertical OS modules for agri, extractives, and services — FieldAdvisor®, QuarryAdvisor®, FitAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, and MedicalAdvisor®.',
     accent:
       'text-emerald-800 border-emerald-200 bg-emerald-50/80 dark:text-emerald-300 dark:border-emerald-500/40 dark:bg-emerald-500/10',
     step: '03',
@@ -187,9 +191,9 @@ const MODULE_OPTIONS: Array<{
     tone: 'border-emerald-200/80 bg-gradient-to-br from-emerald-50/50 to-white dark:border-emerald-500/30 dark:from-emerald-500/10 dark:to-black',
     iconTone: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300',
     bullets: [
-      'Fieldgraph® · agri · Quarrygraph® · aggregates',
-      'Fitgraph® · gyms · Physiograph® · clinics',
-      'Dentalgraph® · dental practices',
+      'FieldAdvisor® · agri · QuarryAdvisor® · aggregates',
+      'FitAdvisor® · gyms · PhysioAdvisor® · clinics',
+      'DentalAdvisor® · PsychiatryAdvisor® · MedicalAdvisor®',
     ],
     href: '#modules-industry',
     cta: 'Explore Industry modules',
@@ -421,8 +425,8 @@ const MODULES = [
     id: 'fieldgraph',
     band: 'industry' as ModuleBand,
     code: 'I1',
-    title: 'Fieldgraph®',
-    short: 'Fieldgraph',
+    title: 'FieldAdvisor®',
+    short: 'FieldAdvisor',
     tagline: 'Agri production OS',
     body: 'Multi-crop fields, estimates, harvest plans, inputs, fleet fuel (L/h · L/km · R/km), labour, regen metrics, and farm-to-buyer trade — primary production without the spreadsheet sprawl.',
     bullets: ['Fields · estimates · harvest', 'Inputs, fleet & labour', 'Regen metrics · trade handoff'],
@@ -433,8 +437,8 @@ const MODULES = [
     id: 'quarrygraph',
     band: 'industry' as ModuleBand,
     code: 'I2',
-    title: 'Quarrygraph®',
-    short: 'Quarrygraph',
+    title: 'QuarryAdvisor®',
+    short: 'QuarryAdvisor',
     tagline: 'Aggregates & extractives OS',
     body: 'Permanent and temporary sites, batching plants with GPS, reserves, production, plant, weighbridge, fleet fuel, QA, permits, and resource allocation across the pit network.',
     bullets: ['Sites · reserves · production', 'Plant, fleet & weighbridge', 'Temp / batching · GPS allocate'],
@@ -445,8 +449,8 @@ const MODULES = [
     id: 'fitgraph',
     band: 'industry' as ModuleBand,
     code: 'I3',
-    title: 'Fitgraph®',
-    short: 'Fitgraph',
+    title: 'FitAdvisor®',
+    short: 'FitAdvisor',
     tagline: 'Gym & fitness services OS',
     body: 'Gym coaches, members, memberships, classes, calendar, public website bookings, coach share, subscriptions, messaging, and check-ins — tertiary services on the same verified fabric.',
     bullets: [
@@ -461,8 +465,8 @@ const MODULES = [
     id: 'physiograph',
     band: 'industry' as ModuleBand,
     code: 'I4',
-    title: 'Physiograph®',
-    short: 'Physiograph',
+    title: 'PhysioAdvisor®',
+    short: 'PhysioAdvisor',
     tagline: 'Physio & allied health OS',
     body: 'Practitioners, patients, rehab packages, appointment diary, bookings, clinical injury notes, team messaging, and clinic website — for physio, OT, biokinetics and allied practices.',
     bullets: [
@@ -477,8 +481,8 @@ const MODULES = [
     id: 'dentalgraph',
     band: 'industry' as ModuleBand,
     code: 'I5',
-    title: 'Dentalgraph®',
-    short: 'Dentalgraph',
+    title: 'DentalAdvisor®',
+    short: 'DentalAdvisor',
     tagline: 'Dental practice OS',
     body: 'Dentists, hygienists and staff, patients, treatment catalogue, care plans, surgery diary, bookings, oral-health notes, messaging, and practice website — multi-chair ready.',
     bullets: [
@@ -488,6 +492,38 @@ const MODULES = [
     ],
     Mock: DentalgraphMock,
     icon: Smile,
+  },
+  {
+    id: 'psychiatrygraph',
+    band: 'industry' as ModuleBand,
+    code: 'I6',
+    title: 'PsychiatryAdvisor®',
+    short: 'PsychiatryAdvisor',
+    tagline: 'Mental health practice OS',
+    body: 'Psychiatrists and psychologists, patients, therapy packages, diary, bookings, medical chart, patient portal, messaging, and practice website — on the same verified fabric.',
+    bullets: [
+      'Practitioners · patients · care packs',
+      'Diary · portal · clinical notes',
+      'Messages · website',
+    ],
+    Mock: PsychiatrygraphMock,
+    icon: BrainCircuit,
+  },
+  {
+    id: 'medicalgraph',
+    band: 'industry' as ModuleBand,
+    code: 'I7',
+    title: 'MedicalAdvisor®',
+    short: 'MedicalAdvisor',
+    tagline: 'GP & medical practice OS',
+    body: 'GPs, specialists and nurses, patients, consults, care packages, diary, bookings, medical chart, patient portal, messaging, and practice website — multi-room ready.',
+    bullets: [
+      'Practitioners · patients · care packs',
+      'Diary · portal · consults',
+      'Messages · website',
+    ],
+    Mock: MedicalgraphMock,
+    icon: Hospital,
   },
 ] as const;
 
@@ -510,7 +546,7 @@ const MODULE_SECTION_BANDS: Array<{
     id: 'industry',
     title: 'Industry',
     blurb:
-      'Vertical depth — Fieldgraph®, Quarrygraph®, Fitgraph®, Physiograph®, and Dentalgraph® for agri, extractives, gyms, clinics, and dental.',
+      'Vertical depth — FieldAdvisor®, QuarryAdvisor®, FitAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, and MedicalAdvisor® for agri, extractives, gyms, clinics, dental, mental health, and medical practices.',
   },
 ];
 

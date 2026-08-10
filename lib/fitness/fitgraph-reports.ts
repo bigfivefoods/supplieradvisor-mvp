@@ -1,5 +1,5 @@
 /**
- * Fitgraph owner reports — pure slice/dice aggregates over FitgraphStore.
+ * FitAdvisor owner reports — pure slice/dice aggregates over FitgraphStore.
  */
 import {
   FEEDBACK_FEELING_LABELS,

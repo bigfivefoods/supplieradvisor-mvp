@@ -14,6 +14,7 @@ import {
   ensurePublicToken,
   ensureSessionShareCode,
   issueCoachPortalToken,
+  issueClientPortalToken,
   newId,
   reopenCoachEngagement,
   readFitgraphFromMetadata,
@@ -56,6 +57,17 @@ import {
   buildPublicFeedbackPath,
   issueFeedbackPrompt,
 } from '@/lib/services/booking-feedback';
+import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
+import {
+  buildServiceMemberInviteLink,
+  buildServiceMemberPortalLink,
+  defaultShareFlags,
+  inviteExpiryIso,
+  issueServiceMemberInviteToken,
+  mergeInviteFieldsFromRecord,
+  serviceMemberInviteEmailHtml,
+  serviceMemberInviteEmailText,
+} from '@/lib/services/member-invite';
 
 export const runtime = 'nodejs';
 
@@ -307,6 +319,166 @@ export async function POST(request: NextRequest) {
         summary: summariseFitgraph(store),
         portal_token: coach.portal_token,
         analysis: analysis(store),
+      });
+    }
+
+    /** Owner: issue member portal link so client can book open classes */
+    if (
+      action === 'issue_client_portal' ||
+      action === 'issue_member_portal'
+    ) {
+      const clientId = String(body.clientId || body.client_id || body.id || '');
+      const client = store.clients.find((c) => c.id === clientId);
+      if (!client) {
+        return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+      }
+      client.portal_token = issueClientPortalToken(companyId);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        portal_token: client.portal_token,
+        analysis: analysis(store),
+        message: 'Member portal link issued',
+      });
+    }
+
+    /** Owner: email invite so client can join as a member and open their portal */
+    if (
+      action === 'invite_client' ||
+      action === 'invite_member' ||
+      action === 'send_member_invite'
+    ) {
+      const clientId = String(body.clientId || body.client_id || body.id || '');
+      const client = store.clients.find((c) => c.id === clientId);
+      if (!client) {
+        return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+      }
+      const email = String(body.email || client.email || '')
+        .toLowerCase()
+        .trim();
+      if (!email || !email.includes('@')) {
+        return NextResponse.json(
+          { error: 'A valid email is required to send a member invite' },
+          { status: 400 }
+        );
+      }
+
+      const nowIso = new Date().toISOString();
+      const defaults = defaultShareFlags('fitgraph');
+      const inviteToken = issueServiceMemberInviteToken('fitgraph', companyId);
+      if (!client.portal_token) {
+        client.portal_token = issueClientPortalToken(companyId);
+      }
+      client.email = email;
+      client.invite_token = inviteToken;
+      client.invite_status = 'pending';
+      client.invite_email = email;
+      client.invite_sent_at = nowIso;
+      client.invite_accepted_at = null;
+      client.invite_expires_at = inviteExpiryIso(14);
+      client.share_schedule =
+        body.share_schedule !== undefined
+          ? body.share_schedule !== false
+          : client.share_schedule !== false
+            ? true
+            : defaults.share_schedule;
+      client.share_feedback =
+        body.share_feedback !== undefined
+          ? body.share_feedback !== false
+          : client.share_feedback !== false
+            ? true
+            : defaults.share_feedback;
+      client.updated_at = nowIso;
+
+      const supabase = getSupabaseServer();
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('trading_name, legal_name')
+        .eq('id', companyId)
+        .maybeSingle();
+      const businessName =
+        store.settings?.brand_name ||
+        prof?.trading_name ||
+        prof?.legal_name ||
+        'Your gym';
+      const invitedBy = String(body.invitedBy || body.invited_by || 'Your gym team');
+      const inviteLink = buildServiceMemberInviteLink('fitgraph', inviteToken);
+
+      let emailWarning: string | undefined;
+      try {
+        const resend = getResend();
+        const { error: emailError } = await resend.emails.send({
+          from: getResendFrom(),
+          replyTo: getResendReplyTo(),
+          to: email,
+          subject: `${businessName} invited you to FitAdvisor®`,
+          html: serviceMemberInviteEmailHtml({
+            inviteeName: client.name,
+            businessName,
+            invitedBy,
+            inviteLink,
+            module: 'fitgraph',
+          }),
+          text: serviceMemberInviteEmailText({
+            inviteeName: client.name,
+            businessName,
+            invitedBy,
+            inviteLink,
+            module: 'fitgraph',
+          }),
+        });
+        if (emailError) {
+          emailWarning = `Invite saved but email failed: ${emailError.message}`;
+        }
+      } catch (emailErr: unknown) {
+        const msg =
+          emailErr instanceof Error ? emailErr.message : 'Email failed';
+        emailWarning = `Invite saved but email failed: ${msg}`;
+      }
+
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        invite_token: inviteToken,
+        invite_link: inviteLink,
+        portal_token: client.portal_token,
+        portal_link: buildServiceMemberPortalLink(
+          'fitgraph',
+          client.portal_token!
+        ),
+        email_sent: !emailWarning,
+        warning: emailWarning,
+        message: emailWarning
+          ? emailWarning
+          : `Member invite sent to ${email}`,
+      });
+    }
+
+    if (
+      action === 'revoke_member_invite' ||
+      action === 'revoke_client_invite'
+    ) {
+      const clientId = String(body.clientId || body.client_id || body.id || '');
+      const client = store.clients.find((c) => c.id === clientId);
+      if (!client) {
+        return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+      }
+      client.invite_status = 'revoked';
+      client.invite_token = null;
+      client.invite_expires_at = null;
+      client.updated_at = new Date().toISOString();
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        message: 'Member invite revoked',
       });
     }
 
@@ -939,7 +1111,11 @@ function upsert(
       public_bio:
         rec.public_bio != null ? String(rec.public_bio) : prev?.public_bio,
       photo_url:
-        rec.photo_url != null ? String(rec.photo_url) : prev?.photo_url,
+        rec.photo_url !== undefined
+          ? rec.photo_url
+            ? String(rec.photo_url)
+            : undefined
+          : prev?.photo_url,
       portal_token:
         rec.portal_token !== undefined
           ? rec.portal_token
@@ -1012,6 +1188,27 @@ function upsert(
             ? String(rec.phone)
             : undefined
           : prev?.phone,
+      photo_url:
+        rec.photo_url !== undefined
+          ? rec.photo_url
+            ? String(rec.photo_url)
+            : undefined
+          : prev?.photo_url,
+      portal_token:
+        rec.portal_token !== undefined
+          ? rec.portal_token
+            ? String(rec.portal_token)
+            : null
+          : prev?.portal_token ?? null,
+      ...mergeInviteFieldsFromRecord(prev, rec as Record<string, unknown>),
+      share_schedule:
+        rec.share_schedule !== undefined
+          ? rec.share_schedule !== false
+          : prev?.share_schedule !== false,
+      share_feedback:
+        rec.share_feedback !== undefined
+          ? rec.share_feedback !== false
+          : prev?.share_feedback !== false,
       membership_plan_id:
         rec.membership_plan_id !== undefined
           ? rec.membership_plan_id

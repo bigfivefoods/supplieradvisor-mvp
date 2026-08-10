@@ -21,7 +21,7 @@ import {
 /**
  * Functional ordering of existing MODULE_NAV ids (1:1, full trees preserved).
  * 1) Control Tower (+ Platform admin sits under it)
- * 2) Industry / programme OS (Fitgraph · Quarrygraph · Fieldgraph · DBE/Schools)
+ * 2) Industry / programme OS (FitAdvisor · QuarryAdvisor · FieldAdvisor · DBE/Schools)
  * 3) Core modules
  */
 export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
@@ -30,11 +30,13 @@ export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
   'platform', // Platform admin — under Control Tower (SupplierAdvisor business)
 
   // 2 — Industry-specific / programme modules
-  'fitgraph', // Fitgraph® gym / studio OS
-  'physiograph', // Physiograph® clinic / physio OS
-  'dentalgraph', // Dentalgraph® dental practice OS
-  'quarrygraph', // Quarrygraph® aggregates OS
-  'fieldgraph', // Fieldgraph® agri OS
+  'fitgraph', // FitAdvisor® gym / studio OS
+  'physiograph', // PhysioAdvisor® clinic / physio OS
+  'dentalgraph', // DentalAdvisor® dental practice OS
+  'psychiatrygraph', // PsychiatryAdvisor® mental health OS
+  'medicalgraph', // MedicalAdvisor® medical practice OS
+  'quarrygraph', // QuarryAdvisor® aggregates OS
+  'fieldgraph', // FieldAdvisor® agri OS
   'schools', // DBE / NSNP (Schools)
   'health', // DoH programme (with industry/programmes)
   'containers', // Industry vertical (packs)
@@ -77,11 +79,13 @@ export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
   accounting: 'Finance',
   intelligence: 'Intelligence',
   sustainability: 'Impact',
-  fieldgraph: 'Fieldgraph',
-  quarrygraph: 'Quarrygraph',
-  fitgraph: 'Fitgraph (Gym)',
-  physiograph: 'Physiograph (Clinic)',
-  dentalgraph: 'Dentalgraph (Dental)',
+  fieldgraph: 'FieldAdvisor',
+  quarrygraph: 'QuarryAdvisor',
+  fitgraph: 'FitAdvisor (Gym)',
+  physiograph: 'PhysioAdvisor (Clinic)',
+  dentalgraph: 'DentalAdvisor (Dental)',
+  psychiatrygraph: 'PsychiatryAdvisor (Mental health)',
+  medicalgraph: 'MedicalAdvisor (Medical)',
   containers: 'Containers',
   schools: 'DBE / Schools',
   health: 'Health',
@@ -221,6 +225,8 @@ export function functionalSidebarModules(opts: {
           'fitgraph',
           'physiograph',
           'dentalgraph',
+          'psychiatrygraph',
+          'medicalgraph',
         ];
         for (const id of afterIndustry) {
           const idx = out.findIndex((x) => x.id === id);

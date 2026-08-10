@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Fieldgraph · Labour & gang rates
+ * FieldAdvisor · Labour & gang rates
  * Gang register (permanent / temporary / contractor) with default rates,
  * daily field logs with cost, and cost reports.
  */
@@ -233,7 +233,7 @@ export default function FieldgraphLabourPage() {
             >
               People
             </Link>
-            . Fieldgraph holds field-day rates and costs.
+            . FieldAdvisor holds field-day rates and costs.
           </p>
 
           <div className="grid sm:grid-cols-4 gap-3">

@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * End-to-end Fitgraph® process design:
- * People → Plans → Classes → Calendar → Floor → Website · feedback · reports
+ * End-to-end FitAdvisor® process design:
+ * People → Plans → Classes → Calendar → Floor → Messages → Website · reports
  *
- * Expandable on the Fitgraph command hub; downloadable A4 PDF
- * (landscape + portrait) — same pattern as NSNP / Fieldgraph.
+ * Expandable on the FitAdvisor command hub; downloadable A4 PDF
+ * (landscape + portrait) — same pattern as NSNP / FieldAdvisor.
  * Content kept in sync with lib/fitness/fitgraph-process-guide.ts
  */
 import { useState } from 'react';
@@ -20,6 +20,7 @@ import {
   Dumbbell,
   FileText,
   Globe,
+  MessageSquare,
   Package,
   Repeat,
   ShieldCheck,
@@ -232,13 +233,47 @@ const PHASES: Phase[] = [
     ],
   },
   {
+    id: 'messages',
+    title: '6 · Messages (internal & care)',
+    subtitle: 'Desk · coaches · members — in-app',
+    steps: [
+      {
+        id: 'desk-coach',
+        n: '6a',
+        title: 'Desk · coach threads',
+        who: 'Desk / coach',
+        desc: 'Internal colleague chat for schedule hand-offs and floor notes.',
+        href: '/dashboard/fitgraph/messages',
+        icon: MessageSquare,
+      },
+      {
+        id: 'member-care',
+        n: '6b',
+        title: 'Member care messages',
+        who: 'Desk / coach · member',
+        desc: 'Class and care threads with members on the gym book.',
+        href: '/dashboard/fitgraph/messages',
+        icon: MessageSquare,
+      },
+      {
+        id: 'company-inbox',
+        n: '6c',
+        title: 'Company inbox (trade)',
+        who: 'Owner',
+        desc: 'External partners on the platform company inbox.',
+        href: '/dashboard/messages',
+        icon: MessageSquare,
+      },
+    ],
+  },
+  {
     id: 'web',
-    title: '6 · Website, contracts & insights',
+    title: '7 · Website, contracts & insights',
     subtitle: 'Public profile · embed · slice & dice',
     steps: [
       {
         id: 'profile',
-        n: '6a',
+        n: '7a',
         title: 'Gym profile & contracts',
         who: 'Owner',
         desc: 'Brand bio and public PDF contracts on embed.',
@@ -247,7 +282,7 @@ const PHASES: Phase[] = [
       },
       {
         id: 'embed',
-        n: '6b',
+        n: '7b',
         title: 'Website embed / API',
         who: 'Owner',
         desc: 'Publish calendar, booking, iframe or JSON.',
@@ -256,7 +291,7 @@ const PHASES: Phase[] = [
       },
       {
         id: 'report',
-        n: '6c',
+        n: '7c',
         title: 'Reports (slice & dice)',
         who: 'Owner',
         desc: 'Coaches, classes, plan vs actual, feedback, CSV.',
@@ -278,6 +313,7 @@ const ROLE_CARDS = [
       'Engagement dates, rates, PDF contracts; rehire history',
       'Member book or bulk .xlsx import/export',
       'Schedule, coach calendar, B2C join links',
+      'In-app messages: desk · coaches · members',
       'Gym bio, public contracts, website embed',
       'Slice-and-dice reports (plan vs actual · feedback)',
     ],
@@ -297,6 +333,7 @@ const ROLE_CARDS = [
       'Class plan, one-off or weekly series',
       'Share classes; book walk-ins and members',
       'Mark plan vs actual (attended / no-show)',
+      'Message desk and members on care threads',
       'Post-class coach feedback (feel · RPE)',
       'See member feedback averages on sessions',
     ],
@@ -313,9 +350,10 @@ const ROLE_CARDS = [
     subtitle: 'Book · attend · feedback',
     does: [
       'Public schedule, gym bio & contracts on embed',
-      'Book online or via class join link',
+      'Book online, member portal or class join link',
       'Add class to phone calendar (Google / .ics)',
       'Subscription or pack; desk check-in',
+      'Message desk / coach on care threads',
       'After class: feel & intensity feedback on join link',
     ],
     doesNot: [
@@ -372,7 +410,7 @@ export default function FitgraphSystemFlow({
       className={`rounded-3xl border border-slate-200 bg-white overflow-hidden ${
         compact ? 'mb-4' : 'mb-6'
       }`}
-      aria-label="Fitgraph full process design"
+      aria-label="FitAdvisor full process design"
       id="fitgraph-system-flow"
     >
       <div className="bg-gradient-to-r from-violet-950 via-violet-800 to-fuchsia-700 px-5 py-4 text-white">
@@ -386,12 +424,14 @@ export default function FitgraphSystemFlow({
               Full gym OS — process design
             </p>
             <h2 className="text-lg sm:text-xl font-black mt-0.5 leading-tight">
-              People → Plans → Classes → Calendar → Floor → Website · reports
+              People → Plans → Classes → Calendar → Floor → Messages → Website ·
+              reports
             </h2>
             <p className="text-sm text-white/90 mt-1.5 max-w-3xl leading-snug">
               Owner manages coaches (tenure, rates, contracts), members and
-              schedules; coaches run plan vs actual and feedback; members book
-              and rate classes; reports slice utilisation end to end.
+              schedules; coaches run plan vs actual and feedback; desk, coaches
+              and members message in-app; members book and rate classes; reports
+              slice utilisation end to end.
             </p>
           </button>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -434,9 +474,14 @@ export default function FitgraphSystemFlow({
                 tone: 'rose',
               },
               {
+                label: 'Messages',
+                sub: 'Desk · coaches · members',
+                tone: 'fuchsia',
+              },
+              {
                 label: 'Website · reports',
                 sub: 'Embed · slice & dice',
-                tone: 'fuchsia',
+                tone: 'sky',
               },
             ].map((node, i, arr) => (
               <div key={node.label} className="contents">
@@ -568,8 +613,9 @@ export default function FitgraphSystemFlow({
                   <strong className="font-black">One sentence:</strong> Register
                   coaches and members → sell plans and track subscriptions →
                   define class types → schedule coaches onto sessions and
-                  publish → book and check in on the floor (or coach portal) →
-                  embed the public calendar on the gym website.
+                  publish → book and check in on the floor → message desk,
+                  coaches and members in-app → embed the public calendar on the
+                  gym website.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2 shrink-0">
@@ -578,6 +624,12 @@ export default function FitgraphSystemFlow({
                   className="text-[11px] font-bold rounded-full bg-violet-800 text-white px-3 py-1.5"
                 >
                   Calendar
+                </Link>
+                <Link
+                  href="/dashboard/fitgraph/messages"
+                  className="text-[11px] font-bold rounded-full bg-white border border-violet-200 px-3 py-1.5 text-violet-800"
+                >
+                  Messages
                 </Link>
                 <Link
                   href="/dashboard/fitgraph/website"

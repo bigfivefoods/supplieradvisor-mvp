@@ -33,7 +33,14 @@ export const dynamic = 'force-dynamic';
 
 function modOf(v: unknown): FeedbackModule | null {
   const m = String(v || '').toLowerCase();
-  if (m === 'fitgraph' || m === 'physiograph' || m === 'dentalgraph') return m;
+  if (
+    m === 'fitgraph' ||
+    m === 'physiograph' ||
+    m === 'dentalgraph' ||
+    m === 'psychiatrygraph' ||
+    m === 'medicalgraph'
+  )
+    return m;
   return null;
 }
 

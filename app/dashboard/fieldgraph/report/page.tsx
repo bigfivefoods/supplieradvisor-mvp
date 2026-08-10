@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Fieldgraph® Reports — slice & dice
+ * FieldAdvisor® Reports — slice & dice
  * Period slicer + season / crop / farm / field / employment filters.
  * Tabs: Overview · Yield · Harvest · Fleet · Labour · Inputs · Regen
  */

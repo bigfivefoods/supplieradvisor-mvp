@@ -1,5 +1,5 @@
 /**
- * Fieldgraph® end-to-end process guide content + PDF.
+ * FieldAdvisor® end-to-end process guide content + PDF.
  * Fields → Estimates → Harvest → Ops → Trade → Outcome
  * Pure pdfkit — works on Vercel serverless.
  *
@@ -29,7 +29,8 @@ export const PROCESS_CHAIN = [
   { label: 'Field & agronomic', sub: 'Shared master' },
   { label: 'Estimates', sub: 'Season yield · board' },
   { label: 'Harvest Planner', sub: 'Sequence · cut dates' },
-  { label: 'Ops · regen · trade', sub: 'Fleet · labour · lots' },
+  { label: 'Ops · regen', sub: 'Fleet · labour · samples' },
+  { label: 'Messages', sub: 'Office · field · trade' },
   { label: 'Sold & proven', sub: 'Mill · buyer · insight' },
 ] as const;
 
@@ -43,6 +44,7 @@ export const ROLE_CARDS = [
       'Submit mill / board estimate packs',
       'Set harvest sequence & daily allocation',
       'Review season scorecard & yield graphs',
+      'Message field ops and trade partners in-app',
     ],
     doesNot: [
       'Does not invent mill board rules alone',
@@ -58,6 +60,7 @@ export const ROLE_CARDS = [
       'Register gangs with labour rates',
       'Log daily labour cost by field',
       'Capture regen samples (SOC, cover, water)',
+      'Message farm office on ops and cut plan threads',
     ],
     doesNot: [
       'Does not change shared field codes casually',
@@ -73,6 +76,7 @@ export const ROLE_CARDS = [
       'Trade on SupplierAdvisor network',
       'Carry OTIFEF / trust into settlement',
       'Show regen proof next to yield',
+      'Message mill / buyer partners on company inbox',
     ],
     doesNot: [
       'Does not farm offline in a private island',
@@ -208,24 +212,49 @@ export const PROCESS_PHASES: ProcessPhase[] = [
       },
     ],
   },
+
   {
-    title: '6 · Trade · lots · insights',
-    subtitle: 'Farm to mill / buyer on the network',
+    title: '6 · Messages (internal & trade)',
+    subtitle: 'Farm office · field ops · mill / buyer partners',
     steps: [
       {
         n: '6a',
+        title: 'Office · field threads',
+        who: 'Farm office / Field ops',
+        desc: 'In-app colleague chat for cut plans, inputs and harvest hand-offs.',
+      },
+      {
+        n: '6b',
+        title: 'Trade partner messages',
+        who: 'Trade',
+        desc: 'Message mills, silos and buyers on the platform company inbox.',
+      },
+      {
+        n: '6c',
+        title: 'Close the loop',
+        who: 'Team',
+        desc: 'Keep operational decisions on threads next to the field book of truth.',
+      },
+    ],
+  },
+  {
+    title: '7 · Trade · lots · insights',
+    subtitle: 'Farm to mill / buyer on the network',
+    steps: [
+      {
+        n: '7a',
         title: 'Trade destinations',
         who: 'Trade',
         desc: 'Hand harvest into mills, silos and buyers with trust and OTIF.',
       },
       {
-        n: '6b',
+        n: '7b',
         title: 'Origin lots',
         who: 'Trade',
         desc: 'Field origin into Inventory lots for chain of custody.',
       },
       {
-        n: '6c',
+        n: '7c',
         title: 'Season insights',
         who: 'Farm office',
         desc: 'Yield, nutrients, fleet, labour cost and regen on one scorecard.',
@@ -256,6 +285,10 @@ export const GUARDRAILS = [
     desc: 'Fleet logs link to the vehicle register for utilisation and L/hour.',
   },
   {
+    title: 'Messages stay in-app',
+    desc: 'Office, field and trade partners coordinate on OS threads — not a side WhatsApp as system of record.',
+  },
+  {
     title: 'Origin never drops',
     desc: 'Lots inherit field origin so mill / buyer traceability stays intact.',
   },
@@ -269,6 +302,10 @@ export const SYSTEM_BENEFITS = [
   {
     title: 'CanePro-class cores, network-native',
     desc: 'Field master, estimates, harvest planner and vehicles — plus trade on SupplierAdvisor®.',
+  },
+  {
+    title: 'In-app messaging',
+    desc: 'Internal office/field threads plus external mill and buyer partners on the company inbox.',
   },
   {
     title: 'One book of truth',
@@ -297,7 +334,7 @@ export const SYSTEM_BENEFITS = [
 ];
 
 export const ONE_SENTENCE =
-  'Register shared fields → estimate and revise for the board → plan harvest cut dates from sequence and daily allocation → run inputs, fleet and labour rates → prove regen → trade to mill/buyer with origin lots and season insights.';
+  'Maintain the shared field master → build and revise season estimates → run the harvest planner → log inputs, fleet and labour → message office, field and trade partners in-app → hand lots to mill / buyer with origin and review season insights.';
 
 // ── PDF geometry ────────────────────────────────────────────────────────
 
@@ -382,7 +419,7 @@ function drawFooter(doc: PdfDoc, g: Geo, pageNum: number, total: number) {
       .fontSize(7)
       .fillColor(MUTED)
       .text(
-        `SupplierAdvisor® · Fieldgraph® · ${orientLabel} · Primary production OS`,
+        `SupplierAdvisor® · FieldAdvisor® · ${orientLabel} · Primary production OS`,
         g.mx,
         y + 4,
         { width: g.contentW * 0.72, align: 'left' }
@@ -701,10 +738,10 @@ export async function buildFieldgraphProcessGuidePdf(opts?: {
       margins: { top: 0, bottom: 28, left: g.mx, right: g.mx },
       info: {
         Title:
-          'Fieldgraph® Process Design — Fields → Estimates → Harvest → Ops → Trade',
+          'FieldAdvisor® Process Design — Fields → Estimates → Harvest → Ops → Trade',
         Author: 'SupplierAdvisor®',
-        Subject: `Fieldgraph primary production end-to-end process (A4 ${orientation})`,
-        Keywords: 'Fieldgraph, agri, harvest, estimates, farm OS, process guide',
+        Subject: `FieldAdvisor primary production end-to-end process (A4 ${orientation})`,
+        Keywords: 'FieldAdvisor, agri, harvest, estimates, farm OS, process guide',
         CreationDate: generated,
       },
     });
@@ -742,7 +779,7 @@ export async function buildFieldgraphProcessGuidePdf(opts?: {
         .fontSize(g.isLandscape ? 11 : 10)
         .fillColor('#ffffff')
         .text(
-          'Process continued · Ops · Regen · Trade · Guardrails',
+          'Process continued · Ops · Messages · Trade · Guardrails',
           g.mx,
           g.isLandscape ? 12 : 14,
           { width: g.contentW }
@@ -778,5 +815,5 @@ export function parseFieldgraphProcessGuideOrientation(
 export function fieldgraphProcessGuideFilename(
   orientation: FieldgraphProcessGuideOrientation
 ): string {
-  return `Fieldgraph-Process-Design-A4-${orientation}.pdf`;
+  return `FieldAdvisor-Process-Design-A4-${orientation}.pdf`;
 }

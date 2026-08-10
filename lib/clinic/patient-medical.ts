@@ -1,5 +1,5 @@
 /**
- * Shared patient medical chart for Physiograph & Dentalgraph:
+ * Shared patient medical chart for PhysioAdvisor & DentalAdvisor:
  * demographics, medical aid, attachments, and medical-aid submissions.
  */
 
@@ -216,7 +216,11 @@ export function removeMedicalDocument(
 
 export function upsertMedicalClaim(
   medical: PatientMedicalRecord | undefined,
-  rec: Partial<MedicalAidClaim> & { id?: string },
+  rec: Partial<Omit<MedicalAidClaim, 'amount_zar'>> & {
+    id?: string;
+    /** Forms may send '' or string numbers */
+    amount_zar?: number | string | null;
+  },
   now = new Date().toISOString()
 ): PatientMedicalRecord {
   const base = mergeMedicalRecord(medical, {});
@@ -241,7 +245,10 @@ export function upsertMedicalClaim(
         : prev?.service_date ?? null,
     amount_zar:
       rec.amount_zar !== undefined
-        ? rec.amount_zar === null || rec.amount_zar === ''
+        ? rec.amount_zar === null ||
+          (typeof rec.amount_zar === 'string' &&
+            String(rec.amount_zar).trim() === '') ||
+          Number.isNaN(Number(rec.amount_zar))
           ? null
           : Number(rec.amount_zar)
         : prev?.amount_zar ?? null,

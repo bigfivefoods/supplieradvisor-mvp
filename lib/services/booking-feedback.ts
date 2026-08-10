@@ -1,12 +1,17 @@
 /**
- * Post-attendance feedback prompts for Fitgraph members and
- * Physiograph / Dentalgraph patients.
+ * Post-attendance feedback prompts for FitAdvisor members and
+ * PhysioAdvisor / DentalAdvisor patients.
  *
  * When a booking is marked attended, a secret feedback_token is issued.
  * Public URL: /f/{module}/{companyId}/{token}
  */
 
-export type FeedbackModule = 'fitgraph' | 'physiograph' | 'dentalgraph';
+export type FeedbackModule =
+  | 'fitgraph'
+  | 'physiograph'
+  | 'dentalgraph'
+  | 'psychiatrygraph'
+  | 'medicalgraph';
 
 export type BookingFeedbackPrompt = {
   feedback_token?: string | null;

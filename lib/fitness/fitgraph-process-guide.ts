@@ -1,6 +1,6 @@
 /**
- * Fitgraph® end-to-end process guide content + PDF.
- * People → Plans → Classes → Calendar → Floor → Website · feedback · reports
+ * FitAdvisor® end-to-end process guide content + PDF.
+ * People → Plans → Classes → Calendar → Floor → Messages → Website · reports
  * Pure pdfkit — works on Vercel serverless.
  *
  * Do not import from client components (pulls pdfkit into the browser bundle).
@@ -29,6 +29,7 @@ export const PROCESS_CHAIN = [
   { label: 'Class types', sub: 'Capacity · duration' },
   { label: 'Calendar', sub: 'Plan · series · join' },
   { label: 'Floor', sub: 'Book · actual · feedback' },
+  { label: 'Messages', sub: 'Desk · coaches · members' },
   { label: 'Website · reports', sub: 'Embed · slice & dice' },
 ] as const;
 
@@ -41,6 +42,7 @@ export const ROLE_CARDS = [
       'Set engagement dates, rates, PDF contracts; end / rehire tenure',
       'Import / export member list (.xlsx); assign plans & coaches',
       'Schedule classes, coach calendar (plan vs actual), B2C join links',
+      'In-app messages: desk · coaches · members (and company trade partners)',
       'Gym bio, public PDF contracts, website embed',
       'Slice-and-dice reports: coaches, classes, plan vs actual, feedback',
     ],
@@ -57,6 +59,7 @@ export const ROLE_CARDS = [
       'Create one-off or weekly series; write class plan (members see it)',
       'Share / unshare classes; book walk-ins and members',
       'Mark plan vs actual (attended / no-show) on roster',
+      'Message desk and members on care / class threads',
       'Submit post-class coach feedback (feel · intensity / RPE)',
       'Read member feedback averages for their sessions',
     ],
@@ -70,9 +73,10 @@ export const ROLE_CARDS = [
     subtitle: 'Book · attend · feedback',
     does: [
       'See public schedule on gym website / embed (bio + contracts)',
-      'Book via website or B2C class join link (or waitlist when full)',
+      'Book via website, member portal, or B2C class join link (or waitlist)',
       'Add class to phone calendar (Google / .ics)',
       'Hold active subscription or class pack; check in at desk',
+      'Message the desk / coach on care threads when linked',
       'After class: feedback on feel, intensity, enjoyment via join link',
     ],
     doesNot: [
@@ -210,23 +214,47 @@ export const PROCESS_PHASES: ProcessPhase[] = [
     ],
   },
   {
-    title: '6 · Website, contracts & insights',
-    subtitle: 'Public profile · embed · slice & dice',
+    title: '6 · Messages (internal & care)',
+    subtitle: 'Desk · coaches · members — in-app, not email silos',
     steps: [
       {
         n: '6a',
+        title: 'Desk · coach threads',
+        who: 'Desk / coach',
+        desc: 'Internal colleague chat for schedule hand-offs and floor notes.',
+      },
+      {
+        n: '6b',
+        title: 'Member care messages',
+        who: 'Desk / coach · member',
+        desc: 'Class and care threads with members when linked on the gym book.',
+      },
+      {
+        n: '6c',
+        title: 'Company inbox (trade)',
+        who: 'Owner',
+        desc: 'External partners (suppliers / customers) on the platform company inbox.',
+      },
+    ],
+  },
+  {
+    title: '7 · Website, contracts & insights',
+    subtitle: 'Public profile · embed · slice & dice',
+    steps: [
+      {
+        n: '7a',
         title: 'Gym profile & contracts',
         who: 'Owner',
         desc: 'Brand bio, public PDF contracts (T&Cs, waivers), show on embed.',
       },
       {
-        n: '6b',
+        n: '7b',
         title: 'Website embed / API',
         who: 'Owner',
         desc: 'Publish calendar, booking on/off, iframe or JSON for the gym site.',
       },
       {
-        n: '6c',
+        n: '7c',
         title: 'Reports (slice & dice)',
         who: 'Owner',
         desc: 'Date/coach/class/specialty filters; coaches, classes, plan vs actual, feedback, members, daily CSV.',
@@ -266,7 +294,11 @@ export const GUARDRAILS = [
   },
   {
     title: 'One gym book',
-    desc: 'Coaches, classes, bookings, feedback and website share the same Fitgraph store.',
+    desc: 'Coaches, classes, bookings, messages, feedback and website share the same FitAdvisor store.',
+  },
+  {
+    title: 'Messages stay in-app',
+    desc: 'Desk, coaches and members message on the OS — not a side WhatsApp group as the system of record.',
   },
 ];
 
@@ -282,6 +314,10 @@ export const SYSTEM_BENEFITS = [
   {
     title: 'Plan vs actual',
     desc: 'See who was planned vs who came — fill % and show-up % in reports.',
+  },
+  {
+    title: 'In-app messaging',
+    desc: 'Internal desk/coach threads and member care messages on the same gym book.',
   },
   {
     title: 'Website-ready',
@@ -306,7 +342,7 @@ export const SYSTEM_BENEFITS = [
 ];
 
 export const ONE_SENTENCE =
-  'Register coaches (specialties, tenure, rates, contracts) and members (or .xlsx) → sell plans and track subs → define class types → schedule coaches, set class plans and join links → book and mark plan vs actual on the floor → members and coaches leave post-class feedback → publish website bio/contracts and slice-and-dice reports.';
+  'Register coaches (specialties, tenure, rates, contracts) and members (or .xlsx) → sell plans and track subs → define class types → schedule coaches, set class plans and join links → book and mark plan vs actual on the floor → message desk, coaches and members in-app → leave post-class feedback → publish website bio/contracts and slice-and-dice reports.';
 
 // ── PDF (violet brand) ──────────────────────────────────────────────────
 
@@ -349,7 +385,7 @@ const SKY = '#0284c7';
 const EMERALD = '#059669';
 const AMBER = '#d97706';
 const ROSE = '#e11d48';
-const CHAIN_COLORS = [BRAND_DEEP, SKY, AMBER, BRAND, EMERALD, ROSE] as const;
+const CHAIN_COLORS = [BRAND_DEEP, SKY, AMBER, BRAND, EMERALD, ROSE, '#c026d3'] as const;
 
 type PdfDoc = InstanceType<typeof PDFDocument>;
 
@@ -390,7 +426,7 @@ function drawFooter(doc: PdfDoc, g: Geo, pageNum: number, total: number) {
       .fontSize(7)
       .fillColor(MUTED)
       .text(
-        `SupplierAdvisor® · Fitgraph® · ${orientLabel} · Gym services OS`,
+        `SupplierAdvisor® · FitAdvisor® · ${orientLabel} · Gym services OS`,
         g.mx,
         y + 4,
         { width: g.contentW * 0.72, align: 'left' }
@@ -423,7 +459,7 @@ function drawHero(doc: PdfDoc, g: Geo) {
         { width: g.contentW, characterSpacing: 1 }
       );
     const title =
-      'Coaches → Members → Plans → Calendar → Bookings → Website';
+      'Coaches → Plans → Calendar → Floor → Messages → Website';
     if (g.isLandscape) {
       doc
         .font('Helvetica-Bold')
@@ -705,10 +741,10 @@ export async function buildFitgraphProcessGuidePdf(opts?: {
       margins: { top: 0, bottom: 28, left: g.mx, right: g.mx },
       info: {
         Title:
-          'Fitgraph® Process Design — Coaches → Calendar → Website',
+          'FitAdvisor® Process Design — Coaches → Calendar → Messages → Website',
         Author: 'SupplierAdvisor®',
-        Subject: `Fitgraph gym services end-to-end process (A4 ${orientation})`,
-        Keywords: 'Fitgraph, gym, coaches, calendar, subscriptions, process guide',
+        Subject: `FitAdvisor gym services end-to-end process (A4 ${orientation})`,
+        Keywords: 'FitAdvisor, gym, coaches, calendar, subscriptions, process guide',
         CreationDate: generated,
       },
     });
@@ -746,7 +782,7 @@ export async function buildFitgraphProcessGuidePdf(opts?: {
         .fontSize(g.isLandscape ? 11 : 10)
         .fillColor('#ffffff')
         .text(
-          'Process continued · Floor · Website · Guardrails',
+          'Process continued · Floor · Messages · Website · Guardrails',
           g.mx,
           g.isLandscape ? 12 : 14,
           { width: g.contentW }
@@ -782,5 +818,5 @@ export function parseFitgraphProcessGuideOrientation(
 export function fitgraphProcessGuideFilename(
   orientation: FitgraphProcessGuideOrientation
 ): string {
-  return `Fitgraph-Process-Design-A4-${orientation}.pdf`;
+  return `FitAdvisor-Process-Design-A4-${orientation}.pdf`;
 }

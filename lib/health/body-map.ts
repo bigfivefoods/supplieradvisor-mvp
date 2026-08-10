@@ -1,5 +1,5 @@
 /**
- * Shared body / injury vocabulary for Fitgraph clients and Physiograph patients.
+ * Shared body / injury vocabulary for FitAdvisor clients and PhysioAdvisor patients.
  * Coaches and practitioners use this so the floor knows what to adapt.
  */
 

@@ -33,6 +33,8 @@ import {
   Mountain,
   Dumbbell,
   Shield,
+  BrainCircuit,
+  Hospital,
 } from 'lucide-react';
 import type { ProcessStep } from '@/components/relationship/RelationshipChrome';
 import type { PermissionResource } from '@/lib/business/permissions';
@@ -538,12 +540,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
   },
   {
     id: 'fieldgraph',
-    name: 'Fieldgraph',
+    name: 'FieldAdvisor',
     icon: Sprout,
     href: '/dashboard/fieldgraph',
     resource: 'operations',
     /**
-     * Fieldgraph® — multi-crop primary production OS.
+     * FieldAdvisor® — multi-crop primary production OS.
      * Core agri: Field & agronomic data, Estimates, Harvest Planner, Vehicle Management.
      * Plus inputs, labour, regen, farm-to-buyer trade.
      */
@@ -562,12 +564,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
   },
   {
     id: 'quarrygraph',
-    name: 'Quarrygraph',
+    name: 'QuarryAdvisor',
     icon: Mountain,
     href: '/dashboard/quarrygraph',
     resource: 'operations',
     /**
-     * Quarrygraph® — primary sector quarrying & aggregates OS.
+     * QuarryAdvisor® — primary sector quarrying & aggregates OS.
      * Sites, products, reserves, production, plant, dispatch, fleet, labour, QA, permits.
      */
     steps: [
@@ -589,12 +591,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
   },
   {
     id: 'fitgraph',
-    name: 'Fitgraph',
+    name: 'FitAdvisor',
     icon: Dumbbell,
     href: '/dashboard/fitgraph',
     resource: 'operations',
     /**
-     * Fitgraph® — tertiary / services gym OS
+     * FitAdvisor® — tertiary / services gym OS
      * (coaches, clients, memberships, subscriptions, classes, calendar,
      * website embed, coach portal, bookings, check-ins).
      */
@@ -616,12 +618,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
   },
   {
     id: 'physiograph',
-    name: 'Physiograph',
+    name: 'PhysioAdvisor',
     icon: Stethoscope,
     href: '/dashboard/physiograph',
     resource: 'operations',
     /**
-     * Physiograph® — tertiary / services clinic OS
+     * PhysioAdvisor® — tertiary / services clinic OS
      * (physio, OT, biokinetics: practitioners, patients, services,
      * packages, diary, bookings, website).
      */
@@ -640,12 +642,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
   },
   {
     id: 'dentalgraph',
-    name: 'Dentalgraph',
+    name: 'DentalAdvisor',
     icon: Smile,
     href: '/dashboard/dentalgraph',
     resource: 'operations',
     /**
-     * Dentalgraph® — tertiary / services dental practice OS
+     * DentalAdvisor® — tertiary / services dental practice OS
      * (dentists, hygienists, assistants, patients, services,
      * care plans, diary, bookings, messages, website).
      */
@@ -660,6 +662,54 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Messages', href: '/dashboard/dentalgraph/messages', desc: 'Desk · staff · patients', section: 'Floor' },
       { name: 'Website', href: '/dashboard/dentalgraph/website', desc: 'Practice profile · booking', section: 'Grow' },
       { name: 'Reports', href: '/dashboard/dentalgraph/report', desc: 'Utilisation · load', section: 'Insights' },
+    ],
+  },
+  {
+    id: 'psychiatrygraph',
+    name: 'PsychiatryAdvisor',
+    icon: BrainCircuit,
+    href: '/dashboard/psychiatrygraph',
+    resource: 'operations',
+    /**
+     * PsychiatryAdvisor® — tertiary / services mental health OS
+     * (psychiatry, psychology, counselling: practitioners, patients,
+     * services, packages, diary, bookings, messages, website).
+     */
+    steps: [
+      { name: 'Command', href: '/dashboard/psychiatrygraph', exact: true, desc: 'Practice home', section: 'Home' },
+      { name: 'Practitioners', href: '/dashboard/psychiatrygraph/practitioners', desc: 'Psychiatrists · psychologists', section: 'People' },
+      { name: 'Patients', href: '/dashboard/psychiatrygraph/patients', desc: 'Patient register', section: 'People' },
+      { name: 'Services', href: '/dashboard/psychiatrygraph/services', desc: 'Assessments · therapy', section: 'Services' },
+      { name: 'Packages', href: '/dashboard/psychiatrygraph/packages', desc: 'Care packs', section: 'Services' },
+      { name: 'Calendar', href: '/dashboard/psychiatrygraph/calendar', desc: 'Diary · assign clinicians', section: 'Floor' },
+      { name: 'Bookings', href: '/dashboard/psychiatrygraph/bookings', desc: 'Book · attend', section: 'Floor' },
+      { name: 'Messages', href: '/dashboard/psychiatrygraph/messages', desc: 'Desk · clinicians · patients', section: 'Floor' },
+      { name: 'Website', href: '/dashboard/psychiatrygraph/website', desc: 'Practice profile · booking', section: 'Grow' },
+      { name: 'Reports', href: '/dashboard/psychiatrygraph/report', desc: 'Utilisation · load', section: 'Insights' },
+    ],
+  },
+  {
+    id: 'medicalgraph',
+    name: 'MedicalAdvisor',
+    icon: Hospital,
+    href: '/dashboard/medicalgraph',
+    resource: 'operations',
+    /**
+     * MedicalAdvisor® — tertiary / services medical practice OS
+     * (GPs, specialists, nurses: practitioners, patients, services,
+     * care packages, diary, bookings, messages, website).
+     */
+    steps: [
+      { name: 'Command', href: '/dashboard/medicalgraph', exact: true, desc: 'Practice home', section: 'Home' },
+      { name: 'Practitioners', href: '/dashboard/medicalgraph/practitioners', desc: 'GPs · nurses · specialists', section: 'People' },
+      { name: 'Patients', href: '/dashboard/medicalgraph/patients', desc: 'Patient register', section: 'People' },
+      { name: 'Services', href: '/dashboard/medicalgraph/services', desc: 'Consults · procedures', section: 'Services' },
+      { name: 'Packages', href: '/dashboard/medicalgraph/packages', desc: 'Care packs', section: 'Services' },
+      { name: 'Calendar', href: '/dashboard/medicalgraph/calendar', desc: 'Diary · assign clinicians', section: 'Floor' },
+      { name: 'Bookings', href: '/dashboard/medicalgraph/bookings', desc: 'Book · attend', section: 'Floor' },
+      { name: 'Messages', href: '/dashboard/medicalgraph/messages', desc: 'Desk · clinicians · patients', section: 'Floor' },
+      { name: 'Website', href: '/dashboard/medicalgraph/website', desc: 'Practice profile · booking', section: 'Grow' },
+      { name: 'Reports', href: '/dashboard/medicalgraph/report', desc: 'Utilisation · load', section: 'Insights' },
     ],
   },
   {

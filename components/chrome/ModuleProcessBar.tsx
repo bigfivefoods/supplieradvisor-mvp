@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { ChevronRight, Menu, Search } from 'lucide-react';
+import { Bot, ChevronRight, Menu, Search } from 'lucide-react';
 import {
   isStepActive,
   lifecycleForPath,
@@ -95,6 +95,10 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
 
   const openPalette = () => {
     window.dispatchEvent(new Event('sa:open-command-palette'));
+  };
+
+  const openSam = () => {
+    window.dispatchEvent(new Event('sa:open-sam'));
   };
 
   return (
@@ -227,6 +231,16 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
           </div>
 
           <div className="flex items-center gap-0.5 sm:gap-1 shrink-0 pl-1 sm:pl-2 border-l border-neutral-200 dark:border-slate-700">
+            <button
+              type="button"
+              onClick={openSam}
+              className="relative p-2 sm:p-2.5 min-h-[40px] min-w-[40px] rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/50 dark:hover:bg-sky-900/40 text-sky-700 dark:text-sky-300 inline-flex items-center justify-center touch-manipulation"
+              aria-label="Ask SAM — Grok assistant"
+              title="Ask SAM (Grok)"
+            >
+              <Bot className="w-4 h-4" />
+              <span className="absolute top-1.5 right-1.5 flex h-1.5 w-1.5 rounded-full bg-emerald-400 ring-1 ring-white dark:ring-slate-900" />
+            </button>
             <button
               type="button"
               onClick={openPalette}

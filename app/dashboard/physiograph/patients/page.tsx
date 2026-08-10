@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { Pencil, X } from 'lucide-react';
+import { Copy, Link2, Mail, Pencil, X } from 'lucide-react';
 import {
   LoadingBlock,
   PhysiographWorkbench,
@@ -23,6 +23,7 @@ import {
   healthToForm,
   type InjuryFormState,
 } from '@/components/health/InjuryProfileFields';
+import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 
 type PatientForm = {
   id?: string;
@@ -30,6 +31,7 @@ type PatientForm = {
   name: string;
   email: string;
   phone: string;
+  photo_url: string;
   status: string;
   practitioner_id: string;
   package_id: string;
@@ -43,6 +45,7 @@ const blankForm = (): PatientForm => ({
   name: '',
   email: '',
   phone: '',
+  photo_url: '',
   status: 'active',
   practitioner_id: '',
   package_id: '',
@@ -52,7 +55,7 @@ const blankForm = (): PatientForm => ({
 });
 
 export default function PatientsPage() {
-  const { store, loading, saving, post, summary } = usePhysiograph();
+  const { companyId, store, loading, saving, post, summary } = usePhysiograph();
   const [form, setForm] = useState<PatientForm>(blankForm);
   const [editing, setEditing] = useState(false);
 
@@ -63,6 +66,7 @@ export default function PatientsPage() {
       name: p.name || '',
       email: p.email || '',
       phone: p.phone || '',
+      photo_url: p.photo_url || '',
       status: p.status || 'active',
       practitioner_id: p.practitioner_id || '',
       package_id: p.package_id || '',
@@ -88,6 +92,7 @@ export default function PatientsPage() {
         name: form.name,
         email: form.email,
         phone: form.phone,
+        photo_url: form.photo_url || '',
         status: form.status,
         practitioner_id: form.practitioner_id || null,
         package_id: form.package_id || null,
@@ -106,11 +111,71 @@ export default function PatientsPage() {
   const injuredCount =
     store?.patients.filter((p) => isInjured(p.clinical)).length || 0;
 
+  const issuePortal = async (patientId: string) => {
+    try {
+      const data = await post({
+        action: 'issue_patient_portal',
+        patientId,
+      });
+      const tok = data?.portal_token as string | undefined;
+      if (tok && typeof window !== 'undefined') {
+        const url = `${window.location.origin}/member/physiograph/${encodeURIComponent(tok)}`;
+        await navigator.clipboard.writeText(url);
+        toast.success(
+          'Patient portal link copied — they can book open diary slots'
+        );
+      } else {
+        toast.success('Patient portal issued');
+      }
+    } catch {
+      /* toast in post */
+    }
+  };
+
+  const invitePatient = async (p: PhysioPatient) => {
+    if (!p.email?.trim()) {
+      toast.error('Add an email on the patient profile before inviting');
+      return;
+    }
+    try {
+      const data = await post({
+        action: 'invite_patient',
+        patientId: p.id,
+        email: p.email,
+      });
+      const link = data?.invite_link as string | undefined;
+      if (link && typeof window !== 'undefined') {
+        try {
+          await navigator.clipboard.writeText(link);
+        } catch {
+          /* ignore */
+        }
+      }
+      if (data?.warning) {
+        toast.warning(String(data.warning));
+      } else {
+        toast.success(
+          data?.message ||
+            `Invite sent to ${p.email} — they can book and view shared care info`
+        );
+      }
+    } catch {
+      /* toast in post */
+    }
+  };
+
+  const copyPortal = async (tok: string) => {
+    if (typeof window === 'undefined') return;
+    const url = `${window.location.origin}/member/physiograph/${encodeURIComponent(tok)}`;
+    await navigator.clipboard.writeText(url);
+    toast.success('Patient portal link copied');
+  };
+
   return (
     <PhysiographWorkbench
       title="Patients"
       titleAccent="register"
-      description="Patient book with clinical profile, medical chart (aid, records, claims). Open Chart for the full medical record."
+      description="Patient book with clinical profile, medical chart, email invites, and patient portals so clients can book diary vacancies, leave feedback, and see shared medical information."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -177,6 +242,16 @@ export default function PatientsPage() {
               placeholder="Phone"
               value={form.phone}
               onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+            />
+            <ProfilePhotoField
+              companyId={companyId}
+              value={form.photo_url}
+              onChange={(url) => setForm((f) => ({ ...f, photo_url: url }))}
+              kind="patient_photo"
+              label="Patient photo"
+              description="Upload a profile photo for this patient (JPG/PNG/WebP · under 8MB)."
+              disabled={saving}
+              accentClass="border-teal-300 dark:border-teal-500"
             />
             <select
               className={fc()}
@@ -302,6 +377,49 @@ export default function PatientsPage() {
                       >
                         Chart
                       </Link>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 dark:text-indigo-300"
+                        onClick={() => void invitePatient(p)}
+                        title="Email invite so the patient can join their portal"
+                      >
+                        <Mail className="w-3 h-3" />
+                        {p.invite_status === 'pending'
+                          ? 'Resend invite'
+                          : p.invite_status === 'accepted'
+                            ? 'Re-invite'
+                            : 'Invite'}
+                      </button>
+                      {p.invite_status ? (
+                        <span
+                          className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full ${
+                            p.invite_status === 'accepted'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : p.invite_status === 'pending'
+                                ? 'bg-amber-100 text-amber-900'
+                                : 'bg-slate-100 text-slate-600'
+                          }`}
+                        >
+                          {p.invite_status}
+                        </span>
+                      ) : null}
+                      {p.portal_token ? (
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-teal-800"
+                          onClick={() => void copyPortal(p.portal_token!)}
+                        >
+                          <Copy className="w-3 h-3" /> Portal
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-teal-900"
+                        onClick={() => void issuePortal(p.id)}
+                      >
+                        <Link2 className="w-3 h-3" />
+                        {p.portal_token ? 'Re-issue' : 'Issue portal'}
+                      </button>
                       <button
                         type="button"
                         className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300"

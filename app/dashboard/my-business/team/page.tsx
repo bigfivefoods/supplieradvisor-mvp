@@ -670,7 +670,7 @@ function TeamInner() {
                           {assignableModules.length === 0 ? (
                             <p className="text-xs text-neutral-500 py-2">
                               No optional modules are enabled for the company
-                              yet. Enable Fitgraph, Fieldgraph, DBE, etc. under
+                              yet. Enable FitAdvisor, FieldAdvisor, DBE, etc. under
                               Company → Modules first.
                             </p>
                           ) : (
