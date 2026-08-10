@@ -58,6 +58,13 @@ const LINKS: NavLink[] = [
     group: 'pricing',
   },
   {
+    id: 'roi',
+    label: 'ROI',
+    section: 'roi',
+    href: '/#roi',
+    group: 'pricing',
+  },
+  {
     id: 'industries',
     label: 'Industries',
     href: '/industries',
@@ -66,7 +73,13 @@ const LINKS: NavLink[] = [
   { id: 'demo', label: 'Demo', href: '/demo', group: 'try' },
 ];
 
-const SPY_SECTIONS = ['why-join', 'modules', 'packaging', 'pricing'] as const;
+const SPY_SECTIONS = [
+  'why-join',
+  'modules',
+  'packaging',
+  'pricing',
+  'roi',
+] as const;
 
 const GROUP_LABELS: Record<NavLink['group'], string> = {
   product: 'Product',
