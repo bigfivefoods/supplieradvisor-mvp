@@ -167,6 +167,20 @@ export default function CoachFitgraphPortalPage() {
       setPortal(data.portal);
       setBrand(data.brand || 'Gym');
       setPublicToken(data.public_token);
+      const c = data.portal?.coach;
+      if (c) {
+        setProfile({
+          name: c.name || '',
+          email: c.email || '',
+          phone: c.phone || '',
+          bio: c.bio || '',
+          public_bio: c.public_bio || '',
+          photo_url: c.photo_url || '',
+          specialties: Array.isArray(c.specialties)
+            ? [...c.specialties]
+            : [],
+        });
+      }
       setError(null);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed');
@@ -235,18 +249,49 @@ export default function CoachFitgraphPortalPage() {
             Coach calendar · {brand}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 mt-1">
-            <h1 className="text-xl font-black">{portal.coach.name}</h1>
-            <button
-              type="button"
-              onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-1 rounded-full bg-amber-500 text-amber-950 px-3 py-1.5 text-xs font-black"
-            >
-              <Plus className="w-3.5 h-3.5" /> New class
-            </button>
+            <div className="flex items-center gap-2 min-w-0">
+              {portal.coach.photo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={portal.coach.photo_url}
+                  alt=""
+                  className="w-10 h-10 rounded-full object-cover border border-amber-500/40 shrink-0"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0">
+                  <User className="w-5 h-5 text-amber-400" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <h1 className="text-xl font-black truncate">
+                  {portal.coach.name}
+                </h1>
+                {(portal.coach.specialties || []).length > 0 && (
+                  <p className="text-[10px] text-amber-200/80 truncate">
+                    {(portal.coach.specialties || []).join(' · ')}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setShowProfile(true)}
+                className="inline-flex items-center gap-1 rounded-full border border-slate-600 px-3 py-1.5 text-xs font-bold"
+              >
+                <User className="w-3.5 h-3.5" /> My profile
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCreate(true)}
+                className="inline-flex items-center gap-1 rounded-full bg-amber-500 text-amber-950 px-3 py-1.5 text-xs font-black"
+              >
+                <Plus className="w-3.5 h-3.5" /> New class
+              </button>
+            </div>
           </div>
           <p className="text-[11px] text-slate-400 mt-1">
-            Plan who is coming · update actuals after (or before) class ·
-            bespoke or weekly series
+            Update your bio · plan classes · mark who came
           </p>
           <div className="flex items-center gap-2 mt-3">
             <button
@@ -570,6 +615,141 @@ export default function CoachFitgraphPortalPage() {
                 Add
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Coach profile self-edit */}
+      {showProfile && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-3">
+          <div className="w-full max-w-md max-h-[92dvh] overflow-y-auto rounded-3xl border border-slate-700 bg-slate-900 p-5 space-y-3">
+            <div className="flex justify-between items-center">
+              <h3 className="font-black">My coach profile</h3>
+              <button type="button" onClick={() => setShowProfile(false)}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Members see your public bio and specialties on the gym calendar.
+              Keep contact details up to date.
+            </p>
+            <input
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              placeholder="Display name"
+              value={profile.name}
+              onChange={(e) =>
+                setProfile((p) => ({ ...p, name: e.target.value }))
+              }
+            />
+            <input
+              type="email"
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              placeholder="Email"
+              value={profile.email}
+              onChange={(e) =>
+                setProfile((p) => ({ ...p, email: e.target.value }))
+              }
+            />
+            <input
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              placeholder="Phone"
+              value={profile.phone}
+              onChange={(e) =>
+                setProfile((p) => ({ ...p, phone: e.target.value }))
+              }
+            />
+            <input
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              placeholder="Photo URL (https://…)"
+              value={profile.photo_url}
+              onChange={(e) =>
+                setProfile((p) => ({ ...p, photo_url: e.target.value }))
+              }
+            />
+            <div>
+              <p className="text-[10px] font-black uppercase text-amber-400 mb-1.5">
+                Specialties
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {(portal.specialty_options || []).map((s) => {
+                  const on = profile.specialties.includes(s);
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
+                        on
+                          ? 'bg-amber-500 text-amber-950 border-amber-500'
+                          : 'border-slate-600 text-slate-300'
+                      }`}
+                      onClick={() =>
+                        setProfile((p) => ({
+                          ...p,
+                          specialties: on
+                            ? p.specialties.filter((x) => x !== s)
+                            : [...p.specialties, s],
+                        }))
+                      }
+                    >
+                      {s}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase text-amber-400 mb-1">
+                Public bio (website & members)
+              </p>
+              <textarea
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[4.5rem] resize-y"
+                placeholder="Short bio members see on the public calendar…"
+                value={profile.public_bio}
+                onChange={(e) =>
+                  setProfile((p) => ({ ...p, public_bio: e.target.value }))
+                }
+              />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase text-amber-400 mb-1">
+                Full bio / notes (for gym office)
+              </p>
+              <textarea
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[3.5rem] resize-y"
+                placeholder="Certifications, experience, availability notes…"
+                value={profile.bio}
+                onChange={(e) =>
+                  setProfile((p) => ({ ...p, bio: e.target.value }))
+                }
+              />
+            </div>
+            <button
+              type="button"
+              disabled={busy || !profile.name.trim()}
+              className="w-full rounded-xl bg-amber-500 text-amber-950 py-2.5 text-sm font-black disabled:opacity-50"
+              onClick={() =>
+                void post({
+                  action: 'update_profile',
+                  name: profile.name.trim(),
+                  email: profile.email.trim() || null,
+                  phone: profile.phone.trim() || null,
+                  bio: profile.bio,
+                  public_bio: profile.public_bio,
+                  photo_url: profile.photo_url.trim() || null,
+                  specialties: profile.specialties.length
+                    ? profile.specialties
+                    : ['General'],
+                }).then(() => {
+                  setShowProfile(false);
+                  void load();
+                })
+              }
+            >
+              {busy ? (
+                <Loader2 className="w-4 h-4 animate-spin inline" />
+              ) : null}{' '}
+              Save profile
+            </button>
           </div>
         </div>
       )}

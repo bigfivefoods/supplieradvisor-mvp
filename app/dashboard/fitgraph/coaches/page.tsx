@@ -107,7 +107,7 @@ export default function CoachesPage() {
     <FitgraphWorkbench
       title="Coaches"
       titleAccent="trainers"
-      description="Register coaches, issue portal links, and open each coach’s calendar for planned classes, member rosters, and actual attendance."
+      description="Register coaches with specialties and bios. Issue a portal link so each coach can update their own profile (bio, photo, specialties) and manage classes."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -261,18 +261,31 @@ export default function CoachesPage() {
                   </>
                 }
               >
-                <div className="font-bold text-sm text-slate-900 dark:text-amber-50">
-                  {c.code} · {c.name}
+                <div className="flex items-start gap-2">
+                  {c.photo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={c.photo_url}
+                      alt=""
+                      className="w-9 h-9 rounded-full object-cover border border-amber-200 dark:border-amber-600 shrink-0"
+                    />
+                  ) : null}
+                  <div className="min-w-0">
+                    <div className="font-bold text-sm text-slate-900 dark:text-amber-50">
+                      {c.code} · {c.name}
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-amber-200/80">
+                      {(c.specialties || []).join(', ') || '—'}
+                      {c.email ? ` · ${c.email}` : ''}
+                      {c.phone ? ` · ${c.phone}` : ''}
+                    </div>
+                    {c.public_bio && (
+                      <p className="text-[11px] text-slate-600 dark:text-amber-100/80 mt-1">
+                        {c.public_bio}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div className="text-[11px] text-slate-500 dark:text-amber-200/80">
-                  {(c.specialties || []).join(', ') || '—'}
-                  {c.email ? ` · ${c.email}` : ''}
-                </div>
-                {c.public_bio && (
-                  <p className="text-[11px] text-slate-600 dark:text-amber-100/80 mt-1">
-                    {c.public_bio}
-                  </p>
-                )}
                 {c.portal_token && (
                   <p
                     className={`text-[10px] mt-1 font-mono truncate max-w-md ${toneLinkClass('coach')}`}
