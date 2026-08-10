@@ -19,6 +19,7 @@ import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify
 import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
 import { VerifiedBadge } from '@/components/services/VerifiedBadge';
 import { PortalMessagesPanel } from '@/components/services/PortalMessagesPanel';
+import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
 
 type Slot = {
   id: string;
@@ -291,6 +292,7 @@ export default function MemberPsychiatrygraphPortalPage() {
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-5 space-y-4">
+        <PopiaConsentNotice brand={portal.brand} />
         {(msg || error) && (
           <div
             className={`rounded-xl border px-3 py-2 text-sm ${

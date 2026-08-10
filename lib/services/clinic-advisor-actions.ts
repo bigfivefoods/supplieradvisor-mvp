@@ -73,6 +73,7 @@ export type ClinicAdvisorStoreLike = {
   patients: ClinicPatientRow[];
   services: ClinicServiceRow[];
   appointment_feedback?: ClinicFeedbackRow[];
+  treatment_plans?: import('@/lib/services/advisor-clinical').TreatmentPlan[];
   settings?: { brand_name?: string } | null;
 };
 
@@ -203,6 +204,16 @@ export async function clinicMarkAttendance(
       Object.assign(
         store.patients[pi],
         applyAttendanceToPersonStats(store.patients[pi], status, now)
+      );
+    }
+    if (status === 'attended' && store.treatment_plans?.length) {
+      const { progressTreatmentPlanOnAttend } = await import(
+        '@/lib/services/advisor-clinical'
+      );
+      store.treatment_plans = store.treatment_plans.map((tp) =>
+        tp.person_id === booking.patient_id && tp.status === 'active'
+          ? progressTreatmentPlanOnAttend(tp, now)
+          : tp
       );
     }
   }

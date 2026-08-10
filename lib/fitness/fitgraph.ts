@@ -374,6 +374,7 @@ export type FitClient = {
   last_no_show_at?: string | null;
   attended_count?: number;
   booking_soft_block?: boolean;
+  popia_consent_at?: string | null;
   /** Membership freeze window */
   membership_frozen_at?: string | null;
   membership_freeze_until?: string | null;
@@ -589,6 +590,8 @@ export type FitPublicSettings = {
     blurb?: string;
     specialties?: string[];
   };
+  /** Studios / courts / rooms for multi-resource diary */
+  rooms?: string[];
 };
 
 /** Front desk enabled unless owner explicitly turns it off */

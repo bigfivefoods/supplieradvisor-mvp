@@ -12,6 +12,7 @@ import {
 import { FormCard, StatRow, fc } from '@/components/fitness/FitForm';
 import { FitContractDocsPanel } from '@/components/fitness/FitContractDocs';
 import type { FitContractDoc } from '@/lib/fitness/fitgraph';
+import { AdvisorRoomsCard } from '@/components/services/AdvisorRoomsCard';
 
 export default function FitgraphWebsitePage() {
   const { companyId, store, loading, saving, post, summary } = useFitgraph();
@@ -330,7 +331,22 @@ export default function FitgraphWebsitePage() {
             toneClass="border-violet-200 bg-violet-50/70 dark:border-violet-600/50 dark:bg-violet-950/40"
           />
 
-          <AdvisorOpsPoliciesCard
+          
+          <AdvisorRoomsCard
+            rooms={store.settings?.rooms || []}
+            saving={saving}
+            accentClass="border-violet-200"
+            label="Studios & rooms"
+            hint="Floor resources for the diary (studio, court, spin room)."
+            onSave={async (rooms) => {
+              await post({
+                action: 'update_settings',
+                settings: { rooms },
+              });
+            }}
+          />
+
+<AdvisorOpsPoliciesCard
             reschedule={store.settings?.reschedule_policy}
             marketplace={store.settings?.marketplace}
             allowConcurrent={

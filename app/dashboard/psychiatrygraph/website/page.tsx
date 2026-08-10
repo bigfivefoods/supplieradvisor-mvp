@@ -8,6 +8,8 @@ import {
   usePsychiatrygraph,
 } from '@/components/clinic/PsychiatrygraphWorkbench';
 import { FormCard, StatRow, fc } from '@/components/clinic/PsychiatryForm';
+import { AdvisorOpsPoliciesCard } from '@/components/services/AdvisorOpsPoliciesCard';
+import { AdvisorRoomsCard } from '@/components/services/AdvisorRoomsCard';
 
 export default function WebsitePage() {
   const { store, loading, saving, post, summary } = usePsychiatrygraph();
@@ -169,6 +171,40 @@ export default function WebsitePage() {
               }
             />
           </FormCard>
+          
+          <AdvisorRoomsCard
+            rooms={store.settings?.rooms || []}
+            saving={saving}
+            accentClass="border-indigo-200"
+            onSave={async (rooms) => {
+              await post({
+                action: 'update_settings',
+                settings: { rooms },
+              });
+            }}
+          />
+          <AdvisorOpsPoliciesCard
+            reschedule={store.settings?.reschedule_policy}
+            marketplace={store.settings?.marketplace}
+            allowConcurrent={true}
+            showConcurrent={false}
+            saving={saving}
+            accentClass="border-indigo-200"
+            onSave={async (payload) => {
+              await post({
+                action: 'update_settings',
+                settings: {
+                  reschedule_policy: payload.reschedule_policy,
+                  marketplace: {
+                    ...(store.settings?.marketplace || {}),
+                    ...payload.marketplace,
+                  },
+                },
+              });
+              toast.success('Ops policies saved');
+            }}
+          />
+
           {token ? (
             <p className="text-[11px] font-mono text-indigo-800 dark:text-indigo-200 break-all">
               Public token: {token}

@@ -319,6 +319,8 @@ export type PhysioPatient = {
   last_no_show_at?: string | null;
   attended_count?: number;
   booking_soft_block?: boolean;
+  /** POPIA desk confirmation when patient record created / updated */
+  popia_consent_at?: string | null;
   /** VerifyNow (SA) or Didit (international) self-serve identity check */
   identity?: import('@/lib/identity/person-verification').PersonIdentityVerification;
   start_date?: string | null;
@@ -403,6 +405,15 @@ export type PhysioPublicSettings = {
   practitioner_disciplines?: string[];
   /** Clinic open days & hours for schedule calendar */
   working_hours?: import('@/lib/schedule/working-hours').WorkingHours;
+  /** Named rooms / bays used as diary resources */
+  rooms?: string[];
+  reschedule_policy?: import('@/lib/services/advisor-reschedule').ReschedulePolicy;
+  marketplace?: {
+    listed?: boolean;
+    city?: string;
+    blurb?: string;
+    specialties?: string[];
+  };
 };
 
 export type PhysiographStore = {
@@ -416,6 +427,7 @@ export type PhysiographStore = {
   care_packs?: import('@/lib/services/advisor-pack-ledger').AdvisorPackLedgerEntry[];
   treatment_plans?: import('@/lib/services/advisor-clinical').TreatmentPlan[];
   visit_notes?: import('@/lib/services/advisor-clinical').VisitNote[];
+  outcome_scores?: import('@/lib/services/advisor-clinical').OutcomeScore[];
   /** Desk · practitioner · patient messaging threads */
   threads?: import('@/lib/messaging/service-inbox').ServiceThread[];
   /** Patient post-visit feedback */

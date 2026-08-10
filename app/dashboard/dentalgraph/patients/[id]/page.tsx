@@ -9,12 +9,13 @@ import {
   useDentalgraph,
 } from '@/components/dental/DentalgraphWorkbench';
 import { PatientMedicalChart } from '@/components/clinic/PatientMedicalChart';
+import { AdvisorTreatmentPlanPanel } from '@/components/services/AdvisorTreatmentPlanPanel';
 import { healthSummaryLabel } from '@/lib/health/body-map';
 
 export default function DentalPatientRecordPage() {
   const { id } = useParams() as { id: string };
   const search = useSearchParams();
-  const { companyId, store, loading, saving, post } = useDentalgraph();
+  const { companyId, store, loading, saving, post, load } = useDentalgraph();
 
   const patient = useMemo(
     () => store?.patients.find((p) => p.id === id),
@@ -108,6 +109,23 @@ export default function DentalPatientRecordPage() {
               </span>
             ) : null}
           </div>
+          
+          <AdvisorTreatmentPlanPanel
+            personId={patient.id}
+            personLabel={patient.name}
+            plans={store.treatment_plans || []}
+            services={store.services.map((s) => ({ id: s.id, name: s.name }))}
+            appointments={store.appointments}
+            bookings={store.bookings}
+            accentClass="border-sky-200"
+            post={async (body) => {
+              await post(body);
+            }}
+            onRefresh={() => {
+              void load();
+            }}
+          />
+
           <PatientMedicalChart
             companyId={companyId}
             patientId={patient.id}

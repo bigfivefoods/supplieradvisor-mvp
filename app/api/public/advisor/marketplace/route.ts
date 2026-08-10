@@ -6,15 +6,95 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { readFitgraphFromMetadata } from '@/lib/fitness/fitgraph';
 import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
+import { readPhysiographFromMetadata } from '@/lib/clinic/physiograph';
+import { readMedicalgraphFromMetadata } from '@/lib/clinic/medicalgraph';
+import { readPsychiatrygraphFromMetadata } from '@/lib/clinic/psychiatrygraph';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+type Listing = {
+  company_id: number;
+  module: string;
+  brand: string;
+  city?: string;
+  blurb?: string;
+  specialties?: string[];
+  public_token?: string;
+  book_path?: string;
+};
+
+function pushIfListed(
+  listings: Listing[],
+  opts: {
+    moduleFilter: string;
+    cityFilter: string;
+    module: string;
+    companyId: number;
+    rowCity?: string | null;
+    companyName?: string | null;
+    name?: string | null;
+    settings?: {
+      marketplace?: {
+        listed?: boolean;
+        city?: string;
+        blurb?: string;
+        specialties?: string[];
+      };
+      enabled?: boolean;
+      public_token?: string;
+      brand_name?: string;
+      public_bio?: string;
+      website_url?: string;
+    } | null;
+    specialtiesFallback?: string[];
+    brandFallback: string;
+    bookPath?: string | null;
+  }
+) {
+  if (opts.moduleFilter && opts.moduleFilter !== opts.module) return;
+  const m = opts.settings?.marketplace;
+  if (!m?.listed || !opts.settings?.enabled || !opts.settings.public_token) {
+    return;
+  }
+  const city = m.city || opts.rowCity || undefined;
+  if (
+    opts.cityFilter &&
+    !String(city || '')
+      .toLowerCase()
+      .includes(opts.cityFilter)
+  ) {
+    return;
+  }
+  const website = opts.settings.website_url?.trim();
+  listings.push({
+    company_id: opts.companyId,
+    module: opts.module,
+    brand:
+      opts.settings.brand_name ||
+      opts.companyName ||
+      opts.name ||
+      opts.brandFallback,
+    city: city || undefined,
+    blurb: m.blurb || opts.settings.public_bio,
+    specialties: m.specialties || opts.specialtiesFallback,
+    public_token: opts.settings.public_token,
+    book_path:
+      opts.bookPath ||
+      (website
+        ? website.startsWith('http')
+          ? website
+          : `https://${website}`
+        : undefined),
+  });
+}
 
 export async function GET(req: NextRequest) {
   const moduleFilter = req.nextUrl.searchParams.get('module') || '';
   const cityFilter = (req.nextUrl.searchParams.get('city') || '')
     .toLowerCase()
     .trim();
+  const q = (req.nextUrl.searchParams.get('q') || '').toLowerCase().trim();
   const supabase = getSupabaseServer();
   const { data: rows } = await supabase
     .from('profiles')
@@ -22,16 +102,7 @@ export async function GET(req: NextRequest) {
     .order('updated_at', { ascending: false })
     .limit(250);
 
-  const listings: Array<{
-    company_id: number;
-    module: string;
-    brand: string;
-    city?: string;
-    blurb?: string;
-    specialties?: string[];
-    public_token?: string;
-    book_path?: string;
-  }> = [];
+  const listings: Listing[] = [];
 
   for (const row of rows || []) {
     const meta =
@@ -39,69 +110,81 @@ export async function GET(req: NextRequest) {
         ? (row.metadata as Record<string, unknown>)
         : {};
     const companyId = Number(row.id);
+    const base = {
+      moduleFilter,
+      cityFilter,
+      companyId,
+      rowCity: row.city,
+      companyName: row.company_name,
+      name: row.name,
+    };
 
-    if ((!moduleFilter || moduleFilter === 'fitgraph') && meta.fitgraph) {
+    if (meta.fitgraph) {
       const store = readFitgraphFromMetadata(meta);
-      const m = store.settings?.marketplace;
-      if (m?.listed && store.settings?.enabled && store.settings.public_token) {
-        const city = m.city || row.city || undefined;
-        if (
-          !cityFilter ||
-          String(city || '')
-            .toLowerCase()
-            .includes(cityFilter)
-        ) {
-          listings.push({
-            company_id: companyId,
-            module: 'fitgraph',
-            brand:
-              store.settings.brand_name ||
-              row.company_name ||
-              row.name ||
-              'Gym',
-            city: city || undefined,
-            blurb: m.blurb || store.settings.public_bio,
-            specialties: m.specialties || store.settings.coach_specialties,
-            public_token: store.settings.public_token,
-            book_path: `/join/fitgraph/${store.settings.public_token}`,
-          });
-        }
-      }
+      const tok = store.settings?.public_token;
+      pushIfListed(listings, {
+        ...base,
+        module: 'fitgraph',
+        settings: store.settings,
+        specialtiesFallback: store.settings?.coach_specialties,
+        brandFallback: 'Gym',
+        bookPath: tok ? `/embed/fitgraph/${tok}` : null,
+      });
     }
-
-    if ((!moduleFilter || moduleFilter === 'dentalgraph') && meta.dentalgraph) {
+    if (meta.dentalgraph) {
       const store = readDentalgraphFromMetadata(meta);
-      const m = store.settings?.marketplace;
-      if (m?.listed && store.settings?.enabled && store.settings.public_token) {
-        const city = m.city || row.city || undefined;
-        if (
-          !cityFilter ||
-          String(city || '')
-            .toLowerCase()
-            .includes(cityFilter)
-        ) {
-          listings.push({
-            company_id: companyId,
-            module: 'dentalgraph',
-            brand:
-              store.settings.brand_name ||
-              row.company_name ||
-              row.name ||
-              'Dental practice',
-            city: city || undefined,
-            blurb: m.blurb || store.settings.public_bio,
-            specialties: m.specialties || store.settings.staff_roles,
-            public_token: store.settings.public_token,
-            book_path: `/join/dentalgraph/${store.settings.public_token}`,
-          });
-        }
-      }
+      pushIfListed(listings, {
+        ...base,
+        module: 'dentalgraph',
+        settings: store.settings,
+        specialtiesFallback: store.settings?.staff_roles,
+        brandFallback: 'Dental practice',
+      });
+    }
+    if (meta.physiograph) {
+      const store = readPhysiographFromMetadata(meta);
+      pushIfListed(listings, {
+        ...base,
+        module: 'physiograph',
+        settings: store.settings,
+        specialtiesFallback: store.settings?.practitioner_disciplines,
+        brandFallback: 'Physio clinic',
+      });
+    }
+    if (meta.medicalgraph) {
+      const store = readMedicalgraphFromMetadata(meta);
+      pushIfListed(listings, {
+        ...base,
+        module: 'medicalgraph',
+        settings: store.settings,
+        specialtiesFallback: store.settings?.practitioner_disciplines,
+        brandFallback: 'Medical practice',
+      });
+    }
+    if (meta.psychiatrygraph) {
+      const store = readPsychiatrygraphFromMetadata(meta);
+      pushIfListed(listings, {
+        ...base,
+        module: 'psychiatrygraph',
+        settings: store.settings,
+        specialtiesFallback: store.settings?.practitioner_disciplines,
+        brandFallback: 'Psychiatry practice',
+      });
     }
   }
 
+  const filtered = q
+    ? listings.filter((l) => {
+        const hay = `${l.brand} ${l.blurb || ''} ${l.city || ''} ${(l.specialties || []).join(' ')}`.toLowerCase();
+        return hay.includes(q);
+      })
+    : listings;
+
+  filtered.sort((a, b) => a.brand.localeCompare(b.brand));
+
   return NextResponse.json({
     success: true,
-    count: listings.length,
-    listings,
+    count: filtered.length,
+    listings: filtered,
   });
 }

@@ -1,6 +1,6 @@
 /**
  * DentalAdvisor® end-to-end process guide content + PDF.
- * People → Services · care plans → Diary → Floor → Messages → Website · reports
+ * People → Packs · plans → Diary (rooms) → Waitlist · floor → Messages → Marketplace · reports
  * Pure pdfkit — works on Vercel serverless.
  *
  * Do not import from client components (pulls pdfkit into the browser bundle).
@@ -24,92 +24,92 @@ export type ProcessPhase = {
 };
 
 export const PROCESS_CHAIN = [
-  { label: 'People', sub: 'Staff · patients' },
-  { label: 'Services · plans', sub: 'Catalogue · care plans' },
-  { label: 'Diary', sub: 'Schedule · assign' },
-  { label: 'Floor', sub: 'Book · attend · feedback' },
-  { label: 'Messages', sub: 'Internal · care · trade' },
-  { label: 'Website · reports', sub: 'Publish · utilisation' },
+  { label: 'People', sub: 'Staff · patients · POPIA' },
+  { label: 'Services · packs', sub: 'Catalogue · care · plans' },
+  { label: 'Diary', sub: 'Rooms · practice · clinician' },
+  { label: 'Floor', sub: 'Waitlist · attend · recall' },
+  { label: 'Messages', sub: 'System ID · in-app' },
+  { label: 'Website · reports', sub: 'Marketplace · rooms · ops' },
 ] as const;
 
 export const ROLE_CARDS = [
   {
     title: 'Practice owner / manager',
-    subtitle: 'Team · catalogue · diary · insight',
+    subtitle: 'Team · diary · waitlist · marketplace',
     does: [
-      'Register dentists, hygienists, assistants; roles & rates',
-      'Patient register; assign clinician + care plan',
-      'Define services and multi-visit care plans',
-      'Schedule diary; assign clinicians; public slots',
-      'Practice bio, website publish and booking flags',
-      'Messages with desk/staff; utilisation reports',
+      'Register clinicians; rates, bios; permanent staff dual-write to People',
+      'Patient register with POPIA consent; invites & portals; family / dependents',
+      'Services, care packs, treatment plans; one-click book next session',
+      'Practice diary (parallel clinicians) + exclusive clinician books; rooms',
+      'Waitlist desk, 24h reminders, outcomes & recalls, staff Today PWA',
+      'In-app messages (system user ID first); marketplace listing; ops policies',
     ],
     doesNot: [
-      'Does not leave public slots without a clinician',
-      'Does not publish without website settings enabled',
+      'Does not double-book the same clinician diary',
+      'Does not take member/patient fees through SupplierAdvisor (platform subscription only)',
     ],
   },
   {
     title: 'Dentist / hygienist',
-    subtitle: 'Diary · clinical · attend · feedback',
+    subtitle: 'Diary · clinical · attend · care plans',
     does: [
-      'Keep own bio / roles current for website',
-      'Update oral-health clinical notes (site, goals, mods)',
-      'Medical chart: medical aid, documents, claims, scripts, scripts',
-      'Run appointments; mark attended / no-show',
-      'Reply on care threads with desk and patients',
+      'Keep bio / disciplines current for website',
+      'Update clinical notes and medical chart (aid, docs, claims, scripts)',
+      'Treatment plan steps; visit notes and outcome scores',
+      'Run appointments; mark attended / no-show (progresses care plans)',
+      'Reply on care threads; patients receive in-app when on-system',
       'Request post-visit feedback after attendance',
     ],
     doesNot: [
-      'Does not change other clinicians’ rates',
+      'Does not change other clinicians’ rates or double-book own diary',
       'Does not publish the whole practice website alone',
     ],
   },
   {
     title: 'Patient / public',
-    subtitle: 'Book · attend · feedback',
+    subtitle: 'Portal · book · family · feedback',
     does: [
-      'See published practice profile and public diary',
-      'Book via desk or website when enabled',
-      'Hold care plan entitlement across visits',
-      'Receive care messages from the practice',
-      'After visit: give feedback when prompted',
+      'Accept invite; book open slots (preferred or other clinician when allowed)',
+      'Join slot waitlist or next-available practice queue',
+      'Book household / family members; identity verify when asked',
+      'In-app messages once on SupplierAdvisor (system user ID)',
+      'After visit: feedback; see shared care notes when enabled',
     ],
     doesNot: [
-      'Does not see private / unpublished slots',
-      'Does not access clinician rates or other patients’ charts',
+      'Does not see private / unpublished slots or other patients’ charts',
+      'Does not pay gym/clinic fees through the SA platform (practice bills separately)',
     ],
   },
 ] as const;
 
 export const PROCESS_PHASES: ProcessPhase[] = [
   {
-    title: '1 · People (staff & patients)',
-    subtitle: 'Who treats · who is in care · assignment',
+    title: '1 · People (clinicians & patients)',
+    subtitle: 'Who treats · who is in care · POPIA · People dual-write',
     steps: [
       {
         n: '1a',
         title: 'Staff register',
         who: 'Owner',
-        desc: 'Dentists, hygienists, assistants; roles, rates, bios.',
+        desc: 'Dentists, hygienists, assistants; roles, rates, bios. Permanent staff dual-write to People (HR).',
       },
       {
         n: '1b',
-        title: 'Patients',
+        title: 'Patients · POPIA · invite',
         who: 'Owner / reception',
-        desc: 'Patient book; status; assign clinician and care plan.',
+        desc: 'Patient book with POPIA consent; status; assign clinician and care plan; email invite & portal.',
       },
       {
         n: '1c',
-        title: 'Clinical & medical chart',
+        title: 'Clinical, chart & identity',
         who: 'Clinician',
-        desc: 'Tooth/site, goals, mods; medical aid, docs, claims.',
+        desc: 'Tooth/site, goals, mods; medical aid, docs, claims; visit notes & outcome scores. Optional VerifyNow/Didit identity on portal.',
       },
     ],
   },
   {
     title: '2 · Services & care plans',
-    subtitle: 'What you sell · multi-visit entitlement',
+    subtitle: 'What you sell · packs · step plans',
     steps: [
       {
         n: '2a',
@@ -119,69 +119,69 @@ export const PROCESS_PHASES: ProcessPhase[] = [
       },
       {
         n: '2b',
-        title: 'Care plans',
+        title: 'Care packs',
         who: 'Owner',
-        desc: 'Multi-visit packages with sessions total and price.',
+        desc: 'Multi-visit packages with session ledger (not charged through SA).',
       },
       {
         n: '2c',
-        title: 'Assign plan',
-        who: 'Owner / reception',
-        desc: 'Link care plan on the patient so entitlement is clear.',
+        title: 'Treatment plans',
+        who: 'Owner / reception / clinician',
+        desc: 'Step plans on the patient; one-click book next open diary slot.',
       },
     ],
   },
   {
-    title: '3 · Diary (schedule · assign)',
-    subtitle: 'Slots with clinician and service',
+    title: '3 · Diary (rooms · practice · clinician)',
+    subtitle: 'Parallel practice floor · exclusive clinician books',
     steps: [
       {
         n: '3a',
-        title: 'Schedule appointment',
+        title: 'Rooms & schedule',
         who: 'Owner / reception',
-        desc: 'Date, time, service, chair; assign clinician.',
+        desc: 'Define chairs / surgeries on Website; schedule date, time, service, room; assign clinician.',
       },
       {
         n: '3b',
-        title: 'Public flag',
-        who: 'Owner',
-        desc: 'Mark public so the slot can appear for online booking.',
+        title: 'Practice vs clinician view',
+        who: 'Owner / reception',
+        desc: 'Practice diary shows all clinicians in parallel; each clinician cannot be double-booked.',
       },
       {
         n: '3c',
-        title: 'Reassign',
-        who: 'Owner / reception',
-        desc: 'Change clinician anytime; keep diary as system of record.',
+        title: 'Public flag',
+        who: 'Owner',
+        desc: 'Mark public so the slot can appear for online / portal booking.',
       },
     ],
   },
   {
-    title: '4 · Floor (book · attend · feedback)',
-    subtitle: 'Capacity, attendance, post-visit pulse',
+    title: '4 · Floor (waitlist · attend · recall)',
+    subtitle: 'Book · queue · reminders · outcomes · feedback',
     steps: [
       {
         n: '4a',
-        title: 'Book patient',
-        who: 'Reception / website',
-        desc: 'Book onto slot; waitlist when full; desk, patient portal, or public booking.',
+        title: 'Book · family · other clinician',
+        who: 'Desk / portal',
+        desc: 'Book patient (or family member); if preferred clinician full, book another or join waitlist.',
       },
       {
         n: '4b',
-        title: 'Mark attended',
-        who: 'Clinician / reception',
-        desc: 'Attended or no-show; triggers feedback prompt when attended.',
+        title: 'Waitlist desk',
+        who: 'Desk',
+        desc: 'Slot waitlists + next-available practice queue; contact, promote, book when a slot frees.',
       },
       {
         n: '4c',
-        title: 'Visit feedback',
-        who: 'Patient',
-        desc: 'Patient rates the visit via token link after attendance.',
+        title: 'Remind · attend · plan · feedback',
+        who: 'Desk / clinician',
+        desc: 'Send 24h reminders; mark attended / no-show (soft-block risk); care plan progresses; feedback token; recalls board.',
       },
     ],
   },
   {
-    title: '5 · Messages (internal · care · trade)',
-    subtitle: 'Desk · clinicians · patients · company inbox',
+    title: '5 · Messages (system ID · care · trade)',
+    subtitle: 'In-app first when patient is on SupplierAdvisor',
     steps: [
       {
         n: '5a',
@@ -193,7 +193,7 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '5b',
         title: 'Care · patient threads',
         who: 'Desk / clinician',
-        desc: 'Patient care messages so the whole team stays aligned.',
+        desc: 'Care messages deliver to company inbox by platform system user ID when linked; email fan-out optional.',
       },
       {
         n: '5c',
@@ -204,26 +204,26 @@ export const PROCESS_PHASES: ProcessPhase[] = [
     ],
   },
   {
-    title: '6 · Website & insights',
-    subtitle: 'Public profile · publish · utilisation',
+    title: '6 · Website, marketplace & insights',
+    subtitle: 'Rooms · ops · public list · utilisation',
     steps: [
       {
         n: '6a',
-        title: 'Practice profile',
+        title: 'Profile · rooms · ops',
         who: 'Owner',
-        desc: 'Brand name, bio, contact; show staff / pricing.',
+        desc: 'Brand bio, room list, reschedule policy; no SA patient payments — platform subscription only.',
       },
       {
         n: '6b',
-        title: 'Publish & booking',
+        title: 'Publish & marketplace',
         who: 'Owner',
-        desc: 'Enable website and public booking; copy public token.',
+        desc: 'Enable website/booking; list on /marketplace/advisors (city + blurb).',
       },
       {
         n: '6c',
-        title: 'Reports',
-        who: 'Owner',
-        desc: 'Utilisation by clinician, service, appointments.',
+        title: 'Reports · staff Today',
+        who: 'Owner / desk',
+        desc: 'Utilisation and outcomes; staff PWA today board for the floor.',
       },
     ],
   },
@@ -231,36 +231,44 @@ export const PROCESS_PHASES: ProcessPhase[] = [
 
 export const GUARDRAILS = [
   {
-    title: 'Clinician on every public slot',
-    desc: 'Diary assigns a dentist or hygienist; public slots without one are incomplete.',
+    title: 'No double-book per clinician',
+    desc: 'Each clinician diary is exclusive; the practice can still run many clinicians in parallel.',
   },
   {
     title: 'Public = published',
     desc: 'Only public slots and an enabled website profile are ready for online booking.',
   },
   {
-    title: 'Care plans track entitlement',
-    desc: 'Multi-visit plans live on the patient — not a side spreadsheet.',
+    title: 'POPIA on create',
+    desc: 'Desk confirms lawful processing / consent when creating a patient record; portals show a privacy notice.',
   },
   {
-    title: 'Clinical notes travel with the patient',
-    desc: 'Site, status, mods and goals keep every visit safe and progressive.',
+    title: 'Care packs & plans on the patient',
+    desc: 'Session packs and treatment steps live on the patient — book next from the plan, not a side sheet.',
   },
   {
-    title: 'Medical chart is first-class',
-    desc: 'Medical aid, documents and claims sit on the patient record.',
+    title: 'Waitlist is a desk queue',
+    desc: 'Slot waitlist plus next-available practice queue with notify when a place opens.',
   },
   {
-    title: 'Attend then feedback',
-    desc: 'Mark attended before the post-visit feedback token is issued.',
+    title: 'Attend then feedback · plan progress',
+    desc: 'Mark attended before feedback tokens; active treatment plans advance on attendance.',
+  },
+  {
+    title: 'Messages: system ID first',
+    desc: 'Once the patient is on SupplierAdvisor, care threads deliver in-app by platform user ID.',
+  },
+  {
+    title: 'SA does not bill patients',
+    desc: 'SupplierAdvisor only bills the company platform subscription; clinic fees stay off-platform.',
+  },
+  {
+    title: 'Permanent staff → People',
+    desc: 'Permanent clinicians dual-write into the People module; casuals stay on the Advisor book only.',
   },
   {
     title: 'Tokenised public surfaces',
-    desc: 'Website uses a secret public token — no private PII on open calendars.',
-  },
-  {
-    title: 'One practice book',
-    desc: 'People, diary, bookings, messages and website share one DentalAdvisor store.',
+    desc: 'Website and portals use secret tokens — no private charts on open calendars.',
   },
 ];
 
@@ -270,37 +278,38 @@ export const SYSTEM_BENEFITS = [
     desc: 'Dentists, hygienists and the full team on one diary and patient book.',
   },
   {
-    title: 'Care plans',
-    desc: 'Multi-visit packages on the patient for clear entitlement.',
+    title: 'Exclusive clinician diaries',
+    desc: 'No double-book per clinician while the floor runs multiple books at once.',
   },
   {
-    title: 'Clinical + medical chart',
-    desc: 'Oral-health notes plus medical aid, docs and claims together.',
+    title: 'Waitlist desk + recalls',
+    desc: 'Fill cancellations, work the next-available queue, re-engage overdue patients.',
   },
   {
-    title: 'Diary as system of record',
-    desc: 'Who treats whom, when — reassign anytime.',
+    title: 'Treatment plans that book',
+    desc: 'Step plans with one-click next session on an open diary slot.',
   },
   {
-    title: 'Website-ready',
-    desc: 'Publish practice profile and online booking flags from one place.',
+    title: 'Rooms as resources',
+    desc: 'Named surgeries / bays / rooms on the calendar, managed under Website.',
   },
   {
-    title: 'Messages close hand-offs',
-    desc: 'Desk, clinicians and patients stay on one thread.',
+    title: 'In-app care messaging',
+    desc: 'Desk, clinicians and patients on one thread — system user ID when on-platform.',
   },
   {
-    title: 'Post-visit feedback',
-    desc: 'Patients rate care after attendance — continuous improvement.',
+    title: 'Marketplace discoverability',
+    desc: 'Opt-in listing on /marketplace/advisors with city and blurb.',
   },
   {
-    title: 'Utilisation reports',
-    desc: 'See load by clinician and service without leaving the OS.',
+    title: 'POPIA-aware desk',
+    desc: 'Consent on create and privacy notice on patient portals.',
   },
 ];
 
 export const ONE_SENTENCE =
-  'Register staff and patients (clinical + medical chart) → define services and care plans → schedule diary slots with clinicians → book patients and mark attended → message team, patients and trade partners in-app → publish the practice website and review utilisation reports.';
+  'Register staff and patients (POPIA · clinical · medical chart) → services, care packs and treatment plans → diary with rooms and exclusive clinician books (practice can run parallel) → book, waitlist desk, reminders, attend, recalls → in-app messages by system user ID → website, marketplace listing and utilisation.';
+
 
 // ── PDF (sky brand) ─────────────────────────────────────────────────────
 

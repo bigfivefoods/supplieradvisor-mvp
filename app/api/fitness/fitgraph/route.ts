@@ -1087,8 +1087,109 @@ export async function POST(request: NextRequest) {
     if (
       action === 'upsert_visit_note' ||
       action === 'record_outcome' ||
-      action === 'upsert_treatment_plan'
+      action === 'upsert_treatment_plan' ||
+      action === 'book_from_treatment_plan'
     ) {
+      if (action === 'book_from_treatment_plan') {
+        const {
+          findNextBookableAppointment,
+          nextOpenTreatmentStep,
+        } = await import('@/lib/services/advisor-clinical');
+        const planId = String(body.plan_id || '');
+        const personId = String(body.person_id || body.client_id || '');
+        store.treatment_plans = store.treatment_plans || [];
+        const plan = store.treatment_plans.find(
+          (p) =>
+            p.id === planId ||
+            (!planId && p.person_id === personId && p.status === 'active')
+        );
+        if (!plan) {
+          return NextResponse.json(
+            { error: 'Treatment plan not found' },
+            { status: 404 }
+          );
+        }
+        const step = nextOpenTreatmentStep(plan);
+        if (!step) {
+          return NextResponse.json(
+            { error: 'No open plan steps to book' },
+            { status: 400 }
+          );
+        }
+        const sessionsAsAppts = (store.sessions || []).map((s) => ({
+          id: s.id,
+          service_id: s.class_type_id,
+          date: s.date,
+          start_time: s.start_time,
+          status: s.status === 'cancelled' ? 'cancelled' : 'scheduled',
+        }));
+        let sessionId = findNextBookableAppointment({
+          appointments: sessionsAsAppts,
+          bookings: store.bookings.map((b) => ({
+            session_id: b.session_id,
+            status: b.status,
+          })),
+          serviceId: step.service_id,
+          useSessionId: true,
+        });
+        if (!sessionId && step.service_id) {
+          sessionId = findNextBookableAppointment({
+            appointments: sessionsAsAppts,
+            bookings: store.bookings.map((b) => ({
+              session_id: b.session_id,
+              status: b.status,
+            })),
+            useSessionId: true,
+          });
+        }
+        if (!sessionId) {
+          return NextResponse.json(
+            { error: 'No open class session available' },
+            { status: 400 }
+          );
+        }
+        const clientId = plan.person_id;
+        const exists = store.bookings.find(
+          (b) =>
+            b.session_id === sessionId &&
+            b.client_id === clientId &&
+            b.status !== 'cancelled'
+        );
+        if (exists) {
+          return NextResponse.json(
+            { error: 'Member already booked on that session' },
+            { status: 400 }
+          );
+        }
+        const session = store.sessions.find((s) => s.id === sessionId);
+        const capacity = session?.capacity ?? 20;
+        const booked = store.bookings.filter(
+          (b) =>
+            b.session_id === sessionId &&
+            (b.status === 'booked' || b.status === 'attended')
+        ).length;
+        const status = booked >= capacity ? 'waitlist' : 'booked';
+        store.bookings.unshift({
+          id: `bk_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+          session_id: sessionId,
+          client_id: clientId,
+          status: status as 'booked' | 'waitlist',
+          booked_at: now,
+          source: 'treatment_plan',
+        });
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          store,
+          summary: summariseFitgraph(store),
+          analysis: analysis(store),
+          session_id: sessionId,
+          message:
+            status === 'waitlist'
+              ? `Waitlisted for next session (“${step.title}”)`
+              : `Booked next session for “${step.title}”`,
+        });
+      }
       if (action === 'upsert_visit_note') {
         const { newVisitNote } = await import('@/lib/services/advisor-clinical');
         store.visit_notes = store.visit_notes || [];

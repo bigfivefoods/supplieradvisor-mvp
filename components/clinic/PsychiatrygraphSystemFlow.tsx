@@ -2,7 +2,7 @@
 
 /**
  * End-to-end PsychiatryAdvisor® process design:
- * People → Services · packs → Diary → Floor → Messages → Website · reports
+ * People → Packs · plans → Diary (rooms) → Waitlist · floor → Messages → Marketplace · reports
  *
  * Expandable on the PsychiatryAdvisor command hub; downloadable A4 PDF
  * (landscape + portrait) — same pattern as FitAdvisor / CropAdvisor.
@@ -55,33 +55,33 @@ type Phase = {
 const PHASES: Phase[] = [
   {
     id: 'people',
-    title: '1 · People (practitioners & patients)',
-    subtitle: 'Who treats · who is in care · assignment',
+    title: '1 · People (clinicians & patients)',
+    subtitle: 'Who treats · POPIA · People dual-write · invite',
     steps: [
       {
-        id: 'practitioners',
+        id: 'staff',
         n: '1a',
         title: 'Practitioners',
         who: 'Owner',
-        desc: 'Physios, OT, biokinetics — disciplines, rates, bios.',
+        desc: 'Psychiatrists, psychologists — disciplines, rates. Permanent staff → People (HR).',
         href: '/dashboard/psychiatrygraph/practitioners',
-        icon: Stethoscope,
+        icon: UserRound,
       },
       {
         id: 'patients',
         n: '1b',
-        title: 'Patients',
+        title: 'Patients · POPIA',
         who: 'Owner / desk',
-        desc: 'Patient book; status; assign practitioner and package.',
+        desc: 'Patient book with POPIA consent; assign clinician/pack; family dependents.',
         href: '/dashboard/psychiatrygraph/patients',
         icon: Users,
       },
       {
         id: 'clinical',
         n: '1c',
-        title: 'Clinical, chart & scripts',
+        title: 'Clinical, chart & identity',
         who: 'Practitioner',
-        desc: 'Injury notes, medical aid, docs, claims, and visit-linked prescriptions.',
+        desc: 'Clinical notes; medical aid, docs, claims; visit notes & scores. Optional identity verify on portal.',
         href: '/dashboard/psychiatrygraph/patients',
         icon: FileText,
       },
@@ -90,7 +90,7 @@ const PHASES: Phase[] = [
         n: '1d',
         title: 'Patient invite & portal',
         who: 'Owner / desk',
-        desc: 'Email invite to join; patient portal for open diary slots, bookings, shared care.',
+        desc: 'Email invite; portal for open slots, waitlist, family booking, shared care.',
         href: '/dashboard/psychiatrygraph/patients',
         icon: Globe,
       },
@@ -98,33 +98,33 @@ const PHASES: Phase[] = [
   },
   {
     id: 'services',
-    title: '2 · Services & packages',
-    subtitle: 'What you sell · rehab entitlement',
+    title: '2 · Services, packs & treatment plans',
+    subtitle: 'What you sell · entitlement · one-click book next',
     steps: [
       {
         id: 'catalogue',
         n: '2a',
         title: 'Services',
         who: 'Owner',
-        desc: 'Assessments, treatments, home visits — duration & price.',
+        desc: 'Consults and sessions — duration & price.',
         href: '/dashboard/psychiatrygraph/services',
-        icon: HeartPulse,
+        icon: Sparkles,
       },
       {
         id: 'packages',
         n: '2b',
-        title: 'Rehab packages',
+        title: 'Care packages',
         who: 'Owner',
-        desc: 'Multi-session packs with sessions total and price.',
+        desc: 'Multi-session packs with session ledger (fees outside SA).',
         href: '/dashboard/psychiatrygraph/packages',
         icon: CreditCard,
       },
       {
-        id: 'assign',
+        id: 'plans',
         n: '2c',
-        title: 'Assign pack',
-        who: 'Owner / desk',
-        desc: 'Link package on the patient so entitlement is clear.',
+        title: 'Treatment plans',
+        who: 'Owner / desk / clinician',
+        desc: 'Step plans on the patient record; Book next books the next open diary slot.',
         href: '/dashboard/psychiatrygraph/patients',
         icon: Package,
       },
@@ -132,67 +132,67 @@ const PHASES: Phase[] = [
   },
   {
     id: 'diary',
-    title: '3 · Diary (schedule · assign)',
-    subtitle: 'Slots with practitioner and service',
+    title: '3 · Diary (rooms · practice · clinician)',
+    subtitle: 'Parallel practice floor · exclusive clinician books',
     steps: [
       {
         id: 'schedule',
         n: '3a',
-        title: 'Schedule appointment',
+        title: 'Rooms & schedule',
         who: 'Owner / desk',
-        desc: 'Date, time, service, location; assign practitioner.',
+        desc: 'Define rooms on Website; schedule date, time, service, room; assign clinician.',
+        href: '/dashboard/psychiatrygraph/calendar',
+        icon: CalendarDays,
+      },
+      {
+        id: 'views',
+        n: '3b',
+        title: 'Practice vs clinician diary',
+        who: 'Owner / desk',
+        desc: 'Practice view runs all clinicians in parallel; each clinician cannot be double-booked.',
         href: '/dashboard/psychiatrygraph/calendar',
         icon: CalendarDays,
       },
       {
         id: 'public',
-        n: '3b',
+        n: '3c',
         title: 'Public flag',
         who: 'Owner',
-        desc: 'Mark public so the slot can appear for online booking.',
+        desc: 'Mark public so the slot can appear for portal / online booking.',
         href: '/dashboard/psychiatrygraph/calendar',
         icon: Globe,
-      },
-      {
-        id: 'reassign',
-        n: '3c',
-        title: 'Reassign',
-        who: 'Owner / desk',
-        desc: 'Change practitioner anytime; diary is system of record.',
-        href: '/dashboard/psychiatrygraph/calendar',
-        icon: CalendarDays,
       },
     ],
   },
   {
     id: 'floor',
-    title: '4 · Floor (book · attend · feedback)',
-    subtitle: 'Capacity, attendance, post-visit pulse',
+    title: '4 · Floor (waitlist · attend · recall)',
+    subtitle: 'Book · queue · reminders · outcomes · feedback',
     steps: [
       {
         id: 'book',
         n: '4a',
-        title: 'Book patient',
-        who: 'Desk / website',
-        desc: 'Book onto slot; waitlist when full; desk, patient portal, or public booking.',
+        title: 'Book · family · other clinician',
+        who: 'Desk / portal',
+        desc: 'Book patient or family; if preferred clinician full, book another or join waitlist.',
+        href: '/dashboard/psychiatrygraph/bookings',
+        icon: ClipboardCheck,
+      },
+      {
+        id: 'waitlist',
+        n: '4b',
+        title: 'Waitlist desk',
+        who: 'Desk',
+        desc: 'Slot waitlists + next-available practice queue; contact, promote, book when free.',
         href: '/dashboard/psychiatrygraph/bookings',
         icon: ClipboardCheck,
       },
       {
         id: 'attend',
-        n: '4b',
-        title: 'Mark attended',
-        who: 'Practitioner / desk',
-        desc: 'Attended or no-show; triggers feedback when attended.',
-        href: '/dashboard/psychiatrygraph/bookings',
-        icon: ClipboardCheck,
-      },
-      {
-        id: 'feedback',
         n: '4c',
-        title: 'Visit feedback',
-        who: 'Patient',
-        desc: 'Patient rates the visit via token link after attendance.',
+        title: 'Remind · attend · plan · feedback',
+        who: 'Clinician / desk',
+        desc: '24h reminders; attended / no-show; care plan progresses; feedback token; recalls board.',
         href: '/dashboard/psychiatrygraph/bookings',
         icon: Sparkles,
       },
@@ -200,8 +200,8 @@ const PHASES: Phase[] = [
   },
   {
     id: 'messages',
-    title: '5 · Messages (internal · care · trade)',
-    subtitle: 'Desk · clinicians · patients · company inbox',
+    title: '5 · Messages (system ID · care · trade)',
+    subtitle: 'In-app first when patient is on SupplierAdvisor',
     steps: [
       {
         id: 'internal',
@@ -217,7 +217,7 @@ const PHASES: Phase[] = [
         n: '5b',
         title: 'Care · patient threads',
         who: 'Desk / clinician',
-        desc: 'Patient care messages so the whole team stays aligned.',
+        desc: 'Deliver to company inbox by platform system user ID when linked; email optional.',
         href: '/dashboard/psychiatrygraph/messages',
         icon: MessageSquare,
       },
@@ -234,33 +234,33 @@ const PHASES: Phase[] = [
   },
   {
     id: 'web',
-    title: '6 · Website & insights',
-    subtitle: 'Public profile · publish · utilisation',
+    title: '6 · Website, marketplace & insights',
+    subtitle: 'Rooms · ops · public list · utilisation',
     steps: [
       {
         id: 'profile',
         n: '6a',
-        title: 'Clinic profile',
+        title: 'Profile · rooms · ops',
         who: 'Owner',
-        desc: 'Brand name, bio, contact; show practitioners / pricing.',
+        desc: 'Brand bio, room list, reschedule policy. SA only bills platform subscription.',
         href: '/dashboard/psychiatrygraph/website',
         icon: FileText,
       },
       {
         id: 'publish',
         n: '6b',
-        title: 'Publish & booking',
+        title: 'Publish & marketplace',
         who: 'Owner',
-        desc: 'Enable website and public booking; copy public token.',
+        desc: 'Enable website/booking; list on /marketplace/advisors (city + blurb).',
         href: '/dashboard/psychiatrygraph/website',
         icon: Globe,
       },
       {
         id: 'report',
         n: '6c',
-        title: 'Reports',
-        who: 'Owner',
-        desc: 'Utilisation by practitioner, service, appointments.',
+        title: 'Reports · staff Today',
+        who: 'Owner / desk',
+        desc: 'Utilisation and outcomes; mobile staff PWA for today’s board.',
         href: '/dashboard/psychiatrygraph/report',
         icon: Package,
       },
@@ -273,18 +273,18 @@ const ROLE_CARDS = [
     tone: 'owner' as const,
     icon: UserRound,
     title: 'Practice owner / manager',
-    subtitle: 'Team · catalogue · diary · insight',
+    subtitle: 'Team · diary · waitlist · marketplace',
     does: [
-      'Register practitioners; disciplines, rates, bios',
-      'Patient register; assign clinician + rehab pack',
-      'Define services and multi-session packages',
-      'Schedule diary; assign practitioners; public slots',
-      'Clinic bio, website publish and booking flags',
-      'Messages with desk/practitioners; utilisation reports',
+      'Register clinicians; permanent staff dual-write to People',
+      'Patients with POPIA consent; invites, portals, family',
+      'Services, care packs, treatment plans; one-click book next',
+      'Practice + exclusive clinician diaries; rooms as resources',
+      'Waitlist desk, reminders, outcomes, recalls, staff Today PWA',
+      'In-app messages (system user ID); marketplace listing',
     ],
     doesNot: [
-      'Does not leave public slots without a practitioner',
-      'Does not publish without website settings enabled',
+      'Does not double-book the same clinician diary',
+      'Does not take patient fees through SupplierAdvisor',
     ],
     href: '/dashboard/psychiatrygraph/calendar',
   },
@@ -292,18 +292,17 @@ const ROLE_CARDS = [
     tone: 'clinician' as const,
     icon: Stethoscope,
     title: 'Practitioner',
-    subtitle: 'Diary · clinical · attend · feedback',
+    subtitle: 'Diary · clinical · attend · care plans',
     does: [
-      'Keep own bio / disciplines current for website',
-      'Update patient clinical notes (region, goals, cautions)',
-      'Medical chart: medical aid, documents, claims',
-      'Run sessions; mark attended / no-show',
-      'Reply on care threads with desk and patients',
+      'Keep bio current; clinical notes and medical chart',
+      'Treatment plan steps; visit notes and outcome scores',
+      'Mark attended / no-show (progresses care plans)',
+      'Care threads; patients get in-app when on-system',
       'Request post-visit feedback after attendance',
     ],
     doesNot: [
-      'Does not change other practitioners’ rates',
-      'Does not publish the whole clinic website alone',
+      'Does not change other clinicians’ rates or double-book own diary',
+      'Does not publish the whole practice website alone',
     ],
     href: '/dashboard/psychiatrygraph/practitioners',
   },
@@ -311,17 +310,17 @@ const ROLE_CARDS = [
     tone: 'patient' as const,
     icon: Users,
     title: 'Patient / public',
-    subtitle: 'Invite · portal · book · feedback',
+    subtitle: 'Portal · book · family · feedback',
     does: [
-      'See published clinic profile and public diary',
-      'Book via desk or website when enabled',
-      'Hold rehab package entitlement across sessions',
-      'Receive care messages from the clinic',
-      'After visit: give feedback when prompted',
+      'Book open slots (preferred or other clinician when allowed)',
+      'Join slot waitlist or next-available practice queue',
+      'Book household members; identity verify when asked',
+      'In-app messages once on SupplierAdvisor',
+      'After visit: feedback; shared care when enabled',
     ],
     doesNot: [
-      'Does not see private / unpublished slots',
-      'Does not access clinician rates or other patients’ charts',
+      'Does not see private slots or other patients’ charts',
+      'Does not pay practice fees through the SA platform',
     ],
     href: '/dashboard/psychiatrygraph/website',
   },
@@ -329,36 +328,40 @@ const ROLE_CARDS = [
 
 const GUARDRAILS = [
   {
-    title: 'Practitioner on every public slot',
-    desc: 'Diary assigns a clinician; public slots without one are incomplete.',
+    title: 'No double-book per clinician',
+    desc: 'Each clinician diary is exclusive; the practice can still run many clinicians in parallel.',
   },
   {
     title: 'Public = published',
     desc: 'Only public slots and an enabled website profile are ready for online booking.',
   },
   {
-    title: 'Packages track entitlement',
-    desc: 'Rehab packs live on the patient — not a side spreadsheet.',
+    title: 'POPIA on create',
+    desc: 'Desk confirms lawful processing when creating a patient; portals show a privacy notice.',
   },
   {
-    title: 'Clinical notes travel with the patient',
-    desc: 'Region, goals and cautions keep every visit safe and progressive.',
+    title: 'Care packs & treatment plans',
+    desc: 'Session packs and step plans live on the patient — Book next from the plan.',
   },
   {
-    title: 'Medical chart is first-class',
-    desc: 'Medical aid, documents and claims sit on the patient record.',
+    title: 'Waitlist is a desk queue',
+    desc: 'Slot waitlist plus next-available practice queue with notify when a place opens.',
   },
   {
-    title: 'Attend then feedback',
-    desc: 'Mark attended before the post-visit feedback token is issued.',
+    title: 'Messages: system ID first',
+    desc: 'Once the patient is on SupplierAdvisor, care threads deliver in-app by platform user ID.',
+  },
+  {
+    title: 'SA does not bill patients',
+    desc: 'SupplierAdvisor only bills the company platform subscription; clinic fees stay off-platform.',
+  },
+  {
+    title: 'Permanent staff → People',
+    desc: 'Permanent clinicians dual-write into People; casuals stay on the Advisor book only.',
   },
   {
     title: 'Tokenised public surfaces',
-    desc: 'Website uses a secret public token — no private PII on open calendars.',
-  },
-  {
-    title: 'One clinic book',
-    desc: 'People, diary, bookings, messages and website share one PsychiatryAdvisor store.',
+    desc: 'Website and portals use secret tokens — no private charts on open calendars.',
   },
 ];
 
@@ -387,14 +390,13 @@ export default function PsychiatrygraphSystemFlow({
               Full clinic OS — process design
             </p>
             <h2 className="text-lg sm:text-xl font-black mt-0.5 leading-tight">
-              People → Services · packs → Diary → Floor → Messages → Website ·
-              reports
+              People → Packs · plans → Diary (rooms) → Waitlist · floor → Messages →
+              Marketplace · reports
             </h2>
             <p className="text-sm text-white/90 mt-1.5 max-w-3xl leading-snug">
-              Owner manages practitioners, patients, services and packages;
-              practitioners run clinical notes, attendance and care threads;
-              patients book and give post-visit feedback; reports show
-              utilisation end to end.
+              POPIA-aware patient book; exclusive clinician diaries with rooms; waitlist
+              desk and treatment-plan book next; in-app care by system user ID;
+              marketplace listing — SA bills platform subscription only.
             </p>
           </button>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -421,24 +423,24 @@ export default function PsychiatrygraphSystemFlow({
             {[
               {
                 label: 'People',
-                sub: 'Practitioners · patients',
+                sub: 'Practitioners · POPIA · People',
                 tone: 'teal',
               },
               {
                 label: 'Services · packs',
-                sub: 'Catalogue · rehab',
+                sub: 'Packs · treatment plans',
                 tone: 'emerald',
               },
-              { label: 'Diary', sub: 'Schedule · assign', tone: 'violet' },
+              { label: 'Diary', sub: 'Rooms · practice · clinician', tone: 'violet' },
               {
                 label: 'Floor',
-                sub: 'Book · attend · feedback',
+                sub: 'Waitlist · attend · recall',
                 tone: 'amber',
               },
-              { label: 'Messages', sub: 'Internal · care · trade', tone: 'fuchsia' },
+              { label: 'Messages', sub: 'System ID · in-app', tone: 'fuchsia' },
               {
                 label: 'Website · reports',
-                sub: 'Publish · utilisation',
+                sub: 'Marketplace · rooms · ops',
                 tone: 'sky',
               },
             ].map((node, i, arr) => (

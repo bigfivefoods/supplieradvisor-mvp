@@ -2,7 +2,7 @@
 
 /**
  * End-to-end FitAdvisor® process design:
- * People → Plans → Classes → Calendar → Floor → Messages → Website · reports
+ * People → Plans → Classes → Calendar (rooms) → Floor → Messages → Marketplace · reports
  *
  * Expandable on the FitAdvisor command hub; downloadable A4 PDF
  * (landscape + portrait) — same pattern as NSNP / CropAdvisor.
@@ -58,7 +58,7 @@ const PHASES: Phase[] = [
   {
     id: 'people',
     title: '1 · People (coaches & members)',
-    subtitle: 'Who trains · who attends · tenure · rates',
+    subtitle: 'Who trains · People dual-write · invite · family',
     steps: [
       {
         id: 'specialties',
@@ -72,9 +72,9 @@ const PHASES: Phase[] = [
       {
         id: 'coaches',
         n: '1b',
-        title: 'Coach register & edit',
+        title: 'Coach register · People',
         who: 'Owner',
-        desc: 'Bio, contact, photo; full edit; issue portal link.',
+        desc: 'Bio, photo, portal link; permanent coaches dual-write to People (HR).',
         href: '/dashboard/fitgraph/coaches',
         icon: UserRound,
       },
@@ -90,9 +90,9 @@ const PHASES: Phase[] = [
       {
         id: 'clients',
         n: '1d',
-        title: 'Clients / members',
-        who: 'Owner',
-        desc: 'Member book, photo, injury notes; bulk .xlsx; plan & coach.',
+        title: 'Members · invite · family',
+        who: 'Owner / desk',
+        desc: 'Member book or bulk .xlsx; email invite & portal; family; POPIA-aware desk.',
         href: '/dashboard/fitgraph/clients',
         icon: Users,
       },
@@ -101,7 +101,7 @@ const PHASES: Phase[] = [
         n: '1e',
         title: 'Email invite & portal',
         who: 'Owner / desk',
-        desc: 'Invite members by email; member portal for open classes, waitlist, and feedback.',
+        desc: 'Invite members; portal for open classes, waitlist, feedback, identity verify.',
         href: '/dashboard/fitgraph/clients',
         icon: Globe,
       },
@@ -110,32 +110,32 @@ const PHASES: Phase[] = [
   {
     id: 'money',
     title: '2 · Memberships & subscriptions',
-    subtitle: 'Plans sell · subs track entitlement',
+    subtitle: 'Plans · packs · freeze (fees outside SA)',
     steps: [
       {
         id: 'plans',
         n: '2a',
         title: 'Membership plans',
         who: 'Owner',
-        desc: 'Unlimited, packs, drop-in; public pricing flag.',
+        desc: 'Unlimited, packs, drop-in; public pricing flag. Fees not charged via SA.',
         href: '/dashboard/fitgraph/memberships',
         icon: CreditCard,
       },
       {
         id: 'subs',
         n: '2b',
-        title: 'Subscriptions',
+        title: 'Subscriptions · freeze',
         who: 'Owner',
-        desc: 'Active / trial / paused; remaining class credits.',
+        desc: 'Active / trial / paused; remaining credits; freeze periods.',
         href: '/dashboard/fitgraph/subscriptions',
         icon: Repeat,
       },
       {
         id: 'pt',
         n: '2c',
-        title: 'PT packs',
+        title: 'PT & class packs',
         who: 'Owner',
-        desc: 'Personal-training packs per client and coach.',
+        desc: 'Session packs / ledger; remaining sessions and expiry.',
         href: '/dashboard/fitgraph/memberships',
         icon: Dumbbell,
       },
@@ -168,24 +168,24 @@ const PHASES: Phase[] = [
   },
   {
     id: 'calendar',
-    title: '4 · Calendar (schedule · plan · join)',
-    subtitle: 'Owner grid + coach week + B2C links',
+    title: '4 · Calendar (rooms · plan · join)',
+    subtitle: 'Owner grid + coach week + resources',
     steps: [
       {
         id: 'sched',
         n: '4a',
-        title: 'Schedule session',
+        title: 'Rooms & schedule',
         who: 'Owner',
-        desc: 'Date, time, room, class type; assign coach by specialty.',
+        desc: 'Named studios under Website; schedule date, time, room, class; assign coach.',
         href: '/dashboard/fitgraph/calendar',
         icon: CalendarDays,
       },
       {
         id: 'coach-cal',
         n: '4b',
-        title: 'Coach calendar',
+        title: 'Coach calendar · concurrent',
         who: 'Owner / coach',
-        desc: 'Week plan, actuals, series, class plan text.',
+        desc: 'Week plan, series, class plan text; optional concurrent coaches on large floors.',
         href: '/dashboard/fitgraph/coach-calendar',
         icon: CalendarDays,
       },
@@ -194,7 +194,7 @@ const PHASES: Phase[] = [
         n: '4c',
         title: 'Publish & join links',
         who: 'Owner / coach',
-        desc: 'Public session + B2C join URL for book & calendar.',
+        desc: 'Public session + B2C join URL for book & .ics calendar.',
         href: '/dashboard/fitgraph/calendar',
         icon: Globe,
       },
@@ -202,42 +202,42 @@ const PHASES: Phase[] = [
   },
   {
     id: 'floor',
-    title: '5 · Floor (book · actual · feedback)',
-    subtitle: 'Capacity, attendance, post-class pulse',
+    title: '5 · Floor (waitlist · actual · recall)',
+    subtitle: 'Capacity, attendance, outcomes, feedback',
     steps: [
       {
         id: 'book',
         n: '5a',
-        title: 'Book members',
+        title: 'Book · waitlist · family',
         who: 'Desk / coach / web',
-        desc: 'Book session; auto-waitlist; desk, portal or join link.',
+        desc: 'Book session; auto-waitlist when full; household attendees; plan book next.',
         href: '/dashboard/fitgraph/bookings',
         icon: ClipboardCheck,
       },
       {
         id: 'actual',
         n: '5b',
-        title: 'Plan vs actual',
+        title: 'Remind · plan vs actual',
         who: 'Coach / desk',
-        desc: 'Mark attended / no-show on the roster after class.',
+        desc: '24h reminders; mark attended / no-show; soft-block high no-show risk.',
         href: '/dashboard/fitgraph/coach-calendar',
         icon: ClipboardCheck,
       },
       {
         id: 'feedback',
         n: '5c',
-        title: 'Class feedback',
-        who: 'Member · coach',
-        desc: 'Feel, intensity (RPE), tags after the session.',
+        title: 'Feedback · outcomes · recalls',
+        who: 'Member · coach · owner',
+        desc: 'Class feedback; outcomes board; re-engage overdue members.',
         href: '/dashboard/fitgraph/feedback',
         icon: Sparkles,
       },
       {
         id: 'checkin',
         n: '5d',
-        title: 'Check-ins',
+        title: 'Check-ins · staff Today',
         who: 'Desk',
-        desc: 'Front-desk or class attendance log.',
+        desc: 'Front-desk log; mobile staff PWA for today’s board.',
         href: '/dashboard/fitgraph/checkins',
         icon: ClipboardCheck,
       },
@@ -245,8 +245,8 @@ const PHASES: Phase[] = [
   },
   {
     id: 'messages',
-    title: '6 · Messages (internal & care)',
-    subtitle: 'Desk · coaches · members — in-app',
+    title: '6 · Messages (system ID · care · trade)',
+    subtitle: 'In-app first when member is on SupplierAdvisor',
     steps: [
       {
         id: 'desk-coach',
@@ -262,7 +262,7 @@ const PHASES: Phase[] = [
         n: '6b',
         title: 'Member care & class groups',
         who: 'Desk / coach · members',
-        desc: '1:1 care threads, or coach → whole class/session group (everyone booked on the roster).',
+        desc: '1:1 care or whole class group; deliver by platform system user ID when linked.',
         href: '/dashboard/fitgraph/messages',
         icon: MessageSquare,
       },
@@ -279,24 +279,24 @@ const PHASES: Phase[] = [
   },
   {
     id: 'web',
-    title: '7 · Website, contracts & insights',
-    subtitle: 'Public profile · embed · slice & dice',
+    title: '7 · Website, marketplace & insights',
+    subtitle: 'Embed · ops · public list · slice & dice',
     steps: [
       {
         id: 'profile',
         n: '7a',
-        title: 'Gym profile & contracts',
+        title: 'Gym profile · rooms · contracts',
         who: 'Owner',
-        desc: 'Brand bio and public PDF contracts on embed.',
+        desc: 'Brand bio, public PDF contracts, room list, reschedule policy.',
         href: '/dashboard/fitgraph/website',
         icon: FileText,
       },
       {
-        id: 'embed',
+        id: 'publish',
         n: '7b',
-        title: 'Website embed / API',
+        title: 'Embed · marketplace',
         who: 'Owner',
-        desc: 'Publish calendar, booking, iframe or JSON.',
+        desc: 'Publish calendar/booking; list on /marketplace/advisors (city + blurb).',
         href: '/dashboard/fitgraph/website',
         icon: Globe,
       },
@@ -305,7 +305,7 @@ const PHASES: Phase[] = [
         n: '7c',
         title: 'Reports (slice & dice)',
         who: 'Owner',
-        desc: 'Coaches, classes, plan vs actual, feedback, CSV.',
+        desc: 'Coaches, classes, plan vs actual, feedback, utilisation CSV.',
         href: '/dashboard/fitgraph/report',
         icon: Package,
       },
@@ -318,18 +318,17 @@ const ROLE_CARDS = [
     tone: 'owner' as const,
     icon: UserRound,
     title: 'Gym owner / manager',
-    subtitle: 'Brand · people · schedule · insight',
+    subtitle: 'Brand · people · floor · marketplace',
     does: [
-      'Register & edit coaches; specialty catalogue',
-      'Engagement dates, rates, PDF contracts; rehire history',
-      'Member book or bulk .xlsx import/export',
-      'Schedule, coach calendar, B2C join links',
-      'In-app messages: desk · coaches · members',
-      'Gym bio, public contracts, website embed',
-      'Slice-and-dice reports (plan vs actual · feedback)',
+      'Register coaches; permanent staff dual-write to People',
+      'Members with invites, family, freezes and packs',
+      'Schedule with rooms; concurrent coaches when floor allows',
+      'Waitlist, reminders, outcomes; staff Today PWA',
+      'In-app messages by system user ID; delivery status',
+      'Website embed, marketplace listing, reschedule ops',
     ],
     doesNot: [
-      'Does not leave coaches unassigned on public classes',
+      'Does not take membership fees through SupplierAdvisor',
       'Does not publish without website settings on',
     ],
     href: '/dashboard/fitgraph/calendar',
@@ -338,15 +337,14 @@ const ROLE_CARDS = [
     tone: 'coach' as const,
     icon: Dumbbell,
     title: 'Coach',
-    subtitle: 'Classes · plan · actual · feedback',
+    subtitle: 'Classes · plan · actual · care threads',
     does: [
       'Portal: own profile, bio, specialties',
-      'Class plan, one-off or weekly series',
+      'Class plan, one-off or weekly series; rooms when set',
       'Share classes; book walk-ins and members',
       'Mark plan vs actual (attended / no-show)',
-      'Message desk and members on care threads',
+      'Message desk and members (in-app when on-system)',
       'Post-class coach feedback (feel · RPE)',
-      'See member feedback averages on sessions',
     ],
     doesNot: [
       'Does not manage other coaches’ sessions',
@@ -358,18 +356,17 @@ const ROLE_CARDS = [
     tone: 'member' as const,
     icon: Users,
     title: 'Member / customer',
-    subtitle: 'Invite · portal · book · feedback',
+    subtitle: 'Portal · book · family · feedback',
     does: [
-      'Accept email invite to join as a member',
-      'Member portal: open vacancies, book or waitlist, update profile',
-      'Public schedule, gym bio & contracts on embed',
-      'Book online or class join link; add to phone calendar',
-      'Subscription or pack; desk check-in',
-      'Message desk / coach; post-class feel & intensity feedback',
+      'Accept email invite; portal book or waitlist',
+      'Book household family members; identity verify when asked',
+      'Public schedule on embed; add to phone calendar',
+      'In-app messages once on SupplierAdvisor',
+      'Post-class feel & intensity feedback',
     ],
     doesNot: [
       'Does not see private / unpublished sessions',
-      'Does not access coach portals or owner rates',
+      'Does not pay gym fees through the SA platform',
     ],
     href: '/dashboard/fitgraph/website',
   },
@@ -385,24 +382,28 @@ const GUARDRAILS = [
     desc: 'Only public sessions appear on website embed and calendar API.',
   },
   {
-    title: 'Plan then actual',
-    desc: 'Roster plan (who is coming) then mark attended / no-show after class.',
-  },
-  {
-    title: 'Tenure history kept',
-    desc: 'End tenure archives dates + rate; rehire starts a new stint.',
-  },
-  {
-    title: 'Feedback after the session',
-    desc: 'Members: class join link or portal. Coaches: portal session detail.',
-  },
-  {
-    title: 'Invite then portal',
-    desc: 'Email join link expires; after accept, members use a portal token for bookings and feedback.',
-  },
-  {
     title: 'Capacity & waitlist',
-    desc: 'Bookings auto-waitlist when full — desk, coach or website.',
+    desc: 'Bookings auto-waitlist when full — desk, coach, portal or website.',
+  },
+  {
+    title: 'Concurrent coaches optional',
+    desc: 'Large floors may allow coaches at the same time; toggle under Website ops.',
+  },
+  {
+    title: 'Plan then actual',
+    desc: 'Roster plan then mark attended / no-show; soft-block chronic no-shows.',
+  },
+  {
+    title: 'Messages: system ID first',
+    desc: 'Once the member is on SupplierAdvisor, care threads deliver in-app by platform user ID.',
+  },
+  {
+    title: 'SA does not bill members',
+    desc: 'SupplierAdvisor only bills the company platform subscription; gym fees stay off-platform.',
+  },
+  {
+    title: 'Permanent coaches → People',
+    desc: 'Permanent coaches dual-write into People; casuals stay on the FitAdvisor book only.',
   },
   {
     title: 'Tokenised portals',
@@ -410,7 +411,7 @@ const GUARDRAILS = [
   },
   {
     title: 'One gym book',
-    desc: 'Coaches, classes, bookings, feedback and website share one store.',
+    desc: 'Coaches, classes, bookings, messages, feedback and website share one store.',
   },
 ];
 
@@ -537,13 +538,13 @@ export default function FitgraphSystemFlow({
               {!hasFrontDesk ? ' · coach-led (no front desk)' : ''}
             </p>
             <h2 className="text-lg sm:text-xl font-black mt-0.5 leading-tight">
-              People → Plans → Classes → Calendar → Floor → Messages → Website ·
+              People → Plans → Classes → Calendar (rooms) → Floor → Messages → Marketplace ·
               reports
             </h2>
             <p className="text-sm text-white/90 mt-1.5 max-w-3xl leading-snug">
               {hasFrontDesk
-                ? 'Owner manages coaches (tenure, rates, contracts), members and schedules; coaches run plan vs actual and feedback; desk, coaches and members message in-app; members book and rate classes; reports slice utilisation end to end.'
-                : 'Coach-led gym: owner sets brand and coaches; coaches own the floor — schedule, plan vs actual, coach ↔ member and class-group messages; members book via portal and rate classes. No front-desk persona.'}
+                ? 'Permanent coaches dual-write to People; rooms on the calendar; waitlist, reminders and recalls; in-app care by system user ID; marketplace listing — SA bills platform subscription only, not member fees.'
+                : 'Coach-led gym: owner sets brand and coaches; coaches own the floor with rooms, waitlist and care threads (system user ID when on-platform); members book via portal. No front-desk persona. SA does not bill member fees.'}
             </p>
           </button>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -570,29 +571,29 @@ export default function FitgraphSystemFlow({
             {[
               {
                 label: 'People',
-                sub: 'Coaches · members · tenure',
+                sub: 'Coaches · POPIA · People',
                 tone: 'violet',
               },
-              { label: 'Plans · subs', sub: 'Memberships · PT', tone: 'emerald' },
+              { label: 'Plans · subs', sub: 'Packs · freeze', tone: 'emerald' },
               { label: 'Class types', sub: 'Capacity', tone: 'amber' },
               {
                 label: 'Calendar',
-                sub: 'Plan · series · join',
+                sub: 'Rooms · series · join',
                 tone: 'sky',
               },
               {
                 label: 'Floor',
-                sub: 'Book · actual · feedback',
+                sub: 'Waitlist · actual · recall',
                 tone: 'rose',
               },
               {
                 label: 'Messages',
-                sub: 'Desk · coaches · members',
+                sub: 'System ID · in-app',
                 tone: 'fuchsia',
               },
               {
                 label: 'Website · reports',
-                sub: 'Embed · slice & dice',
+                sub: 'Marketplace · embed · ops',
                 tone: 'sky',
               },
             ].map((node, i, arr) => (

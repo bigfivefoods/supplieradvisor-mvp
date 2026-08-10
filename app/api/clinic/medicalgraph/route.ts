@@ -652,6 +652,137 @@ export async function POST(request: NextRequest) {
       });
     }
 
+
+    if (
+      action === 'upsert_visit_note' ||
+      action === 'record_outcome' ||
+      action === 'upsert_treatment_plan' ||
+      action === 'book_from_treatment_plan' ||
+      action === 'issue_care_pack'
+    ) {
+      if (action === 'issue_care_pack') {
+        const { issuePack } = await import('@/lib/services/advisor-pack-ledger');
+        store.care_packs = store.care_packs || [];
+        store.care_packs.unshift(
+          issuePack({
+            personId: String(body.person_id || body.patient_id || ''),
+            label: String(body.label || 'Care pack'),
+            sessionsTotal: Number(body.sessions_total) || 6,
+            priceZar: body.price_zar != null ? Number(body.price_zar) : null,
+            expiresAt: body.expires_at ? String(body.expires_at) : null,
+            now,
+          })
+        );
+      } else if (action === 'book_from_treatment_plan') {
+        const { clinicBookFromTreatmentPlan } = await import(
+          '@/lib/services/clinic-book-from-plan'
+        );
+        const result = clinicBookFromTreatmentPlan(
+          store,
+          body as {
+            plan_id?: string;
+            person_id?: string;
+            patient_id?: string;
+            family_member_id?: string | null;
+          },
+          now,
+          () => newId('bk')
+        );
+        if (!result.ok) {
+          return NextResponse.json(
+            { error: result.error },
+            { status: result.status || 400 }
+          );
+        }
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          store,
+          summary: summariseMedicalgraph(store),
+          analysis: analysis(store),
+          appointment_id: result.appointment_id,
+          booking_id: result.booking_id,
+          message: result.message,
+        });
+      } else if (action === 'upsert_visit_note') {
+        const { newVisitNote } = await import('@/lib/services/advisor-clinical');
+        store.visit_notes = store.visit_notes || [];
+        store.visit_notes.unshift(
+          newVisitNote({
+            person_id: String(body.person_id || body.patient_id || ''),
+            body: String(body.body || body.notes || ''),
+            booking_id: body.booking_id ? String(body.booking_id) : null,
+            appointment_id: body.appointment_id
+              ? String(body.appointment_id)
+              : null,
+            pain_score:
+              body.pain_score != null ? Number(body.pain_score) : null,
+            function_score:
+              body.function_score != null ? Number(body.function_score) : null,
+            soap: body.soap,
+            now,
+          })
+        );
+      } else if (action === 'record_outcome') {
+        const { newOutcomeScore } = await import(
+          '@/lib/services/advisor-clinical'
+        );
+        store.outcome_scores = store.outcome_scores || [];
+        store.outcome_scores.unshift(
+          newOutcomeScore({
+            person_id: String(body.person_id || body.patient_id || ''),
+            instrument: String(body.instrument || 'pain_nrs'),
+            score: Number(body.score),
+            now,
+          })
+        );
+      } else {
+        const { newTreatmentPlan } = await import(
+          '@/lib/services/advisor-clinical'
+        );
+        store.treatment_plans = store.treatment_plans || [];
+        if (body.id) {
+          const i = store.treatment_plans.findIndex(
+            (t) => t.id === String(body.id)
+          );
+          if (i >= 0) {
+            store.treatment_plans[i] = {
+              ...store.treatment_plans[i],
+              title: body.title
+                ? String(body.title)
+                : store.treatment_plans[i].title,
+              goals:
+                body.goals != null
+                  ? String(body.goals)
+                  : store.treatment_plans[i].goals,
+              status:
+                (body.status as (typeof store.treatment_plans)[0]['status']) ||
+                store.treatment_plans[i].status,
+              updated_at: now,
+            };
+          }
+        } else {
+          store.treatment_plans.unshift(
+            newTreatmentPlan({
+              person_id: String(body.person_id || body.patient_id || ''),
+              title: String(body.title || 'Treatment plan'),
+              package_id: body.package_id ? String(body.package_id) : null,
+              goals: body.goals ? String(body.goals) : undefined,
+              steps: Array.isArray(body.steps) ? body.steps : undefined,
+              now,
+            })
+          );
+        }
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseMedicalgraph(store),
+        analysis: analysis(store),
+      });
+    }
+
     if (action === 'upsert' || action === 'create' || action === 'update') {
       const rec = (body.record || body) as Record<string, unknown>;
 
@@ -960,6 +1091,12 @@ function upsert(
             ? String(rec.notes)
             : undefined
           : prev?.notes,
+      popia_consent_at:
+        rec.popia_consent_at !== undefined
+          ? rec.popia_consent_at
+            ? String(rec.popia_consent_at)
+            : null
+          : prev?.popia_consent_at ?? null,
       clinical,
       medical:
         rec.medical !== undefined

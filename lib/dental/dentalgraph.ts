@@ -335,6 +335,7 @@ export type DentalPatient = {
   last_no_show_at?: string | null;
   attended_count?: number;
   booking_soft_block?: boolean;
+  popia_consent_at?: string | null;
   /** VerifyNow (SA) or Didit (international) self-serve identity check */
   identity?: import('@/lib/identity/person-verification').PersonIdentityVerification;
   start_date?: string | null;
@@ -426,6 +427,8 @@ export type DentalPublicSettings = {
     blurb?: string;
     specialties?: string[];
   };
+  /** Surgeries / chairs / bays as diary resources */
+  rooms?: string[];
 };
 
 export type DentalgraphStore = {

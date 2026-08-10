@@ -2,7 +2,7 @@
 
 /**
  * End-to-end DentalAdvisor® process design:
- * People → Services · care plans → Diary → Floor → Messages → Website · reports
+ * People → Packs · plans → Diary (rooms) → Waitlist · floor → Messages → Marketplace · reports
  *
  * Expandable on the DentalAdvisor command hub; downloadable A4 PDF
  * (landscape + portrait) — same pattern as FitAdvisor / PhysioAdvisor.
@@ -54,33 +54,33 @@ type Phase = {
 const PHASES: Phase[] = [
   {
     id: 'people',
-    title: '1 · People (staff & patients)',
-    subtitle: 'Who treats · who is in care · assignment',
+    title: '1 · People (clinicians & patients)',
+    subtitle: 'Who treats · POPIA · People dual-write · invite',
     steps: [
       {
         id: 'staff',
         n: '1a',
         title: 'Staff register',
         who: 'Owner',
-        desc: 'Dentists, hygienists, assistants — roles, rates, bios.',
+        desc: 'Dentists, hygienists, assistants — roles, rates, bios. Permanent staff → People (HR).',
         href: '/dashboard/dentalgraph/staff',
         icon: UserRound,
       },
       {
         id: 'patients',
         n: '1b',
-        title: 'Patients',
+        title: 'Patients · POPIA',
         who: 'Owner / reception',
-        desc: 'Patient book; status; assign clinician and care plan.',
+        desc: 'Patient book with POPIA consent; assign clinician/pack; family dependents.',
         href: '/dashboard/dentalgraph/patients',
         icon: Users,
       },
       {
         id: 'clinical',
         n: '1c',
-        title: 'Clinical, chart & scripts',
-        who: 'Clinician',
-        desc: 'Tooth/site, goals, mods; medical aid, docs, claims.',
+        title: 'Clinical, chart & identity',
+        who: 'Dentist / hygienist',
+        desc: 'Tooth/site, goals, mods; medical aid, docs, claims, scripts; visit notes. Optional identity verify on portal.',
         href: '/dashboard/dentalgraph/patients',
         icon: FileText,
       },
@@ -88,8 +88,8 @@ const PHASES: Phase[] = [
         id: 'invite',
         n: '1d',
         title: 'Patient invite & portal',
-        who: 'Owner / desk',
-        desc: 'Email invite to join; patient portal for open diary slots, bookings, shared care.',
+        who: 'Owner / reception',
+        desc: 'Email invite; portal for open slots, waitlist, family booking, shared care.',
         href: '/dashboard/dentalgraph/patients',
         icon: Globe,
       },
@@ -97,8 +97,8 @@ const PHASES: Phase[] = [
   },
   {
     id: 'services',
-    title: '2 · Services & care plans',
-    subtitle: 'What you sell · multi-visit entitlement',
+    title: '2 · Services, packs & treatment plans',
+    subtitle: 'What you sell · entitlement · one-click book next',
     steps: [
       {
         id: 'catalogue',
@@ -112,18 +112,18 @@ const PHASES: Phase[] = [
       {
         id: 'packages',
         n: '2b',
-        title: 'Care plans',
+        title: 'Care packs',
         who: 'Owner',
-        desc: 'Multi-visit packages with sessions total and price.',
+        desc: 'Multi-visit packs with session ledger (fees outside SA).',
         href: '/dashboard/dentalgraph/packages',
         icon: CreditCard,
       },
       {
-        id: 'assign',
+        id: 'plans',
         n: '2c',
-        title: 'Assign plan',
-        who: 'Owner / reception',
-        desc: 'Link care plan on the patient so entitlement is clear.',
+        title: 'Treatment plans',
+        who: 'Owner / reception / clinician',
+        desc: 'Step plans on the patient record; Book next books the next open diary slot.',
         href: '/dashboard/dentalgraph/patients',
         icon: Package,
       },
@@ -131,67 +131,67 @@ const PHASES: Phase[] = [
   },
   {
     id: 'diary',
-    title: '3 · Diary (schedule · assign)',
-    subtitle: 'Slots with clinician and service',
+    title: '3 · Diary (rooms · practice · clinician)',
+    subtitle: 'Parallel practice floor · exclusive clinician books',
     steps: [
       {
         id: 'schedule',
         n: '3a',
-        title: 'Schedule appointment',
+        title: 'Rooms & schedule',
         who: 'Owner / reception',
-        desc: 'Date, time, service, chair; assign clinician.',
+        desc: 'Define chairs / surgeries on Website; schedule date, time, service, room; assign clinician.',
+        href: '/dashboard/dentalgraph/calendar',
+        icon: CalendarDays,
+      },
+      {
+        id: 'views',
+        n: '3b',
+        title: 'Practice vs clinician diary',
+        who: 'Owner / reception',
+        desc: 'Practice view runs all clinicians in parallel; each clinician cannot be double-booked.',
         href: '/dashboard/dentalgraph/calendar',
         icon: CalendarDays,
       },
       {
         id: 'public',
-        n: '3b',
+        n: '3c',
         title: 'Public flag',
         who: 'Owner',
-        desc: 'Mark public so the slot can appear for online booking.',
+        desc: 'Mark public so the slot can appear for portal / online booking.',
         href: '/dashboard/dentalgraph/calendar',
         icon: Globe,
-      },
-      {
-        id: 'reassign',
-        n: '3c',
-        title: 'Reassign',
-        who: 'Owner / reception',
-        desc: 'Change clinician anytime; diary is system of record.',
-        href: '/dashboard/dentalgraph/calendar',
-        icon: CalendarDays,
       },
     ],
   },
   {
     id: 'floor',
-    title: '4 · Floor (book · attend · feedback)',
-    subtitle: 'Capacity, attendance, post-visit pulse',
+    title: '4 · Floor (waitlist · attend · recall)',
+    subtitle: 'Book · queue · reminders · outcomes · feedback',
     steps: [
       {
         id: 'book',
         n: '4a',
-        title: 'Book patient',
+        title: 'Book · family · other clinician',
         who: 'Reception / website',
-        desc: 'Book onto slot; waitlist when full; desk, patient portal, or public booking.',
+        desc: 'Book patient or family; if preferred clinician full, book another or join waitlist.',
+        href: '/dashboard/dentalgraph/bookings',
+        icon: ClipboardCheck,
+      },
+      {
+        id: 'waitlist',
+        n: '4b',
+        title: 'Waitlist desk',
+        who: 'Desk',
+        desc: 'Slot waitlists + next-available practice queue; contact, promote, book when free.',
         href: '/dashboard/dentalgraph/bookings',
         icon: ClipboardCheck,
       },
       {
         id: 'attend',
-        n: '4b',
-        title: 'Mark attended',
-        who: 'Clinician / reception',
-        desc: 'Attended or no-show; triggers feedback when attended.',
-        href: '/dashboard/dentalgraph/bookings',
-        icon: ClipboardCheck,
-      },
-      {
-        id: 'feedback',
         n: '4c',
-        title: 'Visit feedback',
-        who: 'Patient',
-        desc: 'Patient rates the visit via token link after attendance.',
+        title: 'Remind · attend · plan · feedback',
+        who: 'Clinician / desk',
+        desc: '24h reminders; attended / no-show; care plan progresses; feedback token; recalls board.',
         href: '/dashboard/dentalgraph/bookings',
         icon: Sparkles,
       },
@@ -199,8 +199,8 @@ const PHASES: Phase[] = [
   },
   {
     id: 'messages',
-    title: '5 · Messages (internal · care · trade)',
-    subtitle: 'Desk · clinicians · patients · company inbox',
+    title: '5 · Messages (system ID · care · trade)',
+    subtitle: 'In-app first when patient is on SupplierAdvisor',
     steps: [
       {
         id: 'internal',
@@ -216,7 +216,7 @@ const PHASES: Phase[] = [
         n: '5b',
         title: 'Care · patient threads',
         who: 'Desk / clinician',
-        desc: 'Patient care messages so the whole team stays aligned.',
+        desc: 'Deliver to company inbox by platform system user ID when linked; email optional.',
         href: '/dashboard/dentalgraph/messages',
         icon: MessageSquare,
       },
@@ -233,33 +233,33 @@ const PHASES: Phase[] = [
   },
   {
     id: 'web',
-    title: '6 · Website & insights',
-    subtitle: 'Public profile · publish · utilisation',
+    title: '6 · Website, marketplace & insights',
+    subtitle: 'Rooms · ops · public list · utilisation',
     steps: [
       {
         id: 'profile',
         n: '6a',
-        title: 'Practice profile',
+        title: 'Profile · rooms · ops',
         who: 'Owner',
-        desc: 'Brand name, bio, contact; show staff / pricing.',
+        desc: 'Brand bio, room list, reschedule policy. SA only bills platform subscription.',
         href: '/dashboard/dentalgraph/website',
         icon: FileText,
       },
       {
         id: 'publish',
         n: '6b',
-        title: 'Publish & booking',
+        title: 'Publish & marketplace',
         who: 'Owner',
-        desc: 'Enable website and public booking; copy public token.',
+        desc: 'Enable website/booking; list on /marketplace/advisors (city + blurb).',
         href: '/dashboard/dentalgraph/website',
         icon: Globe,
       },
       {
         id: 'report',
         n: '6c',
-        title: 'Reports',
-        who: 'Owner',
-        desc: 'Utilisation by clinician, service, appointments.',
+        title: 'Reports · staff Today',
+        who: 'Owner / desk',
+        desc: 'Utilisation and outcomes; mobile staff PWA for today’s board.',
         href: '/dashboard/dentalgraph/report',
         icon: Package,
       },
@@ -272,18 +272,18 @@ const ROLE_CARDS = [
     tone: 'owner' as const,
     icon: UserRound,
     title: 'Practice owner / manager',
-    subtitle: 'Team · catalogue · diary · insight',
+    subtitle: 'Team · diary · waitlist · marketplace',
     does: [
-      'Register dentists, hygienists, assistants; roles & rates',
-      'Patient register; assign clinician + care plan',
-      'Define services and multi-visit care plans',
-      'Schedule diary; assign clinicians; public slots',
-      'Practice bio, website publish and booking flags',
-      'Messages with desk/staff; utilisation reports',
+      'Register clinicians; permanent staff dual-write to People',
+      'Patients with POPIA consent; invites, portals, family',
+      'Services, care packs, treatment plans; one-click book next',
+      'Practice + exclusive clinician diaries; rooms as resources',
+      'Waitlist desk, reminders, outcomes, recalls, staff Today PWA',
+      'In-app messages (system user ID); marketplace listing',
     ],
     doesNot: [
-      'Does not leave public slots without a clinician',
-      'Does not publish without website settings enabled',
+      'Does not double-book the same clinician diary',
+      'Does not take patient fees through SupplierAdvisor',
     ],
     href: '/dashboard/dentalgraph/calendar',
   },
@@ -291,17 +291,16 @@ const ROLE_CARDS = [
     tone: 'clinician' as const,
     icon: Smile,
     title: 'Dentist / hygienist',
-    subtitle: 'Diary · clinical · attend · feedback',
+    subtitle: 'Diary · clinical · attend · care plans',
     does: [
-      'Keep own bio / roles current for website',
-      'Update oral-health clinical notes (site, goals, mods)',
-      'Medical chart: medical aid, documents, claims',
-      'Run appointments; mark attended / no-show',
-      'Reply on care threads with desk and patients',
+      'Keep bio current; clinical notes and medical chart',
+      'Treatment plan steps; visit notes and outcome scores',
+      'Mark attended / no-show (progresses care plans)',
+      'Care threads; patients get in-app when on-system',
       'Request post-visit feedback after attendance',
     ],
     doesNot: [
-      'Does not change other clinicians’ rates',
+      'Does not change other clinicians’ rates or double-book own diary',
       'Does not publish the whole practice website alone',
     ],
     href: '/dashboard/dentalgraph/staff',
@@ -310,17 +309,17 @@ const ROLE_CARDS = [
     tone: 'patient' as const,
     icon: Users,
     title: 'Patient / public',
-    subtitle: 'Invite · portal · book · feedback',
+    subtitle: 'Portal · book · family · feedback',
     does: [
-      'See published practice profile and public diary',
-      'Book via desk or website when enabled',
-      'Hold care plan entitlement across visits',
-      'Receive care messages from the practice',
-      'After visit: give feedback when prompted',
+      'Book open slots (preferred or other clinician when allowed)',
+      'Join slot waitlist or next-available practice queue',
+      'Book household members; identity verify when asked',
+      'In-app messages once on SupplierAdvisor',
+      'After visit: feedback; shared care when enabled',
     ],
     doesNot: [
-      'Does not see private / unpublished slots',
-      'Does not access clinician rates or other patients’ charts',
+      'Does not see private slots or other patients’ charts',
+      'Does not pay practice fees through the SA platform',
     ],
     href: '/dashboard/dentalgraph/website',
   },
@@ -328,36 +327,40 @@ const ROLE_CARDS = [
 
 const GUARDRAILS = [
   {
-    title: 'Clinician on every public slot',
-    desc: 'Diary assigns a dentist or hygienist; public slots without one are incomplete.',
+    title: 'No double-book per clinician',
+    desc: 'Each clinician diary is exclusive; the practice can still run many clinicians in parallel.',
   },
   {
     title: 'Public = published',
     desc: 'Only public slots and an enabled website profile are ready for online booking.',
   },
   {
-    title: 'Care plans track entitlement',
-    desc: 'Multi-visit plans live on the patient — not a side spreadsheet.',
+    title: 'POPIA on create',
+    desc: 'Desk confirms lawful processing when creating a patient; portals show a privacy notice.',
   },
   {
-    title: 'Clinical notes travel with the patient',
-    desc: 'Site, status, mods and goals keep every visit safe and progressive.',
+    title: 'Care packs & treatment plans',
+    desc: 'Session packs and step plans live on the patient — Book next from the plan.',
   },
   {
-    title: 'Medical chart is first-class',
-    desc: 'Medical aid, documents and claims sit on the patient record.',
+    title: 'Waitlist is a desk queue',
+    desc: 'Slot waitlist plus next-available practice queue with notify when a place opens.',
   },
   {
-    title: 'Attend then feedback',
-    desc: 'Mark attended before the post-visit feedback token is issued.',
+    title: 'Messages: system ID first',
+    desc: 'Once the patient is on SupplierAdvisor, care threads deliver in-app by platform user ID.',
+  },
+  {
+    title: 'SA does not bill patients',
+    desc: 'SupplierAdvisor only bills the company platform subscription; clinic fees stay off-platform.',
+  },
+  {
+    title: 'Permanent staff → People',
+    desc: 'Permanent clinicians dual-write into People; casuals stay on the Advisor book only.',
   },
   {
     title: 'Tokenised public surfaces',
-    desc: 'Website uses a secret public token — no private PII on open calendars.',
-  },
-  {
-    title: 'One practice book',
-    desc: 'People, diary, bookings, messages and website share one DentalAdvisor store.',
+    desc: 'Website and portals use secret tokens — no private charts on open calendars.',
   },
 ];
 
@@ -386,13 +389,13 @@ export default function DentalgraphSystemFlow({
               Full dental practice OS — process design
             </p>
             <h2 className="text-lg sm:text-xl font-black mt-0.5 leading-tight">
-              People → Services · care plans → Diary → Floor → Messages →
-              Website · reports
+              People → Packs · plans → Diary (rooms) → Waitlist · floor → Messages →
+              Marketplace · reports
             </h2>
             <p className="text-sm text-white/90 mt-1.5 max-w-3xl leading-snug">
-              Owner manages staff, patients, services and care plans; clinicians
-              run oral-health notes, attendance and care threads; patients book
-              and give post-visit feedback; reports show utilisation end to end.
+              POPIA-aware patient book; exclusive clinician diaries with rooms; waitlist
+              desk and treatment-plan book next; in-app care by system user ID;
+              marketplace listing — SA bills platform subscription only.
             </p>
           </button>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -417,22 +420,22 @@ export default function DentalgraphSystemFlow({
         <div className="p-4 sm:p-6 space-y-8">
           <div className="flex flex-wrap items-center justify-center gap-2 text-center">
             {[
-              { label: 'People', sub: 'Staff · patients', tone: 'sky' },
+              { label: 'People', sub: 'Staff · POPIA · People', tone: 'sky' },
               {
                 label: 'Services · plans',
-                sub: 'Catalogue · care plans',
+                sub: 'Packs · treatment plans',
                 tone: 'emerald',
               },
-              { label: 'Diary', sub: 'Schedule · assign', tone: 'violet' },
+              { label: 'Diary', sub: 'Rooms · practice · clinician', tone: 'violet' },
               {
                 label: 'Floor',
-                sub: 'Book · attend · feedback',
+                sub: 'Waitlist · attend · recall',
                 tone: 'amber',
               },
-              { label: 'Messages', sub: 'Internal · care · trade', tone: 'fuchsia' },
+              { label: 'Messages', sub: 'System ID · in-app', tone: 'fuchsia' },
               {
                 label: 'Website · reports',
-                sub: 'Publish · utilisation',
+                sub: 'Marketplace · rooms · ops',
                 tone: 'cyan',
               },
             ].map((node, i, arr) => (

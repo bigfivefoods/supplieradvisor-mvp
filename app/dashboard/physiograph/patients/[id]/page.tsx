@@ -9,12 +9,13 @@ import {
   usePhysiograph,
 } from '@/components/clinic/PhysiographWorkbench';
 import { PatientMedicalChart } from '@/components/clinic/PatientMedicalChart';
+import { AdvisorTreatmentPlanPanel } from '@/components/services/AdvisorTreatmentPlanPanel';
 import { healthSummaryLabel } from '@/lib/health/body-map';
 
 export default function PhysioPatientRecordPage() {
   const { id } = useParams() as { id: string };
   const search = useSearchParams();
-  const { companyId, store, loading, saving, post } = usePhysiograph();
+  const { companyId, store, loading, saving, post, load } = usePhysiograph();
 
   const patient = useMemo(
     () => store?.patients.find((p) => p.id === id),
@@ -106,6 +107,23 @@ export default function PhysioPatientRecordPage() {
               </span>
             ) : null}
           </div>
+          
+          <AdvisorTreatmentPlanPanel
+            personId={patient.id}
+            personLabel={patient.name}
+            plans={store.treatment_plans || []}
+            services={store.services.map((s) => ({ id: s.id, name: s.name }))}
+            appointments={store.appointments}
+            bookings={store.bookings}
+            accentClass="border-teal-200"
+            post={async (body) => {
+              await post(body);
+            }}
+            onRefresh={() => {
+              void load();
+            }}
+          />
+
           <PatientMedicalChart
             companyId={companyId}
             patientId={patient.id}

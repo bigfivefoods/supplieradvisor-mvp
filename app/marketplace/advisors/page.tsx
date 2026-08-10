@@ -27,6 +27,7 @@ export default function AdvisorMarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [city, setCity] = useState('');
   const [module, setModule] = useState('');
+  const [qText, setQText] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -34,6 +35,7 @@ export default function AdvisorMarketplacePage() {
       const q = new URLSearchParams();
       if (city.trim()) q.set('city', city.trim());
       if (module) q.set('module', module);
+      if (qText.trim()) q.set('q', qText.trim());
       const res = await fetch(`/api/public/advisor/marketplace?${q}`, {
         cache: 'no-store',
       });
@@ -42,7 +44,7 @@ export default function AdvisorMarketplacePage() {
     } finally {
       setLoading(false);
     }
-  }, [city, module]);
+  }, [city, module, qText]);
 
   useEffect(() => {
     void load();
@@ -68,12 +70,19 @@ export default function AdvisorMarketplacePage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 pl-9 pr-3 py-2.5 text-sm"
-              placeholder="City…"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
+              placeholder="Search name or specialty…"
+              value={qText}
+              onChange={(e) => setQText(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && void load()}
             />
           </div>
+          <input
+            className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm w-36"
+            placeholder="City…"
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && void load()}
+          />
           <select
             className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm"
             value={module}
@@ -82,6 +91,9 @@ export default function AdvisorMarketplacePage() {
             <option value="">All Advisors</option>
             <option value="fitgraph">FitAdvisor</option>
             <option value="dentalgraph">DentalAdvisor</option>
+            <option value="physiograph">PhysioAdvisor</option>
+            <option value="medicalgraph">MedicalAdvisor</option>
+            <option value="psychiatrygraph">PsychiatryAdvisor</option>
           </select>
           <button
             type="button"
@@ -140,13 +152,28 @@ export default function AdvisorMarketplacePage() {
                     ) : null}
                   </div>
                   {l.book_path ? (
-                    <Link
-                      href={l.book_path}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-violet-600 text-white px-4 py-2.5 text-sm font-bold shrink-0"
-                    >
-                      <Sparkles className="w-4 h-4" /> Book
-                    </Link>
-                  ) : null}
+                    l.book_path.startsWith('http') ? (
+                      <a
+                        href={l.book_path}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-violet-600 text-white px-4 py-2.5 text-sm font-bold shrink-0"
+                      >
+                        <Sparkles className="w-4 h-4" /> Visit
+                      </a>
+                    ) : (
+                      <Link
+                        href={l.book_path}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-violet-600 text-white px-4 py-2.5 text-sm font-bold shrink-0"
+                      >
+                        <Sparkles className="w-4 h-4" /> Book
+                      </Link>
+                    )
+                  ) : (
+                    <span className="text-[11px] font-semibold text-slate-400 shrink-0">
+                      Listed · contact practice
+                    </span>
+                  )}
                 </div>
               </li>
             ))}

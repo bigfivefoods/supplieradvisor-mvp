@@ -1,6 +1,6 @@
 /**
  * FitAdvisor® end-to-end process guide content + PDF.
- * People → Plans → Classes → Calendar → Floor → Messages → Website · reports
+ * People → Plans → Classes → Calendar (rooms) → Floor → Messages → Marketplace · reports
  * Pure pdfkit — works on Vercel serverless.
  *
  * Do not import from client components (pulls pdfkit into the browser bundle).
@@ -24,64 +24,61 @@ export type ProcessPhase = {
 };
 
 export const PROCESS_CHAIN = [
-  { label: 'People', sub: 'Coaches · members · tenure' },
-  { label: 'Plans · subs', sub: 'Memberships · PT' },
+  { label: 'People', sub: 'Coaches · members · POPIA' },
+  { label: 'Plans · subs', sub: 'Memberships · packs · freeze' },
   { label: 'Class types', sub: 'Capacity · duration' },
-  { label: 'Calendar', sub: 'Plan · series · join' },
-  { label: 'Floor', sub: 'Book · actual · feedback' },
-  { label: 'Messages', sub: 'Desk · coaches · members' },
-  { label: 'Website · reports', sub: 'Embed · slice & dice' },
+  { label: 'Calendar', sub: 'Rooms · series · join' },
+  { label: 'Floor', sub: 'Waitlist · actual · recall' },
+  { label: 'Messages', sub: 'System ID · in-app' },
+  { label: 'Website · reports', sub: 'Marketplace · embed' },
 ] as const;
 
 export const ROLE_CARDS = [
   {
     title: 'Gym owner / manager',
-    subtitle: 'Brand · people · schedule · money · insight',
+    subtitle: 'Brand · people · floor · marketplace',
     does: [
-      'Register & edit coaches; manage specialty catalogue',
-      'Set engagement dates, rates, PDF contracts; end / rehire tenure',
-      'Import / export members; email invites to portal; assign plans & coaches',
-      'Schedule classes, coach calendar (plan vs actual), B2C join links',
-      'In-app messages: desk · coaches · members (and company trade partners)',
-      'Gym bio, public PDF contracts, website embed',
-      'Slice-and-dice reports: coaches, classes, plan vs actual, feedback',
+      'Register coaches; permanent staff dual-write to People (HR)',
+      'Members with invites, family, POPIA-aware desk; membership freeze',
+      'Schedule with rooms/studios; concurrent coaches when floor allows',
+      'Waitlist, reminders, outcomes; staff Today PWA',
+      'In-app messages by system user ID; delivery status',
+      'Website embed, marketplace listing, reschedule policy, ops',
     ],
     doesNot: [
-      'Does not leave coaches unassigned on public classes',
+      'Does not take membership fees through SupplierAdvisor (platform subscription only)',
       'Does not publish without website settings enabled',
     ],
   },
   {
     title: 'Coach',
-    subtitle: 'Classes · roster · plan · feedback',
+    subtitle: 'Classes · roster · plan · care threads',
     does: [
-      'Open coach portal with private token; update own profile / bio',
-      'Create one-off or weekly series; write class plan (members see it)',
-      'Share / unshare classes; book walk-ins and members',
-      'Mark plan vs actual (attended / no-show) on roster',
-      'Message desk and members on care / class threads',
-      'Submit post-class coach feedback (feel · intensity / RPE)',
-      'Read member feedback averages for their sessions',
+      'Open coach portal; update profile / bio',
+      'Create one-off or weekly series; class plan members can see',
+      'Share / unshare classes; book walk-ins; rooms when set',
+      'Mark plan vs actual (attended / no-show); no-show soft-block',
+      'Message desk and members (in-app when member is on-system)',
+      'Post-class coach feedback (feel · RPE)',
     ],
     doesNot: [
-      'Does not manage other coaches’ sessions',
+      'Does not manage other coaches’ sessions (unless owner)',
       'Does not change membership billing or coach rates',
     ],
   },
   {
     title: 'Member / customer',
-    subtitle: 'Book · attend · feedback',
+    subtitle: 'Portal · book · family · feedback',
     does: [
-      'See public schedule on gym website / embed (bio + contracts)',
-      'Accept email invite; book via website, member portal, or B2C class join link (or waitlist)',
-      'Add class to phone calendar (Google / .ics)',
-      'Hold active subscription or class pack; check in at desk',
-      'Message the desk / coach on care threads when linked',
-      'After class: feedback on feel, intensity, enjoyment via join link',
+      'Accept invite; book classes or join waitlist on portal / embed',
+      'Book household family members; identity verify when asked',
+      'Add class to phone calendar (.ics / Google)',
+      'In-app messages once on SupplierAdvisor (system user ID)',
+      'After class: feedback on feel, intensity, enjoyment',
     ],
     doesNot: [
       'Does not see private / unpublished sessions',
-      'Does not access coach portal tokens or owner rates',
+      'Does not pay gym fees through the SA platform (gym bills separately)',
     ],
   },
 ] as const;
@@ -89,7 +86,7 @@ export const ROLE_CARDS = [
 export const PROCESS_PHASES: ProcessPhase[] = [
   {
     title: '1 · People (coaches & members)',
-    subtitle: 'Who trains · who attends · tenure · rates',
+    subtitle: 'Who trains · who attends · People dual-write · POPIA',
     steps: [
       {
         n: '1a',
@@ -99,45 +96,45 @@ export const PROCESS_PHASES: ProcessPhase[] = [
       },
       {
         n: '1b',
-        title: 'Coach register & edit',
+        title: 'Coach register · People',
         who: 'Owner',
-        desc: 'Bio, contact, photo, specialties; portal link; full edit anytime.',
+        desc: 'Bio, photo, specialties, portal; permanent coaches dual-write to People.',
       },
       {
         n: '1c',
         title: 'Engagement · rates · contracts',
         who: 'Owner',
-        desc: 'Start/end dates, ZAR rate & basis, PDF agreements; history on rehire.',
+        desc: 'Start/end dates, ZAR rate, PDF agreements; history on rehire.',
       },
       {
         n: '1d',
-        title: 'Clients / members',
-        who: 'Owner',
-        desc: 'Member book or bulk .xlsx import/export; plan, status, coach.',
+        title: 'Members · invite · family',
+        who: 'Owner / desk',
+        desc: 'Member book or bulk .xlsx; email invite & portal; family; POPIA-aware desk.',
       },
     ],
   },
   {
     title: '2 · Memberships & subscriptions',
-    subtitle: 'Plans sell · subs track entitlement',
+    subtitle: 'Plans sell · subs track entitlement · freeze',
     steps: [
       {
         n: '2a',
         title: 'Membership plans',
         who: 'Owner',
-        desc: 'Unlimited, packs, drop-in; price, credits, public pricing flag.',
+        desc: 'Unlimited, packs, drop-in; public pricing flag (fees collected outside SA).',
       },
       {
         n: '2b',
-        title: 'Subscriptions',
+        title: 'Subscriptions · freeze',
         who: 'Owner',
-        desc: 'Active / trial / paused / cancelled; remaining class credits.',
+        desc: 'Active / trial / paused / cancelled; remaining credits; freeze periods.',
       },
       {
         n: '2c',
-        title: 'PT packs',
+        title: 'PT & class packs',
         who: 'Owner',
-        desc: 'Issue personal-training session packs per client and coach.',
+        desc: 'Session packs / care pack ledger; expiry and remaining sessions.',
       },
     ],
   },
@@ -160,62 +157,62 @@ export const PROCESS_PHASES: ProcessPhase[] = [
     ],
   },
   {
-    title: '4 · Calendar (schedule · plan · join)',
-    subtitle: 'Owner grid + coach week + B2C links',
+    title: '4 · Calendar (rooms · plan · join)',
+    subtitle: 'Owner grid + coach week + resources',
     steps: [
       {
         n: '4a',
-        title: 'Schedule session',
+        title: 'Rooms & schedule',
         who: 'Owner',
-        desc: 'Date, time, room, class type, assign coach (filter by specialty).',
+        desc: 'Named studios/rooms under Website; schedule date, time, room, class; assign coach.',
       },
       {
         n: '4b',
-        title: 'Coach calendar',
+        title: 'Coach calendar · concurrent',
         who: 'Owner / coach',
-        desc: 'Per-coach week: plan roster, actuals, series, class plan text.',
+        desc: 'Week plan, series, class plan text; optional concurrent coaches on large floors.',
       },
       {
         n: '4c',
         title: 'Publish & join links',
         who: 'Owner / coach',
-        desc: 'Mark public; copy B2C join URL so members book and save to calendar.',
+        desc: 'Mark public; B2C join URL so members book and save to calendar (.ics).',
       },
     ],
   },
   {
-    title: '5 · Floor (book · actual · feedback)',
-    subtitle: 'Capacity, attendance, post-class pulse',
+    title: '5 · Floor (waitlist · actual · recall)',
+    subtitle: 'Capacity, attendance, outcomes, feedback',
     steps: [
       {
         n: '5a',
-        title: 'Book members',
-        who: 'Desk / coach / web',
-        desc: 'Book into session; auto-waitlist when full; desk, portal or join link.',
+        title: 'Book · waitlist · family',
+        who: 'Desk / coach / portal',
+        desc: 'Book session; auto-waitlist when full; household attendees; treatment-plan book next.',
       },
       {
         n: '5b',
-        title: 'Plan vs actual',
+        title: 'Remind · plan vs actual',
         who: 'Coach / desk',
-        desc: 'Mark attended / no-show on roster; completes session when marked.',
+        desc: '24h reminders; mark attended / no-show; soft-block high no-show risk.',
       },
       {
         n: '5c',
-        title: 'Class feedback',
-        who: 'Member · coach',
-        desc: 'After class: feel (1–5), intensity RPE (1–10), tags, comment.',
+        title: 'Feedback · outcomes · recalls',
+        who: 'Member · coach · owner',
+        desc: 'Class feedback; outcomes board; re-engage overdue members.',
       },
       {
         n: '5d',
-        title: 'Check-ins',
+        title: 'Check-ins · staff Today',
         who: 'Desk',
-        desc: 'Front-desk or class attendance log by day.',
+        desc: 'Front-desk log; mobile staff PWA for today’s board.',
       },
     ],
   },
   {
-    title: '6 · Messages (internal & care)',
-    subtitle: 'Desk · coaches · members — in-app, not email silos',
+    title: '6 · Messages (system ID · care · trade)',
+    subtitle: 'In-app first when member is on SupplierAdvisor',
     steps: [
       {
         n: '6a',
@@ -225,9 +222,9 @@ export const PROCESS_PHASES: ProcessPhase[] = [
       },
       {
         n: '6b',
-        title: 'Member care messages',
-        who: 'Desk / coach · member',
-        desc: 'Class and care threads with members when linked on the gym book.',
+        title: 'Member care & class groups',
+        who: 'Desk / coach · members',
+        desc: '1:1 care or whole-class group; deliver by platform system user ID when linked; email optional.',
       },
       {
         n: '6c',
@@ -238,26 +235,26 @@ export const PROCESS_PHASES: ProcessPhase[] = [
     ],
   },
   {
-    title: '7 · Website, contracts & insights',
-    subtitle: 'Public profile · embed · slice & dice',
+    title: '7 · Website, marketplace & insights',
+    subtitle: 'Embed · ops · public list · slice & dice',
     steps: [
       {
         n: '7a',
-        title: 'Gym profile & contracts',
+        title: 'Gym profile · rooms · contracts',
         who: 'Owner',
-        desc: 'Brand bio, public PDF contracts (T&Cs, waivers), show on embed.',
+        desc: 'Brand bio, public PDF contracts, room list, reschedule policy.',
       },
       {
         n: '7b',
-        title: 'Website embed / API',
+        title: 'Embed · marketplace',
         who: 'Owner',
-        desc: 'Publish calendar, booking on/off, iframe or JSON for the gym site.',
+        desc: 'Publish calendar/booking; list on /marketplace/advisors (city + blurb).',
       },
       {
         n: '7c',
         title: 'Reports (slice & dice)',
         who: 'Owner',
-        desc: 'Date/coach/class/specialty filters; coaches, classes, plan vs actual, feedback, members, daily CSV.',
+        desc: 'Date/coach/class filters; plan vs actual, feedback, utilisation CSV.',
       },
     ],
   },
@@ -274,19 +271,27 @@ export const GUARDRAILS = [
   },
   {
     title: 'Capacity & waitlist',
-    desc: 'Bookings auto-waitlist when capacity is full — desk, coach or website.',
+    desc: 'Bookings auto-waitlist when full — desk, coach, portal or website.',
+  },
+  {
+    title: 'Concurrent coaches optional',
+    desc: 'Large floors may allow coaches at the same time; toggle under Website ops.',
   },
   {
     title: 'Plan then actual',
-    desc: 'Roster plan (who is coming) then mark actual attended / no-show after class.',
+    desc: 'Roster plan then mark actual attended / no-show; soft-block chronic no-shows.',
   },
   {
-    title: 'Tenure history kept',
-    desc: 'Ending a coach archives dates + rate into history; rehire starts a new stint.',
+    title: 'Messages: system ID first',
+    desc: 'Once the member is on SupplierAdvisor, care threads deliver in-app by platform user ID.',
   },
   {
-    title: 'Feedback after the session',
-    desc: 'Members use the class join link; coaches use the portal session detail.',
+    title: 'SA does not bill members',
+    desc: 'SupplierAdvisor only bills the company platform subscription; gym fees stay off-platform.',
+  },
+  {
+    title: 'Permanent coaches → People',
+    desc: 'Permanent coaches dual-write into People; casuals stay on the FitAdvisor book only.',
   },
   {
     title: 'Tokenised portals',
@@ -296,53 +301,46 @@ export const GUARDRAILS = [
     title: 'One gym book',
     desc: 'Coaches, classes, bookings, messages, feedback and website share the same FitAdvisor store.',
   },
-  {
-    title: 'Messages stay in-app',
-    desc: 'Desk, coaches and members message on the OS — not a side WhatsApp group as the system of record.',
-  },
 ];
 
 export const SYSTEM_BENEFITS = [
   {
     title: 'Owner schedules coaches',
-    desc: 'Calendar is the system of record for who teaches what and when.',
+    desc: 'Calendar is the system of record for who teaches what and when — with rooms.',
   },
   {
     title: 'Coach self-service',
     desc: 'Portal: profile, class plan, series, walk-ins, actuals, feedback — no desk login.',
   },
   {
-    title: 'Plan vs actual',
-    desc: 'See who was planned vs who came — fill % and show-up % in reports.',
+    title: 'Waitlist · reminders · recalls',
+    desc: 'Fill classes, nudge 24h out, re-engage members who went quiet.',
   },
   {
     title: 'In-app messaging',
-    desc: 'Internal desk/coach threads and member care messages on the same gym book.',
+    desc: 'Desk/coach/member threads with system-user delivery when on-platform.',
   },
   {
-    title: 'Website-ready',
-    desc: 'Branded embed, gym bio, public contracts and JSON API for the gym site.',
+    title: 'Marketplace discoverability',
+    desc: 'Opt-in listing on /marketplace/advisors with city and blurb.',
   },
   {
-    title: 'Bulk member load',
-    desc: 'Download / upload client list as .xlsx with plan and coach codes.',
+    title: 'Membership freeze & packs',
+    desc: 'Pause entitlement cleanly; track remaining sessions on packs.',
   },
   {
-    title: 'Subscriptions first-class',
-    desc: 'Plans and active subs with credits — not a spreadsheet side system.',
-  },
-  {
-    title: 'Class feedback loop',
-    desc: 'Member and coach feel + intensity after every session for programming.',
+    title: 'Staff Today PWA',
+    desc: 'Mobile today board for desk and floor without full dashboard.',
   },
   {
     title: 'Slice-and-dice reports',
-    desc: 'Filter by date, coach, class, specialty; export any view as CSV.',
+    desc: 'Fill %, show-up %, feedback and utilisation without leaving the OS.',
   },
 ];
 
 export const ONE_SENTENCE =
-  'Register coaches (specialties, tenure, rates, contracts, photos) and members (or .xlsx) → email invites so members join portals → sell plans and track subs → define class types → schedule coaches, set class plans and join links → book and mark plan vs actual on the floor → message desk, coaches and members in-app → leave post-class feedback → publish website bio/contracts and slice-and-dice reports.';
+  'Register coaches and members (People dual-write · invites · family) → memberships, freezes and packs → class types → calendar with rooms and publish/join links → book, waitlist, remind, attend, feedback and recalls → in-app messages by system user ID → website embed, marketplace listing and utilisation reports — SA only bills the gym’s platform subscription.';
+
 
 // ── PDF (violet brand) ──────────────────────────────────────────────────
 

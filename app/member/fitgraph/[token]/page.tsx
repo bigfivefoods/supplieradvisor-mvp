@@ -21,6 +21,7 @@ import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
 import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
 import { VerifiedBadge } from '@/components/services/VerifiedBadge';
+import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
 
 type OpenClass = {
   id: string;
@@ -359,6 +360,7 @@ export default function MemberFitgraphPortalPage() {
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-5 space-y-4">
+        <PopiaConsentNotice brand={portal.brand} />
         {(msg || error) && (
           <div
             className={`rounded-xl border px-3 py-2 text-sm ${

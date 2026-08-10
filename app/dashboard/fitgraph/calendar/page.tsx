@@ -453,14 +453,31 @@ export default function CalendarPage() {
                 setForm((f) => ({ ...f, location: e.target.value }))
               }
             />
-            <input
-              className={fc()}
-              placeholder="Room / studio (resource)"
-              value={form.room}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, room: e.target.value }))
-              }
-            />
+            {(store.settings?.rooms || []).length > 0 ? (
+              <select
+                className={fc()}
+                value={form.room}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, room: e.target.value }))
+                }
+              >
+                <option value="">Room / studio…</option>
+                {(store.settings?.rooms || []).map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                className={fc()}
+                placeholder="Room / studio (set list under Website)"
+                value={form.room}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, room: e.target.value }))
+                }
+              />
+            )}
             <input
               className={fc()}
               type="number"

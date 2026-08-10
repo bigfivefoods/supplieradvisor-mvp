@@ -18,6 +18,8 @@ type Props = {
   saving?: boolean;
   /** Fit: concurrent coaches allowed (default true) */
   allowConcurrent?: boolean;
+  /** Hide gym floor capacity (clinics use diary conflict rules instead) */
+  showConcurrent?: boolean;
   onSave: (payload: {
     reschedule_policy: ReschedulePolicy;
     marketplace: { listed: boolean; city: string; blurb: string };
@@ -37,6 +39,7 @@ export function AdvisorOpsPoliciesCard({
   marketplace,
   saving,
   allowConcurrent = true,
+  showConcurrent = true,
   onSave,
   accentClass = 'border-violet-200',
 }: Props) {
@@ -77,26 +80,28 @@ export function AdvisorOpsPoliciesCard({
         </p>
       </div>
 
-      <section className="space-y-2">
-        <p className="text-xs font-black uppercase tracking-wide text-slate-400">
-          Floor capacity
-        </p>
-        <label className="flex items-start gap-2 text-sm font-medium">
-          <input
-            type="checkbox"
-            className="mt-1"
-            checked={concurrent}
-            onChange={(e) => setConcurrent(e.target.checked)}
-          />
-          <span>
-            Allow coaches to schedule at the same time
-            <span className="block text-[11px] font-normal text-slate-500">
-              Large floors / multiple stations — concurrent sessions are normal,
-              not conflicts.
+      {showConcurrent ? (
+        <section className="space-y-2">
+          <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+            Floor capacity
+          </p>
+          <label className="flex items-start gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={concurrent}
+              onChange={(e) => setConcurrent(e.target.checked)}
+            />
+            <span>
+              Allow coaches to schedule at the same time
+              <span className="block text-[11px] font-normal text-slate-500">
+                Large floors / multiple stations — concurrent sessions are
+                normal, not conflicts.
+              </span>
             </span>
-          </span>
-        </label>
-      </section>
+          </label>
+        </section>
+      ) : null}
 
       <section className="space-y-2">
         <p className="text-xs font-black uppercase tracking-wide text-slate-400 flex items-center gap-1">

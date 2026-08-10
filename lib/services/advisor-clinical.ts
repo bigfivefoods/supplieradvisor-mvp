@@ -194,3 +194,101 @@ export function outcomeTrend(
         : null,
   };
 }
+
+/** Next incomplete step that still needs sessions */
+export function nextOpenTreatmentStep(
+  plan: TreatmentPlan
+): TreatmentPlanStep | null {
+  if (plan.status !== 'active' && plan.status !== 'draft') return null;
+  return (
+    plan.steps.find(
+      (s) => s.status === 'planned' || s.status === 'in_progress'
+    ) || null
+  );
+}
+
+/**
+ * One-click book: first open diary slot matching the next plan step's service
+ * (or any open slot if the step has no service).
+ */
+export function findNextBookableAppointment(opts: {
+  appointments: Array<{
+    id: string;
+    service_id?: string;
+    date: string;
+    start_time: string;
+    status: string;
+  }>;
+  bookings: Array<{ appointment_id?: string; session_id?: string; status: string }>;
+  serviceId?: string | null;
+  fromDate?: string;
+  /** when true, use session_id instead of appointment_id on bookings */
+  useSessionId?: boolean;
+}): string | null {
+  const today = opts.fromDate || new Date().toISOString().slice(0, 10);
+  const taken = new Set(
+    opts.bookings
+      .filter((b) =>
+        ['booked', 'attended', 'waitlist'].includes(String(b.status))
+      )
+      .map((b) =>
+        opts.useSessionId
+          ? String(b.session_id || '')
+          : String(b.appointment_id || '')
+      )
+      .filter(Boolean)
+  );
+  const open = opts.appointments
+    .filter(
+      (a) =>
+        a.status === 'scheduled' &&
+        a.date >= today &&
+        !taken.has(a.id) &&
+        (!opts.serviceId || a.service_id === opts.serviceId)
+    )
+    .sort((a, b) =>
+      a.date === b.date
+        ? a.start_time.localeCompare(b.start_time)
+        : a.date.localeCompare(b.date)
+    );
+  return open[0]?.id || null;
+}
+
+export function planBookPreview(
+  plan: TreatmentPlan,
+  appointments: Array<{
+    id: string;
+    service_id?: string;
+    date: string;
+    start_time: string;
+    status: string;
+  }>,
+  bookings: Array<{ appointment_id?: string; session_id?: string; status: string }>,
+  opts?: { useSessionId?: boolean; fromDate?: string }
+): {
+  step: TreatmentPlanStep | null;
+  appointmentId: string | null;
+} {
+  const step = nextOpenTreatmentStep(plan);
+  if (!step) return { step: null, appointmentId: null };
+  const appointmentId = findNextBookableAppointment({
+    appointments,
+    bookings,
+    serviceId: step.service_id,
+    fromDate: opts?.fromDate,
+    useSessionId: opts?.useSessionId,
+  });
+  // Fallback: any open slot if service-specific is full
+  if (!appointmentId && step.service_id) {
+    return {
+      step,
+      appointmentId: findNextBookableAppointment({
+        appointments,
+        bookings,
+        fromDate: opts?.fromDate,
+        useSessionId: opts?.useSessionId,
+      }),
+    };
+  }
+  return { step, appointmentId };
+}

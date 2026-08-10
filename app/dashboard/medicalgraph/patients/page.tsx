@@ -24,6 +24,7 @@ import {
   type InjuryFormState,
 } from '@/components/health/InjuryProfileFields';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
+import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
 
 type PatientForm = {
   id?: string;
@@ -38,6 +39,7 @@ type PatientForm = {
   emergency_contact: string;
   notes: string;
   clinical: InjuryFormState;
+  popia_consent: boolean;
 };
 
 const blankForm = (): PatientForm => ({
@@ -52,6 +54,7 @@ const blankForm = (): PatientForm => ({
   emergency_contact: '',
   notes: '',
   clinical: emptyInjuryForm(),
+  popia_consent: false,
 });
 
 export default function PatientsPage() {
@@ -73,6 +76,7 @@ export default function PatientsPage() {
       emergency_contact: p.emergency_contact || '',
       notes: p.notes || '',
       clinical: healthToForm(p.clinical, p.diagnosis_notes),
+      popia_consent: !!p.popia_consent_at,
     });
     setEditing(true);
   };
@@ -80,6 +84,10 @@ export default function PatientsPage() {
   const save = async () => {
     if (!form.name.trim()) {
       toast.error('Name required');
+      return;
+    }
+    if (!form.id && !form.popia_consent) {
+      toast.error('Confirm POPIA consent before creating the patient record');
       return;
     }
     const clinical = formToHealthPayload(form.clinical);
@@ -98,6 +106,13 @@ export default function PatientsPage() {
         package_id: form.package_id || null,
         emergency_contact: form.emergency_contact,
         notes: form.notes,
+        ...(form.id
+          ? {}
+          : {
+              popia_consent_at: form.popia_consent
+                ? new Date().toISOString()
+                : null,
+            }),
         clinical,
         diagnosis_notes: clinical.diagnosis_notes,
         clinical_updated_by: 'desk',
@@ -277,6 +292,20 @@ export default function PatientsPage() {
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
             />
+            {!form.id ? (
+              <div className="sm:col-span-2 lg:col-span-3">
+                <PopiaConsentNotice
+                  variant="field"
+                  required
+                  checked={form.popia_consent}
+                  onChange={(v) => setForm((f) => ({ ...f, popia_consent: v }))}
+                />
+              </div>
+            ) : form.popia_consent ? (
+              <p className="sm:col-span-2 lg:col-span-3 text-[11px] text-slate-500">
+                POPIA consent on file
+              </p>
+            ) : null}
             {editing &&
             store.patients.find((x) => x.id === form.id)?.family?.length ? (
               <div className="sm:col-span-2 lg:col-span-3 rounded-2xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/30 p-3">

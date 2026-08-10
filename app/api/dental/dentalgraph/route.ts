@@ -834,8 +834,41 @@ export async function POST(request: NextRequest) {
       action === 'upsert_visit_note' ||
       action === 'record_outcome' ||
       action === 'upsert_treatment_plan' ||
+      action === 'book_from_treatment_plan' ||
       action === 'issue_care_pack'
     ) {
+      if (action === 'book_from_treatment_plan') {
+        const { clinicBookFromTreatmentPlan } = await import(
+          '@/lib/services/clinic-book-from-plan'
+        );
+        const result = clinicBookFromTreatmentPlan(
+          store,
+          body as {
+            plan_id?: string;
+            person_id?: string;
+            patient_id?: string;
+            family_member_id?: string | null;
+          },
+          now,
+          () => newId('bk')
+        );
+        if (!result.ok) {
+          return NextResponse.json(
+            { error: result.error },
+            { status: result.status || 400 }
+          );
+        }
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          store,
+          summary: summariseDentalgraph(store),
+          analysis: analysis(store),
+          appointment_id: result.appointment_id,
+          booking_id: result.booking_id,
+          message: result.message,
+        });
+      }
       if (action === 'issue_care_pack') {
         const { issuePack } = await import('@/lib/services/advisor-pack-ledger');
         store.care_packs = store.care_packs || [];
@@ -1310,6 +1343,12 @@ function upsert(
             ? String(rec.notes)
             : undefined
           : prev?.notes,
+      popia_consent_at:
+        rec.popia_consent_at !== undefined
+          ? rec.popia_consent_at
+            ? String(rec.popia_consent_at)
+            : null
+          : prev?.popia_consent_at ?? null,
       clinical,
       medical:
         rec.medical !== undefined

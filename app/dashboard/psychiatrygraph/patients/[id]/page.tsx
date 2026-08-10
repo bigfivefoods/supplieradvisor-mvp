@@ -9,12 +9,13 @@ import {
   usePsychiatrygraph,
 } from '@/components/clinic/PsychiatrygraphWorkbench';
 import { PatientMedicalChart } from '@/components/clinic/PatientMedicalChart';
+import { AdvisorTreatmentPlanPanel } from '@/components/services/AdvisorTreatmentPlanPanel';
 import { healthSummaryLabel } from '@/lib/health/body-map';
 
 export default function PsychiatryPatientRecordPage() {
   const { id } = useParams() as { id: string };
   const search = useSearchParams();
-  const { companyId, store, loading, saving, post } = usePsychiatrygraph();
+  const { companyId, store, loading, saving, post, load } = usePsychiatrygraph();
 
   const patient = useMemo(
     () => store?.patients.find((p) => p.id === id),
@@ -110,6 +111,23 @@ export default function PsychiatryPatientRecordPage() {
               </span>
             ) : null}
           </div>
+          
+          <AdvisorTreatmentPlanPanel
+            personId={patient.id}
+            personLabel={patient.name}
+            plans={store.treatment_plans || []}
+            services={store.services.map((s) => ({ id: s.id, name: s.name }))}
+            appointments={store.appointments}
+            bookings={store.bookings}
+            accentClass="border-indigo-200"
+            post={async (body) => {
+              await post(body);
+            }}
+            onRefresh={() => {
+              void load();
+            }}
+          />
+
           <PatientMedicalChart
             companyId={companyId}
             patientId={patient.id}
