@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Company → Modules — workspace hubs grouped by Core OS + sector / industry packs.
- * Shows which Industry Packs the company has subscribed to.
+ * Company → Modules — single home for sector/industry, packs, and workspace hubs.
+ * Packaging is folded in here (no separate Packaging nav item).
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -23,7 +23,10 @@ import {
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
-import { getCanonicalUserId } from '@/lib/auth/identity';
+import {
+  extractEmailFromPrivyUser,
+  getCanonicalUserId,
+} from '@/lib/auth/identity';
 import {
   CompanyRequired,
   BusinessPage,
@@ -54,6 +57,7 @@ import {
   enabledModulesMapFromPacks,
   getIndustryPack,
   industryPacksBySector,
+  monthlyPriceZar,
   packsUnlockingAppModule,
   publicSectorTierForEntity,
   readPackBillingFromMetadata,
@@ -65,6 +69,12 @@ import {
   industriesForSector,
   packIdsForSector,
 } from '@/lib/product/business-catalogue';
+import {
+  getPaystackPublicKey,
+  openPaystackCheckout,
+} from '@/lib/billing/paystack-client';
+import { quoteIndustryPacks } from '@/lib/billing/pack-pricing';
+import type { BillingTermId } from '@/lib/billing/company-subscription';
 
 export default function CompanyModulesPage() {
   return (
@@ -78,15 +88,19 @@ function ModulesInner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
+  const email = extractEmailFromPrivyUser(user);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [metadata, setMetadata] = useState<Record<string, unknown>>({});
   const [enabled, setEnabled] = useState<EnabledModulesMap>(() =>
     normalizeEnabledModules(null)
   );
+  const [selectedPacks, setSelectedPacks] = useState<string[]>([]);
   const [tradingName, setTradingName] = useState('');
   const [dirty, setDirty] = useState(false);
+  const [packsDirty, setPacksDirty] = useState(false);
   const [govLocked, setGovLocked] = useState(false);
   const [platformOperator, setPlatformOperator] = useState(false);
   const [lockMessage, setLockMessage] = useState('');
@@ -96,6 +110,7 @@ function ModulesInner() {
   const [draftBusinessTypeIds, setDraftBusinessTypeIds] = useState<string[]>(
     []
   );
+  const payTermId: BillingTermId = 'monthly';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -116,6 +131,9 @@ function ModulesInner() {
           : {};
       setMetadata(meta);
       setEnabled(extractEnabledModulesFromMetadata(meta));
+      const packSel = readPackagingFromMetadata(meta);
+      setSelectedPacks(packSel?.packIds || []);
+      setPacksDirty(false);
       const org = `${profile.org_type || ''} ${profile.business_type || ''}`.toLowerCase();
       const isGov =
         org.includes('government') ||
@@ -178,6 +196,19 @@ function ModulesInner() {
     () => new Set(packaging?.packIds || []),
     [packaging]
   );
+  const selectedPackIds = useMemo(
+    () => new Set(selectedPacks),
+    [selectedPacks]
+  );
+  const packPrice = useMemo(
+    () => monthlyPriceZar(selectedPacks),
+    [selectedPacks]
+  );
+  const newPacksQuote = useMemo(() => {
+    const prev = new Set(packaging?.packIds || []);
+    const added = selectedPacks.filter((id) => !prev.has(id));
+    return quoteIndustryPacks(added, payTermId);
+  }, [packaging?.packIds, selectedPacks, payTermId]);
   const paidActive = useMemo(() => {
     if (!packBilling.paidUntil) return false;
     const t = Date.parse(packBilling.paidUntil);
@@ -400,6 +431,13 @@ function ModulesInner() {
     }
     setClassifying(true);
     try {
+      // Suggest packs from selected industries
+      const industryPacks = draftIndustryIds.flatMap(
+        (id) => getIndustry(id)?.packIds || []
+      );
+      const nextPacks = [
+        ...new Set([...selectedPacks, ...industryPacks]),
+      ];
       const res = await fetch('/api/business/packaging', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -411,7 +449,7 @@ function ModulesInner() {
           industryId: draftIndustryIds[0] || null,
           businessTypeIds: draftBusinessTypeIds,
           businessTypeId: draftBusinessTypeIds[0] || null,
-          packIds: packaging?.packIds || [],
+          packIds: nextPacks,
           moduleIds: packaging?.moduleIds || [],
           entityTypeId: packaging?.entityTypeId,
           suggestIndustryPacks: true,
@@ -428,6 +466,161 @@ function ModulesInner() {
       toast.error(e instanceof Error ? e.message : 'Save failed');
     } finally {
       setClassifying(false);
+    }
+  };
+
+  const togglePack = (packId: string) => {
+    setSelectedPacks((prev) => {
+      const has = prev.includes(packId);
+      return has ? prev.filter((x) => x !== packId) : [...prev, packId];
+    });
+    setPacksDirty(true);
+  };
+
+  const payForNewPacks = async () => {
+    const prev = new Set(packaging?.packIds || []);
+    const added = selectedPacks.filter((id) => !prev.has(id));
+    if (!added.length) {
+      toast.message('No new packs to pay for');
+      return;
+    }
+    const key = getPaystackPublicKey();
+    if (!key || !email) {
+      toast.error(
+        !email
+          ? 'Sign in with an email for Paystack'
+          : 'Set NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY'
+      );
+      return;
+    }
+    const q = quoteIndustryPacks(added, payTermId);
+    if (!(q.payCents > 0)) {
+      toast.error('Invalid pack quote');
+      return;
+    }
+    setPaying(true);
+    const ref = `sa-packs-${payTermId}-${companyId}-${Date.now()}`;
+    try {
+      await openPaystackCheckout({
+        key,
+        email,
+        amountCents: q.payCents,
+        ref,
+        metadata: {
+          product: 'industry_packs',
+          company_id: String(companyId),
+          term_id: payTermId,
+          pack_ids: added.join(','),
+          pack_count: String(added.length),
+          months: String(q.months),
+        },
+        onSuccess: async (reference) => {
+          try {
+            const res = await fetch('/api/business/subscription', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                companyId,
+                privyUserId,
+                action: 'activate',
+                paystackReference: reference,
+                termId: payTermId,
+                packIds: added,
+                product: 'industry_packs',
+                packsOnly: true,
+              }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Activation failed');
+            await fetch('/api/business/packaging', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'same-origin',
+              body: JSON.stringify({
+                companyId,
+                packIds: selectedPacks,
+                moduleIds: packaging?.moduleIds || [],
+                entityTypeId: packaging?.entityTypeId,
+                sectorId: packaging?.sectorId || draftSector,
+                industryIds: draftIndustryIds.length
+                  ? draftIndustryIds
+                  : packaging?.industryIds,
+                suggestIndustryPacks: true,
+              }),
+            });
+            toast.success(
+              data.channel === 'apple_pay'
+                ? `Packs activated via Apple Pay · R${q.payZar}`
+                : `Packs activated · R${q.payZar}`
+            );
+            setPacksDirty(false);
+            window.dispatchEvent(new Event('sa:company-changed'));
+            await load();
+          } catch (e: unknown) {
+            toast.error(e instanceof Error ? e.message : 'Activation failed');
+          } finally {
+            setPaying(false);
+          }
+        },
+        onClose: () => setPaying(false),
+        onError: () => setPaying(false),
+      });
+    } catch (e: unknown) {
+      setPaying(false);
+      toast.error(e instanceof Error ? e.message : 'Checkout failed');
+    }
+  };
+
+  const savePacks = async () => {
+    setSaving(true);
+    try {
+      const prev = new Set(packaging?.packIds || []);
+      const added = selectedPacks.filter((id) => !prev.has(id));
+      if (added.length > 0 && newPacksQuote.payCents > 0) {
+        const pay = confirm(
+          `You added ${added.length} Industry Pack(s) (R${newPacksQuote.payZar}/mo).\n\nOK = Pay now (Paystack)\nCancel = Save selection without charging`
+        );
+        setSaving(false);
+        if (pay) {
+          await payForNewPacks();
+          return;
+        }
+        setSaving(true);
+      }
+
+      const res = await fetch('/api/business/packaging', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          companyId,
+          packIds: selectedPacks,
+          moduleIds: packaging?.moduleIds || [],
+          entityTypeId: packaging?.entityTypeId,
+          sectorId: packaging?.sectorId || draftSector || 'secondary',
+          industryIds:
+            draftIndustryIds.length > 0
+              ? draftIndustryIds
+              : packaging?.industryIds,
+          industryId:
+            draftIndustryIds[0] || packaging?.industryId || null,
+          businessTypeIds:
+            draftBusinessTypeIds.length > 0
+              ? draftBusinessTypeIds
+              : packaging?.businessTypeIds,
+          suggestIndustryPacks: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Save failed');
+      toast.success(data.message || 'Packs & modules updated');
+      setPacksDirty(false);
+      window.dispatchEvent(new Event('sa:company-changed'));
+      await load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -515,21 +708,41 @@ function ModulesInner() {
       <BusinessHeader
         title="Workspace"
         titleAccent="modules"
-        description={`${tradingName || 'Your company'} — Core OS first, then sector & industry verticals. Toggle what appears in the sidebar.`}
+        description={`${tradingName || 'Your company'} — set sector & industry, choose packs, then toggle hubs for the sidebar. One place for packaging and modules.`}
         action={
-          <button
-            type="button"
-            disabled={saving || !dirty}
-            onClick={() => void persist(enabled)}
-            className="btn-primary !py-2.5 !px-5 text-sm"
-          >
-            {saving ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            Save
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {packsDirty ? (
+              <button
+                type="button"
+                disabled={saving || paying || govLocked}
+                onClick={() => void savePacks()}
+                className="btn-primary !py-2.5 !px-4 text-sm"
+              >
+                {saving || paying ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Package className="w-4 h-4" />
+                )}
+                Save packs
+                {newPacksQuote.packCount
+                  ? ` · +R${newPacksQuote.payZar}`
+                  : ''}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              disabled={saving || !dirty}
+              onClick={() => void persist(enabled)}
+              className="btn-secondary !py-2.5 !px-4 text-sm"
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              Save hubs
+            </button>
+          </div>
         }
       />
 
@@ -566,12 +779,6 @@ function ModulesInner() {
               Company → Identity (profile industries) as well.
             </p>
           </div>
-          <Link
-            href="/dashboard/my-business/packaging"
-            className="btn-secondary !py-2 !px-3 text-xs shrink-0"
-          >
-            Full packaging
-          </Link>
         </div>
 
         <div className="space-y-4">
@@ -815,13 +1022,18 @@ function ModulesInner() {
           ) : null}
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/dashboard/my-business/packaging"
-            className="btn-primary !py-2 !px-4 text-sm inline-flex items-center gap-1.5"
-          >
-            <Layers className="w-4 h-4" /> Manage packs
-          </Link>
+        <div className="flex flex-wrap gap-2 items-center">
+          <span className="text-xs text-slate-600 font-semibold">
+            Est. R{packPrice.total}/mo
+            <span className="text-neutral-400 font-normal">
+              {' '}
+              (Core R{packPrice.core}
+              {packPrice.packCount
+                ? ` + ${packPrice.packCount}×R${INDUSTRY_PACK_MONTHLY_ZAR}`
+                : ''}
+              )
+            </span>
+          </span>
           <Link
             href="/dashboard/my-business/billing"
             className="btn-secondary !py-2 !px-4 text-sm inline-flex items-center gap-1.5"
@@ -894,14 +1106,8 @@ function ModulesInner() {
         </div>
       ) : (
         <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          Quick presets appear after you set a sector (and industry) on{' '}
-          <Link
-            href="/dashboard/my-business/packaging"
-            className="font-bold underline"
-          >
-            Packaging
-          </Link>{' '}
-          or during onboarding.
+          Quick presets appear after you set a sector and industry above (or
+          during onboarding).
         </div>
       )}
 
@@ -1060,23 +1266,41 @@ function ModulesInner() {
       </div>
       <p className="text-xs text-neutral-500 mb-4 max-w-2xl">
         {yourSectorId
-          ? `Only packs for your registered sector (${sectorLabel}) are shown.`
-          : 'Set packaging on Company → Packaging so we can filter packs by sector.'}
+          ? `Select packs for ${sectorLabel}, then Save packs. Packs unlock recommended hubs below (and Core OS modules further up).`
+          : 'Set sector & industries above first so we can show the right packs.'}
         {yourSectorId === 'public_sector'
-          ? ' Public Sector is National · Provincial · Municipal · Local (DBE provincial; schools local).'
+          ? ' Public Sector: National · Provincial · Municipal · Local.'
           : ''}
       </p>
 
+      {packsDirty ? (
+        <div className="mb-4 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-cyan-950">
+            <strong>Pack selection changed.</strong>
+            {newPacksQuote.packCount
+              ? ` +${newPacksQuote.packCount} pack(s) · R${newPacksQuote.payZar}/mo.`
+              : ' Save to apply.'}
+          </p>
+          <button
+            type="button"
+            disabled={saving || paying || govLocked}
+            onClick={() => void savePacks()}
+            className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+          >
+            {saving || paying ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Save className="w-3.5 h-3.5" />
+            )}
+            Save packs
+          </button>
+        </div>
+      ) : null}
+
       {!yourSectorId ? (
         <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          No sector on this company yet.{' '}
-          <Link
-            href="/dashboard/my-business/packaging"
-            className="font-bold underline"
-          >
-            Set packaging
-          </Link>{' '}
-          or complete onboarding so we can show the right industry modules.
+          No sector yet — complete <strong>Sector & industries</strong> at the
+          top of this page so packs and industry modules match your business.
         </div>
       ) : null}
 
@@ -1295,6 +1519,7 @@ function ModulesInner() {
 
               {group.packs.map((pack) => {
                 const subscribed = subscribedPackIds.has(pack.id);
+                const selected = selectedPackIds.has(pack.id);
                 const unlockIds = appModulesUnlockedByPack(pack);
                 return (
                   <div
@@ -1302,37 +1527,50 @@ function ModulesInner() {
                     className={`rounded-3xl border bg-white overflow-hidden ${
                       subscribed
                         ? 'border-emerald-300 ring-1 ring-emerald-100'
-                        : 'border-neutral-200'
+                        : selected
+                          ? 'border-[#00b4d8] ring-1 ring-[#00b4d8]/25'
+                          : 'border-neutral-200'
                     }`}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3 px-4 sm:px-5 py-4 border-b border-neutral-100">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <h4 className="text-base font-black text-slate-900">
-                            {pack.name}
-                          </h4>
-                          {subscribed ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-emerald-800">
-                              <CheckCircle2 className="w-3 h-3" />
-                              Subscribed
+                      <label className="min-w-0 flex items-start gap-3 cursor-pointer flex-1">
+                        <input
+                          type="checkbox"
+                          className="mt-1 rounded border-neutral-300 text-[#00b4d8] focus:ring-[#00b4d8] shrink-0"
+                          checked={selected}
+                          disabled={saving || paying || govLocked}
+                          onChange={() => togglePack(pack.id)}
+                        />
+                        <span className="min-w-0">
+                          <span className="flex flex-wrap items-center gap-2 mb-1">
+                            <span className="text-base font-black text-slate-900">
+                              {pack.name}
                             </span>
-                          ) : (
-                            <span className="inline-flex items-center rounded-full bg-neutral-50 border border-neutral-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-500">
-                              Not subscribed
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-neutral-500 leading-relaxed max-w-xl">
-                          {pack.description}
-                        </p>
-                        <p className="text-[11px] font-semibold text-neutral-600 mt-1.5">
-                          R{pack.monthlyZar}/mo · {pack.modules.length} pack
-                          feature
-                          {pack.modules.length === 1 ? '' : 's'} · unlocks{' '}
-                          {unlockIds.length} hub
-                          {unlockIds.length === 1 ? '' : 's'}
-                        </p>
-                      </div>
+                            {subscribed ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-emerald-800">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Subscribed
+                              </span>
+                            ) : selected ? (
+                              <span className="inline-flex items-center rounded-full bg-sky-50 border border-sky-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-800">
+                                Selected
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center rounded-full bg-neutral-50 border border-neutral-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-500">
+                                Off
+                              </span>
+                            )}
+                          </span>
+                          <span className="block text-xs text-neutral-500 leading-relaxed max-w-xl">
+                            {pack.description}
+                          </span>
+                          <span className="block text-[11px] font-semibold text-neutral-600 mt-1.5">
+                            R{pack.monthlyZar}/mo · unlocks {unlockIds.length}{' '}
+                            hub
+                            {unlockIds.length === 1 ? '' : 's'}
+                          </span>
+                        </span>
+                      </label>
                       <div className="flex flex-wrap gap-2 shrink-0">
                         {subscribed ? (
                           <Link
@@ -1341,14 +1579,7 @@ function ModulesInner() {
                           >
                             Billing
                           </Link>
-                        ) : (
-                          <Link
-                            href="/dashboard/my-business/packaging"
-                            className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
-                          >
-                            Subscribe <ArrowRight className="w-3 h-3" />
-                          </Link>
-                        )}
+                        ) : null}
                       </div>
                     </div>
 

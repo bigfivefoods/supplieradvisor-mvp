@@ -58,7 +58,7 @@ export default function IndustryToolsPage() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-slate-500">Loading packaging…</p>
+        <p className="text-sm text-slate-500">Loading industry tools…</p>
       ) : !packs.length ? (
         <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center space-y-3">
           <Layers className="w-10 h-10 text-slate-300 mx-auto" />
@@ -76,10 +76,10 @@ export default function IndustryToolsPage() {
               Company modules <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
-              href="/dashboard/my-business/packaging"
+              href="/dashboard/my-business/modules"
               className="btn-secondary !py-2 !px-4 text-sm"
             >
-              Packaging & packs
+              Modules & packs
             </Link>
           </div>
           <div className="pt-6 text-left max-w-lg mx-auto">

@@ -117,7 +117,7 @@ ${principles}
 - **Core OS:** **R${CORE_OS_MONTHLY_ZAR}/month** (same as R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}) after **${COMPANY_TRIAL_DAYS}-day free trial**.
 - **Industry Packs:** **+R${INDUSTRY_PACK_MONTHLY_ZAR}/mo each** (Agri, Food Mfg, Logistics/Containers, Fitness, Dental, Allied Health, Impact, Public Procurement).
 - Prepaid terms on Core: ${pricing}.
-- Manage packs: /dashboard/my-business/packaging · Industry Tools: /dashboard/industry-tools
+- Modules & packs: /dashboard/my-business/modules · Industry Tools: /dashboard/industry-tools
 - Billing UI: /dashboard/my-business/billing
 - Public pricing & referral: /#pricing and /#referral (same homepage)
 - Sales contractor portal access is a separate fee (about R${SALES_SUBSCRIPTION_MONTHLY_ZAR}/mo term product) after agreement.

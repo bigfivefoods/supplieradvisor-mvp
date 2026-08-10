@@ -126,13 +126,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         name: 'Modules',
         href: '/dashboard/my-business/modules',
         // Platform control: /dashboard/my-business/platform (authorised accounts only)
-        desc: 'Enable trade, ops, finance modules — full feature hubs',
-        section: 'Govern',
-      },
-      {
-        name: 'Packaging',
-        href: '/dashboard/my-business/packaging',
-        desc: 'Core OS · Sector · Industry Packs',
+        desc: 'Sector · packs · sidebar hubs in one place',
         section: 'Govern',
       },
       {

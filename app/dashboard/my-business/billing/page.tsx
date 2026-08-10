@@ -648,10 +648,10 @@ function BillingInner() {
             </p>
             <div className="flex flex-wrap gap-2 pt-1">
               <Link
-                href="/dashboard/my-business/packaging"
+                href="/dashboard/my-business/modules"
                 className="text-xs font-bold underline"
               >
-                View packaging
+                View modules
               </Link>
               <Link
                 href="/dashboard/industry-tools"
@@ -1177,7 +1177,7 @@ function BillingInner() {
                   </p>
                 )}
                 <Link
-                  href="/dashboard/my-business/packaging"
+                  href="/dashboard/my-business/modules"
                   className="font-bold underline mt-1 inline-block"
                 >
                   Manage packs →
@@ -1187,7 +1187,7 @@ function BillingInner() {
               <div className="mt-3 text-[11px] text-slate-500">
                 No Industry Packs yet ·{' '}
                 <Link
-                  href="/dashboard/my-business/packaging"
+                  href="/dashboard/my-business/modules"
                   className="font-bold text-[#0077b6] underline"
                 >
                   Add packs

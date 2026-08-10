@@ -107,7 +107,7 @@ export default function PackDashboardPage() {
 
       <div className="flex flex-wrap gap-2 text-xs">
         <Link
-          href="/dashboard/my-business/packaging"
+          href="/dashboard/my-business/modules"
           className="font-bold text-[#0077b6] underline"
         >
           Manage packs

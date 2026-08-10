@@ -75,7 +75,7 @@ ${opts?.liveTools?.trim() || 'No live tool snapshot for this turn.'}
 - Inbound POs (you are seller): /dashboard/customers/orders?tab=inbound
 - Ratings (trust loop): /dashboard/suppliers/ratings · /dashboard/customers/ratings
 - Billing & referral / founding: /dashboard/my-business/billing
-- Packaging / Industry Packs: /dashboard/my-business/packaging
+- Modules / Industry Packs: /dashboard/my-business/modules
 - Industry Tools hub: /dashboard/industry-tools
 - Pack dashboard example: /dashboard/industry-tools/food_bev_mfg · /dashboard/industry-tools/agri_regen · /dashboard/industry-tools/logistics_containers · /dashboard/industry-tools/impact_esg
 - Company modules (sidebar hubs): /dashboard/my-business/modules

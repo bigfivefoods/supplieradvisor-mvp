@@ -2202,7 +2202,7 @@ function ProfileInner() {
                 </a>{' '}
                 /{' '}
                 <a
-                  href="/dashboard/my-business/packaging"
+                  href="/dashboard/my-business/modules"
                   className="font-semibold text-[#0077b6] underline"
                 >
                   Packaging

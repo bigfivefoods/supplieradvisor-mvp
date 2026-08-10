@@ -176,7 +176,7 @@ function HubInner() {
           icon: LayoutGrid,
           code: '04',
           title: 'Modules',
-          desc: 'Enable trade, ops, finance, people, compliance, intelligence.',
+          desc: 'Sector, industry packs, and sidebar hubs — Core OS then verticals.',
           accent: 'from-cyan-50 to-white border-cyan-100',
           metric: 'Setup',
           metricLabel: 'sidebar',
