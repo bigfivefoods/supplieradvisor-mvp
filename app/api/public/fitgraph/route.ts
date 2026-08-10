@@ -348,7 +348,8 @@ export async function POST(request: NextRequest) {
         session.date <= today
       ) {
         booking.status = 'attended';
-        if (session.status !== 'cancelled') session.status = 'completed';
+        // Session is already known not cancelled (guard above)
+        session.status = 'completed';
       }
       await saveStore(companyId, meta, store);
       return NextResponse.json({
