@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * FieldAdvisor® — primary production command centre.
+ * CropAdvisor® — primary production command centre.
  * Multi-crop field OS: fields → harvest → inputs → regen → farm-to-buyer trade.
  */
 import { useCallback, useEffect, useState } from 'react';
@@ -202,7 +202,7 @@ function HubInner() {
     <FieldgraphPage>
       <RelationshipHeader
         eyebrow="Primary production OS"
-        title="FieldAdvisor"
+        title="CropAdvisor"
         titleAccent="®"
         description="Core agri: shared field & agronomic data, estimate manager, harvest planner, and vehicle management — plus inputs, regen and farm-to-buyer trade. Multi-crop, not cane-only."
         action={

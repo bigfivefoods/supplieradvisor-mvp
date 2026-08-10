@@ -187,7 +187,19 @@ export default function CalendarPage() {
             showDiaryScopeToggle
             initialDate={form.date}
             emptyLabel="No appointments"
+            slotHint="Click empty time to add appointment"
             onSelectDate={(date) => setForm((f) => ({ ...f, date }))}
+            onSelectSlot={(slot) => {
+              setForm((f) => ({
+                ...f,
+                date: slot.date,
+                start_time: slot.start_time.slice(0, 5),
+                staff_id: slot.person_id || f.staff_id || personFilter || '',
+              }));
+              toast.message('Time selected', {
+                description: `${slot.date} at ${slot.start_time.slice(0, 5)} — finish details below`,
+              });
+            }}
           />
 
           <FormCard

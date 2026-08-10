@@ -46,7 +46,7 @@ export default function QuarryLabourPage() {
       action: 'upsert',
       record: { ...crew, rate_zar: Number(crew.rate_zar) },
     });
-    toast.success('Crew registered with rate');
+    toast.success('Crew registered — synced to People directory');
     setCrew({ code: '', name: '', employment_type: 'contractor', rate_zar: '', rate_unit: 'per_person_day' });
   };
 

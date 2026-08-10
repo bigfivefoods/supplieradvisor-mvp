@@ -661,7 +661,7 @@ export function FieldgraphMock() {
       <div className="mb-2 flex items-center justify-between gap-2">
         <div>
           <div className="text-[9px] font-bold uppercase tracking-widest text-emerald-700">
-            FieldAdvisor® · Agri
+            CropAdvisor® · Agri
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
             Field to buyer, one season.
@@ -943,7 +943,7 @@ export function NavMock() {
       label: 'Industry',
       tone: 'text-emerald-700',
       items: [
-        'FieldAdvisor®',
+        'CropAdvisor®',
         'QuarryAdvisor®',
         'FitAdvisor®',
         'PhysioAdvisor®',
@@ -1569,7 +1569,7 @@ const MODULE_GALLERIES: Record<string, GalleryScene[]> = {
       wash: 'emerald',
       kind: 'list',
       list: [
-        { left: 'FieldAdvisor®', right: 'Agri', tone: 'emerald' },
+        { left: 'CropAdvisor®', right: 'Agri', tone: 'emerald' },
         { left: 'QuarryAdvisor®', right: 'Extract', tone: 'amber' },
         { left: 'FitAdvisor®', right: 'Gym', tone: 'violet' },
         { left: 'PhysioAdvisor®', right: 'Clinic', tone: 'cyan' },

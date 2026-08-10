@@ -775,7 +775,7 @@ export function ManagementReportView({
             {[
               ['Schools / NSNP', mod?.schoolsEnabled],
               ['Health / DoH', mod?.healthEnabled],
-              ['FieldAdvisor®', mod?.fieldgraphEnabled],
+              ['CropAdvisor®', mod?.fieldgraphEnabled],
               ['QuarryAdvisor®', mod?.quarrygraphEnabled],
               ['FitAdvisor®', mod?.fitgraphEnabled],
               ['PhysioAdvisor®', mod?.physiographEnabled],

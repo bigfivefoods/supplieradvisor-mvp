@@ -5,7 +5,7 @@
  * People → Plans → Classes → Calendar → Floor → Messages → Website · reports
  *
  * Expandable on the FitAdvisor command hub; downloadable A4 PDF
- * (landscape + portrait) — same pattern as NSNP / FieldAdvisor.
+ * (landscape + portrait) — same pattern as NSNP / CropAdvisor.
  * Content kept in sync with lib/fitness/fitgraph-process-guide.ts
  */
 import { useState } from 'react';

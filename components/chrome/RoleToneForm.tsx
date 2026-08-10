@@ -2,7 +2,7 @@
 
 /**
  * Shared form / stat / table surfaces tinted by process role.
- * Used by FitAdvisor, FieldAdvisor, QuarryAdvisor, and NSNP (DBE).
+ * Used by FitAdvisor, CropAdvisor, QuarryAdvisor, and NSNP (DBE).
  */
 import type { ReactNode } from 'react';
 import { Loader2, Plus, Trash2 } from 'lucide-react';

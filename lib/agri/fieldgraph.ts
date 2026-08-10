@@ -1,5 +1,5 @@
 /**
- * FieldAdvisor® — primary production OS for farms & grower networks.
+ * CropAdvisor® (fieldgraph) — primary production OS for farms & grower networks.
  * Multi-crop field book, estimates, harvest plan, inputs, regen, farm-to-buyer trade.
  * Stored on profiles.metadata.fieldgraph (no migration required).
  */
@@ -194,6 +194,10 @@ export type AgriGang = {
   /** Default rate in ZAR */
   rate_zar: number;
   rate_unit: LabourRateUnit;
+  email?: string;
+  phone?: string;
+  /** Linked People / HR employee id (dual-write) */
+  hr_employee_id?: number | null;
   active?: boolean;
   notes?: string;
   created_at: string;

@@ -5,7 +5,7 @@
  * People → Services · packs → Diary → Floor → Messages → Website · reports
  *
  * Expandable on the MedicalAdvisor command hub; downloadable A4 PDF
- * (landscape + portrait) — same pattern as FitAdvisor / FieldAdvisor.
+ * (landscape + portrait) — same pattern as FitAdvisor / CropAdvisor.
  * Content kept in sync with lib/clinic/medicalgraph-process-guide.ts
  */
 import { useState } from 'react';

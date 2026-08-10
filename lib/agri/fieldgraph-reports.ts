@@ -1,5 +1,5 @@
 /**
- * FieldAdvisor® slice-and-dice report builders.
+ * CropAdvisor® slice-and-dice report builders.
  * Filters store entities by period + dimensions (season, crop, farm, field…).
  */
 import {
@@ -246,7 +246,7 @@ export type FieldgraphReportBundle = {
 };
 
 /**
- * Build a full slice-and-dice report from the FieldAdvisor store.
+ * Build a full slice-and-dice report from the CropAdvisor store.
  */
 export function buildFieldgraphReport(
   store: FieldgraphStore,

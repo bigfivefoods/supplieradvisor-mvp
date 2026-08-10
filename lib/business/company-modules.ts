@@ -37,7 +37,7 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   projects: 'Portfolio, kanban, milestones & timesheets',
   sustainability: 'Carbon tracking, ESG packs & impact',
   fieldgraph:
-    'FieldAdvisor® — multi-crop fields, estimates, harvest, inputs, regen & farm-to-buyer trade',
+    'CropAdvisor® — multi-crop fields, estimates, harvest, inputs, regen & farm-to-buyer trade',
   quarrygraph:
     'QuarryAdvisor® — sites, reserves, production, plant, weighbridge, fleet, QA & permits',
   fitgraph:
@@ -167,7 +167,7 @@ export const MODULE_CATEGORIES: ModuleCategory[] = [
     id: 'ind_primary',
     band: 'industry',
     title: 'Primary production',
-    blurb: 'FieldAdvisor® (farming) and QuarryAdvisor® (aggregates).',
+    blurb: 'CropAdvisor® (farming) and QuarryAdvisor® (aggregates).',
     moduleIds: ['fieldgraph', 'quarrygraph'],
   },
   {
@@ -413,7 +413,7 @@ export function normalizeEnabledModules(
     if (Object.prototype.hasOwnProperty.call(src, id)) {
       map[id] = src[id] === true || src[id] === 'true' || src[id] === 1;
     } else {
-      // Sector programmes + FieldAdvisor agri are opt-in; others default on
+      // Sector programmes + CropAdvisor agri are opt-in; others default on
       map[id] =
         id === 'schools' ||
         id === 'health' ||
@@ -448,7 +448,7 @@ export function isModuleEnabled(
 ): boolean {
   if (isAlwaysOnModule(moduleId)) return true;
   if (!enabled) {
-    // Fail open except opt-in sector programmes / FieldAdvisor / platform console
+    // Fail open except opt-in sector programmes / CropAdvisor / platform console
     return (
       moduleId !== 'schools' &&
       moduleId !== 'health' &&

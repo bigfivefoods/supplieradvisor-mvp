@@ -94,7 +94,7 @@ export const SYSTEM_OVERVIEW = {
     },
     {
       title: 'Flow of goods',
-      body: 'Inventory, operations, manufacturing, distribution, and containers move product with lots and holds. Industry packs add FieldAdvisor (agri), QuarryAdvisor (aggregates), FitAdvisor (gyms), PhysioAdvisor (clinics), DentalAdvisor (dental), PsychiatryAdvisor, and MedicalAdvisor (scripts & portals).',
+      body: 'Inventory, operations, manufacturing, distribution, and containers move product with lots and holds. Industry packs add CropAdvisor (agri), QuarryAdvisor (aggregates), FitAdvisor (gyms), PhysioAdvisor (clinics), DentalAdvisor (dental), PsychiatryAdvisor, and MedicalAdvisor (scripts & portals).',
     },
     {
       title: 'Flow of money',
@@ -127,7 +127,7 @@ export const SYSTEM_OVERVIEW = {
     },
     {
       name: 'Physical ops',
-      body: 'Inventory lots · transfers · make · ship · containers · FieldAdvisor · QuarryAdvisor · ops tower',
+      body: 'Inventory lots · transfers · make · ship · containers · CropAdvisor · QuarryAdvisor · ops tower',
       tone: 'emerald',
     },
     {
@@ -203,7 +203,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         summary: 'Make the company findable, pick modules, staff the workspace.',
         steps: [
           'Company → Profile — trading name, industry, contacts (completeness ≥ 60% auto-ticks)',
-          'Company → Modules — enable only what you run (FieldAdvisor, QuarryAdvisor, FitAdvisor, PhysioAdvisor, DentalAdvisor, trade, ops…); Guide mirrors this list',
+          'Company → Modules — enable only what you run (CropAdvisor, QuarryAdvisor, FitAdvisor, PhysioAdvisor, DentalAdvisor, trade, ops…); Guide mirrors this list',
           'Company → Team — invite at least one colleague',
           'Return to Dashboard — golden path shows Auto badges when detected',
         ],
@@ -1164,7 +1164,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
   {
     slug: 'fieldgraph',
     moduleId: 'fieldgraph',
-    title: 'FieldAdvisor®',
+    title: 'CropAdvisor®',
     tagline: 'Fields → estimates → harvest → fleet/labour → trade',
     purpose:
       'Primary multi-crop farm OS: shared field master, season estimates (with revisions), harvest planner, inputs, vehicle fuel util (L/h · L/km · R/km), gangs & rates, regen samples, and farm-to-buyer trade with origin lots. Download the 2-page process design PDF from the command hub.',
@@ -1203,7 +1203,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         href: '/dashboard/fieldgraph/estimates',
         summary: 'Draft → revise → board submit → actuals.',
         steps: [
-          'FieldAdvisor → Fields — register / update field book',
+          'CropAdvisor → Fields — register / update field book',
           'Estimates — create season tonnes & quality',
           'Revise as crop progresses (history snapshots)',
           'Submit board / mill pack when ready',
@@ -1229,9 +1229,9 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           'Register vehicles with R/h, R/km, fuel R/L, book L/h',
           'Log activity: hours, fuel L, km (or odometer)',
           'Open Utilisation report — fuel util and R/km by vehicle',
-          'Export fleet sheet from FieldAdvisor Reports',
+          'Export fleet sheet from CropAdvisor Reports',
         ],
-        tip: 'Download Landscape/Portrait process design PDF from the FieldAdvisor hub.',
+        tip: 'Download Landscape/Portrait process design PDF from the CropAdvisor hub.',
       },
     ],
     concepts: [
@@ -1752,7 +1752,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     title: 'People (HR)',
     tagline: 'Directory → leave → payroll → org · training',
     purpose:
-      'HR workspace: employee directory, leave, payroll inputs, organogram, training and performance — separate from field gangs or quarry crews (those live on FieldAdvisor / QuarryAdvisor rates).',
+      'HR workspace: employee directory, leave, payroll inputs, organogram, training and performance — separate from field gangs or quarry crews (those live on CropAdvisor / QuarryAdvisor rates).',
     who: ['HR', 'Owner', 'Payroll admin'],
     flow: [
       { id: 'a', label: 'Directory', hint: 'Employees', tone: 'cyan' },
@@ -1813,7 +1813,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     title: 'Schools (NSNP)',
     tagline: 'DBE → school → SP → learners · process design',
     purpose:
-      'National School Nutrition Programme OS: department govern, school kitchen & learners, SP supply. Expandable process design + printable PDF on Schools hubs (same pattern as FieldAdvisor).',
+      'National School Nutrition Programme OS: department govern, school kitchen & learners, SP supply. Expandable process design + printable PDF on Schools hubs (same pattern as CropAdvisor).',
     who: ['DBE / PEU', 'School kitchen', 'Service provider'],
     flow: [
       { id: 'a', label: 'Govern', hint: 'DBE', tone: 'slate' },
@@ -1989,7 +1989,7 @@ export function buildGuideNavSteps(
     make: 'Make',
     ship: 'Ship',
     containers: 'Containers',
-    fieldgraph: 'FieldAdvisor',
+    fieldgraph: 'CropAdvisor',
     quarrygraph: 'QuarryAdvisor',
     fitgraph: 'FitAdvisor',
     physiograph: 'PhysioAdvisor',

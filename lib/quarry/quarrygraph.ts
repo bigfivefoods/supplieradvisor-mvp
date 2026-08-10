@@ -393,6 +393,10 @@ export type QuarryCrew = {
   employment_type: LabourEmploymentType;
   rate_zar: number;
   rate_unit: LabourRateUnit;
+  email?: string;
+  phone?: string;
+  /** Linked People / HR employee id (dual-write) */
+  hr_employee_id?: number | null;
   active?: boolean;
   notes?: string;
   created_at: string;

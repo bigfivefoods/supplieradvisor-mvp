@@ -67,10 +67,10 @@ export const INDUSTRIES: IndustryPage[] = [
     name: 'Agriculture & inputs',
     headline: 'Field to buyer — one season, one OS.',
     subhead:
-      'FieldAdvisor® multi-crop fields, estimates, harvest plans, inputs, fleet fuel (L/h · L/km · R/km), labour, regen metrics, and farm-to-buyer trade — plus verified suppliers and OTIFEF on the Core fabric.',
+      'CropAdvisor® multi-crop fields, estimates, harvest plans, inputs, fleet fuel (L/h · L/km · R/km), labour, regen metrics, and farm-to-buyer trade — plus verified suppliers and OTIFEF on the Core fabric.',
     cardBlurb:
-      'FieldAdvisor® — fields, harvest, inputs, fleet fuel, regen, and farm-to-buyer trade.',
-    pack: 'FieldAdvisor®',
+      'CropAdvisor® — fields, harvest, inputs, fleet fuel, regen, and farm-to-buyer trade.',
+    pack: 'CropAdvisor®',
     pains: [
       'Informal supplier books and lost POs',
       'No OTIFEF after harvest deliveries',
@@ -78,13 +78,13 @@ export const INDUSTRIES: IndustryPage[] = [
       'No shared field book across the farm office',
     ],
     wins: [
-      'FieldAdvisor® field book, estimates & harvest planner',
+      'CropAdvisor® field book, estimates & harvest planner',
       'Inputs, fleet util and labour rates on the season',
       'Regen metrics and mill / buyer trade handoff',
       'SRM + OTIFEF on the same verified network',
     ],
     modules: [
-      'FieldAdvisor®',
+      'CropAdvisor®',
       'Suppliers',
       'Inventory',
       'Network',

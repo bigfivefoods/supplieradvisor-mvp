@@ -13,7 +13,9 @@ export type ServicePersonSource =
   | 'dentalgraph_staff'
   | 'physiograph_practitioner'
   | 'medicalgraph_practitioner'
-  | 'psychiatrygraph_practitioner';
+  | 'psychiatrygraph_practitioner'
+  | 'fieldgraph_gang'
+  | 'quarrygraph_crew';
 
 export type ServicePersonSyncInput = {
   companyId: number;
@@ -26,6 +28,8 @@ export type ServicePersonSyncInput = {
   id_number?: string | null;
   jobTitle?: string | null;
   department?: string | null;
+  /** permanent | temporary | contractor | gang | full_time… */
+  employment_type?: string | null;
   /** When false, mark employee inactive / terminated soft */
   active?: boolean;
   start_date?: string | null;
@@ -67,6 +71,10 @@ function sourceLabel(source: ServicePersonSource): string {
       return 'MedicalAdvisor practitioner';
     case 'psychiatrygraph_practitioner':
       return 'PsychiatryAdvisor practitioner';
+    case 'fieldgraph_gang':
+      return 'CropAdvisor gang / crew';
+    case 'quarrygraph_crew':
+      return 'QuarryAdvisor crew';
     default:
       return 'Service staff';
   }
@@ -84,6 +92,10 @@ function departmentDefault(source: ServicePersonSource): string {
       return 'Medical';
     case 'psychiatrygraph_practitioner':
       return 'Psychiatry';
+    case 'fieldgraph_gang':
+      return 'Crop / field labour';
+    case 'quarrygraph_crew':
+      return 'Quarry labour';
     default:
       return 'Services';
   }
@@ -105,9 +117,25 @@ function jobTitleDefault(
       return 'Medical practitioner';
     case 'psychiatrygraph_practitioner':
       return 'Psychiatrist / psychologist';
+    case 'fieldgraph_gang':
+      return 'Field gang / crew';
+    case 'quarrygraph_crew':
+      return 'Quarry crew';
     default:
       return 'Staff';
   }
+}
+
+function mapEmploymentType(
+  raw?: string | null
+): string {
+  const t = String(raw || '').toLowerCase();
+  if (t === 'permanent' || t === 'full_time') return 'full_time';
+  if (t === 'temporary' || t === 'seasonal') return 'temporary';
+  if (t === 'contractor' || t === 'contract') return 'contract';
+  if (t === 'gang' || t === 'crew') return 'casual';
+  if (t === 'part_time' || t === 'intern' || t === 'casual') return t;
+  return 'full_time';
 }
 
 /**
@@ -128,6 +156,7 @@ export async function syncStoreStaffPersonToHr(opts: {
     email?: string;
     phone?: string;
     id_number?: string;
+    employment_type?: string;
     active?: boolean;
     start_date?: string | null;
     end_date?: string | null;
@@ -157,6 +186,7 @@ export async function syncStoreStaffPersonToHr(opts: {
     phone: p.phone,
     id_number: p.id_number,
     jobTitle: titleBits,
+    employment_type: p.employment_type,
     active: p.active !== false,
     start_date: p.start_date,
     end_date: p.end_date,
@@ -282,7 +312,10 @@ export async function syncServicePersonToHr(
       id_number: input.id_number || existing?.id_number || null,
       job_title,
       department,
-      employment_type: existing?.employment_type || 'full_time',
+      employment_type:
+        mapEmploymentType(input.employment_type) ||
+        existing?.employment_type ||
+        'full_time',
       status,
       start_date:
         input.start_date || existing?.start_date || now.slice(0, 10),

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Link2, Repeat, Share2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -38,9 +38,11 @@ const WEEKDAYS = [
 
 export default function CalendarPage() {
   const { store, loading, saving, post, summary } = useFitgraph();
+  const formAnchorRef = useRef<HTMLDivElement>(null);
   const [day, setDay] = useState(new Date().toISOString().slice(0, 10));
   const [personFilter, setPersonFilter] = useState('');
   const [diaryScope, setDiaryScope] = useState<DiaryScope>('practice');
+  const [slotPicked, setSlotPicked] = useState<string | null>(null);
   const [form, setForm] = useState({
     class_type_id: '',
     coach_id: '',
@@ -54,6 +56,8 @@ export default function CalendarPage() {
     repeat: 'none' as 'none' | 'weekly',
     count: '8',
     weekdays: [] as number[],
+    /** Optional: book this member onto the new class */
+    client_id: '',
   });
 
   const daySessions = useMemo(() => {
@@ -120,6 +124,32 @@ export default function CalendarPage() {
     toast.success('Gym working hours saved');
   };
 
+  const pickSlot = (slot: {
+    date: string;
+    start_time: string;
+    person_id?: string | null;
+  }) => {
+    setDay(slot.date);
+    setForm((f) => ({
+      ...f,
+      date: slot.date,
+      start_time: slot.start_time.slice(0, 5),
+      coach_id: slot.person_id || f.coach_id || personFilter || '',
+      repeat: 'none',
+    }));
+    setSlotPicked(`${slot.date} · ${slot.start_time.slice(0, 5)}`);
+    // Scroll schedule form into view
+    requestAnimationFrame(() => {
+      formAnchorRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+    toast.message('Time selected', {
+      description: `${slot.date} at ${slot.start_time.slice(0, 5)} — finish the class details below`,
+    });
+  };
+
   const add = async () => {
     if (!form.class_type_id) {
       toast.error('Select a class type');
@@ -149,12 +179,17 @@ export default function CalendarPage() {
             : [new Date(form.date + 'T12:00:00').getDay()],
       });
       toast.success(data.message || 'Series scheduled');
+      setSlotPicked(null);
       return;
     }
+    const sessionId = `ses_${Date.now().toString(36)}_${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
     await post({
       entity: 'sessions',
       action: 'upsert',
       record: {
+        id: sessionId,
         class_type_id: form.class_type_id,
         coach_id: form.coach_id || null,
         date: form.date,
@@ -167,11 +202,31 @@ export default function CalendarPage() {
         origin: 'owner',
       },
     });
-    toast.success(
-      form.public
-        ? 'Class scheduled, coach assigned, published to website'
-        : 'Class scheduled and coach assigned'
-    );
+    if (form.client_id) {
+      await post({
+        entity: 'bookings',
+        action: 'upsert',
+        record: {
+          session_id: sessionId,
+          client_id: form.client_id,
+          status: 'booked',
+          source: 'desk',
+        },
+      });
+      toast.success(
+        form.public
+          ? 'Class scheduled, member booked, published to website'
+          : 'Class scheduled and member booked'
+      );
+    } else {
+      toast.success(
+        form.public
+          ? 'Class scheduled, coach assigned, published to website'
+          : 'Class scheduled and coach assigned'
+      );
+    }
+    setForm((f) => ({ ...f, client_id: '' }));
+    setSlotPicked(null);
   };
 
   const copyInvite = async (sessionId: string) => {
@@ -224,7 +279,7 @@ export default function CalendarPage() {
     <FitgraphWorkbench
       title="Calendar"
       titleAccent="gym schedule"
-      description="Day, week and month views — set gym hours, filter by coach, schedule sessions and publish to the website."
+      description="Click an empty time on the day or week calendar to schedule a class. Optionally book a member onto it. Filter by coach diary, set gym hours, publish to the website."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -278,21 +333,56 @@ export default function CalendarPage() {
             }}
             initialDate={day}
             emptyLabel="No classes"
+            slotHint="Click empty time to add a class"
             onSelectDate={(date) => {
               setDay(date);
               setForm((f) => ({ ...f, date }));
             }}
+            onSelectSlot={pickSlot}
+            onSelectEvent={(ev) => {
+              // Prefill form from existing class for quick re-use / edit flow
+              setDay(ev.date);
+              setForm((f) => ({
+                ...f,
+                date: ev.date,
+                start_time: ev.start_time.slice(0, 5),
+                coach_id: ev.person_id || f.coach_id,
+              }));
+              toast.message('Class selected', {
+                description: `${ev.start_time.slice(0, 5)} · ${ev.title} — use join link below or schedule another at this time`,
+              });
+            }}
           />
 
+          <div ref={formAnchorRef}>
           <FormCard
             tone="owner"
-            title="Set out class · assign coach"
+            title={
+              slotPicked
+                ? `Schedule class · ${slotPicked}`
+                : 'Set out class · assign coach'
+            }
             onSubmit={() => void add()}
             saving={saving}
             submitLabel={
-              form.repeat === 'weekly' ? 'Schedule series' : 'Schedule class'
+              form.repeat === 'weekly'
+                ? 'Schedule series'
+                : form.client_id
+                  ? 'Schedule class + book member'
+                  : 'Schedule class'
             }
           >
+            {slotPicked ? (
+              <p className="sm:col-span-2 lg:col-span-3 text-xs text-violet-700 dark:text-violet-300 font-medium rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50/80 dark:bg-violet-950/40 px-3 py-2">
+                Slot from calendar: <strong>{slotPicked}</strong>. Pick class
+                type and coach, optionally book a member, then save.
+              </p>
+            ) : (
+              <p className="sm:col-span-2 lg:col-span-3 text-xs text-slate-500">
+                Tip: open <strong>Day</strong> or <strong>Week</strong> view and
+                click an empty time to fill date &amp; start time automatically.
+              </p>
+            )}
             <select
               className={fc()}
               value={form.class_type_id}
@@ -432,6 +522,24 @@ export default function CalendarPage() {
                 />
               </>
             )}
+            <select
+              className={fc() + ' sm:col-span-2'}
+              value={form.client_id}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, client_id: e.target.value }))
+              }
+            >
+              <option value="">Book member onto this class (optional)…</option>
+              {(store.clients || [])
+                .filter((c) => c.active !== false)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {c.email ? ` · ${c.email}` : ''}
+                    {c.code ? ` (${c.code})` : ''}
+                  </option>
+                ))}
+            </select>
             <label className="flex items-center gap-2 text-sm font-medium px-1 sm:col-span-2">
               <input
                 type="checkbox"
@@ -443,6 +551,7 @@ export default function CalendarPage() {
               List on public website calendar
             </label>
           </FormCard>
+          </div>
 
           <p className="text-xs text-slate-500">
             After scheduling, use <strong>Copy join link</strong> on a class to

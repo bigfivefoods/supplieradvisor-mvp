@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * FieldAdvisor · Labour & gang rates
+ * CropAdvisor · Labour & gang rates
  * Gang register (permanent / temporary / contractor) with default rates,
  * daily field logs with cost, and cost reports.
  */
@@ -168,7 +168,7 @@ export default function FieldgraphLabourPage() {
         rate_zar: Number(gangForm.rate_zar),
       },
     });
-    toast.success('Gang registered with rate');
+    toast.success('Gang registered — synced to People directory');
     setGangForm({
       code: '',
       name: '',
@@ -233,7 +233,7 @@ export default function FieldgraphLabourPage() {
             >
               People
             </Link>
-            . FieldAdvisor holds field-day rates and costs.
+            . CropAdvisor holds field-day rates and costs.
           </p>
 
           <div className="grid sm:grid-cols-4 gap-3">

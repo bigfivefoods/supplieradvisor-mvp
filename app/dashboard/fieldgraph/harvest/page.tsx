@@ -170,7 +170,7 @@ export default function FieldgraphHarvestPage() {
     <FieldgraphWorkbench
       title="Harvest Planner"
       titleAccent="cut dates"
-      description="Given your cutting sequence, field estimates and daily allocation for the season, FieldAdvisor calculates expected cut start and end dates for each field — multi-crop destinations (mill, silo, buyer)."
+      description="Given your cutting sequence, field estimates and daily allocation for the season, CropAdvisor calculates expected cut start and end dates for each field — multi-crop destinations (mill, silo, buyer)."
     >
       {loading || !store ? (
         <LoadingBlock />

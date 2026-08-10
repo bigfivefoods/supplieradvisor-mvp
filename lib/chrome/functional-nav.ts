@@ -21,7 +21,7 @@ import {
 /**
  * Functional ordering of existing MODULE_NAV ids (1:1, full trees preserved).
  * 1) Control Tower (+ Platform admin sits under it)
- * 2) Industry / programme OS (FitAdvisor · QuarryAdvisor · FieldAdvisor · DBE/Schools)
+ * 2) Industry / programme OS (FitAdvisor · QuarryAdvisor · CropAdvisor · DBE/Schools)
  * 3) Core modules
  */
 export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
@@ -36,7 +36,7 @@ export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
   'psychiatrygraph', // PsychiatryAdvisor® mental health OS
   'medicalgraph', // MedicalAdvisor® medical practice OS
   'quarrygraph', // QuarryAdvisor® aggregates OS
-  'fieldgraph', // FieldAdvisor® agri OS
+  'fieldgraph', // CropAdvisor® agri OS
   'schools', // DBE / NSNP (Schools)
   'health', // DoH programme (with industry/programmes)
   'containers', // Industry vertical (packs)
@@ -79,7 +79,7 @@ export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
   accounting: 'Finance',
   intelligence: 'Intelligence',
   sustainability: 'Impact',
-  fieldgraph: 'FieldAdvisor',
+  fieldgraph: 'CropAdvisor',
   quarrygraph: 'QuarryAdvisor',
   fitgraph: 'FitAdvisor (Gym)',
   physiograph: 'PhysioAdvisor (Clinic)',

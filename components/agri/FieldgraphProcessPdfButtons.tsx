@@ -5,7 +5,7 @@ type Variant = 'header' | 'inline' | 'map';
 
 /**
  * Dual A4 process design downloads — landscape + portrait.
- * Mirrors NSNP ProcessGuidePdfButtons for FieldAdvisor®.
+ * Mirrors NSNP ProcessGuidePdfButtons for CropAdvisor®.
  */
 export default function FieldgraphProcessPdfButtons({
   variant = 'inline',

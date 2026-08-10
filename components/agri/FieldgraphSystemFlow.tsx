@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * End-to-end FieldAdvisor® process design:
+ * End-to-end CropAdvisor® process design:
  * Fields → Estimates → Harvest → Ops → Messages → Trade → Sold & proven
  *
- * Expandable on the FieldAdvisor command hub; downloadable A4 PDF
+ * Expandable on the CropAdvisor command hub; downloadable A4 PDF
  * (landscape + portrait) — same pattern as NSNP schools flow.
  */
 import { useState } from 'react';
@@ -399,7 +399,7 @@ export default function FieldgraphSystemFlow({
       className={`rounded-3xl border border-slate-200 bg-white overflow-hidden ${
         compact ? 'mb-4' : 'mb-6'
       }`}
-      aria-label="FieldAdvisor full process design: fields to estimates to harvest to trade"
+      aria-label="CropAdvisor full process design: fields to estimates to harvest to trade"
       id="fieldgraph-system-flow"
     >
       <div className="bg-gradient-to-r from-emerald-900 via-emerald-700 to-teal-600 px-5 py-4 text-white">

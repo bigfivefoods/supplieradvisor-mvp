@@ -259,7 +259,7 @@ const SECTIONS: Section[] = [
     title: 'Industry vertical OS modules',
     rows: [
       {
-        capability: 'FieldAdvisor® · agri production',
+        capability: 'CropAdvisor® · agri production',
         hint: 'Fields, harvest, inputs, fleet fuel, labour, regen, farm-to-buyer',
         excel: 'partial',
         xero: 'no',
@@ -382,7 +382,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Industry packs opt-in (vertical hubs)',
-        hint: 'Enable FieldAdvisor, QuarryAdvisor, FitAdvisor, PhysioAdvisor, DentalAdvisor, PsychiatryAdvisor, MedicalAdvisor only when you need them',
+        hint: 'Enable CropAdvisor, QuarryAdvisor, FitAdvisor, PhysioAdvisor, DentalAdvisor, PsychiatryAdvisor, MedicalAdvisor only when you need them',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
@@ -615,7 +615,7 @@ export default function ComparePlatforms() {
               internal and external in-app messaging
             </strong>
             , ops, finance (budgets &amp; group hierarchy), quality, people,
-            trust, and industry hubs (FieldAdvisor®, QuarryAdvisor®, FitAdvisor®,
+            trust, and industry hubs (CropAdvisor®, QuarryAdvisor®, FitAdvisor®,
             PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, MedicalAdvisor®) — plus
             referral earnings when you onboard your chain (up to 10% · L1 · L2 ·
             L3).

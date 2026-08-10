@@ -110,7 +110,7 @@ export const ROLE_TONES: Record<string, TonePack> = {
   owner: VIOLET,
   coach: AMBER,
   member: CYAN,
-  // FieldAdvisor
+  // CropAdvisor
   'fg-office': EMERALD,
   'fg-ops': AMBER,
   'fg-trade': CYAN,

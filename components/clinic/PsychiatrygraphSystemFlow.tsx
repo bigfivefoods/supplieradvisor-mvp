@@ -5,7 +5,7 @@
  * People → Services · packs → Diary → Floor → Messages → Website · reports
  *
  * Expandable on the PsychiatryAdvisor command hub; downloadable A4 PDF
- * (landscape + portrait) — same pattern as FitAdvisor / FieldAdvisor.
+ * (landscape + portrait) — same pattern as FitAdvisor / CropAdvisor.
  * Content kept in sync with lib/clinic/psychiatrygraph-process-guide.ts
  */
 import { useState } from 'react';

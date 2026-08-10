@@ -335,7 +335,7 @@ export const SYSTEM_BENEFITS = [
 export const ONE_SENTENCE =
   'Register locations and sites → plan reserves and production → run plant and stockpiles → ticket dispatch with fleet and labour → message office, pit and trade partners in-app → prove QA and permits on every tonne sold.';
 
-// ── PDF (same structure as FieldAdvisor; amber/stone brand) ───────────────
+// ── PDF (same structure as CropAdvisor; amber/stone brand) ───────────────
 
 const A4_PORTRAIT_W = 595.28;
 const A4_PORTRAIT_H = 841.89;

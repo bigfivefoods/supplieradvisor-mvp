@@ -5,7 +5,7 @@
  * Locations → Sites → Reserves → Plant → Dispatch → Messages → Sold & compliant
  *
  * Expandable on the QuarryAdvisor command hub; downloadable A4 PDF
- * (landscape + portrait) — same pattern as NSNP / FieldAdvisor.
+ * (landscape + portrait) — same pattern as NSNP / CropAdvisor.
  */
 import { useState } from 'react';
 import Link from 'next/link';

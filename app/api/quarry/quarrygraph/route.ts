@@ -202,12 +202,39 @@ export async function POST(request: NextRequest) {
 
     upsertEntity(store, entity, rec, now);
 
+    // Dual-write crews → People directory
+    let peopleSync: { employeeId: number | null; created?: boolean } | null =
+      null;
+    if (entity === 'crews') {
+      const crewId = String(
+        rec.id || store.crews[store.crews.length - 1]?.id || ''
+      );
+      const crew = store.crews.find((c) => c.id === crewId);
+      if (crew) {
+        const { syncStoreStaffPersonToHr } = await import(
+          '@/lib/hr/sync-service-person'
+        );
+        peopleSync = await syncStoreStaffPersonToHr({
+          companyId,
+          source: 'quarrygraph_crew',
+          person: crew,
+        });
+      }
+    }
+
     await saveStore(companyId, meta, store);
     return NextResponse.json({
       success: true,
       store,
       summary: summariseQuarrygraph(store),
       analysis: analysisPayload(store),
+      people_sync: peopleSync,
+      message:
+        entity === 'crews' && peopleSync?.employeeId
+          ? peopleSync.created
+            ? 'Crew saved and added to People directory'
+            : 'Crew saved and People record updated'
+          : undefined,
     });
   } catch (e: unknown) {
     console.error('[quarrygraph]', e);
@@ -804,18 +831,49 @@ function upsertEntity(
   } else if (entity === 'crews') {
     const id = String(rec.id || newId('crw'));
     const existing = store.crews.findIndex((c) => c.id === id);
+    const prev = existing >= 0 ? store.crews[existing] : null;
     const row: QuarryCrew = {
       id,
-      code: String(rec.code || `C-${store.crews.length + 1}`),
-      name: String(rec.name || 'Crew'),
+      code: String(rec.code || prev?.code || `C-${store.crews.length + 1}`),
+      name: String(rec.name || prev?.name || 'Crew'),
       employment_type:
-        (rec.employment_type as LabourEmploymentType) || 'gang',
-      rate_zar: Number(rec.rate_zar) || 0,
-      rate_unit: (rec.rate_unit as LabourRateUnit) || 'per_person_day',
+        (rec.employment_type as LabourEmploymentType) ||
+        prev?.employment_type ||
+        'gang',
+      rate_zar:
+        rec.rate_zar !== undefined
+          ? Number(rec.rate_zar) || 0
+          : prev?.rate_zar || 0,
+      rate_unit:
+        (rec.rate_unit as LabourRateUnit) ||
+        prev?.rate_unit ||
+        'per_person_day',
+      email:
+        rec.email !== undefined
+          ? rec.email
+            ? String(rec.email)
+            : undefined
+          : prev?.email,
+      phone:
+        rec.phone !== undefined
+          ? rec.phone
+            ? String(rec.phone)
+            : undefined
+          : prev?.phone,
+      hr_employee_id:
+        rec.hr_employee_id !== undefined
+          ? rec.hr_employee_id
+            ? Number(rec.hr_employee_id)
+            : null
+          : prev?.hr_employee_id ?? null,
       active: rec.active !== false,
-      notes: rec.notes != null ? String(rec.notes) : undefined,
-      created_at:
-        existing >= 0 ? store.crews[existing].created_at : now,
+      notes:
+        rec.notes !== undefined
+          ? rec.notes
+            ? String(rec.notes)
+            : undefined
+          : prev?.notes,
+      created_at: prev?.created_at || now,
     };
     if (existing >= 0) store.crews[existing] = row;
     else store.crews.push(row);

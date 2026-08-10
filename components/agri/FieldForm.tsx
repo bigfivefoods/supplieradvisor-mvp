@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * FieldAdvisor form + table — process role tones:
+ * CropAdvisor form + table — process role tones:
  * fg-office / office (emerald) · fg-ops / ops (amber) · fg-trade / trade (cyan)
  */
 import type { ReactNode } from 'react';

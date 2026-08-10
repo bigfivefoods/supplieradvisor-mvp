@@ -1,5 +1,5 @@
 /**
- * Client-safe helpers for FieldAdvisor process guide PDF links.
+ * Client-safe helpers for CropAdvisor process guide PDF links.
  * Keep free of pdfkit so client components can import it.
  */
 

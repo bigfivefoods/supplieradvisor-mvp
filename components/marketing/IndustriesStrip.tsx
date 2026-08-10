@@ -28,7 +28,7 @@ const INDUSTRIES = [
   {
     slug: 'agriculture',
     name: 'Agriculture & inputs',
-    desc: 'FieldAdvisor® — multi-crop fields, harvest, inputs, fleet fuel, regen, and farm-to-buyer trade.',
+    desc: 'CropAdvisor® — multi-crop fields, harvest, inputs, fleet fuel, regen, and farm-to-buyer trade.',
     icon: Leaf,
   },
   {

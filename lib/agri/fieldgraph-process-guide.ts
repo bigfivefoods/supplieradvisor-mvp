@@ -1,5 +1,5 @@
 /**
- * FieldAdvisor® end-to-end process guide content + PDF.
+ * CropAdvisor® end-to-end process guide content + PDF.
  * Fields → Estimates → Harvest → Ops → Trade → Outcome
  * Pure pdfkit — works on Vercel serverless.
  *
@@ -419,7 +419,7 @@ function drawFooter(doc: PdfDoc, g: Geo, pageNum: number, total: number) {
       .fontSize(7)
       .fillColor(MUTED)
       .text(
-        `SupplierAdvisor® · FieldAdvisor® · ${orientLabel} · Primary production OS`,
+        `SupplierAdvisor® · CropAdvisor® · ${orientLabel} · Primary production OS`,
         g.mx,
         y + 4,
         { width: g.contentW * 0.72, align: 'left' }
@@ -738,10 +738,10 @@ export async function buildFieldgraphProcessGuidePdf(opts?: {
       margins: { top: 0, bottom: 28, left: g.mx, right: g.mx },
       info: {
         Title:
-          'FieldAdvisor® Process Design — Fields → Estimates → Harvest → Ops → Trade',
+          'CropAdvisor® Process Design — Fields → Estimates → Harvest → Ops → Trade',
         Author: 'SupplierAdvisor®',
-        Subject: `FieldAdvisor primary production end-to-end process (A4 ${orientation})`,
-        Keywords: 'FieldAdvisor, agri, harvest, estimates, farm OS, process guide',
+        Subject: `CropAdvisor primary production end-to-end process (A4 ${orientation})`,
+        Keywords: 'CropAdvisor, agri, harvest, estimates, farm OS, process guide',
         CreationDate: generated,
       },
     });
@@ -815,5 +815,5 @@ export function parseFieldgraphProcessGuideOrientation(
 export function fieldgraphProcessGuideFilename(
   orientation: FieldgraphProcessGuideOrientation
 ): string {
-  return `FieldAdvisor-Process-Design-A4-${orientation}.pdf`;
+  return `CropAdvisor-Process-Design-A4-${orientation}.pdf`;
 }

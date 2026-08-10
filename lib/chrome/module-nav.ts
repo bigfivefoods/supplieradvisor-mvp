@@ -540,12 +540,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
   },
   {
     id: 'fieldgraph',
-    name: 'FieldAdvisor',
+    name: 'CropAdvisor',
     icon: Sprout,
     href: '/dashboard/fieldgraph',
     resource: 'operations',
     /**
-     * FieldAdvisor® — multi-crop primary production OS.
+     * CropAdvisor® — multi-crop primary production OS.
      * Core agri: Field & agronomic data, Estimates, Harvest Planner, Vehicle Management.
      * Plus inputs, labour, regen, farm-to-buyer trade.
      */

@@ -474,18 +474,49 @@ export async function POST(request: NextRequest) {
       if (!store.gangs) store.gangs = [];
       const id = String(rec.id || newId('gng'));
       const existing = store.gangs.findIndex((g) => g.id === id);
+      const prev = existing >= 0 ? store.gangs[existing] : null;
       const row: AgriGang = {
         id,
-        code: String(rec.code || `G-${store.gangs.length + 1}`),
-        name: String(rec.name || 'Gang'),
+        code: String(rec.code || prev?.code || `G-${store.gangs.length + 1}`),
+        name: String(rec.name || prev?.name || 'Gang'),
         employment_type:
-          (rec.employment_type as LabourEmploymentType) || 'gang',
-        rate_zar: Number(rec.rate_zar) || 0,
-        rate_unit: (rec.rate_unit as LabourRateUnit) || 'per_person_day',
+          (rec.employment_type as LabourEmploymentType) ||
+          prev?.employment_type ||
+          'gang',
+        rate_zar:
+          rec.rate_zar !== undefined
+            ? Number(rec.rate_zar) || 0
+            : prev?.rate_zar || 0,
+        rate_unit:
+          (rec.rate_unit as LabourRateUnit) ||
+          prev?.rate_unit ||
+          'per_person_day',
+        email:
+          rec.email !== undefined
+            ? rec.email
+              ? String(rec.email)
+              : undefined
+            : prev?.email,
+        phone:
+          rec.phone !== undefined
+            ? rec.phone
+              ? String(rec.phone)
+              : undefined
+            : prev?.phone,
+        hr_employee_id:
+          rec.hr_employee_id !== undefined
+            ? rec.hr_employee_id
+              ? Number(rec.hr_employee_id)
+              : null
+            : prev?.hr_employee_id ?? null,
         active: rec.active !== false,
-        notes: rec.notes != null ? String(rec.notes) : undefined,
-        created_at:
-          existing >= 0 ? store.gangs[existing].created_at : now,
+        notes:
+          rec.notes !== undefined
+            ? rec.notes
+              ? String(rec.notes)
+              : undefined
+            : prev?.notes,
+        created_at: prev?.created_at || now,
       };
       if (existing >= 0) store.gangs[existing] = row;
       else store.gangs.push(row);
@@ -577,6 +608,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unknown entity' }, { status: 400 });
     }
 
+    // Dual-write gangs / crews → People directory
+    let peopleSync: { employeeId: number | null; created?: boolean } | null =
+      null;
+    if (entity === 'gangs') {
+      const gangId = String(
+        rec.id || store.gangs?.[store.gangs.length - 1]?.id || ''
+      );
+      const gang = (store.gangs || []).find((g) => g.id === gangId);
+      if (gang) {
+        const { syncStoreStaffPersonToHr } = await import(
+          '@/lib/hr/sync-service-person'
+        );
+        peopleSync = await syncStoreStaffPersonToHr({
+          companyId,
+          source: 'fieldgraph_gang',
+          person: gang,
+        });
+      }
+    }
+
     await saveStore(companyId, meta, store);
     const analysisSeason = String(
       (rec as { season?: string }).season || new Date().getFullYear()
@@ -586,6 +637,13 @@ export async function POST(request: NextRequest) {
       store,
       summary: summariseFieldgraph(store),
       analysis: analysisPayload(store, analysisSeason),
+      people_sync: peopleSync,
+      message:
+        entity === 'gangs' && peopleSync?.employeeId
+          ? peopleSync.created
+            ? 'Gang saved and added to People directory'
+            : 'Gang saved and People record updated'
+          : undefined,
     });
   } catch (e: unknown) {
     console.error('[fieldgraph]', e);

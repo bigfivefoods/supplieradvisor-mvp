@@ -9,10 +9,10 @@ import { INDUSTRY_PACK_MONTHLY_ZAR } from '@/lib/product/architecture';
 export const metadata: Metadata = {
   title: 'Industries — supply chain & services OS by sector',
   description:
-    'SupplierAdvisor® for food & beverage, agriculture (FieldAdvisor®), quarry (QuarryAdvisor®), manufacturing, distribution, fitness (FitAdvisor®), physio, dental, mental health, medical practices, public sector, and multi-entity groups.',
+    'SupplierAdvisor® for food & beverage, agriculture (CropAdvisor®), quarry (QuarryAdvisor®), manufacturing, distribution, fitness (FitAdvisor®), physio, dental, mental health, medical practices, public sector, and multi-entity groups.',
   keywords: [
     'supply chain by industry',
-    'FieldAdvisor',
+    'CropAdvisor',
     'QuarryAdvisor',
     'FitAdvisor',
     'PhysioAdvisor',
@@ -132,7 +132,7 @@ export default function IndustriesIndexPage() {
 
         <Section
           title="Primary & food"
-          blurb="Produce and protect — FieldAdvisor®, QuarryAdvisor®, and food & beverage lots."
+          blurb="Produce and protect — CropAdvisor®, QuarryAdvisor®, and food & beverage lots."
           items={PRIMARY}
         />
         <Section

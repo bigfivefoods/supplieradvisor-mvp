@@ -70,7 +70,7 @@ export default function FieldgraphFieldsPage() {
         plant_date: form.plant_date || null,
       },
     });
-    toast.success('Field agronomic record saved — shared across FieldAdvisor');
+    toast.success('Field agronomic record saved — shared across CropAdvisor');
     setForm((f) => ({
       ...f,
       code: '',

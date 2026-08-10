@@ -5,7 +5,7 @@
  * Presentational — parent supplies events, people filter, working hours.
  * Day/week height matches practice open hours for the day.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -80,6 +80,17 @@ type Props = {
   emptyLabel?: string;
   onSelectDate?: (date: string) => void;
   onSelectEvent?: (ev: ScheduleEvent) => void;
+  /**
+   * Click empty time on day/week timeline to schedule (snaps to 15 min).
+   * Also fires when a month cell is double-used for date-only via onSelectDate.
+   */
+  onSelectSlot?: (slot: {
+    date: string;
+    start_time: string;
+    person_id?: string | null;
+  }) => void;
+  /** Hint under day timeline when slots are selectable */
+  slotHint?: string;
 };
 
 const TONE: Record<
@@ -201,6 +212,8 @@ export function PracticeScheduleCalendar({
   emptyLabel = 'Nothing scheduled',
   onSelectDate,
   onSelectEvent,
+  onSelectSlot,
+  slotHint,
 }: Props) {
   const today = toIsoDate(new Date());
   const [view, setView] = useState<ViewMode>('week');
@@ -369,7 +382,7 @@ export function PracticeScheduleCalendar({
 
   /**
    * Timeline whose height matches open–close for `date` exactly.
-   * Events outside hours still clamp into the strip.
+   * Empty area is clickable → onSelectSlot (15-min snap).
    */
   const HoursTimeline = ({
     date,
@@ -389,6 +402,33 @@ export function PracticeScheduleCalendar({
     const height = duration * (compact ? 0.95 : PX_PER_MIN);
     const ticks = closed ? [] : hourTicks(openMin, closeMin);
     const px = compact ? 0.95 : PX_PER_MIN;
+    const canPickSlot = Boolean(onSelectSlot) && !closed;
+
+    const handleSlotClick = (e: MouseEvent<HTMLDivElement>) => {
+      if (!canPickSlot) return;
+      // Ignore clicks that originated on an event button
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-schedule-event]')) return;
+
+      const rect = e.currentTarget.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      const rawMin = openMin + y / px;
+      // Snap to 15 minutes within open window
+      const snapped =
+        Math.round(rawMin / 15) * 15;
+      const clamped = Math.max(
+        openMin,
+        Math.min(closeMin - 15, snapped)
+      );
+      const hh = Math.floor(clamped / 60);
+      const mm = clamped % 60;
+      const start_time = `${pad(hh)}:${pad(mm)}`;
+      onSelectSlot?.({
+        date,
+        start_time,
+        person_id: personFilter || selectedPerson?.id || null,
+      });
+    };
 
     return (
       <div
@@ -407,10 +447,17 @@ export function PracticeScheduleCalendar({
               {selectedPerson && diaryScope === 'person'
                 ? ` · ${selectedPerson.name}`
                 : ''}
-              <span className="text-slate-400 font-normal">
-                {' '}
-                · height matches working hours
-              </span>
+              {canPickSlot ? (
+                <span className="text-violet-600 dark:text-violet-300 font-bold">
+                  {' '}
+                  · click empty time to schedule
+                </span>
+              ) : (
+                <span className="text-slate-400 font-normal">
+                  {' '}
+                  · height matches working hours
+                </span>
+              )}
             </div>
           )
         ) : null}
@@ -441,17 +488,48 @@ export function PracticeScheduleCalendar({
               })}
               <div style={{ height }} />
             </div>
-            <div className="relative" style={{ height }}>
+            <div
+              className={`relative ${
+                canPickSlot
+                  ? 'cursor-crosshair hover:bg-violet-50/40 dark:hover:bg-violet-950/20'
+                  : ''
+              }`}
+              style={{ height }}
+              onClick={handleSlotClick}
+              title={
+                canPickSlot
+                  ? 'Click to schedule at this time'
+                  : undefined
+              }
+              role={canPickSlot ? 'button' : undefined}
+            >
               {ticks.map((h) => {
                 const top = (h * 60 - openMin) * px;
                 return (
                   <div
                     key={h}
-                    className="absolute left-0 right-0 border-t border-slate-100 dark:border-slate-800/80"
+                    className="absolute left-0 right-0 border-t border-slate-100 dark:border-slate-800/80 pointer-events-none"
                     style={{ top }}
                   />
                 );
               })}
+              {/* 15-min guides when picking */}
+              {canPickSlot && !compact
+                ? Array.from(
+                    { length: Math.floor(duration / 15) },
+                    (_, i) => openMin + i * 15
+                  ).map((m) => {
+                    if (m % 60 === 0) return null;
+                    const top = (m - openMin) * px;
+                    return (
+                      <div
+                        key={m}
+                        className="absolute left-0 right-0 border-t border-dashed border-slate-100/80 dark:border-slate-800/40 pointer-events-none"
+                        style={{ top }}
+                      />
+                    );
+                  })
+                : null}
               {dayEv.map((ev) => {
                 const start = minutesFromMidnight(ev.start_time);
                 const end = minutesFromMidnight(endTime(ev));
@@ -465,8 +543,12 @@ export function PracticeScheduleCalendar({
                   <button
                     key={ev.id}
                     type="button"
-                    onClick={() => onSelectEvent?.(ev)}
-                    className={`absolute left-0.5 right-0.5 rounded-lg border px-1 py-0.5 text-left overflow-hidden shadow-sm ${t.chip}`}
+                    data-schedule-event
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectEvent?.(ev);
+                    }}
+                    className={`absolute left-0.5 right-0.5 rounded-lg border px-1 py-0.5 text-left overflow-hidden shadow-sm z-[1] ${t.chip}`}
                     style={{ top, height: h, minHeight: compact ? 18 : 28 }}
                   >
                     <div
@@ -491,8 +573,12 @@ export function PracticeScheduleCalendar({
                 );
               })}
               {dayEv.length === 0 ? (
-                <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400">
-                  {emptyLabel}
+                <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400 pointer-events-none">
+                  {canPickSlot
+                    ? compact
+                      ? 'Tap to add'
+                      : slotHint || 'Click a time to schedule'
+                    : emptyLabel}
                 </div>
               ) : null}
             </div>

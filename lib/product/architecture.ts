@@ -517,7 +517,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     modules: [
       {
         id: 'agri_fieldgraph',
-        name: 'FieldAdvisor® production OS',
+        name: 'CropAdvisor® production OS',
         description:
           'Multi-crop fields, estimates, harvest plan, inputs, fleet, labour, regen.',
         unlocks: ['fieldgraph', 'suppliers', 'inventory'],
@@ -542,7 +542,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       },
     ],
     industryToolsHrefs: [
-      { name: 'FieldAdvisor®', href: '/dashboard/fieldgraph', desc: 'Primary production OS' },
+      { name: 'CropAdvisor®', href: '/dashboard/fieldgraph', desc: 'Primary production OS' },
       { name: 'Fields', href: '/dashboard/fieldgraph/fields', desc: 'Field book' },
       { name: 'Harvest plan', href: '/dashboard/fieldgraph/harvest', desc: 'Cut sequence' },
       { name: 'Supplier book', href: '/dashboard/suppliers/network', desc: 'Growers & farms' },
@@ -1111,7 +1111,7 @@ export function enabledModulesMapFromPacks(
     unlocked.add('sheq');
     unlocked.add('inventory');
   }
-  // Agri → FieldAdvisor + suppliers + inventory + impact
+  // Agri → CropAdvisor + suppliers + inventory + impact
   if (packIds.includes('agri_regen')) {
     unlocked.add('fieldgraph');
     unlocked.add('suppliers');

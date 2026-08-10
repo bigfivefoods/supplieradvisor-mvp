@@ -128,7 +128,7 @@ const MODULE_BAND_META: Record<
   industry: {
     title: 'Industry',
     blurb:
-      'Vertical OS modules for agri, extractives, and services — FieldAdvisor®, QuarryAdvisor®, FitAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, and MedicalAdvisor®.',
+      'Vertical OS modules for agri, extractives, and services — CropAdvisor®, QuarryAdvisor®, FitAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, and MedicalAdvisor®.',
     accent:
       'text-emerald-800 border-emerald-200 bg-emerald-50/80 dark:text-emerald-300 dark:border-emerald-500/40 dark:bg-emerald-500/10',
     step: '03',
@@ -191,7 +191,7 @@ const MODULE_OPTIONS: Array<{
     tone: 'border-emerald-200/80 bg-gradient-to-br from-emerald-50/50 to-white dark:border-emerald-500/30 dark:from-emerald-500/10 dark:to-black',
     iconTone: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300',
     bullets: [
-      'FieldAdvisor® agri · QuarryAdvisor® aggregates',
+      'CropAdvisor® agri · QuarryAdvisor® aggregates',
       'FitAdvisor® gyms · invite & member portals',
       'Physio · Dental · Psychiatry · Medical (scripts & charts)',
     ],
@@ -425,8 +425,8 @@ const MODULES = [
     id: 'fieldgraph',
     band: 'industry' as ModuleBand,
     code: 'I1',
-    title: 'FieldAdvisor®',
-    short: 'FieldAdvisor',
+    title: 'CropAdvisor®',
+    short: 'CropAdvisor',
     tagline: 'Agri production OS',
     body: 'Multi-crop fields, estimates, harvest plans, inputs, fleet fuel (L/h · L/km · R/km), labour, regen metrics, and farm-to-buyer trade — primary production without the spreadsheet sprawl.',
     bullets: ['Fields · estimates · harvest', 'Inputs, fleet & labour', 'Regen metrics · trade handoff'],
@@ -546,7 +546,7 @@ const MODULE_SECTION_BANDS: Array<{
     id: 'industry',
     title: 'Industry',
     blurb:
-      'Vertical depth — FieldAdvisor®, QuarryAdvisor®, FitAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, and MedicalAdvisor® for agri, extractives, gyms, clinics, dental, mental health, and medical practices.',
+      'Vertical depth — CropAdvisor®, QuarryAdvisor®, FitAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, and MedicalAdvisor® for agri, extractives, gyms, clinics, dental, mental health, and medical practices.',
   },
 ];
 
@@ -1049,7 +1049,7 @@ export default function LandingPage() {
               {
                 icon: Stethoscope,
                 t: 'Industry solutions that operate',
-                b: 'FieldAdvisor®, QuarryAdvisor®, FitAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, and MedicalAdvisor® — people, diaries, portals, invites, scripts, and messages, not brochure modules.',
+                b: 'CropAdvisor®, QuarryAdvisor®, FitAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, and MedicalAdvisor® — people, diaries, portals, invites, scripts, and messages, not brochure modules.',
               },
               {
                 icon: Fingerprint,
@@ -1617,7 +1617,7 @@ export default function LandingPage() {
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-neutral-400">
                 Pick your economic sector, then one or more industries. Industry
-                Packs unlock FieldAdvisor®, QuarryAdvisor®, FitAdvisor®, PhysioAdvisor®,
+                Packs unlock CropAdvisor®, QuarryAdvisor®, FitAdvisor®, PhysioAdvisor®,
                 DentalAdvisor®, PsychiatryAdvisor®, and MedicalAdvisor® — portals,
                 invites, scripts, and diaries — at +R{INDUSTRY_PACK_MONTHLY_ZAR}/mo each.
               </p>
