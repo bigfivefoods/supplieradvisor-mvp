@@ -27,6 +27,7 @@ import {
   IdCard,
   School,
   HeartPulse,
+  Stethoscope,
   Sprout,
   Mountain,
   Dumbbell,
@@ -603,6 +604,29 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Check-ins', href: '/dashboard/fitgraph/checkins', desc: 'Front desk', section: 'Floor' },
       { name: 'Website', href: '/dashboard/fitgraph/website', desc: 'Embed · public calendar', section: 'Grow' },
       { name: 'Reports', href: '/dashboard/fitgraph/report', desc: 'Attendance · members', section: 'Insights' },
+    ],
+  },
+  {
+    id: 'physiograph',
+    name: 'Physiograph',
+    icon: Stethoscope,
+    href: '/dashboard/physiograph',
+    resource: 'operations',
+    /**
+     * Physiograph® — tertiary / services clinic OS
+     * (physio, OT, biokinetics: practitioners, patients, services,
+     * packages, diary, bookings, website).
+     */
+    steps: [
+      { name: 'Command', href: '/dashboard/physiograph', exact: true, desc: 'Clinic home', section: 'Home' },
+      { name: 'Practitioners', href: '/dashboard/physiograph/practitioners', desc: 'Physios · OT · biokinetics', section: 'People' },
+      { name: 'Patients', href: '/dashboard/physiograph/patients', desc: 'Patient register', section: 'People' },
+      { name: 'Services', href: '/dashboard/physiograph/services', desc: 'Assessments · treatments', section: 'Services' },
+      { name: 'Packages', href: '/dashboard/physiograph/packages', desc: 'Rehab packs', section: 'Services' },
+      { name: 'Calendar', href: '/dashboard/physiograph/calendar', desc: 'Diary · assign practitioners', section: 'Floor' },
+      { name: 'Bookings', href: '/dashboard/physiograph/bookings', desc: 'Book · attend', section: 'Floor' },
+      { name: 'Website', href: '/dashboard/physiograph/website', desc: 'Clinic profile · booking', section: 'Grow' },
+      { name: 'Reports', href: '/dashboard/physiograph/report', desc: 'Utilisation · load', section: 'Insights' },
     ],
   },
   {

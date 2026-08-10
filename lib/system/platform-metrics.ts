@@ -92,6 +92,7 @@ export type ManagementReport = {
     fieldgraphEnabled: number;
     quarrygraphEnabled: number;
     fitgraphEnabled: number;
+    physiographEnabled: number;
   };
   recentCompanies: Array<{
     id: number;
@@ -231,6 +232,7 @@ export async function loadPlatformConsoleReports(): Promise<PlatformConsolePaylo
   let fieldgraphEnabled = 0;
   let quarrygraphEnabled = 0;
   let fitgraphEnabled = 0;
+  let physiographEnabled = 0;
 
   const since7 = daysAgoIso(7);
   const since30 = daysAgoIso(30);
@@ -285,6 +287,7 @@ export async function loadPlatformConsoleReports(): Promise<PlatformConsolePaylo
       if (em?.fieldgraph === true) fieldgraphEnabled += 1;
       if (em?.quarrygraph === true) quarrygraphEnabled += 1;
       if (em?.fitgraph === true) fitgraphEnabled += 1;
+      if (em?.physiograph === true) physiographEnabled += 1;
 
       if (recentCompanies.length < 12) {
         recentCompanies.push({
@@ -448,6 +451,7 @@ export async function loadPlatformConsoleReports(): Promise<PlatformConsolePaylo
       fieldgraphEnabled,
       quarrygraphEnabled,
       fitgraphEnabled,
+      physiographEnabled,
     },
     recentCompanies,
     opsAnalytics: ops.analytics,

@@ -94,7 +94,7 @@ export const SYSTEM_OVERVIEW = {
     },
     {
       title: 'Flow of goods',
-      body: 'Inventory, operations, manufacturing, distribution, and containers move product with lots and holds. Industry packs add Fieldgraph (agri), Quarrygraph (aggregates), and Fitgraph (gyms).',
+      body: 'Inventory, operations, manufacturing, distribution, and containers move product with lots and holds. Industry packs add Fieldgraph (agri), Quarrygraph (aggregates), Fitgraph (gyms), and Physiograph (clinics).',
     },
     {
       title: 'Flow of money',
@@ -132,7 +132,7 @@ export const SYSTEM_OVERVIEW = {
     },
     {
       name: 'Services verticals',
-      body: 'Fitgraph gym OS · coach portal · memberships · website embed calendar',
+      body: 'Fitgraph gym OS · Physiograph clinic OS · diary · bookings · public profiles',
       tone: 'violet',
     },
     {
@@ -203,7 +203,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         summary: 'Make the company findable, pick modules, staff the workspace.',
         steps: [
           'Company → Profile — trading name, industry, contacts (completeness ≥ 60% auto-ticks)',
-          'Company → Modules — enable only what you run (Fieldgraph, Quarrygraph, Fitgraph, trade, ops…); Guide mirrors this list',
+          'Company → Modules — enable only what you run (Fieldgraph, Quarrygraph, Fitgraph, Physiograph, trade, ops…); Guide mirrors this list',
           'Company → Team — invite at least one colleague',
           'Return to Dashboard — golden path shows Auto badges when detected',
         ],
@@ -1421,6 +1421,98 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     related: ['customers', 'golden-path'],
   },
   {
+    slug: 'physiograph',
+    moduleId: 'physiograph',
+    title: 'Physiograph®',
+    tagline: 'Practitioners → diary → bookings → website',
+    purpose:
+      'Tertiary clinic OS for physio, OT, biokinetics and allied health: practitioners (disciplines & rates), patients, service catalogue, rehab packages, appointment diary, bookings/attendance, and clinic website profile settings. Seed a demo clinic from the hub to explore the flow.',
+    who: ['Practice owner', 'Practitioner', 'Front desk', 'Patient (public)'],
+    principles: [
+      {
+        title: 'Assign practitioners',
+        body: 'Every diary slot should have a practitioner; reassign on the calendar anytime.',
+      },
+      {
+        title: 'Public = published',
+        body: 'Only appointments marked public and a published website profile are ready for online booking surfaces.',
+      },
+      {
+        title: 'Packages for rehab',
+        body: 'Multi-session packs sit on the patient record so front desk can track entitlement.',
+      },
+    ],
+    outcomes: [
+      'Practitioners registered with disciplines',
+      'Services + at least one package',
+      'Diary slots scheduled with practitioner',
+      'Patient booked and attendance understood',
+    ],
+    flow: [
+      { id: 'a', label: 'People', hint: 'Practitioners · patients', tone: 'violet' },
+      { id: 'b', label: 'Services', hint: 'Catalogue · packs', tone: 'emerald' },
+      { id: 'c', label: 'Diary', hint: 'Schedule', tone: 'cyan' },
+      { id: 'd', label: 'Floor', hint: 'Book · attend', tone: 'rose' },
+      { id: 'e', label: 'Website', hint: 'Profile · token', tone: 'violet' },
+      { id: 'f', label: 'Reports', hint: 'Utilisation', tone: 'amber' },
+    ],
+    processes: [
+      {
+        name: 'Schedule and book a treatment',
+        href: '/dashboard/physiograph/calendar',
+        summary: 'Service + practitioner + patient booking.',
+        steps: [
+          'Services — define assessment / treatment duration & price',
+          'Practitioners — register physio / OT / biokinetics',
+          'Calendar — schedule appointment, assign practitioner, optional public',
+          'Bookings — book patient onto the slot; mark attended',
+        ],
+      },
+      {
+        name: 'Rehab pack on a patient',
+        href: '/dashboard/physiograph/patients',
+        summary: 'Package entitlement then diary sessions.',
+        steps: [
+          'Packages — create multi-session rehab pack',
+          'Patients — register patient; assign practitioner + package',
+          'Calendar / Bookings — schedule remaining sessions',
+        ],
+      },
+      {
+        name: 'Publish clinic website profile',
+        href: '/dashboard/physiograph/website',
+        summary: 'Brand bio, booking flags, public token.',
+        steps: [
+          'Website — enable publish + online booking flags',
+          'Set brand name, contact, public bio',
+          'Copy public token for future embed endpoints',
+        ],
+        tip: 'Load demo clinic from the Physiograph hub to walk the full loop.',
+      },
+    ],
+    concepts: [
+      {
+        term: 'Practitioner',
+        meaning: 'Clinician with disciplines (physio, OT, etc.), rate and public bio.',
+      },
+      {
+        term: 'Public slot',
+        meaning: 'Appointment visible for online booking surfaces when the website is published.',
+      },
+      {
+        term: 'Rehab package',
+        meaning: 'Multi-session bundle assigned to a patient for entitlement tracking.',
+      },
+    ],
+    checklist: [
+      'Practitioner + service + scheduled appointment',
+      'One patient booking or demo seed loaded',
+      'Website settings understood (publish / token)',
+      'Opened Physiograph reports once',
+    ],
+    related: ['fitgraph', 'customers', 'golden-path'],
+  },
+  {
     slug: 'people',
     moduleId: 'people',
     title: 'People (HR)',
@@ -1636,7 +1728,7 @@ export function buildGuideNavSteps(
       id === 'quarrygraph'
     )
       return 'Operate';
-    if (id === 'fitgraph') return 'Services';
+    if (id === 'fitgraph' || id === 'physiograph') return 'Services';
     if (id === 'accounting') return 'Money';
     if (id === 'quality' || id === 'sheq') return 'Assure';
     if (id === 'projects' || id === 'people') return 'People';
@@ -1659,6 +1751,7 @@ export function buildGuideNavSteps(
     fieldgraph: 'Fieldgraph',
     quarrygraph: 'Quarrygraph',
     fitgraph: 'Fitgraph',
+    physiograph: 'Physiograph',
     quality: 'Assure',
     finance: 'Money',
     projects: 'Projects',

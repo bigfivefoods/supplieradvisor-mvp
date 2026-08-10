@@ -42,6 +42,8 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
     'Quarrygraph® — sites, reserves, production, plant, weighbridge, fleet, QA & permits',
   fitgraph:
     'Fitgraph® (tertiary services) — gym coaches, members, memberships, classes, calendar, bookings & check-ins',
+  physiograph:
+    'Physiograph® (tertiary services) — physio / OT / biokinetics: practitioners, patients, services, packages, diary & bookings',
   intelligence: 'Pulse, forecasts, scorecards & Super-Cube® leadership',
   schools:
     'NSNP schools: kitchen, learners, SPs, approved brands, feeding, prizes (DBE only)',
@@ -95,7 +97,7 @@ export const MODULE_BANDS: Array<{
     id: 'industry',
     title: 'Sector & industry',
     blurb:
-      'Vertical modules for agri, extractives, fitness, and public programmes.',
+      'Vertical modules for agri, extractives, fitness, clinics, and public programmes.',
   },
 ];
 
@@ -166,8 +168,9 @@ export const MODULE_CATEGORIES: ModuleCategory[] = [
     id: 'ind_services',
     band: 'industry',
     title: 'Services',
-    blurb: 'Fitgraph® — gym coaches, classes, subscriptions, website calendar.',
-    moduleIds: ['fitgraph'],
+    blurb:
+      'Fitgraph® (gyms) and Physiograph® (physio, OT, biokinetics & allied health).',
+    moduleIds: ['fitgraph', 'physiograph'],
   },
   {
     id: 'ind_programme',
@@ -405,6 +408,7 @@ export function normalizeEnabledModules(
         id === 'fieldgraph' ||
         id === 'quarrygraph' ||
         id === 'fitgraph' ||
+        id === 'physiograph' ||
         id === 'platform'
           ? false
           : true;
@@ -436,6 +440,7 @@ export function isModuleEnabled(
       moduleId !== 'fieldgraph' &&
       moduleId !== 'quarrygraph' &&
       moduleId !== 'fitgraph' &&
+      moduleId !== 'physiograph' &&
       moduleId !== 'platform'
     );
   }
@@ -448,6 +453,7 @@ export function isModuleEnabled(
     moduleId !== 'fieldgraph' &&
     moduleId !== 'quarrygraph' &&
     moduleId !== 'fitgraph' &&
+    moduleId !== 'physiograph' &&
     moduleId !== 'platform'
   );
 }
@@ -503,6 +509,7 @@ export function moduleIdForPath(pathname: string | null | undefined): string | n
   if (pathname.startsWith('/dashboard/fieldgraph')) return 'fieldgraph';
   if (pathname.startsWith('/dashboard/quarrygraph')) return 'quarrygraph';
   if (pathname.startsWith('/dashboard/fitgraph')) return 'fitgraph';
+  if (pathname.startsWith('/dashboard/physiograph')) return 'physiograph';
   if (pathname.startsWith('/dashboard/schools')) return 'schools';
   if (pathname.startsWith('/dashboard/health')) return 'health';
   if (pathname.startsWith('/dashboard/platform')) return 'platform';

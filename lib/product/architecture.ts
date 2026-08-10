@@ -729,6 +729,71 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     ],
   },
   {
+    id: 'allied_health_clinic',
+    name: 'Physio & Allied Health (Services)',
+    shortName: 'Clinic',
+    description:
+      'Tertiary / services industry pack for physio, OT, biokinetics and allied health — Physiograph®: practitioners, patients, services, packages, diary, bookings and clinic website.',
+    monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
+    priority: 1,
+    recommendSectors: ['tertiary'],
+    recommendEntities: ['private_company'],
+    modules: [
+      {
+        id: 'physio_os',
+        name: 'Physiograph® clinic OS',
+        description:
+          'Practitioners, patients, service catalogue, rehab packs, appointment diary and bookings.',
+        unlocks: ['physiograph', 'customers', 'people'],
+      },
+      {
+        id: 'physio_suppliers',
+        name: 'Clinic & rehab suppliers',
+        description: 'Source equipment, consumables and referral partners.',
+        unlocks: ['suppliers', 'network', 'physiograph'],
+      },
+      {
+        id: 'physio_ops',
+        name: 'Clinic ops & inventory',
+        description: 'Rooms, consumables and site ops for the practice.',
+        unlocks: ['operations', 'inventory', 'physiograph'],
+      },
+    ],
+    industryToolsHrefs: [
+      { name: 'Physiograph®', href: '/dashboard/physiograph', desc: 'Clinic OS' },
+      {
+        name: 'Practitioners',
+        href: '/dashboard/physiograph/practitioners',
+        desc: 'Physios · OT · biokinetics',
+      },
+      {
+        name: 'Patients',
+        href: '/dashboard/physiograph/patients',
+        desc: 'Patient register',
+      },
+      {
+        name: 'Services',
+        href: '/dashboard/physiograph/services',
+        desc: 'Catalogue',
+      },
+      {
+        name: 'Calendar',
+        href: '/dashboard/physiograph/calendar',
+        desc: 'Diary',
+      },
+      {
+        name: 'Bookings',
+        href: '/dashboard/physiograph/bookings',
+        desc: 'Book · attend',
+      },
+      {
+        name: 'Website',
+        href: '/dashboard/physiograph/website',
+        desc: 'Clinic profile',
+      },
+    ],
+  },
+  {
     id: 'dental',
     name: 'Dental Practice',
     shortName: 'Dental',
@@ -761,26 +826,28 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     name: 'Allied Health / Physio & Biokinetics',
     shortName: 'Allied Health',
     description:
-      'Clinic procurement, supplier network, and light multi-site operations.',
+      'Legacy alias for physio / allied clinics — prefer Physio & Allied Health (Services) for Physiograph®. Still unlocks clinic OS + procurement.',
     monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
     priority: 1,
     recommendSectors: ['tertiary', 'quaternary'],
     recommendEntities: ['private_company'],
     modules: [
       {
+        id: 'ah_os',
+        name: 'Physiograph® clinic OS',
+        description:
+          'Practitioners, patients, services, packages, diary and bookings.',
+        unlocks: ['physiograph', 'customers', 'people'],
+      },
+      {
         id: 'ah_procure',
         name: 'Clinic procurement',
         description: 'Consumables and equipment.',
-        unlocks: ['suppliers', 'inventory'],
-      },
-      {
-        id: 'ah_health_link',
-        name: 'Health programme link',
-        description: 'Optional health facility pathways.',
-        unlocks: ['health'],
+        unlocks: ['suppliers', 'inventory', 'physiograph'],
       },
     ],
     industryToolsHrefs: [
+      { name: 'Physiograph®', href: '/dashboard/physiograph', desc: 'Clinic OS' },
       { name: 'Suppliers', href: '/dashboard/suppliers', desc: 'Clinic supply' },
     ],
   },
@@ -1031,6 +1098,18 @@ export function enabledModulesMapFromPacks(
     unlocked.add('operations');
     unlocked.add('inventory');
   }
+  // Physio / allied health clinic → Physiograph
+  if (
+    packIds.includes('allied_health_clinic') ||
+    packIds.includes('allied_health')
+  ) {
+    unlocked.add('physiograph');
+    unlocked.add('suppliers');
+    unlocked.add('customers');
+    unlocked.add('operations');
+    unlocked.add('inventory');
+    unlocked.add('people');
+  }
   // Impact pack
   if (packIds.includes('impact_esg')) {
     unlocked.add('sustainability');
@@ -1278,6 +1357,17 @@ export function appModulesUnlockedByPack(pack: IndustryPackDef): string[] {
     ids.add('customers');
     ids.add('operations');
     ids.add('inventory');
+  }
+  if (
+    pack.id === 'allied_health_clinic' ||
+    pack.id === 'allied_health'
+  ) {
+    ids.add('physiograph');
+    ids.add('suppliers');
+    ids.add('customers');
+    ids.add('operations');
+    ids.add('inventory');
+    ids.add('people');
   }
   if (pack.id === 'impact_esg') {
     ids.add('sustainability');

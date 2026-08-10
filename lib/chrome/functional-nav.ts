@@ -30,6 +30,7 @@ export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
 
   // 2 — Industry-specific / programme modules
   'fitgraph', // Fitgraph® gym / studio OS
+  'physiograph', // Physiograph® clinic / physio OS
   'quarrygraph', // Quarrygraph® aggregates OS
   'fieldgraph', // Fieldgraph® agri OS
   'schools', // DBE / NSNP (Schools)
@@ -78,6 +79,7 @@ export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
   fieldgraph: 'Fieldgraph',
   quarrygraph: 'Quarrygraph',
   fitgraph: 'Fitgraph (Gym)',
+  physiograph: 'Physiograph (Clinic)',
   containers: 'Containers',
   schools: 'DBE / Schools',
   health: 'Health',
@@ -208,7 +210,15 @@ export function functionalSidebarModules(opts: {
     if (tools.length) {
       // After industry block (containers / schools / health), before core Company
       const insertAt = (() => {
-        const afterIndustry = ['containers', 'health', 'schools', 'fieldgraph', 'quarrygraph', 'fitgraph'];
+        const afterIndustry = [
+          'containers',
+          'health',
+          'schools',
+          'fieldgraph',
+          'quarrygraph',
+          'fitgraph',
+          'physiograph',
+        ];
         for (const id of afterIndustry) {
           const idx = out.findIndex((x) => x.id === id);
           if (idx >= 0) return idx + 1;

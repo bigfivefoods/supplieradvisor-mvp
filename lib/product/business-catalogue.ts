@@ -234,12 +234,14 @@ export const INDUSTRIES: readonly IndustryOption[] = [
   {
     id: 'allied_health_private',
     label: 'Allied health (private)',
-    description: 'Physio, biokinetics and private allied practices.',
+    description:
+      'Physio, OT, biokinetics and private multi-disciplinary clinics (Physiograph® diary, practitioners, patients, packages).',
     sectorId: 'tertiary',
-    packIds: ['allied_health'],
+    packIds: ['allied_health_clinic'],
     businessTypes: privateTypes([
       { id: 'physio', label: 'Physiotherapy practice', description: 'Private physio clinics.' },
       { id: 'biokinetics', label: 'Biokinetics practice', description: 'Biokinetics and rehab.' },
+      { id: 'ot_practice', label: 'Occupational therapy', description: 'OT practices and hand therapy.' },
       { id: 'allied_multi', label: 'Multi-disciplinary clinic', description: 'Combined allied health rooms.' },
     ]),
   },
