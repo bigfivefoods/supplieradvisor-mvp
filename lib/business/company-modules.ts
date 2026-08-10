@@ -310,7 +310,7 @@ export function listCompanyModuleOptions(): CompanyModuleOption[] {
     name: m.name,
     description: MODULE_DESCRIPTIONS[m.id] || m.name,
     alwaysOn: (ALWAYS_ON_MODULE_IDS as readonly string[]).includes(m.id),
-    category: catById.get(m.id) || 'trade',
+    category: catById.get(m.id) || 'core_trade',
   }));
 }
 
