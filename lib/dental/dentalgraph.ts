@@ -1,0 +1,590 @@
+/**
+ * Dentalgraph® — tertiary / services dental practice OS.
+ * Dentists, hygienists, assistants (staff), patients, services, care plans, diary, bookings.
+ * Stored on profiles.metadata.dentalgraph.
+ */
+
+import { totalUnread } from '@/lib/messaging/service-inbox';
+
+export const DENTALGRAPH_MODULE_ID = 'dentalgraph' as const;
+export const DENTALGRAPH_META_KEY = 'dentalgraph';
+
+export const STAFF_ROLES = [
+  'Dentist',
+  'Dental hygienist',
+  'Oral hygienist',
+  'Dental therapist',
+  'Dental assistant',
+  'Reception',
+  'Practice manager',
+  'Specialist (ortho)',
+  'Specialist (endo)',
+  'Specialist (periodontics)',
+  'Specialist (oral surgery)',
+  'General',
+] as const;
+
+/** Common dental treatment / concern sites (chart shorthand) */
+export const DENTAL_SITES = [
+  'Upper right (UR)',
+  'Upper left (UL)',
+  'Lower left (LL)',
+  'Lower right (LR)',
+  'Anterior / smile zone',
+  'Molars',
+  'Wisdom teeth',
+  'Gums / periodontium',
+  'TMJ / jaw',
+  'Full mouth',
+  'Other',
+] as const;
+
+export const DEFAULT_STAFF_ROLES: string[] = [
+  ...STAFF_ROLES,
+];
+
+export const PATIENT_STATUSES = [
+  'active',
+  'new',
+  'discharged',
+  'on_hold',
+  'cancelled',
+] as const;
+
+export type DentalStaff = {
+  id: string;
+  code: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  roles?: string[];
+  bio?: string;
+  public_bio?: string;
+  photo_url?: string;
+  rate_zar?: number | null;
+  /** hourly | per_session | package */
+  rate_basis?: string | null;
+  active?: boolean;
+  start_date?: string | null;
+  end_date?: string | null;
+  portal_token?: string | null;
+  created_at: string;
+};
+
+/**
+ * Clinical / injury awareness — staff update so the whole team
+ * knows body region, side, status, goals and contraindications.
+ */
+export type DentalClinicalProfile =
+  import('@/lib/health/body-map').PersonHealthProfile;
+
+export type DentalPatient = {
+  id: string;
+  code: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  status?: (typeof PATIENT_STATUSES)[number] | string;
+  staff_id?: string | null;
+  package_id?: string | null;
+  /** @deprecated prefer clinical.diagnosis_notes — kept for older records */
+  diagnosis_notes?: string;
+  emergency_contact?: string;
+  notes?: string;
+  /** Injury, diagnosis, pain, goals, contraindications */
+  clinical?: DentalClinicalProfile;
+  start_date?: string | null;
+  active?: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DentalService = {
+  id: string;
+  code: string;
+  name: string;
+  /** minutes */
+  default_duration_min?: number;
+  price_zar?: number;
+  description?: string;
+  active?: boolean;
+  created_at: string;
+};
+
+export type DentalPackage = {
+  id: string;
+  code: string;
+  name: string;
+  sessions_total: number;
+  price_zar: number;
+  description?: string;
+  active?: boolean;
+  created_at: string;
+};
+
+export type DentalAppointment = {
+  id: string;
+  service_id: string;
+  staff_id?: string | null;
+  date: string;
+  start_time: string;
+  end_time?: string | null;
+  duration_min?: number | null;
+  location?: string;
+  status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+  public?: boolean;
+  notes?: string;
+  public_notes?: string;
+  created_at: string;
+};
+
+export type DentalBooking = {
+  id: string;
+  appointment_id: string;
+  patient_id: string;
+  status: 'booked' | 'waitlist' | 'cancelled' | 'attended' | 'no_show';
+  booked_at: string;
+  source?: 'desk' | 'website' | 'practitioner' | string;
+  notes?: string;
+};
+
+export type DentalPublicSettings = {
+  enabled: boolean;
+  public_token: string;
+  brand_name?: string;
+  website_url?: string;
+  public_bio?: string;
+  allow_public_booking: boolean;
+  show_staff: boolean;
+  show_pricing: boolean;
+  timezone?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  embed_primary_color?: string;
+  staff_roles?: string[];
+};
+
+export type DentalgraphStore = {
+  staff: DentalStaff[];
+  patients: DentalPatient[];
+  services: DentalService[];
+  packages: DentalPackage[];
+  appointments: DentalAppointment[];
+  bookings: DentalBooking[];
+  /** Desk · practitioner · patient messaging threads */
+  threads?: import('@/lib/messaging/service-inbox').ServiceThread[];
+  settings?: DentalPublicSettings;
+  updated_at?: string;
+};
+
+export function newId(prefix: string): string {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function defaultDentalPublicSettings(companyId?: number): DentalPublicSettings {
+  return {
+    enabled: false,
+    public_token:
+      companyId != null
+        ? `dg_${companyId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
+        : `dg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
+    allow_public_booking: true,
+    show_staff: true,
+    show_pricing: true,
+    timezone: 'Africa/Johannesburg',
+    embed_primary_color: '#0284c7',
+    staff_roles: [...DEFAULT_STAFF_ROLES],
+  };
+}
+
+export function emptyDentalgraphStore(): DentalgraphStore {
+  return {
+    staff: [],
+    patients: [],
+    services: [],
+    packages: [],
+    appointments: [],
+    bookings: [],
+    threads: [],
+    settings: defaultDentalPublicSettings(),
+  };
+}
+
+export function readDentalgraphFromMetadata(
+  meta: Record<string, unknown> | null | undefined
+): DentalgraphStore {
+  if (!meta || typeof meta !== 'object') return emptyDentalgraphStore();
+  const raw = meta[DENTALGRAPH_META_KEY];
+  if (!raw || typeof raw !== 'object') return emptyDentalgraphStore();
+  const s = raw as Partial<DentalgraphStore>;
+  const e = emptyDentalgraphStore();
+  for (const key of Object.keys(e) as Array<keyof DentalgraphStore>) {
+    if (key === 'updated_at' || key === 'settings') continue;
+    const v = s[key];
+    (e as Record<string, unknown>)[key] = Array.isArray(v) ? v : [];
+  }
+  e.settings = {
+    ...defaultDentalPublicSettings(),
+    ...(s.settings && typeof s.settings === 'object' ? s.settings : {}),
+  };
+  if (!e.settings.public_token) {
+    e.settings.public_token = defaultDentalPublicSettings().public_token;
+  }
+  e.updated_at = s.updated_at ? String(s.updated_at) : undefined;
+  return e;
+}
+
+export function writeDentalgraphToMetadata(
+  meta: Record<string, unknown>,
+  store: DentalgraphStore
+): Record<string, unknown> {
+  return {
+    ...meta,
+    [DENTALGRAPH_META_KEY]: {
+      ...store,
+      updated_at: new Date().toISOString(),
+    },
+  };
+}
+
+export function ensureDentalPublicToken(
+  settings: DentalPublicSettings | undefined,
+  companyId?: number
+): DentalPublicSettings {
+  const base: DentalPublicSettings = {
+    ...defaultDentalPublicSettings(companyId),
+    ...(settings || {}),
+  };
+  if (!base.public_token) {
+    base.public_token = defaultDentalPublicSettings(companyId).public_token;
+  }
+  return base;
+}
+
+export function getStaffRoleOptions(
+  store?: DentalgraphStore | null
+): string[] {
+  const custom = store?.settings?.staff_roles;
+  const base =
+    Array.isArray(custom) && custom.length
+      ? custom.map(String)
+      : [...DEFAULT_STAFF_ROLES];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of base) {
+    const t = s.trim();
+    if (!t) continue;
+    const k = t.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(t);
+  }
+  for (const p of store?.staff || []) {
+    for (const d of p.roles || []) {
+      const t = String(d).trim();
+      if (!t) continue;
+      const k = t.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(t);
+    }
+  }
+  return out.length ? out : [...DEFAULT_STAFF_ROLES];
+}
+
+export function summariseDentalgraph(store: DentalgraphStore) {
+  const staff = store.staff.filter((p) => p.active !== false);
+  const patients = store.patients.filter((p) => p.active !== false);
+  const activePatients = patients.filter(
+    (p) => p.status === 'active' || p.status === 'new'
+  );
+  const today = new Date().toISOString().slice(0, 10);
+  const apptsToday = store.appointments.filter(
+    (a) => a.date === today && a.status !== 'cancelled'
+  );
+  const openBookings = store.bookings.filter(
+    (b) => b.status === 'booked' || b.status === 'waitlist'
+  );
+  return {
+    staffCount: staff.length,
+    patientCount: patients.length,
+    activePatients: activePatients.length,
+    serviceCount: store.services.filter((s) => s.active !== false).length,
+    packageCount: store.packages.filter((p) => p.active !== false).length,
+    appointmentsToday: apptsToday.length,
+    appointmentsUpcoming: store.appointments.filter(
+      (a) => a.date >= today && a.status === 'scheduled'
+    ).length,
+    bookingsOpen: openBookings.length,
+    websiteEnabled: store.settings?.enabled === true,
+    threadCount: (store.threads || []).filter((t) => !t.archived).length,
+    unreadMessages: totalUnread(store.threads || [], 'desk', 'desk'),
+  };
+}
+
+export function appointmentBookingCount(
+  store: DentalgraphStore,
+  appointmentId: string
+): number {
+  return store.bookings.filter(
+    (b) =>
+      b.appointment_id === appointmentId &&
+      (b.status === 'booked' || b.status === 'attended')
+  ).length;
+}
+
+export function appointmentsInRange(
+  store: DentalgraphStore,
+  from: string,
+  to: string
+): DentalAppointment[] {
+  return store.appointments
+    .filter((a) => a.date >= from && a.date <= to && a.status !== 'cancelled')
+    .sort((a, b) =>
+      a.date === b.date
+        ? a.start_time.localeCompare(b.start_time)
+        : a.date.localeCompare(b.date)
+    );
+}
+
+export function seedDemoDentalgraph(
+  now: string,
+  companyId?: number
+): DentalgraphStore {
+  const d = (offset: number) => {
+    const x = new Date(now);
+    x.setDate(x.getDate() + offset);
+    return x.toISOString().slice(0, 10);
+  };
+  const p1 = newId('stf');
+  const p2 = newId('stf');
+  const pat1 = newId('dpt');
+  const pat2 = newId('dpt');
+  const svc1 = newId('svc');
+  const svc2 = newId('svc');
+  const pkg1 = newId('pkg');
+  const apt1 = newId('apt');
+  const apt2 = newId('apt');
+  const cid = companyId ?? 0;
+
+  return {
+    settings: {
+      ...defaultDentalPublicSettings(cid > 0 ? cid : undefined),
+      enabled: true,
+      brand_name: 'BrightSmile Dental',
+      contact_email: 'hello@brightsmile.example',
+      contact_phone: '+27 11 000 3333',
+      public_bio: 'Family & cosmetic dentistry — check-ups to smile makeovers.',
+    },
+    staff: [
+      {
+        id: p1,
+        code: 'PR',
+        name: 'Dr Lindiwe Nkosi',
+        email: 'lindiwe@brightsmile.example',
+        roles: ['Dentist', 'Specialist (endo)'],
+        public_bio: 'General dentist · restorative & endo interest.',
+        rate_zar: 750,
+        rate_basis: 'per_session',
+        start_date: d(-120),
+        active: true,
+        created_at: now,
+      },
+      {
+        id: p2,
+        code: 'JM',
+        name: 'Sarah Botha',
+        email: 'sarah@brightsmile.example',
+        roles: ['Dental hygienist', 'Oral hygienist'],
+        public_bio: 'Hygienist · scale & polish · perio maintenance.',
+        rate_zar: 650,
+        rate_basis: 'per_session',
+        start_date: d(-60),
+        active: true,
+        created_at: now,
+      },
+    ],
+    patients: [
+      {
+        id: pat1,
+        code: 'P-001',
+        name: 'Nomsa Dlamini',
+        email: 'nomsa@example.com',
+        phone: '0820001001',
+        status: 'active',
+        staff_id: p1,
+        package_id: pkg1,
+        start_date: d(-30),
+        clinical: {
+          injured: true,
+          injury_areas: ['Upper right (UR)', 'Molars'],
+          injury_side: 'right',
+          injury_status: 'recovering',
+          injury_onset: d(-45),
+          injury_notes: 'Deep caries UR6 — sensitive to cold; provisional dressing placed.',
+          training_modifications: 'Avoid hard foods on right side; temporary filling in place.',
+          diagnosis_notes: 'Caries UR6 · planned composite restoration.',
+          treatment_goals: 'Restore UR6 · maintain oral hygiene · next hygiene in 6 months.',
+          pain_score: 3,
+          contraindications: 'No scaling over temporary until definitive restore.',
+          updated_at: now,
+          updated_by: 'prac:Dr Lindiwe Nkosi',
+        },
+        diagnosis_notes: 'Caries UR6 · planned composite restoration.',
+        active: true,
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: pat2,
+        code: 'P-002',
+        name: 'James van Rensburg',
+        email: 'james@example.com',
+        status: 'new',
+        staff_id: p2,
+        start_date: d(-3),
+        clinical: {
+          injured: true,
+          injury_areas: ['Gums / periodontium'],
+          injury_side: 'left',
+          injury_status: 'acute',
+          injury_onset: d(-10),
+          injury_notes: 'Mild gingivitis — bleeding on probing lower anteriors.',
+          training_modifications: 'Improve brushing technique; chlorhexidine rinse 7 days.',
+          treatment_goals: 'Resolve bleeding · BPE improve · hygiene recall.',
+          pain_score: 5,
+          updated_at: now,
+          updated_by: 'prac:Sarah Botha',
+        },
+        active: true,
+        created_at: now,
+        updated_at: now,
+      },
+    ],
+    services: [
+      {
+        id: svc1,
+        code: 'CHK',
+        name: 'Comprehensive check-up',
+        default_duration_min: 60,
+        price_zar: 550,
+        active: true,
+        created_at: now,
+      },
+      {
+        id: svc2,
+        code: 'HYG',
+        name: 'Scale & polish',
+        default_duration_min: 45,
+        price_zar: 550,
+        active: true,
+        created_at: now,
+      },
+    ],
+    packages: [
+      {
+        id: pkg1,
+        code: '6PACK',
+        name: 'Hygiene care plan (2 visits)',
+        sessions_total: 2,
+        price_zar: 1400,
+        description: 'Two hygiene visits with assigned clinician.',
+        active: true,
+        created_at: now,
+      },
+    ],
+    appointments: [
+      {
+        id: apt1,
+        service_id: svc1,
+        staff_id: p1,
+        date: d(0),
+        start_time: '09:00',
+        duration_min: 60,
+        location: 'Surgery 1',
+        status: 'scheduled',
+        public: true,
+        created_at: now,
+      },
+      {
+        id: apt2,
+        service_id: svc2,
+        staff_id: p2,
+        date: d(1),
+        start_time: '14:00',
+        duration_min: 45,
+        location: 'Hygiene bay',
+        status: 'scheduled',
+        public: true,
+        created_at: now,
+      },
+    ],
+    bookings: [
+      {
+        id: newId('bkg'),
+        appointment_id: apt1,
+        patient_id: pat1,
+        status: 'booked',
+        booked_at: now,
+        source: 'desk',
+      },
+    ],
+    threads: [
+      {
+        id: newId('thr'),
+        channel: 'practitioner_patient',
+        subject: 'ACL rehab check-in · Nomsa Dlamini',
+        participants: [
+          { role: 'desk', ref_id: 'desk', name: 'Front desk' },
+          { role: 'practitioner', ref_id: p1, name: 'Dr Lindiwe Nkosi' },
+          { role: 'patient', ref_id: pat1, name: 'Nomsa Dlamini' },
+        ],
+        messages: [
+          {
+            id: newId('msg'),
+            body: 'Nomsa has temporary on UR6 — book composite restore next week; remind soft diet on right.',
+            author_role: 'practitioner',
+            author_ref_id: p1,
+            author_name: 'Dr Lindiwe Nkosi',
+            created_at: now,
+            read_by: [`practitioner:${p1}`],
+          },
+          {
+            id: newId('msg'),
+            body: 'Noted at reception — we’ll confirm home exercises on arrival tomorrow.',
+            author_role: 'desk',
+            author_ref_id: 'desk',
+            author_name: 'Front desk',
+            created_at: now,
+            read_by: ['desk:desk'],
+          },
+        ],
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: newId('thr'),
+        channel: 'practitioner_colleague',
+        subject: 'Hygiene hand-off · James',
+        participants: [
+          { role: 'desk', ref_id: 'desk', name: 'Front desk' },
+          { role: 'practitioner', ref_id: p1, name: 'Dr Lindiwe Nkosi' },
+          { role: 'practitioner', ref_id: p2, name: 'Sarah Botha' },
+        ],
+        messages: [
+          {
+            id: newId('msg'),
+            body: 'Aisha’s cuff irritation — happy for biokinetics to take scapular control block once pain <3/10.',
+            author_role: 'practitioner',
+            author_ref_id: p1,
+            author_name: 'Dr Lindiwe Nkosi',
+            created_at: now,
+            read_by: [`practitioner:${p1}`],
+          },
+        ],
+        created_at: now,
+        updated_at: now,
+      },
+    ],
+  };
+}

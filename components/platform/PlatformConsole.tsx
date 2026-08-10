@@ -116,6 +116,7 @@ type ManagementReport = {
     quarrygraphEnabled?: number;
     fitgraphEnabled?: number;
     physiographEnabled?: number;
+    dentalgraphEnabled?: number;
   };
   recentCompanies?: Array<{
     id: number;
@@ -778,6 +779,7 @@ export function ManagementReportView({
               ['Quarrygraph®', mod?.quarrygraphEnabled],
               ['Fitgraph®', mod?.fitgraphEnabled],
               ['Physiograph®', mod?.physiographEnabled],
+              ['Dentalgraph®', mod?.dentalgraphEnabled],
             ].map(([label, val]) => (
               <div
                 key={String(label)}

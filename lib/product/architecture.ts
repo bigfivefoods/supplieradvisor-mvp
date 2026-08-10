@@ -795,29 +795,67 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
   },
   {
     id: 'dental',
-    name: 'Dental Practice',
+    name: 'Dental Practice (Services)',
     shortName: 'Dental',
     description:
-      'Practice procurement, clinical suppliers, compliance docs, and multi-site ready.',
+      'Tertiary / services industry pack for dental practices — Dentalgraph®: dentists & staff, patients, services, care plans, diary, bookings, messages and practice website, plus procurement.',
     monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
     priority: 1,
     recommendSectors: ['tertiary', 'quaternary'],
     recommendEntities: ['private_company'],
     modules: [
       {
+        id: 'den_os',
+        name: 'Dentalgraph® practice OS',
+        description:
+          'Staff, patients, treatment catalogue, care plans, appointment diary, bookings and messages.',
+        unlocks: ['dentalgraph', 'customers', 'people'],
+      },
+      {
         id: 'den_procure',
         name: 'Practice procurement',
-        description: 'Order from dental suppliers.',
-        unlocks: ['suppliers', 'inventory'],
+        description: 'Order from dental suppliers and labs.',
+        unlocks: ['suppliers', 'inventory', 'dentalgraph'],
       },
       {
         id: 'den_compliance',
         name: 'Clinical compliance',
         description: 'Docs, quality, and SHEQ light.',
-        unlocks: ['quality', 'sheq'],
+        unlocks: ['quality', 'sheq', 'dentalgraph'],
       },
     ],
     industryToolsHrefs: [
+      { name: 'Dentalgraph®', href: '/dashboard/dentalgraph', desc: 'Practice OS' },
+      {
+        name: 'Staff',
+        href: '/dashboard/dentalgraph/staff',
+        desc: 'Dentists · hygienists',
+      },
+      {
+        name: 'Patients',
+        href: '/dashboard/dentalgraph/patients',
+        desc: 'Patient register',
+      },
+      {
+        name: 'Calendar',
+        href: '/dashboard/dentalgraph/calendar',
+        desc: 'Diary',
+      },
+      {
+        name: 'Bookings',
+        href: '/dashboard/dentalgraph/bookings',
+        desc: 'Book · attend',
+      },
+      {
+        name: 'Messages',
+        href: '/dashboard/dentalgraph/messages',
+        desc: 'Team · patients',
+      },
+      {
+        name: 'Website',
+        href: '/dashboard/dentalgraph/website',
+        desc: 'Practice profile',
+      },
       { name: 'Suppliers', href: '/dashboard/suppliers', desc: 'Dental supply' },
     ],
   },
@@ -1110,6 +1148,16 @@ export function enabledModulesMapFromPacks(
     unlocked.add('inventory');
     unlocked.add('people');
   }
+  // Dental practice → Dentalgraph
+  if (packIds.includes('dental')) {
+    unlocked.add('dentalgraph');
+    unlocked.add('suppliers');
+    unlocked.add('customers');
+    unlocked.add('operations');
+    unlocked.add('inventory');
+    unlocked.add('people');
+    unlocked.add('quality');
+  }
   // Impact pack
   if (packIds.includes('impact_esg')) {
     unlocked.add('sustainability');
@@ -1368,6 +1416,15 @@ export function appModulesUnlockedByPack(pack: IndustryPackDef): string[] {
     ids.add('operations');
     ids.add('inventory');
     ids.add('people');
+  }
+  if (pack.id === 'dental') {
+    ids.add('dentalgraph');
+    ids.add('suppliers');
+    ids.add('customers');
+    ids.add('operations');
+    ids.add('inventory');
+    ids.add('people');
+    ids.add('quality');
   }
   if (pack.id === 'impact_esg') {
     ids.add('sustainability');

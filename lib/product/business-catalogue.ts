@@ -222,13 +222,15 @@ export const INDUSTRIES: readonly IndustryOption[] = [
   },
   {
     id: 'dental_clinical',
-    label: 'Dental & clinical practices',
-    description: 'Dental and private clinical practices (non-hospital).',
+    label: 'Dental practices',
+    description:
+      'Dental practices and groups — Dentalgraph® diary, staff, patients, care plans and practice website.',
     sectorId: 'tertiary',
     packIds: ['dental'],
     businessTypes: privateTypes([
       { id: 'dental_practice', label: 'Dental practice', description: 'General or specialist dental practice.' },
       { id: 'dental_group', label: 'Dental group / multi-site', description: 'Multi-chair or multi-site groups.' },
+      { id: 'ortho_practice', label: 'Orthodontic practice', description: 'Ortho-led practices and aligner clinics.' },
     ]),
   },
   {

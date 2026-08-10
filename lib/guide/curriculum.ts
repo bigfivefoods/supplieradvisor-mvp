@@ -94,7 +94,7 @@ export const SYSTEM_OVERVIEW = {
     },
     {
       title: 'Flow of goods',
-      body: 'Inventory, operations, manufacturing, distribution, and containers move product with lots and holds. Industry packs add Fieldgraph (agri), Quarrygraph (aggregates), Fitgraph (gyms), and Physiograph (clinics).',
+      body: 'Inventory, operations, manufacturing, distribution, and containers move product with lots and holds. Industry packs add Fieldgraph (agri), Quarrygraph (aggregates), Fitgraph (gyms), Physiograph (clinics), and Dentalgraph (dental).',
     },
     {
       title: 'Flow of money',
@@ -132,7 +132,7 @@ export const SYSTEM_OVERVIEW = {
     },
     {
       name: 'Services verticals',
-      body: 'Fitgraph gym OS · Physiograph clinic OS · diary · bookings · public profiles',
+      body: 'Fitgraph gym · Physiograph clinic · Dentalgraph dental · diary · bookings · messages',
       tone: 'violet',
     },
     {
@@ -203,7 +203,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         summary: 'Make the company findable, pick modules, staff the workspace.',
         steps: [
           'Company → Profile — trading name, industry, contacts (completeness ≥ 60% auto-ticks)',
-          'Company → Modules — enable only what you run (Fieldgraph, Quarrygraph, Fitgraph, Physiograph, trade, ops…); Guide mirrors this list',
+          'Company → Modules — enable only what you run (Fieldgraph, Quarrygraph, Fitgraph, Physiograph, Dentalgraph, trade, ops…); Guide mirrors this list',
           'Company → Team — invite at least one colleague',
           'Return to Dashboard — golden path shows Auto badges when detected',
         ],
@@ -1510,7 +1510,99 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       'Website settings understood (publish / token)',
       'Opened Physiograph reports once',
     ],
-    related: ['fitgraph', 'customers', 'golden-path'],
+    related: ['fitgraph', 'dentalgraph', 'customers', 'golden-path'],
+  },
+  {
+    slug: 'dentalgraph',
+    moduleId: 'dentalgraph',
+    title: 'Dentalgraph®',
+    tagline: 'Staff → diary → bookings → messages',
+    purpose:
+      'Tertiary dental practice OS: dentists, hygienists and assistants (staff roles & rates), patients with oral-health clinical notes, treatment catalogue, care plans, appointment diary, bookings/attendance, team messaging, and practice website profile. Seed a demo practice from the hub to explore the flow.',
+    who: ['Practice owner', 'Dentist', 'Hygienist', 'Reception', 'Patient (public)'],
+    principles: [
+      {
+        title: 'Assign clinicians',
+        body: 'Every diary slot should have a dentist or hygienist; reassign on the calendar anytime.',
+      },
+      {
+        title: 'Clinical notes travel with the patient',
+        body: 'Tooth/site, status, modifications and goals keep the whole team aligned on care.',
+      },
+      {
+        title: 'Messages close the loop',
+        body: 'Desk, clinicians and patient care threads keep hand-offs and follow-ups auditable.',
+      },
+    ],
+    outcomes: [
+      'Staff registered with roles',
+      'Services + at least one care plan',
+      'Diary slots scheduled with clinician',
+      'Patient booked; messages understood',
+    ],
+    flow: [
+      { id: 'a', label: 'People', hint: 'Staff · patients', tone: 'violet' },
+      { id: 'b', label: 'Services', hint: 'Catalogue · plans', tone: 'emerald' },
+      { id: 'c', label: 'Diary', hint: 'Schedule', tone: 'cyan' },
+      { id: 'd', label: 'Floor', hint: 'Book · attend', tone: 'rose' },
+      { id: 'e', label: 'Messages', hint: 'Team · care', tone: 'amber' },
+      { id: 'f', label: 'Website', hint: 'Profile · token', tone: 'violet' },
+    ],
+    processes: [
+      {
+        name: 'Schedule and book a treatment',
+        href: '/dashboard/dentalgraph/calendar',
+        summary: 'Service + clinician + patient booking.',
+        steps: [
+          'Services — define check-up / hygiene / restorative duration & price',
+          'Staff — register dentist or hygienist',
+          'Calendar — schedule appointment, assign clinician',
+          'Bookings — book patient; mark attended',
+        ],
+      },
+      {
+        name: 'Care plan on a patient',
+        href: '/dashboard/dentalgraph/patients',
+        summary: 'Package entitlement then diary sessions.',
+        steps: [
+          'Packages — create multi-visit care plan',
+          'Patients — register patient; assign clinician + plan; oral-health notes',
+          'Calendar / Bookings — schedule remaining visits',
+        ],
+      },
+      {
+        name: 'Team messaging',
+        href: '/dashboard/dentalgraph/messages',
+        summary: 'Desk ↔ clinician ↔ patient care threads.',
+        steps: [
+          'Messages — start clinician ↔ patient or colleague thread',
+          'Reply as desk or as clinician',
+          'Archive when episode of care is closed',
+        ],
+        tip: 'Load demo practice from the Dentalgraph hub to walk the full loop.',
+      },
+    ],
+    concepts: [
+      {
+        term: 'Staff',
+        meaning: 'Dentist, hygienist, assistant or reception with role tags and rates.',
+      },
+      {
+        term: 'Care plan',
+        meaning: 'Multi-visit package assigned to a patient for entitlement tracking.',
+      },
+      {
+        term: 'Clinical note',
+        meaning: 'Site, status, modifications and goals so every visit stays safe and progressive.',
+      },
+    ],
+    checklist: [
+      'Staff + service + scheduled appointment',
+      'One patient booking or demo seed loaded',
+      'Messages or website settings opened once',
+      'Opened Dentalgraph reports once',
+    ],
+    related: ['physiograph', 'fitgraph', 'customers', 'golden-path'],
   },
   {
     slug: 'people',
@@ -1728,7 +1820,8 @@ export function buildGuideNavSteps(
       id === 'quarrygraph'
     )
       return 'Operate';
-    if (id === 'fitgraph' || id === 'physiograph') return 'Services';
+    if (id === 'fitgraph' || id === 'physiograph' || id === 'dentalgraph')
+      return 'Services';
     if (id === 'accounting') return 'Money';
     if (id === 'quality' || id === 'sheq') return 'Assure';
     if (id === 'projects' || id === 'people') return 'People';
@@ -1752,6 +1845,7 @@ export function buildGuideNavSteps(
     quarrygraph: 'Quarrygraph',
     fitgraph: 'Fitgraph',
     physiograph: 'Physiograph',
+    dentalgraph: 'Dentalgraph',
     quality: 'Assure',
     finance: 'Money',
     projects: 'Projects',

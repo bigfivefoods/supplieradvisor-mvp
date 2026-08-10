@@ -28,6 +28,7 @@ import {
   School,
   HeartPulse,
   Stethoscope,
+  Smile,
   Sprout,
   Mountain,
   Dumbbell,
@@ -629,6 +630,30 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Messages', href: '/dashboard/physiograph/messages', desc: 'Desk · physios · patients', section: 'Floor' },
       { name: 'Website', href: '/dashboard/physiograph/website', desc: 'Clinic profile · booking', section: 'Grow' },
       { name: 'Reports', href: '/dashboard/physiograph/report', desc: 'Utilisation · load', section: 'Insights' },
+    ],
+  },
+  {
+    id: 'dentalgraph',
+    name: 'Dentalgraph',
+    icon: Smile,
+    href: '/dashboard/dentalgraph',
+    resource: 'operations',
+    /**
+     * Dentalgraph® — tertiary / services dental practice OS
+     * (dentists, hygienists, assistants, patients, services,
+     * care plans, diary, bookings, messages, website).
+     */
+    steps: [
+      { name: 'Command', href: '/dashboard/dentalgraph', exact: true, desc: 'Practice home', section: 'Home' },
+      { name: 'Staff', href: '/dashboard/dentalgraph/staff', desc: 'Dentists · hygienists · team', section: 'People' },
+      { name: 'Patients', href: '/dashboard/dentalgraph/patients', desc: 'Patient register', section: 'People' },
+      { name: 'Services', href: '/dashboard/dentalgraph/services', desc: 'Check-ups · treatments', section: 'Services' },
+      { name: 'Packages', href: '/dashboard/dentalgraph/packages', desc: 'Care plans', section: 'Services' },
+      { name: 'Calendar', href: '/dashboard/dentalgraph/calendar', desc: 'Diary · assign clinicians', section: 'Floor' },
+      { name: 'Bookings', href: '/dashboard/dentalgraph/bookings', desc: 'Book · attend', section: 'Floor' },
+      { name: 'Messages', href: '/dashboard/dentalgraph/messages', desc: 'Desk · staff · patients', section: 'Floor' },
+      { name: 'Website', href: '/dashboard/dentalgraph/website', desc: 'Practice profile · booking', section: 'Grow' },
+      { name: 'Reports', href: '/dashboard/dentalgraph/report', desc: 'Utilisation · load', section: 'Insights' },
     ],
   },
   {

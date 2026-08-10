@@ -31,14 +31,14 @@ export type MessagingDirectory = {
 };
 
 export type ServiceMessagingProps = {
-  variant: 'fitgraph' | 'physiograph';
+  variant: 'fitgraph' | 'physiograph' | 'dentalgraph';
   threads: ServiceThread[];
   directory: MessagingDirectory;
   saving?: boolean;
   /** Post actions via parent (company API) */
   onAction: (body: Record<string, unknown>) => Promise<unknown>;
   /** Accent classes */
-  accent?: 'violet' | 'teal';
+  accent?: 'violet' | 'teal' | 'sky';
 };
 
 type ComposeMode =
@@ -53,13 +53,27 @@ export function ServiceMessaging({
   directory,
   saving,
   onAction,
-  accent = variant === 'fitgraph' ? 'violet' : 'teal',
+  accent = variant === 'fitgraph'
+    ? 'violet'
+    : variant === 'dentalgraph'
+      ? 'sky'
+      : 'teal',
 }: ServiceMessagingProps) {
   const staffRole: MsgRole =
     variant === 'fitgraph' ? 'coach' : 'practitioner';
   const clientRole: MsgRole = variant === 'fitgraph' ? 'member' : 'patient';
-  const staffLabel = variant === 'fitgraph' ? 'Coach' : 'Practitioner';
-  const clientLabel = variant === 'fitgraph' ? 'Member' : 'Patient';
+  const staffLabel =
+    variant === 'fitgraph'
+      ? 'Coach'
+      : variant === 'dentalgraph'
+        ? 'Clinician'
+        : 'Practitioner';
+  const clientLabel =
+    variant === 'fitgraph'
+      ? 'Member'
+      : variant === 'dentalgraph'
+        ? 'Patient'
+        : 'Patient';
 
   const deskAuthor: MsgParticipant = {
     role: 'desk',
@@ -109,19 +123,27 @@ export function ServiceMessaging({
   const border =
     accent === 'violet'
       ? 'border-violet-200 dark:border-violet-500/40'
-      : 'border-teal-200 dark:border-teal-500/40';
+      : accent === 'sky'
+        ? 'border-sky-200 dark:border-sky-500/40'
+        : 'border-teal-200 dark:border-teal-500/40';
   const chip =
     accent === 'violet'
       ? 'bg-violet-600 text-white'
-      : 'bg-teal-600 text-white';
+      : accent === 'sky'
+        ? 'bg-sky-600 text-white'
+        : 'bg-teal-600 text-white';
   const soft =
     accent === 'violet'
       ? 'bg-violet-50 dark:bg-violet-950/50'
-      : 'bg-teal-50 dark:bg-teal-950/50';
+      : accent === 'sky'
+        ? 'bg-sky-50 dark:bg-sky-950/50'
+        : 'bg-teal-50 dark:bg-teal-950/50';
   const textAccent =
     accent === 'violet'
       ? 'text-violet-700 dark:text-violet-300'
-      : 'text-teal-700 dark:text-teal-300';
+      : accent === 'sky'
+        ? 'text-sky-700 dark:text-sky-300'
+        : 'text-teal-700 dark:text-teal-300';
 
   const authorForSend = (): MsgParticipant => {
     if (asStaff && staffId) {
@@ -476,7 +498,9 @@ export function ServiceMessaging({
                           mine
                             ? accent === 'violet'
                               ? 'bg-violet-600 text-white'
-                              : 'bg-teal-600 text-white'
+                              : accent === 'sky'
+                                ? 'bg-sky-600 text-white'
+                                : 'bg-teal-600 text-white'
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100'
                         }`}
                       >

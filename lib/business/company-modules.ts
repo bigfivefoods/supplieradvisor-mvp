@@ -44,6 +44,8 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
     'Fitgraph® (tertiary services) — gym coaches, members, memberships, classes, calendar, bookings & check-ins',
   physiograph:
     'Physiograph® (tertiary services) — physio / OT / biokinetics: practitioners, patients, services, packages, diary & bookings',
+  dentalgraph:
+    'Dentalgraph® (tertiary services) — dentists, hygienists & staff: patients, services, care plans, diary, bookings & messages',
   intelligence: 'Pulse, forecasts, scorecards & Super-Cube® leadership',
   schools:
     'NSNP schools: kitchen, learners, SPs, approved brands, feeding, prizes (DBE only)',
@@ -169,8 +171,8 @@ export const MODULE_CATEGORIES: ModuleCategory[] = [
     band: 'industry',
     title: 'Services',
     blurb:
-      'Fitgraph® (gyms) and Physiograph® (physio, OT, biokinetics & allied health).',
-    moduleIds: ['fitgraph', 'physiograph'],
+      'Fitgraph® (gyms), Physiograph® (physio / allied) and Dentalgraph® (dental practices).',
+    moduleIds: ['fitgraph', 'physiograph', 'dentalgraph'],
   },
   {
     id: 'ind_programme',
@@ -409,6 +411,7 @@ export function normalizeEnabledModules(
         id === 'quarrygraph' ||
         id === 'fitgraph' ||
         id === 'physiograph' ||
+        id === 'dentalgraph' ||
         id === 'platform'
           ? false
           : true;
@@ -441,6 +444,7 @@ export function isModuleEnabled(
       moduleId !== 'quarrygraph' &&
       moduleId !== 'fitgraph' &&
       moduleId !== 'physiograph' &&
+      moduleId !== 'dentalgraph' &&
       moduleId !== 'platform'
     );
   }
@@ -454,6 +458,7 @@ export function isModuleEnabled(
     moduleId !== 'quarrygraph' &&
     moduleId !== 'fitgraph' &&
     moduleId !== 'physiograph' &&
+    moduleId !== 'dentalgraph' &&
     moduleId !== 'platform'
   );
 }
@@ -510,6 +515,7 @@ export function moduleIdForPath(pathname: string | null | undefined): string | n
   if (pathname.startsWith('/dashboard/quarrygraph')) return 'quarrygraph';
   if (pathname.startsWith('/dashboard/fitgraph')) return 'fitgraph';
   if (pathname.startsWith('/dashboard/physiograph')) return 'physiograph';
+  if (pathname.startsWith('/dashboard/dentalgraph')) return 'dentalgraph';
   if (pathname.startsWith('/dashboard/schools')) return 'schools';
   if (pathname.startsWith('/dashboard/health')) return 'health';
   if (pathname.startsWith('/dashboard/platform')) return 'platform';
