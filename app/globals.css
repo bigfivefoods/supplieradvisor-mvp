@@ -46,30 +46,33 @@
 html.dark {
   color-scheme: dark;
 
-  /* Deep navy-slate canvas with cyan brand — premium ops console feel */
-  --sa-bg: #0b1220;
-  --sa-bg-elevated: #0f172a;
-  --sa-surface: #111827;
-  --sa-surface-2: #0f172a;
-  --sa-border: #1e293b;
-  --sa-border-strong: #334155;
-  --sa-text: #f1f5f9;
-  --sa-text-secondary: #cbd5e1;
-  --sa-muted: #94a3b8;
-  --sa-faint: #64748b;
-  --sa-brand: #22d3ee;
-  --sa-brand-deep: #38bdf8;
-  --sa-brand-soft: rgba(34, 211, 238, 0.12);
-  --sa-brand-glow: rgba(34, 211, 238, 0.2);
-  --sa-shadow: 0 12px 36px -14px rgb(0 0 0 / 0.55);
-  --sa-shadow-lg: 0 28px 60px -24px rgb(0 0 0 / 0.65);
-  --sa-overlay: rgb(0 0 0 / 0.65);
-  --sa-input-bg: #0f172a;
-  --sa-scrollbar: #334155;
-  --sa-success-soft: rgba(16, 185, 129, 0.12);
-  --sa-warn-soft: rgba(245, 158, 11, 0.12);
-  --sa-danger-soft: rgba(244, 63, 94, 0.12);
-  --sa-sky-soft: rgba(14, 165, 233, 0.1);
+  /*
+   * Black · grey · white + SupplierAdvisor blues
+   * Brand stays the product blues: #00b4d8 · #0077b6
+   */
+  --sa-bg: #000000;
+  --sa-bg-elevated: #0a0a0a;
+  --sa-surface: #141414;
+  --sa-surface-2: #0a0a0a;
+  --sa-border: #2a2a2a;
+  --sa-border-strong: #404040;
+  --sa-text: #ffffff;
+  --sa-text-secondary: #e5e5e5;
+  --sa-muted: #a3a3a3;
+  --sa-faint: #737373;
+  --sa-brand: #00b4d8;
+  --sa-brand-deep: #0077b6;
+  --sa-brand-soft: rgba(0, 180, 216, 0.16);
+  --sa-brand-glow: rgba(0, 180, 216, 0.28);
+  --sa-shadow: 0 12px 36px -14px rgb(0 0 0 / 0.75);
+  --sa-shadow-lg: 0 28px 60px -24px rgb(0 0 0 / 0.85);
+  --sa-overlay: rgb(0 0 0 / 0.72);
+  --sa-input-bg: #0a0a0a;
+  --sa-scrollbar: #404040;
+  --sa-success-soft: rgba(16, 185, 129, 0.14);
+  --sa-warn-soft: rgba(245, 158, 11, 0.14);
+  --sa-danger-soft: rgba(244, 63, 94, 0.14);
+  --sa-sky-soft: rgba(0, 180, 216, 0.12);
 }
 
 /* ============================================
@@ -257,33 +260,27 @@ html.dark .bg-white {
 }
 
 html.dark .bg-white\/80 {
-
-    background-color: rgb(17 24 39 / 0.8) !important;
+  background-color: rgb(20 20 20 / 0.8) !important;
 }
 
 html.dark .bg-white\/90 {
-
-    background-color: rgb(17 24 39 / 0.9) !important;
+  background-color: rgb(20 20 20 / 0.9) !important;
 }
 
 html.dark .bg-white\/95 {
-
-    background-color: rgb(17 24 39 / 0.95) !important;
+  background-color: rgb(20 20 20 / 0.95) !important;
 }
 
 html.dark .bg-white\/50 {
-
-    background-color: rgb(17 24 39 / 0.5) !important;
+  background-color: rgb(20 20 20 / 0.5) !important;
 }
 
 html.dark .bg-white\/60 {
-
-    background-color: rgb(17 24 39 / 0.6) !important;
+  background-color: rgb(20 20 20 / 0.6) !important;
 }
 
 html.dark .bg-white\/70 {
-
-    background-color: rgb(17 24 39 / 0.7) !important;
+  background-color: rgb(20 20 20 / 0.7) !important;
 }
 
 html.dark .bg-\[\#f8fafc\],
@@ -303,13 +300,11 @@ html.dark .bg-gray-100 {
 
 html.dark .bg-slate-200\/80,
 html.dark .bg-slate-200 {
-
-    background-color: #1e293b !important;
+  background-color: #2a2a2a !important;
 }
 
 html.dark .bg-neutral-200 {
-
-    background-color: #1e293b !important;
+  background-color: #2a2a2a !important;
 }
 
 /* Soft tints → dark-friendly washes */
@@ -375,63 +370,53 @@ html.dark .text-black {
 html.dark .text-slate-800,
 html.dark .text-neutral-800,
 html.dark .text-gray-800 {
-
-    color: #e2e8f0 !important;
+  color: #f5f5f5 !important;
 }
 
 html.dark .text-slate-700,
 html.dark .text-neutral-700,
 html.dark .text-gray-700 {
-
-    color: var(--sa-text-secondary) !important;
+  color: var(--sa-text-secondary) !important;
 }
 
 html.dark .text-slate-600,
 html.dark .text-neutral-600,
 html.dark .text-gray-600 {
-
-    color: #94a3b8 !important;
+  color: #d4d4d4 !important;
 }
 
 html.dark .text-slate-500,
 html.dark .text-neutral-500,
 html.dark .text-gray-500 {
-
-    color: var(--sa-muted) !important;
+  color: var(--sa-muted) !important;
 }
 
 html.dark .text-slate-400,
 html.dark .text-neutral-400,
 html.dark .text-gray-400 {
-
-    color: var(--sa-faint) !important;
+  color: var(--sa-faint) !important;
 }
 
 html.dark .text-slate-300,
 html.dark .text-neutral-300 {
-
-    color: #64748b !important;
+  color: #a3a3a3 !important;
 }
 
-/* Brand deep → brighter on dark */
+/* SupplierAdvisor blues — keep product brand on black */
 html.dark .text-\[\#0077b6\] {
-
-    color: #38bdf8 !important;
+  color: #00b4d8 !important;
 }
 
 html.dark .text-\[\#00b4d8\] {
-
-    color: #22d3ee !important;
+  color: #00b4d8 !important;
 }
 
 html.dark .hover\:text-\[\#0077b6\]:hover {
-
-    color: #38bdf8 !important;
+  color: #22d3ee !important;
 }
 
 html.dark .hover\:text-\[\#00b4d8\]:hover {
-
-    color: #22d3ee !important;
+  color: #22d3ee !important;
 }
 
 /* Borders */
@@ -450,28 +435,24 @@ html.dark .border-neutral-100,
 html.dark .border-gray-100,
 html.dark .border-slate-50,
 html.dark .border-neutral-50 {
-
-    border-color: rgb(30 41 59 / 0.9) !important;
+  border-color: rgb(42 42 42 / 0.95) !important;
 }
 
 html.dark .border-slate-300,
 html.dark .border-neutral-300 {
-
-    border-color: var(--sa-border-strong) !important;
+  border-color: var(--sa-border-strong) !important;
 }
 
 html.dark .border-cyan-100,
 html.dark .border-cyan-100\/80,
 html.dark .border-sky-100 {
-
-    border-color: rgba(34, 211, 238, 0.2) !important;
+  border-color: rgba(0, 180, 216, 0.28) !important;
 }
 
 html.dark .border-cyan-200,
 html.dark .border-cyan-200\/80,
 html.dark .border-sky-200 {
-
-    border-color: rgba(34, 211, 238, 0.28) !important;
+  border-color: rgba(0, 180, 216, 0.38) !important;
 }
 
 html.dark .border-emerald-200 {
@@ -509,27 +490,23 @@ html.dark .ring-slate-200 {
 
 /* Soft brand fills used on chips */
 html.dark .from-white {
-
-    --tw-gradient-from: var(--sa-surface) var(--tw-gradient-from-position) !important;
-    --tw-gradient-to: rgb(17 24 39 / 0) var(--tw-gradient-to-position) !important;
-    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+  --tw-gradient-from: var(--sa-surface) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(0 0 0 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
 html.dark .via-white {
-
-    --tw-gradient-to: rgb(17 24 39 / 0) var(--tw-gradient-to-position) !important;
-    --tw-gradient-stops: var(--tw-gradient-from), var(--sa-surface) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+  --tw-gradient-to: rgb(0 0 0 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--sa-surface) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
 }
 
 html.dark .to-white {
-
-    --tw-gradient-to: var(--sa-surface) var(--tw-gradient-to-position) !important;
+  --tw-gradient-to: var(--sa-surface) var(--tw-gradient-to-position) !important;
 }
 
 html.dark .from-sky-50,
 html.dark .from-cyan-50 {
-
-    --tw-gradient-from: rgba(34, 211, 238, 0.08) var(--tw-gradient-from-position) !important;
+  --tw-gradient-from: rgba(0, 180, 216, 0.12) var(--tw-gradient-from-position) !important;
 }
 
 /* Placeholder */
@@ -712,10 +689,10 @@ html.dark [data-sonner-toaster] [data-sonner-toast] {
     background-color: #0099b8;
   }
   html.dark .btn-primary {
-    background-color: #0891b2;
+    background-color: #00b4d8;
   }
   html.dark .btn-primary:hover {
-    background-color: #0e7490;
+    background-color: #0099b8;
   }
 
   .btn-secondary {
@@ -841,9 +818,9 @@ html.dark [data-sonner-toaster] [data-sonner-toast] {
 }
 
 html.dark .leaflet-container {
-  background: #0f172a;
+  background: #0a0a0a;
 }
 html.dark .leaflet-control-attribution {
-  background: rgb(15 23 42 / 0.85) !important;
-  color: #94a3b8 !important;
+  background: rgb(0 0 0 / 0.85) !important;
+  color: #a3a3a3 !important;
 }

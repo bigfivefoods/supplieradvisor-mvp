@@ -63,7 +63,7 @@ export function applyResolvedTheme(resolved: ResolvedTheme) {
   if (meta) {
     meta.setAttribute(
       'content',
-      resolved === 'dark' ? '#0b1220' : '#00b4d8'
+      resolved === 'dark' ? '#000000' : '#00b4d8'
     );
   }
 }

@@ -183,8 +183,8 @@ function SettingsInner() {
             <div>
               <p className="text-sm font-bold text-slate-900">Colour theme</p>
               <p className="mt-1 text-xs text-slate-500 max-w-md">
-                Light is the classic SupplierAdvisor look. Dark is a deep navy-slate console
-                with cyan accents — saved on this device.
+                Light is the classic SupplierAdvisor look. Dark is black with grey, white,
+                and SupplierAdvisor blues — saved on this device.
               </p>
             </div>
             <ThemeToggle variant="segmented" />

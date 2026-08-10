@@ -29,7 +29,7 @@ export default function ThemeToggle({
   if (variant === 'segmented') {
     return (
       <div
-        className={`inline-flex items-center gap-0.5 rounded-full border border-slate-200 bg-slate-50/90 p-0.5 dark:border-slate-700 dark:bg-slate-900/80 ${className}`}
+        className={`inline-flex items-center gap-0.5 rounded-full border border-slate-200 bg-slate-50/90 p-0.5 dark:border-neutral-700 dark:bg-black/80 ${className}`}
         role="group"
         aria-label="Colour theme"
       >
@@ -44,8 +44,8 @@ export default function ThemeToggle({
               aria-pressed={active}
               className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-bold transition-all ${
                 active
-                  ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-slate-50'
-                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100'
+                  ? 'bg-white text-slate-900 shadow-sm dark:bg-neutral-800 dark:text-white'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-neutral-400 dark:hover:text-white'
               }`}
             >
               <Icon className="h-3.5 w-3.5" />
@@ -68,7 +68,7 @@ export default function ThemeToggle({
       aria-label={
         resolved === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'
       }
-      className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-all hover:border-[#00b4d8]/50 hover:text-[#0077b6] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-cyan-500/50 dark:hover:text-cyan-300 ${className}`}
+      className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-all hover:border-[#00b4d8]/50 hover:text-[#0077b6] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:border-[#00b4d8]/50 dark:hover:text-[#00b4d8] ${className}`}
     >
       {resolved === 'dark' ? (
         <Sun className="h-4 w-4" />

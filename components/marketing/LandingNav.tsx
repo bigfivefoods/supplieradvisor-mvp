@@ -89,8 +89,8 @@ export default function LandingNav() {
           backgroundColor:
             resolved === 'dark'
               ? scrolled || open
-                ? 'rgba(11,18,32,0.98)'
-                : 'rgba(11,18,32,0.94)'
+                ? 'rgba(0,0,0,0.98)'
+                : 'rgba(0,0,0,0.94)'
               : scrolled || open
                 ? 'rgba(255,255,255,0.98)'
                 : 'rgba(255,255,255,0.95)',
@@ -99,7 +99,7 @@ export default function LandingNav() {
           boxShadow:
             scrolled || open
               ? resolved === 'dark'
-                ? '0 1px 3px 0 rgb(0 0 0 / 0.35)'
+                ? '0 1px 3px 0 rgb(0 0 0 / 0.55)'
                 : '0 1px 3px 0 rgb(0 0 0 / 0.06)'
               : 'none',
         }}
