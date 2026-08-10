@@ -4,6 +4,8 @@
  * Stored on profiles.metadata.physiograph.
  */
 
+import { totalUnread } from '@/lib/messaging/service-inbox';
+
 export const PHYSIOGRAPH_MODULE_ID = 'physiograph' as const;
 export const PHYSIOGRAPH_META_KEY = 'physiograph';
 
@@ -151,6 +153,8 @@ export type PhysiographStore = {
   packages: PhysioPackage[];
   appointments: PhysioAppointment[];
   bookings: PhysioBooking[];
+  /** Desk · practitioner · patient messaging threads */
+  threads?: import('@/lib/messaging/service-inbox').ServiceThread[];
   settings?: PhysioPublicSettings;
   updated_at?: string;
 };
@@ -183,6 +187,7 @@ export function emptyPhysiographStore(): PhysiographStore {
     packages: [],
     appointments: [],
     bookings: [],
+    threads: [],
     settings: defaultPublicSettings(),
   };
 }
@@ -294,6 +299,8 @@ export function summarisePhysiograph(store: PhysiographStore) {
     ).length,
     bookingsOpen: openBookings.length,
     websiteEnabled: store.settings?.enabled === true,
+    threadCount: (store.threads || []).filter((t) => !t.archived).length,
+    unreadMessages: totalUnread(store.threads || [], 'desk', 'desk'),
   };
 }
 
@@ -502,6 +509,63 @@ export function seedDemoPhysiograph(
         status: 'booked',
         booked_at: now,
         source: 'desk',
+      },
+    ],
+    threads: [
+      {
+        id: newId('thr'),
+        channel: 'practitioner_patient',
+        subject: 'ACL rehab check-in · Thabo Molefe',
+        participants: [
+          { role: 'desk', ref_id: 'desk', name: 'Front desk' },
+          { role: 'practitioner', ref_id: p1, name: 'Dr Priya Reddy' },
+          { role: 'patient', ref_id: pat1, name: 'Thabo Molefe' },
+        ],
+        messages: [
+          {
+            id: newId('msg'),
+            body: 'Thabo is week 8 post-ACL — please stick to closed-chain only and reassess swelling before loading stairs.',
+            author_role: 'practitioner',
+            author_ref_id: p1,
+            author_name: 'Dr Priya Reddy',
+            created_at: now,
+            read_by: [`practitioner:${p1}`],
+          },
+          {
+            id: newId('msg'),
+            body: 'Noted at reception — we’ll confirm home exercises on arrival tomorrow.',
+            author_role: 'desk',
+            author_ref_id: 'desk',
+            author_name: 'Front desk',
+            created_at: now,
+            read_by: ['desk:desk'],
+          },
+        ],
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: newId('thr'),
+        channel: 'practitioner_colleague',
+        subject: 'Shoulder case · Aisha',
+        participants: [
+          { role: 'desk', ref_id: 'desk', name: 'Front desk' },
+          { role: 'practitioner', ref_id: p1, name: 'Dr Priya Reddy' },
+          { role: 'practitioner', ref_id: p2, name: 'Johan Meyer' },
+        ],
+        messages: [
+          {
+            id: newId('msg'),
+            body: 'Aisha’s cuff irritation — happy for biokinetics to take scapular control block once pain <3/10.',
+            author_role: 'practitioner',
+            author_ref_id: p1,
+            author_name: 'Dr Priya Reddy',
+            created_at: now,
+            read_by: [`practitioner:${p1}`],
+          },
+        ],
+        created_at: now,
+        updated_at: now,
       },
     ],
   };

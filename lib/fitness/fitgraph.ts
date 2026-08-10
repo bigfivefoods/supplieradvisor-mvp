@@ -4,6 +4,14 @@
  * bookings, check-ins, PT packs. Stored on profiles.metadata.fitgraph.
  */
 
+import {
+  previewText,
+  threadTitle,
+  threadsForParticipant,
+  totalUnread,
+  unreadInThread,
+} from '@/lib/messaging/service-inbox';
+
 export const FITGRAPH_MODULE_ID = 'fitgraph' as const;
 export const FITGRAPH_META_KEY = 'fitgraph';
 
@@ -709,6 +717,8 @@ export type FitgraphStore = {
   pt_packs: FitPtPack[];
   /** Member + coach post-class feedback */
   class_feedback?: FitClassFeedback[];
+  /** Desk · coach · member messaging threads */
+  threads?: import('@/lib/messaging/service-inbox').ServiceThread[];
   settings?: FitPublicSettings;
   updated_at?: string;
 };
@@ -745,6 +755,7 @@ export function emptyFitgraphStore(): FitgraphStore {
     check_ins: [],
     pt_packs: [],
     class_feedback: [],
+    threads: [],
     settings: defaultPublicSettings(),
   };
 }
@@ -879,6 +890,8 @@ export function summariseFitgraph(store: FitgraphStore) {
     memberFeedbackCount: (store.class_feedback || []).filter(
       (f) => f.role === 'member'
     ).length,
+    threadCount: (store.threads || []).filter((t) => !t.archived).length,
+    unreadMessages: totalUnread(store.threads || [], 'desk', 'desk'),
     coachFeedbackCount: (store.class_feedback || []).filter(
       (f) => f.role === 'coach'
     ).length,
@@ -1265,6 +1278,22 @@ export function buildCoachPortalPayload(
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  const coachThreads = threadsForParticipant(
+    store.threads || [],
+    'coach',
+    coach.id
+  ).map((t) => ({
+    id: t.id,
+    channel: t.channel,
+    subject: threadTitle(t, 'coach', coach.id),
+    updated_at: t.updated_at,
+    preview: previewText(t),
+    unread: unreadInThread(t, 'coach', coach.id),
+    participants: t.participants,
+    messages: t.messages,
+  }));
+  const messagesUnread = totalUnread(store.threads || [], 'coach', coach.id);
+
   const classTypes = store.class_types
     .filter((c) => c.active !== false)
     .map((c) => ({
@@ -1315,6 +1344,12 @@ export function buildCoachPortalPayload(
     by_date: byDate,
     members,
     class_types: classTypes,
+    threads: coachThreads,
+    messages_unread: messagesUnread,
+    /** Peer coaches for colleague messaging */
+    peer_coaches: store.coaches
+      .filter((c) => c.active !== false && c.id !== coach.id)
+      .map((c) => ({ id: c.id, code: c.code, name: c.name })),
   };
 }
 

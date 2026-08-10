@@ -25,6 +25,11 @@ import {
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
 import { mergeHealthProfile } from '@/lib/health/body-map';
+import {
+  applyMessageAction,
+  threadsForParticipant,
+  totalUnread,
+} from '@/lib/messaging/service-inbox';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -206,6 +211,92 @@ export async function POST(request: NextRequest) {
     const { companyId, meta, store, coach } = resolved;
     const now = new Date().toISOString();
     const sessionId = String(body.session_id || body.sessionId || '');
+
+    /**
+     * Messaging — coach ↔ member / desk / colleague coaches.
+     * Does not require can_manage_classes.
+     */
+    if (
+      action.startsWith('message_') ||
+      action === 'create_thread' ||
+      action === 'post_message' ||
+      action === 'mark_read' ||
+      action === 'archive_thread'
+    ) {
+      const author = {
+        role: 'coach' as const,
+        ref_id: coach.id,
+        name: coach.name,
+      };
+      const bodyWithAuthor = {
+        ...body,
+        author_role: 'coach',
+        author_ref_id: coach.id,
+        author_name: coach.name,
+        // Ensure coach is always a participant on threads they create
+        participants: Array.isArray(body.participants)
+          ? [
+              ...(body.participants as Array<Record<string, unknown>>),
+              author,
+            ]
+          : [author],
+      };
+      // Convenience: message a member by client_id
+      if (body.client_id && !body.with_ref_id) {
+        const client = store.clients.find(
+          (c) => c.id === String(body.client_id)
+        );
+        if (client) {
+          bodyWithAuthor.with_role = 'member';
+          bodyWithAuthor.with_ref_id = client.id;
+          bodyWithAuthor.with_name = client.name;
+          if (!bodyWithAuthor.channel) {
+            bodyWithAuthor.channel = 'coach_member';
+          }
+        }
+      }
+      if (body.to_desk === true || body.channel === 'desk_coach') {
+        bodyWithAuthor.with_role = bodyWithAuthor.with_role || 'desk';
+        bodyWithAuthor.with_ref_id = bodyWithAuthor.with_ref_id || 'desk';
+        bodyWithAuthor.with_name = bodyWithAuthor.with_name || 'Front desk';
+        bodyWithAuthor.channel = bodyWithAuthor.channel || 'desk_coach';
+      }
+      if (body.coach_id && String(body.coach_id) !== coach.id) {
+        const other = store.coaches.find((c) => c.id === String(body.coach_id));
+        if (other) {
+          bodyWithAuthor.with_role = 'coach';
+          bodyWithAuthor.with_ref_id = other.id;
+          bodyWithAuthor.with_name = other.name;
+          bodyWithAuthor.channel = bodyWithAuthor.channel || 'colleague';
+        }
+      }
+
+      const result = applyMessageAction(
+        store.threads,
+        bodyWithAuthor,
+        now
+      );
+      if (result.error) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      store.threads = result.threads;
+      await saveStore(companyId, meta, store);
+      const from = body.from ? String(body.from) : undefined;
+      const to = body.to ? String(body.to) : undefined;
+      const myThreads = threadsForParticipant(
+        store.threads || [],
+        'coach',
+        coach.id
+      );
+      return NextResponse.json({
+        success: true,
+        message: 'Message saved',
+        thread: result.thread,
+        threads: myThreads,
+        unread: totalUnread(store.threads || [], 'coach', coach.id),
+        portal: buildCoachPortalPayload(store, coach, from, to),
+      });
+    }
 
     /**
      * Member profile + injury awareness — coaches update so the floor knows

@@ -24,6 +24,11 @@ import {
   type PhysiographStore,
 } from '@/lib/clinic/physiograph';
 import { mergeHealthProfile } from '@/lib/health/body-map';
+import {
+  applyMessageAction,
+  threadsForDesk,
+  totalUnread,
+} from '@/lib/messaging/service-inbox';
 
 export const runtime = 'nodejs';
 
@@ -133,6 +138,32 @@ export async function POST(request: NextRequest) {
         summary: summarisePhysiograph(demo),
         analysis: analysis(demo),
         message: 'Demo clinic loaded',
+      });
+    }
+
+    /** Messaging: desk · practitioners · patients */
+    if (
+      action.startsWith('message_') ||
+      action === 'create_thread' ||
+      action === 'post_message' ||
+      action === 'mark_read' ||
+      action === 'archive_thread'
+    ) {
+      const result = applyMessageAction(store.threads, body, now);
+      if (result.error) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      store.threads = result.threads;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summarisePhysiograph(store),
+        analysis: analysis(store),
+        thread: result.thread,
+        threads: threadsForDesk(store.threads),
+        unread: totalUnread(store.threads || [], 'desk', 'desk'),
+        message: 'Message saved',
       });
     }
 

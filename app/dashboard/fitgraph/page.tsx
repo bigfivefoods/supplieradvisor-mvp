@@ -13,6 +13,7 @@ import {
   UserRound,
   Users,
   CreditCard,
+  MessageSquare,
   Repeat,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -112,9 +113,17 @@ const MODULES: HubModule[] = [
     accent: 'from-orange-50 to-white border-orange-100',
   },
   {
+    href: '/dashboard/fitgraph/messages',
+    icon: MessageSquare,
+    code: '09',
+    title: 'Messages',
+    desc: 'Desk · coaches · members — colleague and care threads.',
+    accent: 'from-fuchsia-50 to-white border-fuchsia-100',
+  },
+  {
     href: '/dashboard/fitgraph/website',
     icon: Globe,
-    code: '09',
+    code: '10',
     title: 'Website & embed',
     desc: 'Public calendar, booking link and iframe for your site.',
     accent: 'from-indigo-50 to-white border-indigo-100',
@@ -122,7 +131,7 @@ const MODULES: HubModule[] = [
   {
     href: '/dashboard/fitgraph/report',
     icon: Package,
-    code: '10',
+    code: '11',
     title: 'Reports',
     desc: 'Slice & dice: coaches, classes, plan vs actual, feedback, members.',
     accent: 'from-slate-50 to-white border-slate-200',

@@ -47,6 +47,11 @@ import {
   parseFitClientsImport,
 } from '@/lib/fitness/fitgraph-clients-xlsx';
 import { mergeHealthProfile } from '@/lib/health/body-map';
+import {
+  applyMessageAction,
+  threadsForDesk,
+  totalUnread,
+} from '@/lib/messaging/service-inbox';
 
 export const runtime = 'nodejs';
 
@@ -190,6 +195,32 @@ export async function POST(request: NextRequest) {
         summary: summariseFitgraph(demo),
         analysis: analysis(demo),
         message: 'Demo gym loaded',
+      });
+    }
+
+    /** Messaging: desk · coaches · members */
+    if (
+      action.startsWith('message_') ||
+      action === 'create_thread' ||
+      action === 'post_message' ||
+      action === 'mark_read' ||
+      action === 'archive_thread'
+    ) {
+      const result = applyMessageAction(store.threads, body, now);
+      if (result.error) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      store.threads = result.threads;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        thread: result.thread,
+        threads: threadsForDesk(store.threads),
+        unread: totalUnread(store.threads || [], 'desk', 'desk'),
+        message: 'Message saved',
       });
     }
 
@@ -1623,6 +1654,63 @@ function seedDemo(now: string, companyId?: number): FitgraphStore {
         purchased_at: d(-10),
         price_zar: 3500,
         created_at: now,
+      },
+    ],
+    threads: [
+      {
+        id: newId('thr'),
+        channel: 'coach_member',
+        subject: 'Knee care plan · Sam van Wyk',
+        participants: [
+          { role: 'desk', ref_id: 'desk', name: 'Front desk' },
+          { role: 'coach', ref_id: c1, name: 'Thandi Mokoena' },
+          { role: 'member', ref_id: m3, name: 'Sam van Wyk' },
+        ],
+        messages: [
+          {
+            id: newId('msg'),
+            body: 'Sam flagged a right-knee twinge on lunges — please keep sessions low-impact this week and note any pain.',
+            author_role: 'desk',
+            author_ref_id: 'desk',
+            author_name: 'Front desk',
+            created_at: now,
+            read_by: ['desk:desk'],
+          },
+          {
+            id: newId('msg'),
+            body: 'Got it — bike + glute bridges only. I’ll check in after Thursday HIIT.',
+            author_role: 'coach',
+            author_ref_id: c1,
+            author_name: 'Thandi Mokoena',
+            created_at: now,
+            read_by: [`coach:${c1}`],
+          },
+        ],
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: newId('thr'),
+        channel: 'colleague',
+        subject: 'Cover request · Friday AM',
+        participants: [
+          { role: 'desk', ref_id: 'desk', name: 'Front desk' },
+          { role: 'coach', ref_id: c1, name: 'Thandi Mokoena' },
+          { role: 'coach', ref_id: c2, name: 'Coach peer' },
+        ],
+        messages: [
+          {
+            id: newId('msg'),
+            body: 'Can anyone cover the 06:00 HIIT Friday? I’m on leave.',
+            author_role: 'coach',
+            author_ref_id: c1,
+            author_name: 'Thandi Mokoena',
+            created_at: now,
+            read_by: [`coach:${c1}`],
+          },
+        ],
+        created_at: now,
+        updated_at: now,
       },
     ],
     updated_at: now,
