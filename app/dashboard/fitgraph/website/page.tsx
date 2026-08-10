@@ -9,16 +9,20 @@ import {
   useFitgraph,
 } from '@/components/fitness/FitgraphWorkbench';
 import { FormCard, StatRow, fc } from '@/components/fitness/FitForm';
+import { FitContractDocsPanel } from '@/components/fitness/FitContractDocs';
+import type { FitContractDoc } from '@/lib/fitness/fitgraph';
 
 export default function FitgraphWebsitePage() {
-  const { store, loading, saving, post, summary } = useFitgraph();
+  const { companyId, store, loading, saving, post, summary } = useFitgraph();
   const [form, setForm] = useState({
     enabled: false,
     brand_name: '',
     website_url: '',
+    public_bio: '',
     allow_public_booking: true,
     show_coaches: true,
     show_pricing: true,
+    show_contracts: true,
     contact_email: '',
     contact_phone: '',
     embed_primary_color: '#7c3aed',
@@ -33,9 +37,11 @@ export default function FitgraphWebsitePage() {
       enabled: s.enabled === true,
       brand_name: s.brand_name || '',
       website_url: s.website_url || '',
+      public_bio: s.public_bio || s.bio || '',
       allow_public_booking: s.allow_public_booking !== false,
       show_coaches: s.show_coaches !== false,
       show_pricing: s.show_pricing !== false,
+      show_contracts: s.show_contracts !== false,
       contact_email: s.contact_email || '',
       contact_phone: s.contact_phone || '',
       embed_primary_color: s.embed_primary_color || '#7c3aed',
@@ -86,11 +92,18 @@ export default function FitgraphWebsitePage() {
     toast.success('Copied');
   };
 
+  const saveContracts = async (next: FitContractDoc[]) => {
+    await post({
+      action: 'update_settings',
+      settings: { contracts: next },
+    });
+  };
+
   return (
     <FitgraphWorkbench
       title="Website"
-      titleAccent="& embed"
-      description="Publish your class calendar and pricing on your gym website. Share one link or drop in an iframe. Coaches can also share their classes from the coach portal."
+      titleAccent="& profile"
+      description="Gym bio and PDF contracts on your public profile, plus class calendar embed for your website. Coaches can share classes from their portal."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -110,11 +123,15 @@ export default function FitgraphWebsitePage() {
                 label: 'Online booking',
                 value: form.allow_public_booking ? 'On' : 'Off',
               },
+              {
+                label: 'Contracts',
+                value: (store.settings?.contracts || []).length,
+              },
             ]}
           />
 
           <FormCard tone="owner"
-            title="Public calendar settings"
+            title="Public calendar & gym profile"
             onSubmit={() => void save()}
             saving={saving}
             submitLabel="Save settings"
@@ -161,6 +178,16 @@ export default function FitgraphWebsitePage() {
                 }
               />
               Show membership pricing
+            </label>
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={form.show_contracts}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, show_contracts: e.target.checked }))
+                }
+              />
+              Show PDF contracts publicly
             </label>
             <input
               className={fc()}
@@ -214,7 +241,26 @@ export default function FitgraphWebsitePage() {
               }
               title="Brand colour"
             />
+            <textarea
+              className={fc() + ' min-h-[5rem] resize-y sm:col-span-2 lg:col-span-3'}
+              placeholder="Gym public bio / about (shown on your website profile)"
+              value={form.public_bio}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, public_bio: e.target.value }))
+              }
+            />
           </FormCard>
+
+          <FitContractDocsPanel
+            companyId={companyId}
+            contracts={store.settings?.contracts || []}
+            onChange={(next) => void saveContracts(next)}
+            title="Gym PDF contracts"
+            description="Membership agreements, liability waivers, studio terms — attached to your gym bio/profile. Toggle “Show PDF contracts publicly” above to list them on the embed page."
+            defaultKind="membership"
+            disabled={saving}
+            toneClass="border-violet-200 bg-violet-50/70 dark:border-violet-600/50 dark:bg-violet-950/40"
+          />
 
           <div className="rounded-3xl border border-violet-300 bg-violet-50 p-4 space-y-4 dark:!border-violet-400 dark:!bg-violet-950 dark:ring-1 dark:ring-violet-500/50">
             <div className="flex flex-wrap items-center justify-between gap-2">

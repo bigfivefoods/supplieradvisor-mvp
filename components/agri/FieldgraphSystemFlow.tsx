@@ -514,8 +514,8 @@ export default function FieldgraphSystemFlow({
           {/* Guardrails */}
           <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
             <div className="flex items-center gap-2 mb-3">
-              <ShieldCheck className="w-5 h-5 text-emerald-700" />
-              <h3 className="text-sm font-black text-emerald-950">
+              <ShieldCheck className="w-5 h-5 text-emerald-700 dark:text-white" />
+              <h3 className="text-sm font-black text-emerald-950 dark:text-white">
                 Guardrails — one book of truth from field to buyer
               </h3>
             </div>
@@ -537,8 +537,8 @@ export default function FieldgraphSystemFlow({
           {/* Outcome */}
           <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3">
             <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-              <div className="flex items-start gap-2 text-emerald-950 min-w-0 flex-1">
-                <Sparkles className="w-5 h-5 shrink-0 text-emerald-700 mt-0.5" />
+              <div className="flex items-start gap-2 text-emerald-950 dark:text-white min-w-0 flex-1">
+                <Sparkles className="w-5 h-5 shrink-0 text-emerald-700 dark:text-white mt-0.5" />
                 <p className="text-sm leading-snug">
                   <strong className="font-black">One sentence:</strong> Register
                   shared fields → estimate and revise for the board → plan
@@ -556,13 +556,13 @@ export default function FieldgraphSystemFlow({
                 </Link>
                 <Link
                   href="/dashboard/fieldgraph/harvest"
-                  className="text-[11px] font-bold rounded-full bg-white border border-emerald-200 px-3 py-1.5 text-emerald-800"
+                  className="text-[11px] font-bold rounded-full bg-white border border-emerald-200 px-3 py-1.5 text-emerald-800 dark:text-emerald-950"
                 >
                   Harvest
                 </Link>
                 <Link
                   href="/dashboard/fieldgraph/report"
-                  className="text-[11px] font-bold rounded-full bg-white border border-emerald-200 px-3 py-1.5 text-emerald-800"
+                  className="text-[11px] font-bold rounded-full bg-white border border-emerald-200 px-3 py-1.5 text-emerald-800 dark:text-emerald-950"
                 >
                   Insights
                 </Link>
@@ -585,47 +585,47 @@ export default function FieldgraphSystemFlow({
 /** Role colour codes — distinct in light and dark for “Who does what”. */
 const ROLE_STYLES = {
   office: {
-    // Emerald — farm office
+    // Emerald — farm office (dark: tinted gradient + white type)
     card:
-      'border-emerald-300 bg-emerald-50/50 dark:border-emerald-400 dark:bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40',
+      'border-emerald-300 bg-emerald-50/50 dark:border-emerald-400 dark:bg-gradient-to-br dark:from-emerald-950 dark:via-[#0a1a14] dark:to-black dark:ring-1 dark:ring-emerald-500/40 dark:text-white',
     badge: 'bg-emerald-700 dark:bg-emerald-500',
     chip:
-      'bg-emerald-700 text-white dark:bg-emerald-500 dark:text-emerald-950',
-    title: 'text-slate-900 dark:text-emerald-50',
-    subtitle: 'text-slate-500 dark:text-emerald-200/80',
-    doesLabel: 'text-emerald-700 dark:text-emerald-300',
-    doesText: 'text-slate-700 dark:text-emerald-50/90',
-    link: 'text-emerald-800 dark:text-emerald-300',
+      'bg-emerald-700 text-white dark:bg-emerald-500 dark:text-white',
+    title: 'text-slate-900 dark:text-white',
+    subtitle: 'text-slate-500 dark:text-white/75',
+    doesLabel: 'text-emerald-700 dark:text-white',
+    doesText: 'text-slate-700 dark:text-white/90',
+    link: 'text-emerald-800 dark:text-white',
     swatch: 'bg-emerald-600 dark:bg-emerald-400',
     label: 'Farm office',
   },
   ops: {
     // Amber — field ops
     card:
-      'border-amber-300 bg-amber-50/50 dark:border-amber-400 dark:bg-amber-950 dark:ring-1 dark:ring-amber-500/40',
+      'border-amber-300 bg-amber-50/50 dark:border-amber-400 dark:bg-gradient-to-br dark:from-amber-950 dark:via-[#1a1408] dark:to-black dark:ring-1 dark:ring-amber-500/40 dark:text-white',
     badge: 'bg-amber-600 dark:bg-amber-500',
     chip:
-      'bg-amber-600 text-white dark:bg-amber-500 dark:text-amber-950',
-    title: 'text-slate-900 dark:text-amber-50',
-    subtitle: 'text-slate-500 dark:text-amber-200/80',
-    doesLabel: 'text-amber-800 dark:text-amber-300',
-    doesText: 'text-slate-700 dark:text-amber-50/90',
-    link: 'text-amber-800 dark:text-amber-300',
+      'bg-amber-600 text-white dark:bg-amber-500 dark:text-white',
+    title: 'text-slate-900 dark:text-white',
+    subtitle: 'text-slate-500 dark:text-white/75',
+    doesLabel: 'text-amber-800 dark:text-white',
+    doesText: 'text-slate-700 dark:text-white/90',
+    link: 'text-amber-800 dark:text-white',
     swatch: 'bg-amber-500 dark:bg-amber-400',
     label: 'Field ops',
   },
   trade: {
     // Cyan — trade & network
     card:
-      'border-cyan-300 bg-sky-50/50 dark:border-cyan-400 dark:bg-cyan-950 dark:ring-1 dark:ring-cyan-500/40',
+      'border-cyan-300 bg-sky-50/50 dark:border-cyan-400 dark:bg-gradient-to-br dark:from-cyan-950 dark:via-[#061820] dark:to-black dark:ring-1 dark:ring-cyan-500/40 dark:text-white',
     badge: 'bg-sky-600 dark:bg-cyan-500',
     chip:
-      'bg-sky-600 text-white dark:bg-cyan-500 dark:text-cyan-950',
-    title: 'text-slate-900 dark:text-cyan-50',
-    subtitle: 'text-slate-500 dark:text-cyan-200/80',
-    doesLabel: 'text-sky-700 dark:text-cyan-300',
-    doesText: 'text-slate-700 dark:text-cyan-50/90',
-    link: 'text-sky-800 dark:text-cyan-300',
+      'bg-sky-600 text-white dark:bg-cyan-500 dark:text-white',
+    title: 'text-slate-900 dark:text-white',
+    subtitle: 'text-slate-500 dark:text-white/75',
+    doesLabel: 'text-sky-700 dark:text-white',
+    doesText: 'text-slate-700 dark:text-white/90',
+    link: 'text-sky-800 dark:text-white',
     swatch: 'bg-sky-500 dark:bg-cyan-400',
     label: 'Trade',
   },
@@ -708,7 +708,7 @@ function RoleCard({
             key={p}
             className={`text-[12px] leading-snug flex gap-1.5 ${s.doesText}`}
           >
-            <span className="text-emerald-600 dark:text-emerald-400 font-bold shrink-0">
+            <span className="text-emerald-600 dark:text-white font-bold shrink-0">
               ✓
             </span>
             {p}
@@ -758,7 +758,7 @@ function PhaseStepCard({ step }: { step: PhaseStep }) {
         </span>
         <Icon className={`w-4 h-4 ${s.doesLabel}`} />
       </div>
-      <p className="text-xs font-black text-slate-900 group-hover:text-emerald-800 dark:text-neutral-100 dark:group-hover:text-emerald-300">
+      <p className="text-xs font-black text-slate-900 group-hover:text-emerald-800 dark:text-neutral-100 dark:group-hover:text-white">
         {step.title}
       </p>
       <span

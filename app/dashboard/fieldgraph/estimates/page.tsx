@@ -162,23 +162,23 @@ export default function FieldgraphEstimatesPage() {
               <div className="text-[10px] font-black uppercase text-sky-800/70">
                 Est. tonnes (non-draft)
               </div>
-              <div className="text-2xl font-black tabular-nums">
+              <div className="text-2xl font-black tabular-nums dark:text-white">
                 {Number(summary?.estimateTonnes) || 0}
               </div>
             </div>
             <div className="rounded-2xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 px-4 py-3">
-              <div className="text-[10px] font-black uppercase text-slate-400">
+              <div className="text-[10px] font-black uppercase text-slate-400 dark:text-white/70">
                 Board / submitted
               </div>
-              <div className="text-2xl font-black tabular-nums">
+              <div className="text-2xl font-black tabular-nums dark:text-white">
                 {Number(summary?.boardEstimates) || 0}
               </div>
             </div>
             <div className="rounded-2xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 px-4 py-3">
-              <div className="text-[10px] font-black uppercase text-slate-400">
+              <div className="text-[10px] font-black uppercase text-slate-400 dark:text-white/70">
                 Actual seasons logged
               </div>
-              <div className="text-2xl font-black tabular-nums">
+              <div className="text-2xl font-black tabular-nums dark:text-white">
                 {Number(summary?.yieldActuals) || 0}
               </div>
             </div>
@@ -399,7 +399,7 @@ export default function FieldgraphEstimatesPage() {
 
           <div className="overflow-x-auto rounded-3xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40">
             <table className="w-full text-sm">
-              <thead className="bg-emerald-50 text-left text-[10px] font-black uppercase tracking-wider text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-200">
+              <thead className="bg-emerald-50 text-left text-[10px] font-black uppercase tracking-wider text-emerald-900 dark:text-white dark:bg-emerald-900/50 dark:text-white">
                 <tr>
                   <th className="px-3 py-2.5">Field</th>
                   <th className="px-3 py-2.5">t</th>

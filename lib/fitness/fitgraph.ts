@@ -21,12 +21,203 @@ export const COACH_SPECIALTIES = [
   'General',
 ] as const;
 
+/** Default catalogue when a gym has not customised specialties yet */
+export const DEFAULT_COACH_SPECIALTIES: string[] = [...COACH_SPECIALTIES];
+
+/**
+ * Owner-managed specialty list for a gym.
+ * Falls back to platform defaults; always returns a non-empty unique list.
+ */
+export function getCoachSpecialtyOptions(
+  storeOrSettings?:
+    | Pick<FitgraphStore, 'settings' | 'coaches'>
+    | FitPublicSettings
+    | null
+): string[] {
+  let custom: string[] | undefined;
+  let coaches: { specialties?: string[] }[] | undefined;
+  if (storeOrSettings && 'coaches' in storeOrSettings) {
+    custom = storeOrSettings.settings?.coach_specialties;
+    coaches = storeOrSettings.coaches;
+  } else if (storeOrSettings && 'coach_specialties' in (storeOrSettings as object)) {
+    custom = (storeOrSettings as FitPublicSettings).coach_specialties;
+  } else if (
+    storeOrSettings &&
+    typeof storeOrSettings === 'object' &&
+    'public_token' in storeOrSettings
+  ) {
+    custom = (storeOrSettings as FitPublicSettings).coach_specialties;
+  }
+
+  const base =
+    Array.isArray(custom) && custom.length > 0
+      ? custom.map((s) => String(s).trim()).filter(Boolean)
+      : [...DEFAULT_COACH_SPECIALTIES];
+
+  // Include any specialties already on coaches so renames/orphans still show as chips
+  if (coaches) {
+    for (const c of coaches) {
+      for (const s of c.specialties || []) {
+        const t = String(s).trim();
+        if (t && !base.some((b) => b.toLowerCase() === t.toLowerCase())) {
+          base.push(t);
+        }
+      }
+    }
+  }
+
+  // Dedupe case-insensitively, preserve first-seen casing/order
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of base) {
+    const k = s.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(s);
+  }
+  return out.length ? out : [...DEFAULT_COACH_SPECIALTIES];
+}
+
+/** Rename a specialty across the catalogue and all coaches */
+export function renameCoachSpecialty(
+  store: FitgraphStore,
+  from: string,
+  to: string
+): { ok: true; options: string[] } | { ok: false; error: string } {
+  const src = String(from || '').trim();
+  const dest = String(to || '').trim();
+  if (!src) return { ok: false, error: 'Current specialty name required' };
+  if (!dest) return { ok: false, error: 'New specialty name required' };
+  if (src.toLowerCase() === dest.toLowerCase() && src !== dest) {
+    // case-only change — allow
+  } else if (src.toLowerCase() === dest.toLowerCase()) {
+    return { ok: true, options: getCoachSpecialtyOptions(store) };
+  }
+
+  const options = getCoachSpecialtyOptions(store).filter(
+    (s) => s.toLowerCase() !== src.toLowerCase()
+  );
+  if (options.some((s) => s.toLowerCase() === dest.toLowerCase())) {
+    // Merge into existing dest label
+  } else {
+    options.push(dest);
+  }
+  if (!store.settings) store.settings = defaultPublicSettings();
+  store.settings.coach_specialties = options;
+
+  for (const coach of store.coaches || []) {
+    if (!coach.specialties?.length) continue;
+    coach.specialties = coach.specialties.map((s) =>
+      s.toLowerCase() === src.toLowerCase() ? dest : s
+    );
+    // dedupe
+    const seen = new Set<string>();
+    coach.specialties = coach.specialties.filter((s) => {
+      const k = s.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }
+  return { ok: true, options: getCoachSpecialtyOptions(store) };
+}
+
+/** Add a specialty to the gym catalogue */
+export function addCoachSpecialty(
+  store: FitgraphStore,
+  name: string
+): { ok: true; options: string[] } | { ok: false; error: string } {
+  const n = String(name || '').trim();
+  if (!n) return { ok: false, error: 'Specialty name required' };
+  if (n.length > 48) return { ok: false, error: 'Keep specialty under 48 characters' };
+  const options = getCoachSpecialtyOptions(store);
+  if (options.some((s) => s.toLowerCase() === n.toLowerCase())) {
+    return { ok: false, error: 'That specialty already exists' };
+  }
+  if (!store.settings) store.settings = defaultPublicSettings();
+  store.settings.coach_specialties = [...options, n];
+  return { ok: true, options: store.settings.coach_specialties };
+}
+
+/** Remove from catalogue (keeps label on coaches that already have it) */
+export function removeCoachSpecialty(
+  store: FitgraphStore,
+  name: string,
+  opts?: { stripFromCoaches?: boolean }
+): { ok: true; options: string[] } | { ok: false; error: string } {
+  const n = String(name || '').trim();
+  if (!n) return { ok: false, error: 'Specialty name required' };
+  const options = getCoachSpecialtyOptions(store).filter(
+    (s) => s.toLowerCase() !== n.toLowerCase()
+  );
+  if (!options.length) {
+    return { ok: false, error: 'Keep at least one specialty' };
+  }
+  if (!store.settings) store.settings = defaultPublicSettings();
+  store.settings.coach_specialties = options;
+  if (opts?.stripFromCoaches) {
+    for (const coach of store.coaches || []) {
+      if (!coach.specialties?.length) continue;
+      coach.specialties = coach.specialties.filter(
+        (s) => s.toLowerCase() !== n.toLowerCase()
+      );
+      if (!coach.specialties.length) coach.specialties = ['General'];
+    }
+  }
+  return { ok: true, options };
+}
+
 export const MEMBERSHIP_STATUSES = [
   'active',
   'paused',
   'expired',
   'cancelled',
   'trial',
+] as const;
+
+/** How the owner pays / prices a coach */
+export const COACH_RATE_BASES = [
+  'hourly',
+  'per_class',
+  'per_session',
+  'monthly',
+  'fixed',
+] as const;
+
+export type FitCoachRateBasis = (typeof COACH_RATE_BASES)[number] | string;
+
+/** One closed employment / engagement period for a coach */
+export type FitCoachEngagement = {
+  id: string;
+  /** YYYY-MM-DD */
+  start_date: string;
+  /** YYYY-MM-DD — null/omitted only while open (current stint is on FitCoach) */
+  end_date: string;
+  note?: string;
+  ended_reason?: string;
+  /** Rate at time of closing this stint (ZAR) */
+  rate_zar?: number | null;
+  rate_basis?: FitCoachRateBasis;
+};
+
+/** PDF (or doc) contract attached to gym profile or coach engagement */
+export type FitContractDoc = {
+  id: string;
+  title: string;
+  file_name: string;
+  /** Public storage URL */
+  url: string;
+  uploaded_at: string;
+  /** membership | waiver | terms | coach_agreement | other */
+  kind?: string;
+};
+
+export const FIT_CONTRACT_KINDS = [
+  'membership',
+  'waiver',
+  'terms',
+  'coach_agreement',
+  'other',
 ] as const;
 
 export type FitCoach = {
@@ -46,8 +237,97 @@ export type FitCoach = {
   can_manage_classes?: boolean;
   active?: boolean;
   color?: string;
+  /**
+   * Current engagement start (owner-set).
+   * Defaults to created_at date when first saved.
+   */
+  start_date?: string | null;
+  /**
+   * Current engagement end (owner-set).
+   * Null while still active; set when leaving / contract ends.
+   */
+  end_date?: string | null;
+  /**
+   * Current pay / charge-out rate in ZAR (owner-set).
+   * Snapshotted into history when an engagement is closed.
+   */
+  rate_zar?: number | null;
+  /** hourly | per_class | per_session | monthly | fixed */
+  rate_basis?: FitCoachRateBasis | null;
+  /** Optional owner note about rate (e.g. "incl. travel") */
+  rate_note?: string;
+  /** Owner-uploaded PDF contracts (coach agreements, NDAs, etc.) */
+  contracts?: FitContractDoc[];
+  /** Closed past engagements (keep history when coach returns) */
+  history?: FitCoachEngagement[];
   created_at: string;
 };
+
+export function formatCoachRate(
+  rateZar?: number | null,
+  basis?: FitCoachRateBasis | null
+): string {
+  if (rateZar == null || !Number.isFinite(Number(rateZar))) return '—';
+  const n = Number(rateZar);
+  const money = `R${n.toLocaleString('en-ZA', {
+    minimumFractionDigits: n % 1 ? 2 : 0,
+    maximumFractionDigits: 2,
+  })}`;
+  const b = String(basis || 'per_class').replace(/_/g, ' ');
+  return `${money} / ${b}`;
+}
+
+/** Archive current stint into history when ending engagement */
+export function closeCoachEngagement(
+  coach: FitCoach,
+  endDate: string,
+  opts?: { note?: string; reason?: string; nowIso?: string }
+): FitCoach {
+  const start =
+    coach.start_date ||
+    (coach.created_at || opts?.nowIso || new Date().toISOString()).slice(0, 10);
+  const end = endDate || new Date().toISOString().slice(0, 10);
+  const hist = [...(coach.history || [])];
+  // Avoid duplicate close of same open period
+  const already = hist.some(
+    (h) => h.start_date === start && h.end_date === end
+  );
+  if (!already && start) {
+    hist.push({
+      id: newId('eng'),
+      start_date: start,
+      end_date: end,
+      note: opts?.note,
+      ended_reason: opts?.reason,
+      rate_zar:
+        coach.rate_zar != null && Number.isFinite(Number(coach.rate_zar))
+          ? Number(coach.rate_zar)
+          : null,
+      rate_basis: coach.rate_basis || undefined,
+    });
+  }
+  hist.sort((a, b) => b.start_date.localeCompare(a.start_date));
+  return {
+    ...coach,
+    history: hist,
+    start_date: start,
+    end_date: end,
+    active: false,
+  };
+}
+
+/** Start a new engagement (rehire) — keeps history */
+export function reopenCoachEngagement(
+  coach: FitCoach,
+  startDate: string
+): FitCoach {
+  return {
+    ...coach,
+    start_date: startDate,
+    end_date: null,
+    active: true,
+  };
+}
 
 export type FitClient = {
   id: string;
@@ -185,14 +465,204 @@ export type FitPublicSettings = {
   public_slug?: string;
   brand_name?: string;
   website_url?: string;
+  /** Gym / studio public bio (website & profile) */
+  public_bio?: string;
+  /** Internal owner notes for the gym profile */
+  bio?: string;
   allow_public_booking: boolean;
   show_coaches: boolean;
   show_pricing: boolean;
+  /** Show PDF contracts on the public gym page */
+  show_contracts?: boolean;
   timezone?: string;
   contact_email?: string;
   contact_phone?: string;
   embed_primary_color?: string;
+  /**
+   * Owner-uploaded PDF contracts for the gym profile
+   * (membership T&Cs, waivers, studio agreements).
+   */
+  contracts?: FitContractDoc[];
+  /**
+   * Owner-managed coach specialty catalogue.
+   * When empty/missing, platform defaults (COACH_SPECIALTIES) are used.
+   */
+  coach_specialties?: string[];
 };
+
+/**
+ * Post-class feedback from a member (after attending) or coach (after teaching).
+ * Feeling / intensity style check-in for the gym owner.
+ */
+export type FitClassFeedback = {
+  id: string;
+  session_id: string;
+  role: 'member' | 'coach';
+  client_id?: string | null;
+  coach_id?: string | null;
+  booking_id?: string | null;
+  author_name?: string;
+  author_email?: string;
+  /** How they feel after the class (1 = drained · 5 = great) */
+  feeling: number;
+  /** Perceived intensity / RPE (1 easy · 10 max effort) */
+  intensity: number;
+  /** Enjoyment (1–5) */
+  enjoyment?: number;
+  /** Would do this class again (1–5) */
+  would_return?: number;
+  comment?: string;
+  /** Optional tags e.g. tough, fun, too_easy, recovery */
+  tags?: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+export const FEEDBACK_FEELING_LABELS = [
+  '',
+  'Drained',
+  'Tired',
+  'OK',
+  'Good',
+  'Energised',
+] as const;
+
+export const FEEDBACK_TAG_OPTIONS = [
+  'tough',
+  'fun',
+  'too easy',
+  'too hard',
+  'great coaching',
+  'recovery',
+  'sore',
+  'motivated',
+] as const;
+
+export function clampScore(n: unknown, min: number, max: number, fallback: number) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(v)));
+}
+
+/** Upsert feedback for the same author+session+role */
+export function upsertClassFeedback(
+  store: FitgraphStore,
+  input: Omit<FitClassFeedback, 'id' | 'created_at' | 'updated_at'> & {
+    id?: string;
+    created_at?: string;
+    updated_at?: string;
+  },
+  nowIso?: string
+): FitClassFeedback {
+  if (!store.class_feedback) store.class_feedback = [];
+  const now = nowIso || new Date().toISOString();
+  const feeling = clampScore(input.feeling, 1, 5, 3);
+  const intensity = clampScore(input.intensity, 1, 10, 5);
+  const enjoyment =
+    input.enjoyment != null
+      ? clampScore(input.enjoyment, 1, 5, 3)
+      : undefined;
+  const would_return =
+    input.would_return != null
+      ? clampScore(input.would_return, 1, 5, 3)
+      : undefined;
+
+  const matchIdx = store.class_feedback.findIndex((f) => {
+    if (f.session_id !== input.session_id || f.role !== input.role) return false;
+    if (input.role === 'coach') {
+      return Boolean(input.coach_id) && f.coach_id === input.coach_id;
+    }
+    if (input.client_id && f.client_id === input.client_id) return true;
+    if (
+      input.author_email &&
+      f.author_email &&
+      f.author_email.toLowerCase() === input.author_email.toLowerCase()
+    ) {
+      return true;
+    }
+    if (input.booking_id && f.booking_id === input.booking_id) return true;
+    return false;
+  });
+
+  if (matchIdx >= 0) {
+    const prev = store.class_feedback[matchIdx];
+    const row: FitClassFeedback = {
+      ...prev,
+      feeling,
+      intensity,
+      enjoyment,
+      would_return,
+      comment: input.comment != null ? String(input.comment) : prev.comment,
+      tags: Array.isArray(input.tags) ? input.tags.map(String) : prev.tags,
+      author_name: input.author_name ?? prev.author_name,
+      author_email: input.author_email ?? prev.author_email,
+      client_id: input.client_id ?? prev.client_id,
+      coach_id: input.coach_id ?? prev.coach_id,
+      booking_id: input.booking_id ?? prev.booking_id,
+      updated_at: now,
+    };
+    store.class_feedback[matchIdx] = row;
+    return row;
+  }
+
+  const row: FitClassFeedback = {
+    id: input.id || newId('fb'),
+    session_id: input.session_id,
+    role: input.role,
+    client_id: input.client_id ?? null,
+    coach_id: input.coach_id ?? null,
+    booking_id: input.booking_id ?? null,
+    author_name: input.author_name,
+    author_email: input.author_email,
+    feeling,
+    intensity,
+    enjoyment,
+    would_return,
+    comment: input.comment != null ? String(input.comment) : undefined,
+    tags: Array.isArray(input.tags) ? input.tags.map(String) : undefined,
+    created_at: input.created_at || now,
+    updated_at: now,
+  };
+  store.class_feedback.push(row);
+  return row;
+}
+
+export function feedbackForSession(
+  store: FitgraphStore,
+  sessionId: string
+): FitClassFeedback[] {
+  return (store.class_feedback || []).filter((f) => f.session_id === sessionId);
+}
+
+export function summariseSessionFeedback(
+  store: FitgraphStore,
+  sessionId: string
+): {
+  member_count: number;
+  coach_count: number;
+  avg_feeling: number | null;
+  avg_intensity: number | null;
+  avg_enjoyment: number | null;
+} {
+  const list = feedbackForSession(store, sessionId);
+  const members = list.filter((f) => f.role === 'member');
+  const coaches = list.filter((f) => f.role === 'coach');
+  const avg = (arr: number[]) =>
+    arr.length
+      ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10
+      : null;
+  return {
+    member_count: members.length,
+    coach_count: coaches.length,
+    avg_feeling: avg(members.map((m) => m.feeling)),
+    avg_intensity: avg(members.map((m) => m.intensity)),
+    avg_enjoyment: avg(
+      members
+        .map((m) => m.enjoyment)
+        .filter((n): n is number => n != null && Number.isFinite(n))
+    ),
+  };
+}
 
 export type FitCheckIn = {
   id: string;
@@ -229,6 +699,8 @@ export type FitgraphStore = {
   bookings: FitBooking[];
   check_ins: FitCheckIn[];
   pt_packs: FitPtPack[];
+  /** Member + coach post-class feedback */
+  class_feedback?: FitClassFeedback[];
   settings?: FitPublicSettings;
   updated_at?: string;
 };
@@ -249,6 +721,7 @@ export function defaultPublicSettings(companyId?: number): FitPublicSettings {
     show_pricing: true,
     timezone: 'Africa/Johannesburg',
     embed_primary_color: '#7c3aed',
+    coach_specialties: [...DEFAULT_COACH_SPECIALTIES],
   };
 }
 
@@ -263,6 +736,7 @@ export function emptyFitgraphStore(): FitgraphStore {
     bookings: [],
     check_ins: [],
     pt_packs: [],
+    class_feedback: [],
     settings: defaultPublicSettings(),
   };
 }
@@ -393,6 +867,13 @@ export function summariseFitgraph(store: FitgraphStore) {
     bookingsOpen: bookingsOpen.length,
     checkInsToday: checkInsToday.length,
     checkInsTotal: store.check_ins.length,
+    feedbackCount: (store.class_feedback || []).length,
+    memberFeedbackCount: (store.class_feedback || []).filter(
+      (f) => f.role === 'member'
+    ).length,
+    coachFeedbackCount: (store.class_feedback || []).filter(
+      (f) => f.role === 'coach'
+    ).length,
     ptSessionsRemaining: ptRemaining,
     websiteEnabled: store.settings?.enabled === true,
     publicBooking: store.settings?.allow_public_booking === true,
@@ -453,13 +934,14 @@ export function buildPublicCalendarPayload(
 
   const coaches = store.settings?.show_coaches
     ? store.coaches
-        .filter((c) => c.active !== false)
+        .filter((c) => c.active !== false && !c.end_date)
         .map((c) => ({
           code: c.code,
           name: c.name,
           specialties: c.specialties || [],
           bio: c.public_bio || c.bio,
           color: c.color,
+          photo_url: c.photo_url || undefined,
         }))
     : [];
 
@@ -476,8 +958,20 @@ export function buildPublicCalendarPayload(
         }))
     : [];
 
+  const contracts =
+    store.settings?.show_contracts !== false
+      ? (store.settings?.contracts || []).map((d) => ({
+          id: d.id,
+          title: d.title,
+          file_name: d.file_name,
+          url: d.url,
+          kind: d.kind || 'other',
+        }))
+      : [];
+
   return {
     brand: store.settings?.brand_name || 'Gym',
+    bio: store.settings?.public_bio || store.settings?.bio || '',
     timezone: store.settings?.timezone || 'Africa/Johannesburg',
     allow_booking: store.settings?.allow_public_booking !== false,
     contact_email: store.settings?.contact_email,
@@ -488,6 +982,7 @@ export function buildPublicCalendarPayload(
     sessions,
     coaches,
     plans,
+    contracts,
   };
 }
 
@@ -620,6 +1115,18 @@ export type CoachSessionCard = {
   no_show: number;
   pending: number;
   roster: CoachRosterRow[];
+  /** Aggregated member feedback for this session */
+  feedback_summary?: {
+    member_count: number;
+    coach_count: number;
+    avg_feeling: number | null;
+    avg_intensity: number | null;
+    avg_enjoyment: number | null;
+  };
+  /** This coach's own feedback for the session (if any) */
+  my_feedback?: FitClassFeedback | null;
+  /** Member feedback rows (coach/owner can read) */
+  member_feedback?: FitClassFeedback[];
 };
 
 /** Coach portal / coach calendar: sessions + plan vs actual roster */
@@ -674,6 +1181,17 @@ export function buildCoachPortalPayload(
           r.status === 'attended' ||
           r.status === 'no_show'
       ).length;
+      const fbSummary = summariseSessionFeedback(store, s.id);
+      const myFb =
+        (store.class_feedback || []).find(
+          (f) =>
+            f.session_id === s.id &&
+            f.role === 'coach' &&
+            f.coach_id === coach.id
+        ) || null;
+      const memberFb = (store.class_feedback || []).filter(
+        (f) => f.session_id === s.id && f.role === 'member'
+      );
       return {
         session: s,
         class_name: ct?.name,
@@ -687,6 +1205,9 @@ export function buildCoachPortalPayload(
           (r) => r.actual === 'pending' && r.status === 'booked'
         ).length,
         roster,
+        feedback_summary: fbSummary,
+        my_feedback: myFb,
+        member_feedback: memberFb,
       };
     })
     .sort((a, b) =>
@@ -736,10 +1257,20 @@ export function buildCoachPortalPayload(
       public_bio: coach.public_bio || coach.bio || '',
       photo_url: coach.photo_url || '',
       color: coach.color || '',
+      start_date: coach.start_date || (coach.created_at || '').slice(0, 10) || '',
+      end_date: coach.end_date || '',
+      rate_zar:
+        coach.rate_zar != null && Number.isFinite(Number(coach.rate_zar))
+          ? Number(coach.rate_zar)
+          : null,
+      rate_basis: coach.rate_basis || 'per_class',
+      rate_note: coach.rate_note || '',
+      history: coach.history || [],
+      active: coach.active !== false,
       can_manage_classes: coach.can_manage_classes !== false,
     },
-    /** Full specialty catalogue for profile multi-select */
-    specialty_options: [...COACH_SPECIALTIES],
+    /** Full specialty catalogue for profile multi-select (owner-managed) */
+    specialty_options: getCoachSpecialtyOptions(store),
     from: start,
     to: end,
     sessions: mySessions,

@@ -24,6 +24,7 @@ type PublicSession = {
 
 type PublicCalendar = {
   brand: string;
+  bio?: string;
   timezone?: string;
   allow_booking: boolean;
   contact_email?: string;
@@ -39,6 +40,13 @@ type PublicCalendar = {
     price_zar: number;
     billing: string;
     description?: string;
+  }>;
+  contracts?: Array<{
+    id: string;
+    title: string;
+    file_name: string;
+    url: string;
+    kind?: string;
   }>;
 };
 
@@ -160,6 +168,11 @@ export default function EmbedFitgraphPage() {
               {[calendar.contact_email, calendar.contact_phone]
                 .filter(Boolean)
                 .join(' · ')}
+            </p>
+          )}
+          {calendar.bio && (
+            <p className="text-sm text-slate-600 mt-3 max-w-2xl leading-relaxed">
+              {calendar.bio}
             </p>
           )}
         </div>
@@ -293,6 +306,38 @@ export default function EmbedFitgraphPage() {
                 </div>
               ))}
             </div>
+          </section>
+        )}
+
+        {(calendar.contracts || []).length > 0 && (
+          <section>
+            <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">
+              Contracts & policies
+            </h2>
+            <ul className="space-y-2">
+              {(calendar.contracts || []).map((doc) => (
+                <li key={doc.id}>
+                  <a
+                    href={doc.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold hover:border-slate-300 hover:bg-slate-50"
+                  >
+                    <span className="min-w-0 truncate">
+                      {doc.title}
+                      {doc.kind ? (
+                        <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                          {String(doc.kind).replace(/_/g, ' ')}
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="text-[11px] font-bold shrink-0" style={{ color }}>
+                      Download PDF
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
           </section>
         )}
       </main>

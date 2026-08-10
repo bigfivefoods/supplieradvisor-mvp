@@ -104,6 +104,14 @@ const MODULES: HubModule[] = [
     accent: 'from-fuchsia-50 to-white border-fuchsia-100',
   },
   {
+    href: '/dashboard/fitgraph/feedback',
+    icon: Sparkles,
+    code: '08b',
+    title: 'Class feedback',
+    desc: 'Member & coach post-class feel, intensity (RPE), comments.',
+    accent: 'from-orange-50 to-white border-orange-100',
+  },
+  {
     href: '/dashboard/fitgraph/website',
     icon: Globe,
     code: '09',
@@ -116,7 +124,7 @@ const MODULES: HubModule[] = [
     icon: Package,
     code: '10',
     title: 'Reports',
-    desc: 'Attendance, memberships, PT packs and utilisation.',
+    desc: 'Slice & dice: coaches, classes, plan vs actual, feedback, members.',
     accent: 'from-slate-50 to-white border-slate-200',
   },
 ];
@@ -182,7 +190,7 @@ function Inner() {
         eyebrow="Tertiary · Services · Fitness & wellness"
         title="Fitgraph"
         titleAccent="®"
-        description="Gym services OS: owners schedule coaches onto classes, coaches share with customers, members subscribe, and a public calendar embeds on your website."
+        description="Gym services OS: coaches with tenure, rates and contracts; members (incl. .xlsx); plan vs actual; post-class feedback; website embed; slice-and-dice reports."
         action={
           <div className="flex flex-wrap gap-2">
             <Link
@@ -254,20 +262,20 @@ function Inner() {
       <div className="my-8 grid sm:grid-cols-2 gap-3">
         {[
           {
-            t: 'Owner schedules coaches',
-            b: 'Calendar assigns a coach to every class. Reassign anytime; capacity drives bookings and waitlists.',
+            t: 'People · tenure · rates',
+            b: 'Edit coaches, specialty catalogue, engagement history, pay rates and PDF contracts. Bulk load members via .xlsx.',
           },
           {
-            t: 'Coach portal',
-            b: 'Issue a private link per coach so they can share classes, book walk-ins and mark attendance.',
+            t: 'Calendar · plan vs actual',
+            b: 'Schedule coaches, class plans and series; mark who came vs planned; B2C join links for members.',
           },
           {
-            t: 'Website calendar & booking',
-            b: 'Publish a branded public schedule with iframe or JSON API for your gym site.',
+            t: 'Feedback · reports',
+            b: 'Members and coaches rate feel & intensity after class. Slice reports by date, coach, class and specialty — export CSV.',
           },
           {
-            t: 'Subscriptions',
-            b: 'Link members to plans with active/paused/cancelled status and pack credits.',
+            t: 'Website · contracts',
+            b: 'Gym bio, public PDF contracts, branded embed and online booking for your own site.',
           },
         ].map((x) => (
           <div

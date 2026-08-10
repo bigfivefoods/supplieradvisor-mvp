@@ -178,7 +178,7 @@ export default function FieldgraphHarvestPage() {
         <div className="space-y-6">
           <div className="flex flex-wrap items-end gap-3">
             <label className="text-sm">
-              <span className="block text-[10px] font-black uppercase text-slate-400 mb-1">
+              <span className="block text-[10px] font-black uppercase text-slate-400 dark:text-white/70 mb-1">
                 Season
               </span>
               <select
@@ -203,7 +203,7 @@ export default function FieldgraphHarvestPage() {
               <div className="text-[10px] font-black uppercase text-amber-900/60">
                 In sequence
               </div>
-              <div className="text-2xl font-black tabular-nums">
+              <div className="text-2xl font-black tabular-nums dark:text-white">
                 {totals.fields}
               </div>
               <div className="text-[11px] text-slate-500">
@@ -211,19 +211,19 @@ export default function FieldgraphHarvestPage() {
               </div>
             </div>
             <div className="rounded-2xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 px-4 py-3">
-              <div className="text-[10px] font-black uppercase text-slate-400">
+              <div className="text-[10px] font-black uppercase text-slate-400 dark:text-white/70">
                 Planned tonnes
               </div>
-              <div className="text-2xl font-black tabular-nums">
+              <div className="text-2xl font-black tabular-nums dark:text-white">
                 {totals.tonnes}
               </div>
               <div className="text-[11px] text-slate-500">from estimates</div>
             </div>
             <div className="rounded-2xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 px-4 py-3">
-              <div className="text-[10px] font-black uppercase text-slate-400">
+              <div className="text-[10px] font-black uppercase text-slate-400 dark:text-white/70">
                 Projected days
               </div>
-              <div className="text-2xl font-black tabular-nums">
+              <div className="text-2xl font-black tabular-nums dark:text-white">
                 {totals.days || '—'}
               </div>
               <div className="text-[11px] text-slate-500">
@@ -231,10 +231,10 @@ export default function FieldgraphHarvestPage() {
               </div>
             </div>
             <div className="rounded-2xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 px-4 py-3">
-              <div className="text-[10px] font-black uppercase text-slate-400">
+              <div className="text-[10px] font-black uppercase text-slate-400 dark:text-white/70">
                 Window
               </div>
-              <div className="text-sm font-bold text-slate-800 mt-1">
+              <div className="text-sm font-bold text-slate-800 dark:text-white mt-1">
                 {plan[0]?.planned_date || '—'}
                 {plan.length > 1 && plan[plan.length - 1]?.planned_end_date
                   ? ` → ${plan[plan.length - 1].planned_end_date}`
@@ -334,7 +334,7 @@ export default function FieldgraphHarvestPage() {
 
             <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 p-4 space-y-2">
               <h3 className="text-sm font-black inline-flex items-center gap-1.5">
-                <CalendarRange className="w-4 h-4 text-emerald-700" /> Project
+                <CalendarRange className="w-4 h-4 text-emerald-700 dark:text-white" /> Project
                 expected cut dates
               </h3>
               <p className="text-[11px] text-slate-600 leading-relaxed">
@@ -342,7 +342,7 @@ export default function FieldgraphHarvestPage() {
                 daily allocation = days on cut. Start date advances for the next
                 field so you get a full-season harvest calendar.
               </p>
-              <label className="block text-[10px] font-black uppercase text-slate-400">
+              <label className="block text-[10px] font-black uppercase text-slate-400 dark:text-white/70">
                 Season start (first cut)
               </label>
               <input
@@ -353,7 +353,7 @@ export default function FieldgraphHarvestPage() {
                   setProject((p) => ({ ...p, startDate: e.target.value }))
                 }
               />
-              <label className="block text-[10px] font-black uppercase text-slate-400">
+              <label className="block text-[10px] font-black uppercase text-slate-400 dark:text-white/70">
                 Daily allocation (tonnes / day)
               </label>
               <input
@@ -381,7 +381,7 @@ export default function FieldgraphHarvestPage() {
 
           <div className="overflow-x-auto rounded-3xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40">
             <table className="w-full text-sm min-w-[720px]">
-              <thead className="bg-emerald-50 text-left text-[10px] font-black uppercase tracking-wider text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-200">
+              <thead className="bg-emerald-50 text-left text-[10px] font-black uppercase tracking-wider text-emerald-900 dark:text-white dark:bg-emerald-900/50 dark:text-white">
                 <tr>
                   <th className="px-3 py-2.5">#</th>
                   <th className="px-3 py-2.5">Field</th>

@@ -93,26 +93,26 @@ export default function FieldgraphFieldsPage() {
         <div className="space-y-6">
           <div className="grid sm:grid-cols-3 gap-3">
             <div className="rounded-2xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 px-4 py-3">
-              <div className="text-[10px] font-black uppercase text-emerald-800/70">
+              <div className="text-[10px] font-black uppercase text-emerald-800 dark:text-white">
                 Fields in book
               </div>
-              <div className="text-2xl font-black tabular-nums">
+              <div className="text-2xl font-black tabular-nums dark:text-white">
                 {Number(summary?.fieldCount) || store.fields.length}
               </div>
             </div>
             <div className="rounded-2xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 px-4 py-3">
-              <div className="text-[10px] font-black uppercase text-slate-400">
+              <div className="text-[10px] font-black uppercase text-slate-400 dark:text-white/70">
                 Hectares
               </div>
-              <div className="text-2xl font-black tabular-nums">
+              <div className="text-2xl font-black tabular-nums dark:text-white">
                 {Number(summary?.hectares) || 0}
               </div>
             </div>
             <div className="rounded-2xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 px-4 py-3">
-              <div className="text-[10px] font-black uppercase text-slate-400">
+              <div className="text-[10px] font-black uppercase text-slate-400 dark:text-white/70">
                 Crops
               </div>
-              <div className="text-sm font-bold text-slate-800 mt-1">
+              <div className="text-sm font-bold text-slate-800 dark:text-white mt-1">
                 {(summary?.crops as string[] | undefined)?.join(' · ') || '—'}
               </div>
             </div>
@@ -204,7 +204,7 @@ export default function FieldgraphFieldsPage() {
           <div className="grid lg:grid-cols-5 gap-4">
             <div className="lg:col-span-3 overflow-x-auto rounded-3xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40">
               <table className="w-full text-sm">
-                <thead className="bg-emerald-50 text-left text-[10px] font-black uppercase tracking-wider text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-200">
+                <thead className="bg-emerald-50 text-left text-[10px] font-black uppercase tracking-wider text-emerald-900 dark:text-white dark:bg-emerald-900/50 dark:text-white">
                   <tr>
                     <th className="px-3 py-2.5">Code</th>
                     <th className="px-3 py-2.5">Agronomy</th>

@@ -8,16 +8,24 @@ import {
   attendanceByClass,
   buildClassJoinPath,
   buildCoachPortalPayload,
+  closeCoachEngagement,
   createSessionsFromTemplate,
   defaultPublicSettings,
   ensurePublicToken,
   ensureSessionShareCode,
   issueCoachPortalToken,
   newId,
+  reopenCoachEngagement,
   readFitgraphFromMetadata,
   sessionBookingCount,
   sessionsInRange,
   summariseFitgraph,
+  summariseSessionFeedback,
+  upsertClassFeedback,
+  addCoachSpecialty,
+  removeCoachSpecialty,
+  renameCoachSpecialty,
+  getCoachSpecialtyOptions,
   writeFitgraphToMetadata,
   type FitBooking,
   type FitCheckIn,
@@ -32,6 +40,12 @@ import {
   type FitgraphStore,
   type FitPublicSettings,
 } from '@/lib/fitness/fitgraph';
+import {
+  applyFitClientImport,
+  buildFitClientsXlsx,
+  FIT_CLIENT_XLSX_MIME,
+  parseFitClientsImport,
+} from '@/lib/fitness/fitgraph-clients-xlsx';
 
 export const runtime = 'nodejs';
 
@@ -81,6 +95,9 @@ function analysis(store: FitgraphStore) {
   const today = new Date().toISOString().slice(0, 10);
   const weekEnd = new Date();
   weekEnd.setDate(weekEnd.getDate() + 7);
+  const feedback = [...(store.class_feedback || [])].sort((a, b) =>
+    (b.updated_at || b.created_at).localeCompare(a.updated_at || a.created_at)
+  );
   return {
     attendanceByClass: attendanceByClass(store),
     weekSessions: sessionsInRange(
@@ -90,7 +107,9 @@ function analysis(store: FitgraphStore) {
     ).map((s) => ({
       ...s,
       booked: sessionBookingCount(store, s.id),
+      feedback: summariseSessionFeedback(store, s.id),
     })),
+    recentFeedback: feedback.slice(0, 40),
   };
 }
 
@@ -105,6 +124,31 @@ export async function GET(request: NextRequest) {
     });
     if (!gate.ok) return gate.response;
     const { store } = await loadStore(companyId);
+
+    const exportKind = request.nextUrl.searchParams.get('export');
+    if (exportKind === 'clients' || exportKind === 'clients_template') {
+      const templateOnly = exportKind === 'clients_template';
+      const bytes = buildFitClientsXlsx(store, {
+        templateOnly,
+        brandName: store.settings?.brand_name || undefined,
+      });
+      const stamp = new Date().toISOString().slice(0, 10);
+      const brand = (store.settings?.brand_name || 'fitgraph')
+        .replace(/[^\w.-]+/g, '_')
+        .slice(0, 40);
+      const filename = templateOnly
+        ? `${brand}_clients_import_template.xlsx`
+        : `${brand}_clients_${stamp}.xlsx`;
+      return new NextResponse(Buffer.from(bytes), {
+        status: 200,
+        headers: {
+          'Content-Type': FIT_CLIENT_XLSX_MIME,
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
+
     return NextResponse.json({
       success: true,
       store,
@@ -145,6 +189,43 @@ export async function POST(request: NextRequest) {
         summary: summariseFitgraph(demo),
         analysis: analysis(demo),
         message: 'Demo gym loaded',
+      });
+    }
+
+    /** Owner: bulk import clients from .xlsx (or CSV) */
+    if (
+      action === 'import_clients' ||
+      action === 'import_clients_xlsx' ||
+      body.import_clients === true
+    ) {
+      const parsed = parseFitClientsImport({
+        xlsxBase64:
+          body.xlsxBase64 != null ? String(body.xlsxBase64) : undefined,
+        csv: body.csv != null ? String(body.csv) : undefined,
+      });
+      if (parsed.errors.length && !parsed.rows.length) {
+        return NextResponse.json(
+          {
+            error: parsed.errors[0] || 'Import failed',
+            parseErrors: parsed.errors,
+          },
+          { status: 400 }
+        );
+      }
+      const result = applyFitClientImport(store, parsed.rows, now);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        imported: result.created + result.updated,
+        created: result.created,
+        updated: result.updated,
+        skipped: result.skipped,
+        parseErrors: [...parsed.errors, ...result.errors],
+        warnings: result.warnings,
+        message: `Imported ${result.created} new, updated ${result.updated} existing client(s)`,
       });
     }
 
@@ -190,6 +271,70 @@ export async function POST(request: NextRequest) {
         summary: summariseFitgraph(store),
         portal_token: coach.portal_token,
         analysis: analysis(store),
+      });
+    }
+
+    /** Owner: end current coach engagement and archive to history */
+    if (
+      action === 'close_coach_engagement' ||
+      action === 'end_coach_engagement'
+    ) {
+      const coachId = String(body.coachId || body.id || '');
+      const idx = store.coaches.findIndex((c) => c.id === coachId);
+      if (idx < 0) {
+        return NextResponse.json({ error: 'Coach not found' }, { status: 404 });
+      }
+      const endDate = body.end_date
+        ? String(body.end_date).slice(0, 10)
+        : now.slice(0, 10);
+      store.coaches[idx] = closeCoachEngagement(store.coaches[idx], endDate, {
+        note: body.note != null ? String(body.note) : undefined,
+        reason: body.reason != null ? String(body.reason) : undefined,
+        nowIso: now,
+      });
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        message: 'Coach engagement ended and saved to history',
+      });
+    }
+
+    /** Owner: rehire / start a new engagement (keeps prior history) */
+    if (
+      action === 'reopen_coach_engagement' ||
+      action === 'rehire_coach'
+    ) {
+      const coachId = String(body.coachId || body.id || '');
+      const idx = store.coaches.findIndex((c) => c.id === coachId);
+      if (idx < 0) {
+        return NextResponse.json({ error: 'Coach not found' }, { status: 404 });
+      }
+      const startDate = body.start_date
+        ? String(body.start_date).slice(0, 10)
+        : now.slice(0, 10);
+      // If still open, archive current stint first so history stays complete
+      let coach = store.coaches[idx];
+      if (coach.active !== false && !coach.end_date) {
+        const endBefore = body.end_before
+          ? String(body.end_before).slice(0, 10)
+          : startDate;
+        coach = closeCoachEngagement(coach, endBefore, {
+          note: 'Closed before rehire',
+          reason: 'rehire',
+          nowIso: now,
+        });
+      }
+      store.coaches[idx] = reopenCoachEngagement(coach, startDate);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        message: 'Coach engagement reopened',
       });
     }
 
@@ -405,6 +550,183 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    /** Owner: manage coach specialty catalogue (add / rename / remove) */
+    if (
+      action === 'manage_specialties' ||
+      action === 'coach_specialties'
+    ) {
+      const op = String(body.op || body.operation || 'list');
+      if (!store.settings) store.settings = defaultPublicSettings(companyId);
+      // Seed catalogue once if never customised (so edits persist)
+      if (
+        !Array.isArray(store.settings.coach_specialties) ||
+        store.settings.coach_specialties.length === 0
+      ) {
+        store.settings.coach_specialties = getCoachSpecialtyOptions(store);
+      }
+
+      if (op === 'list') {
+        return NextResponse.json({
+          success: true,
+          specialties: getCoachSpecialtyOptions(store),
+          store,
+          summary: summariseFitgraph(store),
+        });
+      }
+
+      if (op === 'add') {
+        const result = addCoachSpecialty(
+          store,
+          String(body.name || body.specialty || '')
+        );
+        if (!result.ok) {
+          return NextResponse.json({ error: result.error }, { status: 400 });
+        }
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          specialties: result.options,
+          store,
+          summary: summariseFitgraph(store),
+          analysis: analysis(store),
+          message: 'Specialty added',
+        });
+      }
+
+      if (op === 'rename' || op === 'edit') {
+        const result = renameCoachSpecialty(
+          store,
+          String(body.from || body.old_name || body.old || ''),
+          String(body.to || body.new_name || body.name || '')
+        );
+        if (!result.ok) {
+          return NextResponse.json({ error: result.error }, { status: 400 });
+        }
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          specialties: result.options,
+          store,
+          summary: summariseFitgraph(store),
+          analysis: analysis(store),
+          message: 'Specialty updated',
+        });
+      }
+
+      if (op === 'remove' || op === 'delete') {
+        const result = removeCoachSpecialty(
+          store,
+          String(body.name || body.specialty || body.from || ''),
+          { stripFromCoaches: body.strip_from_coaches === true }
+        );
+        if (!result.ok) {
+          return NextResponse.json({ error: result.error }, { status: 400 });
+        }
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          specialties: result.options,
+          store,
+          summary: summariseFitgraph(store),
+          analysis: analysis(store),
+          message: 'Specialty removed from catalogue',
+        });
+      }
+
+      if (op === 'set' || op === 'replace') {
+        // Replace full list (ordered)
+        const list = Array.isArray(body.specialties)
+          ? (body.specialties as unknown[])
+              .map((s) => String(s).trim())
+              .filter(Boolean)
+          : [];
+        if (!list.length) {
+          return NextResponse.json(
+            { error: 'specialties array required' },
+            { status: 400 }
+          );
+        }
+        const seen = new Set<string>();
+        const unique: string[] = [];
+        for (const s of list) {
+          const k = s.toLowerCase();
+          if (seen.has(k)) continue;
+          seen.add(k);
+          unique.push(s.slice(0, 48));
+        }
+        store.settings.coach_specialties = unique;
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          specialties: unique,
+          store,
+          summary: summariseFitgraph(store),
+          analysis: analysis(store),
+          message: 'Specialty catalogue saved',
+        });
+      }
+
+      return NextResponse.json(
+        { error: 'Unknown op — use list|add|rename|remove|set' },
+        { status: 400 }
+      );
+    }
+
+    /** Owner desk: record member or coach class feedback */
+    if (
+      action === 'submit_class_feedback' ||
+      action === 'class_feedback'
+    ) {
+      const sessionId = String(body.session_id || '');
+      const session = store.sessions.find((s) => s.id === sessionId);
+      if (!session) {
+        return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+      }
+      const role =
+        String(body.role || 'member') === 'coach' ? 'coach' : 'member';
+      if (!store.class_feedback) store.class_feedback = [];
+      const row = upsertClassFeedback(
+        store,
+        {
+          session_id: sessionId,
+          role,
+          client_id: body.client_id != null ? String(body.client_id) : null,
+          coach_id:
+            body.coach_id != null
+              ? String(body.coach_id)
+              : role === 'coach'
+                ? session.coach_id || null
+                : null,
+          booking_id:
+            body.booking_id != null ? String(body.booking_id) : null,
+          author_name:
+            body.author_name != null ? String(body.author_name) : undefined,
+          author_email:
+            body.author_email != null
+              ? String(body.author_email).toLowerCase()
+              : undefined,
+          feeling: body.feeling,
+          intensity: body.intensity,
+          enjoyment: body.enjoyment,
+          would_return: body.would_return,
+          comment: body.comment != null ? String(body.comment) : undefined,
+          tags: Array.isArray(body.tags)
+            ? (body.tags as unknown[]).map(String)
+            : undefined,
+        },
+        now
+      );
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        feedback: row,
+        message: 'Feedback saved',
+      });
+    }
+
     if (action === 'mark_attendance_bulk') {
       const sessionId = String(body.session_id || '');
       const marks = Array.isArray(body.marks) ? body.marks : [];
@@ -498,18 +820,59 @@ function upsert(
     const id = String(rec.id || newId('coh'));
     const i = store.coaches.findIndex((c) => c.id === id);
     const prev = i >= 0 ? store.coaches[i] : null;
+    const startDate =
+      rec.start_date != null && String(rec.start_date).trim()
+        ? String(rec.start_date).slice(0, 10)
+        : prev?.start_date || now.slice(0, 10);
+    let endDate: string | null =
+      rec.end_date !== undefined
+        ? rec.end_date
+          ? String(rec.end_date).slice(0, 10)
+          : null
+        : prev?.end_date ?? null;
+    let history = Array.isArray(prev?.history)
+      ? [...(prev!.history || [])]
+      : Array.isArray(rec.history)
+        ? (rec.history as FitCoach['history'])
+        : [];
+    // If owner newly sets an end date on an open engagement, archive to history
+    if (endDate && prev && !prev.end_date && startDate) {
+      const closed = closeCoachEngagement(
+        { ...prev, start_date: startDate, history },
+        endDate,
+        {
+          note:
+            rec.ended_note != null ? String(rec.ended_note) : undefined,
+          reason:
+            rec.ended_reason != null ? String(rec.ended_reason) : undefined,
+          nowIso: now,
+        }
+      );
+      history = closed.history || history;
+    }
+    // If owner clears end date after a closed stint, treat as rehire (history kept)
+    if (
+      endDate === null &&
+      prev?.end_date &&
+      rec.end_date !== undefined
+    ) {
+      // prior stint already in history from close; ensure current open period uses startDate
+      history = Array.isArray(prev.history) ? [...prev.history] : history;
+    }
+    const activeExplicit =
+      rec.active !== undefined ? rec.active !== false : undefined;
     const row: FitCoach = {
       id,
       code: String(rec.code || `C-${store.coaches.length + 1}`),
       name: String(rec.name || 'Coach'),
-      email: rec.email != null ? String(rec.email) : undefined,
-      phone: rec.phone != null ? String(rec.phone) : undefined,
+      email: rec.email != null ? String(rec.email) : prev?.email,
+      phone: rec.phone != null ? String(rec.phone) : prev?.phone,
       specialties: Array.isArray(rec.specialties)
         ? (rec.specialties as string[])
         : rec.specialty
           ? [String(rec.specialty)]
-          : [],
-      bio: rec.bio != null ? String(rec.bio) : undefined,
+          : prev?.specialties || [],
+      bio: rec.bio != null ? String(rec.bio) : prev?.bio,
       public_bio:
         rec.public_bio != null ? String(rec.public_bio) : prev?.public_bio,
       photo_url:
@@ -524,8 +887,35 @@ function upsert(
         rec.can_manage_classes !== undefined
           ? rec.can_manage_classes !== false
           : prev?.can_manage_classes !== false,
-      color: rec.color != null ? String(rec.color) : undefined,
-      active: rec.active !== false,
+      color: rec.color != null ? String(rec.color) : prev?.color,
+      start_date: startDate,
+      end_date: endDate,
+      rate_zar:
+        rec.rate_zar !== undefined
+          ? rec.rate_zar === null || rec.rate_zar === ''
+            ? null
+            : Number(rec.rate_zar)
+          : prev?.rate_zar ?? null,
+      rate_basis:
+        rec.rate_basis !== undefined
+          ? rec.rate_basis
+            ? String(rec.rate_basis)
+            : null
+          : prev?.rate_basis ?? 'per_class',
+      rate_note:
+        rec.rate_note != null
+          ? String(rec.rate_note)
+          : prev?.rate_note,
+      contracts: Array.isArray(rec.contracts)
+        ? (rec.contracts as FitCoach['contracts'])
+        : prev?.contracts || [],
+      history,
+      active:
+        activeExplicit !== undefined
+          ? activeExplicit
+          : endDate
+            ? false
+            : prev?.active !== false,
       created_at: prev?.created_at || now,
     };
     if (i >= 0) store.coaches[i] = row;
@@ -883,6 +1273,11 @@ function seedDemo(now: string, companyId?: number): FitgraphStore {
             : `coach_thandi_${Math.random().toString(36).slice(2, 8)}`,
         can_manage_classes: true,
         color: '#059669',
+        start_date: d(-90),
+        end_date: null,
+        rate_zar: 350,
+        rate_basis: 'per_class',
+        history: [],
         active: true,
         created_at: now,
       },
@@ -899,6 +1294,22 @@ function seedDemo(now: string, companyId?: number): FitgraphStore {
             : `coach_johan_${Math.random().toString(36).slice(2, 8)}`,
         can_manage_classes: true,
         color: '#0284c7',
+        start_date: d(-60),
+        end_date: null,
+        rate_zar: 450,
+        rate_basis: 'hourly',
+        rate_note: 'PT sessions',
+        history: [
+          {
+            id: 'eng_demo_jp1',
+            start_date: d(-400),
+            end_date: d(-200),
+            note: 'Previous contract',
+            ended_reason: 'contract_end',
+            rate_zar: 380,
+            rate_basis: 'hourly',
+          },
+        ],
         active: true,
         created_at: now,
       },

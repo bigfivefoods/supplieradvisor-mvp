@@ -17,6 +17,7 @@ import {
   readFitgraphFromMetadata,
   sessionBookingCount,
   sessionByShareCode,
+  upsertClassFeedback,
   writeFitgraphToMetadata,
   type FitBooking,
   type FitClient,
@@ -237,16 +238,6 @@ export async function POST(request: NextRequest) {
     }
 
     const { companyId, meta, store } = resolved;
-    if (store.settings?.allow_public_booking === false) {
-      return NextResponse.json(
-        { error: 'Online booking is disabled' },
-        { status: 403 }
-      );
-    }
-
-    if (action !== 'book' && action !== 'book_class') {
-      return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
-    }
 
     const shareCode = String(body.share_code || body.shareCode || '').trim();
     let sessionId = String(body.session_id || body.sessionId || '');
@@ -254,6 +245,138 @@ export async function POST(request: NextRequest) {
       const byCode = sessionByShareCode(store, shareCode);
       if (byCode) sessionId = byCode.id;
     }
+
+    /** Member post-class feedback (feeling, intensity, etc.) */
+    if (
+      action === 'class_feedback' ||
+      action === 'submit_feedback' ||
+      action === 'member_feedback'
+    ) {
+      const email = String(body.email || body.guest_email || '')
+        .trim()
+        .toLowerCase();
+      const name = String(body.name || body.guest_name || '').trim();
+      if (!sessionId) {
+        return NextResponse.json(
+          { error: 'session_id or share_code required' },
+          { status: 400 }
+        );
+      }
+      if (!email && !name) {
+        return NextResponse.json(
+          { error: 'Email or name required to match your booking' },
+          { status: 400 }
+        );
+      }
+      const session = store.sessions.find((s) => s.id === sessionId);
+      if (!session || session.status === 'cancelled') {
+        return NextResponse.json(
+          { error: 'Session not found' },
+          { status: 404 }
+        );
+      }
+      // Prefer booking match by email, then client, then name
+      let booking = email
+        ? store.bookings.find(
+            (b) =>
+              b.session_id === sessionId &&
+              b.status !== 'cancelled' &&
+              ((b.guest_email &&
+                b.guest_email.toLowerCase() === email) ||
+                store.clients.some(
+                  (c) =>
+                    c.id === b.client_id &&
+                    c.email &&
+                    c.email.toLowerCase() === email
+                ))
+          )
+        : undefined;
+      if (!booking && name) {
+        booking = store.bookings.find(
+          (b) =>
+            b.session_id === sessionId &&
+            b.status !== 'cancelled' &&
+            ((b.guest_name &&
+              b.guest_name.toLowerCase() === name.toLowerCase()) ||
+              store.clients.some(
+                (c) =>
+                  c.id === b.client_id &&
+                  c.name.toLowerCase() === name.toLowerCase()
+              ))
+        );
+      }
+      if (!booking) {
+        return NextResponse.json(
+          {
+            error:
+              'No booking found for this class. Use the same email or name you booked with.',
+          },
+          { status: 404 }
+        );
+      }
+      if (booking.status === 'no_show' || booking.status === 'waitlist') {
+        return NextResponse.json(
+          {
+            error:
+              'Feedback is available after you attend (not waitlist / no-show).',
+          },
+          { status: 403 }
+        );
+      }
+      const client = store.clients.find((c) => c.id === booking!.client_id);
+      if (!store.class_feedback) store.class_feedback = [];
+      const row = upsertClassFeedback(store, {
+        session_id: sessionId,
+        role: 'member',
+        client_id: booking.client_id,
+        booking_id: booking.id,
+        author_name: name || client?.name || booking.guest_name,
+        author_email: email || client?.email || booking.guest_email,
+        feeling: body.feeling,
+        intensity: body.intensity,
+        enjoyment: body.enjoyment,
+        would_return: body.would_return,
+        comment: body.comment != null ? String(body.comment) : undefined,
+        tags: Array.isArray(body.tags)
+          ? (body.tags as unknown[]).map(String)
+          : undefined,
+      });
+      // Soft-mark attended when they leave feedback after class date
+      const today = new Date().toISOString().slice(0, 10);
+      if (
+        booking.status === 'booked' &&
+        session.date <= today
+      ) {
+        booking.status = 'attended';
+        if (session.status !== 'cancelled') session.status = 'completed';
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        feedback: {
+          id: row.id,
+          feeling: row.feeling,
+          intensity: row.intensity,
+          enjoyment: row.enjoyment,
+          would_return: row.would_return,
+          comment: row.comment,
+          tags: row.tags,
+        },
+        message: 'Thanks — your class feedback was saved',
+      });
+    }
+
+    if (action !== 'book' && action !== 'book_class') {
+      return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+    }
+
+    if (store.settings?.allow_public_booking === false) {
+      return NextResponse.json(
+        { error: 'Online booking is disabled' },
+        { status: 403 }
+      );
+    }
+
     const name = String(body.name || body.guest_name || '').trim();
     const email = body.email || body.guest_email
       ? String(body.email || body.guest_email).trim()

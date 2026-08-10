@@ -215,18 +215,18 @@ export default function FieldgraphFleetPage() {
         <div className="space-y-6">
           <div className="grid sm:grid-cols-3 lg:grid-cols-6 gap-3">
             <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
-              <div className="text-[10px] font-black uppercase text-slate-400">
+              <div className="text-[10px] font-black uppercase text-slate-400 dark:text-white/70">
                 Vehicles
               </div>
-              <div className="text-2xl font-black tabular-nums">
+              <div className="text-2xl font-black tabular-nums dark:text-white">
                 {Number(summary?.vehicleCount) || vehicles.length}
               </div>
             </div>
             <div className="rounded-2xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
-              <div className="text-[10px] font-black uppercase text-emerald-800/70">
+              <div className="text-[10px] font-black uppercase text-emerald-800 dark:text-white">
                 Hours
               </div>
-              <div className="text-2xl font-black tabular-nums">
+              <div className="text-2xl font-black tabular-nums dark:text-white">
                 {Number(summary?.fleetHours) || 0}
               </div>
             </div>
@@ -234,7 +234,7 @@ export default function FieldgraphFleetPage() {
               <div className="text-[10px] font-black uppercase text-amber-900/60 inline-flex items-center gap-1">
                 <Fuel className="w-3 h-3" /> Fuel (L)
               </div>
-              <div className="text-2xl font-black tabular-nums">
+              <div className="text-2xl font-black tabular-nums dark:text-white">
                 {Number(summary?.fuelTotalL) || 0}
               </div>
             </div>
@@ -242,7 +242,7 @@ export default function FieldgraphFleetPage() {
               <div className="text-[10px] font-black uppercase text-violet-800/70">
                 Fuel util L/h
               </div>
-              <div className="text-2xl font-black tabular-nums">
+              <div className="text-2xl font-black tabular-nums dark:text-white">
                 {summary?.lPerHour != null ? String(summary.lPerHour) : '—'}
               </div>
             </div>
@@ -250,7 +250,7 @@ export default function FieldgraphFleetPage() {
               <div className="text-[10px] font-black uppercase text-violet-800/70">
                 Fuel util L/km
               </div>
-              <div className="text-2xl font-black tabular-nums">
+              <div className="text-2xl font-black tabular-nums dark:text-white">
                 {summary?.lPerKm != null ? String(summary.lPerKm) : '—'}
               </div>
             </div>
@@ -258,7 +258,7 @@ export default function FieldgraphFleetPage() {
               <div className="text-[10px] font-black uppercase text-rose-800/70">
                 Cost R/km
               </div>
-              <div className="text-2xl font-black tabular-nums">
+              <div className="text-2xl font-black tabular-nums dark:text-white">
                 {summary?.costPerKm != null ? String(summary.costPerKm) : '—'}
               </div>
             </div>

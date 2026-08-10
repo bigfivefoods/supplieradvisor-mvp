@@ -15,6 +15,7 @@ import {
   User,
   Users,
 } from 'lucide-react';
+import { FitClassFeedbackForm } from '@/components/fitness/FitClassFeedbackForm';
 
 type JoinSession = {
   id: string;
@@ -60,6 +61,9 @@ export default function JoinFitgraphClassPage() {
     status: string;
     message: string;
   } | null>(null);
+  const [fbBusy, setFbBusy] = useState(false);
+  const [fbDone, setFbDone] = useState(false);
+  const [fbError, setFbError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token || !shareCode) return;
@@ -152,6 +156,51 @@ export default function JoinFitgraphClassPage() {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const submitFeedback = async (v: {
+    feeling: number;
+    intensity: number;
+    enjoyment: number;
+    would_return: number;
+    comment: string;
+    tags: string[];
+  }) => {
+    setFbBusy(true);
+    setFbError(null);
+    try {
+      const res = await fetch('/api/public/fitgraph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          action: 'member_feedback',
+          share_code: shareCode,
+          session_id: join?.session.id,
+          name: name.trim() || undefined,
+          email: email.trim() || undefined,
+          feeling: v.feeling,
+          intensity: v.intensity,
+          enjoyment: v.enjoyment,
+          would_return: v.would_return,
+          comment: v.comment || undefined,
+          tags: v.tags,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not save feedback');
+      setFbDone(true);
+    } catch (e: unknown) {
+      setFbError(e instanceof Error ? e.message : 'Feedback failed');
+    } finally {
+      setFbBusy(false);
+    }
+  };
+
+  const classIsPastOrToday = (() => {
+    if (!join) return false;
+    const today = new Date().toISOString().slice(0, 10);
+    return join.session.date <= today;
+  })();
 
   if (loading) {
     return (
@@ -322,6 +371,36 @@ export default function JoinFitgraphClassPage() {
               >
                 <Download className="w-3.5 h-3.5" /> .ics file
               </button>
+            )}
+          </div>
+        )}
+
+        {/* Post-class member feedback — same join link, after the session */}
+        {classIsPastOrToday && (
+          <div className="space-y-2 pt-2">
+            {fbDone ? (
+              <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 font-bold flex items-center gap-2">
+                <Check className="w-4 h-4" /> Thanks — feedback saved for the gym.
+              </div>
+            ) : (
+              <>
+                {fbError && (
+                  <p className="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">
+                    {fbError}
+                  </p>
+                )}
+                <FitClassFeedbackForm
+                  role="member"
+                  requireIdentity
+                  name={name}
+                  email={email}
+                  onNameChange={setName}
+                  onEmailChange={setEmail}
+                  busy={fbBusy}
+                  onSubmit={submitFeedback}
+                  description="After you trained — how you feel and how hard the class felt. Use the same name/email you booked with."
+                />
+              </>
             )}
           </div>
         )}

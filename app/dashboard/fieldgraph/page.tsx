@@ -235,7 +235,7 @@ function HubInner() {
 
       {loading ? (
         <div className="py-16 flex justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+          <Loader2 className="w-8 h-8 animate-spin text-emerald-600 dark:text-white" />
         </div>
       ) : (
         <HubTelemetryGrid>
@@ -285,10 +285,10 @@ function HubInner() {
             key={x.t}
             className="rounded-2xl border border-emerald-300 bg-emerald-50/50 px-4 py-3 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40"
           >
-            <div className="text-sm font-black text-slate-900 dark:text-emerald-50">
+            <div className="text-sm font-black text-slate-900 dark:text-white">
               {x.t}
             </div>
-            <p className="text-[12px] text-slate-600 dark:text-emerald-100/85 mt-1 leading-relaxed">
+            <p className="text-[12px] text-slate-600 dark:text-white/90 mt-1 leading-relaxed">
               {x.b}
             </p>
           </div>
@@ -296,7 +296,7 @@ function HubInner() {
       </div>
 
       <div className="mt-6">
-        <h2 className="text-sm font-black uppercase tracking-widest text-emerald-800/70 mb-4">
+        <h2 className="text-sm font-black uppercase tracking-widest text-emerald-800 dark:text-white mb-4">
           Core · Field & agronomic · Estimates · Harvest · Vehicles
         </h2>
         <HubModuleGrid modules={CORE_MODULES} uniformDark />

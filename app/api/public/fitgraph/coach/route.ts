@@ -16,6 +16,7 @@ import {
   parseCompanyIdFromToken,
   readFitgraphFromMetadata,
   sessionBookingCount,
+  upsertClassFeedback,
   writeFitgraphToMetadata,
   type FitBooking,
   type FitClient,
@@ -477,6 +478,51 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         portal: buildCoachPortalPayload(store, coach),
+      });
+    }
+
+    /** Coach post-session feedback (how they feel, intensity of the class) */
+    if (
+      action === 'class_feedback' ||
+      action === 'submit_feedback' ||
+      action === 'coach_feedback'
+    ) {
+      const sid = String(body.session_id || sessionId || '');
+      const session = store.sessions.find(
+        (s) => s.id === sid && s.coach_id === coach.id
+      );
+      if (!session) {
+        return NextResponse.json(
+          { error: 'Session not found or not yours' },
+          { status: 404 }
+        );
+      }
+      if (!store.class_feedback) store.class_feedback = [];
+      const row = upsertClassFeedback(store, {
+        session_id: session.id,
+        role: 'coach',
+        coach_id: coach.id,
+        author_name: coach.name,
+        author_email: coach.email,
+        feeling: body.feeling,
+        intensity: body.intensity,
+        enjoyment: body.enjoyment,
+        would_return: body.would_return,
+        comment: body.comment != null ? String(body.comment) : undefined,
+        tags: Array.isArray(body.tags)
+          ? (body.tags as unknown[]).map(String)
+          : undefined,
+      });
+      const today = new Date().toISOString().slice(0, 10);
+      if (session.date <= today && session.status === 'scheduled') {
+        session.status = 'completed';
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        feedback: row,
+        portal: buildCoachPortalPayload(store, coach),
+        message: 'Coach feedback saved',
       });
     }
 

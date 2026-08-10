@@ -2,10 +2,11 @@
 
 /**
  * End-to-end Fitgraph® process design:
- * Coaches → Members → Plans → Calendar → Bookings → Website
+ * People → Plans → Classes → Calendar → Floor → Website · feedback · reports
  *
  * Expandable on the Fitgraph command hub; downloadable A4 PDF
  * (landscape + portrait) — same pattern as NSNP / Fieldgraph.
+ * Content kept in sync with lib/fitness/fitgraph-process-guide.ts
  */
 import { useState } from 'react';
 import Link from 'next/link';
@@ -17,7 +18,9 @@ import {
   ClipboardCheck,
   CreditCard,
   Dumbbell,
+  FileText,
   Globe,
+  Package,
   Repeat,
   ShieldCheck,
   Sparkles,
@@ -52,34 +55,43 @@ const PHASES: Phase[] = [
   {
     id: 'people',
     title: '1 · People (coaches & members)',
-    subtitle: 'Who trains · who attends',
+    subtitle: 'Who trains · who attends · tenure · rates',
     steps: [
       {
-        id: 'coaches',
+        id: 'specialties',
         n: '1a',
-        title: 'Coach register',
+        title: 'Specialty catalogue',
         who: 'Owner',
-        desc: 'Specialties, public bio; issue coach portal token.',
+        desc: 'Create, rename, remove coach specialties gym-wide.',
+        href: '/dashboard/fitgraph/coaches',
+        icon: Sparkles,
+      },
+      {
+        id: 'coaches',
+        n: '1b',
+        title: 'Coach register & edit',
+        who: 'Owner',
+        desc: 'Bio, contact, photo; full edit; issue portal link.',
         href: '/dashboard/fitgraph/coaches',
         icon: UserRound,
       },
       {
-        id: 'clients',
-        n: '1b',
-        title: 'Clients / members',
+        id: 'tenure',
+        n: '1c',
+        title: 'Engagement · rates · contracts',
         who: 'Owner',
-        desc: 'Member book, status, assigned coach.',
-        href: '/dashboard/fitgraph/clients',
-        icon: Users,
+        desc: 'Start/end dates, ZAR rate, PDF contracts; history on rehire.',
+        href: '/dashboard/fitgraph/coaches',
+        icon: FileText,
       },
       {
-        id: 'portal',
-        n: '1c',
-        title: 'Coach portal link',
+        id: 'clients',
+        n: '1d',
+        title: 'Clients / members',
         who: 'Owner',
-        desc: 'Copy private URL so coaches share and manage classes.',
-        href: '/dashboard/fitgraph/coaches',
-        icon: Globe,
+        desc: 'Member book or bulk .xlsx import/export; plan & coach.',
+        href: '/dashboard/fitgraph/clients',
+        icon: Users,
       },
     ],
   },
@@ -144,103 +156,112 @@ const PHASES: Phase[] = [
   },
   {
     id: 'calendar',
-    title: '4 · Calendar (schedule coaches)',
-    subtitle: 'Owner puts coaches on the grid',
+    title: '4 · Calendar (schedule · plan · join)',
+    subtitle: 'Owner grid + coach week + B2C links',
     steps: [
       {
         id: 'sched',
         n: '4a',
         title: 'Schedule session',
         who: 'Owner',
-        desc: 'Date, time, room, class type, assign coach.',
+        desc: 'Date, time, room, class type; assign coach by specialty.',
         href: '/dashboard/fitgraph/calendar',
         icon: CalendarDays,
       },
       {
-        id: 'public',
+        id: 'coach-cal',
         n: '4b',
-        title: 'Publish public',
-        who: 'Owner',
-        desc: 'Mark public + notes for website embed.',
-        href: '/dashboard/fitgraph/calendar',
-        icon: Globe,
+        title: 'Coach calendar',
+        who: 'Owner / coach',
+        desc: 'Week plan, actuals, series, class plan text.',
+        href: '/dashboard/fitgraph/coach-calendar',
+        icon: CalendarDays,
       },
       {
-        id: 'reassign',
+        id: 'join',
         n: '4c',
-        title: 'Reassign coach',
-        who: 'Owner',
-        desc: 'Change coach; portal reflects ownership.',
+        title: 'Publish & join links',
+        who: 'Owner / coach',
+        desc: 'Public session + B2C join URL for book & calendar.',
         href: '/dashboard/fitgraph/calendar',
-        icon: UserRound,
+        icon: Globe,
       },
     ],
   },
   {
     id: 'floor',
-    title: '5 · Floor (bookings · check-ins · coach share)',
-    subtitle: 'Capacity, waitlist, attendance',
+    title: '5 · Floor (book · actual · feedback)',
+    subtitle: 'Capacity, attendance, post-class pulse',
     steps: [
       {
         id: 'book',
         n: '5a',
         title: 'Book members',
-        who: 'Desk / coach',
-        desc: 'Book session; auto-waitlist when full.',
+        who: 'Desk / coach / web',
+        desc: 'Book session; auto-waitlist; desk, portal or join link.',
         href: '/dashboard/fitgraph/bookings',
         icon: ClipboardCheck,
       },
       {
-        id: 'checkin',
+        id: 'actual',
         n: '5b',
+        title: 'Plan vs actual',
+        who: 'Coach / desk',
+        desc: 'Mark attended / no-show on the roster after class.',
+        href: '/dashboard/fitgraph/coach-calendar',
+        icon: ClipboardCheck,
+      },
+      {
+        id: 'feedback',
+        n: '5c',
+        title: 'Class feedback',
+        who: 'Member · coach',
+        desc: 'Feel, intensity (RPE), tags after the session.',
+        href: '/dashboard/fitgraph/feedback',
+        icon: Sparkles,
+      },
+      {
+        id: 'checkin',
+        n: '5d',
         title: 'Check-ins',
         who: 'Desk',
         desc: 'Front-desk or class attendance log.',
         href: '/dashboard/fitgraph/checkins',
         icon: ClipboardCheck,
       },
-      {
-        id: 'share',
-        n: '5c',
-        title: 'Coach share',
-        who: 'Coach',
-        desc: 'Portal: share class, book guests, mark attended.',
-        href: '/dashboard/fitgraph/coaches',
-        icon: UserRound,
-      },
     ],
   },
   {
     id: 'web',
-    title: '6 · Website, embed & insights',
-    subtitle: 'Customer-facing gym on SupplierAdvisor®',
+    title: '6 · Website, contracts & insights',
+    subtitle: 'Public profile · embed · slice & dice',
     steps: [
       {
-        id: 'settings',
+        id: 'profile',
         n: '6a',
-        title: 'Website settings',
+        title: 'Gym profile & contracts',
         who: 'Owner',
-        desc: 'Publish calendar, brand, booking on/off, token.',
+        desc: 'Brand bio and public PDF contracts on embed.',
         href: '/dashboard/fitgraph/website',
-        icon: Globe,
+        icon: FileText,
       },
       {
         id: 'embed',
         n: '6b',
-        title: 'Embed / API',
+        title: 'Website embed / API',
         who: 'Owner',
-        desc: 'Iframe page or JSON for the gym’s own website.',
+        desc: 'Publish calendar, booking, iframe or JSON.',
         href: '/dashboard/fitgraph/website',
         icon: Globe,
       },
       {
         id: 'report',
         n: '6c',
-        title: 'Reports',
+        title: 'Reports (slice & dice)',
         who: 'Owner',
-        desc: 'Attendance by class, members, PT remaining.',
+        desc: 'Coaches, classes, plan vs actual, feedback, CSV.',
         href: '/dashboard/fitgraph/report',
-        icon: Sparkles,
+        icon: Package,
       },
     ],
   },
@@ -251,13 +272,14 @@ const ROLE_CARDS = [
     tone: 'owner' as const,
     icon: UserRound,
     title: 'Gym owner / manager',
-    subtitle: 'Brand · schedule · money',
+    subtitle: 'Brand · people · schedule · insight',
     does: [
-      'Register coaches and issue portal links',
-      'Define membership plans & subscriptions',
-      'Schedule classes and assign coaches',
-      'Publish public calendar & website embed',
-      'Review attendance and utilisation reports',
+      'Register & edit coaches; specialty catalogue',
+      'Engagement dates, rates, PDF contracts; rehire history',
+      'Member book or bulk .xlsx import/export',
+      'Schedule, coach calendar, B2C join links',
+      'Gym bio, public contracts, website embed',
+      'Slice-and-dice reports (plan vs actual · feedback)',
     ],
     doesNot: [
       'Does not leave coaches unassigned on public classes',
@@ -269,17 +291,18 @@ const ROLE_CARDS = [
     tone: 'coach' as const,
     icon: Dumbbell,
     title: 'Coach',
-    subtitle: 'Classes · roster · share',
+    subtitle: 'Classes · plan · actual · feedback',
     does: [
-      'Open coach portal with private token',
-      'Share / unshare classes publicly',
-      'Book walk-in guests onto sessions',
-      'Mark attendance on roster',
-      'Update capacity and public notes',
+      'Portal: own profile, bio, specialties',
+      'Class plan, one-off or weekly series',
+      'Share classes; book walk-ins and members',
+      'Mark plan vs actual (attended / no-show)',
+      'Post-class coach feedback (feel · RPE)',
+      'See member feedback averages on sessions',
     ],
     doesNot: [
       'Does not manage other coaches’ sessions',
-      'Does not change membership billing',
+      'Does not change membership billing or rates',
     ],
     href: '/dashboard/fitgraph/coaches',
   },
@@ -287,17 +310,17 @@ const ROLE_CARDS = [
     tone: 'member' as const,
     icon: Users,
     title: 'Member / customer',
-    subtitle: 'Book · attend · subscribe',
+    subtitle: 'Book · attend · feedback',
     does: [
-      'See public schedule on website / embed',
-      'Book online (or join waitlist when full)',
-      'Hold active subscription or class pack',
-      'Check in at front desk or class',
-      'Buy PT packs with a preferred coach',
+      'Public schedule, gym bio & contracts on embed',
+      'Book online or via class join link',
+      'Add class to phone calendar (Google / .ics)',
+      'Subscription or pack; desk check-in',
+      'After class: feel & intensity feedback on join link',
     ],
     doesNot: [
       'Does not see private / unpublished sessions',
-      'Does not access coach portal tokens',
+      'Does not access coach portals or owner rates',
     ],
     href: '/dashboard/fitgraph/website',
   },
@@ -313,20 +336,28 @@ const GUARDRAILS = [
     desc: 'Only public sessions appear on website embed and calendar API.',
   },
   {
+    title: 'Plan then actual',
+    desc: 'Roster plan (who is coming) then mark attended / no-show after class.',
+  },
+  {
+    title: 'Tenure history kept',
+    desc: 'End tenure archives dates + rate; rehire starts a new stint.',
+  },
+  {
+    title: 'Feedback after the session',
+    desc: 'Members: class join link. Coaches: portal session detail.',
+  },
+  {
     title: 'Capacity & waitlist',
     desc: 'Bookings auto-waitlist when full — desk, coach or website.',
   },
   {
-    title: 'Subscriptions sync status',
-    desc: 'Sub pause/cancel updates client membership for floor truth.',
-  },
-  {
     title: 'Tokenised portals',
-    desc: 'Website and coach portals use secret tokens — no private PII on public calendar.',
+    desc: 'Website and coach portals use secret tokens — no private PII public.',
   },
   {
     title: 'One gym book',
-    desc: 'Coaches, classes, bookings and website share the same Fitgraph store.',
+    desc: 'Coaches, classes, bookings, feedback and website share one store.',
   },
 ];
 
@@ -355,12 +386,12 @@ export default function FitgraphSystemFlow({
               Full gym OS — process design
             </p>
             <h2 className="text-lg sm:text-xl font-black mt-0.5 leading-tight">
-              Coaches → Members → Plans → Calendar → Bookings → Website
+              People → Plans → Classes → Calendar → Floor → Website · reports
             </h2>
             <p className="text-sm text-white/90 mt-1.5 max-w-3xl leading-snug">
-              Owner schedules coaches, coach portal shares classes with
-              customers, subscriptions track entitlement, and the public
-              calendar embeds on the gym website.
+              Owner manages coaches (tenure, rates, contracts), members and
+              schedules; coaches run plan vs actual and feedback; members book
+              and rate classes; reports slice utilisation end to end.
             </p>
           </button>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -385,12 +416,28 @@ export default function FitgraphSystemFlow({
         <div className="p-4 sm:p-6 space-y-8">
           <div className="flex flex-wrap items-center justify-center gap-2 text-center">
             {[
-              { label: 'People', sub: 'Coaches · members', tone: 'violet' },
-              { label: 'Plans · subs', sub: 'Memberships', tone: 'emerald' },
+              {
+                label: 'People',
+                sub: 'Coaches · members · tenure',
+                tone: 'violet',
+              },
+              { label: 'Plans · subs', sub: 'Memberships · PT', tone: 'emerald' },
               { label: 'Class types', sub: 'Capacity', tone: 'amber' },
-              { label: 'Calendar', sub: 'Schedule coaches', tone: 'sky' },
-              { label: 'Floor', sub: 'Book · check-in', tone: 'rose' },
-              { label: 'Website', sub: 'Embed · portal', tone: 'fuchsia' },
+              {
+                label: 'Calendar',
+                sub: 'Plan · series · join',
+                tone: 'sky',
+              },
+              {
+                label: 'Floor',
+                sub: 'Book · actual · feedback',
+                tone: 'rose',
+              },
+              {
+                label: 'Website · reports',
+                sub: 'Embed · slice & dice',
+                tone: 'fuchsia',
+              },
             ].map((node, i, arr) => (
               <div key={node.label} className="contents">
                 <div

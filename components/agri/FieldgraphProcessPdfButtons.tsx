@@ -42,7 +42,7 @@ export default function FieldgraphProcessPdfButtons({
       <div className={`flex flex-wrap items-center gap-2 ${className}`}>
         <a
           href={fieldgraphProcessGuidePdfUrl('landscape', { download: true })}
-          className="inline-flex items-center gap-1.5 rounded-full bg-white text-emerald-800 px-3.5 py-2 text-xs font-bold shadow-sm hover:bg-emerald-50 transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-full bg-white text-emerald-800 dark:text-emerald-950 px-3.5 py-2 text-xs font-bold shadow-sm hover:bg-emerald-50 transition-colors"
           title="A4 landscape · 2 pages"
         >
           <Download className="w-3.5 h-3.5" />
@@ -50,7 +50,7 @@ export default function FieldgraphProcessPdfButtons({
         </a>
         <a
           href={fieldgraphProcessGuidePdfUrl('portrait', { download: true })}
-          className="inline-flex items-center gap-1.5 rounded-full bg-white/90 text-emerald-800 px-3.5 py-2 text-xs font-bold shadow-sm border border-white/40 hover:bg-emerald-50 transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-full bg-white/90 text-emerald-800 dark:text-emerald-950 px-3.5 py-2 text-xs font-bold shadow-sm border border-white/40 hover:bg-emerald-50 transition-colors"
           title="A4 portrait · 2 pages"
         >
           <Download className="w-3.5 h-3.5" />

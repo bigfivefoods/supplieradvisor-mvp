@@ -59,7 +59,7 @@ function ChipMulti({
         {selected.length ? (
           <button
             type="button"
-            className="ml-2 text-emerald-700 normal-case font-bold"
+            className="ml-2 text-emerald-700 dark:text-white normal-case font-bold"
             onClick={() => onChange([])}
           >
             clear
@@ -210,7 +210,7 @@ export default function FieldgraphReportPage() {
               className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50"
             >
               <div className="flex items-center gap-2 min-w-0">
-                <SlidersHorizontal className="w-4 h-4 text-emerald-700 shrink-0" />
+                <SlidersHorizontal className="w-4 h-4 text-emerald-700 dark:text-white shrink-0" />
                 <div>
                   <div className="text-sm font-black text-slate-900">
                     Dimensions
@@ -237,7 +237,7 @@ export default function FieldgraphReportPage() {
                         clearDice();
                       }
                     }}
-                    className="text-[11px] font-bold text-emerald-700 px-2 py-1 rounded-full bg-emerald-50"
+                    className="text-[11px] font-bold text-emerald-700 dark:text-white px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/60"
                   >
                     Clear all
                   </span>
@@ -651,7 +651,7 @@ export default function FieldgraphReportPage() {
 function KpiMini({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 px-4 py-3">
-      <div className="text-[10px] font-black uppercase text-emerald-800/70">
+      <div className="text-[10px] font-black uppercase text-emerald-800 dark:text-white">
         {label}
       </div>
       <div className="text-xl font-black tabular-nums">{value}</div>

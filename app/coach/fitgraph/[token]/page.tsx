@@ -23,6 +23,7 @@ import {
   X,
 } from 'lucide-react';
 import { addDaysIso } from '@/lib/fitness/fitgraph';
+import { FitClassFeedbackForm } from '@/components/fitness/FitClassFeedbackForm';
 
 type RosterRow = {
   booking_id: string;
@@ -56,6 +57,30 @@ type PortalSession = {
   no_show: number;
   pending: number;
   roster: RosterRow[];
+  feedback_summary?: {
+    member_count: number;
+    coach_count: number;
+    avg_feeling: number | null;
+    avg_intensity: number | null;
+    avg_enjoyment: number | null;
+  };
+  my_feedback?: {
+    id: string;
+    feeling: number;
+    intensity: number;
+    enjoyment?: number;
+    would_return?: number;
+    comment?: string;
+    tags?: string[];
+  } | null;
+  member_feedback?: Array<{
+    id: string;
+    author_name?: string;
+    feeling: number;
+    intensity: number;
+    enjoyment?: number;
+    comment?: string;
+  }>;
 };
 
 type Portal = {
@@ -71,6 +96,21 @@ type Portal = {
     photo_url?: string;
     color?: string;
     can_manage_classes?: boolean;
+    start_date?: string;
+    end_date?: string;
+    rate_zar?: number | null;
+    rate_basis?: string;
+    rate_note?: string;
+    active?: boolean;
+    history?: Array<{
+      id: string;
+      start_date: string;
+      end_date: string;
+      note?: string;
+      ended_reason?: string;
+      rate_zar?: number | null;
+      rate_basis?: string;
+    }>;
   };
   specialty_options?: string[];
   from: string;
@@ -269,6 +309,18 @@ export default function CoachFitgraphPortalPage() {
                 {(portal.coach.specialties || []).length > 0 && (
                   <p className="text-[10px] text-amber-200/80 truncate">
                     {(portal.coach.specialties || []).join(' · ')}
+                  </p>
+                )}
+                {(portal.coach.start_date || portal.coach.end_date) && (
+                  <p className="text-[10px] text-slate-400 truncate">
+                    Tenure:{' '}
+                    {portal.coach.start_date || '—'}
+                    {portal.coach.end_date
+                      ? ` → ${portal.coach.end_date}`
+                      : ' → present'}
+                    {portal.coach.active === false || portal.coach.end_date
+                      ? ' · ended'
+                      : ''}
                   </p>
                 )}
               </div>
@@ -587,6 +639,57 @@ export default function CoachFitgraphPortalPage() {
               )}
             </div>
 
+            {/* Coach post-class feedback + member pulse */}
+            <div className="border-t border-slate-800 pt-3 space-y-3">
+              {openCard.feedback_summary &&
+                openCard.feedback_summary.member_count > 0 && (
+                  <div className="rounded-xl border border-slate-700 bg-slate-950/50 px-3 py-2 text-[11px] text-slate-300">
+                    <span className="font-bold text-amber-300">
+                      Member feedback
+                    </span>
+                    : {openCard.feedback_summary.member_count} · avg feel{' '}
+                    {openCard.feedback_summary.avg_feeling ?? '—'} · intensity{' '}
+                    {openCard.feedback_summary.avg_intensity ?? '—'}
+                    {(openCard.member_feedback || []).length > 0 && (
+                      <ul className="mt-1.5 space-y-1 text-slate-400">
+                        {(openCard.member_feedback || []).slice(0, 5).map((f) => (
+                          <li key={f.id}>
+                            {f.author_name || 'Member'}: feel {f.feeling}/5 · RPE{' '}
+                            {f.intensity}
+                            {f.comment ? ` — ${f.comment}` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              <FitClassFeedbackForm
+                key={openCard.session.id + (openCard.my_feedback?.id || 'new')}
+                role="coach"
+                dark
+                initial={openCard.my_feedback}
+                busy={busy}
+                title={
+                  openCard.my_feedback
+                    ? 'Update your coach check-in'
+                    : 'After you trained this class'
+                }
+                description="How you feel after teaching, and how intense the session was. Owner sees this with member scores."
+                onSubmit={async (v) => {
+                  await post({
+                    action: 'coach_feedback',
+                    session_id: openCard.session.id,
+                    feeling: v.feeling,
+                    intensity: v.intensity,
+                    enjoyment: v.enjoyment,
+                    would_return: v.would_return,
+                    comment: v.comment || undefined,
+                    tags: v.tags,
+                  });
+                }}
+              />
+            </div>
+
             <div className="flex flex-wrap gap-2 items-end border-t border-slate-800 pt-3">
               <select
                 className="flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
@@ -631,8 +734,54 @@ export default function CoachFitgraphPortalPage() {
             </div>
             <p className="text-[11px] text-slate-400">
               Members see your public bio and specialties on the gym calendar.
-              Keep contact details up to date.
+              Keep contact details up to date. Engagement dates are set by the
+              gym owner.
             </p>
+            {(portal.coach.start_date ||
+              portal.coach.end_date ||
+              portal.coach.rate_zar != null ||
+              (portal.coach.history || []).length > 0) && (
+              <div className="rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-2 text-[11px] text-slate-300 space-y-1">
+                <div className="font-bold text-amber-300/90 text-[10px] uppercase tracking-wider">
+                  Engagement & rate (read-only)
+                </div>
+                <div>
+                  Current:{' '}
+                  {portal.coach.start_date || '—'}
+                  {portal.coach.end_date
+                    ? ` → ${portal.coach.end_date}`
+                    : ' → present'}
+                </div>
+                {portal.coach.rate_zar != null && (
+                  <div>
+                    Rate: R{Number(portal.coach.rate_zar).toLocaleString('en-ZA')}
+                    {portal.coach.rate_basis
+                      ? ` / ${String(portal.coach.rate_basis).replace(/_/g, ' ')}`
+                      : ''}
+                    {portal.coach.rate_note
+                      ? ` · ${portal.coach.rate_note}`
+                      : ''}
+                  </div>
+                )}
+                {(portal.coach.history || []).length > 0 && (
+                  <ul className="space-y-0.5 text-slate-400">
+                    {(portal.coach.history || []).map((h) => (
+                      <li key={h.id}>
+                        Prior: {h.start_date} → {h.end_date}
+                        {h.rate_zar != null
+                          ? ` · R${Number(h.rate_zar).toLocaleString('en-ZA')}${
+                              h.rate_basis
+                                ? ` / ${String(h.rate_basis).replace(/_/g, ' ')}`
+                                : ''
+                            }`
+                          : ''}
+                        {h.note ? ` — ${h.note}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
             <input
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
               placeholder="Display name"

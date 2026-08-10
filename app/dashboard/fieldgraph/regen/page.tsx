@@ -57,7 +57,7 @@ export default function FieldgraphRegenPage() {
             Deep ESG packs also live under{' '}
             <Link
               href="/dashboard/sustainability"
-              className="font-bold text-emerald-700 underline"
+              className="font-bold text-emerald-700 dark:text-white underline"
             >
               Impact
             </Link>

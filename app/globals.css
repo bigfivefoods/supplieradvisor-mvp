@@ -257,8 +257,9 @@ html.dark {
    ============================================ */
 
 /*
- * 1) SOLID light / grey cards → dark charcoal surface
- *    (background-color only; gradients handled separately below)
+ * 1) SOLID light / grey cards → dark *coloured* gradients
+ *    (no flat light-grey or white slabs — harsh on black UI)
+ *    Inputs that also set dark:bg-neutral-950 keep a solid field via higher specificity below.
  */
 html.dark .bg-white,
 html.dark .bg-white\/95,
@@ -271,7 +272,14 @@ html.dark .bg-white\/40,
 html.dark .bg-white\/30,
 html.dark .bg-white\/20,
 html.dark .bg-white\/10 {
-  background-color: var(--sa-surface) !important;
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    155deg,
+    #1c2430 0%,
+    #0e1218 48%,
+    #080c10 100%
+  ) !important;
+  color: #f5f5f5;
 }
 
 html.dark .bg-\[\#f8fafc\],
@@ -304,7 +312,14 @@ html.dark .bg-stone-50\/60,
 html.dark .bg-zinc-50,
 html.dark .bg-zinc-50\/50,
 html.dark .bg-zinc-100 {
-  background-color: var(--sa-bg-elevated) !important;
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    155deg,
+    #182028 0%,
+    #0c1016 50%,
+    #070a0e 100%
+  ) !important;
+  color: #f5f5f5;
 }
 
 html.dark .bg-slate-100,
@@ -323,7 +338,13 @@ html.dark .hover\:bg-neutral-100:hover,
 html.dark .hover\:bg-white:hover,
 html.dark .hover\:bg-white\/80:hover,
 html.dark .hover\:bg-white\/90:hover {
-  background-color: #171717 !important;
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    155deg,
+    #222a34 0%,
+    #12161c 55%,
+    #0a0e12 100%
+  ) !important;
 }
 
 html.dark .bg-slate-200\/80,
@@ -334,10 +355,30 @@ html.dark .bg-neutral-300,
 html.dark .bg-gray-200,
 html.dark .bg-zinc-200,
 html.dark .bg-stone-200 {
-  background-color: #2a2a2a !important;
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    155deg,
+    #2a3340 0%,
+    #1a2028 55%,
+    #101418 100%
+  ) !important;
 }
 
-/* Soft pastel fills → dark tinted panels */
+/* Form fields: solid dark (not gradient) so inputs stay crisp */
+html.dark input.bg-white,
+html.dark select.bg-white,
+html.dark textarea.bg-white,
+html.dark input[class*='bg-white'],
+html.dark select[class*='bg-white'],
+html.dark textarea[class*='bg-white'],
+html.dark .dark\:bg-neutral-950,
+html.dark [class*='dark:bg-neutral-950'] {
+  background-color: #0a0a0a !important;
+  background-image: none !important;
+  color: #f5f5f5 !important;
+}
+
+/* Soft pastel fills → dark *tinted gradients* with light type */
 html.dark .bg-sky-50,
 html.dark .bg-sky-50\/30,
 html.dark .bg-sky-50\/40,
@@ -355,7 +396,14 @@ html.dark .bg-sky-100\/40,
 html.dark .bg-sky-100\/50,
 html.dark .bg-sky-100\/80,
 html.dark .bg-sky-100\/90 {
-  background-color: var(--sa-sky-soft) !important;
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    155deg,
+    #0c2a38 0%,
+    #061820 48%,
+    #02080c 100%
+  ) !important;
+  color: #f5f5f5;
 }
 
 html.dark .bg-emerald-50,
@@ -365,7 +413,14 @@ html.dark .bg-emerald-50\/60,
 html.dark .bg-emerald-50\/80,
 html.dark .bg-emerald-100,
 html.dark .bg-emerald-100\/50 {
-  background-color: var(--sa-success-soft) !important;
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    155deg,
+    #0f2e22 0%,
+    #0a1a14 48%,
+    #040c08 100%
+  ) !important;
+  color: #f5f5f5;
 }
 
 html.dark .bg-amber-50,
@@ -375,7 +430,14 @@ html.dark .bg-amber-50\/60,
 html.dark .bg-amber-50\/80,
 html.dark .bg-amber-100,
 html.dark .bg-amber-100\/50 {
-  background-color: var(--sa-warn-soft) !important;
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    155deg,
+    #2e220c 0%,
+    #1a1408 48%,
+    #0c0804 100%
+  ) !important;
+  color: #f5f5f5;
 }
 
 html.dark .bg-rose-50,
@@ -384,7 +446,14 @@ html.dark .bg-rose-50\/50,
 html.dark .bg-rose-50\/60,
 html.dark .bg-rose-50\/80,
 html.dark .bg-rose-100 {
-  background-color: var(--sa-danger-soft) !important;
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    155deg,
+    #2e1018 0%,
+    #1a0a10 48%,
+    #0c0408 100%
+  ) !important;
+  color: #f5f5f5;
 }
 
 html.dark .bg-violet-50,
@@ -392,51 +461,144 @@ html.dark .bg-violet-50\/40,
 html.dark .bg-violet-50\/50,
 html.dark .bg-violet-50\/80,
 html.dark .bg-violet-100 {
-  background-color: #120c1f !important;
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    155deg,
+    #221038 0%,
+    #140c22 48%,
+    #080410 100%
+  ) !important;
+  color: #f5f5f5;
 }
 
 html.dark .bg-fuchsia-50 {
-  background-color: #1a0c1a !important;
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    155deg,
+    #2a1030 0%,
+    #180c1c 50%,
+    #0a040c 100%
+  ) !important;
+  color: #f5f5f5;
 }
 
 html.dark .bg-orange-50 {
-  background-color: #1a120c !important;
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    155deg,
+    #2e1a0c 0%,
+    #1a1008 50%,
+    #0c0804 100%
+  ) !important;
+  color: #f5f5f5;
 }
 
 html.dark .bg-teal-50 {
-  background-color: #0c1a18 !important;
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    155deg,
+    #0c2a28 0%,
+    #081a18 50%,
+    #040c0c 100%
+  ) !important;
+  color: #f5f5f5;
+}
+
+/* Solid role darks used with dark:!bg-*-950 → soft gradient overlay when not already gradient */
+html.dark [class*='!bg-emerald-950']:not([class*='bg-gradient']),
+html.dark [class*='bg-emerald-950']:not([class*='bg-gradient']) {
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    155deg,
+    #0f2e22 0%,
+    #0a1a14 48%,
+    #040c08 100%
+  ) !important;
+  color: #f5f5f5;
+}
+html.dark [class*='!bg-amber-950']:not([class*='bg-gradient']),
+html.dark [class*='bg-amber-950']:not([class*='bg-gradient']) {
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    155deg,
+    #2e220c 0%,
+    #1a1408 48%,
+    #0c0804 100%
+  ) !important;
+  color: #f5f5f5;
+}
+html.dark [class*='!bg-violet-950']:not([class*='bg-gradient']),
+html.dark [class*='bg-violet-950']:not([class*='bg-gradient']) {
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    155deg,
+    #221038 0%,
+    #140c22 48%,
+    #080410 100%
+  ) !important;
+  color: #f5f5f5;
+}
+html.dark [class*='!bg-cyan-950']:not([class*='bg-gradient']),
+html.dark [class*='bg-cyan-950']:not([class*='bg-gradient']),
+html.dark [class*='!bg-sky-950']:not([class*='bg-gradient']),
+html.dark [class*='bg-sky-950']:not([class*='bg-gradient']) {
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    155deg,
+    #0c2a38 0%,
+    #061820 48%,
+    #02080c 100%
+  ) !important;
+  color: #f5f5f5;
 }
 
 /*
  * 2) PALE GRADIENT CARDS
- *    background-color remaps never paint over linear-gradient images.
- *    Collapse pale from/via/to stops to dark charcoal so light ink stays readable.
+ *    Remap light from/via/to stops to dark *brand-tinted* gradients
+ *    (not flat charcoal slabs).
  */
 html.dark .from-white {
-  --tw-gradient-from: #121212 var(--tw-gradient-from-position) !important;
-  --tw-gradient-to: rgb(18 18 18 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-from: #1c2430 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(8 12 16 / 0) var(--tw-gradient-to-position) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 html.dark .via-white {
-  --tw-gradient-to: rgb(18 18 18 / 0) var(--tw-gradient-to-position) !important;
-  --tw-gradient-stops: var(--tw-gradient-from), #121212 var(--tw-gradient-via-position),
+  --tw-gradient-to: rgb(8 12 16 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), #121820 var(--tw-gradient-via-position),
     var(--tw-gradient-to) !important;
 }
-html.dark .to-white {
-  --tw-gradient-to: #121212 var(--tw-gradient-to-position) !important;
-}
-
 html.dark .from-slate-50,
 html.dark .from-slate-50\/90,
-html.dark .from-neutral-50,
+html.dark .from-neutral-50 {
+  --tw-gradient-from: #1a222c var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(8 12 16 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
 html.dark .from-sky-50,
 html.dark .from-sky-50\/50,
 html.dark .from-sky-50\/80,
 html.dark .from-sky-100,
 html.dark .from-cyan-50,
 html.dark .from-cyan-50\/80 {
-  --tw-gradient-from: #121212 var(--tw-gradient-from-position) !important;
-  --tw-gradient-to: rgb(18 18 18 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-from: #0c2a38 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(2 8 12 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+html.dark .from-emerald-50,
+html.dark .from-emerald-50\/50,
+html.dark .from-emerald-100 {
+  --tw-gradient-from: #0f2e22 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(4 12 8 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+html.dark .from-amber-50,
+html.dark .from-amber-50\/50,
+html.dark .from-violet-50 {
+  --tw-gradient-from: #2a1c10 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(8 4 2 / 0) var(--tw-gradient-to-position) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
@@ -447,13 +609,16 @@ html.dark .via-sky-50\/60,
 html.dark .via-sky-50\/70,
 html.dark .via-sky-50\/80,
 html.dark .via-sky-50\/90 {
-  --tw-gradient-to: rgb(18 18 18 / 0) var(--tw-gradient-to-position) !important;
-  --tw-gradient-stops: var(--tw-gradient-from), #0f1720 var(--tw-gradient-via-position),
+  --tw-gradient-to: rgb(2 8 12 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), #0a1c28 var(--tw-gradient-via-position),
     var(--tw-gradient-to) !important;
 }
 
 html.dark .to-slate-50,
-html.dark .to-neutral-50,
+html.dark .to-neutral-50 {
+  --tw-gradient-to: #080c10 var(--tw-gradient-to-position) !important;
+}
+
 html.dark .to-sky-50,
 html.dark .to-sky-50\/30,
 html.dark .to-sky-50\/40,
@@ -466,7 +631,16 @@ html.dark .to-cyan-50,
 html.dark .to-cyan-50\/40,
 html.dark .to-cyan-50\/60,
 html.dark .to-cyan-50\/90 {
-  --tw-gradient-to: #0a1620 var(--tw-gradient-to-position) !important;
+  --tw-gradient-to: #02080c var(--tw-gradient-to-position) !important;
+}
+
+html.dark .to-emerald-50,
+html.dark .to-emerald-50\/50 {
+  --tw-gradient-to: #040c08 var(--tw-gradient-to-position) !important;
+}
+
+html.dark .to-white {
+  --tw-gradient-to: #080c10 var(--tw-gradient-to-position) !important;
 }
 
 /*
@@ -535,6 +709,199 @@ html.dark .text-emerald-700,
 html.dark .text-emerald-800,
 html.dark .text-emerald-900 {
   color: #6ee7b7 !important;
+}
+
+/*
+ * Green-tinted cards (Fieldgraph office, soft success panels, emerald-950):
+ * mint green ink on dark green is unreadable — force white body/label type.
+ * Nested white chips keep dark green ink.
+ */
+html.dark .bg-emerald-50,
+html.dark .bg-emerald-50\/40,
+html.dark .bg-emerald-50\/50,
+html.dark .bg-emerald-50\/60,
+html.dark .bg-emerald-50\/80,
+html.dark .bg-emerald-100,
+html.dark .bg-emerald-100\/50,
+html.dark [class*='bg-emerald-950'],
+html.dark [class*='bg-emerald-900'] {
+  --sa-on-green: #ffffff;
+}
+
+html.dark .bg-emerald-50 :is(
+    .text-emerald-50,
+    .text-emerald-100,
+    .text-emerald-200,
+    .text-emerald-300,
+    .text-emerald-400,
+    .text-emerald-500,
+    .text-emerald-600,
+    .text-emerald-700,
+    .text-emerald-800,
+    .text-emerald-900,
+    .text-emerald-950
+  ),
+html.dark .bg-emerald-50\/40 :is(
+    .text-emerald-50,
+    .text-emerald-100,
+    .text-emerald-200,
+    .text-emerald-300,
+    .text-emerald-400,
+    .text-emerald-500,
+    .text-emerald-600,
+    .text-emerald-700,
+    .text-emerald-800,
+    .text-emerald-900,
+    .text-emerald-950
+  ),
+html.dark .bg-emerald-50\/50 :is(
+    .text-emerald-50,
+    .text-emerald-100,
+    .text-emerald-200,
+    .text-emerald-300,
+    .text-emerald-400,
+    .text-emerald-500,
+    .text-emerald-600,
+    .text-emerald-700,
+    .text-emerald-800,
+    .text-emerald-900,
+    .text-emerald-950
+  ),
+html.dark .bg-emerald-50\/60 :is(
+    .text-emerald-50,
+    .text-emerald-100,
+    .text-emerald-200,
+    .text-emerald-300,
+    .text-emerald-400,
+    .text-emerald-500,
+    .text-emerald-600,
+    .text-emerald-700,
+    .text-emerald-800,
+    .text-emerald-900,
+    .text-emerald-950
+  ),
+html.dark .bg-emerald-50\/80 :is(
+    .text-emerald-50,
+    .text-emerald-100,
+    .text-emerald-200,
+    .text-emerald-300,
+    .text-emerald-400,
+    .text-emerald-500,
+    .text-emerald-600,
+    .text-emerald-700,
+    .text-emerald-800,
+    .text-emerald-900,
+    .text-emerald-950
+  ),
+html.dark .bg-emerald-100 :is(
+    .text-emerald-50,
+    .text-emerald-100,
+    .text-emerald-200,
+    .text-emerald-300,
+    .text-emerald-400,
+    .text-emerald-500,
+    .text-emerald-600,
+    .text-emerald-700,
+    .text-emerald-800,
+    .text-emerald-900,
+    .text-emerald-950
+  ),
+html.dark .bg-emerald-100\/50 :is(
+    .text-emerald-50,
+    .text-emerald-100,
+    .text-emerald-200,
+    .text-emerald-300,
+    .text-emerald-400,
+    .text-emerald-500,
+    .text-emerald-600,
+    .text-emerald-700,
+    .text-emerald-800,
+    .text-emerald-900,
+    .text-emerald-950
+  ),
+html.dark [class*='bg-emerald-950'] :is(
+    .text-emerald-50,
+    .text-emerald-100,
+    .text-emerald-200,
+    .text-emerald-300,
+    .text-emerald-400,
+    .text-emerald-500,
+    .text-emerald-600,
+    .text-emerald-700,
+    .text-emerald-800,
+    .text-emerald-900,
+    .text-emerald-950
+  ),
+html.dark [class*='bg-emerald-900'] :is(
+    .text-emerald-50,
+    .text-emerald-100,
+    .text-emerald-200,
+    .text-emerald-300,
+    .text-emerald-400,
+    .text-emerald-500,
+    .text-emerald-600,
+    .text-emerald-700,
+    .text-emerald-800,
+    .text-emerald-900,
+    .text-emerald-950
+  ) {
+  color: #ffffff !important;
+}
+
+/*
+ * Nested “white” chips on green panels: elevated dark-green gradient + white type
+ * (no pale grey slabs)
+ */
+html.dark .bg-emerald-50 .bg-white,
+html.dark .bg-emerald-50\/40 .bg-white,
+html.dark .bg-emerald-50\/50 .bg-white,
+html.dark .bg-emerald-50\/60 .bg-white,
+html.dark .bg-emerald-50\/80 .bg-white,
+html.dark .bg-emerald-100 .bg-white,
+html.dark [class*='bg-emerald-950'] .bg-white,
+html.dark [class*='bg-emerald-900'] .bg-white,
+html.dark .bg-emerald-50 .bg-white\/90,
+html.dark .bg-emerald-50\/50 .bg-white\/90 {
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    155deg,
+    #143d2e 0%,
+    #0c241a 55%,
+    #081810 100%
+  ) !important;
+  color: #ffffff !important;
+  border-color: rgba(52, 211, 153, 0.35) !important;
+}
+html.dark .bg-emerald-50 .bg-white :is(
+    .text-emerald-600,
+    .text-emerald-700,
+    .text-emerald-800,
+    .text-emerald-900,
+    .text-emerald-950,
+    .text-slate-900,
+    .text-slate-700,
+    .text-slate-600
+  ),
+html.dark .bg-emerald-50\/50 .bg-white :is(
+    .text-emerald-600,
+    .text-emerald-700,
+    .text-emerald-800,
+    .text-emerald-900,
+    .text-emerald-950,
+    .text-slate-900,
+    .text-slate-700
+  ),
+html.dark [class*='bg-emerald-950'] .bg-white :is(
+    .text-emerald-600,
+    .text-emerald-700,
+    .text-emerald-800,
+    .text-emerald-900,
+    .text-emerald-950
+  ),
+html.dark .bg-emerald-50 .bg-white.text-emerald-800,
+html.dark .bg-emerald-50\/50 .bg-white.text-emerald-800,
+html.dark .bg-emerald-50 .bg-white\/90.text-emerald-800 {
+  color: #ffffff !important;
 }
 html.dark .text-amber-600,
 html.dark .text-amber-700,

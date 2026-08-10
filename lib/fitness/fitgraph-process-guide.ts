@@ -1,6 +1,6 @@
 /**
  * Fitgraph® end-to-end process guide content + PDF.
- * Coaches → Members → Plans → Calendar → Bookings → Website
+ * People → Plans → Classes → Calendar → Floor → Website · feedback · reports
  * Pure pdfkit — works on Vercel serverless.
  *
  * Do not import from client components (pulls pdfkit into the browser bundle).
@@ -24,24 +24,25 @@ export type ProcessPhase = {
 };
 
 export const PROCESS_CHAIN = [
-  { label: 'People', sub: 'Coaches · members' },
-  { label: 'Plans · subs', sub: 'Memberships' },
+  { label: 'People', sub: 'Coaches · members · tenure' },
+  { label: 'Plans · subs', sub: 'Memberships · PT' },
   { label: 'Class types', sub: 'Capacity · duration' },
-  { label: 'Calendar', sub: 'Schedule coaches' },
-  { label: 'Floor', sub: 'Book · check-in' },
-  { label: 'Website', sub: 'Embed · portal' },
+  { label: 'Calendar', sub: 'Plan · series · join' },
+  { label: 'Floor', sub: 'Book · actual · feedback' },
+  { label: 'Website · reports', sub: 'Embed · slice & dice' },
 ] as const;
 
 export const ROLE_CARDS = [
   {
     title: 'Gym owner / manager',
-    subtitle: 'Brand · schedule · money',
+    subtitle: 'Brand · people · schedule · money · insight',
     does: [
-      'Register coaches and issue portal links',
-      'Define membership plans & subscriptions',
-      'Schedule classes and assign coaches',
-      'Publish public calendar & embed on website',
-      'Review attendance and utilisation reports',
+      'Register & edit coaches; manage specialty catalogue',
+      'Set engagement dates, rates, PDF contracts; end / rehire tenure',
+      'Import / export member list (.xlsx); assign plans & coaches',
+      'Schedule classes, coach calendar (plan vs actual), B2C join links',
+      'Gym bio, public PDF contracts, website embed',
+      'Slice-and-dice reports: coaches, classes, plan vs actual, feedback',
     ],
     doesNot: [
       'Does not leave coaches unassigned on public classes',
@@ -50,32 +51,33 @@ export const ROLE_CARDS = [
   },
   {
     title: 'Coach',
-    subtitle: 'Classes · roster · share',
+    subtitle: 'Classes · roster · plan · feedback',
     does: [
-      'Open coach portal with private token',
-      'Share / unshare classes on public calendar',
-      'Book walk-in guests onto sessions',
-      'Mark attendance on roster',
-      'Update capacity and public notes',
+      'Open coach portal with private token; update own profile / bio',
+      'Create one-off or weekly series; write class plan (members see it)',
+      'Share / unshare classes; book walk-ins and members',
+      'Mark plan vs actual (attended / no-show) on roster',
+      'Submit post-class coach feedback (feel · intensity / RPE)',
+      'Read member feedback averages for their sessions',
     ],
     doesNot: [
       'Does not manage other coaches’ sessions',
-      'Does not change membership billing',
+      'Does not change membership billing or coach rates',
     ],
   },
   {
     title: 'Member / customer',
-    subtitle: 'Book · attend · subscribe',
+    subtitle: 'Book · attend · feedback',
     does: [
-      'See public schedule on gym website / embed',
-      'Book online (or join waitlist when full)',
-      'Hold active subscription or class pack',
-      'Check in at front desk or class',
-      'Buy PT packs with a preferred coach',
+      'See public schedule on gym website / embed (bio + contracts)',
+      'Book via website or B2C class join link (or waitlist when full)',
+      'Add class to phone calendar (Google / .ics)',
+      'Hold active subscription or class pack; check in at desk',
+      'After class: feedback on feel, intensity, enjoyment via join link',
     ],
     doesNot: [
       'Does not see private / unpublished sessions',
-      'Does not access coach portal tokens',
+      'Does not access coach portal tokens or owner rates',
     ],
   },
 ] as const;
@@ -83,25 +85,31 @@ export const ROLE_CARDS = [
 export const PROCESS_PHASES: ProcessPhase[] = [
   {
     title: '1 · People (coaches & members)',
-    subtitle: 'Who trains · who attends',
+    subtitle: 'Who trains · who attends · tenure · rates',
     steps: [
       {
         n: '1a',
-        title: 'Coach register',
+        title: 'Specialty catalogue',
         who: 'Owner',
-        desc: 'Specialties, public bio, contact; issue coach portal token.',
+        desc: 'Create, rename, remove coach specialties gym-wide.',
       },
       {
         n: '1b',
-        title: 'Clients / members',
+        title: 'Coach register & edit',
         who: 'Owner',
-        desc: 'Member book, status, assigned coach, emergency contact.',
+        desc: 'Bio, contact, photo, specialties; portal link; full edit anytime.',
       },
       {
         n: '1c',
-        title: 'Coach portal link',
+        title: 'Engagement · rates · contracts',
         who: 'Owner',
-        desc: 'Copy private URL so coaches manage and share their classes.',
+        desc: 'Start/end dates, ZAR rate & basis, PDF agreements; history on rehire.',
+      },
+      {
+        n: '1d',
+        title: 'Clients / members',
+        who: 'Owner',
+        desc: 'Member book or bulk .xlsx import/export; plan, status, coach.',
       },
     ],
   },
@@ -148,74 +156,80 @@ export const PROCESS_PHASES: ProcessPhase[] = [
     ],
   },
   {
-    title: '4 · Calendar (schedule coaches)',
-    subtitle: 'Owner puts coaches on the grid',
+    title: '4 · Calendar (schedule · plan · join)',
+    subtitle: 'Owner grid + coach week + B2C links',
     steps: [
       {
         n: '4a',
         title: 'Schedule session',
         who: 'Owner',
-        desc: 'Date, time, room, class type, assign coach, capacity override.',
+        desc: 'Date, time, room, class type, assign coach (filter by specialty).',
       },
       {
         n: '4b',
-        title: 'Publish public',
-        who: 'Owner',
-        desc: 'Mark session public + notes so it appears on website embed.',
+        title: 'Coach calendar',
+        who: 'Owner / coach',
+        desc: 'Per-coach week: plan roster, actuals, series, class plan text.',
       },
       {
         n: '4c',
-        title: 'Reassign coach',
-        who: 'Owner',
-        desc: 'Change coach on any session; portal reflects ownership.',
+        title: 'Publish & join links',
+        who: 'Owner / coach',
+        desc: 'Mark public; copy B2C join URL so members book and save to calendar.',
       },
     ],
   },
   {
-    title: '5 · Floor (bookings · check-ins · coach share)',
-    subtitle: 'Capacity, waitlist, attendance',
+    title: '5 · Floor (book · actual · feedback)',
+    subtitle: 'Capacity, attendance, post-class pulse',
     steps: [
       {
         n: '5a',
         title: 'Book members',
-        who: 'Desk / coach',
-        desc: 'Book into session; auto-waitlist when full; source desk/coach/web.',
+        who: 'Desk / coach / web',
+        desc: 'Book into session; auto-waitlist when full; desk, portal or join link.',
       },
       {
         n: '5b',
+        title: 'Plan vs actual',
+        who: 'Coach / desk',
+        desc: 'Mark attended / no-show on roster; completes session when marked.',
+      },
+      {
+        n: '5c',
+        title: 'Class feedback',
+        who: 'Member · coach',
+        desc: 'After class: feel (1–5), intensity RPE (1–10), tags, comment.',
+      },
+      {
+        n: '5d',
         title: 'Check-ins',
         who: 'Desk',
         desc: 'Front-desk or class attendance log by day.',
       },
-      {
-        n: '5c',
-        title: 'Coach share',
-        who: 'Coach',
-        desc: 'Portal: share class publicly, book guests, mark attended.',
-      },
     ],
   },
   {
-    title: '6 · Website, embed & insights',
-    subtitle: 'Customer-facing gym on SupplierAdvisor®',
+    title: '6 · Website, contracts & insights',
+    subtitle: 'Public profile · embed · slice & dice',
     steps: [
       {
         n: '6a',
-        title: 'Website settings',
+        title: 'Gym profile & contracts',
         who: 'Owner',
-        desc: 'Publish calendar, brand colour, booking on/off, rotate token.',
+        desc: 'Brand bio, public PDF contracts (T&Cs, waivers), show on embed.',
       },
       {
         n: '6b',
-        title: 'Embed / API',
+        title: 'Website embed / API',
         who: 'Owner',
-        desc: 'Iframe page or JSON API for the gym’s own website.',
+        desc: 'Publish calendar, booking on/off, iframe or JSON for the gym site.',
       },
       {
         n: '6c',
-        title: 'Reports',
+        title: 'Reports (slice & dice)',
         who: 'Owner',
-        desc: 'Attendance by class, members, PT remaining, utilisation.',
+        desc: 'Date/coach/class/specialty filters; coaches, classes, plan vs actual, feedback, members, daily CSV.',
       },
     ],
   },
@@ -235,8 +249,16 @@ export const GUARDRAILS = [
     desc: 'Bookings auto-waitlist when capacity is full — desk, coach or website.',
   },
   {
-    title: 'Subscriptions sync status',
-    desc: 'Sub pause/cancel updates client membership status for floor truth.',
+    title: 'Plan then actual',
+    desc: 'Roster plan (who is coming) then mark actual attended / no-show after class.',
+  },
+  {
+    title: 'Tenure history kept',
+    desc: 'Ending a coach archives dates + rate into history; rehire starts a new stint.',
+  },
+  {
+    title: 'Feedback after the session',
+    desc: 'Members use the class join link; coaches use the portal session detail.',
   },
   {
     title: 'Tokenised portals',
@@ -244,7 +266,7 @@ export const GUARDRAILS = [
   },
   {
     title: 'One gym book',
-    desc: 'Coaches, classes, bookings and website all share the same Fitgraph store.',
+    desc: 'Coaches, classes, bookings, feedback and website share the same Fitgraph store.',
   },
 ];
 
@@ -255,36 +277,36 @@ export const SYSTEM_BENEFITS = [
   },
   {
     title: 'Coach self-service',
-    desc: 'Portal lets coaches share classes and manage walk-ins without desk login.',
+    desc: 'Portal: profile, class plan, series, walk-ins, actuals, feedback — no desk login.',
+  },
+  {
+    title: 'Plan vs actual',
+    desc: 'See who was planned vs who came — fill % and show-up % in reports.',
   },
   {
     title: 'Website-ready',
-    desc: 'Branded embed and JSON API for the gym’s own site — not a separate app.',
+    desc: 'Branded embed, gym bio, public contracts and JSON API for the gym site.',
+  },
+  {
+    title: 'Bulk member load',
+    desc: 'Download / upload client list as .xlsx with plan and coach codes.',
   },
   {
     title: 'Subscriptions first-class',
     desc: 'Plans and active subs with credits — not a spreadsheet side system.',
   },
   {
-    title: 'Waitlist built-in',
-    desc: 'Full classes still capture demand for operators.',
+    title: 'Class feedback loop',
+    desc: 'Member and coach feel + intensity after every session for programming.',
   },
   {
-    title: 'PT packs tracked',
-    desc: 'Remaining personal-training sessions per client and coach.',
-  },
-  {
-    title: 'Attendance insights',
-    desc: 'Utilisation by class type for programming decisions.',
-  },
-  {
-    title: 'Tertiary / services pack',
-    desc: 'Fitness & wellness industry module on SupplierAdvisor®.',
+    title: 'Slice-and-dice reports',
+    desc: 'Filter by date, coach, class, specialty; export any view as CSV.',
   },
 ];
 
 export const ONE_SENTENCE =
-  'Register coaches and members → sell plans and track subscriptions → define class types → schedule coaches onto sessions and publish → book and check in on the floor (or coach portal) → embed the public calendar on the gym website and review attendance.';
+  'Register coaches (specialties, tenure, rates, contracts) and members (or .xlsx) → sell plans and track subs → define class types → schedule coaches, set class plans and join links → book and mark plan vs actual on the floor → members and coaches leave post-class feedback → publish website bio/contracts and slice-and-dice reports.';
 
 // ── PDF (violet brand) ──────────────────────────────────────────────────
 
@@ -429,7 +451,7 @@ function drawHero(doc: PdfDoc, g: Geo) {
         .fontSize(8.5)
         .fillColor('#ede9fe')
         .text(
-          'Tertiary / services fitness OS — coaches, calendar, bookings and public website.',
+          'Tertiary / services fitness OS — people, calendar, plan vs actual, feedback, website & reports.',
           g.mx,
           62,
           { width: g.contentW }
@@ -473,7 +495,8 @@ function drawRoleCards(doc: PdfDoc, g: Geo, y: number): number {
   const gap = 8;
   const colW = (g.contentW - gap * 2) / 3;
   const tones = [BRAND_DEEP, AMBER, SKY];
-  const h = g.isLandscape ? 124 : 138;
+  // Taller cards — owners/coaches now have 6 “does” lines
+  const h = g.isLandscape ? 148 : 168;
 
   ROLE_CARDS.forEach((card, i) => {
     const x = g.mx + i * (colW + gap);
@@ -540,8 +563,16 @@ function drawPhase(doc: PdfDoc, g: Geo, phase: ProcessPhase, y: number): number 
 
   const steps = phase.steps;
   const gap = 5;
-  const boxW = (g.contentW - gap * (steps.length - 1)) / steps.length;
-  const boxH = g.isLandscape ? 48 : 54;
+  const boxW = (g.contentW - gap * (steps.length - 1)) / Math.max(1, steps.length);
+  // Taller when 4 steps share a row (narrower boxes need more height for desc)
+  const boxH =
+    steps.length >= 4
+      ? g.isLandscape
+        ? 58
+        : 64
+      : g.isLandscape
+        ? 48
+        : 54;
 
   steps.forEach((step, i) => {
     const x = g.mx + i * (boxW + gap);

@@ -1,6 +1,6 @@
 /**
  * Shared process “Who does what” colour surfaces for dark + light.
- * dark:!bg-* beats global pastel remaps so role colours stay distinct.
+ * Dark mode uses tinted gradients (not flat grey/white slabs) with light type.
  */
 
 export type FitTone = 'owner' | 'coach' | 'member';
@@ -22,70 +22,86 @@ type TonePack = {
   chip: string;
 };
 
+/*
+ * Dark mode: tinted gradients (not flat grey/white).
+ * Full class names required for Tailwind JIT.
+ */
+
 const VIOLET: TonePack = {
-  card: 'border-violet-300 bg-violet-50 dark:!border-violet-400 dark:!bg-violet-950 dark:ring-1 dark:ring-violet-500/50',
-  row: 'border-violet-200 bg-white dark:!border-violet-400 dark:!bg-violet-950 dark:ring-1 dark:ring-violet-500/40',
+  card:
+    'border-violet-300 bg-violet-50 dark:!border-violet-400 dark:bg-gradient-to-br dark:from-violet-950 dark:via-[#140c22] dark:to-black dark:ring-1 dark:ring-violet-500/40 dark:text-white',
+  row:
+    'border-violet-200 bg-white dark:!border-violet-400 dark:bg-gradient-to-br dark:from-violet-950/95 dark:via-[#120a1c] dark:to-black dark:ring-1 dark:ring-violet-500/35 dark:text-white',
   table:
-    'border-violet-200 bg-white dark:!border-violet-400 dark:!bg-violet-950 dark:ring-1 dark:ring-violet-500/40',
-  thead: 'bg-violet-50 text-violet-900 dark:bg-violet-900/50 dark:text-violet-200',
-  title: 'text-slate-900 dark:text-violet-50',
-  label: 'text-violet-700/80 dark:text-violet-300/80',
-  value: 'text-slate-900 dark:text-violet-50',
-  link: 'text-violet-800 dark:text-violet-300',
+    'border-violet-200 bg-white dark:!border-violet-400 dark:bg-gradient-to-br dark:from-violet-950/90 dark:via-[#100818] dark:to-black dark:ring-1 dark:ring-violet-500/35 dark:text-white',
+  thead:
+    'bg-violet-50 text-violet-900 dark:bg-violet-900/40 dark:text-white',
+  title: 'text-slate-900 dark:text-white',
+  label: 'text-violet-700/80 dark:text-white/80',
+  value: 'text-slate-900 dark:text-white',
+  link: 'text-violet-800 dark:text-white',
   chip: 'bg-violet-700 text-white dark:bg-violet-500 dark:text-white',
 };
 
 const AMBER: TonePack = {
-  card: 'border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50',
-  row: 'border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40',
+  card:
+    'border-amber-300 bg-amber-50 dark:!border-amber-400 dark:bg-gradient-to-br dark:from-amber-950 dark:via-[#1a1208] dark:to-black dark:ring-1 dark:ring-amber-500/40 dark:text-white',
+  row:
+    'border-amber-200 bg-white dark:!border-amber-400 dark:bg-gradient-to-br dark:from-amber-950/95 dark:via-[#161008] dark:to-black dark:ring-1 dark:ring-amber-500/35 dark:text-white',
   table:
-    'border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40',
-  thead: 'bg-amber-50 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200',
-  title: 'text-slate-900 dark:text-amber-50',
-  label: 'text-amber-700/70 dark:text-amber-300/80',
-  value: 'text-slate-900 dark:text-amber-50',
-  link: 'text-amber-800 dark:text-amber-300',
-  chip: 'bg-amber-600 text-white dark:bg-amber-500 dark:text-amber-950',
+    'border-amber-200 bg-white dark:!border-amber-400 dark:bg-gradient-to-br dark:from-amber-950/90 dark:via-[#120e06] dark:to-black dark:ring-1 dark:ring-amber-500/35 dark:text-white',
+  thead: 'bg-amber-50 text-amber-900 dark:bg-amber-900/40 dark:text-white',
+  title: 'text-slate-900 dark:text-white',
+  label: 'text-amber-700/70 dark:text-white/80',
+  value: 'text-slate-900 dark:text-white',
+  link: 'text-amber-800 dark:text-white',
+  chip: 'bg-amber-600 text-white dark:bg-amber-500 dark:text-white',
 };
 
 const CYAN: TonePack = {
-  card: 'border-cyan-300 bg-sky-50 dark:!border-cyan-400 dark:!bg-cyan-950 dark:ring-1 dark:ring-cyan-500/50',
-  row: 'border-cyan-200 bg-white dark:!border-cyan-400 dark:!bg-cyan-950 dark:ring-1 dark:ring-cyan-500/40',
+  card:
+    'border-cyan-300 bg-sky-50 dark:!border-cyan-400 dark:bg-gradient-to-br dark:from-cyan-950 dark:via-[#061820] dark:to-black dark:ring-1 dark:ring-cyan-500/40 dark:text-white',
+  row:
+    'border-cyan-200 bg-white dark:!border-cyan-400 dark:bg-gradient-to-br dark:from-cyan-950/95 dark:via-[#05141a] dark:to-black dark:ring-1 dark:ring-cyan-500/35 dark:text-white',
   table:
-    'border-cyan-200 bg-white dark:!border-cyan-400 dark:!bg-cyan-950 dark:ring-1 dark:ring-cyan-500/40',
-  thead: 'bg-sky-50 text-sky-900 dark:bg-cyan-900/50 dark:text-cyan-200',
-  title: 'text-slate-900 dark:text-cyan-50',
-  label: 'text-sky-700/70 dark:text-cyan-300/80',
-  value: 'text-slate-900 dark:text-cyan-50',
-  link: 'text-sky-800 dark:text-cyan-300',
-  chip: 'bg-sky-600 text-white dark:bg-cyan-500 dark:text-cyan-950',
+    'border-cyan-200 bg-white dark:!border-cyan-400 dark:bg-gradient-to-br dark:from-cyan-950/90 dark:via-[#041018] dark:to-black dark:ring-1 dark:ring-cyan-500/35 dark:text-white',
+  thead: 'bg-sky-50 text-sky-900 dark:bg-cyan-900/40 dark:text-white',
+  title: 'text-slate-900 dark:text-white',
+  label: 'text-sky-700/70 dark:text-white/80',
+  value: 'text-slate-900 dark:text-white',
+  link: 'text-sky-800 dark:text-white',
+  chip: 'bg-sky-600 text-white dark:bg-cyan-500 dark:text-white',
 };
 
 const EMERALD: TonePack = {
-  card: 'border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50',
-  row: 'border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40',
+  card:
+    'border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:bg-gradient-to-br dark:from-emerald-950 dark:via-[#0a1a14] dark:to-black dark:ring-1 dark:ring-emerald-500/40 dark:text-white',
+  row:
+    'border-emerald-200 bg-white dark:!border-emerald-400 dark:bg-gradient-to-br dark:from-emerald-950/95 dark:via-[#081612] dark:to-black dark:ring-1 dark:ring-emerald-500/35 dark:text-white',
   table:
-    'border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40',
+    'border-emerald-200 bg-white dark:!border-emerald-400 dark:bg-gradient-to-br dark:from-emerald-950/90 dark:via-[#06120e] dark:to-black dark:ring-1 dark:ring-emerald-500/35 dark:text-white',
   thead:
-    'bg-emerald-50 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-200',
-  title: 'text-slate-900 dark:text-emerald-50',
-  label: 'text-emerald-700/80 dark:text-emerald-300/80',
-  value: 'text-slate-900 dark:text-emerald-50',
-  link: 'text-emerald-800 dark:text-emerald-300',
-  chip: 'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-emerald-950',
+    'bg-emerald-50 text-emerald-900 dark:bg-emerald-900/40 dark:text-white',
+  title: 'text-slate-900 dark:text-white',
+  label: 'text-emerald-700/80 dark:text-white/80',
+  value: 'text-slate-900 dark:text-white',
+  link: 'text-emerald-800 dark:text-white',
+  chip: 'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-white',
 };
 
 const SKY: TonePack = {
-  card: 'border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50',
-  row: 'border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40',
+  card:
+    'border-sky-300 bg-sky-50 dark:!border-sky-400 dark:bg-gradient-to-br dark:from-sky-950 dark:via-[#061820] dark:to-black dark:ring-1 dark:ring-sky-500/40 dark:text-white',
+  row:
+    'border-sky-200 bg-white dark:!border-sky-400 dark:bg-gradient-to-br dark:from-sky-950/95 dark:via-[#05141c] dark:to-black dark:ring-1 dark:ring-sky-500/35 dark:text-white',
   table:
-    'border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40',
-  thead: 'bg-sky-50 text-sky-900 dark:bg-sky-900/50 dark:text-sky-200',
-  title: 'text-slate-900 dark:text-sky-50',
-  label: 'text-sky-700/80 dark:text-sky-300/80',
-  value: 'text-slate-900 dark:text-sky-50',
-  link: 'text-[#0077b6] dark:text-sky-300',
-  chip: 'bg-sky-600 text-white dark:bg-sky-500 dark:text-sky-950',
+    'border-sky-200 bg-white dark:!border-sky-400 dark:bg-gradient-to-br dark:from-sky-950/90 dark:via-[#041018] dark:to-black dark:ring-1 dark:ring-sky-500/35 dark:text-white',
+  thead: 'bg-sky-50 text-sky-900 dark:bg-sky-900/40 dark:text-white',
+  title: 'text-slate-900 dark:text-white',
+  label: 'text-sky-700/80 dark:text-white/80',
+  value: 'text-slate-900 dark:text-white',
+  link: 'text-[#0077b6] dark:text-white',
+  chip: 'bg-sky-600 text-white dark:bg-sky-500 dark:text-white',
 };
 
 /** Process-role packs by semantic key */
@@ -98,10 +114,10 @@ export const ROLE_TONES: Record<string, TonePack> = {
   'fg-office': EMERALD,
   'fg-ops': AMBER,
   'fg-trade': CYAN,
-  office: EMERALD, // default office = field office emerald; quarry overrides via qg-office
+  office: EMERALD,
   ops: AMBER,
   trade: CYAN,
-  // Quarrygraph (prefix to avoid clashing with field office emerald)
+  // Quarrygraph
   'qg-office': AMBER,
   'qg-ops': VIOLET,
   'qg-trade': CYAN,

@@ -103,7 +103,7 @@ export function FieldgraphWorkbench({
         <div className="mb-4">
           <Link
             href="/dashboard/fieldgraph"
-            className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 hover:text-emerald-900"
+            className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 dark:text-white hover:text-emerald-900 dark:text-white dark:hover:text-white"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Fieldgraph
           </Link>
@@ -123,7 +123,7 @@ export function FieldgraphWorkbench({
 export function LoadingBlock() {
   return (
     <div className="py-16 flex justify-center">
-      <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+      <Loader2 className="w-8 h-8 animate-spin text-emerald-600 dark:text-white" />
     </div>
   );
 }

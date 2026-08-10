@@ -229,7 +229,7 @@ export default function FieldgraphLabourPage() {
             Statutory payroll and leave stay in{' '}
             <Link
               href="/dashboard/people"
-              className="font-bold text-emerald-700 underline"
+              className="font-bold text-emerald-700 dark:text-white underline"
             >
               People
             </Link>
@@ -241,31 +241,31 @@ export default function FieldgraphLabourPage() {
               <div className="text-[10px] font-black uppercase text-rose-900/60">
                 Gangs registered
               </div>
-              <div className="text-2xl font-black tabular-nums">
+              <div className="text-2xl font-black tabular-nums dark:text-white">
                 {Number(summary?.gangCount) || gangs.length}
               </div>
             </div>
             <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
-              <div className="text-[10px] font-black uppercase text-slate-400">
+              <div className="text-[10px] font-black uppercase text-slate-400 dark:text-white/70">
                 Activity logs
               </div>
-              <div className="text-2xl font-black tabular-nums">
+              <div className="text-2xl font-black tabular-nums dark:text-white">
                 {Number(summary?.labourLogs) || store.labour_logs.length}
               </div>
             </div>
             <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
-              <div className="text-[10px] font-black uppercase text-slate-400">
+              <div className="text-[10px] font-black uppercase text-slate-400 dark:text-white/70">
                 Hours logged
               </div>
-              <div className="text-2xl font-black tabular-nums">
+              <div className="text-2xl font-black tabular-nums dark:text-white">
                 {labourCost?.totalHours ?? '—'}
               </div>
             </div>
             <div className="rounded-2xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
-              <div className="text-[10px] font-black uppercase text-emerald-800/70">
+              <div className="text-[10px] font-black uppercase text-emerald-800 dark:text-white">
                 Labour cost
               </div>
-              <div className="text-2xl font-black tabular-nums">
+              <div className="text-2xl font-black tabular-nums dark:text-white">
                 {formatZar(
                   labourCost?.totalCost ??
                     (Number(summary?.labourCostZar) || 0)
@@ -695,7 +695,7 @@ export default function FieldgraphLabourPage() {
             <div className="space-y-6">
               <div className="grid sm:grid-cols-3 gap-3">
                 <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
-                  <div className="text-[10px] font-black uppercase text-slate-400">
+                  <div className="text-[10px] font-black uppercase text-slate-400 dark:text-white/70">
                     Total cost
                   </div>
                   <div className="text-xl font-black tabular-nums">
@@ -703,7 +703,7 @@ export default function FieldgraphLabourPage() {
                   </div>
                 </div>
                 <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
-                  <div className="text-[10px] font-black uppercase text-slate-400">
+                  <div className="text-[10px] font-black uppercase text-slate-400 dark:text-white/70">
                     Total hours
                   </div>
                   <div className="text-xl font-black tabular-nums">
@@ -711,7 +711,7 @@ export default function FieldgraphLabourPage() {
                   </div>
                 </div>
                 <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
-                  <div className="text-[10px] font-black uppercase text-slate-400">
+                  <div className="text-[10px] font-black uppercase text-slate-400 dark:text-white/70">
                     Person-days (approx)
                   </div>
                   <div className="text-xl font-black tabular-nums">
