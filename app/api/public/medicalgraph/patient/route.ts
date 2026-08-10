@@ -158,19 +158,24 @@ export async function POST(request: NextRequest) {
 
     if (action === 'update_profile') {
       const p = store.patients[pi];
-      if (body.name != null && String(body.name).trim()) p.name = String(body.name).trim();
-      if (body.phone !== undefined) p.phone = body.phone ? String(body.phone).trim() : undefined;
-      if (body.email !== undefined) p.email = body.email ? String(body.email).trim() : undefined;
-      if (body.photo_url !== undefined) {
-        p.photo_url = body.photo_url ? String(body.photo_url) : undefined;
+      const { applyPortalProfileUpdate } = await import(
+        '@/lib/services/portal-profile'
+      );
+      const result = applyPortalProfileUpdate(p, body, {
+        storeIdOnMedical: true,
+        now,
+      });
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
       }
-      p.updated_at = now;
       store.patients[pi] = p;
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
         portal: buildPatientPortalPayload(store, p),
-        message: 'Profile updated',
+        message: result.emailChanged
+          ? 'Profile updated — email synced to clinic records and care messages'
+          : 'Profile updated',
       });
     }
 

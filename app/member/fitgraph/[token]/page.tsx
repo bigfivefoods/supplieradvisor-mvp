@@ -62,6 +62,7 @@ type Portal = {
     name: string;
     email?: string;
     phone?: string;
+    id_number?: string;
     photo_url?: string;
     membership_status?: string;
     plan_name?: string;
@@ -86,6 +87,7 @@ export default function MemberFitgraphPortalPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [idNumber, setIdNumber] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
 
   const load = useCallback(async () => {
@@ -106,6 +108,7 @@ export default function MemberFitgraphPortalPage() {
         setName(c.name || '');
         setEmail(c.email || '');
         setPhone(c.phone || '');
+        setIdNumber(c.id_number || '');
         setPhotoUrl(c.photo_url || '');
       }
     } catch (e: unknown) {
@@ -176,9 +179,15 @@ export default function MemberFitgraphPortalPage() {
         name,
         email,
         phone,
+        id_number: idNumber,
         photo_url: photoUrl,
       });
       setMsg(data.message || 'Profile saved');
+      const c = data.portal?.client;
+      if (c) {
+        setEmail(c.email || '');
+        setIdNumber(c.id_number || '');
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Save failed');
     } finally {
@@ -482,6 +491,10 @@ export default function MemberFitgraphPortalPage() {
         {tab === 'profile' && (
           <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
             <p className="text-sm font-black text-slate-900">Your profile</p>
+            <p className="text-xs text-slate-500">
+              Changes sync to the gym desk. Email is used for invites and care
+              messages — keep it current.
+            </p>
             {companyId != null ? (
               <ProfilePhotoField
                 companyId={companyId}
@@ -511,9 +524,13 @@ export default function MemberFitgraphPortalPage() {
               <input
                 className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
                 type="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
+              <span className="mt-1 block text-[10px] text-slate-400">
+                Care messages and invites follow this address.
+              </span>
             </label>
             <label className="block">
               <span className="text-[10px] font-bold uppercase text-slate-500">
@@ -524,6 +541,22 @@ export default function MemberFitgraphPortalPage() {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
               />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-bold uppercase text-slate-500">
+                ID number
+              </span>
+              <input
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="SA ID / passport"
+                value={idNumber}
+                onChange={(e) => setIdNumber(e.target.value)}
+              />
+              <span className="mt-1 block text-[10px] text-slate-400">
+                Saved on your gym member record for desk staff.
+              </span>
             </label>
             <button
               type="button"

@@ -285,6 +285,30 @@ export async function POST(request: NextRequest) {
       }
       store.threads = result.threads;
       await saveStore(companyId, meta, store);
+
+      // Mirror coach care messages into members' company Messages (email match)
+      if (result.thread) {
+        try {
+          const {
+            fanOutServiceThreadToMemberCompanies,
+            shouldFanOutServiceMessage,
+          } = await import('@/lib/messaging/service-to-company');
+          const act = String(bodyWithAuthor.action || body.action || '');
+          if (shouldFanOutServiceMessage(act)) {
+            const gymName = store.settings?.brand_name || 'Gym';
+            await fanOutServiceThreadToMemberCompanies({
+              gymCompanyId: companyId,
+              gymName: String(gymName),
+              module: 'fitgraph',
+              serviceThread: result.thread,
+              people: store.clients || [],
+            });
+          }
+        } catch (e) {
+          console.warn('[coach portal] service→company fan-out failed', e);
+        }
+      }
+
       const from = body.from ? String(body.from) : undefined;
       const to = body.to ? String(body.to) : undefined;
       const myThreads = threadsForParticipant(

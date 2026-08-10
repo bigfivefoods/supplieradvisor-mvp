@@ -195,25 +195,24 @@ export async function POST(request: NextRequest) {
 
     if (action === 'update_profile') {
       const c = store.clients[ci];
-      if (body.name != null && String(body.name).trim()) {
-        c.name = String(body.name).trim();
+      const { applyPortalProfileUpdate } = await import(
+        '@/lib/services/portal-profile'
+      );
+      const result = applyPortalProfileUpdate(c, body, {
+        storeIdOnRoot: true,
+        now,
+      });
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
       }
-      if (body.phone !== undefined) {
-        c.phone = body.phone ? String(body.phone).trim() : undefined;
-      }
-      if (body.email !== undefined) {
-        c.email = body.email ? String(body.email).trim() : undefined;
-      }
-      if (body.photo_url !== undefined) {
-        c.photo_url = body.photo_url ? String(body.photo_url) : undefined;
-      }
-      c.updated_at = now;
       store.clients[ci] = c;
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
         portal: buildMemberPortalPayload(store, c),
-        message: 'Profile updated',
+        message: result.emailChanged
+          ? 'Profile updated — email synced to gym records and care messages'
+          : 'Profile updated',
       });
     }
 

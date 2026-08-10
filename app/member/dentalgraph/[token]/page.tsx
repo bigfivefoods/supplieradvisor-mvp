@@ -38,6 +38,7 @@ type Portal = {
     name: string;
     email?: string;
     phone?: string;
+    id_number?: string;
     photo_url?: string;
     status?: string;
   };
@@ -67,6 +68,7 @@ export default function MemberDentalgraphPortalPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [idNumber, setIdNumber] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
 
   const load = useCallback(async () => {
@@ -87,6 +89,7 @@ export default function MemberDentalgraphPortalPage() {
         setName(p.name || '');
         setEmail(p.email || '');
         setPhone(p.phone || '');
+        setIdNumber(p.id_number || '');
         setPhotoUrl(p.photo_url || '');
       }
     } catch (e: unknown) {
@@ -147,9 +150,15 @@ export default function MemberDentalgraphPortalPage() {
         name,
         email,
         phone,
+        id_number: idNumber,
         photo_url: photoUrl,
       });
       setMsg(data.message || 'Saved');
+      const p = data.portal?.patient;
+      if (p) {
+        setEmail(p.email || '');
+        setIdNumber(p.id_number || '');
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Save failed');
     } finally {
@@ -421,6 +430,11 @@ export default function MemberDentalgraphPortalPage() {
 
         {tab === 'profile' && (
           <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
+            <p className="text-sm font-black text-slate-900">Your profile</p>
+            <p className="text-xs text-slate-500">
+              Changes sync to the practice chart. Email is used for invites and
+              care messages.
+            </p>
             {companyId != null ? (
               <ProfilePhotoField
                 companyId={companyId}
@@ -432,24 +446,60 @@ export default function MemberDentalgraphPortalPage() {
                 accentClass="border-sky-300"
               />
             ) : null}
-            <input
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              placeholder="Name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <input
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <input
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              placeholder="Phone"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
+            <label className="block">
+              <span className="text-[10px] font-bold uppercase text-slate-500">
+                Name
+              </span>
+              <input
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                placeholder="Name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-bold uppercase text-slate-500">
+                Email
+              </span>
+              <input
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                type="email"
+                autoComplete="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              <span className="mt-1 block text-[10px] text-slate-400">
+                Care messages and invites follow this address.
+              </span>
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-bold uppercase text-slate-500">
+                Phone
+              </span>
+              <input
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                placeholder="Phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-bold uppercase text-slate-500">
+                ID number
+              </span>
+              <input
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="SA ID / passport"
+                value={idNumber}
+                onChange={(e) => setIdNumber(e.target.value)}
+              />
+              <span className="mt-1 block text-[10px] text-slate-400">
+                Saved on your medical chart for the practice.
+              </span>
+            </label>
             <button
               type="button"
               disabled={busyId === 'profile'}

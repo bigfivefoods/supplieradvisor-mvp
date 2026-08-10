@@ -13,7 +13,9 @@ export type CompanyMsgChannel =
   | 'colleague'
   | 'supplier'
   | 'customer'
-  | 'connection';
+  | 'connection'
+  /** Care message from a service business (gym, clinic, dental, etc.) */
+  | 'service';
 
 export type CompanyMsgParticipant = {
   /** desk | user | company */
@@ -47,6 +49,12 @@ export type CompanyThread = {
   peer_company_name?: string | null;
   /** supplier | customer | peer — how we relate to peer */
   peer_relation?: 'supplier' | 'customer' | 'peer' | null;
+  /**
+   * Service-module care thread (FitAdvisor / clinic) mirrored into this inbox.
+   * Lets a member see coach messages on their own company dashboard.
+   */
+  service_module?: string | null;
+  service_thread_id?: string | null;
   messages: CompanyMessage[];
   created_at: string;
   updated_at: string;
@@ -129,6 +137,12 @@ export function normalizeThreads(raw: unknown): CompanyThread[] {
           ? String(th.peer_company_name)
           : null,
         peer_relation: th.peer_relation || null,
+        service_module: th.service_module
+          ? String(th.service_module)
+          : null,
+        service_thread_id: th.service_thread_id
+          ? String(th.service_thread_id)
+          : null,
         messages: Array.isArray(th.messages)
           ? th.messages.map((m) => ({
               id: String(m.id || newMsgId()),
@@ -243,6 +257,10 @@ export function createCompanyThread(input: {
   peer_company_id?: number | null;
   peer_company_name?: string | null;
   peer_relation?: 'supplier' | 'customer' | 'peer' | null;
+  service_module?: string | null;
+  service_thread_id?: string | null;
+  /** Stable id for dual-write / service mirrors */
+  id?: string;
   now?: string;
 }): CompanyThread {
   const now = input.now || new Date().toISOString();
@@ -259,7 +277,7 @@ export function createCompanyThread(input: {
     defaultSubject(input.channel, participants, input.author, input.peer_company_name);
 
   return {
-    id: newMsgId('cthr'),
+    id: input.id || newMsgId('cthr'),
     channel: input.channel,
     subject,
     company_ids: [...new Set(input.company_ids.filter((n) => Number.isFinite(n)))],
@@ -268,6 +286,8 @@ export function createCompanyThread(input: {
     peer_company_id: input.peer_company_id ?? null,
     peer_company_name: input.peer_company_name ?? null,
     peer_relation: input.peer_relation ?? null,
+    service_module: input.service_module ?? null,
+    service_thread_id: input.service_thread_id ?? null,
     messages: [
       {
         id: newMsgId('cmsg'),
@@ -295,6 +315,9 @@ function defaultSubject(
     return others.length
       ? `Team · ${others.map((p) => p.name).join(', ')}`
       : 'Team conversation';
+  }
+  if (channel === 'service') {
+    return peerName ? `Care · ${peerName}` : 'Care message';
   }
   return peerName ? `Trade · ${peerName}` : 'Network conversation';
 }
@@ -331,6 +354,7 @@ export function channelLabel(channel: CompanyMsgChannel): string {
     supplier: 'Supplier',
     customer: 'Customer',
     connection: 'Network',
+    service: 'Care / services',
   };
   return map[channel] || channel;
 }
@@ -349,6 +373,11 @@ export function threadTitleForCompany(
         .map((p) => p.name)
         .join(' · ') || 'Team'
     );
+  }
+  if (thread.channel === 'service') {
+    return thread.peer_company_name
+      ? `Care · ${thread.peer_company_name}`
+      : 'Care message';
   }
   return thread.peer_company_name || 'Trade partner';
 }
@@ -569,6 +598,12 @@ export function summariseCompanyInbox(
     threadCount: open.length,
     unreadMessages: totalUnread(open, viewer),
     colleagueThreads: open.filter((t) => t.channel === 'colleague').length,
-    tradeThreads: open.filter((t) => t.channel !== 'colleague').length,
+    tradeThreads: open.filter(
+      (t) =>
+        t.channel === 'supplier' ||
+        t.channel === 'customer' ||
+        t.channel === 'connection'
+    ).length,
+    serviceThreads: open.filter((t) => t.channel === 'service').length,
   };
 }

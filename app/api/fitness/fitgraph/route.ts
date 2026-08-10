@@ -214,7 +214,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    /** Messaging: desk · coaches · members */
+    /** Messaging: desk · coaches · members (+ fan-out to member company inboxes) */
     if (
       action.startsWith('message_') ||
       action === 'create_thread' ||
@@ -228,6 +228,46 @@ export async function POST(request: NextRequest) {
       }
       store.threads = result.threads;
       await saveStore(companyId, meta, store);
+
+      // Mirror coach/desk care messages into members' own company Messages
+      // when their client email matches a platform company (e.g. craig@…).
+      let fanOut: { delivered: number; companyIds: number[] } | undefined;
+      if (
+        result.thread &&
+        (action === 'message_create_thread' ||
+          action === 'create_thread' ||
+          action === 'message_start' ||
+          action === 'message_post' ||
+          action === 'post_message' ||
+          action === 'message_reply')
+      ) {
+        try {
+          const { fanOutServiceThreadToMemberCompanies } = await import(
+            '@/lib/messaging/service-to-company'
+          );
+          const supabase = getSupabaseServer();
+          const { data: prof } = await supabase
+            .from('profiles')
+            .select('trading_name, legal_name')
+            .eq('id', companyId)
+            .maybeSingle();
+          const gymName =
+            store.settings?.brand_name ||
+            prof?.trading_name ||
+            prof?.legal_name ||
+            'Gym';
+          fanOut = await fanOutServiceThreadToMemberCompanies({
+            gymCompanyId: companyId,
+            gymName: String(gymName),
+            module: 'fitgraph',
+            serviceThread: result.thread,
+            people: store.clients || [],
+          });
+        } catch (e) {
+          console.warn('[fitgraph] service→company fan-out failed', e);
+        }
+      }
+
       return NextResponse.json({
         success: true,
         store,
@@ -236,7 +276,11 @@ export async function POST(request: NextRequest) {
         thread: result.thread,
         threads: threadsForDesk(store.threads),
         unread: totalUnread(store.threads || [], 'desk', 'desk'),
-        message: 'Message saved',
+        fan_out: fanOut,
+        message:
+          fanOut && fanOut.delivered > 0
+            ? `Message saved · delivered to ${fanOut.delivered} member company inbox(es)`
+            : 'Message saved',
       });
     }
 
@@ -1188,6 +1232,12 @@ function upsert(
             ? String(rec.phone)
             : undefined
           : prev?.phone,
+      id_number:
+        rec.id_number !== undefined
+          ? rec.id_number
+            ? String(rec.id_number).trim()
+            : undefined
+          : prev?.id_number,
       photo_url:
         rec.photo_url !== undefined
           ? rec.photo_url

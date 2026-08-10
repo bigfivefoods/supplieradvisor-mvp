@@ -581,6 +581,7 @@ export function buildPatientPortalPayload(
       name: patient.name,
       email: patient.email,
       phone: patient.phone,
+      id_number: patient.medical?.id_number || undefined,
       photo_url: patient.photo_url,
       status: patient.status,
     },

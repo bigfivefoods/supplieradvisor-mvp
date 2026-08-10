@@ -353,6 +353,11 @@ export type FitClient = {
   name: string;
   email?: string;
   phone?: string;
+  /**
+   * National ID / passport / membership ID number (member self-serve + desk).
+   * Used for gym records and identity on the member portal.
+   */
+  id_number?: string;
   /** Profile photo (public storage URL) */
   photo_url?: string;
   /** Token for member self-serve portal (book classes, see vacancies) */
@@ -999,6 +1004,7 @@ export function buildMemberPortalPayload(
       name: client.name,
       email: client.email,
       phone: client.phone,
+      id_number: client.id_number || undefined,
       photo_url: client.photo_url,
       membership_status: client.membership_status,
       plan_name: plan?.name,

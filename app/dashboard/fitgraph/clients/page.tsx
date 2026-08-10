@@ -44,6 +44,7 @@ type ClientForm = {
   name: string;
   email: string;
   phone: string;
+  id_number: string;
   photo_url: string;
   membership_plan_id: string;
   membership_status: string;
@@ -59,6 +60,7 @@ const blankForm = (): ClientForm => ({
   name: '',
   email: '',
   phone: '',
+  id_number: '',
   photo_url: '',
   membership_plan_id: '',
   membership_status: 'active',
@@ -84,6 +86,7 @@ export default function ClientsPage() {
       name: c.name || '',
       email: c.email || '',
       phone: c.phone || '',
+      id_number: c.id_number || '',
       photo_url: c.photo_url || '',
       membership_plan_id: c.membership_plan_id || '',
       membership_status: c.membership_status || 'active',
@@ -112,6 +115,7 @@ export default function ClientsPage() {
         name: form.name,
         email: form.email,
         phone: form.phone,
+        id_number: form.id_number || '',
         photo_url: form.photo_url || '',
         membership_plan_id: form.membership_plan_id || null,
         membership_status: form.membership_status,
@@ -381,6 +385,14 @@ export default function ClientsPage() {
               value={form.phone}
               onChange={(e) =>
                 setForm((f) => ({ ...f, phone: e.target.value }))
+              }
+            />
+            <input
+              className={fc()}
+              placeholder="ID number"
+              value={form.id_number}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, id_number: e.target.value }))
               }
             />
             <ProfilePhotoField

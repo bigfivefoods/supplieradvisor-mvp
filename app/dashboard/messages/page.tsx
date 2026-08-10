@@ -274,7 +274,7 @@ function Inner() {
         eyebrow="Platform · Network"
         title="Messages"
         titleAccent="team & trade"
-        description="Message colleagues inside your company, and connected suppliers or customers on the verified network — one inbox for the whole OS."
+        description="Message colleagues, connected suppliers and customers — and care messages from gyms or clinics where you are a member/patient (matched by email)."
         action={
           <button
             type="button"
@@ -297,7 +297,11 @@ function Inner() {
               { label: 'Open threads', value: summary.threadCount ?? openThreads.length },
               { label: 'Unread', value: summary.unreadMessages ?? 0 },
               { label: 'Team', value: summary.colleagueThreads ?? 0 },
-              { label: 'Trade partners', value: summary.tradeThreads ?? 0 },
+              {
+                label: 'Trade / care',
+                value:
+                  (summary.tradeThreads ?? 0) + (summary.serviceThreads ?? 0),
+              },
             ].map((s) => (
               <div
                 key={s.label}

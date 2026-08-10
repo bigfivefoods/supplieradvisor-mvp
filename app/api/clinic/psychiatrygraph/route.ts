@@ -172,6 +172,44 @@ export async function POST(request: NextRequest) {
       }
       store.threads = result.threads;
       await saveStore(companyId, meta, store);
+
+      let fanOut: { delivered: number; companyIds: number[] } | undefined;
+      if (
+        result.thread &&
+        (action === 'message_create_thread' ||
+          action === 'create_thread' ||
+          action === 'message_start' ||
+          action === 'message_post' ||
+          action === 'post_message' ||
+          action === 'message_reply')
+      ) {
+        try {
+          const { fanOutServiceThreadToMemberCompanies } = await import(
+            '@/lib/messaging/service-to-company'
+          );
+          const supabase = getSupabaseServer();
+          const { data: prof } = await supabase
+            .from('profiles')
+            .select('trading_name, legal_name')
+            .eq('id', companyId)
+            .maybeSingle();
+          const brand =
+            store.settings?.brand_name ||
+            prof?.trading_name ||
+            prof?.legal_name ||
+            'Practice';
+          fanOut = await fanOutServiceThreadToMemberCompanies({
+            gymCompanyId: companyId,
+            gymName: String(brand),
+            module: 'psychiatrygraph',
+            serviceThread: result.thread,
+            people: store.patients || [],
+          });
+        } catch (e) {
+          console.warn('[psychiatrygraph] service→company fan-out failed', e);
+        }
+      }
+
       return NextResponse.json({
         success: true,
         store,
@@ -180,7 +218,11 @@ export async function POST(request: NextRequest) {
         thread: result.thread,
         threads: threadsForDesk(store.threads),
         unread: totalUnread(store.threads || [], 'desk', 'desk'),
-        message: 'Message saved',
+        fan_out: fanOut,
+        message:
+          fanOut && fanOut.delivered > 0
+            ? `Message saved · delivered to ${fanOut.delivered} member company inbox(es)`
+            : 'Message saved',
       });
     }
 
