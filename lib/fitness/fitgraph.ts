@@ -1097,6 +1097,23 @@ export function buildMemberPortalPayload(
     my_bookings,
     open_count: open_classes.filter((c) => !c.full).length,
     full_count: open_classes.filter((c) => c.full && !c.my_status).length,
+    /** Care messages with coaches / desk (member is a participant) */
+    threads: threadsForParticipant(
+      store.threads || [],
+      'member',
+      client.id
+    ).map((t) => ({
+      id: t.id,
+      subject: t.subject,
+      channel: t.channel,
+      title: threadTitle(t, 'member', client.id),
+      preview: previewText(t),
+      updated_at: t.updated_at,
+      unread: unreadInThread(t, 'member', client.id),
+      participants: t.participants,
+      messages: t.messages,
+    })),
+    messages_unread: totalUnread(store.threads || [], 'member', client.id),
   };
 }
 

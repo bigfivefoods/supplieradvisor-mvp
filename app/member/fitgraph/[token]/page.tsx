@@ -11,6 +11,8 @@ import {
   Check,
   Loader2,
   MapPin,
+  MessageSquare,
+  Send,
   User,
   Users,
   X,
@@ -95,6 +97,23 @@ type Portal = {
   my_bookings: MyBooking[];
   open_count: number;
   full_count: number;
+  messages_unread?: number;
+  threads?: Array<{
+    id: string;
+    title?: string;
+    subject?: string;
+    preview?: string;
+    updated_at?: string;
+    unread?: number;
+    participants?: Array<{ role: string; ref_id: string; name: string }>;
+    messages?: Array<{
+      id: string;
+      body: string;
+      author_role: string;
+      author_name: string;
+      created_at: string;
+    }>;
+  }>;
 };
 
 export default function MemberFitgraphPortalPage() {
@@ -105,13 +124,17 @@ export default function MemberFitgraphPortalPage() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [tab, setTab] = useState<'open' | 'mine' | 'profile'>('open');
+  const [tab, setTab] = useState<'open' | 'mine' | 'messages' | 'profile'>(
+    'open'
+  );
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [idNumber, setIdNumber] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [bookForFamilyId, setBookForFamilyId] = useState('');
+  const [msgThreadId, setMsgThreadId] = useState<string | null>(null);
+  const [msgReply, setMsgReply] = useState('');
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -308,6 +331,17 @@ export default function MemberFitgraphPortalPage() {
             <span className="rounded-full bg-white/20 px-2.5 py-1">
               {portal.my_bookings.length} my bookings
             </span>
+            {(portal.messages_unread || 0) > 0 ? (
+              <span className="rounded-full bg-amber-400 text-amber-950 px-2.5 py-1">
+                {portal.messages_unread} new message
+                {(portal.messages_unread || 0) === 1 ? '' : 's'}
+              </span>
+            ) : (portal.threads || []).length > 0 ? (
+              <span className="rounded-full bg-white/20 px-2.5 py-1">
+                {(portal.threads || []).length} message thread
+                {(portal.threads || []).length === 1 ? '' : 's'}
+              </span>
+            ) : null}
             {portal.full_count > 0 ? (
               <span className="rounded-full bg-white/20 px-2.5 py-1">
                 {portal.full_count} full (waitlist)
@@ -330,11 +364,12 @@ export default function MemberFitgraphPortalPage() {
           </div>
         )}
 
-        <div className="flex gap-1 rounded-2xl bg-white border border-slate-200 p-1">
+        <div className="flex gap-1 rounded-2xl bg-white border border-slate-200 p-1 flex-wrap">
           {(
             [
               ['open', 'Open classes'],
               ['mine', 'My bookings'],
+              ['messages', 'Messages'],
               ['profile', 'My profile'],
             ] as const
           ).map(([id, label]) => (
@@ -346,16 +381,145 @@ export default function MemberFitgraphPortalPage() {
                 setError(null);
                 setMsg(null);
               }}
-              className={`flex-1 rounded-xl py-2 text-xs font-bold ${
+              className={`flex-1 min-w-[4.5rem] rounded-xl py-2 text-xs font-bold ${
                 tab === id
                   ? 'bg-violet-600 text-white'
                   : 'text-slate-600 hover:bg-slate-50'
               }`}
             >
               {label}
+              {id === 'messages' && (portal.messages_unread || 0) > 0
+                ? ` (${portal.messages_unread})`
+                : ''}
             </button>
           ))}
         </div>
+
+        {tab === 'messages' && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-violet-800">
+              <MessageSquare className="w-4 h-4" />
+              <h2 className="text-sm font-black">Messages with your coaches</h2>
+            </div>
+            {(portal.threads || []).length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+                No messages yet. When your coach writes to you, it will show
+                here — and we email you if your profile has an address.
+              </div>
+            ) : (
+              <>
+                <ul className="space-y-2">
+                  {(portal.threads || []).map((t) => (
+                    <li key={t.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMsgThreadId(t.id);
+                          void post({
+                            action: 'message_mark_read',
+                            thread_id: t.id,
+                          }).then(() => void load());
+                        }}
+                        className={`w-full text-left rounded-2xl border px-3 py-3 ${
+                          msgThreadId === t.id
+                            ? 'border-violet-400 bg-violet-50'
+                            : 'border-slate-200 bg-white'
+                        }`}
+                      >
+                        <p className="text-sm font-black text-slate-900 truncate">
+                          {t.title || t.subject || 'Conversation'}
+                          {(t.unread || 0) > 0 ? (
+                            <span className="ml-2 text-[10px] font-black uppercase text-amber-700">
+                              {t.unread} new
+                            </span>
+                          ) : null}
+                        </p>
+                        <p className="text-xs text-slate-500 truncate mt-0.5">
+                          {t.preview || '—'}
+                        </p>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {(() => {
+                  const thr =
+                    (portal.threads || []).find((t) => t.id === msgThreadId) ||
+                    (portal.threads || [])[0];
+                  if (!thr) return null;
+                  return (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-3">
+                      <p className="text-xs font-bold text-slate-500">
+                        {thr.title || thr.subject || 'Conversation'}
+                      </p>
+                      <div className="max-h-72 overflow-y-auto space-y-2">
+                        {(thr.messages || []).map((m) => {
+                          const mine = m.author_role === 'member';
+                          return (
+                            <div
+                              key={m.id}
+                              className={`rounded-xl px-3 py-2 text-sm ${
+                                mine
+                                  ? 'bg-violet-100 text-violet-950 ml-6'
+                                  : 'bg-slate-100 text-slate-900 mr-6'
+                              }`}
+                            >
+                              <p className="text-[10px] font-bold opacity-70 mb-0.5">
+                                {m.author_name}
+                                {' · '}
+                                {m.created_at?.slice(0, 16).replace('T', ' ')}
+                              </p>
+                              <p className="whitespace-pre-wrap">{m.body}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                          placeholder="Reply…"
+                          value={msgReply}
+                          onChange={(e) => setMsgReply(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && msgReply.trim()) {
+                              void post({
+                                action: 'message_post',
+                                thread_id: thr.id,
+                                body: msgReply.trim(),
+                              }).then(() => {
+                                setMsgReply('');
+                                void load();
+                              });
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          disabled={busyId === thr.id || !msgReply.trim()}
+                          onClick={() => {
+                            setBusyId(thr.id);
+                            void post({
+                              action: 'message_post',
+                              thread_id: thr.id,
+                              body: msgReply.trim(),
+                            })
+                              .then(() => {
+                                setMsgReply('');
+                                void load();
+                              })
+                              .finally(() => setBusyId(null));
+                          }}
+                          className="rounded-xl bg-violet-600 text-white px-3 py-2 disabled:opacity-50"
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+          </div>
+        )}
 
         {(portal.client?.family || []).filter((m) => m.active !== false).length > 0 &&
         (tab === 'open') ? (

@@ -267,6 +267,22 @@ export async function POST(request: NextRequest) {
             serviceThread: result.thread,
             people: store.clients || [],
           });
+          const { notifyMembersOnServiceThread } = await import(
+            '@/lib/messaging/service-message-email'
+          );
+          const mail = await notifyMembersOnServiceThread({
+            thread: result.thread,
+            people: store.clients || [],
+            brand: String(gymName),
+            moduleLabel: 'FitAdvisor®',
+            portalBasePath: '/member/fitgraph',
+          });
+          if (mail.emailed > 0) {
+            fanOut = {
+              delivered: (fanOut?.delivered || 0) + mail.emailed,
+              companyIds: fanOut?.companyIds || [],
+            };
+          }
         } catch (e) {
           console.warn('[fitgraph] service→company fan-out failed', e);
         }
@@ -283,7 +299,7 @@ export async function POST(request: NextRequest) {
         fan_out: fanOut,
         message:
           fanOut && fanOut.delivered > 0
-            ? `Message saved · delivered to ${fanOut.delivered} member company inbox(es)`
+            ? `Message saved · notified ${fanOut.delivered} member channel(s)`
             : 'Message saved',
       });
     }

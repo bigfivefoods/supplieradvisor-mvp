@@ -287,6 +287,7 @@ export async function POST(request: NextRequest) {
       await saveStore(companyId, meta, store);
 
       // Mirror coach care messages into members' company Messages (email match)
+      // AND email the member's Fit portal address so they actually get the message.
       if (result.thread) {
         try {
           const {
@@ -303,6 +304,20 @@ export async function POST(request: NextRequest) {
               serviceThread: result.thread,
               people: store.clients || [],
             });
+
+            const { notifyMembersOnServiceThread } = await import(
+              '@/lib/messaging/service-message-email'
+            );
+            const mail = await notifyMembersOnServiceThread({
+              thread: result.thread,
+              people: store.clients || [],
+              brand: String(gymName),
+              moduleLabel: 'FitAdvisor®',
+              portalBasePath: '/member/fitgraph',
+            });
+            if (mail.errors.length) {
+              console.warn('[coach portal] member email', mail);
+            }
           }
         } catch (e) {
           console.warn('[coach portal] service→company fan-out failed', e);

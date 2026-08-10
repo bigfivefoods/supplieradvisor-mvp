@@ -193,6 +193,101 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
+    /**
+     * Messaging — member ↔ coaches / desk (same store threads as coach portal).
+     * This is how members actually read coach care messages.
+     */
+    if (
+      action.startsWith('message_') ||
+      action === 'create_thread' ||
+      action === 'post_message' ||
+      action === 'mark_read' ||
+      action === 'archive_thread'
+    ) {
+      const { applyMessageAction, threadsForParticipant, totalUnread } =
+        await import('@/lib/messaging/service-inbox');
+      const author = {
+        role: 'member' as const,
+        ref_id: client.id,
+        name: client.name,
+      };
+      const bodyWithAuthor = {
+        ...body,
+        author_role: 'member',
+        author_ref_id: client.id,
+        author_name: client.name,
+        participants: Array.isArray(body.participants)
+          ? [
+              ...(body.participants as Array<Record<string, unknown>>),
+              author,
+            ]
+          : [author],
+      };
+      // Convenience: message assigned coach or any coach by id
+      if (body.coach_id || body.to_coach) {
+        const coachId = String(body.coach_id || body.to_coach || '');
+        const coach =
+          store.coaches.find((c) => c.id === coachId) ||
+          (client.coach_id
+            ? store.coaches.find((c) => c.id === client.coach_id)
+            : null);
+        if (coach) {
+          bodyWithAuthor.with_role = 'coach';
+          bodyWithAuthor.with_ref_id = coach.id;
+          bodyWithAuthor.with_name = coach.name;
+          bodyWithAuthor.channel = bodyWithAuthor.channel || 'coach_member';
+        }
+      }
+      if (body.to_desk === true || body.channel === 'desk_member') {
+        bodyWithAuthor.with_role = 'desk';
+        bodyWithAuthor.with_ref_id = 'desk';
+        bodyWithAuthor.with_name = 'Front desk';
+        bodyWithAuthor.channel = bodyWithAuthor.channel || 'desk_member';
+      }
+
+      // Security: only post/read on threads where member is a participant
+      if (
+        action === 'message_post' ||
+        action === 'post_message' ||
+        action === 'message_reply' ||
+        action === 'message_mark_read' ||
+        action === 'mark_read'
+      ) {
+        const threadId = String(body.thread_id || body.id || '');
+        const thr = (store.threads || []).find((t) => t.id === threadId);
+        const allowed = thr?.participants?.some(
+          (p) => p.role === 'member' && p.ref_id === client.id
+        );
+        if (!allowed) {
+          return NextResponse.json(
+            { error: 'Thread not found' },
+            { status: 404 }
+          );
+        }
+      }
+
+      const result = applyMessageAction(store.threads, bodyWithAuthor, now);
+      if (result.error) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      store.threads = result.threads;
+      await saveStore(companyId, meta, store);
+
+      const myThreads = threadsForParticipant(
+        store.threads || [],
+        'member',
+        client.id
+      );
+      return NextResponse.json({
+        success: true,
+        message: 'Message saved',
+        thread: result.thread,
+        threads: myThreads,
+        unread: totalUnread(store.threads || [], 'member', client.id),
+        portal: buildMemberPortalPayload(store, store.clients[ci]),
+      });
+    }
+
     if (action === 'update_profile') {
       const c = store.clients[ci];
       const { applyPortalProfileUpdate } = await import(
