@@ -329,6 +329,59 @@ export async function POST(request: NextRequest) {
       });
     }
 
+
+    if (action === 'confirm_waitlist' || action === 'accept_waitlist') {
+      const { portalConfirmWaitlistPlace } = await import(
+        '@/lib/services/clinic-portal-actions'
+      );
+      const bookingId = String(body.booking_id || body.bookingId || '');
+      const result = portalConfirmWaitlistPlace(store.bookings, {
+        bookingId,
+        patientId: patient.id,
+        now,
+      });
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        portal: buildDentalPatientPortalPayload(store, store.patients[pi] || patient),
+        message: result.message,
+      });
+    }
+
+    if (action === 'reschedule' || action === 'reschedule_booking') {
+      const { portalRescheduleBooking } = await import(
+        '@/lib/services/clinic-portal-actions'
+      );
+      const bookingId = String(body.booking_id || body.bookingId || '');
+      const newAppointmentId = String(
+        body.appointment_id || body.new_appointment_id || body.appointmentId || ''
+      );
+      const result = portalRescheduleBooking({
+        bookings: store.bookings,
+        appointments: store.appointments,
+        bookingId,
+        patientId: patient.id,
+        newAppointmentId,
+        policy: store.settings?.reschedule_policy,
+        personSoftBlocked: patient.booking_soft_block === true,
+        isSlotOpen: (aid) => appointmentBookingCount(store, aid) < 1,
+        now,
+      });
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        portal: buildDentalPatientPortalPayload(store, store.patients[pi] || patient),
+        message: result.message,
+        fee_note: result.fee_note || null,
+      });
+    }
+
     if (action === 'cancel' || action === 'cancel_booking') {
       const bookingId = String(body.booking_id || body.bookingId || '');
       const bi = store.bookings.findIndex(

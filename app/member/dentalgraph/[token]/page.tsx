@@ -20,6 +20,7 @@ import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify
 import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
 import { VerifiedBadge } from '@/components/services/VerifiedBadge';
 import { PortalMessagesPanel } from '@/components/services/PortalMessagesPanel';
+import { PortalWaitlistReschedule } from '@/components/services/PortalWaitlistReschedule';
 import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
 
 type Slot = {
@@ -81,6 +82,8 @@ type Portal = {
     service_name?: string | null;
   }>;
   my_bookings: Array<{
+    waitlist_offered_at?: string | null;
+    waitlist_accepted_at?: string | null;
     booking_id: string;
     status: string;
     date: string;
@@ -625,6 +628,34 @@ export default function MemberDentalgraphPortalPage() {
               return data;
             }}
             onRefresh={() => void load()}
+          />
+        )}
+
+        
+        {tab === 'mine' && (
+          <PortalWaitlistReschedule
+            bookings={portal.my_bookings || []}
+            openSlots={(portal.open_slots || []).map((s) => ({
+              id: s.id,
+              date: s.date,
+              start_time: s.start_time,
+              service_name: s.service_name,
+              full: s.full,
+              my_status: s.my_status,
+            }))}
+            accent={color}
+            post={async (body) => {
+              const res = await fetch('/api/public/dentalgraph/patient', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, ...body }),
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || 'Failed');
+              if (data.portal) setPortal(data.portal);
+              return data;
+            }}
+            onDone={() => void load()}
           />
         )}
 

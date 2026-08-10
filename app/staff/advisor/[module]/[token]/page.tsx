@@ -31,6 +31,7 @@ export default function StaffAdvisorTodayPage() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [showInstall, setShowInstall] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,18 +104,43 @@ export default function StaffAdvisorTodayPage() {
               {date ? ` · ${date}` : ''}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="rounded-xl border border-white/20 p-2"
-            aria-label="Refresh"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setShowInstall((v) => !v)}
+              className="rounded-xl border border-violet-400/40 bg-violet-500/20 px-2.5 py-2 text-[10px] font-black uppercase tracking-wide text-violet-200"
+            >
+              Install
+            </button>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="rounded-xl border border-white/20 p-2"
+              aria-label="Refresh"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="max-w-lg mx-auto px-3 py-4 space-y-3 pb-24">
+        {showInstall ? (
+          <div className="rounded-2xl border border-violet-400/30 bg-violet-500/10 px-3 py-3 text-[12px] text-violet-50 space-y-1.5">
+            <p className="font-black text-violet-200">Add to Home Screen (PWA)</p>
+            <p>
+              <strong>iPhone:</strong> Safari → Share → Add to Home Screen. If
+              the logo looks old, delete the icon and re-add after a hard refresh.
+            </p>
+            <p>
+              <strong>Android:</strong> Chrome menu → Install app / Add to Home
+              screen.
+            </p>
+            <p className="text-white/50 text-[11px] break-all">
+              Bookmark this URL for this staff token only.
+            </p>
+          </div>
+        ) : null}
         {msg ? (
           <p className="rounded-xl bg-emerald-500/20 border border-emerald-400/30 px-3 py-2 text-sm text-emerald-100">
             {msg}

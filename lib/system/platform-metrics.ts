@@ -95,14 +95,22 @@ export type ManagementReport = {
     physiographEnabled: number;
     dentalgraphEnabled: number;
   };
+  /**
+   * Company workspaces that signed up, newest first.
+   * Full list used by the management console (not just a short sample).
+   */
   recentCompanies: Array<{
     id: number;
     trading_name: string | null;
+    company_name?: string | null;
+    contact_name?: string | null;
+    email?: string | null;
     subscription_status: string | null;
     verification_status: string | null;
     created_at: string | null;
     city: string | null;
     country: string | null;
+    owner_emails?: string[];
   }>;
   opsAnalytics: OpsBoardSnapshot['analytics'];
 };
@@ -242,16 +250,65 @@ export async function loadPlatformConsoleReports(): Promise<PlatformConsolePaylo
   const recentCompanies: ManagementReport['recentCompanies'] = [];
 
   try {
-    const { data: profiles, count } = await supabase
-      .from('profiles')
-      .select(
-        'id, trading_name, subscription_status, verification_status, is_discoverable, created_at, city, country, metadata',
-        { count: 'exact' }
-      )
-      .order('created_at', { ascending: false })
-      .limit(2000);
+    // Prefer full column set; fall back if older DBs lack optional columns.
+    let profiles: Array<Record<string, unknown>> | null = null;
+    let count: number | null = null;
+    {
+      const full = await supabase
+        .from('profiles')
+        .select(
+          'id, trading_name, company_name, name, legal_name, email, subscription_status, verification_status, is_discoverable, created_at, city, country, metadata',
+          { count: 'exact' }
+        )
+        .order('created_at', { ascending: false })
+        .limit(5000);
+      if (full.error) {
+        const basic = await supabase
+          .from('profiles')
+          .select(
+            'id, trading_name, subscription_status, verification_status, is_discoverable, created_at, city, country, metadata',
+            { count: 'exact' }
+          )
+          .order('created_at', { ascending: false })
+          .limit(5000);
+        profiles = (basic.data || []) as Array<Record<string, unknown>>;
+        count = basic.count;
+      } else {
+        profiles = (full.data || []) as Array<Record<string, unknown>>;
+        count = full.count;
+      }
+    }
 
     total = count ?? profiles?.length ?? 0;
+
+    // Owner emails from business_users (best-effort)
+    const ownerByProfile = new Map<number, string[]>();
+    try {
+      const profileIds = (profiles || []).map((p) => Number(p.id)).filter(Boolean);
+      // Chunk to avoid huge .in() payloads
+      for (let i = 0; i < profileIds.length; i += 200) {
+        const chunk = profileIds.slice(i, i + 200);
+        const { data: ownersRows } = await supabase
+          .from('business_users')
+          .select('profile_id, email, role, status')
+          .in('profile_id', chunk)
+          .eq('role', 'owner')
+          .limit(2000);
+        for (const o of ownersRows || []) {
+          const pid = Number(o.profile_id);
+          const em = String(o.email || '')
+            .trim()
+            .toLowerCase();
+          if (!pid || !em || !em.includes('@')) continue;
+          if (o.status && String(o.status) !== 'active') continue;
+          const list = ownerByProfile.get(pid) || [];
+          if (!list.includes(em)) list.push(em);
+          ownerByProfile.set(pid, list);
+        }
+      }
+    } catch {
+      /* soft — email column may differ */
+    }
 
     for (const p of profiles || []) {
       bump(bySubscription, p.subscription_status as string | null);
@@ -292,18 +349,25 @@ export async function loadPlatformConsoleReports(): Promise<PlatformConsolePaylo
       if (em?.physiograph === true) physiographEnabled += 1;
       if (em?.dentalgraph === true) dentalgraphEnabled += 1;
 
-      if (recentCompanies.length < 12) {
-        recentCompanies.push({
-          id: Number(p.id),
-          trading_name: p.trading_name as string | null,
-          subscription_status: p.subscription_status as string | null,
-          verification_status: p.verification_status as string | null,
-          created_at: p.created_at as string | null,
-          city: p.city as string | null,
-          country: p.country as string | null,
-        });
-      }
+      const id = Number(p.id);
+      const contactEmail = p.email
+        ? String(p.email).trim().toLowerCase()
+        : null;
+      recentCompanies.push({
+        id,
+        trading_name: (p.trading_name as string | null) ?? null,
+        company_name: (p.company_name as string | null) ?? null,
+        contact_name: (p.name as string | null) ?? null,
+        email: contactEmail,
+        subscription_status: (p.subscription_status as string | null) ?? null,
+        verification_status: (p.verification_status as string | null) ?? null,
+        created_at: (p.created_at as string | null) ?? null,
+        city: (p.city as string | null) ?? null,
+        country: (p.country as string | null) ?? null,
+        owner_emails: ownerByProfile.get(id) || [],
+      });
     }
+    // Already ordered newest → oldest from the query
   } catch {
     /* soft */
   }

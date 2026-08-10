@@ -225,8 +225,13 @@ export async function clinicMarkAttendance(
       (b) => b.appointment_id === booking.appointment_id,
       now
     );
-    if (promoted && opts.notifyPromoted !== false) {
-      await notifyPromotedWaitlist(store, promoted, opts.cfg);
+    if (promoted) {
+      promoted.waitlist_offered_at =
+        promoted.waitlist_offered_at || now;
+      promoted.waitlist_accepted_at = null;
+      if (opts.notifyPromoted !== false) {
+        await notifyPromotedWaitlist(store, promoted, opts.cfg);
+      }
     }
   }
 

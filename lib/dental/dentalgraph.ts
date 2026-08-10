@@ -660,6 +660,8 @@ export function buildDentalPatientPortalPayload(
             feedback_token: shareFeedback
               ? (b as { feedback_token?: string }).feedback_token || null
               : null,
+            waitlist_offered_at: b.waitlist_offered_at || null,
+            waitlist_accepted_at: b.waitlist_accepted_at || null,
           };
         })
         .sort((a, b) =>

@@ -14,7 +14,7 @@ export default function PlatformManagementReportPage() {
   return (
     <PlatformShell
       title="Management reports"
-      description="Companies, subscriptions, people, network density, trade funnel, and vertical module adoption."
+      description="Sign-ups (latest first), subscriptions, people, network density, trade funnel, and vertical module adoption."
       onRefresh={() => void load()}
       loading={loading}
     >

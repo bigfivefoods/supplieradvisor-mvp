@@ -8,6 +8,7 @@ import {
   promoteNextWaitlist,
   resolveFamilyAttendee,
 } from '@/lib/services/advisor-booking';
+import { findRoomDiaryConflict } from '@/lib/services/clinic-public-calendar';
 import {
   attendanceByClass,
   buildClassJoinPath,
@@ -2022,6 +2023,46 @@ function upsert(
     const id = String(rec.id || newId('ses'));
     const i = store.sessions.findIndex((s) => s.id === id);
     const prev = i >= 0 ? store.sessions[i] : null;
+    const roomName = String(
+      rec.room !== undefined
+        ? rec.room || ''
+        : rec.location !== undefined
+          ? rec.location || ''
+          : prev?.room || prev?.location || ''
+    ).trim();
+    if (roomName) {
+      const roomConflict = findRoomDiaryConflict({
+        appointments: store.sessions.map((s) => ({
+          id: s.id,
+          date: s.date,
+          start_time: s.start_time,
+          end_time: s.end_time,
+          duration_min: s.duration_min,
+          location: s.room || s.location,
+          status: s.status,
+        })),
+        room: roomName,
+        date: String(rec.date || prev?.date || now.slice(0, 10)),
+        start_time: String(rec.start_time || prev?.start_time || '06:00'),
+        duration_min:
+          rec.duration_min != null
+            ? Number(rec.duration_min)
+            : prev?.duration_min ?? 45,
+        end_time:
+          rec.end_time != null ? String(rec.end_time) : prev?.end_time ?? null,
+        excludeId: id,
+      });
+      if (roomConflict.conflict) {
+        return NextResponse.json(
+          {
+            error: roomConflict.message,
+            code: 'ROOM_DOUBLE_BOOK',
+            conflict: roomConflict,
+          },
+          { status: 409 }
+        );
+      }
+    }
     const ct = store.class_types.find(
       (c) => c.id === String(rec.class_type_id || prev?.class_type_id || '')
     );
@@ -2055,6 +2096,12 @@ function upsert(
         rec.location != null
           ? String(rec.location)
           : prev?.location,
+      room:
+        rec.room !== undefined
+          ? rec.room
+            ? String(rec.room)
+            : null
+          : prev?.room ?? (rec.location != null ? String(rec.location) : null),
       status: (rec.status as FitSession['status']) || prev?.status || 'scheduled',
       public:
         rec.public !== undefined

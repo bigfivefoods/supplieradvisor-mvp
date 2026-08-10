@@ -620,6 +620,8 @@ export function buildPatientPortalPayload(
         service_name: svc?.name || 'Appointment',
         practitioner_name: prac?.name,
         location: a.location,
+        waitlist_offered_at: b.waitlist_offered_at || null,
+        waitlist_accepted_at: b.waitlist_accepted_at || null,
       };
     })
     .sort((a, b) =>

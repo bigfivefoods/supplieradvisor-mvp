@@ -3,7 +3,7 @@
 /**
  * SupplierAdvisor platform admin console — system + management reports.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   Activity,
@@ -13,6 +13,7 @@ import {
   Loader2,
   Network,
   RefreshCw,
+  Search,
   Server,
   Shield,
   Users2,
@@ -121,11 +122,15 @@ type ManagementReport = {
   recentCompanies?: Array<{
     id: number;
     trading_name: string | null;
+    company_name?: string | null;
+    contact_name?: string | null;
+    email?: string | null;
     subscription_status: string | null;
     verification_status: string | null;
     created_at: string | null;
     city: string | null;
     country: string | null;
+    owner_emails?: string[];
   }>;
   opsAnalytics?: Record<string, number>;
 };
@@ -691,6 +696,31 @@ export function ManagementReportView({
 }: {
   management?: ManagementReport;
 }) {
+  const [signupQuery, setSignupQuery] = useState('');
+  const signups = management?.recentCompanies || [];
+  const filteredSignups = useMemo(() => {
+    const q = signupQuery.trim().toLowerCase();
+    if (!q) return signups;
+    return signups.filter((row) => {
+      const hay = [
+        row.trading_name,
+        row.company_name,
+        row.contact_name,
+        row.email,
+        row.subscription_status,
+        row.verification_status,
+        row.city,
+        row.country,
+        String(row.id),
+        ...(row.owner_emails || []),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [signups, signupQuery]);
+
   if (!management) return null;
   const c = management.companies;
   const p = management.people;
@@ -804,43 +834,115 @@ export function ManagementReportView({
         </div>
       </Section>
 
-      <Section title="Recent companies" icon={Building2}>
-        {(management.recentCompanies || []).length === 0 ? (
-          <p className="text-sm text-slate-500">No companies loaded.</p>
+      <Section
+        title="Sign-ups · latest first"
+        icon={Building2}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <p className="text-[11px] text-slate-500">
+            {signups.length} companies
+            {signupQuery.trim()
+              ? ` · showing ${filteredSignups.length} match${filteredSignups.length === 1 ? '' : 'es'}`
+              : ' · newest at the top'}
+          </p>
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <input
+              type="search"
+              value={signupQuery}
+              onChange={(e) => setSignupQuery(e.target.value)}
+              placeholder="Search name, email, city…"
+              className="w-full rounded-xl border border-slate-200 bg-white pl-8 pr-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+        {signups.length === 0 ? (
+          <p className="text-sm text-slate-500">No sign-ups loaded.</p>
+        ) : filteredSignups.length === 0 ? (
+          <p className="text-sm text-slate-500">No matches for that search.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[min(70vh,42rem)] overflow-y-auto rounded-xl border border-slate-100">
             <table className="w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 bg-white z-10 shadow-sm">
                 <tr className="text-left text-[10px] font-black uppercase tracking-wider text-slate-400">
-                  <th className="pb-2 pr-2">Company</th>
-                  <th className="pb-2 pr-2">Sub</th>
-                  <th className="pb-2 pr-2">Verify</th>
-                  <th className="pb-2 pr-2">Place</th>
-                  <th className="pb-2">Created</th>
+                  <th className="pb-2 pt-2 pl-3 pr-2">#</th>
+                  <th className="pb-2 pt-2 pr-2">Signed up</th>
+                  <th className="pb-2 pt-2 pr-2">Company</th>
+                  <th className="pb-2 pt-2 pr-2">Contact / email</th>
+                  <th className="pb-2 pt-2 pr-2">Sub</th>
+                  <th className="pb-2 pt-2 pr-2">Verify</th>
+                  <th className="pb-2 pt-2 pr-3">Place</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {management.recentCompanies!.map((row) => (
-                  <tr key={row.id}>
-                    <td className="py-2 pr-2 font-semibold text-slate-900">
-                      {row.trading_name || `#${row.id}`}
-                    </td>
-                    <td className="py-2 pr-2 text-xs font-bold text-slate-600">
-                      {row.subscription_status || '—'}
-                    </td>
-                    <td className="py-2 pr-2 text-xs font-bold text-slate-600">
-                      {row.verification_status || '—'}
-                    </td>
-                    <td className="py-2 pr-2 text-xs text-slate-500">
-                      {[row.city, row.country].filter(Boolean).join(', ') || '—'}
-                    </td>
-                    <td className="py-2 text-xs text-slate-500">
-                      {row.created_at
-                        ? new Date(row.created_at).toLocaleDateString()
-                        : '—'}
-                    </td>
-                  </tr>
-                ))}
+                {filteredSignups.map((row, idx) => {
+                  const displayName =
+                    row.trading_name ||
+                    row.company_name ||
+                    row.contact_name ||
+                    `Company #${row.id}`;
+                  const emails = [
+                    ...(row.email ? [row.email] : []),
+                    ...(row.owner_emails || []).filter(
+                      (e) => e && e !== row.email
+                    ),
+                  ];
+                  return (
+                    <tr
+                      key={row.id}
+                      className="hover:bg-slate-50/80 align-top"
+                    >
+                      <td className="py-2 pl-3 pr-2 text-[11px] tabular-nums text-slate-400">
+                        {idx + 1}
+                      </td>
+                      <td className="py-2 pr-2 text-xs text-slate-600 whitespace-nowrap">
+                        {row.created_at
+                          ? new Date(row.created_at).toLocaleString(undefined, {
+                              dateStyle: 'medium',
+                              timeStyle: 'short',
+                            })
+                          : '—'}
+                      </td>
+                      <td className="py-2 pr-2">
+                        <div className="font-semibold text-slate-900">
+                          {displayName}
+                        </div>
+                        <div className="text-[10px] font-mono text-slate-400">
+                          id {row.id}
+                        </div>
+                      </td>
+                      <td className="py-2 pr-2 text-xs text-slate-600">
+                        {row.contact_name &&
+                        row.contact_name !== displayName ? (
+                          <div className="font-medium text-slate-800">
+                            {row.contact_name}
+                          </div>
+                        ) : null}
+                        {emails.length ? (
+                          <div className="space-y-0.5">
+                            {emails.slice(0, 3).map((e) => (
+                              <div key={e} className="break-all">
+                                {e}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-2 text-xs font-bold text-slate-600 capitalize">
+                        {row.subscription_status || '—'}
+                      </td>
+                      <td className="py-2 pr-2 text-xs font-bold text-slate-600 capitalize">
+                        {row.verification_status || '—'}
+                      </td>
+                      <td className="py-2 pr-3 text-xs text-slate-500">
+                        {[row.city, row.country].filter(Boolean).join(', ') ||
+                          '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

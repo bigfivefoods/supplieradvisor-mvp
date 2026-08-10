@@ -1072,6 +1072,47 @@ export async function POST(request: NextRequest) {
             );
           }
         }
+
+        const roomLoc = String(
+          rec.location !== undefined
+            ? rec.location || ''
+            : prev?.location || ''
+        ).trim();
+        if (roomLoc) {
+          const { findRoomDiaryConflict } = await import(
+            '@/lib/services/clinic-public-calendar'
+          );
+          const roomConflict = findRoomDiaryConflict({
+            appointments: store.appointments,
+            room: roomLoc,
+            date: String(rec.date || prev?.date || now.slice(0, 10)),
+            start_time: String(
+              rec.start_time || prev?.start_time || '09:00'
+            ),
+            duration_min:
+              rec.duration_min != null
+                ? Number(rec.duration_min)
+                : prev?.duration_min ?? 45,
+            end_time:
+              rec.end_time !== undefined
+                ? rec.end_time
+                  ? String(rec.end_time)
+                  : null
+                : prev?.end_time ?? null,
+            excludeId: aptId,
+          });
+          if (roomConflict.conflict) {
+            return NextResponse.json(
+              {
+                error: roomConflict.message,
+                code: 'ROOM_DOUBLE_BOOK',
+                conflict: roomConflict,
+              },
+              { status: 409 }
+            );
+          }
+        }
+
       }
 
       upsert(store, entity, rec, now);

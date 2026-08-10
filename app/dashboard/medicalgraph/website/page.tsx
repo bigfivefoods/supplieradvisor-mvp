@@ -205,14 +205,37 @@ export default function WebsitePage() {
             }}
           />
 
+          
+          {token ? (
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/40 p-4 space-y-2">
+              <p className="text-sm font-black text-slate-900 dark:text-white">
+                Public book page
+              </p>
+              <p className="text-[11px] text-slate-500">
+                Share this link or embed it. Guests book open public diary slots
+                (emails still send from SupplierAdvisor® on behalf of your brand).
+              </p>
+              <p className="text-[11px] font-mono break-all text-slate-700 dark:text-slate-200">
+                /embed/advisor/medicalgraph/{token}
+              </p>
+              <a
+                href={`/embed/advisor/medicalgraph/${token}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex text-xs font-bold text-sky-700 dark:text-sky-300 underline"
+              >
+                Open public diary
+              </a>
+            </div>
+          ) : null}
+
           {token ? (
             <p className="text-[11px] font-mono text-emerald-800 dark:text-emerald-200 break-all">
               Public token: {token}
             </p>
           ) : null}
           <p className="text-[11px] text-slate-500 dark:text-slate-400">
-            Website enabled: {summary?.websiteEnabled ? 'yes' : 'no'}. Public
-            embed endpoints can be wired next (same pattern as FitAdvisor).
+            Website enabled: {summary?.websiteEnabled ? 'yes' : 'no'}. Mark diary slots public so they appear on the public book page.
           </p>
         </div>
       )}

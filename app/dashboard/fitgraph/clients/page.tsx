@@ -23,6 +23,7 @@ import {
   healthToForm,
   type InjuryFormState,
 } from '@/components/health/InjuryProfileFields';
+import { AdvisorTreatmentPlanPanel } from '@/components/services/AdvisorTreatmentPlanPanel';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 
 function fileToBase64(file: File): Promise<string> {
@@ -525,6 +526,37 @@ export default function ClientsPage() {
               inputClass={fc()}
             />
           </FormCard>
+
+          {editing && form.id ? (
+            <AdvisorTreatmentPlanPanel
+              personId={form.id}
+              personLabel={form.name}
+              plans={store.treatment_plans || []}
+              services={(store.class_types || []).map((c) => ({
+                id: c.id,
+                name: c.name,
+              }))}
+              appointments={(store.sessions || []).map((s) => ({
+                id: s.id,
+                service_id: s.class_type_id,
+                date: s.date,
+                start_time: s.start_time,
+                status:
+                  s.status === 'cancelled' || s.status === 'completed'
+                    ? s.status
+                    : 'scheduled',
+              }))}
+              bookings={store.bookings || []}
+              useSessionId
+              accentClass="border-violet-200"
+              post={async (body) => {
+                await post(body);
+              }}
+              onRefresh={() => {
+                void load();
+              }}
+            />
+          ) : null}
 
           <DataTable
             tone="member"

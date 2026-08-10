@@ -84,7 +84,7 @@ test.describe('Quote before accept (smoke)', () => {
     expect([200, 201].includes(res.status()) || res.status() === 409).toBeTruthy();
     const j = await res.json().catch(() => ({}));
     // Pending or already connected/pending
-    if (res.ok) {
+    if (res.ok()) {
       expect(
         j.status === 'pending' ||
           j.status === 'accepted' ||

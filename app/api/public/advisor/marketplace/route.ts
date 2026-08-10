@@ -133,42 +133,50 @@ export async function GET(req: NextRequest) {
     }
     if (meta.dentalgraph) {
       const store = readDentalgraphFromMetadata(meta);
+      const tok = store.settings?.public_token;
       pushIfListed(listings, {
         ...base,
         module: 'dentalgraph',
         settings: store.settings,
         specialtiesFallback: store.settings?.staff_roles,
         brandFallback: 'Dental practice',
+        bookPath: tok ? `/embed/advisor/dentalgraph/${tok}` : null,
       });
     }
     if (meta.physiograph) {
       const store = readPhysiographFromMetadata(meta);
+      const tok = store.settings?.public_token;
       pushIfListed(listings, {
         ...base,
         module: 'physiograph',
         settings: store.settings,
         specialtiesFallback: store.settings?.practitioner_disciplines,
         brandFallback: 'Physio clinic',
+        bookPath: tok ? `/embed/advisor/physiograph/${tok}` : null,
       });
     }
     if (meta.medicalgraph) {
       const store = readMedicalgraphFromMetadata(meta);
+      const tok = store.settings?.public_token;
       pushIfListed(listings, {
         ...base,
         module: 'medicalgraph',
         settings: store.settings,
         specialtiesFallback: store.settings?.practitioner_disciplines,
         brandFallback: 'Medical practice',
+        bookPath: tok ? `/embed/advisor/medicalgraph/${tok}` : null,
       });
     }
     if (meta.psychiatrygraph) {
       const store = readPsychiatrygraphFromMetadata(meta);
+      const tok = store.settings?.public_token;
       pushIfListed(listings, {
         ...base,
         module: 'psychiatrygraph',
         settings: store.settings,
         specialtiesFallback: store.settings?.practitioner_disciplines,
         brandFallback: 'Psychiatry practice',
+        bookPath: tok ? `/embed/advisor/psychiatrygraph/${tok}` : null,
       });
     }
   }
