@@ -18,6 +18,8 @@ type PublicSession = {
   spots_left: number;
   full: boolean;
   public_notes?: string;
+  /** Planned activities for the class */
+  class_plan?: string;
 };
 
 type PublicCalendar = {
@@ -207,10 +209,15 @@ export default function EmbedFitgraphPage() {
                             : `${s.spots_left} spot${s.spots_left === 1 ? '' : 's'} left`}
                         </span>
                       </div>
-                      {s.public_notes && (
-                        <p className="text-[11px] text-slate-600 mt-1">
-                          {s.public_notes}
-                        </p>
+                      {(s.class_plan || s.public_notes) && (
+                        <div className="mt-1.5 rounded-xl bg-violet-50 border border-violet-100 px-2.5 py-1.5">
+                          <p className="text-[9px] font-black uppercase tracking-wider text-violet-700 mb-0.5">
+                            Class plan
+                          </p>
+                          <p className="text-[11px] text-slate-700 whitespace-pre-wrap">
+                            {s.class_plan || s.public_notes}
+                          </p>
+                        </div>
                       )}
                     </div>
                     {calendar.allow_booking && (

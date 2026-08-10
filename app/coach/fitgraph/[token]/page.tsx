@@ -44,6 +44,8 @@ type PortalSession = {
     public?: boolean;
     status: string;
     series_id?: string | null;
+    class_plan?: string;
+    public_notes?: string;
   };
   class_name?: string;
   capacity: number;
@@ -110,11 +112,13 @@ export default function CoachFitgraphPortalPage() {
     start_time: '06:00',
     location: '',
     capacity: '',
+    class_plan: '',
     repeat: 'none' as 'none' | 'weekly',
     count: '8',
     weekdays: [] as number[],
     public: false,
   });
+  const [classPlanDraft, setClassPlanDraft] = useState('');
 
   const weekEnd = useMemo(() => addDaysIso(weekStart, 6), [weekStart]);
   const days = useMemo(
@@ -174,6 +178,12 @@ export default function CoachFitgraphPortalPage() {
   };
 
   const openCard = portal?.sessions.find((s) => s.session.id === openId);
+
+  useEffect(() => {
+    if (openCard) {
+      setClassPlanDraft(openCard.session.class_plan || '');
+    }
+  }, [openCard?.session.id, openCard?.session.class_plan]);
 
   if (loading && !portal) {
     return (
@@ -297,6 +307,11 @@ export default function CoachFitgraphPortalPage() {
                             <Repeat className="w-2.5 h-2.5 text-amber-500" />
                           ) : null}
                         </div>
+                        {card.session.class_plan ? (
+                          <p className="text-[9px] text-amber-200/80 line-clamp-2 mt-0.5">
+                            {card.session.class_plan}
+                          </p>
+                        ) : null}
                       </button>
                     ))
                   )}

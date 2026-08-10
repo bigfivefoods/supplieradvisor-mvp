@@ -129,10 +129,15 @@ export type FitSession = {
   public?: boolean;
   /** Share link slug for this session (optional) */
   share_code?: string | null;
-  /** Notes only for coach / owner */
+  /** Notes only for coach / owner (private) */
   notes?: string;
-  /** Customer-facing blurb when shared */
+  /** Customer-facing blurb when shared on website */
   public_notes?: string;
+  /**
+   * Planned class activities / workout plan.
+   * Visible to members (public calendar / embed) and other coaches in the gym.
+   */
+  class_plan?: string;
   /**
    * Recurring series id — all occurrences of a weekly/bespoke series share this.
    * One-off bespoke classes have series_id null/undefined.
@@ -435,6 +440,8 @@ export function buildPublicCalendarPayload(
         spots_left: Math.max(0, cap - booked),
         full: cap > 0 && booked >= cap,
         public_notes: s.public_notes,
+        /** Planned activities — members see this on the public calendar */
+        class_plan: s.class_plan || s.public_notes || undefined,
         share_code: s.share_code,
       };
     })
@@ -548,6 +555,7 @@ export function createSessionsFromTemplate(
     public?: boolean;
     notes?: string;
     public_notes?: string;
+    class_plan?: string;
     origin?: string;
   },
   recurrence?: FitRecurrence | null,
@@ -579,6 +587,7 @@ export function createSessionsFromTemplate(
         : null,
       notes: template.notes,
       public_notes: template.public_notes,
+      class_plan: template.class_plan,
       series_id: seriesId,
       origin:
         template.origin ||

@@ -262,6 +262,8 @@ export async function POST(request: NextRequest) {
           notes: body.notes != null ? String(body.notes) : undefined,
           public_notes:
             body.public_notes != null ? String(body.public_notes) : undefined,
+          class_plan:
+            body.class_plan != null ? String(body.class_plan) : undefined,
           origin: 'owner',
         },
         recurrence,
@@ -280,6 +282,40 @@ export async function POST(request: NextRequest) {
           created.length > 1
             ? `Scheduled ${created.length} classes in series`
             : 'Bespoke class scheduled',
+      });
+    }
+
+    /** Update planned class activities (visible to members & coaches) */
+    if (action === 'update_class_plan') {
+      const sessionId = String(body.session_id || body.id || '');
+      const session = store.sessions.find((s) => s.id === sessionId);
+      if (!session) {
+        return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+      }
+      session.class_plan =
+        body.class_plan != null ? String(body.class_plan) : '';
+      // Keep public_notes in sync as short summary if blank and plan provided
+      if (
+        body.sync_public !== false &&
+        session.class_plan &&
+        !session.public_notes
+      ) {
+        const firstLine = session.class_plan.split('\n')[0]?.trim();
+        if (firstLine && firstLine.length <= 160) {
+          session.public_notes = firstLine;
+        }
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        session: {
+          id: session.id,
+          class_plan: session.class_plan,
+          public_notes: session.public_notes,
+        },
       });
     }
 
@@ -619,6 +655,10 @@ function upsert(
         rec.public_notes != null
           ? String(rec.public_notes)
           : prev?.public_notes,
+      class_plan:
+        rec.class_plan != null
+          ? String(rec.class_plan)
+          : prev?.class_plan,
       series_id:
         rec.series_id !== undefined
           ? rec.series_id

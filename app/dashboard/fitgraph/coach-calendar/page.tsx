@@ -50,6 +50,9 @@ type SessionCard = {
     series_id?: string | null;
     origin?: string;
     class_type_id: string;
+    /** Planned activities — visible to members & coaches */
+    class_plan?: string;
+    public_notes?: string;
   };
   class_name?: string;
   capacity: number;
@@ -112,12 +115,14 @@ export default function CoachCalendarPage() {
     start_time: '06:00',
     location: '',
     capacity: '',
+    class_plan: '',
     repeat: 'none' as 'none' | 'weekly',
     count: '8',
     weekdays: [] as number[],
     public: false,
   });
   const [bookClientId, setBookClientId] = useState('');
+  const [classPlanDraft, setClassPlanDraft] = useState('');
 
   const weekEnd = useMemo(() => addDaysIso(weekStart, 6), [weekStart]);
   const days = useMemo(
@@ -192,6 +197,7 @@ export default function CoachCalendarPage() {
       start_time: create.start_time,
       location: create.location || undefined,
       capacity: create.capacity ? Number(create.capacity) : undefined,
+      class_plan: create.class_plan.trim() || undefined,
       public: create.public,
       repeat: create.repeat,
       count: Number(create.count) || 8,
@@ -202,6 +208,17 @@ export default function CoachCalendarPage() {
     });
     toast.success(data.message || 'Class created');
     setShowCreate(false);
+    setCreate((f) => ({ ...f, class_plan: '' }));
+    await loadPortal();
+  };
+
+  const saveClassPlan = async (sessionId: string) => {
+    await post({
+      action: 'update_class_plan',
+      session_id: sessionId,
+      class_plan: classPlanDraft,
+    });
+    toast.success('Class plan saved — members & coaches can see it');
     await loadPortal();
   };
 
@@ -226,6 +243,13 @@ export default function CoachCalendarPage() {
   };
 
   const openCard = portal?.sessions.find((s) => s.session.id === openSession);
+
+  // Sync plan draft when opening a session
+  useEffect(() => {
+    if (openCard) {
+      setClassPlanDraft(openCard.session.class_plan || '');
+    }
+  }, [openCard?.session.id, openCard?.session.class_plan]);
 
   return (
     <FitgraphWorkbench
@@ -336,6 +360,11 @@ export default function CoachCalendarPage() {
                                 <Repeat className="w-2.5 h-2.5 inline" />
                               ) : null}
                             </div>
+                            {card.session.class_plan ? (
+                              <p className="text-[9px] text-amber-800/80 dark:text-amber-200/80 line-clamp-2 mt-0.5">
+                                {card.session.class_plan}
+                              </p>
+                            ) : null}
                           </button>
                         ))
                       )}
@@ -376,7 +405,7 @@ export default function CoachCalendarPage() {
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div className="rounded-xl border border-amber-200 dark:border-amber-600 p-2">
                     <div className="text-[9px] font-black uppercase text-amber-700 dark:text-amber-300">
-                      Plan
+                      Booked
                     </div>
                     <div className="text-lg font-black tabular-nums dark:text-amber-50">
                       {openCard.planned}
@@ -401,8 +430,37 @@ export default function CoachCalendarPage() {
                 </div>
 
                 <div>
+                  <h4 className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 mb-1.5">
+                    Class plan · activities
+                  </h4>
+                  <p className="text-[10px] text-slate-500 dark:text-amber-200/70 mb-1.5">
+                    What you will do in this class — members and other coaches
+                    can see this.
+                  </p>
+                  <textarea
+                    className={fc() + ' min-h-[5.5rem] resize-y'}
+                    placeholder={
+                      'e.g.\n• Warm-up 5 min\n• Strength circuit 20 min\n• HIIT finisher 10 min\n• Cool-down & stretch'
+                    }
+                    value={classPlanDraft}
+                    onChange={(e) => setClassPlanDraft(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    disabled={saving}
+                    className="btn-primary !py-1.5 !px-3 text-xs mt-2"
+                    onClick={() => void saveClassPlan(openCard.session.id)}
+                  >
+                    {saving ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
+                    ) : null}{' '}
+                    Save class plan
+                  </button>
+                </div>
+
+                <div>
                   <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-amber-300 mb-2 flex items-center gap-1">
-                    <Users className="w-3.5 h-3.5" /> Plan roster · update actual
+                    <Users className="w-3.5 h-3.5" /> Who is coming · update actual
                   </h4>
                   {openCard.roster.length === 0 ? (
                     <p className="text-sm text-slate-500 dark:text-amber-200/60">
@@ -558,6 +616,14 @@ export default function CoachCalendarPage() {
                   value={create.capacity}
                   onChange={(e) =>
                     setCreate((f) => ({ ...f, capacity: e.target.value }))
+                  }
+                />
+                <textarea
+                  className={fc() + ' min-h-[4.5rem] resize-y sm:col-span-2'}
+                  placeholder="Class plan / activities (members & coaches see this)"
+                  value={create.class_plan}
+                  onChange={(e) =>
+                    setCreate((f) => ({ ...f, class_plan: e.target.value }))
                   }
                 />
                 <div className="flex gap-2">

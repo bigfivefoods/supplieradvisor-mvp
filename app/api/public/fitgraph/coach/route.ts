@@ -256,6 +256,16 @@ export async function POST(request: NextRequest) {
       if (body.capacity != null) session.capacity = Number(body.capacity);
       if (body.notes != null) session.notes = String(body.notes);
       if (body.public_notes != null) session.public_notes = String(body.public_notes);
+      if (body.class_plan != null) {
+        session.class_plan = String(body.class_plan);
+        // Optional short blurb for website if none set
+        if (session.class_plan && !session.public_notes) {
+          const firstLine = session.class_plan.split('\n')[0]?.trim();
+          if (firstLine && firstLine.length <= 160) {
+            session.public_notes = firstLine;
+          }
+        }
+      }
       if (body.status === 'cancelled' || body.status === 'completed') {
         session.status = body.status;
       }
@@ -497,6 +507,8 @@ export async function POST(request: NextRequest) {
           notes: body.notes != null ? String(body.notes) : undefined,
           public_notes:
             body.public_notes != null ? String(body.public_notes) : undefined,
+          class_plan:
+            body.class_plan != null ? String(body.class_plan) : undefined,
           origin: 'coach',
         },
         recurrence,
