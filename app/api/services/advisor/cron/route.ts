@@ -214,7 +214,20 @@ async function runForCompany(
     nextMeta = { ...nextMeta, [key]: store };
   }
 
+  nextMeta.advisor_reminders_last_run = {
+    at: now,
+    reminders_sent: reminders,
+    pack_warnings,
+    modules,
+  };
   if (reminders > 0 || pack_warnings > 0 || modules.length) {
+    const supabase = getSupabaseServer();
+    await supabase
+      .from('profiles')
+      .update({ metadata: nextMeta, updated_at: now })
+      .eq('id', companyId);
+  } else if (modules.length) {
+    // still stamp last scan when modules present but nothing to send
     const supabase = getSupabaseServer();
     await supabase
       .from('profiles')

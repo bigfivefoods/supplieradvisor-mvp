@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Copy, Link2, Pill } from 'lucide-react';
@@ -11,9 +11,15 @@ import {
 } from '@/components/dental/DentalgraphWorkbench';
 import { DataTable, FormCard, StatRow, fc } from '@/components/dental/DentalForm';
 import { buildPublicFeedbackPath } from '@/lib/services/booking-feedback';
+import { AdvisorWaitlistDesk } from '@/components/services/AdvisorWaitlistDesk';
+import {
+  buildDeskQueueRows,
+  buildDeskSlotWaitlist,
+} from '@/lib/services/advisor-waitlist-desk';
 
 export default function BookingsPage() {
-  const { companyId, store, loading, saving, post, summary } = useDentalgraph();
+  const { companyId, store, loading, saving, post, summary, load } =
+    useDentalgraph();
   const [form, setForm] = useState({
     appointment_id: '',
     patient_id: '',
@@ -88,11 +94,31 @@ export default function BookingsPage() {
         !b.feedback_submitted_at
     ).length || 0;
 
+  const deskQueue = useMemo(() => {
+    if (!store) return [];
+    return buildDeskQueueRows(
+      store.waitlist_queue,
+      store.patients,
+      store.staff
+    );
+  }, [store]);
+
+  const deskSlotWaitlist = useMemo(() => {
+    if (!store) return [];
+    return buildDeskSlotWaitlist({
+      bookings: store.bookings,
+      appointments: store.appointments,
+      people: store.patients,
+      services: store.services,
+      clinicians: store.staff,
+    });
+  }, [store]);
+
   return (
     <DentalgraphWorkbench
       title="Bookings"
       titleAccent="front desk"
-      description="Book patients onto diary slots. Mark attended for feedback links, or open Script to add a prescription on the patient record for that visit."
+      description="Book patients onto diary slots. Work the next-available waitlist queue. Mark attended for feedback links."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -105,14 +131,29 @@ export default function BookingsPage() {
                 value: Number(summary?.bookingsOpen) || 0,
               },
               {
+                label: 'Waitlist queue',
+                value: deskQueue.length,
+              },
+              {
+                label: 'Slot waitlists',
+                value: deskSlotWaitlist.length,
+              },
+              {
                 label: 'Feedback pending',
                 value: Number(summary?.pendingFeedback) || pending,
               },
-              {
-                label: 'Feedback received',
-                value: Number(summary?.feedbackCount) || 0,
-              },
             ]}
+          />
+          <AdvisorWaitlistDesk
+            queue={deskQueue}
+            slotWaitlist={deskSlotWaitlist}
+            post={async (body) => {
+              await post(body);
+            }}
+            onRefresh={() => {
+              void load();
+            }}
+            calendarHref="/dashboard/dentalgraph/calendar"
           />
           <FormCard title="Book patient" onSubmit={() => void add()} saving={saving}>
             <select

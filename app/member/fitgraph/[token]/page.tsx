@@ -98,6 +98,13 @@ type Portal = {
   open_count: number;
   full_count: number;
   messages_unread?: number;
+  packs?: Array<{
+    id: string;
+    label?: string;
+    remaining: number;
+    sessions_total: number;
+    expires_at?: string | null;
+  }>;
   threads?: Array<{
     id: string;
     title?: string;
@@ -716,6 +723,20 @@ export default function MemberFitgraphPortalPage() {
 
         {tab === 'profile' && (
           <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
+            {(portal.packs || []).length > 0 ? (
+              <div className="rounded-xl border border-violet-100 bg-violet-50/50 px-3 py-2 mb-3">
+                <p className="text-[10px] font-black uppercase text-violet-700 mb-1">Session packs</p>
+                <ul className="space-y-1">
+                  {(portal.packs || []).map((p) => (
+                    <li key={p.id} className="text-xs font-semibold text-slate-700">
+                      {p.label || 'Pack'}: <strong>{p.remaining}</strong> left
+                      {p.expires_at ? ` · exp ${p.expires_at.slice(0, 10)}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
             <p className="text-sm font-black text-slate-900">Your profile</p>
             <p className="text-xs text-slate-500">
               Changes sync to the gym desk. Email is usually the parent/guardian

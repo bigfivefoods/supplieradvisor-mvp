@@ -19,6 +19,7 @@ import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
 import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
 import { VerifiedBadge } from '@/components/services/VerifiedBadge';
+import { PortalMessagesPanel } from '@/components/services/PortalMessagesPanel';
 
 type Slot = {
   id: string;
@@ -87,6 +88,14 @@ type Portal = {
     clinician_name?: string;
   }>;
   open_count: number;
+  messages_unread?: number;
+  threads?: import('@/components/services/PortalMessagesPanel').PortalThread[];
+  care_packs?: Array<{
+    id: string;
+    label?: string;
+    remaining: number;
+    expires_at?: string | null;
+  }>;
 };
 
 export default function MemberDentalgraphPortalPage() {
@@ -97,7 +106,7 @@ export default function MemberDentalgraphPortalPage() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [tab, setTab] = useState<'open' | 'mine' | 'care' | 'profile'>('open');
+  const [tab, setTab] = useState<'open' | 'mine' | 'messages' | 'care' | 'profile'>('open');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -332,6 +341,7 @@ export default function MemberDentalgraphPortalPage() {
             [
               ['open', 'Open diary'],
               ['mine', 'My bookings'],
+              ['messages', 'Messages'],
               ...(portal.shares?.medical !== false
                 ? ([['care', 'My care']] as const)
                 : []),
@@ -601,6 +611,19 @@ export default function MemberDentalgraphPortalPage() {
               ));
             })()}
           </div>
+        )}
+
+        {tab === 'messages' && (
+          <PortalMessagesPanel
+            threads={portal.threads || []}
+            messagesUnread={portal.messages_unread || 0}
+            selfRole="patient"
+            post={async (body) => {
+              const data = await post(body);
+              return data;
+            }}
+            onRefresh={() => void load()}
+          />
         )}
 
         {tab === 'mine' && (

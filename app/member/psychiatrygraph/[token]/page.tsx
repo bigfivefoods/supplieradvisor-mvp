@@ -18,6 +18,7 @@ import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
 import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
 import { VerifiedBadge } from '@/components/services/VerifiedBadge';
+import { PortalMessagesPanel } from '@/components/services/PortalMessagesPanel';
 
 type Slot = {
   id: string;
@@ -90,7 +91,7 @@ export default function MemberPsychiatrygraphPortalPage() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [tab, setTab] = useState<'open' | 'mine' | 'profile'>('open');
+  const [tab, setTab] = useState<'open' | 'mine' | 'messages' | 'profile'>('open');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -307,6 +308,7 @@ export default function MemberPsychiatrygraphPortalPage() {
             [
               ['open', 'Open diary'],
               ['mine', 'My bookings'],
+              ['messages', 'Messages'],
               ['profile', 'My profile'],
             ] as const
           ).map(([id, label]) => (
@@ -446,6 +448,16 @@ export default function MemberPsychiatrygraphPortalPage() {
               ))
             )}
           </div>
+        )}
+
+        {tab === 'messages' && (
+          <PortalMessagesPanel
+            threads={(portal as any).threads || []}
+            messagesUnread={(portal as any).messages_unread || 0}
+            selfRole="patient"
+            post={async (body) => post(body)}
+            onRefresh={() => void load()}
+          />
         )}
 
         {tab === 'mine' && (

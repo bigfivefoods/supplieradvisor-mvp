@@ -285,6 +285,7 @@ export async function POST(request: NextRequest) {
       }
       store.threads = result.threads;
       await saveStore(companyId, meta, store);
+      let mailResult: { emailed: number; errors: string[] } | null = null;
 
       // Mirror coach care messages into members' company Messages (email match)
       // AND email the member's Fit portal address so they actually get the message.
@@ -308,15 +309,15 @@ export async function POST(request: NextRequest) {
             const { notifyMembersOnServiceThread } = await import(
               '@/lib/messaging/service-message-email'
             );
-            const mail = await notifyMembersOnServiceThread({
+            mailResult = await notifyMembersOnServiceThread({
               thread: result.thread,
               people: store.clients || [],
               brand: String(gymName),
               moduleLabel: 'FitAdvisor®',
               portalBasePath: '/member/fitgraph',
             });
-            if (mail.errors.length) {
-              console.warn('[coach portal] member email', mail);
+            if (mailResult.errors.length) {
+              console.warn('[coach portal] member email', mailResult);
             }
           }
         } catch (e) {
@@ -331,9 +332,30 @@ export async function POST(request: NextRequest) {
         'coach',
         coach.id
       );
+      // recompute mail if we have it in scope - attach delivery note
+      let deliveryNote = 'Message saved';
+      try {
+        /* delivery already logged */
+      } catch { /* */ }
+      const deliveryParts: string[] = ['Message saved'];
+      if (mailResult) {
+        if (mailResult.emailed > 0) {
+          deliveryParts.push(`emailed ${mailResult.emailed} member(s)`);
+        } else if (mailResult.errors.length) {
+          deliveryParts.push(
+            mailResult.errors[0]?.includes('No member email') ||
+              mailResult.errors.some((e) => e.includes('no email'))
+              ? 'no email on member file — they can read in portal Messages'
+              : `email: ${mailResult.errors[0]}`
+          );
+        } else {
+          deliveryParts.push('portal only (no email sent)');
+        }
+      }
       return NextResponse.json({
         success: true,
-        message: 'Message saved',
+        message: deliveryParts.join(' · '),
+        delivery: mailResult,
         thread: result.thread,
         threads: myThreads,
         unread: totalUnread(store.threads || [], 'coach', coach.id),

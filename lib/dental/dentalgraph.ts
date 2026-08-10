@@ -5,6 +5,10 @@
  */
 
 import { totalUnread } from '@/lib/messaging/service-inbox';
+import {
+  portalMessagesUnread,
+  portalThreadsForPerson,
+} from '@/lib/services/clinic-portal-messaging';
 
 export const DENTALGRAPH_MODULE_ID = 'dentalgraph' as const;
 export const DENTALGRAPH_META_KEY = 'dentalgraph';
@@ -766,6 +770,37 @@ export function buildDentalPatientPortalPayload(
           position: open.findIndex((x) => x.id === q.id) + 1,
         }));
     })(),
+    threads: portalThreadsForPerson(store.threads, 'patient', patient.id),
+    messages_unread: portalMessagesUnread(
+      store.threads,
+      'patient',
+      patient.id
+    ),
+    /** Care packs remaining for this patient */
+    care_packs: (store.care_packs || [])
+      .filter((p) => p.person_id === patient.id)
+      .map((p) => ({
+        id: p.id,
+        label: p.label || 'Care pack',
+        sessions_total: p.sessions_total,
+        sessions_used: p.sessions_used,
+        remaining: Math.max(0, (p.sessions_total || 0) - (p.sessions_used || 0)),
+        expires_at: p.expires_at || null,
+        status: p.status || 'active',
+      })),
+    treatment_plans: (store.treatment_plans || [])
+      .filter((t) => t.person_id === patient.id && t.status === 'active')
+      .map((t) => ({
+        id: t.id,
+        title: t.title,
+        status: t.status,
+        goals: t.goals,
+        next_step:
+          t.steps?.find(
+            (s) => s.status === 'planned' || s.status === 'in_progress'
+          ) || null,
+        steps: t.steps || [],
+      })),
   };
 }
 

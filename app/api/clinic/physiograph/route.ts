@@ -216,6 +216,28 @@ export async function POST(request: NextRequest) {
             serviceThread: result.thread,
             people: store.patients || [],
           });
+        
+          try {
+            const { notifyMembersOnServiceThread } = await import(
+              '@/lib/messaging/service-message-email'
+            );
+            const mail = await notifyMembersOnServiceThread({
+              thread: result.thread,
+              people: store.patients || [],
+              brand: String(store.settings?.brand_name || 'Clinic'),
+              moduleLabel: 'PhysioAdvisor®',
+              portalBasePath: '/member/physiograph',
+            });
+            if (mail.emailed > 0) {
+              fanOut = {
+                delivered: (fanOut?.delivered || 0) + mail.emailed,
+                companyIds: fanOut?.companyIds || [],
+              };
+            }
+          } catch (mailErr) {
+            console.warn('[physiograph] patient email notify failed', mailErr);
+          }
+
         } catch (e) {
           console.warn('[physiograph] service→company fan-out failed', e);
         }
@@ -700,6 +722,28 @@ export async function POST(request: NextRequest) {
         store,
         summary: summarisePhysiograph(store),
         analysis: analysis(store),
+      });
+    }
+
+    
+    if (action === 'manage_waitlist_queue') {
+      const qid = String(body.queue_id || body.id || '');
+      const status = String(body.status || 'contacted');
+      store.waitlist_queue = store.waitlist_queue || [];
+      const q = store.waitlist_queue.find((x) => x.id === qid);
+      if (!q) {
+        return NextResponse.json({ error: 'Queue entry not found' }, { status: 404 });
+      }
+      if (!['contacted', 'booked', 'cancelled', 'waiting'].includes(status)) {
+        return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+      }
+      q.status = status as typeof q.status;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summarisePhysiograph(store),
+        message: 'Waitlist updated',
       });
     }
 

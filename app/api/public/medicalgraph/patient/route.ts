@@ -156,6 +156,69 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
     }
 
+    
+    if (
+      action.startsWith('message_') ||
+      action === 'create_thread' ||
+      action === 'post_message' ||
+      action === 'mark_read' ||
+      action === 'archive_thread'
+    ) {
+      const { handlePortalMessageAction } = await import(
+        '@/lib/services/clinic-portal-messaging'
+      );
+      const b = { ...body };
+      const cid = String(
+        body.staff_id ||
+          body.practitioner_id ||
+          body.to_clinician ||
+          patient.practitioner_id ||
+          ''
+      );
+      const clin = (store.practitioners || []).find((x) => x.id === cid);
+      if (
+        clin &&
+        (action === 'message_create_thread' ||
+          action === 'create_thread' ||
+          action === 'message_start')
+      ) {
+        b.with_role = 'practitioner';
+        b.with_ref_id = clin.id;
+        b.with_name = clin.name;
+        b.channel = b.channel || 'practitioner_patient';
+      }
+      if (body.to_desk === true || body.channel === 'desk_patient') {
+        b.with_role = 'desk';
+        b.with_ref_id = 'desk';
+        b.with_name = 'Front desk';
+        b.channel = b.channel || 'desk_patient';
+      }
+      const msgResult = handlePortalMessageAction({
+        action,
+        body: b,
+        threads: store.threads,
+        personRole: 'patient',
+        personId: patient.id,
+        personName: patient.name,
+        now,
+      });
+      if (!msgResult.ok) {
+        return NextResponse.json(
+          { error: msgResult.error },
+          { status: msgResult.status || 400 }
+        );
+      }
+      store.threads = msgResult.threads;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        message: 'Message saved',
+        thread: msgResult.thread,
+        unread: msgResult.unread,
+        portal: buildPatientPortalPayload(store, store.patients[pi]),
+      });
+    }
+
     if (action === 'update_profile') {
       const p = store.patients[pi];
       const { applyPortalProfileUpdate } = await import(

@@ -1,6 +1,6 @@
 /**
  * Public staff PWA API — token-scoped today board for coaches/clinicians.
- * GET ?module=fitgraph&token=...
+ * GET ?module=fitgraph|dentalgraph|physiograph|medicalgraph|psychiatrygraph&token=
  * POST mark attendance { module, token, booking_id, status }
  */
 import { NextRequest, NextResponse } from 'next/server';
@@ -9,6 +9,22 @@ import {
   readFitgraphFromMetadata,
   writeFitgraphToMetadata,
 } from '@/lib/fitness/fitgraph';
+import {
+  readDentalgraphFromMetadata,
+  writeDentalgraphToMetadata,
+} from '@/lib/dental/dentalgraph';
+import {
+  readPhysiographFromMetadata,
+  writePhysiographToMetadata,
+} from '@/lib/clinic/physiograph';
+import {
+  readMedicalgraphFromMetadata,
+  writeMedicalgraphToMetadata,
+} from '@/lib/clinic/medicalgraph';
+import {
+  readPsychiatrygraphFromMetadata,
+  writePsychiatrygraphToMetadata,
+} from '@/lib/clinic/psychiatrygraph';
 import { applyAttendanceToPersonStats } from '@/lib/services/advisor-booking';
 import {
   consumePackSession,
@@ -16,7 +32,10 @@ import {
   ledgerToFitPtPack,
 } from '@/lib/services/advisor-pack-ledger';
 import { appendAdvisorEvent } from '@/lib/services/advisor-events';
-import { issueFeedbackPrompt, buildPublicFeedbackPath } from '@/lib/services/booking-feedback';
+import {
+  issueFeedbackPrompt,
+  buildPublicFeedbackPath,
+} from '@/lib/services/booking-feedback';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -33,7 +52,6 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = getSupabaseServer();
-  // Find company by scanning recent profiles for matching portal token
   const { data: rows } = await supabase
     .from('profiles')
     .select('id, metadata, company_name, name')
@@ -45,6 +63,7 @@ export async function GET(req: NextRequest) {
       row.metadata && typeof row.metadata === 'object'
         ? (row.metadata as Record<string, unknown>)
         : {};
+
     if (module === 'fitgraph' && meta.fitgraph) {
       const store = readFitgraphFromMetadata(meta);
       const coach = store.coaches.find(
@@ -58,7 +77,7 @@ export async function GET(req: NextRequest) {
           s.status !== 'cancelled' &&
           (s.coach_id === coach.id || !s.coach_id)
       );
-      const rowsOut = [];
+      const rowsOut: Array<Record<string, unknown>> = [];
       for (const s of sessions) {
         const ct = store.class_types.find((t) => t.id === s.class_type_id);
         const books = store.bookings.filter(
@@ -88,7 +107,9 @@ export async function GET(req: NextRequest) {
           });
         }
       }
-      rowsOut.sort((a, b) => String(a.time).localeCompare(String(b.time)));
+      rowsOut.sort((a, b) =>
+        String(a.time).localeCompare(String(b.time))
+      );
       return NextResponse.json({
         success: true,
         module: 'fitgraph',
@@ -99,6 +120,141 @@ export async function GET(req: NextRequest) {
           row.name ||
           'FitAdvisor',
         staff: { id: coach.id, name: coach.name, role: 'coach' },
+        date: day,
+        rows: rowsOut,
+      });
+    }
+
+    if (module === 'dentalgraph' && meta.dentalgraph) {
+      const store = readDentalgraphFromMetadata(meta);
+      const staff = store.staff.find(
+        (c) => c.portal_token === token && c.active !== false
+      );
+      if (!staff) continue;
+      const day = todayIso();
+      const appts = store.appointments.filter(
+        (a) =>
+          a.date === day &&
+          a.status !== 'cancelled' &&
+          a.staff_id === staff.id
+      );
+      const rowsOut: Array<Record<string, unknown>> = [];
+      for (const a of appts) {
+        const svc = store.services.find((t) => t.id === a.service_id);
+        const books = store.bookings.filter(
+          (b) => b.appointment_id === a.id && b.status !== 'cancelled'
+        );
+        for (const b of books) {
+          const patient = store.patients.find((p) => p.id === b.patient_id);
+          rowsOut.push({
+            booking_id: b.id,
+            time: a.start_time,
+            title: svc?.name || 'Appointment',
+            attendee: b.family_member_name || patient?.name || 'Patient',
+            status: b.status,
+            location: a.location,
+            appointment_id: a.id,
+          });
+        }
+        if (!books.length) {
+          rowsOut.push({
+            booking_id: null,
+            time: a.start_time,
+            title: svc?.name || 'Appointment',
+            attendee: null,
+            status: 'open',
+            location: a.location,
+            appointment_id: a.id,
+          });
+        }
+      }
+      rowsOut.sort((a, b) =>
+        String(a.time).localeCompare(String(b.time))
+      );
+      return NextResponse.json({
+        success: true,
+        module: 'dentalgraph',
+        companyId: row.id,
+        brand:
+          store.settings?.brand_name ||
+          row.company_name ||
+          'DentalAdvisor',
+        staff: { id: staff.id, name: staff.name, role: 'clinician' },
+        date: day,
+        rows: rowsOut,
+      });
+    }
+
+    for (const cfg of [
+      {
+        key: 'physiograph' as const,
+        read: readPhysiographFromMetadata,
+        label: 'PhysioAdvisor',
+      },
+      {
+        key: 'medicalgraph' as const,
+        read: readMedicalgraphFromMetadata,
+        label: 'MedicalAdvisor',
+      },
+      {
+        key: 'psychiatrygraph' as const,
+        read: readPsychiatrygraphFromMetadata,
+        label: 'PsychiatryAdvisor',
+      },
+    ]) {
+      if (module !== cfg.key || !meta[cfg.key]) continue;
+      const store = cfg.read(meta);
+      const prac = store.practitioners.find(
+        (c) => c.portal_token === token && c.active !== false
+      );
+      if (!prac) continue;
+      const day = todayIso();
+      const appts = store.appointments.filter(
+        (a) =>
+          a.date === day &&
+          a.status !== 'cancelled' &&
+          a.practitioner_id === prac.id
+      );
+      const rowsOut: Array<Record<string, unknown>> = [];
+      for (const a of appts) {
+        const svc = store.services.find((t) => t.id === a.service_id);
+        const books = store.bookings.filter(
+          (b) => b.appointment_id === a.id && b.status !== 'cancelled'
+        );
+        for (const b of books) {
+          const patient = store.patients.find((p) => p.id === b.patient_id);
+          rowsOut.push({
+            booking_id: b.id,
+            time: a.start_time,
+            title: svc?.name || 'Appointment',
+            attendee: b.family_member_name || patient?.name || 'Patient',
+            status: b.status,
+            location: a.location,
+            appointment_id: a.id,
+          });
+        }
+        if (!books.length) {
+          rowsOut.push({
+            booking_id: null,
+            time: a.start_time,
+            title: svc?.name || 'Appointment',
+            attendee: null,
+            status: 'open',
+            location: a.location,
+            appointment_id: a.id,
+          });
+        }
+      }
+      rowsOut.sort((a, b) =>
+        String(a.time).localeCompare(String(b.time))
+      );
+      return NextResponse.json({
+        success: true,
+        module: cfg.key,
+        companyId: row.id,
+        brand:
+          store.settings?.brand_name || row.company_name || cfg.label,
+        staff: { id: prac.id, name: prac.name, role: 'clinician' },
         date: day,
         rows: rowsOut,
       });
@@ -134,85 +290,219 @@ export async function POST(req: NextRequest) {
         row.metadata && typeof row.metadata === 'object'
           ? { ...(row.metadata as Record<string, unknown>) }
           : {};
-      if (module !== 'fitgraph' || !meta0.fitgraph) continue;
-      const store = readFitgraphFromMetadata(meta0);
-      const coach = store.coaches.find((c) => c.portal_token === token);
-      if (!coach) continue;
 
-      const booking = store.bookings.find((b) => b.id === bookingId);
-      if (!booking) {
-        return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
-      }
-      const now = new Date().toISOString();
-      const prev = booking.status;
-      booking.status = status as typeof booking.status;
+      if (module === 'fitgraph' && meta0.fitgraph) {
+        const store = readFitgraphFromMetadata(meta0);
+        const coach = store.coaches.find((c) => c.portal_token === token);
+        if (!coach) continue;
 
-      if (
-        (status === 'attended' || status === 'no_show') &&
-        prev !== status
-      ) {
-        const ci = store.clients.findIndex((c) => c.id === booking.client_id);
-        if (ci >= 0) {
-          Object.assign(
-            store.clients[ci],
-            applyAttendanceToPersonStats(
-              store.clients[ci],
-              status as 'attended' | 'no_show',
-              now
-            )
+        const booking = store.bookings.find((b) => b.id === bookingId);
+        if (!booking) {
+          return NextResponse.json(
+            { error: 'Booking not found' },
+            { status: 404 }
           );
         }
-      }
+        const now = new Date().toISOString();
+        const prev = booking.status;
+        booking.status = status as typeof booking.status;
 
-      let packRemaining = null as number | null;
-      if (status === 'attended' && prev !== 'attended') {
-        const session = store.sessions.find((s) => s.id === booking.session_id);
-        const ledgers = (store.pt_packs || []).map(fitPtPackToLedger);
-        const { packs, remaining } = consumePackSession(ledgers, {
-          personId: booking.client_id,
-          bookingId: booking.id,
-          providerId: session?.coach_id || coach.id,
-          now,
+        if (
+          (status === 'attended' || status === 'no_show') &&
+          prev !== status
+        ) {
+          const ci = store.clients.findIndex(
+            (c) => c.id === booking.client_id
+          );
+          if (ci >= 0) {
+            Object.assign(
+              store.clients[ci],
+              applyAttendanceToPersonStats(
+                store.clients[ci],
+                status as 'attended' | 'no_show',
+                now
+              )
+            );
+          }
+        }
+
+        let packRemaining: number | null = null;
+        if (status === 'attended' && prev !== 'attended') {
+          const session = store.sessions.find(
+            (s) => s.id === booking.session_id
+          );
+          const ledgers = (store.pt_packs || []).map(fitPtPackToLedger);
+          const { packs, remaining } = consumePackSession(ledgers, {
+            personId: booking.client_id,
+            bookingId: booking.id,
+            providerId: session?.coach_id || coach.id,
+            now,
+          });
+          store.pt_packs = packs.map(ledgerToFitPtPack);
+          packRemaining = remaining;
+          const prompted = issueFeedbackPrompt(booking, now);
+          booking.feedback_token = prompted.feedback_token;
+          booking.feedback_requested_at = prompted.feedback_requested_at;
+        }
+
+        let meta = writeFitgraphToMetadata(meta0, store);
+        const ev = appendAdvisorEvent(meta, {
+          module: 'fitgraph',
+          company_id: Number(row.id),
+          type: 'attendance.marked',
+          person_id: booking.client_id,
+          booking_id: booking.id,
+          meta: { status, source: 'staff_pwa', staff_id: coach.id },
         });
-        store.pt_packs = packs.map(ledgerToFitPtPack);
-        packRemaining = remaining;
-        const prompted = issueFeedbackPrompt(booking, now);
-        booking.feedback_token = prompted.feedback_token;
-        booking.feedback_requested_at = prompted.feedback_requested_at;
-      }
+        meta = ev.metadata;
 
-      let meta = writeFitgraphToMetadata(meta0, store);
-      const ev = appendAdvisorEvent(meta, {
-        module: 'fitgraph',
-        company_id: Number(row.id),
-        type: 'attendance.marked',
-        person_id: booking.client_id,
-        booking_id: booking.id,
-        meta: { status, source: 'staff_pwa', staff_id: coach.id },
-      });
-      meta = ev.metadata;
+        await supabase
+          .from('profiles')
+          .update({ metadata: meta, updated_at: now })
+          .eq('id', row.id);
 
-      await supabase
-        .from('profiles')
-        .update({ metadata: meta, updated_at: now })
-        .eq('id', row.id);
-
-      return NextResponse.json({
-        success: true,
-        booking: { id: booking.id, status: booking.status },
-        pack_remaining: packRemaining,
-        feedback_path:
-          booking.feedback_token
+        return NextResponse.json({
+          success: true,
+          booking: { id: booking.id, status: booking.status },
+          pack_remaining: packRemaining,
+          feedback_path: booking.feedback_token
             ? buildPublicFeedbackPath(
                 'fitgraph',
                 Number(row.id),
                 booking.feedback_token
               )
             : null,
-      });
+        });
+      }
+
+      if (module === 'dentalgraph' && meta0.dentalgraph) {
+        const store = readDentalgraphFromMetadata(meta0);
+        const staff = store.staff.find((c) => c.portal_token === token);
+        if (!staff) continue;
+        const booking = store.bookings.find((b) => b.id === bookingId);
+        if (!booking) {
+          return NextResponse.json(
+            { error: 'Booking not found' },
+            { status: 404 }
+          );
+        }
+        const now = new Date().toISOString();
+        const prev = booking.status;
+        booking.status = status as typeof booking.status;
+        if (
+          (status === 'attended' || status === 'no_show') &&
+          prev !== status
+        ) {
+          const pi = store.patients.findIndex(
+            (p) => p.id === booking.patient_id
+          );
+          if (pi >= 0) {
+            Object.assign(
+              store.patients[pi],
+              applyAttendanceToPersonStats(
+                store.patients[pi],
+                status as 'attended' | 'no_show',
+                now
+              )
+            );
+          }
+        }
+        if (status === 'attended' && prev !== 'attended') {
+          store.care_packs = store.care_packs || [];
+          const { packs } = consumePackSession(store.care_packs, {
+            personId: booking.patient_id,
+            bookingId: booking.id,
+            now,
+          });
+          store.care_packs = packs;
+        }
+        const meta = writeDentalgraphToMetadata(meta0, store);
+        await supabase
+          .from('profiles')
+          .update({ metadata: meta, updated_at: now })
+          .eq('id', row.id);
+        return NextResponse.json({
+          success: true,
+          booking: { id: booking.id, status: booking.status },
+        });
+      }
+
+      for (const cfg of [
+        {
+          key: 'physiograph' as const,
+          read: readPhysiographFromMetadata,
+          write: writePhysiographToMetadata,
+        },
+        {
+          key: 'medicalgraph' as const,
+          read: readMedicalgraphFromMetadata,
+          write: writeMedicalgraphToMetadata,
+        },
+        {
+          key: 'psychiatrygraph' as const,
+          read: readPsychiatrygraphFromMetadata,
+          write: writePsychiatrygraphToMetadata,
+        },
+      ]) {
+        if (module !== cfg.key || !meta0[cfg.key]) continue;
+        const store = cfg.read(meta0);
+        const prac = store.practitioners.find(
+          (c) => c.portal_token === token
+        );
+        if (!prac) continue;
+        const booking = store.bookings.find((b) => b.id === bookingId);
+        if (!booking) {
+          return NextResponse.json(
+            { error: 'Booking not found' },
+            { status: 404 }
+          );
+        }
+        const now = new Date().toISOString();
+        const prev = booking.status;
+        booking.status = status as typeof booking.status;
+        if (
+          (status === 'attended' || status === 'no_show') &&
+          prev !== status
+        ) {
+          const pi = store.patients.findIndex(
+            (p) => p.id === booking.patient_id
+          );
+          if (pi >= 0) {
+            Object.assign(
+              store.patients[pi],
+              applyAttendanceToPersonStats(
+                store.patients[pi],
+                status as 'attended' | 'no_show',
+                now
+              )
+            );
+          }
+        }
+        if (status === 'attended' && prev !== 'attended') {
+          store.care_packs = store.care_packs || [];
+          const { packs } = consumePackSession(store.care_packs, {
+            personId: booking.patient_id,
+            bookingId: booking.id,
+            now,
+          });
+          store.care_packs = packs;
+        }
+        const meta = cfg.write(meta0, store);
+        await supabase
+          .from('profiles')
+          .update({ metadata: meta, updated_at: now })
+          .eq('id', row.id);
+        return NextResponse.json({
+          success: true,
+          booking: { id: booking.id, status: booking.status },
+        });
+      }
     }
 
-    return NextResponse.json({ error: 'Staff portal not found' }, { status: 404 });
+    return NextResponse.json(
+      { error: 'Staff portal not found' },
+      { status: 404 }
+    );
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

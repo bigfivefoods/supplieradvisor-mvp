@@ -5,6 +5,10 @@
  */
 
 import { totalUnread } from '@/lib/messaging/service-inbox';
+import {
+  portalMessagesUnread,
+  portalThreadsForPerson,
+} from '@/lib/services/clinic-portal-messaging';
 
 export const PHYSIOGRAPH_MODULE_ID = 'physiograph' as const;
 export const PHYSIOGRAPH_META_KEY = 'physiograph';
@@ -407,6 +411,9 @@ export type PhysiographStore = {
   appointments: PhysioAppointment[];
   bookings: PhysioBooking[];
   waitlist_queue?: import('@/lib/services/clinic-waitlist').ClinicWaitlistQueueEntry[];
+  care_packs?: import('@/lib/services/advisor-pack-ledger').AdvisorPackLedgerEntry[];
+  treatment_plans?: import('@/lib/services/advisor-clinical').TreatmentPlan[];
+  visit_notes?: import('@/lib/services/advisor-clinical').VisitNote[];
   /** Desk · practitioner · patient messaging threads */
   threads?: import('@/lib/messaging/service-inbox').ServiceThread[];
   /** Patient post-visit feedback */
@@ -740,6 +747,32 @@ export function buildPatientPortalPayload(
     my_bookings,
     open_count: open_slots.filter((s) => !s.full).length,
     full_count: open_slots.filter((s) => s.full && !s.my_status).length,
+    threads: portalThreadsForPerson(store.threads, 'patient', patient.id),
+    messages_unread: portalMessagesUnread(store.threads, 'patient', patient.id),
+    care_packs: (store.care_packs || [])
+      .filter((p) => p.person_id === patient.id)
+      .map((p) => ({
+        id: p.id,
+        label: p.label || 'Care pack',
+        sessions_total: p.sessions_total,
+        sessions_used: p.sessions_used,
+        remaining: Math.max(0, (p.sessions_total || 0) - (p.sessions_used || 0)),
+        expires_at: p.expires_at || null,
+        status: p.status || 'active',
+      })),
+    treatment_plans: (store.treatment_plans || [])
+      .filter((t) => t.person_id === patient.id && t.status === 'active')
+      .map((t) => ({
+        id: t.id,
+        title: t.title,
+        status: t.status,
+        goals: t.goals,
+        next_step:
+          t.steps?.find(
+            (st) => st.status === 'planned' || st.status === 'in_progress'
+          ) || null,
+        steps: t.steps || [],
+      })),
   };
 }
 

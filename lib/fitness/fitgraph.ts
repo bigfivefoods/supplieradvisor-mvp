@@ -1114,6 +1114,21 @@ export function buildMemberPortalPayload(
       messages: t.messages,
     })),
     messages_unread: totalUnread(store.threads || [], 'member', client.id),
+    /** PT / session packs remaining (tracking only — payment offline) */
+    packs: (store.pt_packs || [])
+      .filter((p) => p.client_id === client.id)
+      .map((p) => ({
+        id: p.id,
+        label: p.label || 'PT pack',
+        sessions_total: p.sessions_total,
+        sessions_used: p.sessions_used,
+        remaining: Math.max(
+          0,
+          (p.sessions_total || 0) - (p.sessions_used || 0)
+        ),
+        expires_at: p.expires_at || null,
+        status: p.status || 'active',
+      })),
   };
 }
 
