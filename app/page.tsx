@@ -97,27 +97,111 @@ type ModuleBand = 'core' | 'sector' | 'industry' | 'nav';
 
 const MODULE_BAND_META: Record<
   Exclude<ModuleBand, 'nav'>,
-  { title: string; blurb: string; accent: string }
+  { title: string; blurb: string; accent: string; step: string; price: string }
 > = {
   core: {
     title: 'Core OS',
     blurb:
       'The shared operating system every company gets — trade, ops, assure, finance, and insight on one fabric.',
-    accent: 'text-[#0077b6] border-[#00b4d8]/40 bg-cyan-50/80',
+    accent:
+      'text-[#0077b6] border-[#00b4d8]/40 bg-cyan-50/80 dark:text-cyan-300 dark:border-cyan-500/40 dark:bg-cyan-500/10',
+    step: '01',
+    price: `R${CORE_OS_MONTHLY_ZAR}/mo`,
   },
   sector: {
     title: 'Sector',
     blurb:
       'Shape the workspace for how you produce and move goods — secondary manufacturing, logistics, and last-mile outlets.',
-    accent: 'text-sky-800 border-sky-200 bg-sky-50/80',
+    accent:
+      'text-sky-800 border-sky-200 bg-sky-50/80 dark:text-sky-300 dark:border-sky-500/40 dark:bg-sky-500/10',
+    step: '02',
+    price: 'Shape the workspace',
   },
   industry: {
     title: 'Industry',
     blurb:
       'Vertical OS modules for agri, extractives, and services — Fieldgraph®, Quarrygraph®, and Fitgraph®.',
-    accent: 'text-emerald-800 border-emerald-200 bg-emerald-50/80',
+    accent:
+      'text-emerald-800 border-emerald-200 bg-emerald-50/80 dark:text-emerald-300 dark:border-emerald-500/40 dark:bg-emerald-500/10',
+    step: '03',
+    price: `+R${INDUSTRY_PACK_MONTHLY_ZAR}/mo each`,
   },
 };
+
+const MODULE_OPTIONS: Array<{
+  id: 'core' | 'sector' | 'industry' | 'bespoke';
+  step: string;
+  title: string;
+  price: string;
+  eyebrow: string;
+  body: string;
+  tone: string;
+  iconTone: string;
+  bullets: string[];
+  href: string;
+  cta: string;
+}> = [
+  {
+    id: 'core',
+    step: '01',
+    title: 'Core OS',
+    price: `R${CORE_OS_MONTHLY_ZAR}/mo`,
+    eyebrow: 'Always included',
+    body: 'Trade, ops, finance, assure, and insight on one fabric — the foundation every company starts with.',
+    tone: 'border-slate-200 bg-[#f8fafc] dark:border-neutral-800 dark:bg-neutral-950',
+    iconTone: 'bg-[#00b4d8]/15 text-[#0077b6] dark:bg-[#00b4d8]/20 dark:text-[#00b4d8]',
+    bullets: [
+      'Network · Suppliers · Customers',
+      'Inventory · Operations · Quality · SHEQ',
+      'Finance · Projects · Impact · Intelligence',
+    ],
+    href: '#modules-core',
+    cta: 'Explore Core modules',
+  },
+  {
+    id: 'sector',
+    step: '02',
+    title: 'Sector',
+    price: 'Shape the workspace',
+    eyebrow: 'How you make & move',
+    body: 'Layer manufacturing, distribution, and container outlets for secondary and tertiary operations.',
+    tone: 'border-slate-200 bg-white dark:border-neutral-800 dark:bg-black',
+    iconTone: 'bg-sky-50 text-[#00b4d8] dark:bg-sky-500/15 dark:text-sky-300',
+    bullets: ['Manufacturing (Make)', 'Distribution (Ship)', 'Containers · last-mile outlets'],
+    href: '#modules-sector',
+    cta: 'Explore Sector modules',
+  },
+  {
+    id: 'industry',
+    step: '03',
+    title: 'Industry',
+    price: `+R${INDUSTRY_PACK_MONTHLY_ZAR}/mo each`,
+    eyebrow: 'Vertical depth',
+    body: 'Industry hubs for primary production and tertiary services — without removing Core process trees.',
+    tone: 'border-emerald-200/80 bg-gradient-to-br from-emerald-50/50 to-white dark:border-emerald-500/30 dark:from-emerald-500/10 dark:to-black',
+    iconTone: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300',
+    bullets: ['Fieldgraph® · agri production', 'Quarrygraph® · aggregates', 'Fitgraph® · fitness services'],
+    href: '#modules-industry',
+    cta: 'Explore Industry modules',
+  },
+  {
+    id: 'bespoke',
+    step: '04',
+    title: 'Bespoke',
+    price: 'Process design',
+    eyebrow: 'Specialist-led',
+    body: 'Custom workflows, multi-entity models, and integrations when your group runs differently.',
+    tone: 'border-amber-200 bg-gradient-to-br from-amber-50/80 to-white dark:border-amber-500/30 dark:from-amber-500/10 dark:to-black',
+    iconTone: 'bg-amber-50 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300',
+    bullets: [
+      'Custom process trees & approvals',
+      'Multi-entity / group models',
+      'Integrations into how you already work',
+    ],
+    href: '#modules-bespoke',
+    cta: 'Talk about bespoke',
+  },
+];
 
 const MODULES = [
   {
@@ -502,7 +586,7 @@ export default function LandingPage() {
         featured.band;
 
   return (
-    <div className="relative z-0 min-h-dvh bg-[#f8fafc] text-slate-900 antialiased selection:bg-cyan-100">
+    <div className="relative z-0 min-h-dvh bg-sa-bg text-sa-text antialiased selection:bg-cyan-100 dark:selection:bg-cyan-500/30">
       <LandingNav />
 
       {/* ═══════════ HERO ═══════════ */}
@@ -510,21 +594,21 @@ export default function LandingPage() {
         id="platform"
         className="relative flex min-h-[calc(100svh-4rem)] flex-col justify-center overflow-x-clip sm:min-h-[calc(100svh-4.25rem)]"
       >
-        {/* Bright light wash */}
+        {/* Light / dark washes */}
         <div
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(0,180,216,0.18),transparent_55%)]"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(0,180,216,0.18),transparent_55%)] dark:bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(0,180,216,0.14),transparent_55%)]"
           aria-hidden
         />
         <div
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(#cbd5e1_0.6px,transparent_0.6px)] bg-[length:18px_18px] opacity-[0.35]"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(#cbd5e1_0.6px,transparent_0.6px)] bg-[length:18px_18px] opacity-[0.35] dark:bg-[radial-gradient(#404040_0.6px,transparent_0.6px)] dark:opacity-[0.25]"
           aria-hidden
         />
         <div
-          className="pointer-events-none absolute -right-24 top-1/3 h-72 w-72 rounded-full bg-[#00b4d8]/10 blur-3xl"
+          className="pointer-events-none absolute -right-24 top-1/3 h-72 w-72 rounded-full bg-[#00b4d8]/10 blur-3xl dark:bg-[#00b4d8]/15"
           aria-hidden
         />
         <div
-          className="pointer-events-none absolute -left-16 bottom-1/4 h-64 w-64 rounded-full bg-violet-200/20 blur-3xl"
+          className="pointer-events-none absolute -left-16 bottom-1/4 h-64 w-64 rounded-full bg-violet-200/20 blur-3xl dark:bg-[#00b4d8]/8"
           aria-hidden
         />
 
@@ -558,7 +642,7 @@ export default function LandingPage() {
                 </Link>
                 <Link
                   href="/demo"
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-3.5 text-base font-semibold text-slate-800 shadow-sm transition-all hover:border-[#00b4d8] hover:text-[#0077b6]"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-3.5 text-base font-semibold text-slate-800 shadow-sm transition-all hover:border-[#00b4d8] hover:text-[#0077b6] dark:border-neutral-700 dark:bg-neutral-950 dark:text-white dark:hover:border-[#00b4d8]"
                 >
                   Book a demo
                 </Link>
@@ -1016,54 +1100,158 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ═══════════ MODULES — Core · Sector · Industry ═══════════ */}
-      <section id="modules" className="border-t border-slate-200 bg-white py-20 sm:py-28">
+      {/* ═══════════ MODULES — Core · Sector · Industry · Bespoke ═══════════ */}
+      <section
+        id="modules"
+        className="scroll-mt-20 border-t border-slate-200 bg-white py-20 dark:border-neutral-800 dark:bg-black sm:py-28"
+      >
         <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
-          <div className="mx-auto mb-14 max-w-3xl text-center sm:mb-16">
+          <div className="mx-auto mb-12 max-w-3xl text-center sm:mb-16">
             <SectionLabel>Modules</SectionLabel>
-            <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
-              Core · Sector · Industry.
-              <span className="mt-2 block text-slate-500">Zero silos.</span>
+            <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 dark:text-white sm:text-5xl">
+              Core · Sector · Industry
+              <span className="mt-2 block text-[#00b4d8]">Bespoke by design</span>
             </h2>
-            <p className="mt-4 text-base text-slate-600 sm:text-lg">
-              Deep capability where operators work — grouped the way you enable them
-              in the product. Plus bespoke company processes when your group runs differently.
+            <p className="mt-4 text-base leading-relaxed text-slate-600 dark:text-neutral-400 sm:text-lg">
+              Same packaging stack as setup — pick the layer that matches how you trade,
+              then dive into the modules inside each band.
             </p>
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-              {MODULE_SECTION_BANDS.map((b) => (
-                <a
-                  key={b.id}
-                  href={`#modules-${b.id}`}
-                  className={`rounded-full border px-3.5 py-1.5 text-[11px] font-bold transition-colors hover:border-[#00b4d8] ${MODULE_BAND_META[b.id].accent}`}
-                >
-                  {b.title}
-                </a>
-              ))}
-              <a
-                href="#modules-bespoke"
-                className="rounded-full border border-amber-200 bg-amber-50/90 px-3.5 py-1.5 text-[11px] font-bold text-amber-900 transition-colors hover:border-amber-400"
-              >
-                Bespoke processes
-              </a>
+          </div>
+
+          {/* Stack strip — mirrors Setup section */}
+          <div className="mx-auto mb-10 max-w-4xl sm:mb-12">
+            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-sky-50/60 shadow-sm dark:border-neutral-800 dark:from-neutral-950 dark:via-black dark:to-neutral-950">
+              <div className="grid divide-y divide-slate-100 dark:divide-neutral-800 sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+                {MODULE_OPTIONS.map((t) => (
+                  <a
+                    key={t.id}
+                    href={t.href}
+                    className={`flex flex-col items-center px-3 py-5 text-center transition-colors sm:py-6 ${
+                      t.id === 'core'
+                        ? 'bg-[#00b4d8] text-white hover:bg-[#0099b8]'
+                        : t.id === 'bespoke'
+                          ? 'bg-amber-50 text-amber-950 hover:bg-amber-100/80 dark:bg-amber-500/10 dark:text-amber-100 dark:hover:bg-amber-500/15'
+                          : t.id === 'industry'
+                            ? 'bg-white text-slate-900 hover:bg-emerald-50/50 dark:bg-black dark:text-white dark:hover:bg-emerald-500/10'
+                            : 'bg-white text-slate-900 hover:bg-sky-50/50 dark:bg-black dark:text-white dark:hover:bg-sky-500/10'
+                    }`}
+                  >
+                    <span className="font-mono text-[10px] font-bold tracking-widest opacity-70">
+                      {t.step}
+                    </span>
+                    <span className="mt-1 text-sm font-black sm:text-base">{t.title}</span>
+                    <span className="mt-1 text-[11px] font-semibold opacity-80">{t.price}</span>
+                  </a>
+                ))}
+              </div>
             </div>
           </div>
 
-          <div className="space-y-20 sm:space-y-24 lg:space-y-28">
+          {/* Four distinct option cards */}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {MODULE_OPTIONS.map((opt) => {
+              const Icon =
+                opt.id === 'core'
+                  ? Layers
+                  : opt.id === 'sector'
+                    ? Package
+                    : opt.id === 'industry'
+                      ? Factory
+                      : Puzzle;
+              const bandMods =
+                opt.id === 'bespoke'
+                  ? []
+                  : MODULES.filter((m) => m.band === opt.id);
+              return (
+                <div
+                  key={opt.id}
+                  id={opt.id === 'bespoke' ? 'modules-bespoke' : undefined}
+                  className={`flex flex-col rounded-[1.75rem] border p-6 sm:p-7 ${opt.tone} ${
+                    opt.id === 'bespoke' ? 'scroll-mt-24' : ''
+                  }`}
+                >
+                  <div
+                    className={`mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl ${opt.iconTone}`}
+                  >
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6] dark:text-[#00b4d8]">
+                    {opt.eyebrow}
+                  </p>
+                  <h3 className="mt-1 text-xl font-black text-slate-900 dark:text-white">
+                    {opt.title}
+                  </h3>
+                  <p className="mt-0.5 text-xs font-bold text-slate-500 dark:text-neutral-400">
+                    {opt.price}
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-neutral-400">
+                    {opt.body}
+                  </p>
+
+                  {bandMods.length > 0 ? (
+                    <ul className="mt-4 flex-1 space-y-2">
+                      {bandMods.map((m) => (
+                        <li key={m.id}>
+                          <a
+                            href={`#module-${m.id}`}
+                            className="flex items-center gap-2 rounded-xl border border-slate-100 bg-white/80 px-2.5 py-2 text-sm transition-colors hover:border-[#00b4d8]/40 dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-[#00b4d8]/40"
+                          >
+                            <m.icon className="h-3.5 w-3.5 shrink-0 text-[#00b4d8]" />
+                            <span className="min-w-0 flex-1 truncate font-semibold text-slate-800 dark:text-neutral-100">
+                              {m.title}
+                            </span>
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-300 dark:text-neutral-600" />
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <ul className="mt-4 flex-1 space-y-2 text-sm text-slate-700 dark:text-neutral-300">
+                      {opt.bullets.map((line) => (
+                        <li key={line} className="flex gap-2">
+                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                          <span>{line}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  <Link
+                    href={opt.id === 'bespoke' ? '/demo' : opt.href}
+                    className={`mt-6 inline-flex items-center gap-1.5 text-sm font-bold ${
+                      opt.id === 'bespoke'
+                        ? 'text-amber-700 hover:text-amber-600 dark:text-amber-300'
+                        : 'text-[#00b4d8] hover:text-[#0077b6]'
+                    }`}
+                  >
+                    {opt.cta} <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Deep dive: modules by band */}
+          <div className="mt-20 space-y-20 sm:mt-24 sm:space-y-24 lg:space-y-28">
             {MODULE_SECTION_BANDS.map((band) => {
               const bandModules = MODULES.filter((m) => m.band === band.id);
               return (
-                <div key={band.id} id={`modules-${band.id}`} className="scroll-mt-24">
-                  <div className="mb-10 flex flex-col gap-3 border-b border-slate-100 pb-6 sm:mb-12 sm:flex-row sm:items-end sm:justify-between">
+                <div
+                  key={band.id}
+                  id={`modules-${band.id}`}
+                  className="scroll-mt-24"
+                >
+                  <div className="mb-10 flex flex-col gap-3 border-b border-slate-100 pb-6 dark:border-neutral-800 sm:mb-12 sm:flex-row sm:items-end sm:justify-between">
                     <div>
                       <p
                         className={`mb-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${MODULE_BAND_META[band.id].accent}`}
                       >
                         {band.title}
                       </p>
-                      <h3 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+                      <h3 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white sm:text-3xl">
                         {band.title} modules
                       </h3>
-                      <p className="mt-2 max-w-2xl text-sm text-slate-600 sm:text-base">
+                      <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-neutral-400 sm:text-base">
                         {band.blurb}
                       </p>
                     </div>
@@ -1077,39 +1265,39 @@ export default function LandingPage() {
                       <div
                         key={mod.id}
                         id={`module-${mod.id}`}
-                        className="grid items-start gap-8 lg:grid-cols-12 lg:gap-10 xl:gap-12"
+                        className="grid scroll-mt-24 items-start gap-8 lg:grid-cols-12 lg:gap-10 xl:gap-12"
                       >
                         <div className="lg:col-span-4 lg:sticky lg:top-28">
                           <div className="mb-4 flex items-center gap-3">
                             <span className="font-mono text-[11px] font-bold tracking-[0.2em] text-slate-400">
                               {mod.code}
                             </span>
-                            <span className="h-px w-10 bg-slate-200" />
+                            <span className="h-px w-10 bg-slate-200 dark:bg-neutral-700" />
                             <mod.icon className="h-4 w-4 text-[#00b4d8]" />
                           </div>
-                          <h3 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl xl:text-4xl">
+                          <h3 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white sm:text-3xl xl:text-4xl">
                             {mod.title}
                           </h3>
                           <p className="mt-2 text-base font-semibold text-[#00b4d8] sm:text-lg">
                             {mod.tagline}
                           </p>
-                          <p className="mt-4 max-w-md text-sm leading-relaxed text-slate-600 sm:text-base">
+                          <p className="mt-4 max-w-md text-sm leading-relaxed text-slate-600 dark:text-neutral-400 sm:text-base">
                             {mod.body}
                           </p>
                           <ul className="mt-6 space-y-2.5">
                             {mod.bullets.map((b) => (
                               <li
                                 key={b}
-                                className="flex items-start gap-2.5 text-sm text-slate-700"
+                                className="flex items-start gap-2.5 text-sm text-slate-700 dark:text-neutral-300"
                               >
-                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
                                 {b}
                               </li>
                             ))}
                           </ul>
                           <Link
                             href="/onboarding?type=business"
-                            className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-[#0077b6] transition-colors hover:text-[#00b4d8]"
+                            className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-[#0077b6] transition-colors hover:text-[#00b4d8] dark:text-[#00b4d8]"
                           >
                             Join to use {mod.short}
                             <ChevronRight className="h-4 w-4" />
@@ -1117,7 +1305,7 @@ export default function LandingPage() {
                         </div>
 
                         <div className="min-w-0 lg:col-span-8">
-                          <div className="mb-3 overflow-hidden rounded-[1.5rem] border border-slate-200/90 bg-white shadow-lg shadow-slate-200/60">
+                          <div className="mb-3 overflow-hidden rounded-[1.5rem] border border-slate-200/90 bg-white shadow-lg shadow-slate-200/60 dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-black/40">
                             <ProductMockShell>
                               <mod.Mock />
                             </ProductMockShell>
@@ -1133,109 +1321,19 @@ export default function LandingPage() {
                 </div>
               );
             })}
-
-            {/* Bespoke company processes */}
-            <div
-              id="modules-bespoke"
-              className="scroll-mt-24 overflow-hidden rounded-[1.75rem] border border-amber-200/90 bg-gradient-to-br from-amber-50 via-white to-violet-50/50 shadow-sm"
-            >
-              <div className="grid items-center gap-8 p-6 sm:p-8 lg:grid-cols-12 lg:gap-10 lg:p-10">
-                <div className="lg:col-span-5">
-                  <p className="mb-2 inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-amber-900">
-                    Bespoke
-                  </p>
-                  <h3 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
-                    Bespoke company processes
-                  </h3>
-                  <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">
-                    Core, sector, and industry modules cover most operators out of the box.
-                    When your group needs custom workflows, multi-entity operating models,
-                    integrations, or process trees that only exist in your organisation —
-                    we design and ship them with you. Specialist-led, not a bolt-on form
-                    builder.
-                  </p>
-                  <ul className="mt-5 space-y-2.5">
-                    {[
-                      'Custom process trees & approvals',
-                      'Multi-entity / group operating models',
-                      'Integrations into how you already work',
-                    ].map((line) => (
-                      <li key={line} className="flex items-start gap-2.5 text-sm text-slate-700">
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                        {line}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="mt-6 flex flex-wrap gap-3">
-                    <Link
-                      href="/demo"
-                      className="inline-flex items-center gap-2 rounded-full bg-amber-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-amber-700"
-                    >
-                      Talk about bespoke
-                      <ArrowRight className="h-4 w-4" />
-                    </Link>
-                    <a
-                      href="#packaging"
-                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-800 hover:border-amber-300"
-                    >
-                      Packaging stack
-                    </a>
-                  </div>
-                </div>
-                <div className="min-w-0 lg:col-span-7">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    {[
-                      {
-                        eyebrow: 'Discover',
-                        title: 'Map how you really run',
-                        body: 'Process interviews, systems, and edge cases.',
-                      },
-                      {
-                        eyebrow: 'Design',
-                        title: 'Fit the SA fabric',
-                        body: 'Workflows on Core, sector, and industry rails.',
-                      },
-                      {
-                        eyebrow: 'Ship',
-                        title: 'Live in your workspace',
-                        body: 'Trained teams, guides, and measurable ops.',
-                      },
-                    ].map((card) => (
-                      <div
-                        key={card.eyebrow}
-                        className="flex min-h-[200px] flex-col rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm sm:min-h-[220px]"
-                      >
-                        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-700">
-                          {card.eyebrow}
-                        </div>
-                        <div className="mt-1 text-sm font-black text-slate-900">
-                          {card.title}
-                        </div>
-                        <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                          {card.body}
-                        </p>
-                        <div className="mt-auto pt-4">
-                          <div className="h-16 rounded-xl bg-gradient-to-br from-amber-100/80 via-white to-violet-100/60" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
 
           <div className="mt-16 flex flex-wrap items-center justify-center gap-3 sm:mt-20">
             <Link
               href="/onboarding?type=business"
-              className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-sm font-bold text-white shadow-md shadow-cyan-200/50 hover:bg-[#0099b8]"
+              className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-sm font-bold text-white shadow-md shadow-cyan-200/50 hover:bg-[#0099b8] dark:shadow-cyan-900/30"
             >
               Start free trial — unlock all modules
               <ArrowRight className="h-4 w-4" />
             </Link>
             <a
               href="#pricing"
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-3.5 text-sm font-bold text-slate-800 hover:border-[#00b4d8]"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-3.5 text-sm font-bold text-slate-800 hover:border-[#00b4d8] dark:border-neutral-700 dark:bg-neutral-950 dark:text-white"
             >
               See pricing
             </a>
@@ -1246,7 +1344,7 @@ export default function LandingPage() {
       {/* ═══════════ CORE OS · SECTOR · INDUSTRY · GOVERNMENT · BESPOKE ═══════════ */}
       <section
         id="packaging"
-        className="scroll-mt-20 border-t border-slate-200 bg-white py-20 sm:py-28"
+        className="scroll-mt-20 border-t border-slate-200 bg-white py-20 dark:border-neutral-800 dark:bg-black sm:py-28"
       >
         <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
           <div className="mx-auto mb-12 max-w-3xl text-center sm:mb-16">
@@ -1267,8 +1365,8 @@ export default function LandingPage() {
 
           {/* Stack visual */}
           <div className="mx-auto mb-12 max-w-4xl">
-            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-sky-50/60 shadow-sm">
-              <div className="grid divide-y divide-slate-100 sm:grid-cols-5 sm:divide-x sm:divide-y-0">
+            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-sky-50/60 shadow-sm dark:border-neutral-800 dark:from-neutral-950 dark:via-black dark:to-neutral-950">
+              <div className="grid divide-y divide-slate-100 dark:divide-neutral-800 sm:grid-cols-5 sm:divide-x sm:divide-y-0">
                 {[
                   {
                     step: '01',
@@ -1280,25 +1378,25 @@ export default function LandingPage() {
                     step: '02',
                     title: 'Sector',
                     price: 'Shape the workspace',
-                    tone: 'bg-white text-slate-900',
+                    tone: 'bg-white text-slate-900 dark:bg-black dark:text-white',
                   },
                   {
                     step: '03',
                     title: 'Industry',
                     price: `+R${INDUSTRY_PACK_MONTHLY_ZAR}/mo each`,
-                    tone: 'bg-white text-slate-900',
+                    tone: 'bg-white text-slate-900 dark:bg-black dark:text-white',
                   },
                   {
                     step: '04',
                     title: 'Government',
                     price: 'Specialist setup',
-                    tone: 'bg-violet-50 text-violet-950',
+                    tone: 'bg-violet-50 text-violet-950 dark:bg-violet-500/15 dark:text-violet-100',
                   },
                   {
                     step: '05',
                     title: 'Bespoke',
                     price: 'Process design',
-                    tone: 'bg-amber-50 text-amber-950',
+                    tone: 'bg-amber-50 text-amber-950 dark:bg-amber-500/10 dark:text-amber-100',
                   },
                 ].map((t) => (
                   <div
@@ -1322,23 +1420,23 @@ export default function LandingPage() {
 
           <div className="grid gap-4 lg:grid-cols-3">
             {/* Core OS */}
-            <div className="rounded-[1.75rem] border border-slate-200 bg-[#f8fafc] p-6 sm:p-7 lg:col-span-1">
-              <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#00b4d8]/15 text-[#0077b6]">
+            <div className="rounded-[1.75rem] border border-slate-200 bg-[#f8fafc] p-6 dark:border-neutral-800 dark:bg-neutral-950 sm:p-7 lg:col-span-1">
+              <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#00b4d8]/15 text-[#0077b6] dark:bg-[#00b4d8]/20 dark:text-[#00b4d8]">
                 <Layers className="h-5 w-5" />
               </div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6]">
+              <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6] dark:text-[#00b4d8]">
                 Always included
               </p>
-              <h3 className="mt-1 text-xl font-black text-slate-900">
+              <h3 className="mt-1 text-xl font-black text-slate-900 dark:text-white">
                 Core OS · R{CORE_OS_MONTHLY_ZAR}/mo
               </h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-neutral-400">
                 The shared operating system every company gets: Control Tower,
                 Company (identity, modules, billing), Network, Suppliers,
                 Customers, Inventory, Operations, Quality, Finance, Intelligence,
                 and Guide — one workspace, one trust fabric.
               </p>
-              <ul className="mt-4 space-y-2 text-sm text-slate-700">
+              <ul className="mt-4 space-y-2 text-sm text-slate-700 dark:text-neutral-300">
                 {[
                   `${COMPANY_TRIAL_DAYS}-day free trial`,
                   'Module toggles for your team',
@@ -1359,17 +1457,17 @@ export default function LandingPage() {
             </div>
 
             {/* Sector + Industry */}
-            <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-7 lg:col-span-1">
-              <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 text-[#00b4d8]">
+            <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-black sm:p-7 lg:col-span-1">
+              <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 text-[#00b4d8] dark:bg-sky-500/15">
                 <Package className="h-5 w-5" />
               </div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6]">
+              <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6] dark:text-[#00b4d8]">
                 Self-serve packaging
               </p>
-              <h3 className="mt-1 text-xl font-black text-slate-900">
+              <h3 className="mt-1 text-xl font-black text-slate-900 dark:text-white">
                 Sector &amp; industries
               </h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-neutral-400">
                 Pick your economic sector, then one or more industries. Industry
                 Packs unlock vertical hubs and tools at +R{INDUSTRY_PACK_MONTHLY_ZAR}
                 /mo each — without removing Core process trees.
@@ -1378,13 +1476,13 @@ export default function LandingPage() {
                 {OS_SECTORS.map((s) => (
                   <span
                     key={s.id}
-                    className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-700"
+                    className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-200"
                   >
                     {s.label}
                   </span>
                 ))}
               </div>
-              <ul className="mt-4 space-y-2 text-sm text-slate-700">
+              <ul className="mt-4 space-y-2 text-sm text-slate-700 dark:text-neutral-300">
                 {[
                   'Primary · Secondary · Tertiary · Quaternary',
                   'Multi-industry companies supported',
