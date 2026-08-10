@@ -70,13 +70,15 @@ function Telemetry({
 }: {
   label: string;
   value: string;
-  tone?: 'cyan' | 'emerald' | 'amber' | 'violet';
+  tone?: 'cyan' | 'emerald' | 'amber' | 'violet' | 'teal' | 'sky';
 }) {
   const tones = {
     cyan: 'from-cyan-50 to-white border-cyan-100',
     emerald: 'from-emerald-50 to-white border-emerald-100',
     amber: 'from-amber-50 to-white border-amber-100',
     violet: 'from-violet-50 to-white border-violet-100',
+    teal: 'from-teal-50 to-white border-teal-100',
+    sky: 'from-sky-50 to-white border-sky-100',
   };
   return (
     <div className={`rounded-xl sm:rounded-2xl border bg-gradient-to-br ${tones[tone]} px-2.5 sm:px-3 py-2 sm:py-2.5`}>
@@ -736,7 +738,7 @@ export function FitgraphMock() {
       <div className="mb-2 flex items-center justify-between gap-2">
         <div>
           <div className="text-[9px] font-bold uppercase tracking-widest text-violet-700">
-            Fitgraph® · Services
+            Fitgraph® · Gym
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
             Coaches · classes · memberships.
@@ -767,6 +769,82 @@ export function FitgraphMock() {
   );
 }
 
+/** Industry — physio / allied health clinic OS */
+export function PhysiographMock() {
+  return (
+    <Frame title="dashboard/physiograph">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[9px] font-bold uppercase tracking-widest text-teal-700">
+            Physiograph® · Clinic
+          </div>
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+            Practitioners · diary · rehab.
+          </div>
+        </div>
+        <span className="rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[9px] font-black uppercase text-teal-800">
+          Tertiary
+        </span>
+      </div>
+      <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
+        <Telemetry label="Patients" value="312" tone="cyan" />
+        <Telemetry label="Today" value="14" tone="teal" />
+        <Telemetry label="Packs" value="68" tone="emerald" />
+        <Telemetry label="Msgs" value="9" tone="violet" />
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+        {['Practitioners', 'Diary', 'Messages'].map((t) => (
+          <div
+            key={t}
+            className="rounded-xl border border-slate-100 bg-white p-2 text-center shadow-sm sm:p-3"
+          >
+            <div className="text-[11px] font-bold text-slate-800 sm:text-xs">{t}</div>
+            <div className="mt-2 h-8 rounded-lg bg-gradient-to-br from-teal-50 to-cyan-50" />
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+/** Industry — dental practice OS */
+export function DentalgraphMock() {
+  return (
+    <Frame title="dashboard/dentalgraph">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[9px] font-bold uppercase tracking-widest text-sky-700">
+            Dentalgraph® · Dental
+          </div>
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+            Staff · surgeries · care plans.
+          </div>
+        </div>
+        <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[9px] font-black uppercase text-sky-800">
+          Tertiary
+        </span>
+      </div>
+      <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
+        <Telemetry label="Patients" value="1.2k" tone="cyan" />
+        <Telemetry label="Chairs" value="6" tone="sky" />
+        <Telemetry label="Today" value="22" tone="amber" />
+        <Telemetry label="Hygiene" value="8" tone="emerald" />
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+        {['Staff', 'Diary', 'Website'].map((t) => (
+          <div
+            key={t}
+            className="rounded-xl border border-slate-100 bg-white p-2 text-center shadow-sm sm:p-3"
+          >
+            <div className="text-[11px] font-bold text-slate-800 sm:text-xs">{t}</div>
+            <div className="mt-2 h-8 rounded-lg bg-gradient-to-br from-sky-50 to-indigo-50" />
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
 /** App navigation — Core · Sector · Industry modules */
 export function NavMock() {
   const bands = [
@@ -783,7 +861,13 @@ export function NavMock() {
     {
       label: 'Industry',
       tone: 'text-emerald-700',
-      items: ['Fieldgraph®', 'Quarrygraph®', 'Fitgraph®'],
+      items: [
+        'Fieldgraph®',
+        'Quarrygraph®',
+        'Fitgraph®',
+        'Physiograph®',
+        'Dentalgraph®',
+      ],
     },
   ];
   return (
@@ -1404,7 +1488,9 @@ const MODULE_GALLERIES: Record<string, GalleryScene[]> = {
       list: [
         { left: 'Fieldgraph®', right: 'Agri', tone: 'emerald' },
         { left: 'Quarrygraph®', right: 'Extract', tone: 'amber' },
-        { left: 'Fitgraph®', right: 'Fitness', tone: 'violet' },
+        { left: 'Fitgraph®', right: 'Gym', tone: 'violet' },
+        { left: 'Physiograph®', right: 'Clinic', tone: 'cyan' },
+        { left: 'Dentalgraph®', right: 'Dental', tone: 'sky' },
       ],
     },
   ],
@@ -1492,7 +1578,7 @@ function GalleryCard({ scene }: { scene: GalleryScene }) {
 
           {scene.kind === 'list' && scene.list && (
             <div className="space-y-1">
-              {scene.list.slice(0, 3).map((row) => (
+              {scene.list.slice(0, 5).map((row) => (
                 <div
                   key={row.left}
                   className="flex items-center justify-between gap-2 rounded-lg border border-white/70 bg-white/75 px-2 py-1 text-[10px] shadow-sm backdrop-blur-sm"

@@ -9,6 +9,9 @@ import {
   Truck,
   Landmark,
   Building2,
+  Dumbbell,
+  Stethoscope,
+  Smile,
 } from 'lucide-react';
 
 const INDUSTRIES = [
@@ -21,7 +24,7 @@ const INDUSTRIES = [
   {
     slug: 'agriculture',
     name: 'Agriculture & inputs',
-    desc: 'Supplier scores, seasonal POs, inventory, and verified farm-to-buyer edges.',
+    desc: 'Fieldgraph® fields, harvest, inputs, fleet fuel, and farm-to-buyer trade.',
     icon: Leaf,
   },
   {
@@ -35,6 +38,24 @@ const INDUSTRIES = [
     name: 'Distribution & logistics',
     desc: 'Inbound/outbound, carriers, fleet, OTIF, and live shipment events.',
     icon: Truck,
+  },
+  {
+    href: '/#modules-industry',
+    name: 'Fitness & gyms',
+    desc: 'Fitgraph® — coaches, members, classes, calendar, messaging, and website bookings.',
+    icon: Dumbbell,
+  },
+  {
+    href: '/#modules-industry',
+    name: 'Physio & allied health',
+    desc: 'Physiograph® — practitioners, patients, rehab packs, diary, and clinic messages.',
+    icon: Stethoscope,
+  },
+  {
+    href: '/#modules-industry',
+    name: 'Dental practices',
+    desc: 'Dentalgraph® — dentists & staff, patients, care plans, surgeries, and messaging.',
+    icon: Smile,
   },
   {
     slug: 'public-sector',
@@ -70,10 +91,15 @@ export default function IndustriesStrip() {
           </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {INDUSTRIES.map((ind) => (
+          {INDUSTRIES.map((ind) => {
+            const href =
+              'href' in ind && ind.href
+                ? ind.href
+                : `/industries/${'slug' in ind ? ind.slug : ''}`;
+            return (
             <Link
-              key={ind.slug}
-              href={`/industries/${ind.slug}`}
+              key={ind.name}
+              href={href}
               className="group rounded-3xl border border-slate-200 bg-gradient-to-b from-white to-sky-50/30 p-6 shadow-sm transition-all hover:border-[#00b4d8]/45 hover:shadow-md"
             >
               <ind.icon className="mb-3 h-5 w-5 text-[#00b4d8]" />
@@ -87,7 +113,8 @@ export default function IndustriesStrip() {
                 Explore <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
               </span>
             </Link>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

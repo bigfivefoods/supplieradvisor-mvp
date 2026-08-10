@@ -41,6 +41,8 @@ import {
   Sprout,
   Mountain,
   Dumbbell,
+  Stethoscope,
+  Smile,
   PanelLeft,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -73,6 +75,8 @@ import {
   FieldgraphMock,
   QuarrygraphMock,
   FitgraphMock,
+  PhysiographMock,
+  DentalgraphMock,
   NavMock,
   ModuleGallery,
   ProductMockShell,
@@ -120,7 +124,7 @@ const MODULE_BAND_META: Record<
   industry: {
     title: 'Industry',
     blurb:
-      'Vertical OS modules for agri, extractives, and services — Fieldgraph®, Quarrygraph®, and Fitgraph®.',
+      'Vertical OS modules for agri, extractives, and services — Fieldgraph®, Quarrygraph®, Fitgraph®, Physiograph®, and Dentalgraph®.',
     accent:
       'text-emerald-800 border-emerald-200 bg-emerald-50/80 dark:text-emerald-300 dark:border-emerald-500/40 dark:bg-emerald-500/10',
     step: '03',
@@ -182,7 +186,11 @@ const MODULE_OPTIONS: Array<{
     body: 'Industry hubs for primary production and tertiary services — without removing Core process trees.',
     tone: 'border-emerald-200/80 bg-gradient-to-br from-emerald-50/50 to-white dark:border-emerald-500/30 dark:from-emerald-500/10 dark:to-black',
     iconTone: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300',
-    bullets: ['Fieldgraph® · agri production', 'Quarrygraph® · aggregates', 'Fitgraph® · fitness services'],
+    bullets: [
+      'Fieldgraph® · agri · Quarrygraph® · aggregates',
+      'Fitgraph® · gyms · Physiograph® · clinics',
+      'Dentalgraph® · dental practices',
+    ],
     href: '#modules-industry',
     cta: 'Explore Industry modules',
   },
@@ -233,7 +241,11 @@ const MODULES = [
     short: 'Nav',
     tagline: 'Core · Sector · Industry in one sidebar',
     body: 'Your company workspace groups modules the way you buy them — Core OS always on, sector modules for how you make and move, industry hubs when vertical depth matters.',
-    bullets: ['Core foundations first', 'Sector make · ship · outlets', 'Industry hubs on demand'],
+    bullets: [
+      'Core foundations first',
+      'Sector make · ship · outlets',
+      'Industry hubs: Field · Quarry · Fit · Physio · Dental',
+    ],
     Mock: NavMock,
     icon: PanelLeft,
   },
@@ -435,11 +447,47 @@ const MODULES = [
     code: 'I3',
     title: 'Fitgraph®',
     short: 'Fitgraph',
-    tagline: 'Fitness & services OS',
-    body: 'Gym coaches, members, memberships, classes, calendar, public website bookings, coach share, subscriptions, and check-ins — tertiary services on the same verified fabric.',
-    bullets: ['Coaches · classes · calendar', 'Memberships & subscriptions', 'Public website · check-ins'],
+    tagline: 'Gym & fitness services OS',
+    body: 'Gym coaches, members, memberships, classes, calendar, public website bookings, coach share, subscriptions, messaging, and check-ins — tertiary services on the same verified fabric.',
+    bullets: [
+      'Coaches · classes · calendar',
+      'Memberships · injury notes',
+      'Messages · website · check-ins',
+    ],
     Mock: FitgraphMock,
     icon: Dumbbell,
+  },
+  {
+    id: 'physiograph',
+    band: 'industry' as ModuleBand,
+    code: 'I4',
+    title: 'Physiograph®',
+    short: 'Physiograph',
+    tagline: 'Physio & allied health OS',
+    body: 'Practitioners, patients, rehab packages, appointment diary, bookings, clinical injury notes, team messaging, and clinic website — for physio, OT, biokinetics and allied practices.',
+    bullets: [
+      'Practitioners · patients · packages',
+      'Diary · bookings · clinical notes',
+      'Messages · clinic website',
+    ],
+    Mock: PhysiographMock,
+    icon: Stethoscope,
+  },
+  {
+    id: 'dentalgraph',
+    band: 'industry' as ModuleBand,
+    code: 'I5',
+    title: 'Dentalgraph®',
+    short: 'Dentalgraph',
+    tagline: 'Dental practice OS',
+    body: 'Dentists, hygienists and staff, patients, treatment catalogue, care plans, surgery diary, bookings, oral-health notes, messaging, and practice website — multi-chair ready.',
+    bullets: [
+      'Staff · patients · care plans',
+      'Diary · bookings · clinical notes',
+      'Messages · practice website',
+    ],
+    Mock: DentalgraphMock,
+    icon: Smile,
   },
 ] as const;
 
@@ -461,7 +509,8 @@ const MODULE_SECTION_BANDS: Array<{
   {
     id: 'industry',
     title: 'Industry',
-    blurb: 'Vertical depth — Fieldgraph®, Quarrygraph®, and Fitgraph® for agri, extractives, and fitness.',
+    blurb:
+      'Vertical depth — Fieldgraph®, Quarrygraph®, Fitgraph®, Physiograph®, and Dentalgraph® for agri, extractives, gyms, clinics, and dental.',
   },
 ];
 
