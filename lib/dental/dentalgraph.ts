@@ -102,6 +102,8 @@ export type DentalStaff = {
   name: string;
   email?: string;
   phone?: string;
+  /** Linked People / HR employee id (dual-write) */
+  hr_employee_id?: number | null;
   /** Roles / skills (owner-managed catalogue) */
   roles?: string[];
   bio?: string;

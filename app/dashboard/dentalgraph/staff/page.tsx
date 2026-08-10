@@ -222,7 +222,7 @@ export default function StaffPage() {
         rate_note: form.rate_note || undefined,
       },
     });
-    toast.success('Staff member saved');
+    toast.success('Staff member saved — synced to People directory');
     setForm(emptyForm());
   };
 

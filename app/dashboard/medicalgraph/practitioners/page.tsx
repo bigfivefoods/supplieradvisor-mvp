@@ -227,7 +227,7 @@ export default function PractitionersPage() {
         rate_note: form.rate_note || undefined,
       },
     });
-    toast.success('Practitioner saved');
+    toast.success('Practitioner saved — synced to People directory');
     setForm(emptyForm());
   };
 

@@ -1070,12 +1070,40 @@ export async function POST(request: NextRequest) {
     }
     const rec = (body.record || body) as Record<string, unknown>;
     upsert(store, entity, rec, now);
+
+    // Dual-write coaches → People / HR directory
+    let peopleSync: { employeeId: number | null; created?: boolean } | null =
+      null;
+    if (entity === 'coaches') {
+      const coachId = String(
+        rec.id || store.coaches[store.coaches.length - 1]?.id || ''
+      );
+      const coach = store.coaches.find((c) => c.id === coachId);
+      if (coach) {
+        const { syncStoreStaffPersonToHr } = await import(
+          '@/lib/hr/sync-service-person'
+        );
+        peopleSync = await syncStoreStaffPersonToHr({
+          companyId,
+          source: 'fitgraph_coach',
+          person: coach,
+        });
+      }
+    }
+
     await saveStore(companyId, meta, store);
     return NextResponse.json({
       success: true,
       store,
       summary: summariseFitgraph(store),
       analysis: analysis(store),
+      people_sync: peopleSync,
+      message:
+        entity === 'coaches' && peopleSync?.employeeId
+          ? peopleSync.created
+            ? 'Coach saved and added to People directory'
+            : 'Coach saved and People record updated'
+          : undefined,
     });
   } catch (e: unknown) {
     console.error('[fitgraph]', e);
@@ -1153,6 +1181,12 @@ function upsert(
             : undefined
           : prev?.id_number,
       identity: prev?.identity,
+      hr_employee_id:
+        rec.hr_employee_id !== undefined
+          ? rec.hr_employee_id
+            ? Number(rec.hr_employee_id)
+            : null
+          : prev?.hr_employee_id ?? null,
       specialties: Array.isArray(rec.specialties)
         ? (rec.specialties as string[])
         : rec.specialty

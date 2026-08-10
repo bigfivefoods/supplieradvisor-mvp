@@ -20,6 +20,7 @@ import {
 import { sessionBookingCount } from '@/lib/fitness/fitgraph';
 import {
   PracticeScheduleCalendar,
+  type DiaryScope,
   type ScheduleEvent,
 } from '@/components/schedule/PracticeScheduleCalendar';
 import { WorkingHoursEditor } from '@/components/schedule/WorkingHoursEditor';
@@ -39,6 +40,7 @@ export default function CalendarPage() {
   const { store, loading, saving, post, summary } = useFitgraph();
   const [day, setDay] = useState(new Date().toISOString().slice(0, 10));
   const [personFilter, setPersonFilter] = useState('');
+  const [diaryScope, setDiaryScope] = useState<DiaryScope>('practice');
   const [form, setForm] = useState({
     class_type_id: '',
     coach_id: '',
@@ -248,6 +250,7 @@ export default function CalendarPage() {
 
           <WorkingHoursEditor
             value={workingHours}
+            defaultCollapsed
             onSave={saveHours}
             saving={saving}
             title="Gym working hours"
@@ -262,6 +265,12 @@ export default function CalendarPage() {
             people={schedulePeople}
             peopleLabel="Coach"
             workingHours={workingHours}
+            diaryScope={diaryScope}
+            onDiaryScopeChange={(scope) => {
+              setDiaryScope(scope);
+              if (scope === 'practice') setPersonFilter('');
+            }}
+            showDiaryScopeToggle
             personFilter={personFilter}
             onPersonFilterChange={(id) => {
               setPersonFilter(id);

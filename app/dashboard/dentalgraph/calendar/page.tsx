@@ -10,6 +10,7 @@ import {
 import { DataTable, FormCard, StatRow, fc } from '@/components/dental/DentalForm';
 import {
   PracticeScheduleCalendar,
+  type DiaryScope,
   type ScheduleEvent,
 } from '@/components/schedule/PracticeScheduleCalendar';
 import { WorkingHoursEditor } from '@/components/schedule/WorkingHoursEditor';
@@ -18,6 +19,7 @@ import { normalizeWorkingHours } from '@/lib/schedule/working-hours';
 export default function CalendarPage() {
   const { store, loading, saving, post, summary } = useDentalgraph();
   const [personFilter, setPersonFilter] = useState('');
+  const [diaryScope, setDiaryScope] = useState<DiaryScope>('practice');
   const [form, setForm] = useState({
     service_id: '',
     staff_id: '',
@@ -123,7 +125,7 @@ export default function CalendarPage() {
     <DentalgraphWorkbench
       title="Calendar"
       titleAccent="practice diary"
-      description="Day, week and month views — set working hours, then filter by dentist or clinician. Schedule new slots below."
+      description="Collapse working hours when not editing them. Day and week views match open hours. Switch Practice diary vs Clinician diary for a single dentist's book."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -154,23 +156,35 @@ export default function CalendarPage() {
             value={workingHours}
             onSave={saveHours}
             saving={saving}
+            defaultCollapsed
             title="Practice working hours"
-            description="Open days and times for this dental practice. Closed days are dimmed on the schedule; day view snaps to your open window."
+            description="Open days and times for this dental practice. Expand to edit; the diary height follows these hours."
             accentClass="border-sky-200 dark:border-sky-800"
           />
 
           <PracticeScheduleCalendar
-            title="Practice schedule"
+            title="Practice diary"
             accent="sky"
             events={events}
             people={people}
             peopleLabel="Clinician"
             workingHours={workingHours}
+            diaryScope={diaryScope}
+            onDiaryScopeChange={(scope) => {
+              setDiaryScope(scope);
+              if (scope === 'practice') setPersonFilter('');
+            }}
             personFilter={personFilter}
             onPersonFilterChange={(id) => {
               setPersonFilter(id);
-              if (id) setForm((f) => ({ ...f, staff_id: id }));
+              if (id) {
+                setForm((f) => ({ ...f, staff_id: id }));
+                if (diaryScope === 'practice' && id) {
+                  // optional: stay on practice with filter
+                }
+              }
             }}
+            showDiaryScopeToggle
             initialDate={form.date}
             emptyLabel="No appointments"
             onSelectDate={(date) => setForm((f) => ({ ...f, date }))}

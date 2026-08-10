@@ -10,6 +10,7 @@ import {
 import { DataTable, FormCard, StatRow, fc } from '@/components/clinic/MedicalForm';
 import {
   PracticeScheduleCalendar,
+  type DiaryScope,
   type ScheduleEvent,
 } from '@/components/schedule/PracticeScheduleCalendar';
 import { WorkingHoursEditor } from '@/components/schedule/WorkingHoursEditor';
@@ -18,6 +19,7 @@ import { normalizeWorkingHours } from '@/lib/schedule/working-hours';
 export default function CalendarPage() {
   const { store, loading, saving, post, summary } = useMedicalgraph();
   const [personFilter, setPersonFilter] = useState('');
+  const [diaryScope, setDiaryScope] = useState<DiaryScope>('practice');
   const [form, setForm] = useState({
     service_id: '',
     practitioner_id: '',
@@ -150,6 +152,7 @@ export default function CalendarPage() {
 
           <WorkingHoursEditor
             value={workingHours}
+            defaultCollapsed
             onSave={saveHours}
             saving={saving}
             title="Clinic working hours"
@@ -164,6 +167,12 @@ export default function CalendarPage() {
             people={people}
             peopleLabel="Practitioner"
             workingHours={workingHours}
+            diaryScope={diaryScope}
+            onDiaryScopeChange={(scope) => {
+              setDiaryScope(scope);
+              if (scope === 'practice') setPersonFilter('');
+            }}
+            showDiaryScopeToggle
             personFilter={personFilter}
             onPersonFilterChange={(id) => {
               setPersonFilter(id);

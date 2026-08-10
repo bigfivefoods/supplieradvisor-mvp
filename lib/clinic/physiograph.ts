@@ -84,6 +84,8 @@ export type PhysioPractitioner = {
   name: string;
   email?: string;
   phone?: string;
+  /** Linked People / HR employee id (dual-write) */
+  hr_employee_id?: number | null;
   /** Skills / disciplines (owner-managed catalogue) */
   disciplines?: string[];
   bio?: string;

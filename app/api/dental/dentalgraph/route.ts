@@ -699,12 +699,39 @@ export async function POST(request: NextRequest) {
     if (action === 'upsert' || action === 'create' || action === 'update') {
       const rec = (body.record || body) as Record<string, unknown>;
       upsert(store, entity, rec, now);
+
+      let peopleSync: { employeeId: number | null; created?: boolean } | null =
+        null;
+      if (entity === 'staff') {
+        const staffId = String(
+          rec.id || store.staff[store.staff.length - 1]?.id || ''
+        );
+        const person = store.staff.find((s) => s.id === staffId);
+        if (person) {
+          const { syncStoreStaffPersonToHr } = await import(
+            '@/lib/hr/sync-service-person'
+          );
+          peopleSync = await syncStoreStaffPersonToHr({
+            companyId,
+            source: 'dentalgraph_staff',
+            person,
+          });
+        }
+      }
+
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
         store,
         summary: summariseDentalgraph(store),
         analysis: analysis(store),
+        people_sync: peopleSync,
+        message:
+          entity === 'staff' && peopleSync?.employeeId
+            ? peopleSync.created
+              ? 'Staff saved and added to People directory'
+              : 'Staff saved and People record updated'
+            : undefined,
       });
     }
 
@@ -768,6 +795,12 @@ function upsert(
       name: String(rec.name || prev?.name || 'Staff'),
       email: rec.email != null ? String(rec.email) : prev?.email,
       phone: rec.phone != null ? String(rec.phone) : prev?.phone,
+      hr_employee_id:
+        rec.hr_employee_id !== undefined
+          ? rec.hr_employee_id
+            ? Number(rec.hr_employee_id)
+            : null
+          : prev?.hr_employee_id ?? null,
       roles: Array.isArray(rec.roles)
         ? (rec.roles as string[])
         : rec.skills

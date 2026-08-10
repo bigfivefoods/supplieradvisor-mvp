@@ -117,27 +117,42 @@ export function openCloseOn(
   };
 }
 
-/** Hour bounds for day timeline (inclusive start, exclusive-ish end) */
+function minutesFromMidnight(t: string): number {
+  const [h, m] = String(t || '00:00')
+    .slice(0, 5)
+    .split(':')
+    .map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+/**
+ * Hour / minute bounds for day & week timelines.
+ * @param pad — when true, add 1h buffer either side (legacy). Default false = exact open–close.
+ */
 export function hourBounds(
   hours: WorkingHours | null | undefined,
-  isoDate?: string
-): { startHour: number; endHour: number } {
+  isoDate?: string,
+  opts?: { pad?: boolean }
+): {
+  startHour: number;
+  endHour: number;
+  startMinute: number;
+  endMinute: number;
+} {
+  const pad = opts?.pad === true;
   const h = normalizeWorkingHours(hours);
-  let minOpen = 24;
-  let maxClose = 0;
+  let minOpenMin = 24 * 60;
+  let maxCloseMin = 0;
 
   const consider = (open: string, close: string) => {
-    const [oh] = open.split(':').map(Number);
-    const [ch, cm] = close.split(':').map(Number);
-    minOpen = Math.min(minOpen, oh || 0);
-    maxClose = Math.max(maxClose, (ch || 0) + ((cm || 0) > 0 ? 1 : 0));
+    minOpenMin = Math.min(minOpenMin, minutesFromMidnight(open));
+    maxCloseMin = Math.max(maxCloseMin, minutesFromMidnight(close));
   };
 
   if (isoDate) {
     const oc = openCloseOn(h, isoDate);
     if (!oc.closed) consider(oc.open, oc.close);
     else {
-      // closed day — still show a reasonable window
       consider(h.default_open || '08:00', h.default_close || '17:00');
     }
   } else {
@@ -148,13 +163,40 @@ export function hourBounds(
     }
   }
 
-  if (minOpen >= 24) minOpen = 6;
-  if (maxClose <= 0) maxClose = 21;
-  // pad one hour either side for spillover appointments
+  if (minOpenMin >= 24 * 60) minOpenMin = 8 * 60;
+  if (maxCloseMin <= 0) maxCloseMin = 17 * 60;
+  if (maxCloseMin <= minOpenMin) maxCloseMin = minOpenMin + 60;
+
+  let startMinute = minOpenMin;
+  let endMinute = maxCloseMin;
+  if (pad) {
+    startMinute = Math.max(0, startMinute - 60);
+    endMinute = Math.min(24 * 60, endMinute + 60);
+  }
+
   return {
-    startHour: Math.max(0, minOpen - 1),
-    endHour: Math.min(23, Math.max(minOpen + 1, maxClose + 1)),
+    startMinute,
+    endMinute,
+    startHour: Math.floor(startMinute / 60),
+    // endHour is last hour tick to show (inclusive label at open of that hour)
+    endHour: Math.max(
+      Math.floor(startMinute / 60),
+      Math.ceil(endMinute / 60) - (endMinute % 60 === 0 ? 1 : 0)
+    ),
   };
+}
+
+/** Total open minutes for a day (0 if closed) */
+export function openDurationMinutes(
+  hours: WorkingHours | null | undefined,
+  isoDate: string
+): number {
+  const oc = openCloseOn(hours, isoDate);
+  if (oc.closed) return 0;
+  return Math.max(
+    0,
+    minutesFromMidnight(oc.close) - minutesFromMidnight(oc.open)
+  );
 }
 
 export function summarizeWorkingHours(hours: WorkingHours | null | undefined): string {

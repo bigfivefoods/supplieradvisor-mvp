@@ -543,12 +543,39 @@ export async function POST(request: NextRequest) {
     if (action === 'upsert' || action === 'create' || action === 'update') {
       const rec = (body.record || body) as Record<string, unknown>;
       upsert(store, entity, rec, now);
+
+      let peopleSync: { employeeId: number | null; created?: boolean } | null =
+        null;
+      if (entity === 'practitioners') {
+        const pracId = String(
+          rec.id || store.practitioners[store.practitioners.length - 1]?.id || ''
+        );
+        const person = store.practitioners.find((s) => s.id === pracId);
+        if (person) {
+          const { syncStoreStaffPersonToHr } = await import(
+            '@/lib/hr/sync-service-person'
+          );
+          peopleSync = await syncStoreStaffPersonToHr({
+            companyId,
+            source: 'psychiatrygraph_practitioner',
+            person,
+          });
+        }
+      }
+
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
         store,
         summary: summarisePsychiatrygraph(store),
         analysis: analysis(store),
+        people_sync: peopleSync,
+        message:
+          entity === 'practitioners' && peopleSync?.employeeId
+            ? peopleSync.created
+              ? 'Practitioner saved and added to People directory'
+              : 'Practitioner saved and People record updated'
+            : undefined,
       });
     }
 
@@ -613,6 +640,12 @@ function upsert(
       name: String(rec.name || prev?.name || 'Practitioner'),
       email: rec.email != null ? String(rec.email) : prev?.email,
       phone: rec.phone != null ? String(rec.phone) : prev?.phone,
+      hr_employee_id:
+        rec.hr_employee_id !== undefined
+          ? rec.hr_employee_id
+            ? Number(rec.hr_employee_id)
+            : null
+          : prev?.hr_employee_id ?? null,
       disciplines: Array.isArray(rec.disciplines)
         ? (rec.disciplines as string[])
         : rec.skills

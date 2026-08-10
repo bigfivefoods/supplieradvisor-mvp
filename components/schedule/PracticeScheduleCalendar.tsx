@@ -2,7 +2,8 @@
 
 /**
  * Day / week / month calendar for gym sessions and clinic appointments.
- * Presentational — parent supplies normalized events, people filter, working hours.
+ * Presentational — parent supplies events, people filter, working hours.
+ * Day/week height matches practice open hours for the day.
  */
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -11,12 +12,15 @@ import {
   CalendarDays,
   LayoutGrid,
   List,
+  Stethoscope,
+  Building2,
   User,
 } from 'lucide-react';
 import {
   hourBounds,
   isClosedOn,
   openCloseOn,
+  openDurationMinutes,
   type WorkingHours,
 } from '@/lib/schedule/working-hours';
 
@@ -44,6 +48,9 @@ export type SchedulePerson = {
   role?: string;
 };
 
+/** Practice = whole diary; person = single clinician/coach diary */
+export type DiaryScope = 'practice' | 'person';
+
 type ViewMode = 'day' | 'week' | 'month';
 
 type Props = {
@@ -51,7 +58,6 @@ type Props = {
   people?: SchedulePerson[];
   /**
    * Label for the people filter — e.g. "Dentist", "Coach", "Practitioner".
-   * Dropdown shows "All {peopleLabel}s" / each person.
    */
   peopleLabel?: string;
   /** Practice / gym working hours (dims closed days, sets day timeline bounds) */
@@ -61,6 +67,14 @@ type Props = {
   /** Controlled person filter (optional) */
   personFilter?: string;
   onPersonFilterChange?: (personId: string) => void;
+  /** Controlled diary scope */
+  diaryScope?: DiaryScope;
+  onDiaryScopeChange?: (scope: DiaryScope) => void;
+  /**
+   * Show Practice diary vs Clinician/Coach diary toggle.
+   * Default true when people are provided.
+   */
+  showDiaryScopeToggle?: boolean;
   accent?: ScheduleEvent['tone'];
   title?: string;
   emptyLabel?: string;
@@ -104,6 +118,9 @@ const TONE: Record<
   },
 };
 
+/** px per minute — day strip height = open duration × this */
+const PX_PER_MIN = 1.35;
+
 function pad(n: number) {
   return String(n).padStart(2, '0');
 }
@@ -141,7 +158,10 @@ function endTime(ev: ScheduleEvent): string {
 }
 
 function minutesFromMidnight(t: string): number {
-  const [h, m] = t.split(':').map(Number);
+  const [h, m] = String(t || '00:00')
+    .slice(0, 5)
+    .split(':')
+    .map(Number);
   return (h || 0) * 60 + (m || 0);
 }
 
@@ -155,6 +175,16 @@ function formatDayLabel(date: string, opts?: { weekday?: boolean }) {
   });
 }
 
+/** Hour labels strictly within [startMinute, endMinute] */
+function hourTicks(startMinute: number, endMinute: number): number[] {
+  const first = Math.ceil(startMinute / 60);
+  const last = Math.floor(endMinute / 60);
+  const out: number[] = [];
+  for (let h = first; h <= last; h++) out.push(h);
+  if (out.length === 0) out.push(Math.floor(startMinute / 60));
+  return out;
+}
+
 export function PracticeScheduleCalendar({
   events,
   people = [],
@@ -163,6 +193,9 @@ export function PracticeScheduleCalendar({
   initialDate,
   personFilter: personFilterProp,
   onPersonFilterChange,
+  diaryScope: diaryScopeProp,
+  onDiaryScopeChange,
+  showDiaryScopeToggle,
   accent = 'violet',
   title = 'Schedule',
   emptyLabel = 'Nothing scheduled',
@@ -175,17 +208,37 @@ export function PracticeScheduleCalendar({
   const [personFilterLocal, setPersonFilterLocal] = useState(
     personFilterProp || ''
   );
+  const [diaryScopeLocal, setDiaryScopeLocal] = useState<DiaryScope>(
+    diaryScopeProp || (personFilterProp ? 'person' : 'practice')
+  );
 
   useEffect(() => {
     if (personFilterProp !== undefined) setPersonFilterLocal(personFilterProp);
   }, [personFilterProp]);
 
+  useEffect(() => {
+    if (diaryScopeProp !== undefined) setDiaryScopeLocal(diaryScopeProp);
+  }, [diaryScopeProp]);
+
   const personFilter = personFilterProp ?? personFilterLocal;
+  const diaryScope = diaryScopeProp ?? diaryScopeLocal;
+
   const setPersonFilter = (id: string) => {
     setPersonFilterLocal(id);
     onPersonFilterChange?.(id);
   };
 
+  const setDiaryScope = (scope: DiaryScope) => {
+    setDiaryScopeLocal(scope);
+    onDiaryScopeChange?.(scope);
+    if (scope === 'practice') {
+      setPersonFilter('');
+    } else if (scope === 'person' && !personFilter && people[0]) {
+      setPersonFilter(people[0].id);
+    }
+  };
+
+  const showScope = showDiaryScopeToggle !== false && people.length > 0;
   const tone = TONE[accent];
 
   const peopleLabelPlural =
@@ -195,27 +248,37 @@ export function PracticeScheduleCalendar({
 
   const filtered = useMemo(() => {
     let list = events.filter((e) => e.status !== 'cancelled');
-    if (personFilter) {
+    if (diaryScope === 'person' && personFilter) {
+      list = list.filter((e) => String(e.person_id || '') === personFilter);
+    } else if (diaryScope === 'practice' && personFilter) {
+      // optional filter still allowed inside practice view via dropdown
       list = list.filter((e) => String(e.person_id || '') === personFilter);
     }
     return list;
-  }, [events, personFilter]);
+  }, [events, personFilter, diaryScope]);
 
   const selectedPerson = people.find((p) => p.id === personFilter);
 
-  const bounds = useMemo(
-    () => hourBounds(workingHours, view === 'day' ? cursor : undefined),
-    [workingHours, view, cursor]
-  );
-  const HOUR_START = bounds.startHour;
-  const HOUR_END = bounds.endHour;
-  const HOURS = Array.from(
-    { length: Math.max(1, HOUR_END - HOUR_START + 1) },
-    (_, i) => HOUR_START + i
+  const diaryTitle =
+    diaryScope === 'person' && selectedPerson
+      ? `${peopleLabel} diary · ${selectedPerson.name}`
+      : diaryScope === 'person'
+        ? `${peopleLabel} diary`
+        : title;
+
+  // Day view: exact open–close for cursor date (no pad)
+  const dayBounds = useMemo(
+    () => hourBounds(workingHours, cursor, { pad: false }),
+    [workingHours, cursor]
   );
 
+  // Week view: union of open hours across the week (exact)
   const weekStart = startOfWeek(cursor);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const weekBounds = useMemo(() => {
+    // Use overall practice hours (no single date) = union of open days
+    return hourBounds(workingHours, undefined, { pad: false });
+  }, [workingHours]);
 
   const monthGrid = useMemo(() => {
     const d = parseIso(cursor);
@@ -223,8 +286,7 @@ export function PracticeScheduleCalendar({
     const m = d.getMonth();
     const first = new Date(y, m, 1);
     const last = new Date(y, m + 1, 0);
-    // pad Monday-start
-    let startPad = first.getDay() === 0 ? 6 : first.getDay() - 1;
+    const startPad = first.getDay() === 0 ? 6 : first.getDay() - 1;
     const cells: string[] = [];
     for (let i = 0; i < startPad; i++) {
       cells.push(addDays(toIsoDate(first), i - startPad));
@@ -305,109 +367,137 @@ export function PracticeScheduleCalendar({
     );
   };
 
-  const DayTimeline = ({ date }: { date: string }) => {
+  /**
+   * Timeline whose height matches open–close for `date` exactly.
+   * Events outside hours still clamp into the strip.
+   */
+  const HoursTimeline = ({
+    date,
+    compact,
+  }: {
+    date: string;
+    compact?: boolean;
+  }) => {
     const dayEv = eventsOn(date);
-    const pxPerMin = 1.1;
-    const totalMin = (HOUR_END - HOUR_START) * 60;
-    const height = totalMin * pxPerMin;
     const oc = openCloseOn(workingHours, date);
     const closed = oc.closed;
-
-    // Shade non-working hours within the day strip
     const openMin = minutesFromMidnight(oc.open);
     const closeMin = minutesFromMidnight(oc.close);
-    const stripStart = HOUR_START * 60;
-    const beforeH = closed
-      ? height
-      : Math.max(0, (openMin - stripStart) * pxPerMin);
-    const afterTop = closed
-      ? 0
-      : Math.max(0, (closeMin - stripStart) * pxPerMin);
-    const afterH = closed ? 0 : Math.max(0, height - afterTop);
+    const duration = closed
+      ? 60
+      : Math.max(30, closeMin - openMin);
+    const height = duration * (compact ? 0.95 : PX_PER_MIN);
+    const ticks = closed ? [] : hourTicks(openMin, closeMin);
+    const px = compact ? 0.95 : PX_PER_MIN;
 
     return (
-      <div className="relative border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden bg-white dark:bg-slate-950">
+      <div
+        className={`relative border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden bg-white dark:bg-slate-950 ${
+          compact ? 'rounded-xl' : ''
+        }`}
+      >
+        {!compact ? (
+          closed ? (
+            <div className="px-3 py-2 text-[11px] font-bold text-amber-800 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-200 border-b border-amber-100 dark:border-amber-900">
+              Closed today (per working hours)
+            </div>
+          ) : (
+            <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-500 border-b border-slate-100 dark:border-slate-800">
+              Open {oc.open} – {oc.close}
+              {selectedPerson && diaryScope === 'person'
+                ? ` · ${selectedPerson.name}`
+                : ''}
+              <span className="text-slate-400 font-normal">
+                {' '}
+                · height matches working hours
+              </span>
+            </div>
+          )
+        ) : null}
         {closed ? (
-          <div className="px-3 py-2 text-[11px] font-bold text-amber-800 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-200 border-b border-amber-100 dark:border-amber-900">
-            Closed today (per working hours)
+          <div
+            className="flex items-center justify-center text-[10px] text-slate-400 font-medium bg-slate-50 dark:bg-slate-900/50"
+            style={{ height: compact ? 48 : 80 }}
+          >
+            Closed
           </div>
         ) : (
-          <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-500 border-b border-slate-100 dark:border-slate-800">
-            Open {oc.open} – {oc.close}
-            {selectedPerson ? ` · ${selectedPerson.name}` : ''}
+          <div
+            className="grid"
+            style={{ gridTemplateColumns: compact ? '2rem 1fr' : '3rem 1fr' }}
+          >
+            <div className="border-r border-slate-100 dark:border-slate-800 relative">
+              {ticks.map((h) => {
+                const top = (h * 60 - openMin) * px;
+                return (
+                  <div
+                    key={h}
+                    className="absolute right-1 text-[9px] text-slate-400 font-medium tabular-nums"
+                    style={{ top: Math.max(0, top - 6) }}
+                  >
+                    {pad(h)}:00
+                  </div>
+                );
+              })}
+              <div style={{ height }} />
+            </div>
+            <div className="relative" style={{ height }}>
+              {ticks.map((h) => {
+                const top = (h * 60 - openMin) * px;
+                return (
+                  <div
+                    key={h}
+                    className="absolute left-0 right-0 border-t border-slate-100 dark:border-slate-800/80"
+                    style={{ top }}
+                  />
+                );
+              })}
+              {dayEv.map((ev) => {
+                const start = minutesFromMidnight(ev.start_time);
+                const end = minutesFromMidnight(endTime(ev));
+                const top = Math.max(0, (start - openMin) * px);
+                const h = Math.max(
+                  compact ? 18 : 28,
+                  Math.min(height - top, (end - start) * px)
+                );
+                const t = TONE[ev.tone || accent];
+                return (
+                  <button
+                    key={ev.id}
+                    type="button"
+                    onClick={() => onSelectEvent?.(ev)}
+                    className={`absolute left-0.5 right-0.5 rounded-lg border px-1 py-0.5 text-left overflow-hidden shadow-sm ${t.chip}`}
+                    style={{ top, height: h, minHeight: compact ? 18 : 28 }}
+                  >
+                    <div
+                      className={`font-black truncate ${
+                        compact ? 'text-[9px]' : 'text-[11px]'
+                      }`}
+                    >
+                      {ev.start_time.slice(0, 5)}
+                      {!compact ? ` · ${ev.title}` : ''}
+                    </div>
+                    {!compact && ev.person_name ? (
+                      <div className="text-[10px] opacity-80 truncate">
+                        {ev.person_name}
+                        {ev.subtitle ? ` · ${ev.subtitle}` : ''}
+                      </div>
+                    ) : compact ? (
+                      <div className="text-[8px] font-semibold truncate opacity-90">
+                        {ev.title}
+                      </div>
+                    ) : null}
+                  </button>
+                );
+              })}
+              {dayEv.length === 0 ? (
+                <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400">
+                  {emptyLabel}
+                </div>
+              ) : null}
+            </div>
           </div>
         )}
-        <div className="grid" style={{ gridTemplateColumns: '3rem 1fr' }}>
-          <div className="border-r border-slate-100 dark:border-slate-800">
-            {HOURS.map((h) => (
-              <div
-                key={h}
-                className="text-[10px] text-slate-400 pr-1 text-right font-medium"
-                style={{ height: 60 * pxPerMin }}
-              >
-                {pad(h)}:00
-              </div>
-            ))}
-          </div>
-          <div className="relative" style={{ height }}>
-            {!closed && beforeH > 0 ? (
-              <div
-                className="absolute left-0 right-0 bg-slate-100/80 dark:bg-slate-900/60 pointer-events-none"
-                style={{ top: 0, height: beforeH }}
-              />
-            ) : null}
-            {!closed && afterH > 0 ? (
-              <div
-                className="absolute left-0 right-0 bg-slate-100/80 dark:bg-slate-900/60 pointer-events-none"
-                style={{ top: afterTop, height: afterH }}
-              />
-            ) : null}
-            {closed ? (
-              <div className="absolute inset-0 bg-slate-100/70 dark:bg-slate-900/50 pointer-events-none" />
-            ) : null}
-            {HOURS.map((h) => (
-              <div
-                key={h}
-                className="absolute left-0 right-0 border-t border-slate-100 dark:border-slate-800/80"
-                style={{ top: (h - HOUR_START) * 60 * pxPerMin }}
-              />
-            ))}
-            {dayEv.map((ev) => {
-              const start = minutesFromMidnight(ev.start_time);
-              const end = minutesFromMidnight(endTime(ev));
-              const top = Math.max(0, (start - HOUR_START * 60) * pxPerMin);
-              const h = Math.max(28, (end - start) * pxPerMin);
-              const t = TONE[ev.tone || accent];
-              return (
-                <button
-                  key={ev.id}
-                  type="button"
-                  onClick={() => onSelectEvent?.(ev)}
-                  className={`absolute left-1 right-1 rounded-xl border px-2 py-1 text-left overflow-hidden shadow-sm ${t.chip}`}
-                  style={{ top, height: h, minHeight: 28 }}
-                >
-                  <div className="text-[11px] font-black truncate">
-                    {ev.start_time.slice(0, 5)} · {ev.title}
-                  </div>
-                  {ev.person_name ? (
-                    <div className="text-[10px] opacity-80 truncate">
-                      {ev.person_name}
-                      {ev.subtitle ? ` · ${ev.subtitle}` : ''}
-                    </div>
-                  ) : null}
-                  {ev.meta ? (
-                    <div className="text-[10px] opacity-70 truncate">{ev.meta}</div>
-                  ) : null}
-                </button>
-              );
-            })}
-            {dayEv.length === 0 ? (
-              <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-400">
-                {closed ? 'Closed' : emptyLabel}
-              </div>
-            ) : null}
-          </div>
-        </div>
       </div>
     );
   };
@@ -422,33 +512,83 @@ export function PracticeScheduleCalendar({
           <CalendarDays className="w-4 h-4 text-slate-500 shrink-0" />
           <div className="min-w-0">
             <div className="text-sm font-black text-slate-900 dark:text-white truncate">
-              {title}
+              {diaryTitle}
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
               {rangeLabel} · {filtered.length} event
               {filtered.length === 1 ? '' : 's'}
-              {selectedPerson
+              {diaryScope === 'person' && selectedPerson
                 ? ` · ${selectedPerson.name}`
-                : people.length
-                  ? ` · all ${peopleLabelPlural.toLowerCase()}`
+                : diaryScope === 'practice'
+                  ? ` · practice diary`
                   : ''}
             </div>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {people.length > 0 ? (
+          {showScope ? (
+            <div className="inline-flex rounded-xl border border-slate-200 dark:border-slate-600 p-0.5 bg-slate-50 dark:bg-slate-900">
+              <button
+                type="button"
+                onClick={() => setDiaryScope('practice')}
+                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-bold ${
+                  diaryScope === 'practice'
+                    ? `${tone.bar} text-white`
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800'
+                }`}
+                title="Whole practice diary"
+              >
+                <Building2 className="w-3 h-3" />
+                Practice
+              </button>
+              <button
+                type="button"
+                onClick={() => setDiaryScope('person')}
+                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-bold ${
+                  diaryScope === 'person'
+                    ? `${tone.bar} text-white`
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800'
+                }`}
+                title={`${peopleLabel} diary`}
+              >
+                <Stethoscope className="w-3 h-3" />
+                {peopleLabel}
+              </button>
+            </div>
+          ) : null}
+
+          {people.length > 0 &&
+          (diaryScope === 'person' || diaryScope === 'practice') ? (
             <label className="inline-flex items-center gap-1.5 min-w-0">
               <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <span className="sr-only">View calendar for {peopleLabel}</span>
               <select
                 className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold max-w-[14rem] sm:max-w-[16rem]"
-                value={personFilter}
-                onChange={(e) => setPersonFilter(e.target.value)}
-                title={`Filter by ${peopleLabel.toLowerCase()}`}
+                value={
+                  diaryScope === 'person'
+                    ? personFilter || people[0]?.id || ''
+                    : personFilter
+                }
+                onChange={(e) => {
+                  const id = e.target.value;
+                  if (diaryScope === 'person' && !id && people[0]) {
+                    setPersonFilter(people[0].id);
+                    return;
+                  }
+                  setPersonFilter(id);
+                  if (id && diaryScope === 'practice') {
+                    // keep practice mode but filter optional
+                  }
+                }}
+                title={
+                  diaryScope === 'person'
+                    ? `Select ${peopleLabel.toLowerCase()}`
+                    : `Filter by ${peopleLabel.toLowerCase()} (optional)`
+                }
               >
-                <option value="">
-                  All {peopleLabelPlural}
-                </option>
+                {diaryScope === 'practice' ? (
+                  <option value="">All {peopleLabelPlural}</option>
+                ) : null}
                 {people.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -458,6 +598,7 @@ export function PracticeScheduleCalendar({
               </select>
             </label>
           ) : null}
+
           <div className="inline-flex rounded-xl border border-slate-200 dark:border-slate-600 p-0.5 bg-slate-50 dark:bg-slate-900">
             {(
               [
@@ -510,21 +651,22 @@ export function PracticeScheduleCalendar({
       </div>
 
       <div className="p-3 sm:p-4 bg-white dark:bg-slate-950">
-        {view === 'day' && <DayTimeline date={cursor} />}
+        {view === 'day' && <HoursTimeline date={cursor} />}
 
         {view === 'week' && (
           <div className="overflow-x-auto">
-            <div className="min-w-[640px] grid grid-cols-7 gap-1.5">
+            <div className="min-w-[720px] grid grid-cols-7 gap-1.5">
               {weekDays.map((date) => {
                 const isToday = date === today;
                 const isCursor = date === cursor;
                 const list = eventsOn(date);
                 const closed = isClosedOn(workingHours, date);
                 const oc = openCloseOn(workingHours, date);
+                const openMins = openDurationMinutes(workingHours, date);
                 return (
                   <div
                     key={date}
-                    className={`rounded-2xl border min-h-[220px] flex flex-col ${
+                    className={`rounded-2xl border flex flex-col ${
                       isToday
                         ? 'border-violet-400 dark:border-violet-500'
                         : 'border-slate-200 dark:border-slate-700'
@@ -539,7 +681,7 @@ export function PracticeScheduleCalendar({
                     <button
                       type="button"
                       onClick={() => pickDate(date)}
-                      className="px-2 py-2 border-b border-slate-100 dark:border-slate-800 text-left hover:bg-white/60 dark:hover:bg-slate-800/50"
+                      className="px-2 py-2 border-b border-slate-100 dark:border-slate-800 text-left hover:bg-white/60 dark:hover:bg-slate-800/50 shrink-0"
                     >
                       <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                         {parseIso(date).toLocaleDateString(undefined, {
@@ -556,26 +698,27 @@ export function PracticeScheduleCalendar({
                       <div className="text-[10px] text-slate-400">
                         {closed
                           ? 'Closed'
-                          : `${oc.open}–${oc.close} · ${list.length} slot${
-                              list.length === 1 ? '' : 's'
-                            }`}
+                          : `${oc.open}–${oc.close} · ${list.length}`}
                       </div>
                     </button>
-                    <div className="flex-1 p-1 space-y-1 overflow-y-auto max-h-[320px]">
-                      {list.length === 0 ? (
-                        <p className="text-[10px] text-slate-400 px-1 py-2">
-                          {closed ? 'Closed' : '—'}
-                        </p>
-                      ) : (
-                        list.map((ev) => (
-                          <EventChip key={ev.id} ev={ev} dense />
-                        ))
-                      )}
+                    <div className="p-1 flex-1">
+                      <HoursTimeline date={date} compact />
                     </div>
+                    {/* spacer so closed vs open columns don't jump wildly: min height from open mins */}
+                    {!closed && openMins > 0 ? null : (
+                      <div style={{ minHeight: 8 }} />
+                    )}
                   </div>
                 );
               })}
             </div>
+            <p className="mt-2 text-[10px] text-slate-400 font-medium">
+              Week columns sized to each day&apos;s working hours
+              {weekBounds.startMinute != null
+                ? ` · practice window ${pad(Math.floor(weekBounds.startMinute / 60))}:${pad(weekBounds.startMinute % 60)}–${pad(Math.floor(weekBounds.endMinute / 60))}:${pad(weekBounds.endMinute % 60)}`
+                : ''}
+              .
+            </p>
           </div>
         )}
 

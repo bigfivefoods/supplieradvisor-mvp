@@ -240,6 +240,8 @@ export type FitCoach = {
   phone?: string;
   /** SA ID / passport for identity verification */
   id_number?: string;
+  /** Linked People / HR employee id (dual-write) */
+  hr_employee_id?: number | null;
   /** VerifyNow (SA) or Didit (international) self-serve identity check */
   identity?: import('@/lib/identity/person-verification').PersonIdentityVerification;
   specialties?: string[];

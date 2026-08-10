@@ -229,7 +229,9 @@ export default function CoachesPage() {
         rate_note: form.rate_note || undefined,
       },
     });
-    toast.success('Coach saved — they can update bio on their portal');
+    toast.success(
+      'Coach saved — synced to People directory; they can update bio on their portal'
+    );
     setForm(emptyForm());
   };
 
