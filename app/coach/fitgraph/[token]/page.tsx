@@ -16,6 +16,7 @@ import {
   Plus,
   Repeat,
   Share2,
+  User,
   UserPlus,
   UserX,
   Users,
@@ -58,7 +59,20 @@ type PortalSession = {
 };
 
 type Portal = {
-  coach: { id: string; code: string; name: string; can_manage_classes?: boolean };
+  coach: {
+    id: string;
+    code: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    specialties?: string[];
+    bio?: string;
+    public_bio?: string;
+    photo_url?: string;
+    color?: string;
+    can_manage_classes?: boolean;
+  };
+  specialty_options?: string[];
   from: string;
   to: string;
   sessions: PortalSession[];
@@ -119,6 +133,16 @@ export default function CoachFitgraphPortalPage() {
     public: false,
   });
   const [classPlanDraft, setClassPlanDraft] = useState('');
+  const [showProfile, setShowProfile] = useState(false);
+  const [profile, setProfile] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    bio: '',
+    public_bio: '',
+    photo_url: '',
+    specialties: [] as string[],
+  });
 
   const weekEnd = useMemo(() => addDaysIso(weekStart, 6), [weekStart]);
   const days = useMemo(

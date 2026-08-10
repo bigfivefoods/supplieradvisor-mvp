@@ -202,15 +202,81 @@ export async function POST(request: NextRequest) {
     }
 
     const { companyId, meta, store, coach } = resolved;
+    const now = new Date().toISOString();
+    const sessionId = String(body.session_id || body.sessionId || '');
+
+    /**
+     * Profile self-service — every coach with a portal can update bio etc.
+     * (Does not require can_manage_classes.)
+     */
+    if (action === 'update_profile') {
+      const idx = store.coaches.findIndex((c) => c.id === coach.id);
+      if (idx < 0) {
+        return NextResponse.json({ error: 'Coach not found' }, { status: 404 });
+      }
+      const prev = store.coaches[idx];
+      if (body.name != null && String(body.name).trim()) {
+        prev.name = String(body.name).trim();
+      }
+      if (body.email !== undefined) {
+        prev.email = body.email ? String(body.email).trim() : undefined;
+      }
+      if (body.phone !== undefined) {
+        prev.phone = body.phone ? String(body.phone).trim() : undefined;
+      }
+      if (body.bio !== undefined) {
+        prev.bio = String(body.bio);
+      }
+      if (body.public_bio !== undefined) {
+        prev.public_bio = String(body.public_bio);
+      }
+      // If only one bio field sent, keep them loosely in sync when the other is empty
+      if (body.public_bio != null && !prev.bio) {
+        prev.bio = String(body.public_bio);
+      }
+      if (body.bio != null && !prev.public_bio) {
+        prev.public_bio = String(body.bio);
+      }
+      if (body.photo_url !== undefined) {
+        prev.photo_url = body.photo_url
+          ? String(body.photo_url).trim()
+          : undefined;
+      }
+      if (body.color !== undefined) {
+        prev.color = body.color ? String(body.color).trim() : undefined;
+      }
+      if (Array.isArray(body.specialties)) {
+        const specs = (body.specialties as unknown[])
+          .map((s) => String(s).trim())
+          .filter(Boolean);
+        prev.specialties = specs.length ? specs : ['General'];
+      }
+      store.coaches[idx] = prev;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        message: 'Profile updated',
+        portal: buildCoachPortalPayload(store, prev),
+        coach: {
+          id: prev.id,
+          name: prev.name,
+          email: prev.email,
+          phone: prev.phone,
+          specialties: prev.specialties,
+          bio: prev.bio,
+          public_bio: prev.public_bio,
+          photo_url: prev.photo_url,
+          color: prev.color,
+        },
+      });
+    }
+
     if (coach.can_manage_classes === false) {
       return NextResponse.json(
         { error: 'Coach cannot manage classes' },
         { status: 403 }
       );
     }
-
-    const now = new Date().toISOString();
-    const sessionId = String(body.session_id || body.sessionId || '');
 
     if (action === 'issue_class_invite') {
       const session = store.sessions.find(

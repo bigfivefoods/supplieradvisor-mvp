@@ -28,6 +28,8 @@ export default function CoachesPage() {
     phone: '',
     specialties: ['General'] as string[],
     public_bio: '',
+    bio: '',
+    photo_url: '',
   });
 
   const toggleSpecialty = (s: string) => {
@@ -58,13 +60,15 @@ export default function CoachesPage() {
         email: form.email,
         phone: form.phone,
         public_bio: form.public_bio,
+        bio: form.bio || form.public_bio,
+        photo_url: form.photo_url || undefined,
         specialties: form.specialties.length
           ? form.specialties
           : ['General'],
         can_manage_classes: true,
       },
     });
-    toast.success('Coach saved');
+    toast.success('Coach saved — they can update bio on their portal');
     setForm({
       code: '',
       name: '',
@@ -72,6 +76,8 @@ export default function CoachesPage() {
       phone: '',
       specialties: ['General'],
       public_bio: '',
+      bio: '',
+      photo_url: '',
     });
   };
 
@@ -191,12 +197,26 @@ export default function CoachesPage() {
               </div>
             </div>
             <input
-              className={fc() + ' sm:col-span-2'}
-              placeholder="Public bio (website)"
+              className={fc()}
+              placeholder="Photo URL (optional)"
+              value={form.photo_url}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, photo_url: e.target.value }))
+              }
+            />
+            <textarea
+              className={fc() + ' min-h-[3.5rem] resize-y sm:col-span-2'}
+              placeholder="Public bio (members see this on website)"
               value={form.public_bio}
               onChange={(e) =>
                 setForm((f) => ({ ...f, public_bio: e.target.value }))
               }
+            />
+            <textarea
+              className={fc() + ' min-h-[3rem] resize-y sm:col-span-2'}
+              placeholder="Internal notes / full bio (gym office)"
+              value={form.bio}
+              onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))}
             />
           </FormCard>
 
