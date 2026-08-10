@@ -192,7 +192,7 @@ function Inner() {
             ).map((tile) => (
               <div
                 key={tile.label}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3"
+                className="rounded-2xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 px-4 py-3"
               >
                 <div className="text-[10px] font-bold uppercase text-slate-400">
                   {tile.label}
@@ -205,7 +205,7 @@ function Inner() {
           </div>
 
           {(report === 'overview' || report === 'learners') && (
-            <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden mb-4">
+            <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 overflow-hidden mb-4">
               <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500">
                 Learners by grade
               </div>
@@ -225,7 +225,7 @@ function Inner() {
           )}
 
           {(report === 'overview' || report === 'meals') && (
-            <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden mb-4">
+            <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 overflow-hidden mb-4">
               <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500">
                 Monthly meals trend
               </div>
@@ -260,7 +260,7 @@ function Inner() {
           )}
 
           {report === 'stock' && (
-            <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden mb-4">
+            <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 overflow-hidden mb-4">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-[10px] font-bold uppercase text-slate-400">
@@ -289,7 +289,7 @@ function Inner() {
           )}
 
           {report === 'orders' && (
-            <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden mb-4">
+            <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 overflow-hidden mb-4">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-[10px] font-bold uppercase text-slate-400">
@@ -318,7 +318,7 @@ function Inner() {
           )}
 
           {report === 'district' && (
-            <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+            <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 overflow-hidden">
               <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500">
                 Schools in district ({district.length})
               </div>

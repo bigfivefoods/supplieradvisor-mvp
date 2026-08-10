@@ -523,7 +523,7 @@ function Inner() {
       </div>
 
       {canEdit && showBrandForm ? (
-        <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 flex flex-wrap gap-2 items-end">
+        <div className="mb-4 rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 p-4 flex flex-wrap gap-2 items-end">
           <label className="text-xs">
             <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
               Brand name
@@ -753,7 +753,7 @@ function Inner() {
                 Product image (visible to schools &amp; SPs)
               </span>
               <div className="flex flex-wrap items-start gap-4">
-                <div className="w-24 h-24 rounded-2xl border border-slate-200 bg-white overflow-hidden flex items-center justify-center shrink-0">
+                <div className="w-24 h-24 rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 overflow-hidden flex items-center justify-center shrink-0">
                   {imagePreview ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -859,7 +859,7 @@ function Inner() {
           <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
         </div>
       ) : (
-        <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+        <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
           <table className="w-full text-sm min-w-[960px]">
             <thead>
               <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">

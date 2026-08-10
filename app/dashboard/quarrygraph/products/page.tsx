@@ -53,7 +53,7 @@ export default function QuarryProductsPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow
+          <StatRow tone="qg-office"
             items={[
               {
                 label: 'Products',
@@ -61,7 +61,7 @@ export default function QuarryProductsPage() {
               },
             ]}
           />
-          <FormCard title="Add product" onSubmit={() => void add()} saving={saving}>
+          <FormCard tone="qg-office" title="Add product" onSubmit={() => void add()} saving={saving}>
             <input className={fieldClass()} placeholder="Code" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} />
             <input className={fieldClass()} placeholder="Name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
             <select className={fieldClass()} value={form.grade} onChange={(e) => setForm((f) => ({ ...f, grade: e.target.value }))}>
@@ -76,7 +76,7 @@ export default function QuarryProductsPage() {
               <option value="m3">m³</option>
             </select>
           </FormCard>
-          <DataTable
+          <DataTable tone="qg-office"
             headers={['Code', 'Name', 'Grade', 'Material', 'Density', 'Unit']}
             rows={store.products.map((p) => ({
               id: p.id,

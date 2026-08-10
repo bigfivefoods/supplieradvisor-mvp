@@ -63,9 +63,9 @@ export default function FieldgraphRegenPage() {
             </Link>
             .
           </p>
-          <div className="rounded-3xl border border-lime-100 bg-lime-50/40 p-4 grid sm:grid-cols-3 gap-2">
+          <div className="rounded-3xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50 p-4 grid sm:grid-cols-3 gap-2">
             <select
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
               value={form.field_id}
               onChange={(e) =>
                 setForm((f) => ({ ...f, field_id: e.target.value }))
@@ -80,12 +80,12 @@ export default function FieldgraphRegenPage() {
             </select>
             <input
               type="date"
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
               value={form.date}
               onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
             />
             <input
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
               placeholder="SOC %"
               type="number"
               step="0.01"
@@ -98,7 +98,7 @@ export default function FieldgraphRegenPage() {
               }
             />
             <input
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
               placeholder="Moisture %"
               type="number"
               value={form.moisture_pct}
@@ -107,7 +107,7 @@ export default function FieldgraphRegenPage() {
               }
             />
             <input
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
               placeholder="Cover %"
               type="number"
               value={form.cover_pct}
@@ -116,7 +116,7 @@ export default function FieldgraphRegenPage() {
               }
             />
             <input
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
               placeholder="Water mm"
               type="number"
               value={form.water_used_mm}
@@ -125,7 +125,7 @@ export default function FieldgraphRegenPage() {
               }
             />
             <input
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white sm:col-span-2"
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 sm:col-span-2"
               placeholder="Biodiversity / practice notes"
               value={form.biodiversity_notes}
               onChange={(e) =>
@@ -152,7 +152,7 @@ export default function FieldgraphRegenPage() {
               return (
                 <li
                   key={r.id}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 flex justify-between text-sm"
+                  className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3 flex justify-between text-sm"
                 >
                   <div>
                     <div className="font-bold">

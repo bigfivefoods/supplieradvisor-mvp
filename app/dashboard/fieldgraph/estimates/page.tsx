@@ -158,7 +158,7 @@ export default function FieldgraphEstimatesPage() {
       ) : (
         <div className="space-y-6">
           <div className="grid sm:grid-cols-3 gap-3">
-            <div className="rounded-2xl border border-sky-100 bg-sky-50/50 px-4 py-3">
+            <div className="rounded-2xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 px-4 py-3">
               <div className="text-[10px] font-black uppercase text-sky-800/70">
                 Est. tonnes (non-draft)
               </div>
@@ -166,7 +166,7 @@ export default function FieldgraphEstimatesPage() {
                 {Number(summary?.estimateTonnes) || 0}
               </div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <div className="rounded-2xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 px-4 py-3">
               <div className="text-[10px] font-black uppercase text-slate-400">
                 Board / submitted
               </div>
@@ -174,7 +174,7 @@ export default function FieldgraphEstimatesPage() {
                 {Number(summary?.boardEstimates) || 0}
               </div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <div className="rounded-2xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 px-4 py-3">
               <div className="text-[10px] font-black uppercase text-slate-400">
                 Actual seasons logged
               </div>
@@ -185,7 +185,7 @@ export default function FieldgraphEstimatesPage() {
           </div>
 
           {/* Across-season graph */}
-          <div className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-5">
+          <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50">
             <h3 className="text-sm font-black text-slate-900 mb-1">
               Yield across seasons
             </h3>
@@ -230,10 +230,10 @@ export default function FieldgraphEstimatesPage() {
           </div>
 
           <div className="grid lg:grid-cols-2 gap-4">
-            <div className="rounded-3xl border border-sky-100 bg-sky-50/40 p-4 space-y-2">
+            <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 p-4 space-y-2">
               <h3 className="text-sm font-black">Create / revise estimate</h3>
               <select
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                 value={form.field_id}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, field_id: e.target.value }))
@@ -248,7 +248,7 @@ export default function FieldgraphEstimatesPage() {
               </select>
               <div className="grid grid-cols-2 gap-2">
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Season"
                   value={form.season}
                   onChange={(e) =>
@@ -256,7 +256,7 @@ export default function FieldgraphEstimatesPage() {
                   }
                 />
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Tonnes"
                   type="number"
                   value={form.tonnes}
@@ -265,7 +265,7 @@ export default function FieldgraphEstimatesPage() {
                   }
                 />
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Quality % (RV / moisture)"
                   type="number"
                   value={form.quality_pct}
@@ -274,7 +274,7 @@ export default function FieldgraphEstimatesPage() {
                   }
                 />
                 <select
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   value={form.status}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, status: e.target.value }))
@@ -288,7 +288,7 @@ export default function FieldgraphEstimatesPage() {
                 </select>
               </div>
               <input
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                 placeholder="Board ref (e.g. MGB-2026-A12)"
                 value={form.board_ref}
                 onChange={(e) =>
@@ -310,14 +310,14 @@ export default function FieldgraphEstimatesPage() {
               </button>
             </div>
 
-            <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-4 space-y-2">
+            <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 p-4 space-y-2">
               <h3 className="text-sm font-black">Record actual yield</h3>
               <p className="text-[11px] text-slate-500">
                 Actuals power the multi-season yield graphs on Fields and
                 Insights.
               </p>
               <select
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                 value={actualForm.field_id}
                 onChange={(e) =>
                   setActualForm((f) => ({ ...f, field_id: e.target.value }))
@@ -332,7 +332,7 @@ export default function FieldgraphEstimatesPage() {
               </select>
               <div className="grid grid-cols-3 gap-2">
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Season"
                   value={actualForm.season}
                   onChange={(e) =>
@@ -340,7 +340,7 @@ export default function FieldgraphEstimatesPage() {
                   }
                 />
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Tonnes"
                   type="number"
                   value={actualForm.tonnes}
@@ -349,7 +349,7 @@ export default function FieldgraphEstimatesPage() {
                   }
                 />
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Quality %"
                   type="number"
                   value={actualForm.quality_pct}
@@ -397,9 +397,9 @@ export default function FieldgraphEstimatesPage() {
             </button>
           </div>
 
-          <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white">
+          <div className="overflow-x-auto rounded-3xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">
+              <thead className="bg-emerald-50 text-left text-[10px] font-black uppercase tracking-wider text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-200">
                 <tr>
                   <th className="px-3 py-2.5">Field</th>
                   <th className="px-3 py-2.5">t</th>

@@ -266,7 +266,7 @@ function Inner() {
             <Link
               key={t.label}
               href={t.href}
-              className="rounded-3xl border border-slate-200 bg-white p-4 hover:border-amber-300 transition-all dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-amber-500/50"
+              className="rounded-3xl border border-amber-200 bg-white p-4 hover:border-amber-300 transition-all dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40"
             >
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 {t.label}
@@ -373,7 +373,7 @@ function Inner() {
             <Link
               key={t.label}
               href={t.href}
-              className="rounded-3xl border border-slate-200 bg-white p-4 hover:border-[#00b4d8]/40 hover:shadow-md transition-all dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-[#00b4d8]/50"
+              className="rounded-3xl border border-sky-200 bg-white p-4 hover:border-[#00b4d8]/40 hover:shadow-md transition-all dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40"
             >
               <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                 <t.icon className="w-3.5 h-3.5 text-[#00b4d8]" />
@@ -467,7 +467,7 @@ function Inner() {
             <Link
               key={x.href + x.label}
               href={x.href}
-              className="rounded-2xl border border-sky-100 bg-sky-50/50 px-4 py-4 hover:border-[#00b4d8] dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-[#00b4d8]/50"
+              className="rounded-2xl border border-sky-300 bg-sky-50/50 px-4 py-4 hover:border-[#00b4d8] dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40"
             >
               <p className="font-bold text-slate-900 text-sm dark:text-neutral-100">
                 {x.label}
@@ -844,7 +844,7 @@ function Inner() {
           <Link
             key={a.href}
             href={a.href}
-            className="rounded-2xl border border-slate-200 bg-white p-3 hover:border-[#00b4d8]/40 transition-all dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-[#00b4d8]/50"
+            className="rounded-2xl border border-emerald-200 bg-white p-3 hover:border-[#00b4d8]/40 transition-all dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40"
           >
             <div className="flex items-center gap-2 mb-1">
               <a.icon className="w-3.5 h-3.5 text-[#0077b6] dark:text-[#00b4d8]" />

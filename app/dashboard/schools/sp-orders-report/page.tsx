@@ -205,7 +205,7 @@ function Inner() {
         <PeriodSlicer value={period} onChange={setPeriod} />
       </div>
 
-      <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
+      <div className="mb-4 rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 p-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
         <label className="text-xs">
           <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
             Status
@@ -293,7 +293,7 @@ function Inner() {
           ) : null}
 
           <h3 className="text-sm font-black mb-2">Schools (linked + ordered)</h3>
-          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden mb-6">
+          <div className="rounded-3xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50 overflow-hidden mb-6">
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[800px]">
                 <thead>
@@ -385,7 +385,7 @@ function Inner() {
           <h3 className="text-sm font-black mb-2">
             Purchase orders · required delivery date
           </h3>
-          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-3xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[880px]">
                 <thead>

@@ -393,7 +393,7 @@ function Inner() {
       </div>
 
       <div className="grid sm:grid-cols-3 gap-3 mb-6">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 p-4">
           <p className="text-[10px] font-bold uppercase text-slate-400">
             SPs in system
           </p>
@@ -404,7 +404,7 @@ function Inner() {
             Linked to you: {String(stats?.sps_linked_to_you ?? '—')}
           </p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 p-4">
           <p className="text-[10px] font-bold uppercase text-slate-400">
             From registry import
           </p>
@@ -414,7 +414,7 @@ function Inner() {
               : '—'}
           </p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 p-4">
           <p className="text-[10px] font-bold uppercase text-slate-400 mb-1">
             Expected columns
           </p>
@@ -425,7 +425,7 @@ function Inner() {
         </div>
       </div>
 
-      <div className="mb-6 rounded-3xl border border-slate-200 bg-white p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="mb-6 rounded-3xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50 p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h3 className="text-sm font-black flex items-center gap-2">
             <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
@@ -563,7 +563,7 @@ function Inner() {
       </div>
 
       {parsed && parsed.rows.length > 0 ? (
-        <div className="mt-6 rounded-3xl border border-slate-200 bg-white overflow-hidden">
+        <div className="mt-6 rounded-3xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50 overflow-hidden">
           <div className="px-5 py-3 border-b flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-sm font-bold">

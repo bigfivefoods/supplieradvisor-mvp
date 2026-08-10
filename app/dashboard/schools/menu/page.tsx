@@ -468,7 +468,7 @@ function Inner() {
         </div>
       ) : (
         <div className="grid lg:grid-cols-3 gap-4">
-          <div className="rounded-3xl border border-slate-200 bg-white p-4 lg:col-span-1 space-y-4">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-4 lg:col-span-1 space-y-4">
             {!canEdit && mandated ? (
               <div className="rounded-2xl border border-violet-100 bg-violet-50/50 p-3">
                 <p className="text-[10px] font-bold uppercase text-violet-700 flex items-center gap-1">
@@ -547,7 +547,7 @@ function Inner() {
             )}
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 lg:col-span-2 space-y-4">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-5 lg:col-span-2 space-y-4">
             <div className="flex items-center gap-2 text-sm font-black">
               <Utensils className="w-4 h-4 text-[#00b4d8]" />
               {canEdit

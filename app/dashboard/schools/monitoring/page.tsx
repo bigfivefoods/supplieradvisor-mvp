@@ -841,7 +841,7 @@ function Inner() {
             ) : null}
           </div>
         ) : (
-          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
             <table className="w-full text-sm min-w-[720px]">
               <thead>
                 <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
@@ -1072,7 +1072,7 @@ function Inner() {
         ))}
       </div>
 
-      <div className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 space-y-4">
+      <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-4 sm:p-6 space-y-4">
         {step === 0 && (
           <SectionA1
             form={form}

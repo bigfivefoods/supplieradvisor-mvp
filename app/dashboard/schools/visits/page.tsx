@@ -695,7 +695,7 @@ function AgencyVisits({ companyId }: { companyId: number }) {
         ].map((k) => (
           <div
             key={k.l}
-            className="rounded-2xl border border-slate-200 bg-white px-3 py-2"
+            className="rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 px-3 py-2"
           >
             <p className="text-[10px] font-bold uppercase text-slate-400">
               {k.l}
@@ -707,7 +707,7 @@ function AgencyVisits({ companyId }: { companyId: number }) {
 
       {tab === 'calendar' ? (
         <div className="grid lg:grid-cols-5 gap-4 mb-4">
-          <div className="lg:col-span-3 rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="lg:col-span-3 rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
             <div className="px-4 py-3 border-b flex flex-wrap items-center justify-between gap-2 bg-gradient-to-r from-sky-50 to-violet-50">
               <div className="flex items-center gap-2">
                 <button
@@ -853,7 +853,7 @@ function AgencyVisits({ companyId }: { companyId: number }) {
           </div>
 
           <div className="lg:col-span-2 space-y-3">
-            <div className="rounded-3xl border border-slate-200 bg-white p-4">
+            <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-4">
               <p className="text-[10px] font-bold uppercase text-slate-400">
                 Selected day
               </p>
@@ -891,7 +891,7 @@ function AgencyVisits({ companyId }: { companyId: number }) {
             </div>
 
             {/* Bulk reassign */}
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 space-y-2">
+            <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-4 space-y-2">
               <p className="text-[10px] font-bold uppercase text-slate-400 flex items-center gap-1">
                 <UserCog className="w-3.5 h-3.5" /> Bulk reassign visitor
               </p>
@@ -930,7 +930,7 @@ function AgencyVisits({ companyId }: { companyId: number }) {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-amber-100 bg-amber-50/40 overflow-hidden">
+            <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
               <div className="px-4 py-2.5 border-b border-amber-100 text-xs font-bold uppercase text-amber-900">
                 Planned · {selectedCell?.planned?.length || 0}
               </div>
@@ -1009,7 +1009,7 @@ function AgencyVisits({ companyId }: { companyId: number }) {
               </ul>
             </div>
 
-            <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 overflow-hidden">
+            <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
               <div className="px-4 py-2.5 border-b border-emerald-100 text-xs font-bold uppercase text-emerald-900 flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" /> Completed ·{' '}
                 {(selectedCell?.completed?.length || 0) +
@@ -1057,7 +1057,7 @@ function AgencyVisits({ companyId }: { companyId: number }) {
 
       {/* Shared smart school filters — plan/field */}
       {tab === 'plan' || tab === 'field' ? (
-      <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
+      <div className="mb-4 rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 p-4 space-y-3">
         <p className="text-[10px] font-bold uppercase text-slate-400">
           Smart school filter · metadata
         </p>
@@ -1122,7 +1122,7 @@ function AgencyVisits({ companyId }: { companyId: number }) {
 
       {tab === 'plan' ? (
         <div className="grid lg:grid-cols-2 gap-4">
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-5 space-y-3">
             <h3 className="text-sm font-black flex items-center gap-2">
               <CalendarDays className="w-4 h-4 text-sky-700" />
               Plan a circuit day · {planDate}
@@ -1196,7 +1196,7 @@ function AgencyVisits({ companyId }: { companyId: number }) {
             </button>
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
             <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500">
               Pick schools for {planDate}
             </div>
@@ -1236,7 +1236,7 @@ function AgencyVisits({ companyId }: { companyId: number }) {
           </div>
 
           {plans.length > 0 ? (
-            <div className="lg:col-span-2 rounded-3xl border border-slate-200 bg-white overflow-hidden">
+            <div className="lg:col-span-2 rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
               <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500">
                 Upcoming plans
               </div>
@@ -1313,7 +1313,7 @@ function AgencyVisits({ companyId }: { companyId: number }) {
               </div>
             ) : null}
 
-            <div className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3">
+            <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-5 space-y-3">
               <label className="text-xs block">
                 <span className="text-[10px] font-bold uppercase text-slate-400">
                   School (filtered list)
@@ -1522,7 +1522,7 @@ function AgencyVisits({ companyId }: { companyId: number }) {
           </div>
 
           <div className="lg:col-span-2 space-y-3">
-            <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+            <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
               <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500">
                 Recent visits / trip log
               </div>
@@ -1634,7 +1634,7 @@ function AgencyVisits({ companyId }: { companyId: number }) {
                 ].map((k) => (
                   <div
                     key={k.l}
-                    className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
+                    className="rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 px-3 py-2.5"
                   >
                     <p className="text-[10px] font-bold uppercase text-slate-400">
                       {k.l}
@@ -1645,7 +1645,7 @@ function AgencyVisits({ companyId }: { companyId: number }) {
                   </div>
                 ))}
               </div>
-              <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+              <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
                 <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500">
                   By district
                 </div>
@@ -1790,7 +1790,7 @@ function SchoolVisits({ companyId }: { companyId: number }) {
             )}
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
             <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
               <ClipboardCheck className="w-4 h-4" /> Visit results (audit)
             </div>

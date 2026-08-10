@@ -253,7 +253,7 @@ export default function QuarryReportPage() {
             ))}
           </div>
 
-          <StatRow
+          <StatRow tone="qg-office"
             items={[
               { label: 'Quarries', value: Number(summary?.quarryCount) || 0 },
               { label: 'Pits', value: Number(summary?.siteCount) || 0 },
@@ -296,7 +296,7 @@ export default function QuarryReportPage() {
           />
 
           {(tab === 'overview' || tab === 'by_quarry') && (
-            <DataTable
+            <DataTable tone="qg-office"
               headers={[
                 'Quarry',
                 'Pits',
@@ -333,7 +333,7 @@ export default function QuarryReportPage() {
 
           {(tab === 'overview' || tab === 'vehicles') && (
             <>
-              <DataTable
+              <DataTable tone="qg-office"
                 headers={[
                   'Code',
                   'Vehicle',
@@ -368,7 +368,7 @@ export default function QuarryReportPage() {
                   ],
                 }))}
               />
-              <DataTable
+              <DataTable tone="qg-office"
                 headers={['Type', 'Units', 'Hours', 'Fuel L', 'Tonnes']}
                 rows={fleetByType.map((r, i) => ({
                   id: `t${i}`,
@@ -379,7 +379,7 @@ export default function QuarryReportPage() {
           )}
 
           {(tab === 'overview' || tab === 'production') && (
-            <DataTable
+            <DataTable tone="qg-office"
               headers={[
                 'Product',
                 'Grade',
@@ -404,7 +404,7 @@ export default function QuarryReportPage() {
           )}
 
           {(tab === 'overview' || tab === 'dispatch') && (
-            <DataTable
+            <DataTable tone="qg-office"
               headers={[
                 'Date',
                 'Ticket',
@@ -429,7 +429,7 @@ export default function QuarryReportPage() {
 
           {(tab === 'overview' || tab === 'cost') && (
             <>
-              <DataTable
+              <DataTable tone="qg-office"
                 headers={['Employment type', 'Hours', 'Cost R']}
                 rows={(labour?.byEmployment || []).map((r, i) => ({
                   id: String(i),
@@ -448,7 +448,7 @@ export default function QuarryReportPage() {
           )}
 
           {(tab === 'overview' || tab === 'quality') && (
-            <DataTable
+            <DataTable tone="qg-office"
               headers={['Date', 'Test', 'Result', 'P/F', 'Sample']}
               rows={store.quality_tests
                 .filter((q) => {
@@ -477,7 +477,7 @@ export default function QuarryReportPage() {
           )}
 
           {(tab === 'overview' || tab === 'compliance') && (
-            <DataTable
+            <DataTable tone="qg-office"
               headers={['Type', 'Ref', 'Expires', 'Status']}
               rows={store.permits.map((p) => ({
                 id: p.id,

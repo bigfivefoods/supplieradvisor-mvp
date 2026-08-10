@@ -283,10 +283,12 @@ function HubInner() {
         ].map((x) => (
           <div
             key={x.t}
-            className="rounded-2xl border border-emerald-100 bg-emerald-50/30 px-4 py-3"
+            className="rounded-2xl border border-emerald-300 bg-emerald-50/50 px-4 py-3 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40"
           >
-            <div className="text-sm font-black text-slate-900">{x.t}</div>
-            <p className="text-[12px] text-slate-600 mt-1 leading-relaxed">
+            <div className="text-sm font-black text-slate-900 dark:text-emerald-50">
+              {x.t}
+            </div>
+            <p className="text-[12px] text-slate-600 dark:text-emerald-100/85 mt-1 leading-relaxed">
               {x.b}
             </p>
           </div>

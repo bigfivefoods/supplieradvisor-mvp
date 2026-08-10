@@ -546,7 +546,7 @@ function Inner() {
           )}
 
           {/* Term editor */}
-          <div className="rounded-3xl border border-slate-200 bg-white p-4 space-y-3">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-4 space-y-3">
             <p className="text-sm font-black">School terms ({year})</p>
             <p className="text-[11px] text-slate-500">
               Feeding days are weekdays inside these term windows, excluding SA
@@ -659,7 +659,7 @@ function Inner() {
           </div>
 
           {/* Month summary table */}
-          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
               <p className="text-sm font-black">Feeding days per month</p>
               <p className="text-[11px] text-slate-500">
@@ -714,7 +714,7 @@ function Inner() {
           </div>
 
           {/* Month day grid */}
-          <div className="rounded-3xl border border-slate-200 bg-white p-4 space-y-3">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <button
@@ -811,7 +811,7 @@ function Inner() {
 
           {/* Term totals */}
           {summary?.terms?.length ? (
-            <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+            <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
               <p className="px-4 py-3 border-b text-sm font-black">
                 Feeding days per term
               </p>
@@ -855,7 +855,7 @@ function StatCard({
   hint?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+    <div className="rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 px-4 py-3">
       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
         {label}
       </p>

@@ -78,7 +78,7 @@ export default function QuarryPlantPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow
+          <StatRow tone="qg-ops"
             items={[
               {
                 label: 'Plant output t',
@@ -90,7 +90,7 @@ export default function QuarryPlantPage() {
               },
             ]}
           />
-          <FormCard title="Log plant run" onSubmit={() => void addRun()} saving={saving}>
+          <FormCard tone="qg-ops" title="Log plant run" onSubmit={() => void addRun()} saving={saving}>
             <select className={fieldClass()} value={run.site_id} onChange={(e) => setRun((f) => ({ ...f, site_id: e.target.value }))}>
               <option value="">Site…</option>
               {store.sites.map((s) => (
@@ -110,7 +110,7 @@ export default function QuarryPlantPage() {
             <input className={fieldClass()} type="number" placeholder="Output t" value={run.output_tonnes} onChange={(e) => setRun((f) => ({ ...f, output_tonnes: e.target.value }))} />
             <input className={fieldClass()} type="number" placeholder="Downtime min" value={run.downtime_min} onChange={(e) => setRun((f) => ({ ...f, downtime_min: e.target.value }))} />
           </FormCard>
-          <DataTable
+          <DataTable tone="qg-ops"
             headers={['Date', 'Plant', 'Product', 'Hours', 'Feed t', 'Out t', 'DT min']}
             rows={store.plant_runs.map((r) => {
               const prod = store.products.find((p) => p.id === r.product_id);
@@ -130,7 +130,7 @@ export default function QuarryPlantPage() {
             onDelete={(id) => void post({ entity: 'plant_runs', action: 'delete', id })}
           />
 
-          <FormCard title="Stockpile balance" onSubmit={() => void addPile()} saving={saving} submitLabel="Save stockpile">
+          <FormCard tone="qg-ops" title="Stockpile balance" onSubmit={() => void addPile()} saving={saving} submitLabel="Save stockpile">
             <select className={fieldClass()} value={pile.site_id} onChange={(e) => setPile((f) => ({ ...f, site_id: e.target.value }))}>
               <option value="">Site…</option>
               {store.sites.map((s) => (
@@ -146,7 +146,7 @@ export default function QuarryPlantPage() {
             <input className={fieldClass()} placeholder="Pad name" value={pile.name} onChange={(e) => setPile((f) => ({ ...f, name: e.target.value }))} />
             <input className={fieldClass()} type="number" placeholder="Tonnes" value={pile.tonnes} onChange={(e) => setPile((f) => ({ ...f, tonnes: e.target.value }))} />
           </FormCard>
-          <DataTable
+          <DataTable tone="qg-ops"
             headers={['Name', 'Site', 'Product', 'Tonnes', 'Surveyed']}
             rows={store.stockpiles.map((s) => {
               const site = store.sites.find((x) => x.id === s.site_id);

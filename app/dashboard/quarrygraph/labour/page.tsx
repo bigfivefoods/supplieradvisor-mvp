@@ -75,7 +75,7 @@ export default function QuarryLabourPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow
+          <StatRow tone="qg-ops"
             items={[
               { label: 'Crews', value: Number(summary?.crewCount) || 0 },
               {
@@ -84,7 +84,7 @@ export default function QuarryLabourPage() {
               },
             ]}
           />
-          <FormCard title="Register crew + rate" onSubmit={() => void addCrew()} saving={saving}>
+          <FormCard tone="qg-ops" title="Register crew + rate" onSubmit={() => void addCrew()} saving={saving}>
             <input className={fieldClass()} placeholder="Code" value={crew.code} onChange={(e) => setCrew((f) => ({ ...f, code: e.target.value }))} />
             <input className={fieldClass()} placeholder="Name" value={crew.name} onChange={(e) => setCrew((f) => ({ ...f, name: e.target.value }))} />
             <select className={fieldClass()} value={crew.employment_type} onChange={(e) => setCrew((f) => ({ ...f, employment_type: e.target.value }))}>
@@ -102,7 +102,7 @@ export default function QuarryLabourPage() {
               <option value="per_tonne">R / tonne</option>
             </select>
           </FormCard>
-          <DataTable
+          <DataTable tone="qg-ops"
             headers={['Code', 'Name', 'Type', 'Rate', 'Unit']}
             rows={store.crews.map((c) => ({
               id: c.id,
@@ -110,7 +110,7 @@ export default function QuarryLabourPage() {
             }))}
             onDelete={(id) => void post({ entity: 'crews', action: 'delete', id })}
           />
-          <FormCard title="Log labour day" onSubmit={() => void addLog()} saving={saving} submitLabel="Log">
+          <FormCard tone="qg-ops" title="Log labour day" onSubmit={() => void addLog()} saving={saving} submitLabel="Log">
             <select className={fieldClass()} value={log.crew_id} onChange={(e) => setLog((f) => ({ ...f, crew_id: e.target.value }))}>
               <option value="">Crew…</option>
               {store.crews.map((c) => (
@@ -128,7 +128,7 @@ export default function QuarryLabourPage() {
             <input className={fieldClass()} type="number" placeholder="Headcount" value={log.headcount} onChange={(e) => setLog((f) => ({ ...f, headcount: e.target.value }))} />
             <input className={fieldClass()} type="number" placeholder="Hours" value={log.hours} onChange={(e) => setLog((f) => ({ ...f, hours: e.target.value }))} />
           </FormCard>
-          <DataTable
+          <DataTable tone="qg-ops"
             headers={['Date', 'Crew', 'Type', 'Site', 'Activity', 'HC', 'Hours', 'Cost']}
             rows={store.labour_logs.map((l) => {
               const site = store.sites.find((s) => s.id === l.site_id);

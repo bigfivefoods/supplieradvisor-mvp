@@ -237,7 +237,7 @@ export default function FieldgraphLabourPage() {
           </p>
 
           <div className="grid sm:grid-cols-4 gap-3">
-            <div className="rounded-2xl border border-rose-100 bg-rose-50/50 px-4 py-3">
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
               <div className="text-[10px] font-black uppercase text-rose-900/60">
                 Gangs registered
               </div>
@@ -245,7 +245,7 @@ export default function FieldgraphLabourPage() {
                 {Number(summary?.gangCount) || gangs.length}
               </div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
               <div className="text-[10px] font-black uppercase text-slate-400">
                 Activity logs
               </div>
@@ -253,7 +253,7 @@ export default function FieldgraphLabourPage() {
                 {Number(summary?.labourLogs) || store.labour_logs.length}
               </div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
               <div className="text-[10px] font-black uppercase text-slate-400">
                 Hours logged
               </div>
@@ -261,7 +261,7 @@ export default function FieldgraphLabourPage() {
                 {labourCost?.totalHours ?? '—'}
               </div>
             </div>
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 px-4 py-3">
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
               <div className="text-[10px] font-black uppercase text-emerald-800/70">
                 Labour cost
               </div>
@@ -299,9 +299,9 @@ export default function FieldgraphLabourPage() {
 
           {tab === 'registry' && (
             <div className="space-y-4">
-              <div className="rounded-3xl border border-rose-100 bg-rose-50/30 p-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              <div className="rounded-3xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50 p-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Code (e.g. GA)"
                   value={gangForm.code}
                   onChange={(e) =>
@@ -309,7 +309,7 @@ export default function FieldgraphLabourPage() {
                   }
                 />
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Gang / crew name"
                   value={gangForm.name}
                   onChange={(e) =>
@@ -317,7 +317,7 @@ export default function FieldgraphLabourPage() {
                   }
                 />
                 <select
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   value={gangForm.employment_type}
                   onChange={(e) =>
                     setGangForm((f) => ({
@@ -334,7 +334,7 @@ export default function FieldgraphLabourPage() {
                   ))}
                 </select>
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Rate (ZAR)"
                   type="number"
                   step="0.01"
@@ -344,7 +344,7 @@ export default function FieldgraphLabourPage() {
                   }
                 />
                 <select
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   value={gangForm.rate_unit}
                   onChange={(e) =>
                     setGangForm((f) => ({
@@ -360,7 +360,7 @@ export default function FieldgraphLabourPage() {
                   ))}
                 </select>
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Notes (optional)"
                   value={gangForm.notes}
                   onChange={(e) =>
@@ -392,7 +392,7 @@ export default function FieldgraphLabourPage() {
                   gangs.map((g) => (
                     <div
                       key={g.id}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 flex justify-between gap-2"
+                      className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3 flex justify-between gap-2"
                     >
                       <div className="flex gap-3 items-start">
                         <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center shrink-0">
@@ -436,9 +436,9 @@ export default function FieldgraphLabourPage() {
 
           {tab === 'activity' && (
             <div className="space-y-4">
-              <div className="rounded-3xl border border-rose-100 bg-rose-50/30 p-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
+              <div className="rounded-3xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50 p-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
                 <select
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   value={logForm.gang_id}
                   onChange={(e) => applyGangDefaults(e.target.value)}
                 >
@@ -453,7 +453,7 @@ export default function FieldgraphLabourPage() {
                 </select>
                 {!logForm.gang_id && (
                   <input
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                     placeholder="Or free-text gang / person"
                     value={logForm.gang_or_person}
                     onChange={(e) =>
@@ -465,7 +465,7 @@ export default function FieldgraphLabourPage() {
                   />
                 )}
                 <select
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   value={logForm.field_id}
                   onChange={(e) =>
                     setLogForm((f) => ({ ...f, field_id: e.target.value }))
@@ -480,14 +480,14 @@ export default function FieldgraphLabourPage() {
                 </select>
                 <input
                   type="date"
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   value={logForm.date}
                   onChange={(e) =>
                     setLogForm((f) => ({ ...f, date: e.target.value }))
                   }
                 />
                 <select
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   value={logForm.activity}
                   onChange={(e) =>
                     setLogForm((f) => ({ ...f, activity: e.target.value }))
@@ -500,7 +500,7 @@ export default function FieldgraphLabourPage() {
                   ))}
                 </select>
                 <select
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   value={logForm.employment_type}
                   onChange={(e) =>
                     setLogForm((f) => ({
@@ -518,7 +518,7 @@ export default function FieldgraphLabourPage() {
                   ))}
                 </select>
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Headcount"
                   type="number"
                   value={logForm.headcount}
@@ -527,7 +527,7 @@ export default function FieldgraphLabourPage() {
                   }
                 />
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Hours"
                   type="number"
                   step="0.1"
@@ -537,7 +537,7 @@ export default function FieldgraphLabourPage() {
                   }
                 />
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Rate (ZAR) override"
                   type="number"
                   step="0.01"
@@ -547,7 +547,7 @@ export default function FieldgraphLabourPage() {
                   }
                 />
                 <select
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   value={logForm.rate_unit}
                   onChange={(e) =>
                     setLogForm((f) => ({
@@ -566,7 +566,7 @@ export default function FieldgraphLabourPage() {
                 {(logForm.rate_unit === 'per_tonne' ||
                   logForm.rate_unit === 'per_task') && (
                   <input
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                     placeholder={
                       logForm.rate_unit === 'per_tonne'
                         ? 'Tonnes'
@@ -606,9 +606,9 @@ export default function FieldgraphLabourPage() {
                 </button>
               </div>
 
-              <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white">
+              <div className="overflow-x-auto rounded-3xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40">
                 <table className="w-full text-sm min-w-[720px]">
-                  <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  <thead className="bg-amber-50 text-left text-[10px] font-black uppercase tracking-wider text-amber-900 dark:bg-amber-900/50 dark:text-amber-200">
                     <tr>
                       <th className="px-3 py-2.5">Date</th>
                       <th className="px-3 py-2.5">Gang</th>
@@ -694,7 +694,7 @@ export default function FieldgraphLabourPage() {
           {tab === 'costs' && (
             <div className="space-y-6">
               <div className="grid sm:grid-cols-3 gap-3">
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
                   <div className="text-[10px] font-black uppercase text-slate-400">
                     Total cost
                   </div>
@@ -702,7 +702,7 @@ export default function FieldgraphLabourPage() {
                     {formatZar(labourCost?.totalCost)}
                   </div>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
                   <div className="text-[10px] font-black uppercase text-slate-400">
                     Total hours
                   </div>
@@ -710,7 +710,7 @@ export default function FieldgraphLabourPage() {
                     {labourCost?.totalHours ?? '—'}
                   </div>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
                   <div className="text-[10px] font-black uppercase text-slate-400">
                     Person-days (approx)
                   </div>
@@ -724,9 +724,9 @@ export default function FieldgraphLabourPage() {
                 <h3 className="text-sm font-black mb-3">
                   Cost by employment type
                 </h3>
-                <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white">
+                <div className="overflow-x-auto rounded-3xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40">
                   <table className="w-full text-sm">
-                    <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    <thead className="bg-amber-50 text-left text-[10px] font-black uppercase tracking-wider text-amber-900 dark:bg-amber-900/50 dark:text-amber-200">
                       <tr>
                         <th className="px-3 py-2.5">Type</th>
                         <th className="px-3 py-2.5">Logs</th>
@@ -768,9 +768,9 @@ export default function FieldgraphLabourPage() {
 
               <div>
                 <h3 className="text-sm font-black mb-3">Cost by gang</h3>
-                <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white">
+                <div className="overflow-x-auto rounded-3xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40">
                   <table className="w-full text-sm">
-                    <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    <thead className="bg-amber-50 text-left text-[10px] font-black uppercase tracking-wider text-amber-900 dark:bg-amber-900/50 dark:text-amber-200">
                       <tr>
                         <th className="px-3 py-2.5">Gang</th>
                         <th className="px-3 py-2.5">Logs</th>
@@ -815,9 +815,9 @@ export default function FieldgraphLabourPage() {
 
               <div>
                 <h3 className="text-sm font-black mb-3">Cost by field</h3>
-                <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white">
+                <div className="overflow-x-auto rounded-3xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40">
                   <table className="w-full text-sm">
-                    <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    <thead className="bg-amber-50 text-left text-[10px] font-black uppercase tracking-wider text-amber-900 dark:bg-amber-900/50 dark:text-amber-200">
                       <tr>
                         <th className="px-3 py-2.5">Field</th>
                         <th className="px-3 py-2.5">Logs</th>

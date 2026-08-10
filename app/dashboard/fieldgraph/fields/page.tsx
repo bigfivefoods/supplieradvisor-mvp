@@ -92,7 +92,7 @@ export default function FieldgraphFieldsPage() {
       ) : (
         <div className="space-y-6">
           <div className="grid sm:grid-cols-3 gap-3">
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 px-4 py-3">
+            <div className="rounded-2xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 px-4 py-3">
               <div className="text-[10px] font-black uppercase text-emerald-800/70">
                 Fields in book
               </div>
@@ -100,7 +100,7 @@ export default function FieldgraphFieldsPage() {
                 {Number(summary?.fieldCount) || store.fields.length}
               </div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <div className="rounded-2xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 px-4 py-3">
               <div className="text-[10px] font-black uppercase text-slate-400">
                 Hectares
               </div>
@@ -108,7 +108,7 @@ export default function FieldgraphFieldsPage() {
                 {Number(summary?.hectares) || 0}
               </div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <div className="rounded-2xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 px-4 py-3">
               <div className="text-[10px] font-black uppercase text-slate-400">
                 Crops
               </div>
@@ -118,7 +118,7 @@ export default function FieldgraphFieldsPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-emerald-100 bg-emerald-50/30 p-4 sm:p-5">
+          <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 p-4 sm:p-5">
             <h3 className="text-sm font-black text-slate-900 mb-1">
               Add / update field (agronomic master)
             </h3>
@@ -146,7 +146,7 @@ export default function FieldgraphFieldsPage() {
                 <input
                   key={key}
                   type={type || (key.includes('ha') || key.includes('ratoon') || key.includes('spacing') || key.includes('population') ? 'number' : 'text')}
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder={ph}
                   value={(form as Record<string, string>)[key]}
                   onChange={(e) =>
@@ -155,7 +155,7 @@ export default function FieldgraphFieldsPage() {
                 />
               ))}
               <select
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                 value={form.crop}
                 onChange={(e) => setForm((f) => ({ ...f, crop: e.target.value }))}
               >
@@ -166,7 +166,7 @@ export default function FieldgraphFieldsPage() {
                 ))}
               </select>
               <select
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                 value={form.irrigation}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, irrigation: e.target.value }))
@@ -178,7 +178,7 @@ export default function FieldgraphFieldsPage() {
                 <option value="partial">Partial</option>
               </select>
               <input
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white sm:col-span-2"
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 sm:col-span-2"
                 placeholder="Notes"
                 value={form.notes}
                 onChange={(e) =>
@@ -202,9 +202,9 @@ export default function FieldgraphFieldsPage() {
           </div>
 
           <div className="grid lg:grid-cols-5 gap-4">
-            <div className="lg:col-span-3 overflow-x-auto rounded-3xl border border-slate-200 bg-white">
+            <div className="lg:col-span-3 overflow-x-auto rounded-3xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">
+                <thead className="bg-emerald-50 text-left text-[10px] font-black uppercase tracking-wider text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-200">
                   <tr>
                     <th className="px-3 py-2.5">Code</th>
                     <th className="px-3 py-2.5">Agronomy</th>
@@ -261,7 +261,7 @@ export default function FieldgraphFieldsPage() {
               </table>
             </div>
 
-            <div className="lg:col-span-2 rounded-3xl border border-slate-200 bg-white p-4">
+            <div className="lg:col-span-2 rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50">
               <h3 className="text-sm font-black text-slate-900">
                 Yield & quality · seasons
               </h3>

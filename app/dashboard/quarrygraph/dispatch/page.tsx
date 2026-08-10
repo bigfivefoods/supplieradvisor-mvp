@@ -65,7 +65,7 @@ export default function QuarryDispatchPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow
+          <StatRow tone="qg-trade"
             items={[
               {
                 label: 'Tickets',
@@ -81,7 +81,7 @@ export default function QuarryDispatchPage() {
               },
             ]}
           />
-          <FormCard title="New ticket" onSubmit={() => void add()} saving={saving} submitLabel="Save ticket">
+          <FormCard tone="qg-trade" title="New ticket" onSubmit={() => void add()} saving={saving} submitLabel="Save ticket">
             <input className={fieldClass()} type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
             <input className={fieldClass()} placeholder="Ticket no." value={form.ticket_no} onChange={(e) => setForm((f) => ({ ...f, ticket_no: e.target.value }))} />
             <select className={fieldClass()} value={form.site_id} onChange={(e) => setForm((f) => ({ ...f, site_id: e.target.value }))}>
@@ -114,7 +114,7 @@ export default function QuarryDispatchPage() {
               <option value="void">Void</option>
             </select>
           </FormCard>
-          <DataTable
+          <DataTable tone="qg-trade"
             headers={['Date', 'Ticket', 'Product', 'Customer', 'Reg', 'Net t', 'Destination', 'Status']}
             rows={[...store.dispatches]
               .sort((a, b) => b.date.localeCompare(a.date))

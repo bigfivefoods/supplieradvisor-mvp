@@ -390,7 +390,7 @@ function Inner() {
           <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
         </div>
       ) : role === 'agency' ? (
-        <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center">
+        <div className="rounded-3xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50 p-8 text-center">
           <Landmark className="w-10 h-10 mx-auto text-amber-600 mb-3" />
           <p className="font-black text-slate-900">
             Agency desk for SP associations
@@ -615,7 +615,7 @@ function IspJoinView({
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <div className="rounded-3xl border border-slate-200 bg-white p-5">
+        <div className="rounded-3xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50 p-5">
           <h3 className="text-sm font-black mb-1 flex items-center gap-2">
             <Clock className="w-4 h-4 text-amber-600" />
             My school claims
@@ -679,7 +679,7 @@ function IspJoinView({
           )}
         </div>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-5">
+        <div className="rounded-3xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50 p-5">
           <h3 className="text-sm font-black mb-1">My department associations</h3>
           <p className="text-[11px] text-slate-500 mb-3">
             Profile · {String(myIsp.trading_name || myIsp.profile_id)} · global
@@ -736,7 +736,7 @@ function IspJoinView({
         </div>
       </div>
 
-      <div className="rounded-3xl border border-slate-200 bg-white p-5">
+      <div className="rounded-3xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50 p-5">
         <h3 className="text-sm font-black mb-1">
           Join DBE / PEU directory
         </h3>
@@ -887,7 +887,7 @@ function SchoolIspView({
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <div className="rounded-3xl border border-slate-200 bg-white p-5">
+        <div className="rounded-3xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50 p-5">
           <h3 className="text-sm font-black mb-3">Linked to this school</h3>
           {activeLinks.length === 0 ? (
             <p className="text-sm text-slate-500">
@@ -924,7 +924,7 @@ function SchoolIspView({
             </ul>
           )}
         </div>
-        <div className="rounded-3xl border border-slate-200 bg-white p-5">
+        <div className="rounded-3xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50 p-5">
           <h3 className="text-sm font-black mb-1">
             Department-approved SP directory
           </h3>

@@ -215,7 +215,7 @@ function Inner() {
         <NsnpSystemFlow audience="school" defaultCollapsed />
         <div className="space-y-4 max-w-3xl">
           {/* Photo hero */}
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 flex flex-col sm:flex-row gap-5 items-center sm:items-start">
+          <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 p-5 flex flex-col sm:flex-row gap-5 items-center sm:items-start">
             <div className="relative group">
               {photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -364,7 +364,7 @@ function Inner() {
             </Link>
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 space-y-6">
+          <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 p-6 space-y-6">
             <div className="grid sm:grid-cols-2 gap-4">
               <Field label="School name">
                 <input

@@ -27,11 +27,11 @@ export default function FieldgraphTradePage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <div className="rounded-3xl border border-cyan-100 bg-gradient-to-br from-cyan-50/80 to-white p-5 sm:p-6">
-            <p className="text-[10px] font-black uppercase tracking-widest text-cyan-800">
+          <div className="rounded-3xl border border-cyan-300 bg-sky-50 p-5 sm:p-6 dark:!border-cyan-400 dark:!bg-cyan-950 dark:ring-1 dark:ring-cyan-500/50">
+            <p className="text-[10px] font-black uppercase tracking-widest text-cyan-800 dark:text-cyan-300">
               Season snapshot
             </p>
-            <p className="text-sm text-slate-600 mt-1">
+            <p className="text-sm text-slate-600 dark:text-cyan-100/85 mt-1">
               {Number(summary?.fieldCount) || 0} fields ·{' '}
               {Number(summary?.estimateTonnes) || 0} t estimated ·{' '}
               {Number(summary?.harvestOpen) || 0} harvest lines open
@@ -68,24 +68,24 @@ export default function FieldgraphTradePage() {
               <Link
                 key={c.href}
                 href={c.href}
-                className="rounded-3xl border border-slate-200 bg-white p-5 hover:border-emerald-300 hover:shadow-md transition-all group"
+                className="rounded-3xl border border-cyan-200 bg-white p-5 hover:border-cyan-400 hover:shadow-md transition-all group dark:!border-cyan-400 dark:!bg-cyan-950 dark:ring-1 dark:ring-cyan-500/40"
               >
-                <c.icon className="w-5 h-5 text-emerald-600 mb-2" />
-                <div className="font-black text-slate-900 group-hover:text-emerald-800">
+                <c.icon className="w-5 h-5 text-cyan-600 dark:text-cyan-400 mb-2" />
+                <div className="font-black text-slate-900 group-hover:text-cyan-800 dark:text-cyan-50 dark:group-hover:text-cyan-200">
                   {c.title}
                 </div>
-                <p className="text-[12px] text-slate-500 mt-1 leading-relaxed">
+                <p className="text-[12px] text-slate-500 dark:text-cyan-100/75 mt-1 leading-relaxed">
                   {c.body}
                 </p>
-                <span className="inline-flex items-center gap-1 mt-3 text-xs font-bold text-emerald-700">
+                <span className="inline-flex items-center gap-1 mt-3 text-xs font-bold text-cyan-700 dark:text-cyan-300">
                   Open <ArrowRight className="w-3.5 h-3.5" />
                 </span>
               </Link>
             ))}
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-5">
-            <h3 className="text-sm font-black text-slate-900 mb-2">
+          <div className="rounded-3xl border border-cyan-200 bg-white p-5 dark:!border-cyan-400 dark:!bg-cyan-950 dark:ring-1 dark:ring-cyan-500/40">
+            <h3 className="text-sm font-black text-slate-900 dark:text-cyan-50 mb-2">
               Harvest destinations on plan
             </h3>
             <ul className="space-y-1.5 text-sm">

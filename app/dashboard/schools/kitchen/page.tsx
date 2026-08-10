@@ -1365,7 +1365,7 @@ function Inner() {
       </div>
 
       {/* Inventory levels + demand */}
-      <div className="mb-6 rounded-3xl border border-slate-200 bg-white overflow-hidden">
+      <div className="mb-6 rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 overflow-hidden">
         <div className="px-4 py-3 border-b flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-sm font-black">
@@ -1887,7 +1887,7 @@ function Inner() {
       ) : null}
 
       {/* GRN */}
-      <div className="mb-6 rounded-3xl border border-slate-200 bg-white p-5 space-y-4">
+      <div className="mb-6 rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 p-5 space-y-4">
         <div className="flex flex-wrap items-end gap-3">
           <label className="text-xs flex-1 min-w-[14rem]">
             <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
@@ -2044,7 +2044,7 @@ function Inner() {
         </div>
       ) : (
         <div className="grid lg:grid-cols-2 gap-4">
-          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 overflow-hidden">
             <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500">
               On hand
             </div>
@@ -2146,7 +2146,7 @@ function Inner() {
               </tbody>
             </table>
           </div>
-          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 overflow-hidden">
             <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500">
               Recent receipts
             </div>

@@ -907,7 +907,7 @@ function Inner() {
       </div>
 
       {/* One-click create from PO */}
-      <div className="rounded-3xl border border-slate-200 bg-white p-4 mb-4 space-y-3">
+      <div className="rounded-3xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50 p-4 mb-4 space-y-3">
         <div className="flex flex-wrap gap-2 items-end">
           <label className="text-xs flex-1 min-w-[12rem]">
             <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
@@ -1051,7 +1051,7 @@ function Inner() {
             )}
           </ul>
 
-          <div className="lg:col-span-3 rounded-3xl border border-slate-200 bg-white p-5 min-h-[360px]">
+          <div className="lg:col-span-3 rounded-3xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50 p-5 min-h-[360px]">
             {!selected ? (
               <p className="text-sm text-slate-500 text-center py-20">
                 Select a delivery to run the supply / receive process.

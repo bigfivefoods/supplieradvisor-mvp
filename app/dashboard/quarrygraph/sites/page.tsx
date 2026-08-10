@@ -78,7 +78,7 @@ export default function QuarrySitesPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow
+          <StatRow tone="qg-office"
             items={[
               {
                 label: 'Quarries',
@@ -100,7 +100,7 @@ export default function QuarrySitesPage() {
               so pits roll up correctly across multi-site fleets and reports.
             </p>
           ) : null}
-          <FormCard title="Add pit / face / pad" onSubmit={() => void add()} saving={saving}>
+          <FormCard tone="qg-office" title="Add pit / face / pad" onSubmit={() => void add()} saving={saving}>
             <select className={fieldClass()} value={form.quarry_id} onChange={(e) => setForm((f) => ({ ...f, quarry_id: e.target.value }))}>
               <option value="">Parent quarry / plant…</option>
               {(store.quarries || []).map((q) => (
@@ -134,7 +134,7 @@ export default function QuarrySitesPage() {
             <input className={fieldClass()} type="number" step="0.000001" placeholder="Latitude" value={form.lat} onChange={(e) => setForm((f) => ({ ...f, lat: e.target.value }))} />
             <input className={fieldClass()} type="number" step="0.000001" placeholder="Longitude" value={form.lng} onChange={(e) => setForm((f) => ({ ...f, lng: e.target.value }))} />
           </FormCard>
-          <DataTable
+          <DataTable tone="qg-office"
             headers={['Code', 'Name', 'Type', 'Quarry', 'Material', 'Temp', 'GPS', 'Project']}
             rows={store.sites.map((s) => {
               const q = (store.quarries || []).find((x) => x.id === s.quarry_id);

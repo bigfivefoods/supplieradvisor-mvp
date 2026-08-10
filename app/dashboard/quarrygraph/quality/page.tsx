@@ -54,13 +54,13 @@ export default function QuarryQualityPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow
+          <StatRow tone="qg-trade"
             items={[
               { label: 'Tests', value: Number(summary?.qualityTests) || 0 },
               { label: 'Fails', value: Number(summary?.qualityFails) || 0 },
             ]}
           />
-          <FormCard title="Log test" onSubmit={() => void add()} saving={saving}>
+          <FormCard tone="qg-trade" title="Log test" onSubmit={() => void add()} saving={saving}>
             <select className={fieldClass()} value={form.site_id} onChange={(e) => setForm((f) => ({ ...f, site_id: e.target.value }))}>
               <option value="">Site…</option>
               {store.sites.map((s) => (
@@ -89,7 +89,7 @@ export default function QuarryQualityPage() {
             </select>
             <input className={fieldClass()} placeholder="Lab" value={form.lab} onChange={(e) => setForm((f) => ({ ...f, lab: e.target.value }))} />
           </FormCard>
-          <DataTable
+          <DataTable tone="qg-trade"
             headers={['Date', 'Sample', 'Site', 'Product', 'Test', 'Result', 'P/F', 'Lab']}
             rows={store.quality_tests.map((q) => {
               const site = store.sites.find((s) => s.id === q.site_id);

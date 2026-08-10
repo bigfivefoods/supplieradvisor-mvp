@@ -54,7 +54,7 @@ export default function FieldgraphInputsPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <div className="rounded-3xl border border-violet-100 bg-violet-50/40 p-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          <div className="rounded-3xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50 p-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
             <select
               className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
               value={form.field_id}
@@ -161,9 +161,9 @@ export default function FieldgraphInputsPage() {
             </button>
           </div>
 
-          <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white">
+          <div className="overflow-x-auto rounded-3xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">
+              <thead className="bg-amber-50 text-left text-[10px] font-black uppercase tracking-wider text-amber-900 dark:bg-amber-900/50 dark:text-amber-200">
                 <tr>
                   <th className="px-3 py-2.5">Date</th>
                   <th className="px-3 py-2.5">Field</th>

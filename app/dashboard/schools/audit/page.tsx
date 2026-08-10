@@ -118,7 +118,7 @@ function Inner() {
           <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
         </div>
       ) : (
-        <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+        <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">

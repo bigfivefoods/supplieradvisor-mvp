@@ -192,7 +192,7 @@ export default function QuarryFleetPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow
+          <StatRow tone="qg-ops"
             items={[
               {
                 label: 'Vehicles',
@@ -264,7 +264,7 @@ export default function QuarryFleetPage() {
 
           {tab === 'registry' && (
             <>
-              <FormCard
+              <FormCard tone="qg-ops"
                 title="Register vehicle / plant unit"
                 onSubmit={() => void addVeh()}
                 saving={saving}
@@ -480,7 +480,7 @@ export default function QuarryFleetPage() {
                   }
                 />
               </FormCard>
-              <DataTable
+              <DataTable tone="qg-ops"
                 headers={[
                   'Code',
                   'Name',
@@ -520,7 +520,7 @@ export default function QuarryFleetPage() {
 
           {tab === 'activity' && (
             <>
-              <FormCard
+              <FormCard tone="qg-ops"
                 title="Log shift activity"
                 onSubmit={() => void addLog()}
                 saving={saving}
@@ -669,7 +669,7 @@ export default function QuarryFleetPage() {
                   }
                 />
               </FormCard>
-              <DataTable
+              <DataTable tone="qg-ops"
                 headers={[
                   'Date',
                   'Vehicle',
@@ -710,7 +710,7 @@ export default function QuarryFleetPage() {
                 actual L/h vs book burn rate. Log <em>km this shift</em> (or
                 odometer) and fuel price for R/km.
               </p>
-              <DataTable
+              <DataTable tone="qg-ops"
                 headers={[
                   'Code',
                   'Vehicle',
@@ -746,7 +746,7 @@ export default function QuarryFleetPage() {
                 }))}
               />
               <h3 className="text-sm font-black">By vehicle type</h3>
-              <DataTable
+              <DataTable tone="qg-ops"
                 headers={['Type', 'Units', 'Hours', 'Fuel L', 'Tonnes']}
                 rows={byType.map((r, i) => ({
                   id: String(i),

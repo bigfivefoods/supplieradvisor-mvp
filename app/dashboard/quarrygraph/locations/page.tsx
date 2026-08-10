@@ -188,7 +188,7 @@ export default function QuarryLocationsPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow
+          <StatRow tone="qg-office"
             items={[
               {
                 label: 'Permanent',
@@ -244,7 +244,7 @@ export default function QuarryLocationsPage() {
                 for ready-mix or project plants. Set <strong>lat / lng</strong>{' '}
                 (WGS84) so haul distances and Google Maps directions work.
               </p>
-              <FormCard
+              <FormCard tone="qg-office"
                 title="Add temporary quarry or batching plant"
                 onSubmit={() => void addOp()}
                 saving={saving}
@@ -390,7 +390,7 @@ export default function QuarryLocationsPage() {
                 />
               </FormCard>
 
-              <DataTable
+              <DataTable tone="qg-office"
                 headers={[
                   'Code',
                   'Name',
@@ -441,7 +441,7 @@ export default function QuarryLocationsPage() {
 
           {tab === 'allocate' && (
             <>
-              <FormCard
+              <FormCard tone="qg-office"
                 title="Allocate vehicle / crew / plant to location"
                 onSubmit={() => void addAlloc()}
                 saving={saving}
@@ -559,7 +559,7 @@ export default function QuarryLocationsPage() {
                 />
               </FormCard>
 
-              <DataTable
+              <DataTable tone="qg-office"
                 headers={[
                   'Resource',
                   'Type',
@@ -617,7 +617,7 @@ export default function QuarryLocationsPage() {
                   or sites.
                 </p>
               ) : (
-                <DataTable
+                <DataTable tone="qg-office"
                   headers={[
                     'Code',
                     'Name',
@@ -653,7 +653,7 @@ export default function QuarryLocationsPage() {
               )}
 
               <h3 className="text-sm font-black">Distance matrix</h3>
-              <DataTable
+              <DataTable tone="qg-office"
                 headers={[
                   'From',
                   'To',

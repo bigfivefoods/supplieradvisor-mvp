@@ -283,7 +283,7 @@ function Inner() {
         </div>
       ) : (
         <div className="max-w-xl mx-auto space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 flex flex-wrap items-end gap-2">
+          <div className="rounded-2xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 px-4 py-3 flex flex-wrap items-end gap-2">
             <label className="text-xs flex-1 min-w-[10rem]">
               <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
                 Serve day
@@ -326,7 +326,7 @@ function Inner() {
             </div>
           ) : null}
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-5">
+          <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 p-5">
             <p className="text-[10px] font-bold uppercase text-slate-400">
               {String(data?.date || serveDate)} · {String(data?.mealType)}
             </p>
@@ -414,7 +414,7 @@ function Inner() {
               {nutrition.pass ? 'PASS' : 'BELOW NORM'}
             </div>
           ) : (
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500">
+            <div className="rounded-2xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 px-4 py-3 text-xs text-slate-500">
               Link approved products on today&apos;s menu dish for nutrition
               checks.{' '}
               <Link href="/dashboard/schools/menu" className="font-bold text-[#0077b6]">
@@ -423,7 +423,7 @@ function Inner() {
             </div>
           )}
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3">
+          <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 p-5 space-y-3">
             <label className="block text-sm">
               <span className="text-[10px] font-bold uppercase text-slate-400">
                 Learners present

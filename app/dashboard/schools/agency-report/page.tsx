@@ -660,7 +660,7 @@ function Inner() {
       />
 
       {/* Report picker — grouped */}
-      <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-3">
+      <div className="mb-4 rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 p-3">
         <div className="flex flex-wrap gap-x-6 gap-y-3">
           {REPORT_GROUPS.map((g) => (
             <div key={g.label} className="min-w-0">
@@ -920,7 +920,7 @@ function Inner() {
 
           {(report === 'claims' ||
             (report === 'overview' && claimsInbox.length > 0)) && (
-            <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden mb-6">
+            <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden mb-6">
               <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500 flex items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-2">
                   <Wallet className="w-4 h-4 text-emerald-600" />
@@ -1169,7 +1169,7 @@ function Inner() {
           )}
 
           {report === 'prizes' && (
-            <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+            <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
               <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
                 <Trophy className="w-4 h-4 text-amber-500" />
                 Prize leaderboard (approved members)
@@ -1232,7 +1232,7 @@ function Inner() {
           )}
 
           {report === 'feeding' && (
-            <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+            <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
               <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500">
                 Network feeding trend
               </div>
@@ -1306,7 +1306,7 @@ function Inner() {
           )}
 
           {report === 'map' && (
-            <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+            <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
               <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500">
                 Locations ({filteredMembers.filter((m) => m.lat != null).length}{' '}
                 with GPS)
@@ -1385,7 +1385,7 @@ function Kpi({
 
 function MemberTable({ members }: { members: Member[] }) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+    <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
       <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500 flex flex-wrap items-center justify-between gap-2">
         <span>Schools in current slice · {members.length.toLocaleString('en-ZA')}</span>
         <span className="text-[10px] font-semibold normal-case text-slate-400">
@@ -1699,7 +1699,7 @@ function HierarchyView({
       </div>
 
       {/* Level 3: facilities under agency (not yet on an SP) */}
-      <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+      <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
         <div className="px-5 py-3 border-b flex flex-wrap items-center justify-between gap-2">
           <span className="text-xs font-bold uppercase text-slate-500">
             3 · Schools on your programme not yet linked to an SP (
@@ -1787,7 +1787,7 @@ function GroupTable({
   keyLabel: string;
 }) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+    <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
       <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500">
         {title}
       </div>
@@ -1931,7 +1931,7 @@ function IspCountTable({
   keyLabel: string;
 }) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+    <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
       <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
         <Truck className="w-3.5 h-3.5 text-emerald-600" />
         {title}
@@ -1988,7 +1988,7 @@ function IspDirectoryTable({
         rows={byProvince}
         keyLabel="Province"
       />
-      <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+      <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
         <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500">
           SP directory · associated with this department
         </div>
@@ -2070,7 +2070,7 @@ function RiskCard({
   primary: (m: Member) => string;
 }) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5">
+    <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-5">
       <h3 className="text-sm font-black flex items-center gap-2 mb-3">
         <AlertTriangle className="w-4 h-4 text-amber-500" />
         {title}
@@ -2190,7 +2190,7 @@ function AgencyRiadReport({
         ].map((k) => (
           <div
             key={k.label}
-            className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
+            className="rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 px-3 py-2.5"
           >
             <p className="text-[10px] font-bold uppercase text-slate-400">
               {k.label}
@@ -2249,7 +2249,7 @@ function AgencyRiadReport({
         </button>
       </div>
 
-      <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+      <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
         <div className="px-5 py-3 border-b text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 text-rose-600" />
           RIAD entries · {items.length}

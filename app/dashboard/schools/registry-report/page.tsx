@@ -444,7 +444,7 @@ function Inner() {
       />
 
       {/* Filters */}
-      <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 flex flex-wrap gap-3 items-end">
+      <div className="mb-4 rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 p-4 flex flex-wrap gap-3 items-end">
         <label className="text-xs font-semibold text-slate-600">
           Link status
           <select
@@ -687,7 +687,7 @@ function Inner() {
                   onExport={() => downloadRollCsv(byPhase, 'phase')}
                 />
               )}
-              <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden lg:col-span-2">
+              <div className="rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 overflow-hidden lg:col-span-2">
                 <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                   <h3 className="font-bold text-slate-900 text-sm">
                     Largest schools by enrolment
@@ -763,7 +763,7 @@ function Inner() {
           )}
 
           {tab === 'schools' && (
-            <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+            <div className="rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 overflow-hidden">
               <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h3 className="font-bold text-slate-900 text-sm">
@@ -919,7 +919,7 @@ function Kpi({
   sub?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+    <div className="rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 px-4 py-3">
       <div className="flex items-center gap-1.5 text-slate-500 text-xs font-semibold">
         {icon}
         {label}
@@ -949,7 +949,7 @@ function RollTable({
 }) {
   const list = showAll ? rows : rows;
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+    <div className="rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 overflow-hidden">
       <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
         <div>
           <h3 className="font-bold text-slate-900 text-sm">{title}</h3>

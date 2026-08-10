@@ -300,7 +300,7 @@ function Inner() {
             <RollCard title="By cluster" rows={byCluster.slice(0, 12)} />
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h3 className="font-bold text-slate-900 text-sm">
@@ -425,7 +425,7 @@ function Kpi({
   sub?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+    <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
       <div className="flex items-center gap-1.5 text-slate-500 text-xs font-semibold">
         {icon}
         {label}
@@ -448,7 +448,7 @@ function RollCard({
   rows: Array<{ key: string; sps: number }>;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+    <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 overflow-hidden">
       <div className="px-4 py-2.5 border-b text-xs font-bold uppercase text-slate-500">
         {title}
       </div>

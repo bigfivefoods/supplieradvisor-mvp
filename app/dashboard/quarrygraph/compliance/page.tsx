@@ -63,7 +63,7 @@ export default function QuarryCompliancePage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow
+          <StatRow tone="qg-office"
             items={[
               { label: 'Permits', value: Number(summary?.permits) || 0 },
               {
@@ -72,7 +72,7 @@ export default function QuarryCompliancePage() {
               },
             ]}
           />
-          <FormCard title="Add permit" onSubmit={() => void add()} saving={saving}>
+          <FormCard tone="qg-office" title="Add permit" onSubmit={() => void add()} saving={saving}>
             <select className={fieldClass()} value={form.site_id} onChange={(e) => setForm((f) => ({ ...f, site_id: e.target.value }))}>
               <option value="">Site…</option>
               {store.sites.map((s) => (
@@ -95,7 +95,7 @@ export default function QuarryCompliancePage() {
               <option value="suspended">Suspended</option>
             </select>
           </FormCard>
-          <DataTable
+          <DataTable tone="qg-office"
             headers={['Type', 'Ref', 'Site', 'Issued', 'Expires', 'Status']}
             rows={store.permits.map((p) => {
               const site = store.sites.find((s) => s.id === p.site_id);

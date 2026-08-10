@@ -327,7 +327,7 @@ function Inner() {
       </div>
 
       <div className="grid sm:grid-cols-3 gap-3 mb-6">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 p-4">
           <p className="text-[10px] font-bold uppercase text-slate-400">
             Schools in system
           </p>
@@ -340,7 +340,7 @@ function Inner() {
             Linked to you: {String(stats?.schools_linked_to_you ?? '—')}
           </p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:col-span-2">
+        <div className="rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 p-4 sm:col-span-2">
           <p className="text-[10px] font-bold uppercase text-slate-400 mb-1">
             Expected columns
           </p>
@@ -425,7 +425,7 @@ function Inner() {
         </label>
 
         {progress ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 p-4">
             <p className="text-xs font-semibold text-slate-700 mb-2">
               {progress.phase}
             </p>
@@ -472,7 +472,7 @@ function Inner() {
       </div>
 
       {parsed ? (
-        <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-5">
+        <div className="mt-4 rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-5">
           <h3 className="text-sm font-black mb-2 flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             Preview ready

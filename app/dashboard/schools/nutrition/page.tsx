@@ -258,7 +258,7 @@ function Inner() {
 
           {/* Trend */}
           {trend.length > 0 ? (
-            <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+            <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 overflow-hidden">
               <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500">
                 Daily trend
               </div>
@@ -310,7 +310,7 @@ function Inner() {
           ) : null}
 
           {/* Learners */}
-          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 overflow-hidden">
             <div className="px-4 py-3 border-b flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
                 <Users className="w-4 h-4 text-[#00b4d8]" />
@@ -427,7 +427,7 @@ function BenchmarkCard({ b }: { b: BenchmarkKpi }) {
         ? b.delta <= 0
         : b.delta >= 0;
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-3">
+    <div className="rounded-2xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 p-3">
       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
         {b.label}
       </p>

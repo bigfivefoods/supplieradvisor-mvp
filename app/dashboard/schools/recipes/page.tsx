@@ -798,7 +798,7 @@ function Inner() {
                 return (
                   <section
                     key={day.day}
-                    className="rounded-3xl border border-slate-200 bg-white overflow-hidden"
+                    className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden"
                   >
                     <div className="px-4 py-2.5 bg-slate-50 border-b text-sm font-black">
                       {day.label}
@@ -921,7 +921,7 @@ function Inner() {
                 );
               })}
               {recipesByWeekday.unassigned.length > 0 ? (
-                <section className="rounded-3xl border border-amber-100 bg-amber-50/40 p-4">
+                <section className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-4">
                   <p className="text-sm font-black text-amber-950 mb-2">
                     Other recipes
                   </p>
@@ -986,7 +986,7 @@ function Inner() {
       ) : tab === 'recipes' && canEdit ? (
         <div className="space-y-4">
           {/* ── Week planner: click a cell to set day + meal ─────────── */}
-          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
             <div className="px-4 py-3 border-b flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-sm font-black inline-flex items-center gap-2">
@@ -1561,7 +1561,7 @@ function Inner() {
             </div>
 
             {/* Side list of all recipes for this week */}
-            <div className="lg:col-span-2 rounded-3xl border border-slate-200 bg-white overflow-hidden max-h-[40rem] overflow-y-auto">
+            <div className="lg:col-span-2 rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden max-h-[40rem] overflow-y-auto">
               <div className="px-4 py-3 border-b text-sm font-black sticky top-0 bg-white z-10">
                 All recipes ({recipes.length})
               </div>
@@ -1616,7 +1616,7 @@ function Inner() {
           <div className="mb-2">
             <PeriodSlicer value={period} onChange={setPeriod} />
           </div>
-          <div className="rounded-3xl border border-slate-200 bg-white p-4 space-y-3">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-black">
                 {bEditId
@@ -1744,7 +1744,7 @@ function Inner() {
               </p>
             ) : null}
           </div>
-          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
             <table className="w-full text-sm min-w-[640px]">
               <thead>
                 <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
@@ -1894,7 +1894,7 @@ function Inner() {
               </div>
 
               <div className="grid lg:grid-cols-2 gap-4">
-                <div className="rounded-3xl border border-slate-200 bg-white p-4">
+                <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-4">
                   <p className="text-sm font-black mb-2">MPS · meals by recipe</p>
                   <p className="text-[11px] text-slate-500 mb-2">
                     Whole learner-meals = learners × service days (days this
@@ -1928,7 +1928,7 @@ function Inner() {
                     ))}
                   </ul>
                 </div>
-                <div className="rounded-3xl border border-slate-200 bg-white p-4">
+                <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-4">
                   <p className="text-sm font-black mb-2 flex items-center gap-1">
                     <Wallet className="w-4 h-4" /> Category MRP vs budget
                   </p>
@@ -1962,7 +1962,7 @@ function Inner() {
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+              <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
                 <div className="px-4 py-3 border-b text-sm font-black">
                   MRP · product requirements (programme / your scope)
                 </div>
@@ -2002,7 +2002,7 @@ function Inner() {
               </div>
 
               {role !== 'isp' && (plan.schools || []).length > 0 ? (
-                <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+                <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
                   <div className="px-4 py-3 border-b text-sm font-black">
                     MPS / MRP by school (learner-scaled)
                   </div>
@@ -2056,7 +2056,7 @@ function Inner() {
 
               {role === 'agency' &&
               (plan.service_providers || []).length > 0 ? (
-                <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+                <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
                   <div className="px-4 py-3 border-b text-sm font-black">
                     Estimated MPS / MRP by service provider
                   </div>

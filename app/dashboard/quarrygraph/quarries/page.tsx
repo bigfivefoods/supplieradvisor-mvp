@@ -100,7 +100,7 @@ export default function QuarriesPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow
+          <StatRow tone="qg-office"
             items={[
               {
                 label: 'Quarries',
@@ -134,7 +134,7 @@ export default function QuarriesPage() {
             .
           </p>
 
-          <FormCard
+          <FormCard tone="qg-office"
             title="Add quarry operation"
             onSubmit={() => void add()}
             saving={saving}
@@ -273,7 +273,7 @@ export default function QuarriesPage() {
             />
           </FormCard>
 
-          <DataTable
+          <DataTable tone="qg-office"
             headers={[
               'Code',
               'Name',
@@ -316,7 +316,7 @@ export default function QuarriesPage() {
               <h3 className="text-sm font-black text-slate-800">
                 Live roll-up by quarry
               </h3>
-              <DataTable
+              <DataTable tone="qg-office"
                 headers={[
                   'Quarry',
                   'Pits',

@@ -331,7 +331,7 @@ function Inner() {
         </div>
       ) : tab === 'sp' ? (
         <div className="grid lg:grid-cols-5 gap-4">
-          <div className="lg:col-span-2 rounded-3xl border border-slate-200 bg-white p-4 space-y-3">
+          <div className="lg:col-span-2 rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 p-4 space-y-3">
             <p className="text-sm font-black inline-flex items-center gap-2">
               <Star className="w-4 h-4 text-amber-500" /> Rate linked SP
             </p>
@@ -429,7 +429,7 @@ function Inner() {
               </>
             )}
           </div>
-          <div className="lg:col-span-3 rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="lg:col-span-3 rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 overflow-hidden">
             <div className="px-4 py-3 border-b text-sm font-black">
               Recent SP ratings
             </div>
@@ -479,7 +479,7 @@ function Inner() {
         </div>
       ) : (
         <div className="grid lg:grid-cols-5 gap-4">
-          <div className="lg:col-span-2 rounded-3xl border border-slate-200 bg-white p-4 space-y-3">
+          <div className="lg:col-span-2 rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 p-4 space-y-3">
             <p className="text-sm font-black inline-flex items-center gap-2">
               <Utensils className="w-4 h-4 text-emerald-600" /> Rate today&apos;s
               food
@@ -610,7 +610,7 @@ function Inner() {
               .
             </p>
           </div>
-          <div className="lg:col-span-3 rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="lg:col-span-3 rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 overflow-hidden">
             <div className="px-4 py-3 border-b text-sm font-black">
               Recent food ratings
             </div>

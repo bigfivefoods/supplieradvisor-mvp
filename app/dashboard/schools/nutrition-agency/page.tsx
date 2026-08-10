@@ -234,7 +234,7 @@ function Inner() {
             ].map((k) => (
               <div
                 key={k.label}
-                className="rounded-2xl border border-slate-200 bg-white px-3 py-3"
+                className="rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 px-3 py-3"
               >
                 <p className="text-[10px] font-bold uppercase text-slate-400">
                   {k.label}
@@ -246,7 +246,7 @@ function Inner() {
             ))}
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
             <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#00b4d8]" />
               Schools ranked by nutrition score

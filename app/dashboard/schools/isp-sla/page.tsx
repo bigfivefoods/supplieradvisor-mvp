@@ -167,7 +167,7 @@ function Inner() {
 
       {summary ? (
         <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-6">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 p-4">
             <div className="text-[10px] font-bold uppercase text-slate-400">
               Deliveries
             </div>
@@ -183,7 +183,7 @@ function Inner() {
               {summary.otifef_pct != null ? `${summary.otifef_pct}%` : '—'}
             </div>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 p-4">
             <div className="text-[10px] font-bold uppercase text-slate-400">
               On-catalogue
             </div>
@@ -193,7 +193,7 @@ function Inner() {
                 : '—'}
             </div>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 p-4">
             <div className="text-[10px] font-bold uppercase text-slate-400">
               SPs
             </div>
@@ -225,7 +225,7 @@ function Inner() {
           <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
         </div>
       ) : (
-        <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+        <div className="rounded-3xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50 overflow-hidden">
           <table className="w-full text-sm min-w-[960px]">
             <thead>
               <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">

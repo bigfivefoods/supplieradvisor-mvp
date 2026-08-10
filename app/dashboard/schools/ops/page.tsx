@@ -387,7 +387,7 @@ function FulfilQueue({
         ].map((k) => (
           <div
             key={k.l}
-            className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
+            className="rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 px-3 py-2.5"
           >
             <p className="text-[10px] font-bold uppercase text-slate-400">
               {k.l}
@@ -398,7 +398,7 @@ function FulfilQueue({
       </div>
 
       {tab === 'day' ? (
-        <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+        <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
           <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500">
             Multi-school day plan · required date × district
           </div>
@@ -450,7 +450,7 @@ function FulfilQueue({
           )}
         </div>
       ) : tab === 'buy' ? (
-        <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+        <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
           <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
             <ShoppingCart className="w-4 h-4" /> Wholesale buy-list · remaining
             PO qty
@@ -530,7 +530,7 @@ function FulfilQueue({
           </div>
         </div>
       ) : (
-        <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+        <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
           <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
             <Truck className="w-4 h-4" /> Fulfil queue · OTIF risk first
           </div>
@@ -678,7 +678,7 @@ function AgencyCockpit({
             ].map((k) => (
               <div
                 key={k.l}
-                className="rounded-2xl border border-slate-200 bg-white px-3 py-2"
+                className="rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 px-3 py-2"
               >
                 <p className="text-[10px] font-bold uppercase text-slate-400">
                   {k.l}
@@ -687,7 +687,7 @@ function AgencyCockpit({
               </div>
             ))}
           </div>
-          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
             <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-600" /> Exception
               queue
@@ -736,7 +736,7 @@ function AgencyCockpit({
         </>
       ) : tab === 'geo' ? (
         <div className="grid lg:grid-cols-2 gap-4">
-          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
             <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
               <MapPinned className="w-4 h-4" /> Schools by district
             </div>
@@ -754,7 +754,7 @@ function AgencyCockpit({
               ))}
             </ul>
           </div>
-          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
             <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500">
               SP clusters
             </div>
@@ -782,7 +782,7 @@ function AgencyCockpit({
           </div>
         </div>
       ) : tab === 'export' ? (
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3">
+        <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-5 space-y-3">
           <h3 className="font-black text-sm">Provincial monthly export</h3>
           <p className="text-xs text-slate-600">
             {String(provincial?.tip || '')}
@@ -817,7 +817,7 @@ function AgencyCockpit({
             ].map((k) => (
               <div
                 key={k.l}
-                className="rounded-2xl border border-slate-200 bg-white px-3 py-2"
+                className="rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 px-3 py-2"
               >
                 <p className="text-[10px] font-bold uppercase text-slate-400">
                   {k.l}
@@ -829,7 +829,7 @@ function AgencyCockpit({
           <p className="text-xs text-slate-600">
             {String(consistency?.tip || '')}
           </p>
-          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
             <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500">
               Catalogue · menu · recipe consistency
             </div>
@@ -893,7 +893,7 @@ function AgencyCockpit({
 function BudgetBurnPanel({ data }: { data: Record<string, unknown> | null }) {
   const rows = (data?.rows || []) as Array<Record<string, unknown>>;
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+    <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
       <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500">
         Category budget burn vs feeding days
       </div>
@@ -1056,7 +1056,7 @@ function SchoolOps({
       <BudgetBurnPanel data={budgetBurn} />
 
       {/* Funding simulator */}
-      <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5">
+      <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-5">
         <h3 className="text-sm font-black flex items-center gap-2">
           <Wallet className="w-4 h-4 text-emerald-700" />
           Claim funding simulator
@@ -1110,7 +1110,7 @@ function SchoolOps({
       </div>
 
       {/* Three-way match table */}
-      <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+      <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
         <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500">
           Three-way match · PO · DN · POD · GRN
         </div>
@@ -1162,7 +1162,7 @@ function SchoolOps({
       </div>
 
       {/* Shopping list */}
-      <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+      <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
         <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
           <ShoppingCart className="w-4 h-4" /> Menu → shopping list
         </div>

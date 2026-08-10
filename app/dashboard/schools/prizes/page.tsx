@@ -292,7 +292,7 @@ function Inner() {
               ].map((x) => (
                 <div
                   key={x.l}
-                  className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
+                  className="rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 px-3 py-2.5"
                 >
                   <p className="text-[10px] font-bold uppercase text-slate-400">
                     {x.l}
@@ -342,7 +342,7 @@ function Inner() {
           ) : null}
 
           {role === 'school' ? (
-            <div className="mt-4 rounded-3xl border border-slate-200 bg-white overflow-hidden">
+            <div className="mt-4 rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
               <div className="px-5 py-3 border-b flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
                 <Award className="w-4 h-4 text-amber-500" />
                 Leaderboard
@@ -400,7 +400,7 @@ function Inner() {
               </table>
             </div>
           ) : (
-            <div className="mt-4 rounded-3xl border border-emerald-100 bg-emerald-50/50 p-5 text-sm text-emerald-950">
+            <div className="mt-4 rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-5 text-sm text-emerald-950">
               <p className="font-bold flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4" />
                 How to maximise SP points

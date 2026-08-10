@@ -97,7 +97,7 @@ function Inner() {
         </div>
       ) : (
         <div className="space-y-4 max-w-xl">
-          <div className="rounded-3xl border border-slate-200 bg-white p-5">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-5">
             <p className="text-sm">
               <strong>EMIS:</strong> {String(data?.emis_number || '—')}
             </p>
@@ -120,7 +120,7 @@ function Inner() {
             </button>
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-5">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-5">
             <h3 className="text-sm font-black mb-2">Import grade headcounts</h3>
             <pre className="text-[10px] bg-slate-50 border rounded-xl p-3 overflow-x-auto mb-3">
               {template}

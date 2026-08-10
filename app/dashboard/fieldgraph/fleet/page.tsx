@@ -214,7 +214,7 @@ export default function FieldgraphFleetPage() {
       ) : (
         <div className="space-y-6">
           <div className="grid sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <div className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
               <div className="text-[10px] font-black uppercase text-slate-400">
                 Vehicles
               </div>
@@ -222,7 +222,7 @@ export default function FieldgraphFleetPage() {
                 {Number(summary?.vehicleCount) || vehicles.length}
               </div>
             </div>
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 px-4 py-3">
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
               <div className="text-[10px] font-black uppercase text-emerald-800/70">
                 Hours
               </div>
@@ -230,7 +230,7 @@ export default function FieldgraphFleetPage() {
                 {Number(summary?.fleetHours) || 0}
               </div>
             </div>
-            <div className="rounded-2xl border border-amber-100 bg-amber-50/50 px-4 py-3">
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
               <div className="text-[10px] font-black uppercase text-amber-900/60 inline-flex items-center gap-1">
                 <Fuel className="w-3 h-3" /> Fuel (L)
               </div>
@@ -238,7 +238,7 @@ export default function FieldgraphFleetPage() {
                 {Number(summary?.fuelTotalL) || 0}
               </div>
             </div>
-            <div className="rounded-2xl border border-violet-100 bg-violet-50/40 px-4 py-3">
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
               <div className="text-[10px] font-black uppercase text-violet-800/70">
                 Fuel util L/h
               </div>
@@ -246,7 +246,7 @@ export default function FieldgraphFleetPage() {
                 {summary?.lPerHour != null ? String(summary.lPerHour) : '—'}
               </div>
             </div>
-            <div className="rounded-2xl border border-violet-100 bg-violet-50/40 px-4 py-3">
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
               <div className="text-[10px] font-black uppercase text-violet-800/70">
                 Fuel util L/km
               </div>
@@ -254,7 +254,7 @@ export default function FieldgraphFleetPage() {
                 {summary?.lPerKm != null ? String(summary.lPerKm) : '—'}
               </div>
             </div>
-            <div className="rounded-2xl border border-rose-100 bg-rose-50/40 px-4 py-3">
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3">
               <div className="text-[10px] font-black uppercase text-rose-800/70">
                 Cost R/km
               </div>
@@ -289,9 +289,9 @@ export default function FieldgraphFleetPage() {
 
           {tab === 'registry' && (
             <div className="space-y-4">
-              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
+              <div className="rounded-3xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50 p-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Code (e.g. T02)"
                   value={vehForm.code}
                   onChange={(e) =>
@@ -299,7 +299,7 @@ export default function FieldgraphFleetPage() {
                   }
                 />
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Name"
                   value={vehForm.name}
                   onChange={(e) =>
@@ -307,7 +307,7 @@ export default function FieldgraphFleetPage() {
                   }
                 />
                 <select
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   value={vehForm.type}
                   onChange={(e) =>
                     setVehForm((f) => ({ ...f, type: e.target.value }))
@@ -320,7 +320,7 @@ export default function FieldgraphFleetPage() {
                   ))}
                 </select>
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Reg. number"
                   value={vehForm.reg_no}
                   onChange={(e) =>
@@ -328,7 +328,7 @@ export default function FieldgraphFleetPage() {
                   }
                 />
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   type="number"
                   placeholder="Cost R / hour"
                   value={vehForm.cost_per_hour_zar}
@@ -340,7 +340,7 @@ export default function FieldgraphFleetPage() {
                   }
                 />
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   type="number"
                   step="0.01"
                   placeholder="Cost R / km"
@@ -353,7 +353,7 @@ export default function FieldgraphFleetPage() {
                   }
                 />
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   type="number"
                   step="0.01"
                   placeholder="Fuel price R/L"
@@ -366,7 +366,7 @@ export default function FieldgraphFleetPage() {
                   }
                 />
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   type="number"
                   step="0.1"
                   placeholder="Book fuel burn L/h"
@@ -403,7 +403,7 @@ export default function FieldgraphFleetPage() {
                   vehicles.map((v) => (
                     <div
                       key={v.id}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 flex justify-between gap-2"
+                      className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 px-4 py-3 flex justify-between gap-2"
                     >
                       <div className="flex gap-3 items-start">
                         <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
@@ -447,9 +447,9 @@ export default function FieldgraphFleetPage() {
 
           {tab === 'activity' && (
             <div className="space-y-4">
-              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
+              <div className="rounded-3xl border border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50 p-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
                 <select
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   value={logForm.vehicle_id}
                   onChange={(e) => {
                     const vehicle_id = e.target.value;
@@ -472,7 +472,7 @@ export default function FieldgraphFleetPage() {
                 </select>
                 {!logForm.vehicle_id && (
                   <input
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                     placeholder="Or free-text vehicle"
                     value={logForm.vehicle}
                     onChange={(e) =>
@@ -481,7 +481,7 @@ export default function FieldgraphFleetPage() {
                   />
                 )}
                 <select
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   value={logForm.field_id}
                   onChange={(e) =>
                     setLogForm((f) => ({ ...f, field_id: e.target.value }))
@@ -496,14 +496,14 @@ export default function FieldgraphFleetPage() {
                 </select>
                 <input
                   type="date"
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   value={logForm.date}
                   onChange={(e) =>
                     setLogForm((f) => ({ ...f, date: e.target.value }))
                   }
                 />
                 <select
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   value={logForm.activity}
                   onChange={(e) =>
                     setLogForm((f) => ({ ...f, activity: e.target.value }))
@@ -516,7 +516,7 @@ export default function FieldgraphFleetPage() {
                   ))}
                 </select>
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Hours"
                   type="number"
                   step="0.1"
@@ -526,7 +526,7 @@ export default function FieldgraphFleetPage() {
                   }
                 />
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Fuel (L)"
                   type="number"
                   step="0.1"
@@ -536,7 +536,7 @@ export default function FieldgraphFleetPage() {
                   }
                 />
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Km this activity"
                   type="number"
                   step="0.1"
@@ -546,7 +546,7 @@ export default function FieldgraphFleetPage() {
                   }
                 />
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Odometer km (end)"
                   type="number"
                   value={logForm.odometer_km}
@@ -558,7 +558,7 @@ export default function FieldgraphFleetPage() {
                   }
                 />
                 <input
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
                   placeholder="Fuel R/L (optional)"
                   type="number"
                   step="0.01"
@@ -585,9 +585,9 @@ export default function FieldgraphFleetPage() {
                 </button>
               </div>
 
-              <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white">
+              <div className="overflow-x-auto rounded-3xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40">
                 <table className="w-full text-sm min-w-[640px]">
-                  <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  <thead className="bg-amber-50 text-left text-[10px] font-black uppercase tracking-wider text-amber-900 dark:bg-amber-900/50 dark:text-amber-200">
                     <tr>
                       <th className="px-3 py-2.5">Date</th>
                       <th className="px-3 py-2.5">Vehicle</th>
@@ -675,7 +675,7 @@ export default function FieldgraphFleetPage() {
                     {utilisation.map((u) => (
                       <div
                         key={u.vehicle_id || u.vehicle}
-                        className="rounded-2xl border border-slate-200 bg-white p-4"
+                        className="rounded-2xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40 p-4"
                       >
                         <div className="flex flex-wrap justify-between gap-2 mb-2">
                           <div className="font-bold text-sm">{u.vehicle}</div>
@@ -771,9 +771,9 @@ export default function FieldgraphFleetPage() {
                 <h3 className="text-sm font-black mb-3">
                   Utilisation by activity
                 </h3>
-                <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white">
+                <div className="overflow-x-auto rounded-3xl border border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40">
                   <table className="w-full text-sm">
-                    <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    <thead className="bg-amber-50 text-left text-[10px] font-black uppercase tracking-wider text-amber-900 dark:bg-amber-900/50 dark:text-amber-200">
                       <tr>
                         <th className="px-3 py-2.5">Activity</th>
                         <th className="px-3 py-2.5">Logs</th>

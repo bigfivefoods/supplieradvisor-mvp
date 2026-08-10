@@ -230,7 +230,7 @@ function Inner() {
             ).map((tile) => (
               <div
                 key={tile.label}
-                className="rounded-2xl border border-slate-200 bg-white p-4"
+                className="rounded-2xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 p-4"
               >
                 <div className="text-[10px] font-bold uppercase text-slate-400">
                   {tile.label}
@@ -428,7 +428,7 @@ function Inner() {
           </div>
 
           {history.length > 0 ? (
-            <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+            <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 overflow-hidden">
               <div className="px-4 py-3 border-b text-xs font-bold uppercase text-slate-500">History</div>
               <ul className="divide-y text-sm">
                 {history.map((h) => (

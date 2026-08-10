@@ -312,7 +312,7 @@ function Inner() {
           </div>
 
           {/* Register as DBE / agency */}
-          <div className="rounded-3xl border border-slate-200 bg-white p-5">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-5">
             <h3 className="text-sm font-black flex items-center gap-2 mb-2">
               <Landmark className="w-4 h-4 text-[#0077b6]" />
               Register this company as DBE / PEU
@@ -448,7 +448,7 @@ function Inner() {
                 ].map((c) => (
                   <div
                     key={c.label}
-                    className="rounded-2xl border border-slate-200 bg-white p-4"
+                    className="rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 p-4"
                   >
                     <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-slate-400">
                       <c.icon className="w-3.5 h-3.5 text-[#00b4d8]" />
@@ -585,7 +585,7 @@ function Inner() {
 
           {/* School: join DBE */}
           <div className="grid lg:grid-cols-2 gap-4">
-            <div className="rounded-3xl border border-slate-200 bg-white p-5">
+            <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-5">
               <h3 className="text-sm font-black mb-3">My agency links</h3>
               {links.filter((l) => l.status !== 'left').length === 0 ? (
                 <p className="text-sm text-slate-500">
@@ -623,7 +623,7 @@ function Inner() {
               )}
             </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-white p-5">
+            <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-5">
               <h3 className="text-sm font-black mb-3">
                 Join DBE / agency directory
               </h3>
@@ -718,7 +718,7 @@ function AgencySchoolsTable({
   });
 
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+    <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
       <div className="px-5 py-3 border-b flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-xs font-bold uppercase text-slate-500">

@@ -125,7 +125,7 @@ export default function QuarryProductionPage() {
               />
             </label>
           </div>
-          <StatRow
+          <StatRow tone="qg-ops"
             items={[
               { label: 'In sequence', value: plan.length },
               {
@@ -140,7 +140,7 @@ export default function QuarryProductionPage() {
           />
 
           <div className="grid lg:grid-cols-2 gap-4">
-            <FormCard
+            <FormCard tone="qg-ops"
               title="Add to sequence"
               onSubmit={() => void addPlan()}
               saving={saving}
@@ -163,7 +163,7 @@ export default function QuarryProductionPage() {
               <input className={fieldClass()} placeholder="Destination" value={form.destination} onChange={(e) => setForm((f) => ({ ...f, destination: e.target.value }))} />
             </FormCard>
 
-            <FormCard
+            <FormCard tone="qg-ops"
               title="Project dates (t / day)"
               onSubmit={() => void runProject()}
               saving={saving}
@@ -178,7 +178,7 @@ export default function QuarryProductionPage() {
             </FormCard>
           </div>
 
-          <DataTable
+          <DataTable tone="qg-ops"
             headers={['#', 'Site', 'Product', 'Est. t', 'Start', 'End', 'Days', 'Destination', 'Status']}
             rows={plan.map((h) => {
               const site = store.sites.find((s) => s.id === h.site_id);
@@ -203,7 +203,7 @@ export default function QuarryProductionPage() {
             }
           />
 
-          <FormCard title="Log blast" onSubmit={() => void addBlast()} saving={saving} submitLabel="Save blast">
+          <FormCard tone="qg-ops" title="Log blast" onSubmit={() => void addBlast()} saving={saving} submitLabel="Save blast">
             <select className={fieldClass()} value={blast.site_id} onChange={(e) => setBlast((f) => ({ ...f, site_id: e.target.value }))}>
               <option value="">Site…</option>
               {store.sites.map((s) => (
@@ -218,7 +218,7 @@ export default function QuarryProductionPage() {
             <input className={fieldClass()} placeholder="Measured t" type="number" value={blast.measured_t} onChange={(e) => setBlast((f) => ({ ...f, measured_t: e.target.value }))} />
           </FormCard>
 
-          <DataTable
+          <DataTable tone="qg-ops"
             headers={['Date', 'Site', 'Blast #', 'Holes', 'Expl. kg', 'Est. t', 'Measured t']}
             rows={store.blasts.map((b) => {
               const site = store.sites.find((s) => s.id === b.site_id);

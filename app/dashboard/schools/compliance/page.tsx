@@ -94,7 +94,7 @@ function Inner() {
         }
       />
 
-      <div className="mb-6 rounded-3xl border border-slate-200 bg-white p-5 space-y-3">
+      <div className="mb-6 rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 p-5 space-y-3">
         <div className="grid sm:grid-cols-3 gap-2">
           <select
             className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
@@ -139,7 +139,7 @@ function Inner() {
           {events.map((e) => (
             <li
               key={String(e.id)}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 flex flex-wrap justify-between gap-2"
+              className="rounded-2xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 px-4 py-3 flex flex-wrap justify-between gap-2"
             >
               <div>
                 <p className="font-bold text-sm">{String(e.title)}</p>

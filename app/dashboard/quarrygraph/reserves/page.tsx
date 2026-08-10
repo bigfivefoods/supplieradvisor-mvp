@@ -57,7 +57,7 @@ export default function QuarryReservesPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow
+          <StatRow tone="qg-office"
             items={[
               {
                 label: 'Reserve tonnes',
@@ -66,7 +66,7 @@ export default function QuarryReservesPage() {
               { label: 'Rows', value: store.reserves.length },
             ]}
           />
-          <FormCard title="Add / revise reserve" onSubmit={() => void add()} saving={saving}>
+          <FormCard tone="qg-office" title="Add / revise reserve" onSubmit={() => void add()} saving={saving}>
             <select className={fieldClass()} value={form.site_id} onChange={(e) => setForm((f) => ({ ...f, site_id: e.target.value }))}>
               <option value="">Site…</option>
               {store.sites.map((s) => (
@@ -91,7 +91,7 @@ export default function QuarryReservesPage() {
               <option value="depleted">Depleted</option>
             </select>
           </FormCard>
-          <DataTable
+          <DataTable tone="qg-office"
             headers={['Site', 'Product', 'Season', 'Tonnes', 'Quality', 'Status', 'Rev']}
             rows={store.reserves.map((r) => {
               const site = store.sites.find((s) => s.id === r.site_id);

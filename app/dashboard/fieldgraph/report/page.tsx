@@ -356,7 +356,7 @@ export default function FieldgraphReportPage() {
             ).map((tile) => (
               <div
                 key={tile.label}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3"
+                className="rounded-2xl border border-emerald-200 bg-white dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40 px-4 py-3"
               >
                 <div className="text-[10px] font-bold uppercase text-slate-400">
                   {tile.label}

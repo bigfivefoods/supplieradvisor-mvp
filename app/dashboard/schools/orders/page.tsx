@@ -563,7 +563,7 @@ function Inner() {
             here and on the fulfil queue.
           </div>
         ) : (
-          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 overflow-hidden">
             <table className="w-full text-sm min-w-[960px]">
               <thead>
                 <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
@@ -1350,7 +1350,7 @@ function Inner() {
           </button>
         </div>
       ) : (
-        <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+        <div className="rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 overflow-hidden">
           <table className="w-full text-sm min-w-[880px]">
             <thead>
               <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
@@ -1539,7 +1539,7 @@ function Inner() {
       {sendDraft && role === 'school' ? (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 p-3">
           <div
-            className="w-full max-w-md rounded-3xl border border-slate-200 bg-white shadow-xl p-5 space-y-4"
+            className="w-full max-w-md rounded-3xl border border-emerald-300 bg-emerald-50 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/50 shadow-xl p-5 space-y-4"
             role="dialog"
             aria-labelledby="send-po-title"
           >

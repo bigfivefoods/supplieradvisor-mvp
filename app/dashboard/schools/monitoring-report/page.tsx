@@ -467,7 +467,7 @@ function Inner() {
       </div>
 
       {/* Filters */}
-      <div className="mb-6 rounded-3xl border border-slate-200 bg-white p-4 space-y-3">
+      <div className="mb-6 rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-4 space-y-3">
         <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
           <Filter className="w-3.5 h-3.5" /> Filters
         </div>
@@ -767,7 +767,7 @@ function Inner() {
           </div>
 
           {/* Detail table */}
-          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
             <div className="px-4 py-3 border-b flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-sm font-black">Visit detail</p>
@@ -985,7 +985,7 @@ function ChartCard({
 }) {
   return (
     <div
-      className={`rounded-3xl border border-slate-200 bg-white p-4 ${
+      className={`rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-4 ${
         wide ? 'lg:col-span-2' : ''
       }`}
     >

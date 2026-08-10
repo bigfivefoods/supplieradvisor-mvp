@@ -693,7 +693,7 @@ function JoinDirectory({
 
   return (
     <div className="grid lg:grid-cols-2 gap-4">
-      <div className="rounded-3xl border border-slate-200 bg-white p-5">
+      <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 p-5">
         <h3 className="text-sm font-black mb-1 flex items-center gap-2">
           {kind === 'sp' ? (
             <Truck className="w-4 h-4 text-amber-600" />
@@ -912,7 +912,7 @@ function DepartmentDesk({
         ].map((k) => (
           <div
             key={k.label}
-            className="rounded-2xl border border-slate-200 bg-white p-4"
+            className="rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 p-4"
           >
             <p className="text-[10px] font-bold uppercase text-slate-400">
               {k.label}
@@ -1162,7 +1162,7 @@ function DepartmentDesk({
           </button>
         </div>
         {hits.length > 0 ? (
-          <ul className="rounded-2xl border border-slate-200 bg-white divide-y max-h-56 overflow-y-auto">
+          <ul className="rounded-2xl border border-sky-200 bg-white dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/40 divide-y max-h-56 overflow-y-auto">
             {hits.map((c) => {
               const already =
                 addAs === 'school'
