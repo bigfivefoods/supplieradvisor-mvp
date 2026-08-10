@@ -483,6 +483,7 @@ export function moduleIdForPath(pathname: string | null | undefined): string | n
   if (
     pathname.startsWith('/dashboard/connections') ||
     pathname.startsWith('/dashboard/network') ||
+    pathname.startsWith('/dashboard/messages') ||
     pathname.startsWith('/dashboard/invite-business')
   ) {
     return 'network';

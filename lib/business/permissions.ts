@@ -386,7 +386,11 @@ export function resourceForPath(pathname: string | null | undefined): Permission
   }
   if (pathname.startsWith('/dashboard/suppliers')) return 'suppliers';
   if (pathname.startsWith('/dashboard/containers')) return 'containers';
-  if (pathname.startsWith('/dashboard/connections') || pathname.startsWith('/dashboard/network')) {
+  if (
+    pathname.startsWith('/dashboard/connections') ||
+    pathname.startsWith('/dashboard/network') ||
+    pathname.startsWith('/dashboard/messages')
+  ) {
     return 'network';
   }
   if (pathname.startsWith('/dashboard/inventory')) return 'inventory';

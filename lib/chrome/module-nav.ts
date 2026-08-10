@@ -255,6 +255,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     steps: [
       { name: 'Graph', href: '/dashboard/connections', exact: true, section: 'Home' },
       {
+        name: 'Messages',
+        href: '/dashboard/messages',
+        desc: 'Colleagues · suppliers · customers',
+        section: 'Home',
+      },
+      {
         name: 'Open trade',
         href: '/dashboard/connections/discover',
         desc: 'Ranked open-to-trade partners',
