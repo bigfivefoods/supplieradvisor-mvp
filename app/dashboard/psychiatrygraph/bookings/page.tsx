@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
-import { Copy, Link2 } from 'lucide-react';
+import { Copy, Link2, Pill } from 'lucide-react';
 import {
   LoadingBlock,
   PsychiatrygraphWorkbench,
@@ -86,7 +87,7 @@ export default function BookingsPage() {
     <PsychiatrygraphWorkbench
       title="Bookings"
       titleAccent="front desk"
-      description="Book patients onto diary slots. When you mark attended, a feedback link is issued so the patient can rate the visit."
+      description="Book patients onto diary slots. Mark attended for feedback links, or open Script to add a prescription on the patient record for that visit."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -200,6 +201,19 @@ export default function BookingsPage() {
                       >
                         No-show
                       </button>
+                      {pat ? (
+                        <Link
+                          href={`/dashboard/psychiatrygraph/patients/${pat.id}?appointment=${b.appointment_id}&booking=${b.id}${
+                            apt?.practitioner_id
+                              ? `&practitioner=${apt.practitioner_id}`
+                              : ''
+                          }#patient-scripts`}
+                          className="inline-flex items-center gap-0.5 text-[10px] font-bold text-indigo-800 dark:text-indigo-200"
+                          title="Add prescription script for this visit"
+                        >
+                          <Pill className="w-3 h-3" /> Script
+                        </Link>
+                      ) : null}
                     </span>
                   ),
                 ],

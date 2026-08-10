@@ -41,8 +41,10 @@ import {
   addMedicalDocument,
   mergeMedicalRecord,
   removeMedicalDocument,
+  removePatientScript,
   submitMedicalClaim,
   upsertMedicalClaim,
+  upsertPatientScript,
 } from '@/lib/clinic/patient-medical';
 
 export const runtime = 'nodejs';
@@ -211,7 +213,9 @@ export async function POST(request: NextRequest) {
       action === 'medical_doc_add' ||
       action === 'medical_doc_remove' ||
       action === 'medical_claim_upsert' ||
-      action === 'medical_claim_submit'
+      action === 'medical_claim_submit' ||
+      action === 'medical_script_upsert' ||
+      action === 'medical_script_remove'
     ) {
       const patientId = String(body.patient_id || body.id || '');
       const pi = store.patients.findIndex((p) => p.id === patientId);
@@ -253,6 +257,17 @@ export async function POST(request: NextRequest) {
             patient.medical,
             String(body.claim_id || body.id || ''),
             now
+          );
+        } else if (action === 'medical_script_upsert') {
+          patient.medical = upsertPatientScript(
+            patient.medical,
+            (body.script || body.record || body) as Record<string, unknown>,
+            now
+          );
+        } else if (action === 'medical_script_remove') {
+          patient.medical = removePatientScript(
+            patient.medical,
+            String(body.script_id || body.id || '')
           );
         }
       } catch (e: unknown) {

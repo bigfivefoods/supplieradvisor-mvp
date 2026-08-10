@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import {
   LoadingBlock,
   PhysiographWorkbench,
@@ -13,6 +13,7 @@ import { healthSummaryLabel } from '@/lib/health/body-map';
 
 export default function PhysioPatientRecordPage() {
   const { id } = useParams() as { id: string };
+  const search = useSearchParams();
   const { companyId, store, loading, saving, post } = usePhysiograph();
 
   const patient = useMemo(
@@ -23,11 +24,48 @@ export default function PhysioPatientRecordPage() {
     (p) => p.id === patient?.practitioner_id
   );
 
+  const appointments = useMemo(() => {
+    if (!store || !patient) return [];
+    const bookedApptIds = new Set(
+      store.bookings
+        .filter((b) => b.patient_id === patient.id && b.status !== 'cancelled')
+        .map((b) => b.appointment_id)
+    );
+    return store.appointments
+      .filter((a) => bookedApptIds.has(a.id) || a.date >= new Date().toISOString().slice(0, 10))
+      .slice()
+      .sort((a, b) =>
+        a.date === b.date
+          ? a.start_time.localeCompare(b.start_time)
+          : b.date.localeCompare(a.date)
+      )
+      .slice(0, 40)
+      .map((a) => {
+        const svc = store.services.find((s) => s.id === a.service_id);
+        const p = store.practitioners.find((x) => x.id === a.practitioner_id);
+        return {
+          id: a.id,
+          label: `${a.date} ${a.start_time} · ${svc?.name || 'Visit'}${
+            p ? ` · ${p.name}` : ''
+          }`,
+        };
+      });
+  }, [store, patient]);
+
+  const practitioners = useMemo(
+    () =>
+      (store?.practitioners || []).map((p) => ({
+        id: p.id,
+        label: p.name,
+      })),
+    [store]
+  );
+
   return (
     <PhysiographWorkbench
       title={patient?.name || 'Patient record'}
       titleAccent="medical chart"
-      description="Demographics, clinical notes, medical aid, attachments, and scheme submissions for this patient."
+      description="Demographics, scripts, medical aid, attachments, and scheme submissions for this patient."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -74,6 +112,13 @@ export default function PhysioPatientRecordPage() {
             patientName={patient.name}
             medical={patient.medical}
             accent="teal"
+            appointments={appointments}
+            practitioners={practitioners}
+            defaultAppointmentId={search.get('appointment')}
+            defaultBookingId={search.get('booking')}
+            defaultPractitionerId={
+              search.get('practitioner') || patient.practitioner_id || null
+            }
             post={post}
             saving={saving}
           />

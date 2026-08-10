@@ -619,6 +619,16 @@ export function buildPatientPortalPayload(
           : undefined,
       };
     }
+    const activeScripts = (medical?.scripts || []).filter(
+      (s) => String(s.status || 'active').toLowerCase() === 'active'
+    );
+    if (activeScripts.length) {
+      summary.active_scripts = activeScripts.map((s) =>
+        [s.medication, s.strength, s.dose, s.frequency, s.instructions]
+          .filter(Boolean)
+          .join(' · ')
+      );
+    }
     medical_share = Object.keys(summary).length ? summary : null;
   }
 

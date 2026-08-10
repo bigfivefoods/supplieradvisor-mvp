@@ -99,6 +99,59 @@ export type MedicalAidClaim = {
   updated_at: string;
 };
 
+/** Prescription / script written by a practitioner for a patient (or visit). */
+export const SCRIPT_STATUSES = [
+  'active',
+  'completed',
+  'cancelled',
+  'discontinued',
+] as const;
+
+export type PatientScriptStatus =
+  | (typeof SCRIPT_STATUSES)[number]
+  | string;
+
+export const SCRIPT_ROUTES = [
+  'oral',
+  'topical',
+  'inhaled',
+  'injection',
+  'sublingual',
+  'eye',
+  'ear',
+  'nasal',
+  'rectal',
+  'other',
+] as const;
+
+export type PatientScript = {
+  id: string;
+  /** Drug / product name (required) */
+  medication: string;
+  strength?: string;
+  dose?: string;
+  frequency?: string;
+  route?: string;
+  duration?: string;
+  quantity?: string;
+  /** Number of repeats allowed (0 = none) */
+  repeats?: number | null;
+  /** Patient-facing directions */
+  instructions?: string;
+  diagnosis?: string;
+  prescribed_by?: string;
+  practitioner_id?: string | null;
+  /** Link script to the visit / diary slot */
+  appointment_id?: string | null;
+  booking_id?: string | null;
+  /** YYYY-MM-DD */
+  prescribed_at?: string | null;
+  status?: PatientScriptStatus;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type PatientMedicalRecord = {
   id_number?: string;
   date_of_birth?: string | null;
@@ -114,6 +167,8 @@ export type PatientMedicalRecord = {
   medical_aid?: MedicalAidDetails;
   documents?: MedicalRecordDoc[];
   claims?: MedicalAidClaim[];
+  /** Structured prescriptions / scripts */
+  scripts?: PatientScript[];
 };
 
 export function emptyMedicalRecord(): PatientMedicalRecord {
@@ -121,6 +176,7 @@ export function emptyMedicalRecord(): PatientMedicalRecord {
     medical_aid: {},
     documents: [],
     claims: [],
+    scripts: [],
   };
 }
 
@@ -141,6 +197,7 @@ export function mergeMedicalRecord(
     },
     documents: Array.isArray(prev?.documents) ? [...prev!.documents!] : [],
     claims: Array.isArray(prev?.claims) ? [...prev!.claims!] : [],
+    scripts: Array.isArray(prev?.scripts) ? [...prev!.scripts!] : [],
   };
   if (!patch || typeof patch !== 'object') return base;
   const p = patch as Record<string, unknown>;
@@ -176,6 +233,9 @@ export function mergeMedicalRecord(
   }
   if (Array.isArray(p.documents)) {
     base.documents = p.documents as MedicalRecordDoc[];
+  }
+  if (Array.isArray(p.scripts)) {
+    base.scripts = p.scripts as PatientScript[];
   }
   if (Array.isArray(p.claims)) {
     base.claims = p.claims as MedicalAidClaim[];
@@ -333,4 +393,170 @@ export function medicalAidSummary(
 
 export function claimStatusLabel(s?: string): string {
   return String(s || 'draft').replace(/_/g, ' ');
+}
+
+export function upsertPatientScript(
+  medical: PatientMedicalRecord | undefined,
+  rec: Partial<PatientScript> & {
+    id?: string;
+    medication?: string;
+    repeats?: number | string | null;
+  },
+  now = new Date().toISOString()
+): PatientMedicalRecord {
+  const base = mergeMedicalRecord(medical, {});
+  const medication = String(rec.medication || '').trim();
+  if (!medication && !rec.id) {
+    throw new Error('Medication name is required for a script');
+  }
+  const id = String(rec.id || newMedId('rx'));
+  const i = (base.scripts || []).findIndex((s) => s.id === id);
+  const prev = i >= 0 ? base.scripts![i] : null;
+  const med = medication || prev?.medication || '';
+  if (!med) throw new Error('Medication name is required for a script');
+
+  let repeats: number | null = null;
+  if (rec.repeats !== undefined) {
+    const raw = rec.repeats as number | string | null;
+    if (raw === null || raw === '') {
+      repeats = null;
+    } else {
+      const n = Number(raw);
+      repeats = Number.isFinite(n) ? n : null;
+    }
+  } else {
+    repeats = prev?.repeats ?? null;
+  }
+
+  const row: PatientScript = {
+    id,
+    medication: med,
+    strength:
+      rec.strength !== undefined
+        ? rec.strength
+          ? String(rec.strength)
+          : undefined
+        : prev?.strength,
+    dose:
+      rec.dose !== undefined
+        ? rec.dose
+          ? String(rec.dose)
+          : undefined
+        : prev?.dose,
+    frequency:
+      rec.frequency !== undefined
+        ? rec.frequency
+          ? String(rec.frequency)
+          : undefined
+        : prev?.frequency,
+    route:
+      rec.route !== undefined
+        ? rec.route
+          ? String(rec.route)
+          : undefined
+        : prev?.route,
+    duration:
+      rec.duration !== undefined
+        ? rec.duration
+          ? String(rec.duration)
+          : undefined
+        : prev?.duration,
+    quantity:
+      rec.quantity !== undefined
+        ? rec.quantity
+          ? String(rec.quantity)
+          : undefined
+        : prev?.quantity,
+    repeats,
+    instructions:
+      rec.instructions !== undefined
+        ? rec.instructions
+          ? String(rec.instructions)
+          : undefined
+        : prev?.instructions,
+    diagnosis:
+      rec.diagnosis !== undefined
+        ? rec.diagnosis
+          ? String(rec.diagnosis)
+          : undefined
+        : prev?.diagnosis,
+    prescribed_by:
+      rec.prescribed_by !== undefined
+        ? rec.prescribed_by
+          ? String(rec.prescribed_by)
+          : undefined
+        : prev?.prescribed_by,
+    practitioner_id:
+      rec.practitioner_id !== undefined
+        ? rec.practitioner_id
+          ? String(rec.practitioner_id)
+          : null
+        : prev?.practitioner_id ?? null,
+    appointment_id:
+      rec.appointment_id !== undefined
+        ? rec.appointment_id
+          ? String(rec.appointment_id)
+          : null
+        : prev?.appointment_id ?? null,
+    booking_id:
+      rec.booking_id !== undefined
+        ? rec.booking_id
+          ? String(rec.booking_id)
+          : null
+        : prev?.booking_id ?? null,
+    prescribed_at:
+      rec.prescribed_at !== undefined
+        ? rec.prescribed_at
+          ? String(rec.prescribed_at).slice(0, 10)
+          : null
+        : prev?.prescribed_at ?? now.slice(0, 10),
+    status: String(
+      rec.status || prev?.status || 'active'
+    ) as PatientScriptStatus,
+    notes:
+      rec.notes !== undefined
+        ? rec.notes
+          ? String(rec.notes)
+          : undefined
+        : prev?.notes,
+    created_at: prev?.created_at || now,
+    updated_at: now,
+  };
+  if (i >= 0) base.scripts![i] = row;
+  else base.scripts = [row, ...(base.scripts || [])];
+  return base;
+}
+
+export function removePatientScript(
+  medical: PatientMedicalRecord | undefined,
+  scriptId: string
+): PatientMedicalRecord {
+  const base = mergeMedicalRecord(medical, {});
+  base.scripts = (base.scripts || []).filter((s) => s.id !== scriptId);
+  return base;
+}
+
+export function scriptSummaryLine(s: PatientScript): string {
+  const parts = [
+    s.medication,
+    s.strength,
+    s.dose,
+    s.frequency,
+    s.route ? `(${s.route})` : null,
+    s.duration ? `for ${s.duration}` : null,
+  ].filter(Boolean);
+  return parts.join(' · ');
+}
+
+export function scriptsSummary(
+  medical?: PatientMedicalRecord | null
+): string {
+  const list = medical?.scripts || [];
+  const active = list.filter(
+    (s) => String(s.status || 'active').toLowerCase() === 'active'
+  );
+  if (!active.length && !list.length) return 'No scripts on file';
+  if (!active.length) return `${list.length} script(s) · none active`;
+  if (active.length === 1) return scriptSummaryLine(active[0]);
+  return `${active.length} active scripts`;
 }

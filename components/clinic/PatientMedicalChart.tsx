@@ -1,14 +1,15 @@
 'use client';
 
 /**
- * Patient medical chart — demographics, medical aid, documents, claims.
- * Used by PhysioAdvisor and DentalAdvisor patient record pages.
+ * Patient medical chart — demographics, medical aid, scripts, documents, claims.
+ * Shared by Physio / Dental / Medical / Psychiatry practice patient records.
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ExternalLink,
   FileText,
   Loader2,
+  Pill,
   Plus,
   Send,
   Trash2,
@@ -20,23 +21,65 @@ import {
   COMMON_MEDICAL_SCHEMES,
   MEDICAL_AID_CLAIM_STATUSES,
   MEDICAL_DOC_KINDS,
+  SCRIPT_ROUTES,
+  SCRIPT_STATUSES,
   claimStatusLabel,
   medicalAidSummary,
+  scriptSummaryLine,
+  scriptsSummary,
   type MedicalAidClaim,
   type MedicalRecordDoc,
   type PatientMedicalRecord,
+  type PatientScript,
 } from '@/lib/clinic/patient-medical';
+
+type LinkOption = { id: string; label: string };
 
 type Props = {
   companyId: number;
   patientId: string;
   patientName: string;
   medical?: PatientMedicalRecord | null;
-  accent?: 'teal' | 'sky';
+  accent?: 'teal' | 'sky' | 'emerald' | 'violet';
+  /** Diary slots / visits to attach a script to */
+  appointments?: LinkOption[];
+  /** Practitioners / clinicians for prescribed-by */
+  practitioners?: LinkOption[];
+  /** Prefill when adding a script from a booking / appointment */
+  defaultAppointmentId?: string | null;
+  defaultBookingId?: string | null;
+  defaultPractitionerId?: string | null;
   /** POST helper from workbench */
   post: (body: Record<string, unknown>) => Promise<unknown>;
   saving?: boolean;
 };
+
+function blankScript(defaults?: {
+  appointment_id?: string | null;
+  booking_id?: string | null;
+  practitioner_id?: string | null;
+  prescribed_by?: string;
+}) {
+  return {
+    medication: '',
+    strength: '',
+    dose: '',
+    frequency: '',
+    route: 'oral',
+    duration: '',
+    quantity: '',
+    repeats: '0',
+    instructions: '',
+    diagnosis: '',
+    prescribed_by: defaults?.prescribed_by || '',
+    practitioner_id: defaults?.practitioner_id || '',
+    appointment_id: defaults?.appointment_id || '',
+    booking_id: defaults?.booking_id || '',
+    prescribed_at: new Date().toISOString().slice(0, 10),
+    status: 'active',
+    notes: '',
+  };
+}
 
 export function PatientMedicalChart({
   companyId,
@@ -44,6 +87,11 @@ export function PatientMedicalChart({
   patientName,
   medical,
   accent = 'teal',
+  appointments = [],
+  practitioners = [],
+  defaultAppointmentId = null,
+  defaultBookingId = null,
+  defaultPractitionerId = null,
   post,
   saving,
 }: Props) {
@@ -90,23 +138,66 @@ export function PatientMedicalChart({
     notes: '',
     status: 'draft',
   });
+  const defaultPracName =
+    practitioners.find((p) => p.id === defaultPractitionerId)?.label || '';
+  const [script, setScript] = useState(() =>
+    blankScript({
+      appointment_id: defaultAppointmentId,
+      booking_id: defaultBookingId,
+      practitioner_id: defaultPractitionerId,
+      prescribed_by: defaultPracName,
+    })
+  );
+  const [editingScriptId, setEditingScriptId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (defaultAppointmentId || defaultBookingId || defaultPractitionerId) {
+      setScript((s) => ({
+        ...s,
+        appointment_id: defaultAppointmentId || s.appointment_id,
+        booking_id: defaultBookingId || s.booking_id,
+        practitioner_id: defaultPractitionerId || s.practitioner_id,
+        prescribed_by:
+          s.prescribed_by ||
+          practitioners.find((p) => p.id === defaultPractitionerId)?.label ||
+          '',
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only apply defaults once when provided
+  }, [defaultAppointmentId, defaultBookingId, defaultPractitionerId]);
 
   const border =
     accent === 'sky'
       ? 'border-sky-200 dark:border-sky-700/50'
-      : 'border-teal-200 dark:border-teal-700/50';
+      : accent === 'emerald'
+        ? 'border-emerald-200 dark:border-emerald-700/50'
+        : accent === 'violet'
+          ? 'border-violet-200 dark:border-violet-700/50'
+          : 'border-teal-200 dark:border-teal-700/50';
   const soft =
     accent === 'sky'
       ? 'bg-sky-50/50 dark:bg-sky-950/30'
-      : 'bg-teal-50/50 dark:bg-teal-950/30';
+      : accent === 'emerald'
+        ? 'bg-emerald-50/50 dark:bg-emerald-950/30'
+        : accent === 'violet'
+          ? 'bg-violet-50/50 dark:bg-violet-950/30'
+          : 'bg-teal-50/50 dark:bg-teal-950/30';
   const chip =
     accent === 'sky'
       ? 'bg-sky-600 text-white'
-      : 'bg-teal-600 text-white';
+      : accent === 'emerald'
+        ? 'bg-emerald-600 text-white'
+        : accent === 'violet'
+          ? 'bg-violet-600 text-white'
+          : 'bg-teal-600 text-white';
   const link =
     accent === 'sky'
       ? 'text-sky-700 dark:text-sky-300'
-      : 'text-teal-700 dark:text-teal-300';
+      : accent === 'emerald'
+        ? 'text-emerald-700 dark:text-emerald-300'
+        : accent === 'violet'
+          ? 'text-violet-700 dark:text-violet-300'
+          : 'text-teal-700 dark:text-teal-300';
   const fc =
     'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900';
 
@@ -191,8 +282,91 @@ export function PatientMedicalChart({
     toast.success('Claim marked submitted to medical aid');
   };
 
+  const saveScript = async () => {
+    if (!script.medication.trim()) {
+      toast.error('Medication name is required');
+      return;
+    }
+    const prac =
+      practitioners.find((p) => p.id === script.practitioner_id) || null;
+    await post({
+      action: 'medical_script_upsert',
+      patient_id: patientId,
+      script: {
+        id: editingScriptId || undefined,
+        medication: script.medication.trim(),
+        strength: script.strength || undefined,
+        dose: script.dose || undefined,
+        frequency: script.frequency || undefined,
+        route: script.route || undefined,
+        duration: script.duration || undefined,
+        quantity: script.quantity || undefined,
+        repeats: script.repeats === '' ? 0 : Number(script.repeats),
+        instructions: script.instructions || undefined,
+        diagnosis: script.diagnosis || undefined,
+        prescribed_by: script.prescribed_by || prac?.label || undefined,
+        practitioner_id: script.practitioner_id || null,
+        appointment_id: script.appointment_id || null,
+        booking_id: script.booking_id || null,
+        prescribed_at: script.prescribed_at || null,
+        status: script.status || 'active',
+        notes: script.notes || undefined,
+      },
+    });
+    toast.success(editingScriptId ? 'Script updated' : 'Script added to patient record');
+    setEditingScriptId(null);
+    setScript(
+      blankScript({
+        appointment_id: defaultAppointmentId,
+        booking_id: defaultBookingId,
+        practitioner_id: defaultPractitionerId,
+        prescribed_by:
+          practitioners.find((p) => p.id === defaultPractitionerId)?.label ||
+          '',
+      })
+    );
+  };
+
+  const editScript = (s: PatientScript) => {
+    setEditingScriptId(s.id);
+    setScript({
+      medication: s.medication || '',
+      strength: s.strength || '',
+      dose: s.dose || '',
+      frequency: s.frequency || '',
+      route: s.route || 'oral',
+      duration: s.duration || '',
+      quantity: s.quantity || '',
+      repeats: s.repeats != null ? String(s.repeats) : '0',
+      instructions: s.instructions || '',
+      diagnosis: s.diagnosis || '',
+      prescribed_by: s.prescribed_by || '',
+      practitioner_id: s.practitioner_id || '',
+      appointment_id: s.appointment_id || '',
+      booking_id: s.booking_id || '',
+      prescribed_at: s.prescribed_at || new Date().toISOString().slice(0, 10),
+      status: String(s.status || 'active'),
+      notes: s.notes || '',
+    });
+  };
+
+  const removeScript = async (id: string) => {
+    if (!confirm('Remove this script from the patient record?')) return;
+    await post({
+      action: 'medical_script_remove',
+      patient_id: patientId,
+      script_id: id,
+    });
+    toast.success('Script removed');
+    if (editingScriptId === id) {
+      setEditingScriptId(null);
+      setScript(blankScript());
+    }
+  };
+
   const docs: MedicalRecordDoc[] = medical?.documents || [];
   const claims: MedicalAidClaim[] = medical?.claims || [];
+  const scripts: PatientScript[] = medical?.scripts || [];
 
   return (
     <div className="space-y-6">
@@ -201,9 +375,9 @@ export function PatientMedicalChart({
           Patient record · {patientName}
         </div>
         <p className="text-[12px] text-slate-600 dark:text-slate-300 mt-0.5">
-          {medicalAidSummary(medical)} · {docs.length} document
-          {docs.length === 1 ? '' : 's'} · {claims.length} claim
-          {claims.length === 1 ? '' : 's'}
+          {medicalAidSummary(medical)} · {scriptsSummary(medical)} ·{' '}
+          {docs.length} document{docs.length === 1 ? '' : 's'} · {claims.length}{' '}
+          claim{claims.length === 1 ? '' : 's'}
         </p>
       </div>
 
@@ -452,11 +626,277 @@ export function PatientMedicalChart({
         </button>
       </section>
 
+      {/* Prescriptions / scripts */}
+      <section
+        id="patient-scripts"
+        className={`rounded-3xl border ${border} bg-white p-4 space-y-3 dark:bg-neutral-950`}
+      >
+        <div className="flex items-center gap-2">
+          <Pill className={`w-4 h-4 ${link}`} />
+          <h3 className="text-sm font-black">
+            {editingScriptId ? 'Edit script' : 'Scripts & prescriptions'}
+          </h3>
+        </div>
+        <p className="text-[11px] text-slate-500">
+          Add medication scripts on the patient profile and optionally link them
+          to a diary appointment or visit. Active scripts stay on the record for
+          the care team (and can appear on the patient portal when medical share
+          is enabled).
+        </p>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          <input
+            className={fc + ' sm:col-span-2'}
+            placeholder="Medication / product name *"
+            value={script.medication}
+            onChange={(e) =>
+              setScript((s) => ({ ...s, medication: e.target.value }))
+            }
+          />
+          <input
+            className={fc}
+            placeholder="Strength (e.g. 500 mg)"
+            value={script.strength}
+            onChange={(e) =>
+              setScript((s) => ({ ...s, strength: e.target.value }))
+            }
+          />
+          <input
+            className={fc}
+            placeholder="Dose (e.g. 1 tablet)"
+            value={script.dose}
+            onChange={(e) => setScript((s) => ({ ...s, dose: e.target.value }))}
+          />
+          <input
+            className={fc}
+            placeholder="Frequency (e.g. 3× daily)"
+            value={script.frequency}
+            onChange={(e) =>
+              setScript((s) => ({ ...s, frequency: e.target.value }))
+            }
+          />
+          <select
+            className={fc}
+            value={script.route}
+            onChange={(e) =>
+              setScript((s) => ({ ...s, route: e.target.value }))
+            }
+          >
+            {SCRIPT_ROUTES.map((r) => (
+              <option key={r} value={r}>
+                Route · {r}
+              </option>
+            ))}
+          </select>
+          <input
+            className={fc}
+            placeholder="Duration (e.g. 5 days)"
+            value={script.duration}
+            onChange={(e) =>
+              setScript((s) => ({ ...s, duration: e.target.value }))
+            }
+          />
+          <input
+            className={fc}
+            placeholder="Quantity"
+            value={script.quantity}
+            onChange={(e) =>
+              setScript((s) => ({ ...s, quantity: e.target.value }))
+            }
+          />
+          <input
+            className={fc}
+            type="number"
+            min={0}
+            placeholder="Repeats"
+            value={script.repeats}
+            onChange={(e) =>
+              setScript((s) => ({ ...s, repeats: e.target.value }))
+            }
+          />
+          <input
+            className={fc}
+            type="date"
+            value={script.prescribed_at}
+            onChange={(e) =>
+              setScript((s) => ({ ...s, prescribed_at: e.target.value }))
+            }
+          />
+          <select
+            className={fc}
+            value={script.status}
+            onChange={(e) =>
+              setScript((s) => ({ ...s, status: e.target.value }))
+            }
+          >
+            {SCRIPT_STATUSES.map((st) => (
+              <option key={st} value={st}>
+                Status · {st}
+              </option>
+            ))}
+          </select>
+          {practitioners.length > 0 ? (
+            <select
+              className={fc}
+              value={script.practitioner_id}
+              onChange={(e) => {
+                const id = e.target.value;
+                const p = practitioners.find((x) => x.id === id);
+                setScript((s) => ({
+                  ...s,
+                  practitioner_id: id,
+                  prescribed_by: p?.label || s.prescribed_by,
+                }));
+              }}
+            >
+              <option value="">Prescriber…</option>
+              {practitioners.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              className={fc}
+              placeholder="Prescribed by"
+              value={script.prescribed_by}
+              onChange={(e) =>
+                setScript((s) => ({ ...s, prescribed_by: e.target.value }))
+              }
+            />
+          )}
+          {appointments.length > 0 ? (
+            <select
+              className={fc + ' sm:col-span-2'}
+              value={script.appointment_id}
+              onChange={(e) =>
+                setScript((s) => ({ ...s, appointment_id: e.target.value }))
+              }
+            >
+              <option value="">Link to appointment (optional)…</option>
+              {appointments.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.label}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          <input
+            className={fc}
+            placeholder="Diagnosis / indication"
+            value={script.diagnosis}
+            onChange={(e) =>
+              setScript((s) => ({ ...s, diagnosis: e.target.value }))
+            }
+          />
+          <textarea
+            className={fc + ' sm:col-span-2 lg:col-span-3 min-h-[2.75rem]'}
+            placeholder="Patient instructions (e.g. take with food)"
+            value={script.instructions}
+            onChange={(e) =>
+              setScript((s) => ({ ...s, instructions: e.target.value }))
+            }
+          />
+          <textarea
+            className={fc + ' sm:col-span-2 lg:col-span-3 min-h-[2.25rem]'}
+            placeholder="Internal notes (not for patient)"
+            value={script.notes}
+            onChange={(e) =>
+              setScript((s) => ({ ...s, notes: e.target.value }))
+            }
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => void saveScript()}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-black ${chip} disabled:opacity-50`}
+          >
+            {saving ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Plus className="w-3.5 h-3.5" />
+            )}
+            {editingScriptId ? 'Update script' : 'Add script'}
+          </button>
+          {editingScriptId ? (
+            <button
+              type="button"
+              className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 dark:border-slate-700"
+              onClick={() => {
+                setEditingScriptId(null);
+                setScript(blankScript());
+              }}
+            >
+              Cancel edit
+            </button>
+          ) : null}
+        </div>
+        {scripts.length === 0 ? (
+          <p className="text-sm text-slate-500">No scripts on this record yet.</p>
+        ) : (
+          <ul className="space-y-2">
+            {scripts.map((s) => {
+              const appt = appointments.find((a) => a.id === s.appointment_id);
+              return (
+                <li
+                  key={s.id}
+                  className="flex flex-wrap items-start justify-between gap-2 rounded-xl border border-slate-100 px-3 py-2.5 dark:border-neutral-800"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-slate-900 dark:text-white">
+                      {scriptSummaryLine(s)}
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-0.5 space-x-1">
+                      <span className="uppercase font-bold tracking-wide">
+                        {s.status || 'active'}
+                      </span>
+                      {s.prescribed_at ? (
+                        <span>· {s.prescribed_at}</span>
+                      ) : null}
+                      {s.prescribed_by ? (
+                        <span>· {s.prescribed_by}</span>
+                      ) : null}
+                      {s.repeats != null && Number(s.repeats) > 0 ? (
+                        <span>· {s.repeats} repeat(s)</span>
+                      ) : null}
+                      {appt ? <span>· visit: {appt.label}</span> : null}
+                    </div>
+                    {s.instructions ? (
+                      <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1">
+                        {s.instructions}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      type="button"
+                      className={`text-[11px] font-bold ${link}`}
+                      onClick={() => editScript(s)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="text-[11px] font-bold text-rose-600"
+                      onClick={() => void removeScript(s.id)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
       {/* Documents */}
       <section className={`rounded-3xl border ${border} bg-white p-4 space-y-3 dark:bg-neutral-950`}>
         <h3 className="text-sm font-black">Medical records & attachments</h3>
         <p className="text-[11px] text-slate-500">
-          Referrals, X-rays, scans, scripts, ID, medical-aid cards, consents
+          Referrals, X-rays, scans, script PDFs, ID, medical-aid cards, consents
           (PDF or image, max 15MB).
         </p>
         <div className="grid sm:grid-cols-3 gap-2">
