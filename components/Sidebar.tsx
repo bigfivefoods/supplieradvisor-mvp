@@ -248,62 +248,53 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     return pathname === href || pathname.startsWith(href + '/');
   };
 
-  /** Shared footer: Switch company + expand/collapse (same slot expanded & collapsed) */
-  const companyFooter = (
+  /** Switch company + expand/collapse — always under brand (same row, expanded & collapsed) */
+  const switchCompanyRow = !forceExpanded && (
     <div
-      className={`border-t border-neutral-100 shrink-0 ${
-        isCollapsed ? 'p-2' : 'px-3 py-2.5'
+      className={`flex items-center gap-1 ${
+        isCollapsed ? 'mt-2 flex-col' : 'mt-4'
       }`}
     >
-      <div
-        className={`flex items-center gap-1 ${
-          isCollapsed ? 'flex-col' : 'justify-between'
-        }`}
+      <Link
+        href="/dashboard/select-company"
+        title="Switch company"
+        className={
+          isCollapsed
+            ? 'flex h-11 w-11 items-center justify-center rounded-2xl text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-[#00b4d8]'
+            : 'flex min-w-0 flex-1 items-center gap-2 rounded-xl py-1.5 text-sm text-neutral-500 transition-colors hover:text-[#00b4d8]'
+        }
       >
-        <Link
-          href="/dashboard/select-company"
-          title="Switch company"
-          className={
-            isCollapsed
-              ? 'w-11 h-11 flex items-center justify-center rounded-2xl text-neutral-500 hover:bg-neutral-100 hover:text-[#00b4d8] transition-colors'
-              : 'flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-2 text-sm text-neutral-500 transition-colors hover:bg-neutral-50 hover:text-[#00b4d8]'
-          }
-        >
-          <ArrowLeftRight className="w-4 h-4 shrink-0" />
-          {!isCollapsed && (
-            <span className="truncate font-medium">Switch company</span>
-          )}
-        </Link>
-        {/* Desktop only — mobile drawer stays expanded (forceExpanded) */}
-        {!forceExpanded && (
-          <button
-            type="button"
-            onClick={toggle}
-            className={
-              isCollapsed
-                ? 'w-11 h-11 flex items-center justify-center rounded-2xl border border-neutral-200 text-neutral-500 hover:border-[#00b4d8] hover:text-[#00b4d8] transition-colors'
-                : 'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-neutral-200 text-neutral-500 transition-colors hover:border-[#00b4d8] hover:text-[#00b4d8]'
-            }
-            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            aria-expanded={!isCollapsed}
-          >
-            {isCollapsed ? (
-              <PanelLeftOpen className="w-4 h-4" />
-            ) : (
-              <PanelLeftClose className="w-4 h-4" />
-            )}
-          </button>
+        <ArrowLeftRight className="h-4 w-4 shrink-0" />
+        {!isCollapsed && (
+          <span className="truncate font-medium">Switch company</span>
         )}
-      </div>
+      </Link>
+      <button
+        type="button"
+        onClick={toggle}
+        className={
+          isCollapsed
+            ? 'flex h-11 w-11 items-center justify-center rounded-2xl border border-neutral-200 text-neutral-500 transition-colors hover:border-[#00b4d8] hover:text-[#00b4d8]'
+            : 'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-neutral-200 text-neutral-500 transition-colors hover:border-[#00b4d8] hover:text-[#00b4d8]'
+        }
+        title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        aria-expanded={!isCollapsed}
+      >
+        {isCollapsed ? (
+          <PanelLeftOpen className="h-4 w-4" />
+        ) : (
+          <PanelLeftClose className="h-4 w-4" />
+        )}
+      </button>
     </div>
   );
 
   /** Icon-only rail (desktop collapsed) */
   if (isCollapsed) {
     return (
-      <div className="flex flex-col h-full bg-white">
-        <div className="p-3 border-b border-neutral-100 flex flex-col items-center gap-2">
+      <div className="flex h-full flex-col bg-white">
+        <div className="flex flex-col items-center border-b border-neutral-100 p-3">
           <Link href={homePath || '/dashboard'} title="Home" className="block">
             <Image
               src="/sa-logo.png"
@@ -314,9 +305,10 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
               priority
             />
           </Link>
+          {switchCompanyRow}
         </div>
 
-        <nav className="flex-1 p-2 overflow-y-auto flex flex-col items-center gap-1 min-h-0">
+        <nav className="flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto p-2">
           {visibleModules.map((mod) => {
             const Icon = mod.icon;
             const isActive = isModuleActive(mod.href);
@@ -331,26 +323,24 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                     setExpandedModules((prev) => ({ ...prev, [mod.id]: true }));
                   }
                 }}
-                className={`w-11 h-11 flex items-center justify-center rounded-2xl transition-all ${
+                className={`flex h-11 w-11 items-center justify-center rounded-2xl transition-all ${
                   isActive
                     ? 'bg-[#00b4d8] text-white shadow-sm'
                     : 'text-slate-600 hover:bg-neutral-100 hover:text-[#0077b6]'
                 }`}
               >
-                <Icon className="w-5 h-5" />
+                <Icon className="h-5 w-5" />
               </Link>
             );
           })}
         </nav>
-
-        {companyFooter}
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full bg-white">
-      {/* Brand + role: desktop only. Mobile drawer uses top bar brand; role line causes layout jump. */}
+    <div className="flex h-full flex-col bg-white">
+      {/* Brand + switch company under logo/wordmark; mobile drawer has no toggle */}
       <div
         className={`border-b border-neutral-100 ${
           forceExpanded ? 'p-4' : 'p-5'
@@ -359,25 +349,36 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
         {!forceExpanded && (
           <Link
             href={homePath || '/dashboard'}
-            className="flex items-center gap-2.5 min-w-0"
+            className="flex min-w-0 items-center gap-2.5"
           >
             <Image
               src="/sa-logo.png"
               alt=""
               width={64}
               height={28}
-              className="sa-logo h-8 w-auto object-contain shrink-0"
+              className="sa-logo h-8 w-auto shrink-0 object-contain"
               priority
             />
-            <div className="sa-wordmark font-black text-base sm:text-lg tracking-[-1px] leading-none">
+            <div className="sa-wordmark text-base font-black leading-none tracking-[-1px] sm:text-lg">
               SupplierAdvisor
               <span className="sa-wordmark-mark">®</span>
             </div>
           </Link>
         )}
+        {forceExpanded ? (
+          <Link
+            href="/dashboard/select-company"
+            className="mt-0 flex items-center gap-2 text-sm text-neutral-500 transition-colors hover:text-[#00b4d8]"
+          >
+            <ArrowLeftRight className="h-4 w-4" />
+            Switch company
+          </Link>
+        ) : (
+          switchCompanyRow
+        )}
         {/* Desktop only — hides on mobile drawer to avoid bounce when role/rights load */}
         {!forceExpanded && !loading && role && (
-          <p className="mt-3 text-[10px] font-semibold uppercase tracking-wide text-neutral-400 hidden md:block">
+          <p className="mt-3 hidden text-[10px] font-semibold uppercase tracking-wide text-neutral-400 md:block">
             {roleLabel || role}
             {rights ? ` · ${rights}` : ''}
           </p>
@@ -499,15 +500,12 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
         })}
       </nav>
 
-      <div className="p-3 border-t border-neutral-100 space-y-2 shrink-0">
+      <div className="shrink-0 space-y-2 border-t border-neutral-100 p-3">
         <SystemHealthBadge />
-        <p className="text-[10px] text-center text-neutral-400 font-medium">
+        <p className="text-center text-[10px] font-medium text-neutral-400">
           Critical processes only
         </p>
       </div>
-
-      {/* Switch company + collapse — same slot as collapsed rail footer */}
-      {companyFooter}
     </div>
   );
 }

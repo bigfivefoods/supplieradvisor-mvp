@@ -552,9 +552,12 @@ html.dark img[src*='sa-icon'] {
   filter: brightness(0) invert(1);
 }
 
-/* Wordmark: never inherit image filter; keep product colours */
+/*
+ * Wordmark matches SA monogram navy from the logo (#203878).
+ * ® uses brand cyan (check accent). Dark: white to match inverted logo.
+ */
 .sa-wordmark {
-  color: #0f172a;
+  color: #203878;
   white-space: nowrap;
 }
 html.dark .sa-wordmark {
