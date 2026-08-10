@@ -527,7 +527,20 @@ export type FitPublicSettings = {
    * When empty/missing, platform defaults (COACH_SPECIALTIES) are used.
    */
   coach_specialties?: string[];
+  /**
+   * When true (default), gym runs with a front desk / floor admin persona
+   * (desk ↔ coach / member messages, desk check-ins).
+   * When false, ops and messaging are coach–member led (owner-coach studio).
+   */
+  has_front_desk?: boolean;
 };
+
+/** Front desk enabled unless owner explicitly turns it off */
+export function fitgraphHasFrontDesk(
+  settings?: FitPublicSettings | null
+): boolean {
+  return settings?.has_front_desk !== false;
+}
 
 /**
  * Post-class feedback from a member (after attending) or coach (after teaching).
@@ -763,6 +776,7 @@ export function defaultPublicSettings(companyId?: number): FitPublicSettings {
     timezone: 'Africa/Johannesburg',
     embed_primary_color: '#7c3aed',
     coach_specialties: [...DEFAULT_COACH_SPECIALTIES],
+    has_front_desk: true,
   };
 }
 
@@ -1080,7 +1094,12 @@ export function summariseFitgraph(store: FitgraphStore) {
         !b.feedback_submitted_at
     ).length,
     threadCount: (store.threads || []).filter((t) => !t.archived).length,
-    unreadMessages: totalUnread(store.threads || [], 'desk', 'desk'),
+    unreadMessages: totalUnread(
+      store.threads || [],
+      'desk',
+      'desk'
+    ),
+    hasFrontDesk: fitgraphHasFrontDesk(store.settings),
     coachFeedbackCount: (store.class_feedback || []).filter(
       (f) => f.role === 'coach'
     ).length,

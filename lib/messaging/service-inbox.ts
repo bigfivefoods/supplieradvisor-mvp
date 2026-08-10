@@ -19,13 +19,24 @@ export type MsgChannel =
   | 'desk_practitioner'
   | 'desk_patient'
   | 'practitioner_patient'
-  | 'practitioner_colleague';
+  | 'practitioner_colleague'
+  /** FitAdvisor: coach/desk → everyone booked on a session */
+  | 'class_session'
+  /** FitAdvisor: coach/desk → members of a class type (roster across recent/upcoming sessions) */
+  | 'class_type';
 
 export type MsgParticipant = {
   role: MsgRole;
   /** Entity id, or "desk" for front-office staff */
   ref_id: string;
   name: string;
+};
+
+/** Optional class/group anchor for multi-member threads */
+export type MsgGroupRef = {
+  kind: 'session' | 'class_type';
+  ref_id: string;
+  label: string;
 };
 
 export type ServiceMessage = {
@@ -48,6 +59,8 @@ export type ServiceThread = {
   created_at: string;
   updated_at: string;
   archived?: boolean;
+  /** When set, thread is a class/group chat (reuse by group key, not exact roster) */
+  group?: MsgGroupRef | null;
 };
 
 export function newMsgId(prefix = 'msg'): string {
@@ -73,6 +86,18 @@ export function normalizeThreads(raw: unknown): ServiceThread[] {
     .filter((t) => t && typeof t === 'object' && (t as ServiceThread).id)
     .map((t) => {
       const th = t as ServiceThread;
+      const g = th.group;
+      const group: MsgGroupRef | null =
+        g && typeof g === 'object' && (g as MsgGroupRef).ref_id
+          ? {
+              kind:
+                (g as MsgGroupRef).kind === 'class_type'
+                  ? 'class_type'
+                  : 'session',
+              ref_id: String((g as MsgGroupRef).ref_id),
+              label: String((g as MsgGroupRef).label || 'Class'),
+            }
+          : null;
       return {
         id: String(th.id),
         channel: (th.channel || 'colleague') as MsgChannel,
@@ -100,6 +125,7 @@ export function normalizeThreads(raw: unknown): ServiceThread[] {
         created_at: String(th.created_at || new Date().toISOString()),
         updated_at: String(th.updated_at || th.created_at || new Date().toISOString()),
         archived: th.archived === true,
+        group,
       };
     })
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
@@ -196,6 +222,7 @@ export type CreateThreadInput = {
   body: string;
   author: MsgParticipant;
   now?: string;
+  group?: MsgGroupRef | null;
 };
 
 export function createThread(input: CreateThreadInput): ServiceThread {
@@ -223,7 +250,7 @@ export function createThread(input: CreateThreadInput): ServiceThread {
 
   const subject =
     String(input.subject || '').trim() ||
-    defaultSubject(input.channel, participants, input.author);
+    defaultSubject(input.channel, participants, input.author, input.group);
 
   return {
     id: newMsgId('thr'),
@@ -233,14 +260,20 @@ export function createThread(input: CreateThreadInput): ServiceThread {
     messages: [msg],
     created_at: now,
     updated_at: now,
+    group: input.group || null,
   };
 }
 
 function defaultSubject(
   channel: MsgChannel,
   participants: MsgParticipant[],
-  author: MsgParticipant
+  author: MsgParticipant,
+  group?: MsgGroupRef | null
 ): string {
+  if (group?.label) {
+    if (channel === 'class_session') return `Class · ${group.label}`;
+    if (channel === 'class_type') return `Group · ${group.label}`;
+  }
   const others = participants.filter(
     (p) => participantKey(p) !== participantKey(author)
   );
@@ -258,6 +291,10 @@ function defaultSubject(
     case 'desk_member':
     case 'desk_patient':
       return `Member care · ${names}`;
+    case 'class_session':
+      return `Class · ${names}`;
+    case 'class_type':
+      return `Group · ${names}`;
     default:
       return `Message · ${names}`;
   }
@@ -345,21 +382,38 @@ export function channelLabel(channel: MsgChannel): string {
     desk_patient: 'Desk ↔ Patient',
     practitioner_patient: 'Practitioner ↔ Patient',
     practitioner_colleague: 'Practitioners',
+    class_session: 'Class group',
+    class_type: 'Class type group',
   };
   return labels[channel] || channel;
 }
 
-/** Find existing 1:1-ish thread between the same participant set + channel */
+/** Find existing open thread: group threads by group key; others by participant set */
 export function findOpenThread(
   threads: ServiceThread[],
   channel: MsgChannel,
-  participants: MsgParticipant[]
+  participants: MsgParticipant[],
+  group?: MsgGroupRef | null
 ): ServiceThread | undefined {
+  const list = normalizeThreads(threads);
+  if (
+    group?.ref_id &&
+    (channel === 'class_session' || channel === 'class_type')
+  ) {
+    return list.find(
+      (t) =>
+        !t.archived &&
+        t.channel === channel &&
+        t.group?.kind === group.kind &&
+        t.group?.ref_id === group.ref_id
+    );
+  }
   const keys = new Set(
     dedupeParticipants(participants).map((p) => participantKey(p))
   );
-  return normalizeThreads(threads).find((t) => {
+  return list.find((t) => {
     if (t.archived || t.channel !== channel) return false;
+    if (t.group?.ref_id) return false;
     if (t.participants.length !== keys.size) return false;
     return t.participants.every((p) => keys.has(participantKey(p)));
   });
@@ -441,26 +495,66 @@ export function applyMessageAction(
       const participantsRaw = Array.isArray(body.participants)
         ? (body.participants as MsgParticipant[])
         : [];
-      const participants = participantsRaw.map((p) => ({
-        role: p.role,
-        ref_id: String(p.ref_id || ''),
-        name: String(p.name || p.role),
-      }));
+      const participants = participantsRaw
+        .map((p) => ({
+          role: (p.role || 'desk') as MsgRole,
+          ref_id: String(p.ref_id ?? '').trim(),
+          name: String(p.name || p.role || 'Person').trim() || 'Person',
+        }))
+        .filter((p) => p.ref_id);
 
       // Optional convenience fields for 1:1
       if (body.with_role && body.with_ref_id) {
         participants.push({
           role: String(body.with_role) as MsgRole,
-          ref_id: String(body.with_ref_id),
+          ref_id: String(body.with_ref_id).trim(),
           name: String(body.with_name || body.with_role),
         });
       }
 
       const all = dedupeParticipants([...participants, author]);
-      const existing = findOpenThread(threads, channel, all);
+      if (all.length < 2) {
+        return {
+          threads,
+          error:
+            'Pick who to message — add a coach/practitioner and/or member/patient, or a class group with booked members.',
+        };
+      }
+
+      let group: MsgGroupRef | null = null;
+      if (body.group && typeof body.group === 'object') {
+        const g = body.group as Record<string, unknown>;
+        if (g.ref_id) {
+          group = {
+            kind: g.kind === 'class_type' ? 'class_type' : 'session',
+            ref_id: String(g.ref_id),
+            label: String(g.label || 'Class'),
+          };
+        }
+      } else if (body.group_ref_id) {
+        group = {
+          kind: body.group_kind === 'class_type' ? 'class_type' : 'session',
+          ref_id: String(body.group_ref_id),
+          label: String(body.group_label || 'Class'),
+        };
+      }
+
+      const existing = findOpenThread(threads, channel, all, group);
       if (existing && body.reuse !== false) {
+        // Merge any new roster members into an existing class thread
+        let base = existing;
+        if (group && all.length > existing.participants.length) {
+          base = {
+            ...existing,
+            participants: dedupeParticipants([
+              ...existing.participants,
+              ...all,
+            ]),
+            group: existing.group || group,
+          };
+        }
         const updated = appendMessage(
-          existing,
+          base,
           String(body.body || body.message || ''),
           author,
           now
@@ -476,6 +570,7 @@ export function applyMessageAction(
         body: String(body.body || body.message || ''),
         author,
         now,
+        group,
       });
       threads = upsertThreadInList(threads, thread);
       return { threads, thread };
@@ -503,14 +598,15 @@ export function applyMessageAction(
 
     if (action === 'message_mark_read' || action === 'mark_read') {
       const threadId = String(body.thread_id || body.id || '');
-      if (!threadId) return { threads, error: 'thread_id required' };
+      if (!threadId) return { threads }; // soft no-op
       const idx = threads.findIndex((t) => t.id === threadId);
-      if (idx < 0) return { threads, error: 'Thread not found' };
+      // Soft no-op when thread is gone (e.g. race after archive) — do not 400
+      if (idx < 0) return { threads };
       const role = String(body.author_role || body.as_role || 'desk') as MsgRole;
       const ref_id = String(
         body.author_ref_id || body.as_ref_id || (role === 'desk' ? 'desk' : '')
       );
-      if (!ref_id) return { threads, error: 'author_ref_id required' };
+      if (!ref_id) return { threads };
       const updated = markThreadRead(threads[idx], role, ref_id);
       threads = upsertThreadInList(threads, updated);
       return { threads, thread: updated };

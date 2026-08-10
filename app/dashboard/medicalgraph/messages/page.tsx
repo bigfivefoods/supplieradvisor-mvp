@@ -15,8 +15,8 @@ export default function MedicalgraphMessagesPage() {
   return (
     <MedicalgraphWorkbench
       title="Messages"
-      titleAccent="clinic team"
-      description="Colleague chat between practitioners, desk ↔ physio, and practitioner ↔ patient threads for care plans, injury updates and follow-ups."
+      titleAccent="practice team"
+      description="Colleague chat between practitioners, desk ↔ clinician, and practitioner ↔ patient threads for care plans, scripts and follow-ups."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -36,12 +36,11 @@ export default function MedicalgraphMessagesPage() {
               },
               {
                 label: 'Practitioners',
-                value: store.practitioners.filter((p) => p.active !== false)
-                  .length,
+                value: (store.practitioners || []).length,
               },
               {
                 label: 'Patients',
-                value: store.patients.filter((p) => p.active !== false).length,
+                value: (store.patients || []).length,
               },
             ]}
           />
@@ -50,12 +49,24 @@ export default function MedicalgraphMessagesPage() {
             accent="teal"
             threads={(store.threads || []) as ServiceThread[]}
             directory={{
-              coachesOrPractitioners: store.practitioners
-                .filter((p) => p.active !== false)
-                .map((p) => ({ id: p.id, name: p.name, code: p.code })),
-              membersOrPatients: store.patients
-                .filter((p) => p.active !== false)
-                .map((p) => ({ id: p.id, name: p.name, code: p.code })),
+              coachesOrPractitioners: (store.practitioners || [])
+                .filter((p) => p.id && p.name)
+                .map((p) => ({
+                  id: String(p.id),
+                  name: String(p.name),
+                  code: p.code ? String(p.code) : undefined,
+                  active: p.active !== false,
+                  subtitle: p.email || undefined,
+                })),
+              membersOrPatients: (store.patients || [])
+                .filter((p) => p.id && p.name)
+                .map((p) => ({
+                  id: String(p.id),
+                  name: String(p.name),
+                  code: p.code ? String(p.code) : undefined,
+                  active: p.active !== false,
+                  subtitle: p.email || undefined,
+                })),
             }}
             saving={saving}
             onAction={(body) => post(body)}

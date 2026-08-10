@@ -33,6 +33,8 @@ import FitgraphProcessPdfButtons from '@/components/fitness/FitgraphProcessPdfBu
 type Props = {
   compact?: boolean;
   defaultCollapsed?: boolean;
+  /** When false, process copy is coach–member led (no front desk). Default true. */
+  hasFrontDesk?: boolean;
 };
 
 type PhaseStep = {
@@ -258,9 +260,9 @@ const PHASES: Phase[] = [
       {
         id: 'member-care',
         n: '6b',
-        title: 'Member care messages',
-        who: 'Desk / coach · member',
-        desc: 'Class and care threads with members on the gym book.',
+        title: 'Member care & class groups',
+        who: 'Desk / coach · members',
+        desc: '1:1 care threads, or coach → whole class/session group (everyone booked on the roster).',
         href: '/dashboard/fitgraph/messages',
         icon: MessageSquare,
       },
@@ -412,11 +414,108 @@ const GUARDRAILS = [
   },
 ];
 
+function adaptWho(who: string, hasFrontDesk: boolean): string {
+  if (hasFrontDesk) return who;
+  return who
+    .replace(/Owner \/ desk/gi, 'Owner / coach')
+    .replace(/Desk \/ coach \/ web/gi, 'Coach / web')
+    .replace(/Desk \/ coach/gi, 'Coach')
+    .replace(/Coach \/ desk/gi, 'Coach')
+    .replace(/^Desk$/i, 'Coach');
+}
+
+function adaptDesc(desc: string, hasFrontDesk: boolean): string {
+  if (hasFrontDesk) return desc;
+  return desc
+    .replace(/desk, portal or join link/gi, 'coach portal, member portal or join link')
+    .replace(/Front-desk or class attendance log/gi, 'Coach or member portal check-in')
+    .replace(/desk, coach or website/gi, 'coach, portal or website')
+    .replace(
+      /1:1 care threads, or coach → whole class\/session group \(everyone booked on the roster\)\./gi,
+      'Coach ↔ member care threads and coach → whole class/session groups (everyone booked on the roster).'
+    )
+    .replace(
+      /Internal colleague chat for schedule hand-offs and floor notes\./gi,
+      'Coach-to-coach threads for schedule hand-offs and floor notes (no front desk).'
+    );
+}
+
 export default function FitgraphSystemFlow({
   compact,
   defaultCollapsed = false,
+  hasFrontDesk = true,
 }: Props) {
   const [open, setOpen] = useState(!defaultCollapsed);
+
+  const phases = PHASES.map((ph) => ({
+    ...ph,
+    title:
+      !hasFrontDesk && ph.id === 'messages'
+        ? '6 · Messages (coach · members · classes)'
+        : ph.title,
+    subtitle:
+      !hasFrontDesk && ph.id === 'messages'
+        ? 'Coach ↔ member · class groups — in-app'
+        : !hasFrontDesk && ph.id === 'floor'
+          ? 'Coach-led capacity, attendance, post-class pulse'
+          : ph.subtitle,
+    steps: ph.steps.map((st) => ({
+      ...st,
+      who: adaptWho(st.who, hasFrontDesk),
+      desc: adaptDesc(st.desc, hasFrontDesk),
+      title:
+        !hasFrontDesk && st.id === 'desk-coach'
+          ? 'Coach · coach threads'
+          : !hasFrontDesk && st.id === 'member-care'
+            ? 'Coach ↔ member & class groups'
+            : st.title,
+    })),
+  }));
+
+  const roleCards = ROLE_CARDS.map((card) => {
+    if (hasFrontDesk) return card;
+    if (card.tone === 'owner') {
+      return {
+        ...card,
+        subtitle: 'Brand · coaches · schedule · insight',
+        does: [
+          'Register & edit coaches; specialty catalogue',
+          'Engagement dates, rates, PDF contracts; rehire history',
+          'Member book, invites & portal; bulk .xlsx',
+          'Schedule, coach calendar, B2C join links',
+          'Coach-led messages: coach ↔ member · class groups',
+          'Gym bio, public contracts, website embed',
+          'Slice-and-dice reports (plan vs actual · feedback)',
+        ],
+      };
+    }
+    if (card.tone === 'coach') {
+      return {
+        ...card,
+        subtitle: 'Classes · members · plan · actual · messages',
+        does: [
+          'Portal: own profile, bio, specialties',
+          'Class plan, one-off or weekly series',
+          'Share classes; book walk-ins and members',
+          'Mark plan vs actual (attended / no-show)',
+          'Message members 1:1 and whole class groups',
+          'Post-class coach feedback (feel · RPE)',
+          'See member feedback averages on sessions',
+        ],
+      };
+    }
+    return {
+      ...card,
+      does: [
+        'Accept email invite to join as a member',
+        'Member portal: open vacancies, book or waitlist, update profile',
+        'Public schedule, gym bio & contracts on embed',
+        'Book online or class join link; add to phone calendar',
+        'Subscription or pack; coach or portal check-in',
+        'Message your coach; post-class feel & intensity feedback',
+      ],
+    };
+  });
 
   return (
     <section
@@ -435,16 +534,16 @@ export default function FitgraphSystemFlow({
           >
             <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">
               Full gym OS — process design
+              {!hasFrontDesk ? ' · coach-led (no front desk)' : ''}
             </p>
             <h2 className="text-lg sm:text-xl font-black mt-0.5 leading-tight">
               People → Plans → Classes → Calendar → Floor → Messages → Website ·
               reports
             </h2>
             <p className="text-sm text-white/90 mt-1.5 max-w-3xl leading-snug">
-              Owner manages coaches (tenure, rates, contracts), members and
-              schedules; coaches run plan vs actual and feedback; desk, coaches
-              and members message in-app; members book and rate classes; reports
-              slice utilisation end to end.
+              {hasFrontDesk
+                ? 'Owner manages coaches (tenure, rates, contracts), members and schedules; coaches run plan vs actual and feedback; desk, coaches and members message in-app; members book and rate classes; reports slice utilisation end to end.'
+                : 'Coach-led gym: owner sets brand and coaches; coaches own the floor — schedule, plan vs actual, coach ↔ member and class-group messages; members book via portal and rate classes. No front-desk persona.'}
             </p>
           </button>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -552,7 +651,7 @@ export default function FitgraphSystemFlow({
               </div>
             </div>
             <div className="grid lg:grid-cols-3 gap-3">
-              {ROLE_CARDS.map((card) => (
+              {roleCards.map((card) => (
                 <RoleCard key={card.title} {...card} />
               ))}
             </div>
@@ -567,7 +666,7 @@ export default function FitgraphSystemFlow({
                 Read top to bottom. Each step opens the live workbench.
               </p>
             </div>
-            {PHASES.map((phase) => (
+            {phases.map((phase) => (
               <div key={phase.id}>
                 <div className="mb-2">
                   <h4 className="text-sm font-black text-slate-900">

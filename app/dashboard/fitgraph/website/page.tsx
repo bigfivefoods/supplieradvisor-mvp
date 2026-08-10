@@ -23,6 +23,7 @@ export default function FitgraphWebsitePage() {
     show_coaches: true,
     show_pricing: true,
     show_contracts: true,
+    has_front_desk: true,
     contact_email: '',
     contact_phone: '',
     embed_primary_color: '#7c3aed',
@@ -42,6 +43,7 @@ export default function FitgraphWebsitePage() {
       show_coaches: s.show_coaches !== false,
       show_pricing: s.show_pricing !== false,
       show_contracts: s.show_contracts !== false,
+      has_front_desk: s.has_front_desk !== false,
       contact_email: s.contact_email || '',
       contact_phone: s.contact_phone || '',
       embed_primary_color: s.embed_primary_color || '#7c3aed',
@@ -103,7 +105,7 @@ export default function FitgraphWebsitePage() {
     <FitgraphWorkbench
       title="Website"
       titleAccent="& profile"
-      description="Gym bio and PDF contracts on your public profile, plus class calendar embed for your website. Coaches can share classes from their portal."
+      description="Gym ops model (front desk or coach-led), public bio, PDF contracts, and class calendar embed. Coaches can share classes from their portal."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -116,8 +118,8 @@ export default function FitgraphWebsitePage() {
                 value: form.enabled ? 'Yes' : 'No',
               },
               {
-                label: 'Public sessions',
-                value: Number(summary?.publicSessionsUpcoming) || 0,
+                label: 'Ops model',
+                value: form.has_front_desk ? 'Front desk' : 'Coach-led',
               },
               {
                 label: 'Online booking',
@@ -129,6 +131,71 @@ export default function FitgraphWebsitePage() {
               },
             ]}
           />
+
+          <FormCard
+            tone="owner"
+            title="Gym operations model"
+            description="Does this gym run with a front desk / floor admin, or is it coach–member only (owner-coach studio)?"
+            onSubmit={() => void save()}
+            saving={saving}
+            submitLabel="Save ops model"
+          >
+            <div className="col-span-full space-y-3">
+              <label
+                className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition ${
+                  form.has_front_desk
+                    ? 'border-violet-400 bg-violet-50/80 dark:border-violet-500 dark:bg-violet-950/40'
+                    : 'border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="ops_model"
+                  className="mt-1"
+                  checked={form.has_front_desk}
+                  onChange={() =>
+                    setForm((f) => ({ ...f, has_front_desk: true }))
+                  }
+                />
+                <span>
+                  <span className="block text-sm font-black text-slate-900 dark:text-white">
+                    We have a front desk
+                  </span>
+                  <span className="mt-0.5 block text-[12px] text-slate-600 dark:text-slate-300">
+                    Desk books members, check-ins, and messages coaches/members.
+                    Process and inbox use a desk persona.
+                  </span>
+                </span>
+              </label>
+              <label
+                className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition ${
+                  !form.has_front_desk
+                    ? 'border-violet-400 bg-violet-50/80 dark:border-violet-500 dark:bg-violet-950/40'
+                    : 'border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="ops_model"
+                  className="mt-1"
+                  checked={!form.has_front_desk}
+                  onChange={() =>
+                    setForm((f) => ({ ...f, has_front_desk: false }))
+                  }
+                />
+                <span>
+                  <span className="block text-sm font-black text-slate-900 dark:text-white">
+                    No front desk · coach-led
+                  </span>
+                  <span className="mt-0.5 block text-[12px] text-slate-600 dark:text-slate-300">
+                    Coaches own the floor: coach ↔ member and class-group
+                    messages, coach calendar, member portal bookings. Process
+                    design drops desk-first steps.
+                  </span>
+                </span>
+              </label>
+            </div>
+          </FormCard>
 
           <FormCard tone="owner"
             title="Public calendar & gym profile"

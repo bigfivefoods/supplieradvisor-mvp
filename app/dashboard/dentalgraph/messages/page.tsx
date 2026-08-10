@@ -36,12 +36,11 @@ export default function DentalgraphMessagesPage() {
               },
               {
                 label: 'Staff',
-                value: store.staff.filter((p) => p.active !== false)
-                  .length,
+                value: (store.staff || []).length,
               },
               {
                 label: 'Patients',
-                value: store.patients.filter((p) => p.active !== false).length,
+                value: (store.patients || []).length,
               },
             ]}
           />
@@ -50,12 +49,24 @@ export default function DentalgraphMessagesPage() {
             accent="sky"
             threads={(store.threads || []) as ServiceThread[]}
             directory={{
-              coachesOrPractitioners: store.staff
-                .filter((p) => p.active !== false)
-                .map((p) => ({ id: p.id, name: p.name, code: p.code })),
-              membersOrPatients: store.patients
-                .filter((p) => p.active !== false)
-                .map((p) => ({ id: p.id, name: p.name, code: p.code })),
+              coachesOrPractitioners: (store.staff || [])
+                .filter((p) => p.id && p.name)
+                .map((p) => ({
+                  id: String(p.id),
+                  name: String(p.name),
+                  code: p.code ? String(p.code) : undefined,
+                  active: p.active !== false,
+                  subtitle: p.email || undefined,
+                })),
+              membersOrPatients: (store.patients || [])
+                .filter((p) => p.id && p.name)
+                .map((p) => ({
+                  id: String(p.id),
+                  name: String(p.name),
+                  code: p.code ? String(p.code) : undefined,
+                  active: p.active !== false,
+                  subtitle: p.email || undefined,
+                })),
             }}
             saving={saving}
             onAction={(body) => post(body)}

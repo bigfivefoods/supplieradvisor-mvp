@@ -31,7 +31,8 @@ import {
   type HubModule,
 } from '@/components/chrome/CommandHubChrome';
 
-const MODULES: HubModule[] = [
+function hubModules(hasFrontDesk: boolean): HubModule[] {
+  return [
   {
     href: '/dashboard/fitgraph/coaches',
     icon: UserRound,
@@ -101,7 +102,9 @@ const MODULES: HubModule[] = [
     icon: Sparkles,
     code: '08',
     title: 'Check-ins',
-    desc: 'Front-desk and class attendance log.',
+    desc: hasFrontDesk
+      ? 'Front-desk and class attendance log.'
+      : 'Coach or portal attendance log (no front desk).',
     accent: 'from-fuchsia-50 to-white border-fuchsia-100',
   },
   {
@@ -117,15 +120,17 @@ const MODULES: HubModule[] = [
     icon: MessageSquare,
     code: '09',
     title: 'Messages',
-    desc: 'Desk · coaches · members — colleague and care threads.',
+    desc: hasFrontDesk
+      ? 'Desk · coaches · members — colleague, care, and class groups.'
+      : 'Coach-led: coach ↔ member and class groups (no desk persona).',
     accent: 'from-fuchsia-50 to-white border-fuchsia-100',
   },
   {
     href: '/dashboard/fitgraph/website',
     icon: Globe,
     code: '10',
-    title: 'Website & embed',
-    desc: 'Public calendar, booking link and iframe for your site.',
+    title: 'Website & ops',
+    desc: 'Front desk vs coach-led ops model, public calendar, embed, contracts.',
     accent: 'from-indigo-50 to-white border-indigo-100',
   },
   {
@@ -137,6 +142,7 @@ const MODULES: HubModule[] = [
     accent: 'from-slate-50 to-white border-slate-200',
   },
 ];
+}
 
 export default function FitgraphHubPage() {
   return (
@@ -253,19 +259,23 @@ function Inner() {
             sub={`${summary?.publicSessionsUpcoming ?? 0} public upcoming`}
           />
           <TelemetryCard
-            label="Website"
-            value={summary?.websiteEnabled ? 'Live' : 'Off'}
+            label="Ops model"
+            value={summary?.hasFrontDesk === false ? 'Coach-led' : 'Front desk'}
             sub={
-              summary?.publicBooking
-                ? 'Online booking on'
-                : 'Booking off / unpublished'
+              summary?.websiteEnabled
+                ? summary?.publicBooking
+                  ? 'Website live · booking on'
+                  : 'Website live'
+                : 'Set under Website'
             }
           />
         </HubTelemetryGrid>
       )}
 
       <div className="mt-8">
-        <FitgraphSystemFlow />
+        <FitgraphSystemFlow
+          hasFrontDesk={summary?.hasFrontDesk !== false}
+        />
       </div>
 
       <div className="my-8 grid sm:grid-cols-2 gap-3">
@@ -305,7 +315,10 @@ function Inner() {
         <h2 className="text-sm font-black uppercase tracking-widest text-violet-800/70 mb-4 dark:text-violet-300/80">
           Workbenches
         </h2>
-        <HubModuleGrid modules={MODULES} uniformDark />
+        <HubModuleGrid
+          modules={hubModules(summary?.hasFrontDesk !== false)}
+          uniformDark
+        />
       </div>
     </FitgraphPage>
   );
