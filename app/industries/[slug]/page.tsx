@@ -48,7 +48,7 @@ export default async function IndustryDetailPage({ params }: Props) {
           ← All industries
         </Link>
         <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#00b4d8]">
-          {ind.name}
+          {ind.pack ? `${ind.pack} · ${ind.name}` : ind.name}
         </p>
         <h1 className="mt-3 max-w-3xl text-4xl font-black tracking-tight sm:text-5xl">
           {ind.headline}
@@ -102,7 +102,7 @@ export default async function IndustryDetailPage({ params }: Props) {
 
         <div className="mt-10 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8">
           <h2 className="text-lg font-black text-slate-900">
-            Modules that matter most
+            Modules & surfaces that matter most
           </h2>
           <div className="mt-4 flex flex-wrap gap-2">
             {ind.modules.map((m) => (
@@ -116,8 +116,23 @@ export default async function IndustryDetailPage({ params }: Props) {
           </div>
           <p className="mt-6 text-sm text-slate-500">
             From R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo after trial · unlimited
-            team seats per company.
+            team seats per company. Enable only the packs you need from Company
+            → Modules.
           </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link
+              href="/#modules-industry"
+              className="text-sm font-bold text-[#0077b6] hover:underline"
+            >
+              See Industry modules on the home page →
+            </Link>
+            <Link
+              href="/pricing"
+              className="text-sm font-bold text-slate-600 hover:underline"
+            >
+              Pricing
+            </Link>
+          </div>
         </div>
 
         {/* Related industries */}

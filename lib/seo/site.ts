@@ -2,6 +2,8 @@
  * Canonical site constants for SEO (sitemap, robots, JSON-LD, metadata).
  */
 
+import { industrySlugs } from '@/lib/marketing/industries';
+
 export const SITE_URL = (
   process.env.NEXT_PUBLIC_APP_URL ||
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -15,7 +17,7 @@ export const DEFAULT_TITLE =
   'SupplierAdvisor® — The world’s most trusted supplier advice — and OS';
 
 export const DEFAULT_DESCRIPTION =
-  'SupplierAdvisor® is the supply-chain OS — not Excel, not accounting-only, not a multi-year ERP. B2B, B2G & B2C on one verified network: SRM, CRM, inventory, manufacturing, finance, SHEQ, people, containers. 30-day free trial. From R299/mo.';
+  'SupplierAdvisor® is the supply-chain OS — not Excel, not accounting-only, not a multi-year ERP. B2B, B2G & B2C on one verified network: SRM, CRM, inventory, manufacturing, finance, SHEQ, people, containers. Industry Advisors for agri, quarry, gyms, and clinics. 30-day free trial. From R299/mo.';
 
 /** Core marketing + public indexable routes (no company/product dynamic pages). */
 export const STATIC_SEO_ROUTES: Array<{
@@ -35,12 +37,11 @@ export const STATIC_SEO_ROUTES: Array<{
   { path: '/pricing', changeFrequency: 'weekly', priority: 0.85 },
   { path: '/demo', changeFrequency: 'weekly', priority: 0.85 },
   { path: '/industries', changeFrequency: 'weekly', priority: 0.88 },
-  { path: '/industries/food-beverage', changeFrequency: 'monthly', priority: 0.78 },
-  { path: '/industries/agriculture', changeFrequency: 'monthly', priority: 0.78 },
-  { path: '/industries/manufacturing', changeFrequency: 'monthly', priority: 0.78 },
-  { path: '/industries/distribution', changeFrequency: 'monthly', priority: 0.78 },
-  { path: '/industries/public-sector', changeFrequency: 'monthly', priority: 0.78 },
-  { path: '/industries/multi-entity', changeFrequency: 'monthly', priority: 0.78 },
+  ...industrySlugs().map((slug) => ({
+    path: `/industries/${slug}`,
+    changeFrequency: 'monthly' as const,
+    priority: 0.78,
+  })),
   { path: '/verification-sla', changeFrequency: 'monthly', priority: 0.75 },
   { path: '/privacy', changeFrequency: 'yearly', priority: 0.3 },
   { path: '/terms', changeFrequency: 'yearly', priority: 0.3 },

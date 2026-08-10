@@ -18,6 +18,10 @@ import {
   toneLinkClass,
 } from '@/components/fitness/FitForm';
 import { sessionBookingCount } from '@/lib/fitness/fitgraph';
+import {
+  PracticeScheduleCalendar,
+  type ScheduleEvent,
+} from '@/components/schedule/PracticeScheduleCalendar';
 
 const WEEKDAYS = [
   { v: 1, l: 'Mon' },
@@ -53,6 +57,43 @@ export default function CalendarPage() {
       .filter((s) => s.date === day && s.status !== 'cancelled')
       .sort((a, b) => a.start_time.localeCompare(b.start_time));
   }, [store, day]);
+
+  const scheduleEvents: ScheduleEvent[] = useMemo(() => {
+    if (!store) return [];
+    return store.sessions
+      .filter((s) => s.status !== 'cancelled')
+      .map((s) => {
+        const ct = store.class_types.find((c) => c.id === s.class_type_id);
+        const coach = store.coaches.find((c) => c.id === s.coach_id);
+        const booked = sessionBookingCount(store, s.id);
+        const cap = s.capacity ?? ct?.capacity ?? 0;
+        return {
+          id: s.id,
+          date: s.date,
+          start_time: s.start_time,
+          end_time: s.end_time,
+          duration_min: s.duration_min ?? ct?.default_duration_min ?? 45,
+          title: ct?.name || 'Class',
+          subtitle: s.location || undefined,
+          person_id: s.coach_id || null,
+          person_name: coach?.name,
+          status: s.status,
+          public: s.public === true,
+          meta: `${booked}${cap ? `/${cap}` : ''} booked${
+            s.public ? ' · public' : ''
+          }`,
+          tone: 'violet' as const,
+        };
+      });
+  }, [store]);
+
+  const schedulePeople = useMemo(
+    () =>
+      (store?.coaches || [])
+        .filter((c) => c.active !== false)
+        .map((c) => ({ id: c.id, name: c.name })),
+    [store]
+  );
 
   const add = async () => {
     if (!form.class_type_id) {
@@ -157,32 +198,16 @@ export default function CalendarPage() {
   return (
     <FitgraphWorkbench
       title="Calendar"
-      titleAccent="owner schedule"
-      description="Set out classes, assign coaches (filter by specialty), publish to the website, and copy B2C join links so members can book and add the class to their phone calendar."
+      titleAccent="gym schedule"
+      description="Day, week and month views of all classes — filter by coach. Schedule sessions, publish to the website, and copy B2C join links."
     >
       {loading || !store ? (
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <div className="flex flex-wrap gap-3 items-end">
-            <label className="text-sm">
-              <span className="block text-[10px] font-black uppercase text-slate-400 mb-1">
-                Day
-              </span>
-              <input
-                className={fc()}
-                type="date"
-                value={day}
-                onChange={(e) => {
-                  setDay(e.target.value);
-                  setForm((f) => ({ ...f, date: e.target.value }));
-                }}
-              />
-            </label>
-          </div>
           <StatRow tone="owner"
             items={[
-              { label: 'On this day', value: daySessions.length },
+              { label: 'On selected day', value: daySessions.length },
               {
                 label: 'Today (hub)',
                 value: Number(summary?.sessionsToday) || 0,
@@ -197,6 +222,20 @@ export default function CalendarPage() {
               },
             ]}
           />
+
+          <PracticeScheduleCalendar
+            title="Class schedule"
+            accent="violet"
+            events={scheduleEvents}
+            people={schedulePeople}
+            initialDate={day}
+            emptyLabel="No classes"
+            onSelectDate={(date) => {
+              setDay(date);
+              setForm((f) => ({ ...f, date }));
+            }}
+          />
+
           <FormCard
             tone="owner"
             title="Set out class · assign coach"

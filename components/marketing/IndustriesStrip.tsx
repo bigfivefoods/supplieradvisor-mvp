@@ -17,6 +17,7 @@ import {
   Mountain,
 } from 'lucide-react';
 
+/** Prefer /industries/[slug] so home strip matches the industries hub */
 const INDUSTRIES = [
   {
     slug: 'food-beverage',
@@ -31,7 +32,7 @@ const INDUSTRIES = [
     icon: Leaf,
   },
   {
-    href: '/#modules-industry',
+    slug: 'quarry-aggregates',
     name: 'Quarry & aggregates',
     desc: 'QuarryAdvisor® — sites, reserves, plant, weighbridge, fleet, QA, and permits.',
     icon: Mountain,
@@ -49,33 +50,33 @@ const INDUSTRIES = [
     icon: Truck,
   },
   {
-    href: '/#modules-industry',
+    slug: 'fitness-gyms',
     name: 'Fitness & gyms',
-    desc: 'FitAdvisor® — coaches, email member invites, class portal, calendar, feedback, messaging, and website bookings.',
+    desc: 'FitAdvisor® — coaches, member invites & portal, calendar, feedback, class groups, coach-led or front desk.',
     icon: Dumbbell,
   },
   {
-    href: '/#modules-industry',
+    slug: 'physio-allied-health',
     name: 'Physio & allied health',
-    desc: 'PhysioAdvisor® — practitioners, patient invites & portal, rehab packs, diary, medical chart, scripts, and messages.',
+    desc: 'PhysioAdvisor® — practitioners, patient invites & portal, rehab packs, diary, medical chart, scripts, messages.',
     icon: Stethoscope,
   },
   {
-    href: '/#modules-industry',
+    slug: 'dental',
     name: 'Dental practices',
-    desc: 'DentalAdvisor® — staff, patient portal & invites, care plans, surgeries, medical chart, scripts, and messaging.',
+    desc: 'DentalAdvisor® — staff, patient portal & invites, care plans, surgeries, medical chart, scripts, messaging.',
     icon: Smile,
   },
   {
-    href: '/#modules-industry',
+    slug: 'mental-health',
     name: 'Mental health',
-    desc: 'PsychiatryAdvisor® — clinicians, patients, therapy packs, diary, scripts, portal, and messages.',
+    desc: 'PsychiatryAdvisor® — clinicians, therapy packs, diary, scripts, portal, and messages.',
     icon: BrainCircuit,
   },
   {
-    href: '/#modules-industry',
+    slug: 'medical-practices',
     name: 'Medical practices',
-    desc: 'MedicalAdvisor® — GPs & clinics, consults, care packs, prescriptions on visits, portal, and messages.',
+    desc: 'MedicalAdvisor® — GPs & clinics, consults, Rx on visits, portal, and messages.',
     icon: Hospital,
   },
   {
