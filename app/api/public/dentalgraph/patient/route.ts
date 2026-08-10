@@ -110,6 +110,41 @@ export async function GET(request: NextRequest) {
     if (!resolved) {
       return NextResponse.json({ error: 'Patient portal not found' }, { status: 404 });
     }
+    // Link platform system user when patient is logged into SupplierAdvisor
+    try {
+      const { requireVerifiedUser, legacyPrivyFrom } = await import(
+        '@/lib/auth/api-auth'
+      );
+      const { linkPlatformUserId } = await import(
+        '@/lib/messaging/link-platform-user'
+      );
+      const gate = await requireVerifiedUser(request, {
+        legacyPrivyUserId: legacyPrivyFrom(request),
+      });
+      if (gate.ok && gate.userId) {
+        const pi = resolved.store.patients.findIndex(
+          (p) => p.id === resolved.patient.id
+        );
+        if (pi >= 0) {
+          const before = resolved.store.patients[pi].platform_user_id;
+          linkPlatformUserId(resolved.store.patients[pi], gate.userId);
+          if (
+            resolved.store.patients[pi].platform_user_id &&
+            resolved.store.patients[pi].platform_user_id !== before
+          ) {
+            await saveStore(
+              resolved.companyId,
+              resolved.meta,
+              resolved.store
+            );
+            resolved.patient = resolved.store.patients[pi];
+          }
+        }
+      }
+    } catch {
+      /* portal works without login */
+    }
+
     return NextResponse.json({
       success: true,
       portal: buildDentalPatientPortalPayload(
@@ -118,6 +153,7 @@ export async function GET(request: NextRequest) {
         request.nextUrl.searchParams.get('from') || undefined,
         request.nextUrl.searchParams.get('to') || undefined
       ),
+      platform_user_linked: Boolean(resolved.patient.platform_user_id),
       companyId: resolved.companyId,
     });
   } catch (e: unknown) {

@@ -337,19 +337,16 @@ export async function POST(request: NextRequest) {
       try {
         /* delivery already logged */
       } catch { /* */ }
-      const deliveryParts: string[] = ['Message saved'];
+      const deliveryParts: string[] = ['Message saved (in-app)'];
       if (mailResult) {
         if (mailResult.emailed > 0) {
-          deliveryParts.push(`emailed ${mailResult.emailed} member(s)`);
+          deliveryParts.push(
+            `email backup to ${mailResult.emailed} not-yet-linked member(s)`
+          );
         } else if (mailResult.errors.length) {
           deliveryParts.push(
-            mailResult.errors[0]?.includes('No member email') ||
-              mailResult.errors.some((e) => e.includes('no email'))
-              ? 'no email on member file — they can read in portal Messages'
-              : `email: ${mailResult.errors[0]}`
+            'member can read in portal Messages (system user or portal)'
           );
-        } else {
-          deliveryParts.push('portal only (no email sent)');
         }
       }
       return NextResponse.json({

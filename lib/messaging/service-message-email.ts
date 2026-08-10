@@ -96,6 +96,8 @@ export async function notifyMembersOnServiceThread(opts: {
     email?: string | null;
     invite_email?: string | null;
     portal_token?: string | null;
+    /** When set, recipient is on the system — in-app only, no email */
+    platform_user_id?: string | null;
   }>;
   brand: string;
   moduleLabel?: string;
@@ -121,8 +123,21 @@ export async function notifyMembersOnServiceThread(opts: {
   const errors: string[] = [];
   for (const p of opts.thread.participants || []) {
     if (!memberRoles.has(String(p.role))) continue;
-    const person = peopleById.get(String(p.ref_id));
+    const person = peopleById.get(String(p.ref_id)) as
+      | {
+          id: string;
+          name?: string;
+          email?: string | null;
+          invite_email?: string | null;
+          portal_token?: string | null;
+          platform_user_id?: string | null;
+        }
+      | undefined;
     if (!person) continue;
+    // Once on the system, messaging is in-app by platform_user_id — skip email
+    if (person.platform_user_id) {
+      continue;
+    }
     const email = String(person.email || person.invite_email || '')
       .toLowerCase()
       .trim();

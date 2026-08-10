@@ -133,6 +133,42 @@ export async function GET(request: NextRequest) {
 
     const from = request.nextUrl.searchParams.get('from') || undefined;
     const to = request.nextUrl.searchParams.get('to') || undefined;
+
+    // Link platform system user when member is logged into SupplierAdvisor
+    try {
+      const { requireVerifiedUser, legacyPrivyFrom } = await import(
+        '@/lib/auth/api-auth'
+      );
+      const { linkPlatformUserId } = await import(
+        '@/lib/messaging/link-platform-user'
+      );
+      const gate = await requireVerifiedUser(request, {
+        legacyPrivyUserId: legacyPrivyFrom(request),
+      });
+      if (gate.ok && gate.userId) {
+        const ci = resolved.store.clients.findIndex(
+          (c) => c.id === resolved.client.id
+        );
+        if (ci >= 0) {
+          const before = resolved.store.clients[ci].platform_user_id;
+          linkPlatformUserId(resolved.store.clients[ci], gate.userId);
+          if (
+            resolved.store.clients[ci].platform_user_id &&
+            resolved.store.clients[ci].platform_user_id !== before
+          ) {
+            await saveStore(
+              resolved.companyId,
+              resolved.meta,
+              resolved.store
+            );
+            resolved.client = resolved.store.clients[ci];
+          }
+        }
+      }
+    } catch {
+      /* portal works without login */
+    }
+
     const portal = buildMemberPortalPayload(
       resolved.store,
       resolved.client,
@@ -144,6 +180,7 @@ export async function GET(request: NextRequest) {
       success: true,
       portal,
       companyId: resolved.companyId,
+      platform_user_linked: Boolean(resolved.client.platform_user_id),
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -288,8 +325,44 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    if (action === 'update_profile') {
+    if (action === 'update_profile' || action === 'link_platform_user') {
       const c = store.clients[ci];
+      if (action === 'link_platform_user' || body.platform_user_id || body.userId) {
+        const { linkPlatformUserId } = await import(
+          '@/lib/messaging/link-platform-user'
+        );
+        try {
+          const { requireVerifiedUser, legacyPrivyFrom } = await import(
+            '@/lib/auth/api-auth'
+          );
+          const gate = await requireVerifiedUser(request, {
+            legacyPrivyUserId: legacyPrivyFrom(request, body),
+          });
+          if (gate.ok) linkPlatformUserId(c, gate.userId);
+          else
+            linkPlatformUserId(
+              c,
+              body.platform_user_id || body.userId || body.privyUserId
+            );
+        } catch {
+          linkPlatformUserId(
+            c,
+            body.platform_user_id || body.userId || body.privyUserId
+          );
+        }
+      }
+      if (action === 'link_platform_user') {
+        store.clients[ci] = c;
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          platform_user_id: c.platform_user_id || null,
+          portal: buildMemberPortalPayload(store, c),
+          message: c.platform_user_id
+            ? 'Linked to your SupplierAdvisor account — messages deliver in-app'
+            : 'Could not link system user',
+        });
+      }
       const { applyPortalProfileUpdate } = await import(
         '@/lib/services/portal-profile'
       );

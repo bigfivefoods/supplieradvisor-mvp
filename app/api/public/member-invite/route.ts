@@ -267,6 +267,29 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseServer();
     let portalToken = resolved.person.portal_token || null;
 
+    // Optional: claim while logged into SupplierAdvisor → link system user id
+    let claimUserId: string | null = null;
+    try {
+      const { requireVerifiedUser, legacyPrivyFrom } = await import(
+        '@/lib/auth/api-auth'
+      );
+      const { linkPlatformUserId, normalizePlatformUserId } = await import(
+        '@/lib/messaging/link-platform-user'
+      );
+      void linkPlatformUserId;
+      const gate = await requireVerifiedUser(request, {
+        legacyPrivyUserId: legacyPrivyFrom(request, body),
+      });
+      if (gate.ok) claimUserId = gate.userId;
+      else {
+        claimUserId = normalizePlatformUserId(
+          body.userId || body.privyUserId || body.platform_user_id
+        );
+      }
+    } catch {
+      claimUserId = null;
+    }
+
     if (resolved.module === 'fitgraph') {
       const store = readFitgraphFromMetadata(resolved.meta) as FitgraphStore;
       const idx = store.clients.findIndex((c) => c.invite_token === token);
@@ -281,6 +304,12 @@ export async function POST(request: NextRequest) {
       store.clients[idx].invite_status = 'accepted';
       store.clients[idx].invite_accepted_at = now;
       store.clients[idx].updated_at = now;
+      if (claimUserId) {
+        const { linkPlatformUserId } = await import(
+          '@/lib/messaging/link-platform-user'
+        );
+        linkPlatformUserId(store.clients[idx], claimUserId);
+      }
       // Keep invite_token so re-opening the link still works
       portalToken = store.clients[idx].portal_token!;
       const nextMeta = writeFitgraphToMetadata(resolved.meta, store);
@@ -305,6 +334,12 @@ export async function POST(request: NextRequest) {
       store.patients[idx].invite_status = 'accepted';
       store.patients[idx].invite_accepted_at = now;
       store.patients[idx].updated_at = now;
+      if (claimUserId) {
+        const { linkPlatformUserId } = await import(
+          '@/lib/messaging/link-platform-user'
+        );
+        linkPlatformUserId(store.patients[idx], claimUserId);
+      }
       portalToken = store.patients[idx].portal_token!;
       const nextMeta = writePhysiographToMetadata(resolved.meta, store);
       const { error } = await supabase
@@ -328,6 +363,12 @@ export async function POST(request: NextRequest) {
       store.patients[idx].invite_status = 'accepted';
       store.patients[idx].invite_accepted_at = now;
       store.patients[idx].updated_at = now;
+      if (claimUserId) {
+        const { linkPlatformUserId } = await import(
+          '@/lib/messaging/link-platform-user'
+        );
+        linkPlatformUserId(store.patients[idx], claimUserId);
+      }
       portalToken = store.patients[idx].portal_token!;
       const nextMeta = writeDentalgraphToMetadata(resolved.meta, store);
       const { error } = await supabase

@@ -288,6 +288,8 @@ export type MedicalPatient = {
   photo_url?: string;
   /** Token for patient self-serve portal (book open diary slots) */
   portal_token?: string | null;
+  /** Platform system user id once on SupplierAdvisor — in-app messaging key */
+  platform_user_id?: string | null;
   status?: (typeof PATIENT_STATUSES)[number] | string;
   practitioner_id?: string | null;
   package_id?: string | null;

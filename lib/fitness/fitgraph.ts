@@ -383,6 +383,11 @@ export type FitClient = {
   photo_url?: string;
   /** Token for member self-serve portal (book classes, see vacancies) */
   portal_token?: string | null;
+  /**
+   * Platform / system user id (Privy DID) once this person is on SupplierAdvisor.
+   * Care messaging delivers in-app by this id — not by email matching.
+   */
+  platform_user_id?: string | null;
   /** Email invite to join as a member and open the portal */
   invite_token?: string | null;
   invite_status?: string | null;
