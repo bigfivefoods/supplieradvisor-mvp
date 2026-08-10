@@ -275,10 +275,10 @@ function Inner() {
       </div>
 
       <div className="mt-6">
-        <h2 className="text-sm font-black uppercase tracking-widest text-violet-800/70 mb-4">
+        <h2 className="text-sm font-black uppercase tracking-widest text-violet-800/70 mb-4 dark:text-violet-300/80">
           Workbenches
         </h2>
-        <HubModuleGrid modules={MODULES} />
+        <HubModuleGrid modules={MODULES} uniformDark />
       </div>
     </FitgraphPage>
   );

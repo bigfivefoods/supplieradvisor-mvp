@@ -175,22 +175,41 @@ export function HubHero({
   );
 }
 
+/** Same charcoal surface for every workbench card in dark mode */
+const UNIFORM_DARK_MODULE =
+  'from-slate-50 to-white border-slate-200 dark:from-neutral-950 dark:via-neutral-950 dark:to-neutral-950 dark:border-neutral-800 dark:bg-neutral-950';
+
 export function HubModuleCard({
   module: m,
   accent,
+  uniformDark = false,
 }: {
   module: HubModule;
   accent?: string;
+  /** When true, all cards share one dark surface (no pastel tints). */
+  uniformDark?: boolean;
 }) {
   const Icon = m.icon;
-  const gradient = m.accent || accent || DEFAULT_MODULE_ACCENTS[0];
+  const gradient = uniformDark
+    ? UNIFORM_DARK_MODULE
+    : m.accent || accent || DEFAULT_MODULE_ACCENTS[0];
   return (
     <Link
       href={m.href}
-      className={`sa-metric-card group rounded-3xl border bg-gradient-to-br ${gradient} p-4 sm:p-6 shadow-sm hover:shadow-md hover:border-[#00b4d8]/40 transition-all min-w-0`}
+      className={`sa-metric-card group rounded-3xl border bg-gradient-to-br ${gradient} p-4 sm:p-6 shadow-sm hover:shadow-md hover:border-[#00b4d8]/40 transition-all min-w-0 ${
+        uniformDark
+          ? 'dark:!bg-[var(--sa-surface)] dark:!bg-none dark:!border-[var(--sa-border)]'
+          : ''
+      }`}
     >
       <div className="flex items-start justify-between gap-3 mb-4 min-w-0">
-        <div className="w-11 h-11 shrink-0 rounded-2xl bg-white border border-cyan-50 flex items-center justify-center shadow-sm text-[#0077b6]">
+        <div
+          className={`w-11 h-11 shrink-0 rounded-2xl border flex items-center justify-center shadow-sm text-[#0077b6] ${
+            uniformDark
+              ? 'bg-white border-cyan-50 dark:bg-neutral-900 dark:border-neutral-700 dark:text-[#00b4d8]'
+              : 'bg-white border-cyan-50'
+          }`}
+        >
           <Icon className="w-5 h-5" />
         </div>
         <div className="text-right min-w-0 max-w-[55%]">
@@ -229,9 +248,12 @@ export function HubModuleCard({
 export function HubModuleGrid({
   modules,
   className = 'mb-8',
+  uniformDark = false,
 }: {
   modules: HubModule[];
   className?: string;
+  /** Dark theme: every card the same charcoal surface (Fitgraph workbenches). */
+  uniformDark?: boolean;
 }) {
   return (
     <div className={`grid md:grid-cols-2 xl:grid-cols-3 gap-4 ${className}`}>
@@ -239,7 +261,12 @@ export function HubModuleGrid({
         <HubModuleCard
           key={m.href + m.code}
           module={m}
-          accent={m.accent || DEFAULT_MODULE_ACCENTS[i % DEFAULT_MODULE_ACCENTS.length]}
+          accent={
+            uniformDark
+              ? UNIFORM_DARK_MODULE
+              : m.accent || DEFAULT_MODULE_ACCENTS[i % DEFAULT_MODULE_ACCENTS.length]
+          }
+          uniformDark={uniformDark}
         />
       ))}
     </div>
