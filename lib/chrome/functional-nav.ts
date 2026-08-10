@@ -18,30 +18,40 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-/** Functional ordering of existing MODULE_NAV ids (1:1, full trees preserved). */
+/**
+ * Functional ordering of existing MODULE_NAV ids (1:1, full trees preserved).
+ * 1) Control Tower
+ * 2) Industry / programme OS (Fitgraph · Quarrygraph · Fieldgraph · DBE/Schools)
+ * 3) Core platform modules
+ */
 export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
-  'home', // Control Tower (command center)
-  'platform', // SupplierAdvisor platform admin (opt-in / platform company only)
-  'my-business', // Company — directly below command
+  // 1 — Command
+  'home', // Control Tower
+
+  // 2 — Industry-specific / programme modules
+  'fitgraph', // Fitgraph® gym / studio OS
+  'quarrygraph', // Quarrygraph® aggregates OS
+  'fieldgraph', // Fieldgraph® agri OS
+  'schools', // DBE / NSNP (Schools)
+  'health', // DoH programme (with industry/programmes)
+  'containers', // Industry vertical (packs)
+
+  // 3 — Core modules
+  'platform', // SupplierAdvisor platform admin (opt-in)
+  'my-business', // Company
   'suppliers',
   'customers',
-  'sales-portal', // under trade — keep as own hub so Sales features stay
+  'sales-portal',
   'operations',
-  'manufacturing', // Make — not merged into Operations
-  'distribution', // Ship
+  'manufacturing',
+  'distribution',
   'inventory',
   'quality',
   'sheq',
   'projects',
-  'accounting', // Finance
+  'accounting',
   'intelligence',
-  'sustainability', // Impact
-  'fieldgraph', // Fieldgraph® agri OS — primary production
-  'quarrygraph', // Quarrygraph® quarrying & aggregates OS
-  'containers', // Industry vertical — also listed under Industry Tools when packs on
-  'fitgraph', // Fitgraph® — tertiary services (gyms / studios)
-  'schools', // Programme — full NSNP tree
-  'health', // Programme — full DoH tree
+  'sustainability',
   'network',
   'people',
   'guide',
@@ -69,7 +79,7 @@ export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
   quarrygraph: 'Quarrygraph',
   fitgraph: 'Fitgraph (Gym)',
   containers: 'Containers',
-  schools: 'Schools',
+  schools: 'DBE / Schools',
   health: 'Health',
   network: 'Network',
   people: 'People',
@@ -196,15 +206,16 @@ export function functionalSidebarModules(opts: {
   if (hasPacks) {
     const tools = buildIndustryToolsSubs(packIds, opts.isModuleEnabled);
     if (tools.length) {
-      // After Impact / before Containers when present; else before Network/People/Guide tail
+      // After industry block (containers / schools / health), before core Company
       const insertAt = (() => {
-        const containersIdx = out.findIndex((x) => x.id === 'containers');
-        if (containersIdx >= 0) return containersIdx;
-        const impactIdx = out.findIndex((x) => x.id === 'sustainability');
-        if (impactIdx >= 0) return impactIdx + 1;
-        const networkIdx = out.findIndex((x) => x.id === 'network');
-        if (networkIdx >= 0) return networkIdx;
-        return out.length;
+        const afterIndustry = ['containers', 'health', 'schools', 'fieldgraph', 'quarrygraph', 'fitgraph'];
+        for (const id of afterIndustry) {
+          const idx = out.findIndex((x) => x.id === id);
+          if (idx >= 0) return idx + 1;
+        }
+        const companyIdx = out.findIndex((x) => x.id === 'my-business');
+        if (companyIdx >= 0) return companyIdx;
+        return Math.min(out.length, 2);
       })();
       const item: SidebarModuleShape = {
         id: 'industry_tools',
