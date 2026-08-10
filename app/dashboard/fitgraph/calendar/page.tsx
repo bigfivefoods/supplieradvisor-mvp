@@ -7,7 +7,14 @@ import {
   LoadingBlock,
   useFitgraph,
 } from '@/components/fitness/FitgraphWorkbench';
-import { DataTable, FormCard, StatRow, fc } from '@/components/fitness/FitForm';
+import {
+  DataTable,
+  FormCard,
+  ListRowCard,
+  StatRow,
+  fc,
+  toneLinkClass,
+} from '@/components/fitness/FitForm';
 import { sessionBookingCount } from '@/lib/fitness/fitgraph';
 
 export default function CalendarPage() {
@@ -112,7 +119,7 @@ export default function CalendarPage() {
               />
             </label>
           </div>
-          <StatRow
+          <StatRow tone="owner"
             items={[
               { label: 'On this day', value: daySessions.length },
               {
@@ -129,7 +136,7 @@ export default function CalendarPage() {
               },
             ]}
           />
-          <FormCard
+          <FormCard tone="owner"
             title="Schedule session (assign coach)"
             onSubmit={() => void add()}
             saving={saving}
@@ -232,40 +239,21 @@ export default function CalendarPage() {
                 const booked = sessionBookingCount(store, s.id);
                 const cap = s.capacity ?? ct?.capacity ?? 0;
                 return (
-                  <div
+                  <ListRowCard
                     key={s.id}
-                    className="rounded-2xl border border-violet-100 bg-white px-4 py-3 space-y-2"
-                  >
-                    <div className="flex flex-wrap justify-between gap-2">
-                      <div>
-                        <div className="font-bold text-sm">
-                          {s.start_time} · {ct?.name || 'Class'}
-                          {s.public ? (
-                            <span className="ml-2 text-[10px] font-black uppercase text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded">
-                              Public
-                            </span>
-                          ) : (
-                            <span className="ml-2 text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">
-                              Private
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[11px] text-slate-500">
-                          {coach?.name || 'No coach'} · {s.location || '—'} ·{' '}
-                          {booked}/{cap} booked
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-2 items-center">
+                    tone="owner"
+                    actions={
+                      <>
                         <button
                           type="button"
-                          className="text-violet-700 text-xs font-bold"
+                          className={`text-xs font-bold ${toneLinkClass('owner')}`}
                           onClick={() => void togglePublic(s.id, !s.public)}
                         >
                           {s.public ? 'Unpublish' : 'Publish'}
                         </button>
                         <button
                           type="button"
-                          className="text-rose-600 text-xs font-bold"
+                          className="text-rose-600 dark:text-rose-400 text-xs font-bold"
                           onClick={() =>
                             void post({
                               entity: 'sessions',
@@ -276,34 +264,53 @@ export default function CalendarPage() {
                         >
                           Remove
                         </button>
+                      </>
+                    }
+                  >
+                    <div className="space-y-2">
+                      <div className="font-bold text-sm text-slate-900 dark:text-violet-50">
+                        {s.start_time} · {ct?.name || 'Class'}
+                        {s.public ? (
+                          <span className="ml-2 text-[10px] font-black uppercase text-violet-700 bg-violet-100 px-1.5 py-0.5 rounded dark:text-violet-100 dark:bg-violet-800">
+                            Public
+                          </span>
+                        ) : (
+                          <span className="ml-2 text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded dark:text-neutral-400 dark:bg-neutral-800">
+                            Private
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-violet-200/80">
+                        {coach?.name || 'No coach'} · {s.location || '—'} ·{' '}
+                        {booked}/{cap} booked
+                      </div>
+                      <div className="flex flex-wrap gap-2 items-center">
+                        <span className="text-[10px] font-black uppercase text-violet-600/80 dark:text-violet-300/80">
+                          Coach
+                        </span>
+                        <select
+                          className="rounded-lg border border-slate-200 text-xs px-2 py-1 dark:border-violet-500/40 dark:bg-violet-950 dark:text-violet-50"
+                          value={s.coach_id || ''}
+                          onChange={(e) =>
+                            void reassignCoach(s.id, e.target.value)
+                          }
+                        >
+                          <option value="">Unassigned</option>
+                          {store.coaches.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2 items-center">
-                      <span className="text-[10px] font-black uppercase text-slate-400">
-                        Coach
-                      </span>
-                      <select
-                        className="rounded-lg border border-slate-200 text-xs px-2 py-1"
-                        value={s.coach_id || ''}
-                        onChange={(e) =>
-                          void reassignCoach(s.id, e.target.value)
-                        }
-                      >
-                        <option value="">Unassigned</option>
-                        {store.coaches.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
+                  </ListRowCard>
                 );
               })
             )}
           </div>
 
-          <DataTable
+          <DataTable tone="owner"
             headers={[
               'Date',
               'Time',

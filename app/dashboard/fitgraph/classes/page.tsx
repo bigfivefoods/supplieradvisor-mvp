@@ -46,7 +46,7 @@ export default function ClassesPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow
+          <StatRow tone="owner"
             items={[
               {
                 label: 'Class types',
@@ -54,14 +54,14 @@ export default function ClassesPage() {
               },
             ]}
           />
-          <FormCard title="Add class type" onSubmit={() => void add()} saving={saving}>
+          <FormCard tone="owner" title="Add class type" onSubmit={() => void add()} saving={saving}>
             <input className={fc()} placeholder="Code" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} />
             <input className={fc()} placeholder="Name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
             <input className={fc()} placeholder="Category" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} />
             <input className={fc()} type="number" placeholder="Duration min" value={form.default_duration_min} onChange={(e) => setForm((f) => ({ ...f, default_duration_min: e.target.value }))} />
             <input className={fc()} type="number" placeholder="Capacity" value={form.capacity} onChange={(e) => setForm((f) => ({ ...f, capacity: e.target.value }))} />
           </FormCard>
-          <DataTable
+          <DataTable tone="owner"
             headers={['Code', 'Name', 'Category', 'Duration', 'Capacity']}
             rows={store.class_types.map((c) => ({
               id: c.id,

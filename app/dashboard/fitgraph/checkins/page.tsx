@@ -45,7 +45,7 @@ export default function CheckinsPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow
+          <StatRow tone="owner"
             items={[
               {
                 label: 'Today',
@@ -57,7 +57,7 @@ export default function CheckinsPage() {
               },
             ]}
           />
-          <FormCard title="Check in member" onSubmit={() => void add()} saving={saving} submitLabel="Check in">
+          <FormCard tone="owner" title="Check in member" onSubmit={() => void add()} saving={saving} submitLabel="Check in">
             <select className={fc()} value={form.client_id} onChange={(e) => setForm((f) => ({ ...f, client_id: e.target.value }))}>
               <option value="">Client…</option>
               {store.clients.map((c) => (
@@ -86,7 +86,7 @@ export default function CheckinsPage() {
                 })}
             </select>
           </FormCard>
-          <DataTable
+          <DataTable tone="owner"
             headers={['Date', 'Time', 'Client', 'Method', 'Session']}
             rows={[...store.check_ins]
               .sort((a, b) => b.date.localeCompare(a.date))

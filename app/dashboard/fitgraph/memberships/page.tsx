@@ -73,7 +73,7 @@ export default function MembershipsPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow
+          <StatRow tone="owner"
             items={[
               { label: 'Plans', value: Number(summary?.planCount) || 0 },
               {
@@ -90,13 +90,13 @@ export default function MembershipsPage() {
             Manage member billing status on{' '}
             <a
               href="/dashboard/fitgraph/subscriptions"
-              className="font-bold text-violet-700 underline"
+              className="font-bold text-violet-700 underline dark:text-violet-300"
             >
               Subscriptions
             </a>
             .
           </p>
-          <FormCard title="Add plan" onSubmit={() => void add()} saving={saving}>
+          <FormCard tone="owner" title="Add plan" onSubmit={() => void add()} saving={saving}>
             <input className={fc()} placeholder="Code" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} />
             <input className={fc()} placeholder="Name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
             <input className={fc()} type="number" placeholder="Price ZAR" value={form.price_zar} onChange={(e) => setForm((f) => ({ ...f, price_zar: e.target.value }))} />
@@ -110,7 +110,7 @@ export default function MembershipsPage() {
             <input className={fc()} type="number" placeholder="Class credits (blank = unlimited)" value={form.class_credits} onChange={(e) => setForm((f) => ({ ...f, class_credits: e.target.value }))} />
             <input className={fc()} type="number" placeholder="PT credits" value={form.pt_credits} onChange={(e) => setForm((f) => ({ ...f, pt_credits: e.target.value }))} />
           </FormCard>
-          <DataTable
+          <DataTable tone="owner"
             headers={['Code', 'Name', 'Price', 'Billing', 'Class cr.', 'PT cr.', 'Web']}
             rows={store.membership_plans.map((p) => ({
               id: p.id,
@@ -127,7 +127,7 @@ export default function MembershipsPage() {
             onDelete={(id) => void post({ entity: 'membership_plans', action: 'delete', id })}
           />
 
-          <FormCard title="Issue PT pack" onSubmit={() => void addPt()} saving={saving} submitLabel="Issue pack">
+          <FormCard tone="owner" title="Issue PT pack" onSubmit={() => void addPt()} saving={saving} submitLabel="Issue pack">
             <select className={fc()} value={pt.client_id} onChange={(e) => setPt((f) => ({ ...f, client_id: e.target.value }))}>
               <option value="">Client…</option>
               {store.clients.map((c) => (
@@ -143,7 +143,7 @@ export default function MembershipsPage() {
             <input className={fc()} type="number" placeholder="Sessions" value={pt.sessions_total} onChange={(e) => setPt((f) => ({ ...f, sessions_total: e.target.value }))} />
             <input className={fc()} type="number" placeholder="Price ZAR" value={pt.price_zar} onChange={(e) => setPt((f) => ({ ...f, price_zar: e.target.value }))} />
           </FormCard>
-          <DataTable
+          <DataTable tone="owner"
             headers={['Client', 'Coach', 'Used / Total', 'Purchased', 'Price']}
             rows={store.pt_packs.map((p) => {
               const client = store.clients.find((c) => c.id === p.client_id);

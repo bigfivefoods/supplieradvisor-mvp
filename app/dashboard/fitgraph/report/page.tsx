@@ -27,7 +27,7 @@ export default function FitReportPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow
+          <StatRow tone="owner"
             items={[
               { label: 'Active members', value: Number(summary?.activeMembers) || 0 },
               { label: 'Coaches', value: Number(summary?.coachCount) || 0 },
@@ -37,7 +37,7 @@ export default function FitReportPage() {
               { label: 'PT sessions left', value: Number(summary?.ptSessionsRemaining) || 0 },
             ]}
           />
-          <DataTable
+          <DataTable tone="owner"
             headers={['Class', 'Sessions', 'Bookings', 'Attended', 'Show-up %']}
             rows={attendance.map((r, i) => ({
               id: String(i),
@@ -52,7 +52,7 @@ export default function FitReportPage() {
               ],
             }))}
           />
-          <DataTable
+          <DataTable tone="owner"
             headers={['Member', 'Plan', 'Status', 'Coach']}
             rows={store.clients.map((c) => {
               const plan = store.membership_plans.find(
@@ -70,7 +70,7 @@ export default function FitReportPage() {
               };
             })}
           />
-          <DataTable
+          <DataTable tone="owner"
             headers={['Client', 'PT used / total', 'Remaining']}
             rows={store.pt_packs.map((p) => {
               const client = store.clients.find((c) => c.id === p.client_id);

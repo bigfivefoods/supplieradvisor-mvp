@@ -96,7 +96,7 @@ export default function FitgraphWebsitePage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow
+          <StatRow tone="owner"
             items={[
               {
                 label: 'Published',
@@ -113,7 +113,7 @@ export default function FitgraphWebsitePage() {
             ]}
           />
 
-          <FormCard
+          <FormCard tone="owner"
             title="Public calendar settings"
             onSubmit={() => void save()}
             saving={saving}
@@ -216,9 +216,11 @@ export default function FitgraphWebsitePage() {
             />
           </FormCard>
 
-          <div className="rounded-3xl border border-violet-100 bg-white p-4 space-y-4">
+          <div className="rounded-3xl border border-violet-300 bg-violet-50 p-4 space-y-4 dark:!border-violet-400 dark:!bg-violet-950 dark:ring-1 dark:ring-violet-500/50">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-black">Embed & share links</h3>
+              <h3 className="text-sm font-black text-slate-900 dark:text-violet-50">
+                Embed & share links
+              </h3>
               <button
                 type="button"
                 disabled={saving}

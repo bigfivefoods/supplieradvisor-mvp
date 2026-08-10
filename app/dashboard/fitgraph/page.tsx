@@ -264,10 +264,12 @@ function Inner() {
         ].map((x) => (
           <div
             key={x.t}
-            className="rounded-2xl border border-violet-100 bg-violet-50/30 px-4 py-3"
+            className="rounded-2xl border border-violet-300 bg-violet-50/50 px-4 py-3 dark:!border-violet-400 dark:!bg-violet-950 dark:ring-1 dark:ring-violet-500/40"
           >
-            <div className="text-sm font-black text-slate-900">{x.t}</div>
-            <p className="text-[12px] text-slate-600 mt-1 leading-relaxed">
+            <div className="text-sm font-black text-slate-900 dark:text-violet-50">
+              {x.t}
+            </div>
+            <p className="text-[12px] text-slate-600 dark:text-violet-100/85 mt-1 leading-relaxed">
               {x.b}
             </p>
           </div>

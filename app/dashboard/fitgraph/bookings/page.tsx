@@ -52,7 +52,7 @@ export default function BookingsPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow
+          <StatRow tone="owner"
             items={[
               {
                 label: 'Open bookings',
@@ -60,7 +60,7 @@ export default function BookingsPage() {
               },
             ]}
           />
-          <FormCard title="Book client into session" onSubmit={() => void add()} saving={saving} submitLabel="Book">
+          <FormCard tone="owner" title="Book client into session" onSubmit={() => void add()} saving={saving} submitLabel="Book">
             <select className={fc()} value={form.session_id} onChange={(e) => setForm((f) => ({ ...f, session_id: e.target.value }))}>
               <option value="">Session…</option>
               {[...store.sessions]
@@ -83,7 +83,7 @@ export default function BookingsPage() {
               ))}
             </select>
           </FormCard>
-          <DataTable
+          <DataTable tone="owner"
             headers={['Session', 'Client', 'Status', 'Booked at', 'Actions']}
             rows={store.bookings.map((b) => {
               const s = store.sessions.find((x) => x.id === b.session_id);

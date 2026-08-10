@@ -5,59 +5,86 @@ import { Loader2, Plus, Trash2 } from 'lucide-react';
 
 /**
  * Fitgraph role tones — match end-to-end process “Who does what”:
- * coach = amber, member = cyan, default = neutral violet.
+ * owner = violet · coach = amber · member = cyan
+ * (`default` is an alias of owner for owner workbenches.)
  */
-export type FitTone = 'coach' | 'member' | 'default';
+export type FitTone = 'owner' | 'coach' | 'member' | 'default';
+
+const OWNER_CARD =
+  'border-violet-300 bg-violet-50 dark:!border-violet-400 dark:!bg-violet-950 dark:ring-1 dark:ring-violet-500/50';
+const OWNER_ROW =
+  'border-violet-200 bg-white dark:!border-violet-400 dark:!bg-violet-950 dark:ring-1 dark:ring-violet-500/40';
+const OWNER_TABLE =
+  'border-violet-200 bg-white dark:!border-violet-400 dark:!bg-violet-950 dark:ring-1 dark:ring-violet-500/40';
+const OWNER_THEAD =
+  'bg-violet-50 text-violet-900 dark:bg-violet-900/50 dark:text-violet-200';
 
 const TONE_CARD: Record<FitTone, string> = {
   // dark:!bg-* beats global pastel remaps so role colours stay true in dark mode
+  owner: OWNER_CARD,
+  default: OWNER_CARD,
   coach:
     'border-amber-300 bg-amber-50 dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/50',
   member:
     'border-cyan-300 bg-sky-50 dark:!border-cyan-400 dark:!bg-cyan-950 dark:ring-1 dark:ring-cyan-500/50',
-  default:
-    'border-violet-200 bg-violet-50 dark:!border-violet-500/50 dark:!bg-violet-950 dark:ring-1 dark:ring-violet-500/40',
 };
 
 const TONE_TITLE: Record<FitTone, string> = {
+  owner: 'text-slate-900 dark:text-violet-50',
+  default: 'text-slate-900 dark:text-violet-50',
   coach: 'text-slate-900 dark:text-amber-50',
   member: 'text-slate-900 dark:text-cyan-50',
-  default: 'text-slate-900 dark:text-violet-50',
 };
 
 const TONE_ROW: Record<FitTone, string> = {
+  owner: OWNER_ROW,
+  default: OWNER_ROW,
   coach:
     'border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40',
   member:
     'border-cyan-200 bg-white dark:!border-cyan-400 dark:!bg-cyan-950 dark:ring-1 dark:ring-cyan-500/40',
-  default:
-    'border-violet-100 bg-white dark:!border-violet-500/40 dark:!bg-violet-950 dark:ring-1 dark:ring-violet-500/30',
 };
 
 const TONE_TABLE: Record<FitTone, string> = {
+  owner: OWNER_TABLE,
+  default: OWNER_TABLE,
   coach:
     'border-amber-200 bg-white dark:!border-amber-400 dark:!bg-amber-950 dark:ring-1 dark:ring-amber-500/40',
   member:
     'border-cyan-200 bg-white dark:!border-cyan-400 dark:!bg-cyan-950 dark:ring-1 dark:ring-cyan-500/40',
-  default:
-    'border-slate-200 bg-white dark:border-neutral-800 dark:bg-neutral-950',
 };
 
 const TONE_THEAD: Record<FitTone, string> = {
+  owner: OWNER_THEAD,
+  default: OWNER_THEAD,
   coach: 'bg-amber-50 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200',
   member: 'bg-sky-50 text-sky-900 dark:bg-cyan-900/50 dark:text-cyan-200',
-  default: 'bg-slate-50 text-slate-500 dark:bg-neutral-900 dark:text-neutral-400',
 };
 
 const TONE_LINK: Record<FitTone, string> = {
+  owner: 'text-violet-800 dark:text-violet-300',
+  default: 'text-violet-800 dark:text-violet-300',
   coach: 'text-amber-800 dark:text-amber-300',
   member: 'text-sky-800 dark:text-cyan-300',
-  default: 'text-violet-700 dark:text-violet-300',
+};
+
+const TONE_LABEL: Record<FitTone, string> = {
+  owner: 'text-violet-700/80 dark:text-violet-300/80',
+  default: 'text-violet-700/80 dark:text-violet-300/80',
+  coach: 'text-amber-700/70 dark:text-amber-300/80',
+  member: 'text-sky-700/70 dark:text-cyan-300/80',
+};
+
+const TONE_VALUE: Record<FitTone, string> = {
+  owner: 'text-slate-900 dark:text-violet-50',
+  default: 'text-slate-900 dark:text-violet-50',
+  coach: 'text-slate-900 dark:text-amber-50',
+  member: 'text-slate-900 dark:text-cyan-50',
 };
 
 export function StatRow({
   items,
-  tone = 'default',
+  tone = 'owner',
 }: {
   items: Array<{ label: string; value: string | number }>;
   tone?: FitTone;
@@ -69,26 +96,10 @@ export function StatRow({
           key={i.label}
           className={`rounded-2xl border px-4 py-3 ${TONE_ROW[tone]}`}
         >
-          <div
-            className={`text-[10px] font-black uppercase ${
-              tone === 'coach'
-                ? 'text-amber-700/70 dark:text-amber-300/80'
-                : tone === 'member'
-                  ? 'text-sky-700/70 dark:text-cyan-300/80'
-                  : 'text-slate-400 dark:text-neutral-400'
-            }`}
-          >
+          <div className={`text-[10px] font-black uppercase ${TONE_LABEL[tone]}`}>
             {i.label}
           </div>
-          <div
-            className={`text-xl font-black tabular-nums ${
-              tone === 'coach'
-                ? 'text-slate-900 dark:text-amber-50'
-                : tone === 'member'
-                  ? 'text-slate-900 dark:text-cyan-50'
-                  : 'text-slate-900 dark:text-neutral-100'
-            }`}
-          >
+          <div className={`text-xl font-black tabular-nums ${TONE_VALUE[tone]}`}>
             {i.value}
           </div>
         </div>
@@ -103,14 +114,14 @@ export function FormCard({
   onSubmit,
   saving,
   submitLabel = 'Save',
-  tone = 'default',
+  tone = 'owner',
 }: {
   title: string;
   children: ReactNode;
   onSubmit: () => void;
   saving: boolean;
   submitLabel?: string;
-  /** Match process role: coach (amber) · member (cyan) */
+  /** Match process role: owner (violet) · coach (amber) · member (cyan) */
   tone?: FitTone;
 }) {
   return (
@@ -142,7 +153,7 @@ export function DataTable({
   headers,
   rows,
   onDelete,
-  tone = 'default',
+  tone = 'owner',
 }: {
   headers: string[];
   rows: Array<{ id: string; cells: Array<string | number> }>;
@@ -213,7 +224,7 @@ export function DataTable({
 }
 
 export function ListRowCard({
-  tone = 'default',
+  tone = 'owner',
   children,
   actions,
 }: {

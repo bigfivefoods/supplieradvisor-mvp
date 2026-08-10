@@ -7,7 +7,13 @@ import {
   LoadingBlock,
   useFitgraph,
 } from '@/components/fitness/FitgraphWorkbench';
-import { DataTable, FormCard, StatRow, fc } from '@/components/fitness/FitForm';
+import {
+  DataTable,
+  FormCard,
+  ListRowCard,
+  StatRow,
+  fc,
+} from '@/components/fitness/FitForm';
 
 const STATUSES = [
   'active',
@@ -96,7 +102,7 @@ export default function SubscriptionsPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow
+          <StatRow tone="owner"
             items={[
               {
                 label: 'Active / trial',
@@ -111,7 +117,7 @@ export default function SubscriptionsPage() {
             ]}
           />
 
-          <FormCard
+          <FormCard tone="owner"
             title="Start / update subscription"
             onSubmit={() => void add()}
             saving={saving}
@@ -225,73 +231,73 @@ export default function SubscriptionsPage() {
                   (p) => p.id === s.plan_id
                 );
                 return (
-                  <div
+                  <ListRowCard
                     key={s.id}
-                    className="rounded-2xl border border-emerald-100 bg-white px-4 py-3 flex flex-wrap justify-between gap-3"
-                  >
-                    <div>
-                      <div className="font-bold text-sm">
-                        {client?.name || s.client_id} · {plan?.name || 'Plan'}
-                      </div>
-                      <div className="text-[11px] text-slate-500">
-                        {s.status} · started {s.started_at}
-                        {s.current_period_end
-                          ? ` · ends ${s.current_period_end}`
-                          : ''}
-                        {s.class_credits_remaining != null
-                          ? ` · ${s.class_credits_remaining} credits left`
-                          : ' · unlimited / plan'}
-                        {s.auto_renew ? ' · auto-renew' : ''}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 items-center">
-                      {s.status === 'active' || s.status === 'trialing' ? (
-                        <>
+                    tone="owner"
+                    actions={
+                      <>
+                        {s.status === 'active' || s.status === 'trialing' ? (
+                          <>
+                            <button
+                              type="button"
+                              className="text-xs font-bold text-amber-700 dark:text-amber-300"
+                              onClick={() => void setStatus(s.id, 'paused')}
+                            >
+                              Pause
+                            </button>
+                            <button
+                              type="button"
+                              className="text-xs font-bold text-rose-600 dark:text-rose-400"
+                              onClick={() => void setStatus(s.id, 'cancelled')}
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
                           <button
                             type="button"
-                            className="text-xs font-bold text-amber-700"
-                            onClick={() => void setStatus(s.id, 'paused')}
+                            className="text-xs font-bold text-emerald-700 dark:text-emerald-300"
+                            onClick={() => void setStatus(s.id, 'active')}
                           >
-                            Pause
+                            Reactivate
                           </button>
-                          <button
-                            type="button"
-                            className="text-xs font-bold text-rose-600"
-                            onClick={() => void setStatus(s.id, 'cancelled')}
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      ) : (
+                        )}
                         <button
                           type="button"
-                          className="text-xs font-bold text-emerald-700"
-                          onClick={() => void setStatus(s.id, 'active')}
+                          className="text-xs font-bold text-slate-500 dark:text-violet-300/70"
+                          onClick={() =>
+                            void post({
+                              entity: 'subscriptions',
+                              action: 'delete',
+                              id: s.id,
+                            })
+                          }
                         >
-                          Reactivate
+                          Delete
                         </button>
-                      )}
-                      <button
-                        type="button"
-                        className="text-xs font-bold text-slate-500"
-                        onClick={() =>
-                          void post({
-                            entity: 'subscriptions',
-                            action: 'delete',
-                            id: s.id,
-                          })
-                        }
-                      >
-                        Delete
-                      </button>
+                      </>
+                    }
+                  >
+                    <div className="font-bold text-sm text-slate-900 dark:text-violet-50">
+                      {client?.name || s.client_id} · {plan?.name || 'Plan'}
                     </div>
-                  </div>
+                    <div className="text-[11px] text-slate-500 dark:text-violet-200/80">
+                      {s.status} · started {s.started_at}
+                      {s.current_period_end
+                        ? ` · ends ${s.current_period_end}`
+                        : ''}
+                      {s.class_credits_remaining != null
+                        ? ` · ${s.class_credits_remaining} credits left`
+                        : ' · unlimited / plan'}
+                      {s.auto_renew ? ' · auto-renew' : ''}
+                    </div>
+                  </ListRowCard>
                 );
               })
             )}
           </div>
 
-          <DataTable
+          <DataTable tone="owner"
             headers={[
               'Client',
               'Plan',
