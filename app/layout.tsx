@@ -9,6 +9,7 @@ import {
   SITE_NAME,
   SITE_URL,
 } from '@/lib/seo/site';
+import { SA_OG_IMAGE_URL } from '@/lib/brand/assets';
 import { THEME_BOOT_SCRIPT } from '@/lib/theme/theme';
 
 export const metadata: Metadata = {
@@ -55,7 +56,7 @@ export const metadata: Metadata = {
       'The world’s most trusted supplier advice — and OS. Public directory of verified B2B suppliers. 30-day free trial.',
     images: [
       {
-        url: '/og-image.png',
+        url: SA_OG_IMAGE_URL,
         width: 1200,
         height: 630,
         alt: 'SupplierAdvisor® — Supply Chain Operating System',
@@ -68,7 +69,7 @@ export const metadata: Metadata = {
     title: DEFAULT_TITLE,
     description:
       'SupplierAdvisor® unites B2B, B2G & B2C on one verified network. Browse the public supplier directory · 30-day free trial.',
-    images: ['/og-image.png'],
+    images: [SA_OG_IMAGE_URL],
     creator: '@supplieradvisa',
     site: '@supplieradvisa',
   },

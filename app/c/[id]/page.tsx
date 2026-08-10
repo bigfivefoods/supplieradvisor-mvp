@@ -22,6 +22,7 @@ import {
   SITE_URL,
 } from '@/lib/seo/company-public';
 import VerifiedSlaBadge from '@/components/seo/VerifiedSlaBadge';
+import { SA_OG_IMAGE_URL } from '@/lib/brand/assets';
 
 /** Aggregate public ratings (quote QR + invoice feedback). Soft if table missing. */
 async function loadPublicRatingStats(companyId: number): Promise<{
@@ -215,7 +216,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
           alt: `${name} logo`,
         },
       ]
-    : [{ url: '/og-image.png', alt: 'SupplierAdvisor directory' }];
+    : [{ url: SA_OG_IMAGE_URL, alt: 'SupplierAdvisor directory' }];
 
   return {
     title,
@@ -245,7 +246,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       card: 'summary_large_image',
       title,
       description,
-      images: c.logo_url ? [c.logo_url] : ['/og-image.png'],
+      images: c.logo_url ? [c.logo_url] : [SA_OG_IMAGE_URL],
     },
     robots: {
       index: true,

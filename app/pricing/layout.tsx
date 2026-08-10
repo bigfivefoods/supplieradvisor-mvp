@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { SITE_URL } from '@/lib/seo/site';
+import { SA_OG_IMAGE_URL } from '@/lib/brand/assets';
 
 export const metadata: Metadata = {
   title: 'Pricing — free trial from R299/mo',
@@ -20,13 +21,13 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/pricing`,
     type: 'website',
     siteName: 'SupplierAdvisor®',
-    images: [{ url: '/og-image.png', width: 1200, height: 630 }],
+    images: [{ url: SA_OG_IMAGE_URL, width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Pricing · SupplierAdvisor®',
     description: '30-day free trial · from R299/mo.',
-    images: ['/og-image.png'],
+    images: [SA_OG_IMAGE_URL],
   },
   robots: { index: true, follow: true },
 };

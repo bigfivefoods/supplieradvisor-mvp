@@ -3,9 +3,12 @@
  * Keep as a server component (no 'use client').
  */
 import { SITE_URL } from '@/lib/seo/site';
+import { SA_OG_IMAGE_URL, SA_ICON_512 } from '@/lib/brand/assets';
 
 export default function JsonLd() {
   const site = SITE_URL;
+  const ogImage = `${site}${SA_OG_IMAGE_URL.startsWith('/') ? '' : '/'}${SA_OG_IMAGE_URL}`;
+  const logoUrl = `${site}${SA_ICON_512}`;
 
   const organization = {
     '@type': 'Organization',
@@ -16,11 +19,11 @@ export default function JsonLd() {
     url: site,
     logo: {
       '@type': 'ImageObject',
-      url: `${site}/sa-icon-512.png`,
+      url: logoUrl,
       width: 512,
       height: 512,
     },
-    image: `${site}/og-image.png`,
+    image: ogImage,
     description:
       'The verified supply-chain operating system for B2B, B2G and B2C — network trade, inventory, manufacturing, distribution, accounting, and AI intelligence.',
     foundingLocation: {
@@ -70,7 +73,7 @@ export default function JsonLd() {
     applicationSubCategory: 'Supply Chain Management',
     operatingSystem: 'Web',
     url: site,
-    image: `${site}/og-image.png`,
+    image: ogImage,
     description:
       'End-to-end supply-chain OS: supplier & customer network, inventory, manufacturing (MPS/MRP/BOM), distribution, operations tower, banking, accounting, and Super-Cube leadership intelligence.',
     offers: {
@@ -107,7 +110,7 @@ export default function JsonLd() {
       'Verified trade, inventory, manufacturing, distribution, and intelligence in one company workspace.',
     primaryImageOfPage: {
       '@type': 'ImageObject',
-      url: `${site}/og-image.png`,
+      url: ogImage,
     },
     inLanguage: 'en',
   };

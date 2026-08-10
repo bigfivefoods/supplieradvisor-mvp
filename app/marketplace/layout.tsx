@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { SITE_URL } from '@/lib/seo/site';
+import { SA_OG_IMAGE_URL } from '@/lib/brand/assets';
 
 export const metadata: Metadata = {
   title: 'B2B Marketplace — products from verified suppliers',
@@ -21,13 +22,13 @@ export const metadata: Metadata = {
     type: 'website',
     siteName: 'SupplierAdvisor®',
     locale: 'en_ZA',
-    images: [{ url: '/og-image.png', width: 1200, height: 630 }],
+    images: [{ url: SA_OG_IMAGE_URL, width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'SupplierAdvisor Marketplace',
     description: 'Open B2B catalogue from verified suppliers.',
-    images: ['/og-image.png'],
+    images: [SA_OG_IMAGE_URL],
   },
   alternates: {
     canonical: `${SITE_URL}/marketplace`,

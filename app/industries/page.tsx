@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import LandingNav from '@/components/marketing/LandingNav';
 import { INDUSTRIES } from '@/lib/marketing/industries';
 import { ArrowRight } from 'lucide-react';
+import { SA_OG_IMAGE_URL } from '@/lib/brand/assets';
 
 export const metadata: Metadata = {
   title: 'Industries — supply chain OS by sector',
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
       'Sector-ready depth on one OS — food, ag, manufacturing, distribution, public sector, multi-entity.',
     url: 'https://www.supplieradvisor.com/industries',
     type: 'website',
-    images: [{ url: '/og-image.png', width: 1200, height: 630 }],
+    images: [{ url: SA_OG_IMAGE_URL, width: 1200, height: 630 }],
   },
   alternates: { canonical: 'https://www.supplieradvisor.com/industries' },
   robots: { index: true, follow: true },

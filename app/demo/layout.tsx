@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { SITE_URL } from '@/lib/seo/site';
+import { SA_OG_IMAGE_URL } from '@/lib/brand/assets';
 
 export const metadata: Metadata = {
   title: 'Interactive demo — try SupplierAdvisor free',
@@ -18,13 +19,13 @@ export const metadata: Metadata = {
       'Explore product mocks without signing up — ops, suppliers, finance, quality, and more.',
     url: `${SITE_URL}/demo`,
     type: 'website',
-    images: [{ url: '/og-image.png', width: 1200, height: 630 }],
+    images: [{ url: SA_OG_IMAGE_URL, width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Interactive demo · SupplierAdvisor®',
     description: 'Click through the product without signing up.',
-    images: ['/og-image.png'],
+    images: [SA_OG_IMAGE_URL],
   },
   robots: { index: true, follow: true },
 };
