@@ -114,24 +114,44 @@ export default function CalendarPage() {
       toast.error('Assign a practitioner');
       return;
     }
+    const { findClinicianDiaryConflict } = await import(
+      '@/lib/schedule/clinician-diary'
+    );
+    const conflict = findClinicianDiaryConflict({
+      appointments: store?.appointments || [],
+      clinicianId: form.practitioner_id,
+      clinicianField: 'practitioner_id',
+      date: form.date,
+      start_time: form.start_time,
+      duration_min: Number(form.duration_min) || 45,
+    });
+    if (conflict.conflict) {
+      toast.error(conflict.message);
+      return;
+    }
     const appointmentId = `apt_${Date.now().toString(36)}_${Math.random()
       .toString(36)
       .slice(2, 8)}`;
-    await post({
-      entity: 'appointments',
-      action: 'upsert',
-      record: {
-        id: appointmentId,
-        service_id: form.service_id,
-        practitioner_id: form.practitioner_id,
-        date: form.date,
-        start_time: form.start_time,
-        duration_min: Number(form.duration_min) || 45,
-        location: form.location,
-        public: form.public,
-        status: 'scheduled',
-      },
-    });
+    try {
+      await post({
+        entity: 'appointments',
+        action: 'upsert',
+        record: {
+          id: appointmentId,
+          service_id: form.service_id,
+          practitioner_id: form.practitioner_id,
+          date: form.date,
+          start_time: form.start_time,
+          duration_min: Number(form.duration_min) || 45,
+          location: form.location,
+          public: form.public,
+          status: 'scheduled',
+        },
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not schedule');
+      return;
+    }
     if (form.patient_id) {
       await post({
         entity: 'bookings',
@@ -159,7 +179,7 @@ export default function CalendarPage() {
     <PhysiographWorkbench
       title="Calendar"
       titleAccent="practice diary"
-      description="Day, week and month views — set working hours, filter by practitioner. Schedule new slots below."
+      description="Practice diary shows all practitioners in parallel. Each practitioner has their own book — they cannot be double-booked. Switch to Clinician diary for one person's day."
     >
       {loading || !store ? (
         <LoadingBlock />

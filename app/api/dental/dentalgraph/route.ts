@@ -947,6 +947,56 @@ export async function POST(request: NextRequest) {
 
     if (action === 'upsert' || action === 'create' || action === 'update') {
       const rec = (body.record || body) as Record<string, unknown>;
+
+      // Per-clinician diary: same dentist cannot be double-booked
+      if (entity === 'appointments') {
+        const { findClinicianDiaryConflict } = await import(
+          '@/lib/schedule/clinician-diary'
+        );
+        const aptId = rec.id != null ? String(rec.id) : null;
+        const prev = aptId
+          ? store.appointments.find((a) => a.id === aptId)
+          : null;
+        const staffId = String(
+          rec.staff_id !== undefined
+            ? rec.staff_id || ''
+            : prev?.staff_id || ''
+        );
+        if (staffId) {
+          const conflict = findClinicianDiaryConflict({
+            appointments: store.appointments,
+            clinicianId: staffId,
+            clinicianField: 'staff_id',
+            date: String(rec.date || prev?.date || now.slice(0, 10)),
+            start_time: String(
+              rec.start_time || prev?.start_time || '09:00'
+            ),
+            duration_min:
+              rec.duration_min != null
+                ? Number(rec.duration_min)
+                : prev?.duration_min ?? 45,
+            end_time:
+              rec.end_time !== undefined
+                ? rec.end_time
+                  ? String(rec.end_time)
+                  : null
+                : prev?.end_time ?? null,
+            excludeId: aptId,
+            status: String(rec.status || prev?.status || 'scheduled'),
+          });
+          if (conflict.conflict) {
+            return NextResponse.json(
+              {
+                error: conflict.message,
+                code: 'CLINICIAN_DOUBLE_BOOK',
+                conflict,
+              },
+              { status: 409 }
+            );
+          }
+        }
+      }
+
       upsert(store, entity, rec, now);
 
       let peopleSync: { employeeId: number | null; created?: boolean } | null =
