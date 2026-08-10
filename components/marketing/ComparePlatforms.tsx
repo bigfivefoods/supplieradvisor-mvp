@@ -65,6 +65,14 @@ const SECTIONS: Section[] = [
         erp: 'partial',
         sa: 'strong',
       },
+      {
+        capability: 'Platform messaging · colleagues & trade partners',
+        hint: 'Team inbox plus connected suppliers / customers on one thread model',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
     ],
   },
   {
@@ -232,6 +240,59 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    title: 'Industry vertical OS modules',
+    rows: [
+      {
+        capability: 'Fieldgraph® · agri production',
+        hint: 'Fields, harvest, inputs, fleet fuel, labour, regen, farm-to-buyer',
+        excel: 'partial',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'Quarrygraph® · aggregates & extractives',
+        hint: 'Sites, reserves, plant, weighbridge, fleet, QA, permits',
+        excel: 'partial',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'Fitgraph® · gym & fitness services',
+        hint: 'Coaches, members, classes, calendar, injury notes, messages, website',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'Physiograph® · physio & allied health',
+        hint: 'Practitioners, patients, rehab packs, diary, clinical notes, messages',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'Dentalgraph® · dental practice OS',
+        hint: 'Dentists & staff, patients, care plans, surgeries, messages, website',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'Public programmes · Schools NSNP & Health',
+        hint: 'DBE / PEU schools feeding and DoH facility pathways',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+    ],
+  },
+  {
     title: 'Trust fabric & last-mile',
     rows: [
       {
@@ -280,6 +341,14 @@ const SECTIONS: Section[] = [
         sa: 'strong',
       },
       {
+        capability: 'Industry packs opt-in (vertical hubs)',
+        hint: 'Enable Fieldgraph, Quarrygraph, Fitgraph, Physiograph, Dentalgraph only when you need them',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
         capability: 'Supply-chain referral earnings',
         hint:
           'Onboard partners into the OS — earn back up to 10% of their subscription (L1 6% · L2 3% · L3 1%)',
@@ -298,7 +367,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'One OS instead of a tool pile',
-        hint: 'Network + ops + finance + people in one membership',
+        hint: 'Network, messaging, ops, finance, people, and industry verticals in one membership',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
@@ -501,9 +570,10 @@ export default function ComparePlatforms() {
           <p className="mt-5 text-base leading-relaxed text-slate-600 dark:text-neutral-400 sm:text-lg">
             Spreadsheets fragment truth. Accounting clouds stop at the books.
             Major ERPs take years and seven figures. SupplierAdvisor® is the
-            supply-chain OS — network, ops, finance (including budgets &amp; group
-            hierarchy), quality, people, and trust — plus an incentive to onboard
-            your chain and earn up to 10% of subscription fees back (L1 · L2 · L3).
+            supply-chain OS — network messaging, ops, finance (budgets &amp; group
+            hierarchy), quality, people, trust, and industry hubs (Fieldgraph®,
+            Quarrygraph®, Fitgraph®, Physiograph®, Dentalgraph®) — plus referral
+            earnings when you onboard your chain (up to 10% · L1 · L2 · L3).
           </p>
         </div>
 

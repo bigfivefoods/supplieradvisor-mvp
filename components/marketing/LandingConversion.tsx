@@ -376,6 +376,12 @@ export function ComparisonTable() {
       sa: true,
     },
     {
+      feature: 'Platform messaging (team + trade partners)',
+      sheets: false,
+      erp: 'Partial',
+      sa: true,
+    },
+    {
       feature: 'OTIFEF supplier ratings',
       sheets: false,
       erp: false,
@@ -400,13 +406,19 @@ export function ComparisonTable() {
       sa: true,
     },
     {
+      feature: 'Industry hubs (Field · Quarry · Fit · Physio · Dental)',
+      sheets: false,
+      erp: false,
+      sa: true,
+    },
+    {
       feature: 'On-chain escrow / passport',
       sheets: false,
       erp: false,
       sa: true,
     },
     {
-      feature: 'Finance + management P&L',
+      feature: 'Finance + management P&L + budgets',
       sheets: 'Manual',
       erp: true,
       sa: true,
@@ -448,8 +460,8 @@ export function ComparisonTable() {
           Spreadsheets vs generic ERP vs SupplierAdvisor®
         </h3>
         <p className="mt-2 text-sm text-slate-600 max-w-2xl">
-          Built for operators who need trust and throughput in the same system — not another
-          disconnected compliance portal.
+          Built for operators who need trust, messaging, industry depth, and
+          throughput in the same system — not another disconnected portal.
         </p>
       </div>
       <div className="overflow-x-auto">
