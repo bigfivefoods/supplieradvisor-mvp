@@ -348,40 +348,91 @@ async function upsertOwnerMembership(
   }
 ) {
   const variants = userIdMatchVariants(opts.userId);
-  const { data: existing } = await supabase
+  const email = String(opts.email || '').toLowerCase().trim();
+
+  // Match by user_id OR by owner email already on this profile
+  const { data: existingRows } = await supabase
     .from('business_users')
-    .select('id, role, status')
+    .select('id, role, status, user_id, email')
     .eq('profile_id', opts.profileId)
-    .in('user_id', variants)
-    .limit(1)
-    .maybeSingle();
+    .limit(50);
+
+  const existing =
+    (existingRows || []).find((r) =>
+      variants.includes(String(r.user_id || ''))
+    ) ||
+    (existingRows || []).find(
+      (r) =>
+        String(r.email || '').toLowerCase() === email ||
+        String((r as { invited_email?: string }).invited_email || '')
+          .toLowerCase() === email
+    );
 
   if (existing?.id) {
-    await supabase
+    const { error: upErr } = await supabase
       .from('business_users')
       .update({
+        user_id: opts.userId,
         role: 'owner',
         status: 'active',
-        email: opts.email,
+        email: email || existing.email,
+        name: 'Platform owner',
         joined_at: opts.now,
         updated_at: opts.now,
       })
       .eq('id', existing.id);
+    if (upErr) {
+      console.warn(
+        '[platform-company] membership update soft-fail',
+        upErr.message
+      );
+    }
     return;
   }
 
-  const { error } = await supabase.from('business_users').insert({
+  const row: Record<string, unknown> = {
     user_id: opts.userId,
     profile_id: opts.profileId,
     role: 'owner',
     status: 'active',
-    email: opts.email,
+    email: email || null,
     name: 'Platform owner',
     joined_at: opts.now,
     created_at: opts.now,
-  });
-  if (error && !/duplicate|unique/i.test(error.message || '')) {
-    console.warn('[platform-company] membership insert soft-fail', error.message);
+  };
+
+  const { error } = await supabase.from('business_users').insert(row);
+  if (error) {
+    if (/duplicate|unique/i.test(error.message || '')) {
+      // Race: promote any row that just appeared
+      await supabase
+        .from('business_users')
+        .update({
+          user_id: opts.userId,
+          role: 'owner',
+          status: 'active',
+          email: email || null,
+          updated_at: opts.now,
+        })
+        .eq('profile_id', opts.profileId)
+        .in('user_id', variants);
+      return;
+    }
+    // Retry without optional columns some DBs lack
+    const { error: e2 } = await supabase.from('business_users').insert({
+      user_id: opts.userId,
+      profile_id: opts.profileId,
+      role: 'owner',
+      status: 'active',
+      email: email || null,
+    });
+    if (e2) {
+      console.error(
+        '[platform-company] membership insert failed',
+        e2.message,
+        { profileId: opts.profileId, email }
+      );
+    }
   }
 }
 
