@@ -48,18 +48,19 @@ html.dark {
 
   /*
    * Black · grey · white + SupplierAdvisor blues
+   * Surfaces stay dark enough for light text (never pale grey cards).
    * Brand stays the product blues: #00b4d8 · #0077b6
    */
   --sa-bg: #000000;
-  --sa-bg-elevated: #0a0a0a;
-  --sa-surface: #141414;
-  --sa-surface-2: #0a0a0a;
+  --sa-bg-elevated: #0c0c0c;
+  --sa-surface: #121212;
+  --sa-surface-2: #0c0c0c;
   --sa-border: #2a2a2a;
   --sa-border-strong: #404040;
-  --sa-text: #ffffff;
+  --sa-text: #f5f5f5;
   --sa-text-secondary: #e5e5e5;
   --sa-muted: #a3a3a3;
-  --sa-faint: #737373;
+  --sa-faint: #8a8a8a;
   --sa-brand: #00b4d8;
   --sa-brand-deep: #0077b6;
   --sa-brand-soft: rgba(0, 180, 216, 0.16);
@@ -67,12 +68,13 @@ html.dark {
   --sa-shadow: 0 12px 36px -14px rgb(0 0 0 / 0.75);
   --sa-shadow-lg: 0 28px 60px -24px rgb(0 0 0 / 0.85);
   --sa-overlay: rgb(0 0 0 / 0.72);
-  --sa-input-bg: #0a0a0a;
+  --sa-input-bg: #0c0c0c;
   --sa-scrollbar: #404040;
-  --sa-success-soft: rgba(16, 185, 129, 0.14);
-  --sa-warn-soft: rgba(245, 158, 11, 0.14);
-  --sa-danger-soft: rgba(244, 63, 94, 0.14);
-  --sa-sky-soft: rgba(0, 180, 216, 0.12);
+  /* Soft tints = dark panels with a tint, NOT pale pastel cards */
+  --sa-success-soft: #0c1f17;
+  --sa-warn-soft: #1f180c;
+  --sa-danger-soft: #1f0c10;
+  --sa-sky-soft: #0a1620;
 }
 
 /* ============================================
@@ -283,123 +285,190 @@ html.dark .bg-white\/70 {
   background-color: rgb(20 20 20 / 0.7) !important;
 }
 
+/* Page / muted panels — always dark charcoal, never pale grey */
 html.dark .bg-\[\#f8fafc\],
 html.dark .bg-slate-50,
+html.dark .bg-slate-50\/40,
+html.dark .bg-slate-50\/50,
+html.dark .bg-slate-50\/60,
+html.dark .bg-slate-50\/80,
+html.dark .bg-slate-50\/90,
 html.dark .bg-neutral-50,
-html.dark .bg-gray-50 {
-
-    background-color: var(--sa-bg) !important;
+html.dark .bg-neutral-50\/40,
+html.dark .bg-neutral-50\/50,
+html.dark .bg-neutral-50\/80,
+html.dark .bg-gray-50,
+html.dark .bg-gray-50\/50,
+html.dark .bg-gray-50\/80 {
+  background-color: var(--sa-bg-elevated) !important;
 }
 
 html.dark .bg-slate-100,
+html.dark .bg-slate-100\/50,
+html.dark .bg-slate-100\/80,
 html.dark .bg-neutral-100,
-html.dark .bg-gray-100 {
-
-    background-color: var(--sa-bg-elevated) !important;
+html.dark .bg-neutral-100\/50,
+html.dark .bg-neutral-100\/80,
+html.dark .bg-gray-100,
+html.dark .hover\:bg-slate-50:hover,
+html.dark .hover\:bg-slate-100:hover,
+html.dark .hover\:bg-neutral-50:hover,
+html.dark .hover\:bg-neutral-100:hover {
+  background-color: #171717 !important;
 }
 
 html.dark .bg-slate-200\/80,
-html.dark .bg-slate-200 {
+html.dark .bg-slate-200,
+html.dark .bg-neutral-200,
+html.dark .bg-gray-200 {
   background-color: #2a2a2a !important;
 }
 
-html.dark .bg-neutral-200 {
-  background-color: #2a2a2a !important;
-}
-
-/* Soft tints → dark-friendly washes */
+/* Soft tints → dark charcoal panels with subtle hue (readable with light text) */
 html.dark .bg-sky-50,
 html.dark .bg-sky-50\/40,
+html.dark .bg-sky-50\/50,
+html.dark .bg-sky-50\/60,
 html.dark .bg-sky-50\/80,
+html.dark .bg-sky-50\/90,
 html.dark .bg-cyan-50,
-html.dark .bg-sky-100\/40 {
-
-    background-color: var(--sa-sky-soft) !important;
+html.dark .bg-cyan-50\/40,
+html.dark .bg-cyan-50\/50,
+html.dark .bg-cyan-50\/80,
+html.dark .bg-sky-100,
+html.dark .bg-sky-100\/40,
+html.dark .bg-sky-100\/50,
+html.dark .bg-sky-100\/80 {
+  background-color: var(--sa-sky-soft) !important;
 }
 
 html.dark .bg-emerald-50,
-html.dark .bg-emerald-50\/60 {
-
-    background-color: var(--sa-success-soft) !important;
+html.dark .bg-emerald-50\/40,
+html.dark .bg-emerald-50\/50,
+html.dark .bg-emerald-50\/60,
+html.dark .bg-emerald-50\/80,
+html.dark .bg-emerald-100,
+html.dark .bg-emerald-100\/50 {
+  background-color: var(--sa-success-soft) !important;
 }
 
 html.dark .bg-amber-50,
+html.dark .bg-amber-50\/40,
 html.dark .bg-amber-50\/50,
-html.dark .bg-amber-50\/60 {
-
-    background-color: var(--sa-warn-soft) !important;
+html.dark .bg-amber-50\/60,
+html.dark .bg-amber-50\/80,
+html.dark .bg-amber-100,
+html.dark .bg-amber-100\/50 {
+  background-color: var(--sa-warn-soft) !important;
 }
 
 html.dark .bg-rose-50,
-html.dark .bg-rose-50\/60 {
-
-    background-color: var(--sa-danger-soft) !important;
+html.dark .bg-rose-50\/40,
+html.dark .bg-rose-50\/50,
+html.dark .bg-rose-50\/60,
+html.dark .bg-rose-50\/80,
+html.dark .bg-rose-100 {
+  background-color: var(--sa-danger-soft) !important;
 }
 
 html.dark .bg-violet-50,
+html.dark .bg-violet-50\/40,
 html.dark .bg-violet-50\/50,
-html.dark .bg-violet-50\/80 {
-
-    background-color: rgba(139, 92, 246, 0.12) !important;
+html.dark .bg-violet-50\/80,
+html.dark .bg-violet-100 {
+  background-color: #120c1f !important;
 }
 
 html.dark .bg-fuchsia-50 {
-
-    background-color: rgba(217, 70, 239, 0.1) !important;
+  background-color: #1a0c1a !important;
 }
 
 html.dark .bg-orange-50 {
-
-    background-color: rgba(249, 115, 22, 0.1) !important;
+  background-color: #1a120c !important;
 }
 
 html.dark .bg-teal-50 {
-
-    background-color: rgba(20, 184, 166, 0.1) !important;
+  background-color: #0c1a18 !important;
 }
 
-/* Text hierarchy */
+/* Text hierarchy — light on dark only (panels above are dark) */
 html.dark .text-slate-900,
 html.dark .text-neutral-900,
 html.dark .text-gray-900,
 html.dark .text-black {
-
-    color: var(--sa-text) !important;
+  color: #f5f5f5 !important;
 }
 
 html.dark .text-slate-800,
 html.dark .text-neutral-800,
 html.dark .text-gray-800 {
-  color: #f5f5f5 !important;
+  color: #eeeeee !important;
 }
 
 html.dark .text-slate-700,
 html.dark .text-neutral-700,
 html.dark .text-gray-700 {
-  color: var(--sa-text-secondary) !important;
+  color: #e0e0e0 !important;
 }
 
 html.dark .text-slate-600,
 html.dark .text-neutral-600,
 html.dark .text-gray-600 {
-  color: #d4d4d4 !important;
+  color: #cfcfcf !important;
 }
 
 html.dark .text-slate-500,
 html.dark .text-neutral-500,
 html.dark .text-gray-500 {
-  color: var(--sa-muted) !important;
+  color: #a8a8a8 !important;
 }
 
 html.dark .text-slate-400,
 html.dark .text-neutral-400,
 html.dark .text-gray-400 {
-  color: var(--sa-faint) !important;
+  color: #8f8f8f !important;
 }
 
 html.dark .text-slate-300,
 html.dark .text-neutral-300 {
-  color: #a3a3a3 !important;
+  color: #b0b0b0 !important;
+}
+
+/*
+ * Soft pastel TEXT (emerald-700, amber-800, etc.) is unreadable on dark
+ * panels — lift them to readable light tints.
+ */
+html.dark .text-emerald-700,
+html.dark .text-emerald-800,
+html.dark .text-emerald-900 {
+  color: #6ee7b7 !important;
+}
+html.dark .text-amber-700,
+html.dark .text-amber-800,
+html.dark .text-amber-900 {
+  color: #fcd34d !important;
+}
+html.dark .text-rose-700,
+html.dark .text-rose-800,
+html.dark .text-rose-900 {
+  color: #fda4af !important;
+}
+html.dark .text-sky-700,
+html.dark .text-sky-800,
+html.dark .text-sky-900,
+html.dark .text-cyan-700,
+html.dark .text-cyan-800,
+html.dark .text-cyan-900 {
+  color: #67e8f9 !important;
+}
+html.dark .text-violet-700,
+html.dark .text-violet-800,
+html.dark .text-violet-900 {
+  color: #c4b5fd !important;
+}
+html.dark .text-orange-700,
+html.dark .text-orange-800 {
+  color: #fdba74 !important;
 }
 
 /* SupplierAdvisor blues — keep product brand on black */

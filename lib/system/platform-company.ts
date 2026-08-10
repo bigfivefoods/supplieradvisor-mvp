@@ -95,6 +95,20 @@ function adminOrServer(): SupabaseClient {
   }
 }
 
+/** Mutations must use service role when available (Privy auth has no Supabase session). */
+function adminForWrite(): SupabaseClient {
+  try {
+    return getSupabaseAdmin();
+  } catch (e) {
+    console.error(
+      '[platform-company] SUPABASE_SERVICE_ROLE_KEY required to create platform company'
+    );
+    throw e instanceof Error
+      ? e
+      : new Error('SUPABASE_SERVICE_ROLE_KEY required for platform company');
+  }
+}
+
 /** Find existing SupplierAdvisor platform company, if any. */
 export async function findPlatformCompany(
   supabase?: SupabaseClient
@@ -185,7 +199,7 @@ export async function ensurePlatformCompany(opts?: {
   created: boolean;
   ownersAttached: string[];
 }> {
-  const db = adminOrServer();
+  const db = adminForWrite();
   const now = new Date().toISOString();
   let created = false;
   let company = await findPlatformCompany(db);
@@ -401,7 +415,18 @@ async function upsertOwnerMembership(
     created_at: opts.now,
   };
 
-  const { error } = await supabase.from('business_users').insert(row);
+  let { error } = await supabase.from('business_users').insert(row);
+  if (error && /joined_at|created_at|updated_at|name|column/i.test(error.message || '')) {
+    // Minimal insert — some environments lack optional columns
+    const retry = await supabase.from('business_users').insert({
+      user_id: opts.userId,
+      profile_id: opts.profileId,
+      role: 'owner',
+      status: 'active',
+      email: email || null,
+    });
+    error = retry.error;
+  }
   if (error) {
     if (/duplicate|unique/i.test(error.message || '')) {
       // Race: promote any row that just appeared
@@ -412,27 +437,17 @@ async function upsertOwnerMembership(
           role: 'owner',
           status: 'active',
           email: email || null,
-          updated_at: opts.now,
         })
         .eq('profile_id', opts.profileId)
         .in('user_id', variants);
       return;
     }
-    // Retry without optional columns some DBs lack
-    const { error: e2 } = await supabase.from('business_users').insert({
-      user_id: opts.userId,
-      profile_id: opts.profileId,
-      role: 'owner',
-      status: 'active',
-      email: email || null,
-    });
-    if (e2) {
-      console.error(
-        '[platform-company] membership insert failed',
-        e2.message,
-        { profileId: opts.profileId, email }
-      );
-    }
+    console.error(
+      '[platform-company] membership insert failed',
+      error.message,
+      { profileId: opts.profileId, email, userId: opts.userId }
+    );
+    throw new Error(`Platform membership failed: ${error.message}`);
   }
 }
 

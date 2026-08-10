@@ -9,8 +9,13 @@ import {
 import {
   ensurePlatformCompany,
   isPlatformOwnerEmail,
+  PLATFORM_OWNER_EMAILS,
 } from '@/lib/system/platform-company';
-import { isPlatformOperatorEmail } from '@/lib/system/platform-control';
+import {
+  isPlatformOperatorEmail,
+  isPlatformOperatorUserId,
+  resolveEmailsForUserId,
+} from '@/lib/system/platform-control';
 
 /**
  * POST /api/me/companies
@@ -18,7 +23,7 @@ import { isPlatformOperatorEmail } from '@/lib/system/platform-control';
  * Uses service role so RLS never hides rows when there is no Supabase session
  * (auth is Privy-only). Also matches by email for legacy / cross-device rows.
  *
- * Body: { privyUserId: string, email?: string | null }
+ * Body: { privyUserId: string, email?: string | null, emails?: string[] }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -31,6 +36,9 @@ export async function POST(request: NextRequest) {
     const userId =
       getCanonicalUserId(_auth.userId) || getCanonicalUserId(body.privyUserId);
     const email = body.email ? String(body.email).toLowerCase().trim() : null;
+    const bodyEmails: string[] = Array.isArray(body.emails)
+      ? body.emails.map((e: unknown) => String(e).toLowerCase().trim()).filter(Boolean)
+      : [];
 
     if (!userId) {
       return NextResponse.json({ error: 'privyUserId is required' }, { status: 400 });
@@ -38,6 +46,29 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
     const variants = userIdMatchVariants(userId);
+
+    // Resolve all known emails for this user (body + business_users history)
+    const knownEmails = new Set<string>();
+    if (email) knownEmails.add(email);
+    for (const e of bodyEmails) knownEmails.add(e);
+    try {
+      for (const e of await resolveEmailsForUserId(userId)) knownEmails.add(e);
+    } catch {
+      /* soft */
+    }
+
+    const primaryEmail =
+      email ||
+      [...knownEmails].find(
+        (e) => isPlatformOwnerEmail(e) || isPlatformOperatorEmail(e)
+      ) ||
+      [...knownEmails][0] ||
+      null;
+
+    const isPlatformUser =
+      [...knownEmails].some(
+        (e) => isPlatformOwnerEmail(e) || isPlatformOperatorEmail(e)
+      ) || (await isPlatformOperatorUserId(userId));
 
     /**
      * Platform owners (craig@bigfivefoods.com / craig@bigfivegroup.africa):
@@ -49,25 +80,27 @@ export async function POST(request: NextRequest) {
       created?: boolean;
       attached?: string[];
       error?: string;
+      knownEmails?: string[];
     } | null = null;
-    if (
-      email &&
-      (isPlatformOwnerEmail(email) || isPlatformOperatorEmail(email))
-    ) {
+    if (isPlatformUser) {
       try {
         const result = await ensurePlatformCompany({
           userId,
-          email,
+          email:
+            primaryEmail ||
+            PLATFORM_OWNER_EMAILS[0],
         });
         platformBootstrap = {
           companyId: result.company.id,
           created: result.created,
           attached: result.ownersAttached,
+          knownEmails: [...knownEmails],
         };
       } catch (e: unknown) {
         console.error('me/companies platform bootstrap soft-fail:', e);
         platformBootstrap = {
           error: e instanceof Error ? e.message : 'bootstrap failed',
+          knownEmails: [...knownEmails],
         };
       }
     }
@@ -89,33 +122,40 @@ export async function POST(request: NextRequest) {
 
     let memberships = byUser || [];
 
-    // 2) Also match active memberships by email (covers legacy rows / id format drift)
-    if (email) {
-      // Prefer exact email filters (avoids loading entire table)
-      const { data: byEmailRows, error: emailError } = await supabase
-        .from('business_users')
-        .select('id, role, profile_id, status, user_id, email, invited_email, name')
-        .eq('status', 'active')
-        .or(`email.eq.${email},invited_email.eq.${email}`)
-        .limit(100);
+    // 2) Also match active memberships by any known email (covers legacy / id drift)
+    if (knownEmails.size > 0) {
+      const emailList = [...knownEmails];
+      let emailMatches: typeof memberships = [];
 
-      let emailMatches = byEmailRows || [];
+      for (const em of emailList) {
+        const { data: byEmailRows, error: emailError } = await supabase
+          .from('business_users')
+          .select(
+            'id, role, profile_id, status, user_id, email, invited_email, name'
+          )
+          .eq('status', 'active')
+          .or(`email.eq.${em},invited_email.eq.${em}`)
+          .limit(50);
+        if (!emailError && byEmailRows?.length) {
+          emailMatches = emailMatches.concat(byEmailRows as typeof memberships);
+        }
+      }
 
-      // Fallback: scan if .or filter unsupported
-      if (emailError || emailMatches.length === 0) {
+      // Fallback scan if filters returned nothing for platform owners
+      if (emailMatches.length === 0 && isPlatformUser) {
         const { data: allActive } = await supabase
           .from('business_users')
           .select(
             'id, role, profile_id, status, user_id, email, invited_email, name'
           )
           .eq('status', 'active')
-          .limit(2000);
+          .limit(3000);
         if (allActive) {
           emailMatches = allActive.filter((row) => {
             const e1 = (row.email || '').toLowerCase();
             const e2 = (row.invited_email || '').toLowerCase();
-            return e1 === email || e2 === email;
-          });
+            return emailList.includes(e1) || emailList.includes(e2);
+          }) as typeof memberships;
         }
       }
 
@@ -129,11 +169,41 @@ export async function POST(request: NextRequest) {
 
       // Heal user_id on email-matched rows so future lookups are fast/consistent
       for (const row of emailMatches) {
-        if (row.user_id !== userId) {
+        if (row.user_id && !variants.includes(String(row.user_id))) {
           await supabase
             .from('business_users')
-            .update({ user_id: userId, email: email })
+            .update({
+              user_id: userId,
+              email: primaryEmail || row.email,
+              status: 'active',
+            })
             .eq('id', row.id);
+        }
+      }
+    }
+
+    // 3) After platform bootstrap, re-pull memberships for that profile
+    if (platformBootstrap?.companyId) {
+      const { data: platMem } = await supabase
+        .from('business_users')
+        .select(
+          'id, role, profile_id, status, user_id, email, invited_email, name'
+        )
+        .eq('profile_id', platformBootstrap.companyId)
+        .eq('status', 'active')
+        .limit(20);
+      const seen = new Set(memberships.map((m) => m.id));
+      for (const row of platMem || []) {
+        const uid = String(row.user_id || '');
+        const e1 = (row.email || '').toLowerCase();
+        const e2 = (row.invited_email || '').toLowerCase();
+        const mine =
+          variants.includes(uid) ||
+          knownEmails.has(e1) ||
+          knownEmails.has(e2);
+        if (mine && !seen.has(row.id)) {
+          memberships.push(row);
+          seen.add(row.id);
         }
       }
     }

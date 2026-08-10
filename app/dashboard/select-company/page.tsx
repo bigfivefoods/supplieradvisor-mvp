@@ -75,6 +75,25 @@ export default function SelectCompanyPage() {
 
     const userId = getCanonicalUserId(privyUser.id);
     const email = extractEmailFromPrivyUser(privyUser);
+    // Collect every linked email so platform ownership can match reliably
+    const linkedEmails = new Set<string>();
+    if (email) linkedEmails.add(email);
+    try {
+      const linked = (privyUser as { linkedAccounts?: Array<{ type?: string; address?: string | null; email?: string | null }> })
+        ?.linkedAccounts || [];
+      for (const a of linked) {
+        if (a.address && String(a.address).includes('@')) {
+          linkedEmails.add(String(a.address).toLowerCase());
+        }
+        if (a.email && String(a.email).includes('@')) {
+          linkedEmails.add(String(a.email).toLowerCase());
+        }
+      }
+      const g = (privyUser as { google?: { email?: string } })?.google?.email;
+      if (g) linkedEmails.add(String(g).toLowerCase());
+    } catch {
+      /* soft */
+    }
     setSessionEmail(email);
 
     if (!userId) {
@@ -91,6 +110,7 @@ export default function SelectCompanyPage() {
         body: JSON.stringify({
           privyUserId: userId,
           email,
+          emails: [...linkedEmails],
           includeDeleted: true,
         }),
       });
