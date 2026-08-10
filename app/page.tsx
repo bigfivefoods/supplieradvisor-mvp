@@ -1912,17 +1912,17 @@ export default function LandingPage() {
                 <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   Product
                 </div>
-                <a href="#compare" className="block text-slate-600 hover:text-slate-900">
-                  Compare
-                </a>
-                <a href="#roi" className="block text-slate-600 hover:text-slate-900">
-                  ROI calculator
-                </a>
-                <a href="#packaging" className="block text-slate-600 hover:text-slate-900">
-                  Setup
+                <a href="#why-join" className="block text-slate-600 hover:text-slate-900">
+                  Why SA
                 </a>
                 <a href="#modules" className="block text-slate-600 hover:text-slate-900">
-                  Modules
+                  Product
+                </a>
+                <a href="#packaging" className="block text-slate-600 hover:text-slate-900">
+                  How it fits
+                </a>
+                <a href="#pricing" className="block text-slate-600 hover:text-slate-900">
+                  Pricing
                 </a>
                 <Link href="/industries" className="block text-slate-600 hover:text-slate-900">
                   Industries
@@ -1930,8 +1930,11 @@ export default function LandingPage() {
                 <Link href="/demo" className="block text-slate-600 hover:text-slate-900">
                   Demo
                 </Link>
-                <a href="#pricing" className="block text-slate-600 hover:text-slate-900">
-                  Pricing
+                <a href="#compare" className="block text-slate-600 hover:text-slate-900">
+                  Compare platforms
+                </a>
+                <a href="#roi" className="block text-slate-600 hover:text-slate-900">
+                  ROI calculator
                 </a>
                 <a href="#security" className="block text-slate-600 hover:text-slate-900">
                   Security
