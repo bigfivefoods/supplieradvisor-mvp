@@ -93,6 +93,8 @@ export type DentalPatient = {
   notes?: string;
   /** Injury, diagnosis, pain, goals, contraindications */
   clinical?: DentalClinicalProfile;
+  /** Full medical chart: aid, documents, claims */
+  medical?: import('@/lib/clinic/patient-medical').PatientMedicalRecord;
   start_date?: string | null;
   active?: boolean;
   created_at: string;

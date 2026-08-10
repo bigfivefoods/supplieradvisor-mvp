@@ -30,6 +30,13 @@ import {
   totalUnread,
 } from '@/lib/messaging/service-inbox';
 import { issueFeedbackPrompt } from '@/lib/services/booking-feedback';
+import {
+  addMedicalDocument,
+  mergeMedicalRecord,
+  removeMedicalDocument,
+  submitMedicalClaim,
+  upsertMedicalClaim,
+} from '@/lib/clinic/patient-medical';
 
 export const runtime = 'nodejs';
 
@@ -188,6 +195,75 @@ export async function POST(request: NextRequest) {
         summary: summarisePhysiograph(store),
         analysis: analysis(store),
         message: 'Website / clinic settings updated',
+      });
+    }
+
+    /** Patient medical chart: docs, medical aid, claims */
+    if (
+      action === 'medical_update' ||
+      action === 'medical_doc_add' ||
+      action === 'medical_doc_remove' ||
+      action === 'medical_claim_upsert' ||
+      action === 'medical_claim_submit'
+    ) {
+      const patientId = String(body.patient_id || body.id || '');
+      const pi = store.patients.findIndex((p) => p.id === patientId);
+      if (pi < 0) {
+        return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+      }
+      const patient = store.patients[pi];
+      try {
+        if (action === 'medical_update') {
+          patient.medical = mergeMedicalRecord(
+            patient.medical,
+            body.medical || body.record || body
+          );
+        } else if (action === 'medical_doc_add') {
+          const doc = (body.document || body.record || body) as Record<
+            string,
+            unknown
+          >;
+          patient.medical = addMedicalDocument(patient.medical, {
+            title: String(doc.title || doc.file_name || 'Document'),
+            file_name: String(doc.file_name || 'file'),
+            url: String(doc.url || ''),
+            kind: String(doc.kind || 'other'),
+            notes: doc.notes != null ? String(doc.notes) : undefined,
+          }, now);
+        } else if (action === 'medical_doc_remove') {
+          patient.medical = removeMedicalDocument(
+            patient.medical,
+            String(body.document_id || body.doc_id || '')
+          );
+        } else if (action === 'medical_claim_upsert') {
+          patient.medical = upsertMedicalClaim(
+            patient.medical,
+            (body.claim || body.record || body) as Record<string, unknown>,
+            now
+          );
+        } else if (action === 'medical_claim_submit') {
+          patient.medical = submitMedicalClaim(
+            patient.medical,
+            String(body.claim_id || body.id || ''),
+            now
+          );
+        }
+      } catch (e: unknown) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : 'Medical update failed' },
+          { status: 400 }
+        );
+      }
+      patient.updated_at = now;
+      store.patients[pi] = patient;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summarisePhysiograph(store),
+        analysis: analysis(store),
+        patient,
+        message: 'Patient medical record updated',
       });
     }
 
@@ -376,6 +452,10 @@ function upsert(
             : undefined
           : prev?.notes,
       clinical,
+      medical:
+        rec.medical !== undefined
+          ? mergeMedicalRecord(prev?.medical, rec.medical)
+          : prev?.medical,
       start_date:
         rec.start_date !== undefined
           ? rec.start_date

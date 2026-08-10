@@ -75,6 +75,8 @@ export type PhysioPatient = {
   notes?: string;
   /** Injury, diagnosis, pain, goals, contraindications */
   clinical?: PhysioClinicalProfile;
+  /** Full medical chart: aid, documents, claims */
+  medical?: import('@/lib/clinic/patient-medical').PatientMedicalRecord;
   start_date?: string | null;
   active?: boolean;
   created_at: string;

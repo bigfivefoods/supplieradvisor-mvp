@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { Pencil, X } from 'lucide-react';
 import {
@@ -14,6 +15,7 @@ import {
   type PhysioPatient,
 } from '@/lib/clinic/physiograph';
 import { healthSummaryLabel, isInjured } from '@/lib/health/body-map';
+import { medicalAidSummary } from '@/lib/clinic/patient-medical';
 import {
   InjuryProfileFields,
   emptyInjuryForm,
@@ -108,7 +110,7 @@ export default function PatientsPage() {
     <PhysiographWorkbench
       title="Patients"
       titleAccent="register"
-      description="Patient book with status, assigned practitioner, packages, and full injury / clinical profile so physios know body region, side, status and how to progress recovery."
+      description="Patient book with clinical profile, medical chart (aid, records, claims). Open Chart for the full medical record."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -248,6 +250,7 @@ export default function PatientsPage() {
               'Practitioner',
               'Package',
               'Injury / clinical',
+              'Medical aid',
               '',
             ]}
             rows={store.patients.map((p) => {
@@ -287,14 +290,26 @@ export default function PatientsPage() {
                     </span>
                   ),
                   (
-                    <button
-                      key="e"
-                      type="button"
-                      className="inline-flex items-center gap-1 text-[11px] font-bold text-teal-700 dark:text-teal-300"
-                      onClick={() => openEdit(p)}
-                    >
-                      <Pencil className="w-3 h-3" /> Edit
-                    </button>
+                    <span key="aid" className="text-[11px] text-slate-600 dark:text-slate-300">
+                      {medicalAidSummary(p.medical).slice(0, 36)}
+                    </span>
+                  ),
+                  (
+                    <span key="e" className="flex flex-wrap gap-2">
+                      <Link
+                        href={`/dashboard/physiograph/patients/${p.id}`}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-teal-700 dark:text-teal-300"
+                      >
+                        Chart
+                      </Link>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300"
+                        onClick={() => openEdit(p)}
+                      >
+                        <Pencil className="w-3 h-3" /> Edit
+                      </button>
+                    </span>
                   ),
                 ],
               };
