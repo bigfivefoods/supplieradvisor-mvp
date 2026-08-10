@@ -52,12 +52,18 @@ export default function ClientsPage() {
       ) : (
         <div className="space-y-6">
           <StatRow
+            tone="member"
             items={[
               { label: 'Clients', value: Number(summary?.clientCount) || 0 },
               { label: 'Active', value: Number(summary?.activeMembers) || 0 },
             ]}
           />
-          <FormCard title="Add client" onSubmit={() => void add()} saving={saving}>
+          <FormCard
+            tone="member"
+            title="Add client / member"
+            onSubmit={() => void add()}
+            saving={saving}
+          >
             <input className={fc()} placeholder="Code" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} />
             <input className={fc()} placeholder="Name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
             <input className={fc()} placeholder="Email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
@@ -82,6 +88,7 @@ export default function ClientsPage() {
             <input className={fc()} type="date" value={form.start_date} onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))} />
           </FormCard>
           <DataTable
+            tone="member"
             headers={['Code', 'Name', 'Plan', 'Status', 'Coach', 'Phone']}
             rows={store.clients.map((c) => {
               const plan = store.membership_plans.find((p) => p.id === c.membership_plan_id);

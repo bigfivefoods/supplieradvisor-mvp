@@ -8,7 +8,14 @@ import {
   LoadingBlock,
   useFitgraph,
 } from '@/components/fitness/FitgraphWorkbench';
-import { DataTable, FormCard, StatRow, fc } from '@/components/fitness/FitForm';
+import {
+  DataTable,
+  FormCard,
+  ListRowCard,
+  StatRow,
+  fc,
+  toneLinkClass,
+} from '@/components/fitness/FitForm';
 import { COACH_SPECIALTIES } from '@/lib/fitness/fitgraph';
 
 export default function CoachesPage() {
@@ -80,6 +87,7 @@ export default function CoachesPage() {
       ) : (
         <div className="space-y-6">
           <StatRow
+            tone="coach"
             items={[
               {
                 label: 'Coaches',
@@ -91,7 +99,12 @@ export default function CoachesPage() {
               },
             ]}
           />
-          <FormCard title="Add coach" onSubmit={() => void add()} saving={saving}>
+          <FormCard
+            tone="coach"
+            title="Add coach"
+            onSubmit={() => void add()}
+            saving={saving}
+          >
             <input
               className={fc()}
               placeholder="Code"
@@ -149,67 +162,70 @@ export default function CoachesPage() {
 
           <div className="space-y-2">
             {store.coaches.map((c) => (
-              <div
+              <ListRowCard
                 key={c.id}
-                className="rounded-2xl border border-violet-100 bg-white px-4 py-3 flex flex-wrap justify-between gap-3"
-              >
-                <div>
-                  <div className="font-bold text-sm">
-                    {c.code} · {c.name}
-                  </div>
-                  <div className="text-[11px] text-slate-500">
-                    {(c.specialties || []).join(', ') || '—'}
-                    {c.email ? ` · ${c.email}` : ''}
-                  </div>
-                  {c.public_bio && (
-                    <p className="text-[11px] text-slate-600 mt-1">
-                      {c.public_bio}
-                    </p>
-                  )}
-                  {c.portal_token && (
-                    <p className="text-[10px] text-violet-600 mt-1 font-mono truncate max-w-md">
-                      Portal active
-                    </p>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2 items-center">
-                  {c.portal_token ? (
+                tone="coach"
+                actions={
+                  <>
+                    {c.portal_token ? (
+                      <button
+                        type="button"
+                        className={`inline-flex items-center gap-1 text-xs font-bold ${toneLinkClass('coach')}`}
+                        onClick={() => void copyPortal(c.portal_token!)}
+                      >
+                        <Copy className="w-3.5 h-3.5" /> Copy portal link
+                      </button>
+                    ) : null}
                     <button
                       type="button"
-                      className="inline-flex items-center gap-1 text-xs font-bold text-violet-700"
-                      onClick={() => void copyPortal(c.portal_token!)}
+                      disabled={saving}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-2.5 py-1.5 hover:bg-slate-50 dark:text-amber-100 dark:border-amber-500/40 dark:hover:bg-amber-900/40"
+                      onClick={() => void issuePortal(c.id)}
                     >
-                      <Copy className="w-3.5 h-3.5" /> Copy portal link
+                      <Link2 className="w-3.5 h-3.5" />
+                      {c.portal_token ? 'Re-issue portal' : 'Issue portal'}
                     </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    disabled={saving}
-                    className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-2.5 py-1.5 hover:bg-slate-50"
-                    onClick={() => void issuePortal(c.id)}
-                  >
-                    <Link2 className="w-3.5 h-3.5" />
-                    {c.portal_token ? 'Re-issue portal' : 'Issue portal'}
-                  </button>
-                  <button
-                    type="button"
-                    className="text-rose-600 text-xs font-bold"
-                    onClick={() =>
-                      void post({
-                        entity: 'coaches',
-                        action: 'delete',
-                        id: c.id,
-                      })
-                    }
-                  >
-                    Remove
-                  </button>
+                    <button
+                      type="button"
+                      className="text-rose-600 dark:text-rose-400 text-xs font-bold"
+                      onClick={() =>
+                        void post({
+                          entity: 'coaches',
+                          action: 'delete',
+                          id: c.id,
+                        })
+                      }
+                    >
+                      Remove
+                    </button>
+                  </>
+                }
+              >
+                <div className="font-bold text-sm text-slate-900 dark:text-amber-50">
+                  {c.code} · {c.name}
                 </div>
-              </div>
+                <div className="text-[11px] text-slate-500 dark:text-amber-200/80">
+                  {(c.specialties || []).join(', ') || '—'}
+                  {c.email ? ` · ${c.email}` : ''}
+                </div>
+                {c.public_bio && (
+                  <p className="text-[11px] text-slate-600 dark:text-amber-100/80 mt-1">
+                    {c.public_bio}
+                  </p>
+                )}
+                {c.portal_token && (
+                  <p
+                    className={`text-[10px] mt-1 font-mono truncate max-w-md ${toneLinkClass('coach')}`}
+                  >
+                    Portal active
+                  </p>
+                )}
+              </ListRowCard>
             ))}
           </div>
 
           <DataTable
+            tone="coach"
             headers={['Code', 'Name', 'Specialties', 'Email', 'Portal']}
             rows={store.coaches.map((c) => ({
               id: c.id,
