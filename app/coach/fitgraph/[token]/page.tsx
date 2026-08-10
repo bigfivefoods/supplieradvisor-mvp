@@ -383,8 +383,42 @@ export default function CoachFitgraphPortalPage() {
             </div>
 
             <div>
+              <h4 className="text-[10px] font-black uppercase tracking-wider text-amber-400 mb-1">
+                Class plan · activities
+              </h4>
+              <p className="text-[10px] text-slate-500 mb-1.5">
+                What you will do — members and other coaches can see this.
+              </p>
+              <textarea
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[5rem] resize-y"
+                placeholder={
+                  'e.g.\n• Warm-up 5 min\n• Strength circuit\n• HIIT finisher\n• Stretch'
+                }
+                value={classPlanDraft}
+                onChange={(e) => setClassPlanDraft(e.target.value)}
+              />
+              <button
+                type="button"
+                disabled={busy}
+                className="mt-2 rounded-xl bg-amber-500 text-amber-950 px-3 py-1.5 text-xs font-black"
+                onClick={() =>
+                  void post({
+                    action: 'update_session',
+                    session_id: openCard.session.id,
+                    class_plan: classPlanDraft,
+                  }).then(() => void load())
+                }
+              >
+                {busy ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
+                ) : null}{' '}
+                Save class plan
+              </button>
+            </div>
+
+            <div>
               <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1">
-                <Users className="w-3.5 h-3.5" /> Plan · update actual
+                <Users className="w-3.5 h-3.5" /> Who is coming · update actual
               </h4>
               {openCard.roster.length === 0 ? (
                 <p className="text-sm text-slate-500">Nobody on the plan yet.</p>
@@ -544,6 +578,14 @@ export default function CoachFitgraphPortalPage() {
                 setCreate((f) => ({ ...f, location: e.target.value }))
               }
             />
+            <textarea
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[4rem] resize-y"
+              placeholder="Class plan / activities (members & coaches see this)"
+              value={create.class_plan}
+              onChange={(e) =>
+                setCreate((f) => ({ ...f, class_plan: e.target.value }))
+              }
+            />
             <div className="flex gap-2">
               <button
                 type="button"
@@ -636,6 +678,7 @@ export default function CoachFitgraphPortalPage() {
                   capacity: create.capacity
                     ? Number(create.capacity)
                     : undefined,
+                  class_plan: create.class_plan.trim() || undefined,
                   public: create.public,
                   count: Number(create.count) || 8,
                   weekdays:
@@ -644,6 +687,7 @@ export default function CoachFitgraphPortalPage() {
                       : [new Date(create.date + 'T12:00:00').getDay()],
                 }).then(() => {
                   setShowCreate(false);
+                  setCreate((f) => ({ ...f, class_plan: '' }));
                   void load();
                 })
               }
