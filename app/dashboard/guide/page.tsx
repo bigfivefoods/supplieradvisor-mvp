@@ -240,6 +240,22 @@ export default function SystemGuideHome() {
               Fitgraph®
             </Link>
           )}
+          {isCompanyModuleEnabled('physiograph') && (
+            <Link
+              href="/dashboard/guide/physiograph"
+              className="font-bold text-teal-700 hover:underline"
+            >
+              Physiograph®
+            </Link>
+          )}
+          {isCompanyModuleEnabled('dentalgraph') && (
+            <Link
+              href="/dashboard/guide/dentalgraph"
+              className="font-bold text-sky-700 hover:underline"
+            >
+              Dentalgraph®
+            </Link>
+          )}
         </div>
       </section>
 

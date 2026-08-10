@@ -22,6 +22,7 @@ import {
   PhysiographPage,
   PhysiographRequired,
 } from '@/components/clinic/PhysiographShell';
+import PhysiographSystemFlow from '@/components/clinic/PhysiographSystemFlow';
 import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 import {
   HubModuleGrid,
@@ -231,6 +232,10 @@ function Inner() {
           />
         </HubTelemetryGrid>
       )}
+
+      <div className="mt-8">
+        <PhysiographSystemFlow />
+      </div>
 
       <div className="my-8 grid sm:grid-cols-2 gap-3">
         {[

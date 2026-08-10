@@ -22,6 +22,7 @@ import {
   DentalgraphPage,
   DentalgraphRequired,
 } from '@/components/dental/DentalgraphShell';
+import DentalgraphSystemFlow from '@/components/dental/DentalgraphSystemFlow';
 import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 import {
   HubModuleGrid,
@@ -231,6 +232,10 @@ function Inner() {
           />
         </HubTelemetryGrid>
       )}
+
+      <div className="mt-8">
+        <DentalgraphSystemFlow />
+      </div>
 
       <div className="my-8 grid sm:grid-cols-2 gap-3">
         {[

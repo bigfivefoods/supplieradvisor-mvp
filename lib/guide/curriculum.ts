@@ -1426,7 +1426,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     title: 'Physiograph®',
     tagline: 'Practitioners → diary → bookings → website',
     purpose:
-      'Tertiary clinic OS for physio, OT, biokinetics and allied health: practitioners (disciplines & rates), patients, service catalogue, rehab packages, appointment diary, bookings/attendance, and clinic website profile settings. Seed a demo clinic from the hub to explore the flow.',
+      'Tertiary clinic OS for physio, OT, biokinetics and allied health: practitioners (disciplines & rates), patients, service catalogue, rehab packages, appointment diary, bookings/attendance, messages, and clinic website profile settings. Expandable end-to-end process design + Landscape/Portrait PDF on the Physiograph command hub (same pattern as Fitgraph). Seed a demo clinic from the hub to explore the flow.',
     who: ['Practice owner', 'Practitioner', 'Front desk', 'Patient (public)'],
     principles: [
       {
@@ -1487,7 +1487,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           'Set brand name, contact, public bio',
           'Copy public token for future embed endpoints',
         ],
-        tip: 'Load demo clinic from the Physiograph hub to walk the full loop.',
+        tip: 'Download Landscape/Portrait process design PDF from the Physiograph hub.',
       },
     ],
     concepts: [
@@ -1503,12 +1503,16 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         term: 'Rehab package',
         meaning: 'Multi-session bundle assigned to a patient for entitlement tracking.',
       },
+      {
+        term: 'Process PDF',
+        meaning: '2-page A4 end-to-end design for training packs (landscape or portrait).',
+      },
     ],
     checklist: [
       'Practitioner + service + scheduled appointment',
       'One patient booking or demo seed loaded',
       'Website settings understood (publish / token)',
-      'Opened Physiograph reports once',
+      'Opened process design once',
     ],
     related: ['fitgraph', 'dentalgraph', 'customers', 'golden-path'],
   },
@@ -1518,7 +1522,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     title: 'Dentalgraph®',
     tagline: 'Staff → diary → bookings → messages',
     purpose:
-      'Tertiary dental practice OS: dentists, hygienists and assistants (staff roles & rates), patients with oral-health clinical notes, treatment catalogue, care plans, appointment diary, bookings/attendance, team messaging, and practice website profile. Seed a demo practice from the hub to explore the flow.',
+      'Tertiary dental practice OS: dentists, hygienists and assistants (staff roles & rates), patients with oral-health clinical notes, treatment catalogue, care plans, appointment diary, bookings/attendance, team messaging, and practice website profile. Expandable end-to-end process design + Landscape/Portrait PDF on the Dentalgraph command hub (same pattern as Fitgraph). Seed a demo practice from the hub to explore the flow.',
     who: ['Practice owner', 'Dentist', 'Hygienist', 'Reception', 'Patient (public)'],
     principles: [
       {
@@ -1579,7 +1583,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           'Reply as desk or as clinician',
           'Archive when episode of care is closed',
         ],
-        tip: 'Load demo practice from the Dentalgraph hub to walk the full loop.',
+        tip: 'Download Landscape/Portrait process design PDF from the Dentalgraph hub.',
       },
     ],
     concepts: [
@@ -1595,12 +1599,16 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         term: 'Clinical note',
         meaning: 'Site, status, modifications and goals so every visit stays safe and progressive.',
       },
+      {
+        term: 'Process PDF',
+        meaning: '2-page A4 end-to-end design for training packs (landscape or portrait).',
+      },
     ],
     checklist: [
       'Staff + service + scheduled appointment',
       'One patient booking or demo seed loaded',
       'Messages or website settings opened once',
-      'Opened Dentalgraph reports once',
+      'Opened process design once',
     ],
     related: ['physiograph', 'fitgraph', 'customers', 'golden-path'],
   },
