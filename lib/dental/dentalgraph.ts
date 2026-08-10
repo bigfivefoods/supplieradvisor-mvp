@@ -429,6 +429,11 @@ export type DentalgraphStore = {
   packages: DentalPackage[];
   appointments: DentalAppointment[];
   bookings: DentalBooking[];
+  /**
+   * General "next available" waitlist (not tied to a single full slot).
+   * Patients join when they want any open time / any clinician.
+   */
+  waitlist_queue?: import('@/lib/services/clinic-waitlist').ClinicWaitlistQueueEntry[];
   /** Care packs with session ledger */
   care_packs?: import('@/lib/services/advisor-pack-ledger').AdvisorPackLedgerEntry[];
   visit_notes?: import('@/lib/services/advisor-clinical').VisitNote[];
@@ -574,6 +579,23 @@ export function buildDentalPatientPortalPayload(
                 b.status === 'waitlist' ||
                 b.status === 'attended')
           );
+          const isPreferred =
+            Boolean(patient.staff_id) &&
+            Boolean(a.staff_id) &&
+            patient.staff_id === a.staff_id;
+          let waitlist_position: number | null = null;
+          if (myBooking?.status === 'waitlist') {
+            const wl = store.bookings
+              .filter(
+                (b) =>
+                  b.appointment_id === a.id && b.status === 'waitlist'
+              )
+              .sort((x, y) =>
+                String(x.booked_at || '').localeCompare(String(y.booked_at || ''))
+              );
+            const wi = wl.findIndex((b) => b.id === myBooking.id);
+            waitlist_position = wi >= 0 ? wi + 1 : wl.length;
+          }
           return {
             id: a.id,
             date: a.date,
@@ -581,7 +603,9 @@ export function buildDentalPatientPortalPayload(
             end_time: a.end_time,
             duration_min: a.duration_min ?? svc?.default_duration_min ?? 30,
             service_name: svc?.name || 'Appointment',
+            clinician_id: a.staff_id || null,
             clinician_name: staff?.name,
+            is_preferred_clinician: isPreferred,
             location: a.location,
             capacity,
             spots_left: Math.max(0, capacity - booked),
@@ -589,13 +613,18 @@ export function buildDentalPatientPortalPayload(
             public_notes: a.public_notes,
             my_status: myBooking?.status || null,
             my_booking_id: myBooking?.id || null,
+            waitlist_position,
           };
         })
-        .sort((a, b) =>
-          a.date === b.date
+        // Prefer patient's regular clinician first, then soonest
+        .sort((a, b) => {
+          if (a.is_preferred_clinician !== b.is_preferred_clinician) {
+            return a.is_preferred_clinician ? -1 : 1;
+          }
+          return a.date === b.date
             ? a.start_time.localeCompare(b.start_time)
-            : a.date.localeCompare(b.date)
-        )
+            : a.date.localeCompare(b.date);
+        })
     : [];
 
   const my_bookings = shareSchedule
@@ -694,6 +723,10 @@ export function buildDentalPatientPortalPayload(
       photo_url: patient.photo_url,
       status: patient.status,
       invite_status: patient.invite_status || null,
+      /** Regular / assigned clinician — portal may still book others */
+      preferred_clinician_id: patient.staff_id || null,
+      preferred_clinician_name:
+        store.staff.find((s) => s.id === patient.staff_id)?.name || null,
       identity: {
         status: String(patient.identity?.status || 'unverified'),
         provider: patient.identity?.provider || null,
@@ -709,12 +742,30 @@ export function buildDentalPatientPortalPayload(
       feedback: shareFeedback,
       medical: shareMedical,
     },
+    /** Patients may book any public clinician, not only their regular one */
+    can_book_other_clinicians: true,
     medical_share,
     open_slots,
     vacancies: open_slots.filter((s) => !s.full && !s.my_status),
     my_bookings,
     open_count: open_slots.filter((s) => !s.full).length,
     full_count: open_slots.filter((s) => s.full && !s.my_status).length,
+    waitlist_queue: (() => {
+      const open = (store.waitlist_queue || [])
+        .filter((q) => q.status === 'waiting')
+        .sort((a, b) => a.created_at.localeCompare(b.created_at));
+      return open
+        .filter((q) => q.patient_id === patient.id)
+        .map((q) => ({
+          id: q.id,
+          accept_any_clinician: q.accept_any_clinician,
+          preferred_clinician_id: q.preferred_clinician_id,
+          service_name: q.service_name,
+          notes: q.notes,
+          created_at: q.created_at,
+          position: open.findIndex((x) => x.id === q.id) + 1,
+        }));
+    })(),
   };
 }
 

@@ -25,6 +25,9 @@ type Slot = {
   start_time: string;
   service_name: string;
   practitioner_name?: string;
+  clinician_name?: string;
+  is_preferred_clinician?: boolean;
+  waitlist_position?: number | null;
   location?: string;
   spots_left: number;
   full: boolean;
@@ -44,6 +47,7 @@ type Portal = {
     id_number?: string;
     photo_url?: string;
     status?: string;
+    preferred_clinician_name?: string | null;
     identity?: {
       status?: string;
       provider?: string | null;
@@ -65,6 +69,8 @@ type Portal = {
     }>;
   };
   open_slots: Slot[];
+  waitlist_queue?: Array<{ id: string; position: number }>;
+  can_book_other_clinicians?: boolean;
   my_bookings: Array<{
     booking_id: string;
     status: string;
@@ -153,6 +159,24 @@ export default function MemberPsychiatrygraphPortalPage() {
       setBusyId(null);
     }
   };
+
+  const joinQueue = async () => {
+    setBusyId('queue');
+    setMsg(null);
+    setError(null);
+    try {
+      const data = await post({
+        action: 'join_queue',
+        accept_any_clinician: true,
+      });
+      setMsg(data.queue?.message || data.message || 'Joined waitlist');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not join queue');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
 
   const cancel = async (bookingId: string) => {
     if (!confirm('Cancel this appointment?')) return;
@@ -333,8 +357,29 @@ export default function MemberPsychiatrygraphPortalPage() {
         {tab === 'open' && (
           <div className="space-y-3">
             <p className="text-sm text-slate-600">
-              Open diary vacancies — book a slot, or join the waitlist if full.
-            </p>
+              Book your regular clinician or another available practitioner. Full slots: join waitlist (practice is notified). </p>
+
+            {portal.allow_booking ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-3">
+                {(portal.waitlist_queue || []).length > 0 ? (
+                  <p className="text-sm font-black text-amber-900">
+                    Next-available queue: #{(portal.waitlist_queue || [])[0]?.position}
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={busyId === 'queue'}
+                    onClick={() => void joinQueue()}
+                    className="rounded-xl bg-amber-600 text-white px-3 py-2 text-xs font-bold"
+                  >
+                    Join next-available waitlist
+                  </button>
+                )}
+                <p className="text-[11px] text-amber-900/80 mt-1">
+                  Notifies the practice you want the next free slot (any clinician if needed).
+                </p>
+              </div>
+            ) : null}
             {portal.open_slots.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
                 No public diary slots in the next 4 weeks. Ask the clinic to
@@ -351,10 +396,10 @@ export default function MemberPsychiatrygraphPortalPage() {
                     <CalendarDays className="w-3.5 h-3.5" />
                     {formatDay(s.date, s.start_time)}
                   </p>
-                  {s.practitioner_name ? (
-                    <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                      <Stethoscope className="w-3.5 h-3.5" />
-                      {s.practitioner_name}
+                  {s.practitioner_name || s.clinician_name ? (
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {s.practitioner_name || s.clinician_name}
+                      {s.is_preferred_clinician ? ' · your clinician' : ' · other clinician'}
                     </p>
                   ) : null}
                   {s.location ? (
@@ -390,8 +435,10 @@ export default function MemberPsychiatrygraphPortalPage() {
                         {busyId === s.id
                           ? '…'
                           : s.full
-                            ? 'Request join (waitlist)'
-                            : 'Book appointment'}
+                            ? 'Join waitlist (notify desk)'
+                            : s.is_preferred_clinician
+                              ? 'Book appointment'
+                              : 'Book this clinician'}
                       </button>
                     ) : null}
                   </div>

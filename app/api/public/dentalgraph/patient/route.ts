@@ -305,7 +305,12 @@ export async function POST(request: NextRequest) {
           famName = `${m.name}${m.relationship ? ` (${m.relationship})` : ''}`;
         }
       }
+      // Patients may book any public clinician — not only their regular dentist
       const finalStatus: DentalBooking['status'] = full ? 'waitlist' : 'booked';
+      const preferOther =
+        patient.staff_id &&
+        appt.staff_id &&
+        patient.staff_id !== appt.staff_id;
       const row: DentalBooking = {
         id: newId('bk'),
         appointment_id: appointmentId,
@@ -313,25 +318,152 @@ export async function POST(request: NextRequest) {
         status: finalStatus,
         booked_at: now,
         source: 'patient_portal',
-        notes:
+        notes: [
           finalStatus === 'waitlist'
             ? 'Patient portal — waitlist / join request'
             : 'Patient portal booking',
+          preferOther ? 'Booked another clinician (regular unavailable / preferred alternative)' : null,
+        ]
+          .filter(Boolean)
+          .join(' · '),
         family_member_id: famName ? famId : null,
         family_member_name: famName,
       };
       store.bookings.push(row);
+
+      let waitlistPosition: number | null = null;
+      if (finalStatus === 'waitlist') {
+        const { waitlistPositionOnSlot, notifyPracticeWaitlist } =
+          await import('@/lib/services/clinic-waitlist');
+        waitlistPosition = waitlistPositionOnSlot(
+          store.bookings,
+          appointmentId,
+          row.id
+        );
+        const svc = store.services.find((s) => s.id === appt.service_id);
+        const staff = store.staff.find((s) => s.id === appt.staff_id);
+        await notifyPracticeWaitlist({
+          to: store.settings?.contact_email,
+          brand: store.settings?.brand_name || 'Practice',
+          moduleLabel: 'DentalAdvisor®',
+          patientName: patient.name,
+          patientEmail: patient.email,
+          kind: 'slot',
+          position: waitlistPosition,
+          eventTitle: svc?.name || 'Appointment',
+          date: appt.date,
+          start_time: appt.start_time,
+          clinicianName: staff?.name,
+          deskUrl: '/dashboard/dentalgraph/bookings',
+        });
+      }
+
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
         booking: {
           id: row.id,
           status: row.status,
+          waitlist_position: waitlistPosition,
           message:
             row.status === 'waitlist'
-              ? 'Slot is full — you are on the waitlist'
-              : 'You are booked into this appointment',
+              ? `Slot is full — you are #${waitlistPosition} on the waitlist. The practice has been notified.`
+              : preferOther
+                ? 'You are booked with another clinician for this slot'
+                : 'You are booked into this appointment',
         },
+        portal: buildDentalPatientPortalPayload(store, store.patients[pi]),
+      });
+    }
+
+    /** Next-available queue — not tied to one full slot */
+    if (
+      action === 'join_queue' ||
+      action === 'request_next_available' ||
+      action === 'waitlist_queue'
+    ) {
+      if (store.settings?.allow_public_booking === false) {
+        return NextResponse.json(
+          { error: 'Online booking is disabled by the practice' },
+          { status: 403 }
+        );
+      }
+      const { newQueueEntry, queuePosition, notifyPracticeWaitlist } =
+        await import('@/lib/services/clinic-waitlist');
+      store.waitlist_queue = store.waitlist_queue || [];
+      const already = store.waitlist_queue.find(
+        (q) => q.patient_id === patient.id && q.status === 'waiting'
+      );
+      if (already) {
+        return NextResponse.json({
+          success: true,
+          queue: {
+            id: already.id,
+            position: queuePosition(store.waitlist_queue, already.id),
+            message: 'You are already on the next-available waitlist',
+          },
+          portal: buildDentalPatientPortalPayload(store, store.patients[pi]),
+        });
+      }
+      const acceptAny = body.accept_any_clinician !== false;
+      const entry = newQueueEntry({
+        patient_id: patient.id,
+        patient_name: patient.name,
+        preferred_clinician_id: acceptAny
+          ? patient.staff_id || null
+          : body.preferred_clinician_id
+            ? String(body.preferred_clinician_id)
+            : patient.staff_id || null,
+        accept_any_clinician: acceptAny,
+        service_id: body.service_id ? String(body.service_id) : null,
+        notes: body.notes ? String(body.notes) : undefined,
+        now,
+      });
+      store.waitlist_queue.push(entry);
+      const position = queuePosition(store.waitlist_queue, entry.id);
+      const preferredName = entry.preferred_clinician_id
+        ? store.staff.find((s) => s.id === entry.preferred_clinician_id)?.name
+        : undefined;
+      await notifyPracticeWaitlist({
+        to: store.settings?.contact_email,
+        brand: store.settings?.brand_name || 'Practice',
+        moduleLabel: 'DentalAdvisor®',
+        patientName: patient.name,
+        patientEmail: patient.email,
+        kind: 'queue',
+        position,
+        acceptAny: entry.accept_any_clinician,
+        preferredClinicianName: preferredName,
+        deskUrl: '/dashboard/dentalgraph/bookings',
+      });
+      entry.notified_at = now;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        queue: {
+          id: entry.id,
+          position,
+          message: `You are #${position} in the next-available queue. The practice has been notified.`,
+        },
+        portal: buildDentalPatientPortalPayload(store, store.patients[pi]),
+      });
+    }
+
+    if (action === 'leave_queue' || action === 'cancel_queue') {
+      const qid = String(body.queue_id || body.id || '');
+      store.waitlist_queue = store.waitlist_queue || [];
+      const q = store.waitlist_queue.find(
+        (x) =>
+          x.patient_id === patient.id &&
+          (qid ? x.id === qid : x.status === 'waiting')
+      );
+      if (q) {
+        q.status = 'cancelled';
+        await saveStore(companyId, meta, store);
+      }
+      return NextResponse.json({
+        success: true,
+        message: 'Removed from waitlist',
         portal: buildDentalPatientPortalPayload(store, store.patients[pi]),
       });
     }

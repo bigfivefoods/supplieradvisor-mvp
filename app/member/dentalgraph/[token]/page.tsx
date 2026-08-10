@@ -26,16 +26,19 @@ type Slot = {
   start_time: string;
   service_name: string;
   clinician_name?: string;
+  is_preferred_clinician?: boolean;
   location?: string;
   spots_left: number;
   full: boolean;
   my_status?: string | null;
   my_booking_id?: string | null;
+  waitlist_position?: number | null;
 };
 
 type Portal = {
   brand: string;
   allow_booking: boolean;
+  can_book_other_clinicians?: boolean;
   primary_color?: string;
   patient: {
     name: string;
@@ -44,6 +47,8 @@ type Portal = {
     id_number?: string;
     photo_url?: string;
     status?: string;
+    preferred_clinician_id?: string | null;
+    preferred_clinician_name?: string | null;
     identity?: {
       status?: string;
       provider?: string | null;
@@ -67,6 +72,12 @@ type Portal = {
   shares?: { schedule?: boolean; feedback?: boolean; medical?: boolean };
   medical_share?: Record<string, unknown> | null;
   open_slots: Slot[];
+  waitlist_queue?: Array<{
+    id: string;
+    position: number;
+    accept_any_clinician?: boolean;
+    service_name?: string | null;
+  }>;
   my_bookings: Array<{
     booking_id: string;
     status: string;
@@ -93,6 +104,10 @@ export default function MemberDentalgraphPortalPage() {
   const [idNumber, setIdNumber] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [bookForFamilyId, setBookForFamilyId] = useState('');
+  /** all | preferred | other */
+  const [slotFilter, setSlotFilter] = useState<'all' | 'preferred' | 'other'>(
+    'all'
+  );
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -138,19 +153,51 @@ export default function MemberDentalgraphPortalPage() {
     return data;
   };
 
-  const book = async (appointmentId: string) => {
+  const book = async (appointmentId: string, requestJoin = false) => {
     setBusyId(appointmentId);
     setMsg(null);
     setError(null);
     try {
       const data = await post({
-        action: 'book',
+        action: requestJoin ? 'request_join' : 'book',
         appointment_id: appointmentId,
         family_member_id: bookForFamilyId || null,
       });
-      setMsg(data.booking?.message || 'Booked');
+      setMsg(data.booking?.message || data.message || 'Booked');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Booking failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const joinQueue = async () => {
+    setBusyId('queue');
+    setMsg(null);
+    setError(null);
+    try {
+      const data = await post({
+        action: 'join_queue',
+        accept_any_clinician: true,
+      });
+      setMsg(data.queue?.message || data.message || 'Joined waitlist');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not join queue');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const leaveQueue = async (queueId?: string) => {
+    setBusyId('queue');
+    try {
+      const data = await post({
+        action: 'leave_queue',
+        queue_id: queueId,
+      });
+      setMsg(data.message || 'Left waitlist');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not leave queue');
     } finally {
       setBusyId(null);
     }
@@ -382,20 +429,117 @@ export default function MemberDentalgraphPortalPage() {
         {tab === 'open' && (
           <div className="space-y-3">
             <p className="text-sm text-slate-600">
-              Open diary vacancies — book a slot, or join the waitlist if full.
+              Book your regular clinician when free — or any other open
+              dentist at the practice. Full slots: join the waitlist (we notify
+              the desk).
             </p>
-            {portal.open_slots.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-                No public diary slots in the next 4 weeks. Ask the practice to
-                publish open slots.
+            {portal.patient.preferred_clinician_name ? (
+              <p className="text-xs text-slate-500 rounded-xl border border-sky-100 bg-sky-50 px-3 py-2">
+                Your regular clinician:{' '}
+                <strong>{portal.patient.preferred_clinician_name}</strong>
+                {portal.can_book_other_clinicians !== false
+                  ? ' · You can also book other clinicians when they have open times.'
+                  : ''}
+              </p>
+            ) : null}
+
+            {portal.allow_booking ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-3 space-y-2">
+                <p className="text-xs font-bold text-amber-950">
+                  Need the next available slot?
+                </p>
+                {(portal.waitlist_queue || []).length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-black text-amber-900">
+                      You are #
+                      {(portal.waitlist_queue || [])[0]?.position} in the
+                      practice queue
+                    </span>
+                    <button
+                      type="button"
+                      disabled={busyId === 'queue'}
+                      onClick={() =>
+                        void leaveQueue((portal.waitlist_queue || [])[0]?.id)
+                      }
+                      className="text-xs font-bold text-rose-700 underline"
+                    >
+                      Leave queue
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={busyId === 'queue'}
+                    onClick={() => void joinQueue()}
+                    className="rounded-xl bg-amber-600 text-white px-3 py-2 text-xs font-bold disabled:opacity-50"
+                  >
+                    {busyId === 'queue'
+                      ? '…'
+                      : 'Join next-available waitlist'}
+                  </button>
+                )}
+                <p className="text-[11px] text-amber-900/80">
+                  Notifies the practice that you&apos;re waiting — they can
+                  offer any clinician or free time.
+                </p>
               </div>
-            ) : (
-              portal.open_slots.map((s) => (
+            ) : null}
+
+            <div className="flex flex-wrap gap-1">
+              {(
+                [
+                  ['all', 'All clinicians'],
+                  ['preferred', 'My clinician'],
+                  ['other', 'Other clinicians'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setSlotFilter(id)}
+                  className={`rounded-full px-3 py-1 text-[11px] font-bold border ${
+                    slotFilter === id
+                      ? 'bg-sky-600 text-white border-sky-600'
+                      : 'border-slate-200 text-slate-600 bg-white'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {(() => {
+              const slots = portal.open_slots.filter((s) => {
+                if (slotFilter === 'preferred') return s.is_preferred_clinician;
+                if (slotFilter === 'other') return !s.is_preferred_clinician;
+                return true;
+              });
+              if (slots.length === 0) {
+                return (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+                    {slotFilter === 'preferred'
+                      ? 'No open times with your regular clinician — try Other clinicians or join the waitlist.'
+                      : 'No public diary slots in the next 4 weeks. Ask the practice to publish open slots, or join the waitlist above.'}
+                  </div>
+                );
+              }
+              return slots.map((s) => (
                 <div
                   key={s.id}
                   className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
                 >
-                  <p className="font-black text-slate-900">{s.service_name}</p>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="font-black text-slate-900">{s.service_name}</p>
+                    {s.is_preferred_clinician ? (
+                      <span className="rounded-full bg-sky-100 text-sky-800 px-2 py-0.5 text-[10px] font-black uppercase">
+                        Your clinician
+                      </span>
+                    ) : s.clinician_name ? (
+                      <span className="rounded-full bg-slate-100 text-slate-600 px-2 py-0.5 text-[10px] font-bold uppercase">
+                        Other clinician
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
                     <CalendarDays className="w-3.5 h-3.5" />
                     {formatDay(s.date, s.start_time)}
@@ -415,38 +559,47 @@ export default function MemberDentalgraphPortalPage() {
                   <div className="mt-3 flex flex-wrap gap-2 items-center">
                     <span
                       className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${
-                        s.my_status
-                          ? 'bg-sky-100 text-sky-800'
-                          : s.full
-                            ? 'bg-rose-100 text-rose-800'
-                            : 'bg-emerald-100 text-emerald-800'
+                        s.my_status === 'waitlist'
+                          ? 'bg-amber-100 text-amber-900'
+                          : s.my_status
+                            ? 'bg-sky-100 text-sky-800'
+                            : s.full
+                              ? 'bg-rose-100 text-rose-800'
+                              : 'bg-emerald-100 text-emerald-800'
                       }`}
                     >
-                      {s.my_status || (s.full ? 'Full' : 'Open')}
+                      {s.my_status === 'waitlist' && s.waitlist_position
+                        ? `Waitlist #${s.waitlist_position}`
+                        : s.my_status || (s.full ? 'Full' : 'Open')}
                     </span>
                     {s.my_status ? (
                       <span className="inline-flex items-center gap-1 text-xs font-bold text-sky-700">
                         <Check className="w-3.5 h-3.5" /> You&apos;re{' '}
                         {s.my_status}
+                        {s.my_status === 'waitlist'
+                          ? ' — practice notified'
+                          : ''}
                       </span>
                     ) : portal.allow_booking ? (
                       <button
                         type="button"
                         disabled={busyId === s.id}
-                        onClick={() => void book(s.id)}
+                        onClick={() => void book(s.id, s.full)}
                         className="rounded-xl bg-sky-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
                       >
                         {busyId === s.id
                           ? '…'
                           : s.full
-                            ? 'Request join (waitlist)'
-                            : 'Book appointment'}
+                            ? 'Join waitlist (notify desk)'
+                            : s.is_preferred_clinician
+                              ? 'Book appointment'
+                              : 'Book this clinician'}
                       </button>
                     ) : null}
                   </div>
                 </div>
-              ))
-            )}
+              ));
+            })()}
           </div>
         )}
 

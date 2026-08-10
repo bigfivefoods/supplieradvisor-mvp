@@ -305,38 +305,175 @@ export async function POST(request: NextRequest) {
           famName = `${m.name}${m.relationship ? ` (${m.relationship})` : ''}`;
         }
       }
-      const finalStatus: PhysioBooking['status'] = full ? 'waitlist' : 'booked';
-      const row: PhysioBooking = {
+      
+      const preferOther =
+        patient.practitioner_id &&
+        appt.practitioner_id &&
+        patient.practitioner_id !== appt.practitioner_id;
+      const finalStatus: 'waitlist' | 'booked' = full ? 'waitlist' : 'booked';
+      const row = {
         id: newId('bk'),
         appointment_id: appointmentId,
         patient_id: patient.id,
         status: finalStatus,
         booked_at: now,
         source: 'patient_portal',
-        notes:
+        notes: [
           finalStatus === 'waitlist'
             ? 'Patient portal — waitlist / join request'
             : 'Patient portal booking',
+          preferOther
+            ? 'Booked another clinician (regular unavailable / preferred alternative)'
+            : null,
+        ]
+          .filter(Boolean)
+          .join(' · '),
         family_member_id: famName ? famId : null,
         family_member_name: famName,
       };
       store.bookings.push(row);
+
+      let waitlistPosition = null;
+      if (finalStatus === 'waitlist') {
+        const { waitlistPositionOnSlot, notifyPracticeWaitlist } =
+          await import('@/lib/services/clinic-waitlist');
+        waitlistPosition = waitlistPositionOnSlot(
+          store.bookings,
+          appointmentId,
+          row.id
+        );
+        const svc = store.services.find((s) => s.id === appt.service_id);
+        const clin = store.practitioners.find(
+          (s) => s.id === appt.practitioner_id
+        );
+        await notifyPracticeWaitlist({
+          to: store.settings?.contact_email,
+          brand: store.settings?.brand_name || 'Practice',
+          moduleLabel: 'PhysioAdvisor®',
+          patientName: patient.name,
+          patientEmail: patient.email,
+          kind: 'slot',
+          position: waitlistPosition,
+          eventTitle: svc?.name || 'Appointment',
+          date: appt.date,
+          start_time: appt.start_time,
+          clinicianName: clin?.name,
+          deskUrl: '/dashboard/physiograph/bookings',
+        });
+      }
+
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
         booking: {
           id: row.id,
           status: row.status,
+          waitlist_position: waitlistPosition,
           message:
             row.status === 'waitlist'
-              ? 'Slot is full — you are on the waitlist'
-              : 'You are booked into this appointment',
+              ? `Slot is full — you are #${waitlistPosition} on the waitlist. The practice has been notified.`
+              : preferOther
+                ? 'You are booked with another clinician for this slot'
+                : 'You are booked into this appointment',
         },
         portal: buildPatientPortalPayload(store, store.patients[pi]),
       });
     }
 
+    if (
+      action === 'join_queue' ||
+      action === 'request_next_available' ||
+      action === 'waitlist_queue'
+    ) {
+      if (store.settings?.allow_public_booking === false) {
+        return NextResponse.json(
+          { error: 'Online booking is disabled by the practice' },
+          { status: 403 }
+        );
+      }
+      const { newQueueEntry, queuePosition, notifyPracticeWaitlist } =
+        await import('@/lib/services/clinic-waitlist');
+      store.waitlist_queue = store.waitlist_queue || [];
+      const already = store.waitlist_queue.find(
+        (q) => q.patient_id === patient.id && q.status === 'waiting'
+      );
+      if (already) {
+        return NextResponse.json({
+          success: true,
+          queue: {
+            id: already.id,
+            position: queuePosition(store.waitlist_queue, already.id),
+            message: 'You are already on the next-available waitlist',
+          },
+          portal: buildPatientPortalPayload(store, store.patients[pi]),
+        });
+      }
+      const acceptAny = body.accept_any_clinician !== false;
+      const entry = newQueueEntry({
+        patient_id: patient.id,
+        patient_name: patient.name,
+        preferred_clinician_id: acceptAny
+          ? patient.practitioner_id || null
+          : body.preferred_clinician_id
+            ? String(body.preferred_clinician_id)
+            : patient.practitioner_id || null,
+        accept_any_clinician: acceptAny,
+        service_id: body.service_id ? String(body.service_id) : null,
+        notes: body.notes ? String(body.notes) : undefined,
+        now,
+      });
+      store.waitlist_queue.push(entry);
+      const position = queuePosition(store.waitlist_queue, entry.id);
+      const preferredName = entry.preferred_clinician_id
+        ? store.practitioners.find((s) => s.id === entry.preferred_clinician_id)
+            ?.name
+        : undefined;
+      await notifyPracticeWaitlist({
+        to: store.settings?.contact_email,
+        brand: store.settings?.brand_name || 'Practice',
+        moduleLabel: 'PhysioAdvisor®',
+        patientName: patient.name,
+        patientEmail: patient.email,
+        kind: 'queue',
+        position,
+        acceptAny: entry.accept_any_clinician,
+        preferredClinicianName: preferredName,
+        deskUrl: '/dashboard/physiograph/bookings',
+      });
+      entry.notified_at = now;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        queue: {
+          id: entry.id,
+          position,
+          message: `You are #${position} in the next-available queue. The practice has been notified.`,
+        },
+        portal: buildPatientPortalPayload(store, store.patients[pi]),
+      });
+    }
+
+    if (action === 'leave_queue' || action === 'cancel_queue') {
+      const qid = String(body.queue_id || body.id || '');
+      store.waitlist_queue = store.waitlist_queue || [];
+      const q = store.waitlist_queue.find(
+        (x) =>
+          x.patient_id === patient.id &&
+          (qid ? x.id === qid : x.status === 'waiting')
+      );
+      if (q) {
+        q.status = 'cancelled';
+        await saveStore(companyId, meta, store);
+      }
+      return NextResponse.json({
+        success: true,
+        message: 'Removed from waitlist',
+        portal: buildPatientPortalPayload(store, store.patients[pi]),
+      });
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+
   } catch (e: unknown) {
     console.error('[physiograph patient portal]', e);
     return NextResponse.json(

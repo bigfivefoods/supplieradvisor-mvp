@@ -406,6 +406,7 @@ export type PhysiographStore = {
   packages: PhysioPackage[];
   appointments: PhysioAppointment[];
   bookings: PhysioBooking[];
+  waitlist_queue?: import('@/lib/services/clinic-waitlist').ClinicWaitlistQueueEntry[];
   /** Desk · practitioner · patient messaging threads */
   threads?: import('@/lib/messaging/service-inbox').ServiceThread[];
   /** Patient post-visit feedback */
@@ -556,7 +557,13 @@ export function buildPatientPortalPayload(
             end_time: a.end_time,
             duration_min: a.duration_min ?? svc?.default_duration_min ?? 45,
             service_name: svc?.name || 'Appointment',
+            practitioner_id: a.practitioner_id || null,
             practitioner_name: prac?.name,
+            clinician_name: prac?.name,
+            is_preferred_clinician:
+              Boolean(patient.practitioner_id) &&
+              Boolean(a.practitioner_id) &&
+              patient.practitioner_id === a.practitioner_id,
             location: a.location,
             capacity,
             spots_left: Math.max(0, capacity - booked),
@@ -564,13 +571,32 @@ export function buildPatientPortalPayload(
             public_notes: a.public_notes,
             my_status: myBooking?.status || null,
             my_booking_id: myBooking?.id || null,
+            waitlist_position: myBooking?.status === 'waitlist'
+              ? (() => {
+                  const wl = store.bookings
+                    .filter(
+                      (b) =>
+                        b.appointment_id === a.id && b.status === 'waitlist'
+                    )
+                    .sort((x, y) =>
+                      String(x.booked_at || '').localeCompare(
+                        String(y.booked_at || '')
+                      )
+                    );
+                  const wi = wl.findIndex((b) => b.id === myBooking.id);
+                  return wi >= 0 ? wi + 1 : wl.length;
+                })()
+              : null,
           };
         })
-        .sort((a, b) =>
-          a.date === b.date
+        .sort((a, b) => {
+          if (a.is_preferred_clinician !== b.is_preferred_clinician) {
+            return a.is_preferred_clinician ? -1 : 1;
+          }
+          return a.date === b.date
             ? a.start_time.localeCompare(b.start_time)
-            : a.date.localeCompare(b.date)
-        )
+            : a.date.localeCompare(b.date);
+        })
     : [];
 
   const my_bookings = shareSchedule
@@ -672,6 +698,10 @@ export function buildPatientPortalPayload(
       photo_url: patient.photo_url,
       status: patient.status,
       invite_status: patient.invite_status || null,
+      preferred_clinician_id: patient.practitioner_id || null,
+      preferred_clinician_name:
+        store.practitioners.find((p) => p.id === patient.practitioner_id)
+          ?.name || null,
       identity: {
         status: String(patient.identity?.status || 'unverified'),
         provider: patient.identity?.provider || null,
@@ -688,7 +718,24 @@ export function buildPatientPortalPayload(
       medical: shareMedical,
     },
     medical_share,
+    can_book_other_clinicians: true,
     open_slots,
+    waitlist_queue: (() => {
+      const open = (store.waitlist_queue || [])
+        .filter((q) => q.status === 'waiting')
+        .sort((a, b) => a.created_at.localeCompare(b.created_at));
+      return open
+        .filter((q) => q.patient_id === patient.id)
+        .map((q) => ({
+          id: q.id,
+          accept_any_clinician: q.accept_any_clinician,
+          preferred_clinician_id: q.preferred_clinician_id,
+          service_name: q.service_name,
+          notes: q.notes,
+          created_at: q.created_at,
+          position: open.findIndex((x) => x.id === q.id) + 1,
+        }));
+    })(),
     vacancies: open_slots.filter((s) => !s.full && !s.my_status),
     my_bookings,
     open_count: open_slots.filter((s) => !s.full).length,
