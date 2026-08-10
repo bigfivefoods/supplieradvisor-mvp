@@ -248,6 +248,57 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     return pathname === href || pathname.startsWith(href + '/');
   };
 
+  /** Shared footer: Switch company + expand/collapse (same slot expanded & collapsed) */
+  const companyFooter = (
+    <div
+      className={`border-t border-neutral-100 shrink-0 ${
+        isCollapsed ? 'p-2' : 'px-3 py-2.5'
+      }`}
+    >
+      <div
+        className={`flex items-center gap-1 ${
+          isCollapsed ? 'flex-col' : 'justify-between'
+        }`}
+      >
+        <Link
+          href="/dashboard/select-company"
+          title="Switch company"
+          className={
+            isCollapsed
+              ? 'w-11 h-11 flex items-center justify-center rounded-2xl text-neutral-500 hover:bg-neutral-100 hover:text-[#00b4d8] transition-colors'
+              : 'flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-2 text-sm text-neutral-500 transition-colors hover:bg-neutral-50 hover:text-[#00b4d8]'
+          }
+        >
+          <ArrowLeftRight className="w-4 h-4 shrink-0" />
+          {!isCollapsed && (
+            <span className="truncate font-medium">Switch company</span>
+          )}
+        </Link>
+        {/* Desktop only — mobile drawer stays expanded (forceExpanded) */}
+        {!forceExpanded && (
+          <button
+            type="button"
+            onClick={toggle}
+            className={
+              isCollapsed
+                ? 'w-11 h-11 flex items-center justify-center rounded-2xl border border-neutral-200 text-neutral-500 hover:border-[#00b4d8] hover:text-[#00b4d8] transition-colors'
+                : 'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-neutral-200 text-neutral-500 transition-colors hover:border-[#00b4d8] hover:text-[#00b4d8]'
+            }
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!isCollapsed}
+          >
+            {isCollapsed ? (
+              <PanelLeftOpen className="w-4 h-4" />
+            ) : (
+              <PanelLeftClose className="w-4 h-4" />
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
   /** Icon-only rail (desktop collapsed) */
   if (isCollapsed) {
     return (
@@ -263,18 +314,9 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
               priority
             />
           </Link>
-          <button
-            type="button"
-            onClick={toggle}
-            className="p-2 rounded-xl border border-neutral-200 text-neutral-500 hover:border-[#00b4d8] hover:text-[#00b4d8] transition-colors"
-            title="Expand sidebar"
-            aria-label="Expand sidebar"
-          >
-            <PanelLeftOpen className="w-4 h-4" />
-          </button>
         </div>
 
-        <nav className="flex-1 p-2 overflow-y-auto flex flex-col items-center gap-1">
+        <nav className="flex-1 p-2 overflow-y-auto flex flex-col items-center gap-1 min-h-0">
           {visibleModules.map((mod) => {
             const Icon = mod.icon;
             const isActive = isModuleActive(mod.href);
@@ -301,15 +343,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
           })}
         </nav>
 
-        <div className="p-2 border-t border-neutral-100 flex flex-col items-center gap-2">
-          <Link
-            href="/dashboard/select-company"
-            title="Switch company"
-            className="w-11 h-11 flex items-center justify-center rounded-2xl text-neutral-500 hover:bg-neutral-100 hover:text-[#00b4d8]"
-          >
-            <ArrowLeftRight className="w-4 h-4" />
-          </Link>
-        </div>
+        {companyFooter}
       </div>
     );
   }
@@ -323,44 +357,24 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
         }`}
       >
         {!forceExpanded && (
-          <div className="flex items-start justify-between gap-2">
-            <Link
-              href={homePath || '/dashboard'}
-              className="flex items-center gap-2.5 min-w-0"
-            >
-              <Image
-                src="/sa-logo.png"
-                alt=""
-                width={64}
-                height={28}
-                className="sa-logo h-8 w-auto object-contain shrink-0"
-                priority
-              />
-              <div className="sa-wordmark font-black text-base sm:text-lg tracking-[-1px] leading-none">
-                SupplierAdvisor
-                <span className="sa-wordmark-mark">®</span>
-              </div>
-            </Link>
-            <button
-              type="button"
-              onClick={toggle}
-              className="p-2 rounded-xl border border-neutral-200 text-neutral-500 hover:border-[#00b4d8] hover:text-[#00b4d8] shrink-0"
-              title="Collapse sidebar"
-              aria-label="Collapse sidebar"
-            >
-              <PanelLeftClose className="w-4 h-4" />
-            </button>
-          </div>
+          <Link
+            href={homePath || '/dashboard'}
+            className="flex items-center gap-2.5 min-w-0"
+          >
+            <Image
+              src="/sa-logo.png"
+              alt=""
+              width={64}
+              height={28}
+              className="sa-logo h-8 w-auto object-contain shrink-0"
+              priority
+            />
+            <div className="sa-wordmark font-black text-base sm:text-lg tracking-[-1px] leading-none">
+              SupplierAdvisor
+              <span className="sa-wordmark-mark">®</span>
+            </div>
+          </Link>
         )}
-        <Link
-          href="/dashboard/select-company"
-          className={`flex items-center gap-2 text-sm text-neutral-500 hover:text-[#00b4d8] transition-colors ${
-            forceExpanded ? '' : 'mt-4'
-          }`}
-        >
-          <ArrowLeftRight className="w-4 h-4" />
-          Switch company
-        </Link>
         {/* Desktop only — hides on mobile drawer to avoid bounce when role/rights load */}
         {!forceExpanded && !loading && role && (
           <p className="mt-3 text-[10px] font-semibold uppercase tracking-wide text-neutral-400 hidden md:block">
@@ -485,12 +499,15 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
         })}
       </nav>
 
-      <div className="p-3 border-t border-neutral-100 space-y-2">
+      <div className="p-3 border-t border-neutral-100 space-y-2 shrink-0">
         <SystemHealthBadge />
         <p className="text-[10px] text-center text-neutral-400 font-medium">
           Critical processes only
         </p>
       </div>
+
+      {/* Switch company + collapse — same slot as collapsed rail footer */}
+      {companyFooter}
     </div>
   );
 }
