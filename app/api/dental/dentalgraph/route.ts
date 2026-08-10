@@ -786,6 +786,82 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, outcomes, recalls });
     }
 
+    if (
+      action === 'upsert_visit_note' ||
+      action === 'record_outcome' ||
+      action === 'upsert_treatment_plan' ||
+      action === 'issue_care_pack'
+    ) {
+      if (action === 'issue_care_pack') {
+        const { issuePack } = await import('@/lib/services/advisor-pack-ledger');
+        store.care_packs = store.care_packs || [];
+        store.care_packs.unshift(
+          issuePack({
+            personId: String(body.person_id || body.patient_id || ''),
+            label: String(body.label || 'Care pack'),
+            sessionsTotal: Number(body.sessions_total) || 6,
+            priceZar: body.price_zar != null ? Number(body.price_zar) : null,
+            expiresAt: body.expires_at ? String(body.expires_at) : null,
+            now,
+          })
+        );
+      } else if (action === 'upsert_visit_note') {
+        const { newVisitNote } = await import('@/lib/services/advisor-clinical');
+        store.visit_notes = store.visit_notes || [];
+        store.visit_notes.unshift(
+          newVisitNote({
+            person_id: String(body.person_id || body.patient_id || ''),
+            body: String(body.body || body.notes || ''),
+            booking_id: body.booking_id ? String(body.booking_id) : null,
+            appointment_id: body.appointment_id
+              ? String(body.appointment_id)
+              : null,
+            pain_score:
+              body.pain_score != null ? Number(body.pain_score) : null,
+            function_score:
+              body.function_score != null ? Number(body.function_score) : null,
+            soap: body.soap,
+            now,
+          })
+        );
+      } else if (action === 'record_outcome') {
+        const { newOutcomeScore } = await import(
+          '@/lib/services/advisor-clinical'
+        );
+        store.outcome_scores = store.outcome_scores || [];
+        store.outcome_scores.unshift(
+          newOutcomeScore({
+            person_id: String(body.person_id || body.patient_id || ''),
+            instrument: String(body.instrument || 'pain_nrs'),
+            score: Number(body.score),
+            now,
+          })
+        );
+      } else {
+        const { newTreatmentPlan } = await import(
+          '@/lib/services/advisor-clinical'
+        );
+        store.treatment_plans = store.treatment_plans || [];
+        store.treatment_plans.unshift(
+          newTreatmentPlan({
+            person_id: String(body.person_id || body.patient_id || ''),
+            title: String(body.title || 'Treatment plan'),
+            package_id: body.package_id ? String(body.package_id) : null,
+            goals: body.goals ? String(body.goals) : undefined,
+            steps: Array.isArray(body.steps) ? body.steps : undefined,
+            now,
+          })
+        );
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseDentalgraph(store),
+        analysis: analysis(store),
+      });
+    }
+
     if (action === 'mark_attendance') {
       const bookingId = String(body.booking_id || '');
       const status = String(body.status || 'attended');
@@ -807,6 +883,27 @@ export async function POST(request: NextRequest) {
           Object.assign(
             store.patients[pi],
             applyAttendanceToPersonStats(store.patients[pi], status as 'attended' | 'no_show', now)
+          );
+        }
+      }
+      if (status === 'attended' && prev !== 'attended') {
+        const { consumePackSession } = await import(
+          '@/lib/services/advisor-pack-ledger'
+        );
+        const { packs } = consumePackSession(store.care_packs || [], {
+          personId: booking.patient_id,
+          bookingId: booking.id,
+          now,
+        });
+        store.care_packs = packs;
+        if (store.treatment_plans?.length) {
+          const { progressTreatmentPlanOnAttend } = await import(
+            '@/lib/services/advisor-clinical'
+          );
+          store.treatment_plans = store.treatment_plans.map((tp) =>
+            tp.person_id === booking.patient_id && tp.status === 'active'
+              ? progressTreatmentPlanOnAttend(tp, now)
+              : tp
           );
         }
       }

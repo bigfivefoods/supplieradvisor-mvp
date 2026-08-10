@@ -79,6 +79,14 @@
     {
       "path": "/api/schools/otif-alerts/cron",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/services/advisor/cron",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/services/advisor/cron",
+      "schedule": "30 * * * *"
     }
   ]
 }

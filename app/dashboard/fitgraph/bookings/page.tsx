@@ -49,32 +49,38 @@ export default function BookingsPage() {
   };
 
   const mark = async (id: string, status: string) => {
-    const b = store?.bookings.find((x) => x.id === id);
-    if (!b) return;
     const data = await post({
-      entity: 'bookings',
-      action: 'upsert',
-      record: { ...b, status },
+      action: 'mark_attendance',
+      booking_id: id,
+      status,
     });
     if (status === 'attended') {
-      const updated = (data?.store?.bookings || []).find(
-        (x: { id: string }) => x.id === id
-      ) as { feedback_token?: string } | undefined;
-      const tok = updated?.feedback_token;
+      const tok = data?.feedback_prompt?.token as string | undefined;
+      const packLeft = data?.pack_remaining;
       if (tok) {
         const path = buildPublicFeedbackPath('fitgraph', companyId, tok);
         const url = `${window.location.origin}${path}`;
         try {
           await navigator.clipboard.writeText(url);
-          toast.success('Attended — feedback link copied for the member');
+          toast.success(
+            packLeft != null
+              ? `Attended — pack left ${packLeft}; feedback link copied`
+              : 'Attended — feedback link copied for the member'
+          );
         } catch {
-          toast.success('Attended — share the feedback link below');
+          toast.success(data?.message || 'Attended');
         }
         return;
       }
+      if (packLeft != null) {
+        toast.success(`Attended — pack sessions left: ${packLeft}`);
+        return;
+      }
     }
-    toast.success(`Marked ${status}`);
+    toast.success(data?.message || `Marked ${status}`);
   };
+
+
 
   const copyFeedback = async (token: string) => {
     const path = buildPublicFeedbackPath('fitgraph', companyId, token);

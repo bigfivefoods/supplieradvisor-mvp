@@ -1639,6 +1639,10 @@ export default function CoachFitgraphPortalPage() {
               />
               Publish on public calendar
             </label>
+            <p className="text-[10px] text-slate-400">
+              Other coaches can schedule at the same time — the gym is large
+              enough for parallel sessions.
+            </p>
             <button
               type="button"
               disabled={busy || !create.class_type_id}

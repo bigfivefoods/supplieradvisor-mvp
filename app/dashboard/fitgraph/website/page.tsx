@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Check, Copy, ExternalLink, RefreshCw } from 'lucide-react';
+import { AdvisorOpsPoliciesCard } from '@/components/services/AdvisorOpsPoliciesCard';
 import {
   FitgraphWorkbench,
   LoadingBlock,
@@ -327,6 +328,31 @@ export default function FitgraphWebsitePage() {
             defaultKind="membership"
             disabled={saving}
             toneClass="border-violet-200 bg-violet-50/70 dark:border-violet-600/50 dark:bg-violet-950/40"
+          />
+
+          <AdvisorOpsPoliciesCard
+            reschedule={store.settings?.reschedule_policy}
+            marketplace={store.settings?.marketplace}
+            allowConcurrent={
+              store.settings?.allow_concurrent_coach_sessions !== false
+            }
+            saving={saving}
+            onSave={async (payload) => {
+              await post({
+                action: 'update_settings',
+                settings: {
+                  ...form,
+                  reschedule_policy: payload.reschedule_policy,
+                  allow_concurrent_coach_sessions:
+                    payload.allow_concurrent_coach_sessions !== false,
+                  marketplace: {
+                    ...(store.settings?.marketplace || {}),
+                    ...payload.marketplace,
+                  },
+                },
+              });
+              toast.success('Ops policies saved');
+            }}
           />
 
           <div className="rounded-3xl border border-violet-300 bg-violet-50 p-4 space-y-4 dark:!border-violet-400 dark:!bg-violet-950 dark:ring-1 dark:ring-violet-500/50">

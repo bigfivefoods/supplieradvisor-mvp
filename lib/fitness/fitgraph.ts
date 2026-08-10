@@ -464,6 +464,8 @@ export type FitSession = {
   duration_min?: number | null;
   capacity?: number | null;
   location?: string;
+  /** Multi-resource diary: room / studio / court */
+  room?: string | null;
   status: 'scheduled' | 'cancelled' | 'completed' | 'full';
   /** Visible on public website / embed calendar */
   public?: boolean;
@@ -520,6 +522,8 @@ export type FitBooking = {
   reminder_count?: number;
   waitlist_offered_at?: string | null;
   waitlist_accepted_at?: string | null;
+  /** Paystack / desk deposit state */
+  deposit?: import('@/lib/services/advisor-deposits').DepositPaymentState | null;
   /** Issued when marked attended — public feedback link */
   feedback_token?: string | null;
   feedback_requested_at?: string | null;
@@ -568,6 +572,20 @@ export type FitPublicSettings = {
   has_front_desk?: boolean;
   /** Gym open days & hours for schedule calendar */
   working_hours?: import('@/lib/schedule/working-hours').WorkingHours;
+  /**
+   * When true (default), multiple coaches may schedule at the same time —
+   * large floors / train-anywhere. Concurrent sessions are not treated as conflicts.
+   */
+  allow_concurrent_coach_sessions?: boolean;
+  /** Self-serve reschedule / cancel policy (fees collected outside SA) */
+  reschedule_policy?: import('@/lib/services/advisor-reschedule').ReschedulePolicy;
+  /** Marketplace listing */
+  marketplace?: {
+    listed?: boolean;
+    city?: string;
+    blurb?: string;
+    specialties?: string[];
+  };
 };
 
 /** Front desk enabled unless owner explicitly turns it off */
@@ -773,6 +791,13 @@ export type FitPtPack = {
   price_zar?: number | null;
   notes?: string;
   created_at: string;
+  label?: string;
+  status?: 'active' | 'exhausted' | 'expired' | 'cancelled';
+  consumption_log?: Array<{
+    booking_id: string;
+    at: string;
+    sessions: number;
+  }>;
 };
 
 export type FitgraphStore = {
@@ -788,6 +813,10 @@ export type FitgraphStore = {
   pt_packs: FitPtPack[];
   /** Member + coach post-class feedback */
   class_feedback?: FitClassFeedback[];
+  /** Session / clinical stickiness */
+  visit_notes?: import('@/lib/services/advisor-clinical').VisitNote[];
+  outcome_scores?: import('@/lib/services/advisor-clinical').OutcomeScore[];
+  treatment_plans?: import('@/lib/services/advisor-clinical').TreatmentPlan[];
   /** Desk · coach · member messaging threads */
   threads?: import('@/lib/messaging/service-inbox').ServiceThread[];
   settings?: FitPublicSettings;
@@ -801,6 +830,7 @@ export function newId(prefix: string): string {
 export function defaultPublicSettings(companyId?: number): FitPublicSettings {
   return {
     enabled: false,
+    allow_concurrent_coach_sessions: true,
     public_token:
       companyId != null
         ? `fg_${companyId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`

@@ -397,6 +397,67 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (action === 'reschedule_check' || action === 'reschedule') {
+      const { evaluateReschedule } = await import(
+        '@/lib/services/advisor-reschedule'
+      );
+      const bookingId = String(body.booking_id || '');
+      const booking = store.bookings.find(
+        (b) => b.id === bookingId && b.client_id === client.id
+      );
+      if (!booking) {
+        return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+      }
+      const session = store.sessions.find((s) => s.id === booking.session_id);
+      if (!session) {
+        return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+      }
+      const decision = evaluateReschedule({
+        policy: store.settings?.reschedule_policy,
+        eventDate: session.date,
+        eventTime: session.start_time,
+        personSoftBlocked: client.booking_soft_block === true,
+      });
+      if (action === 'reschedule_check') {
+        return NextResponse.json({ success: true, decision });
+      }
+      if (!decision.allowed) {
+        return NextResponse.json(
+          { error: decision.reason || 'Reschedule not allowed', decision },
+          { status: 403 }
+        );
+      }
+      const newSessionId = String(body.new_session_id || '');
+      const newSession = store.sessions.find(
+        (s) =>
+          s.id === newSessionId &&
+          s.status === 'scheduled' &&
+          s.public === true
+      );
+      if (!newSession) {
+        return NextResponse.json(
+          { error: 'Target class not available' },
+          { status: 400 }
+        );
+      }
+      booking.session_id = newSessionId;
+      booking.notes = [
+        booking.notes,
+        `Member reschedule from ${session.date} ${session.start_time}`,
+      ]
+        .filter(Boolean)
+        .join(' · ');
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        decision,
+        message: decision.free
+          ? 'Rescheduled'
+          : `Rescheduled (late fee R${decision.fee_zar})`,
+        portal: buildMemberPortalPayload(store, store.clients[ci]),
+      });
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (e: unknown) {
     console.error('[fitgraph member portal]', e);

@@ -1,0 +1,302 @@
+/**
+ * GET/POST /api/services/advisor/cron
+ * Cron: 24h booking reminders + pack expiry warnings across Advisor modules.
+ * Auth: Bearer CRON_SECRET
+ */
+import { NextRequest, NextResponse } from 'next/server';
+import { assertCronSecret } from '@/lib/auth/api-auth';
+import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { needsReminder, sendBookingReminderEmail } from '@/lib/services/advisor-reminders';
+import { packExpiryWarnings, fitPtPackToLedger } from '@/lib/services/advisor-pack-ledger';
+import { appendAdvisorEvent } from '@/lib/services/advisor-events';
+import { getResend, getResendFrom, getAppUrl } from '@/lib/resend';
+import { readFitgraphFromMetadata, writeFitgraphToMetadata } from '@/lib/fitness/fitgraph';
+import { readDentalgraphFromMetadata, writeDentalgraphToMetadata } from '@/lib/dental/dentalgraph';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const maxDuration = 120;
+
+type ModuleKey = 'fitgraph' | 'dentalgraph' | 'physiograph' | 'medicalgraph' | 'psychiatrygraph';
+
+async function runForCompany(
+  companyId: number,
+  meta: Record<string, unknown>
+): Promise<{
+  companyId: number;
+  reminders: number;
+  pack_warnings: number;
+  modules: string[];
+}> {
+  let reminders = 0;
+  let pack_warnings = 0;
+  const modules: string[] = [];
+  let nextMeta = { ...meta };
+  const now = new Date().toISOString();
+  const app = getAppUrl();
+
+  // —— FitAdvisor ——
+  if (meta.fitgraph) {
+    modules.push('fitgraph');
+    const store = readFitgraphFromMetadata(meta);
+    for (const b of store.bookings) {
+      if (b.status !== 'booked') continue;
+      const session = store.sessions.find((s) => s.id === b.session_id);
+      if (!session || session.status === 'cancelled') continue;
+      if (!needsReminder(b, session.date, session.start_time, 24)) continue;
+      const client = store.clients.find((c) => c.id === b.client_id);
+      if (!client?.email) continue;
+      const ct = store.class_types.find((t) => t.id === session.class_type_id);
+      const result = await sendBookingReminderEmail({
+        to: client.email,
+        personName: b.family_member_name || client.name || 'Member',
+        brand: store.settings?.brand_name || 'Gym',
+        eventTitle: ct?.name || 'Class',
+        date: session.date,
+        start_time: session.start_time,
+        location: session.location,
+        manageUrl: client.portal_token
+          ? `/member/fitgraph/${client.portal_token}`
+          : undefined,
+        moduleLabel: 'FitAdvisor®',
+      });
+      if (result.ok) {
+        b.reminded_at = now;
+        b.reminder_count = (Number(b.reminder_count) || 0) + 1;
+        reminders++;
+        const ev = appendAdvisorEvent(nextMeta, {
+          module: 'fitgraph',
+          company_id: companyId,
+          type: 'reminder.sent',
+          person_id: b.client_id,
+          booking_id: b.id,
+        });
+        nextMeta = ev.metadata;
+      }
+    }
+    // Pack expiry emails (best-effort)
+    const packs = (store.pt_packs || []).map(fitPtPackToLedger);
+    const warnings = packExpiryWarnings(packs, 14);
+    const resend = getResend();
+    for (const w of warnings.slice(0, 20)) {
+      const client = store.clients.find((c) => c.id === w.person_id);
+      if (!client?.email || !resend) continue;
+      try {
+        await resend.emails.send({
+          from: getResendFrom(),
+          to: client.email,
+          subject: `Pack expiring soon · ${w.remaining} session(s) left`,
+          html: `<p>Hi ${client.name},</p><p>Your session pack has <strong>${w.remaining}</strong> session(s) and expires in <strong>${w.days_left}</strong> day(s). Book soon at ${store.settings?.brand_name || 'your gym'}.</p><p><a href="${app}">Open portal</a></p>`,
+        });
+        pack_warnings++;
+        const ev = appendAdvisorEvent(nextMeta, {
+          module: 'fitgraph',
+          company_id: companyId,
+          type: 'pack.expired_warn',
+          person_id: w.person_id,
+          meta: { pack_id: w.id, days_left: w.days_left, remaining: w.remaining },
+        });
+        nextMeta = ev.metadata;
+      } catch {
+        /* soft */
+      }
+    }
+    nextMeta = writeFitgraphToMetadata(nextMeta, store);
+  }
+
+  // —— DentalAdvisor ——
+  if (meta.dentalgraph) {
+    modules.push('dentalgraph');
+    const store = readDentalgraphFromMetadata(meta);
+    for (const b of store.bookings) {
+      if (b.status !== 'booked') continue;
+      const appt = store.appointments.find((a) => a.id === b.appointment_id);
+      if (!appt || appt.status === 'cancelled') continue;
+      if (!needsReminder(b, appt.date, appt.start_time, 24)) continue;
+      const patient = store.patients.find((p) => p.id === b.patient_id);
+      if (!patient?.email) continue;
+      const svc = store.services.find((s) => s.id === appt.service_id);
+      const result = await sendBookingReminderEmail({
+        to: patient.email,
+        personName: b.family_member_name || patient.name || 'Patient',
+        brand: store.settings?.brand_name || 'Practice',
+        eventTitle: svc?.name || 'Appointment',
+        date: appt.date,
+        start_time: appt.start_time,
+        location: appt.location,
+        manageUrl: patient.portal_token
+          ? `/member/dentalgraph/${patient.portal_token}`
+          : undefined,
+        moduleLabel: 'DentalAdvisor®',
+      });
+      if (result.ok) {
+        b.reminded_at = now;
+        b.reminder_count = (Number(b.reminder_count) || 0) + 1;
+        reminders++;
+        const ev = appendAdvisorEvent(nextMeta, {
+          module: 'dentalgraph',
+          company_id: companyId,
+          type: 'reminder.sent',
+          person_id: b.patient_id,
+          booking_id: b.id,
+        });
+        nextMeta = ev.metadata;
+      }
+    }
+    nextMeta = writeDentalgraphToMetadata(nextMeta, store);
+  }
+
+  // Clinic modules — generic structure
+  for (const key of ['physiograph', 'medicalgraph', 'psychiatrygraph'] as ModuleKey[]) {
+    const raw = meta[key];
+    if (!raw || typeof raw !== 'object') continue;
+    modules.push(key);
+    const store = raw as {
+      bookings?: Array<{
+        id: string;
+        status: string;
+        appointment_id: string;
+        patient_id: string;
+        family_member_name?: string | null;
+        reminded_at?: string | null;
+        reminder_count?: number;
+      }>;
+      appointments?: Array<{
+        id: string;
+        date: string;
+        start_time: string;
+        status: string;
+        service_id?: string;
+        location?: string;
+      }>;
+      patients?: Array<{
+        id: string;
+        name: string;
+        email?: string;
+        portal_token?: string | null;
+      }>;
+      services?: Array<{ id: string; name: string }>;
+      settings?: { brand_name?: string };
+    };
+    const label =
+      key === 'physiograph'
+        ? 'PhysioAdvisor®'
+        : key === 'medicalgraph'
+          ? 'MedicalAdvisor®'
+          : 'PsychiatryAdvisor®';
+    for (const b of store.bookings || []) {
+      if (b.status !== 'booked') continue;
+      const appt = (store.appointments || []).find((a) => a.id === b.appointment_id);
+      if (!appt || appt.status === 'cancelled') continue;
+      if (!needsReminder(b, appt.date, appt.start_time, 24)) continue;
+      const patient = (store.patients || []).find((p) => p.id === b.patient_id);
+      if (!patient?.email) continue;
+      const svc = (store.services || []).find((s) => s.id === appt.service_id);
+      const result = await sendBookingReminderEmail({
+        to: patient.email,
+        personName: b.family_member_name || patient.name || 'Patient',
+        brand: store.settings?.brand_name || 'Practice',
+        eventTitle: svc?.name || 'Appointment',
+        date: appt.date,
+        start_time: appt.start_time,
+        location: appt.location,
+        manageUrl: patient.portal_token
+          ? `/member/${key}/${patient.portal_token}`
+          : undefined,
+        moduleLabel: label,
+      });
+      if (result.ok) {
+        b.reminded_at = now;
+        b.reminder_count = (Number(b.reminder_count) || 0) + 1;
+        reminders++;
+      }
+    }
+    nextMeta = { ...nextMeta, [key]: store };
+  }
+
+  if (reminders > 0 || pack_warnings > 0 || modules.length) {
+    const supabase = getSupabaseServer();
+    await supabase
+      .from('profiles')
+      .update({ metadata: nextMeta, updated_at: now })
+      .eq('id', companyId);
+  }
+
+  return { companyId, reminders, pack_warnings, modules };
+}
+
+export async function GET(request: NextRequest) {
+  const gate = assertCronSecret(request);
+  if (!gate.ok) return gate.response;
+  return run(request);
+}
+
+export async function POST(request: NextRequest) {
+  const gate = assertCronSecret(request);
+  if (!gate.ok) return gate.response;
+  return run(request);
+}
+
+async function run(request: NextRequest) {
+  const limit = Math.min(
+    80,
+    Math.max(1, Number(request.nextUrl.searchParams.get('limit') || 40))
+  );
+  const supabase = getSupabaseServer();
+  // Scan recent profiles — filter in process for advisor metadata keys
+  const { data: rows, error } = await supabase
+    .from('profiles')
+    .select('id, metadata, updated_at')
+    .order('updated_at', { ascending: false })
+    .limit(400);
+
+  if (error) {
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
+  }
+
+  const candidates = (rows || []).filter((r) => {
+    const m = r.metadata as Record<string, unknown> | null;
+    if (!m || typeof m !== 'object') return false;
+    return Boolean(
+      m.fitgraph ||
+        m.dentalgraph ||
+        m.physiograph ||
+        m.medicalgraph ||
+        m.psychiatrygraph
+    );
+  }).slice(0, limit);
+
+  const results = [];
+  let totalReminders = 0;
+  let totalPackWarn = 0;
+  for (const row of candidates) {
+    try {
+      const r = await runForCompany(
+        Number(row.id),
+        (row.metadata && typeof row.metadata === 'object'
+          ? { ...(row.metadata as Record<string, unknown>) }
+          : {}) as Record<string, unknown>
+      );
+      totalReminders += r.reminders;
+      totalPackWarn += r.pack_warnings;
+      if (r.reminders || r.pack_warnings) results.push(r);
+    } catch (e) {
+      results.push({
+        companyId: Number(row.id),
+        error: e instanceof Error ? e.message : 'failed',
+      });
+    }
+  }
+
+  return NextResponse.json({
+    success: true,
+    scanned: candidates.length,
+    companies_touched: results.length,
+    reminders_sent: totalReminders,
+    pack_warnings_sent: totalPackWarn,
+    results,
+  });
+}

@@ -49,6 +49,7 @@ export default function CalendarPage() {
     date: new Date().toISOString().slice(0, 10),
     start_time: '06:00',
     location: 'Studio A',
+    room: '',
     capacity: '',
     public: true,
     public_notes: '',
@@ -91,8 +92,8 @@ export default function CalendarPage() {
           status: s.status,
           public: s.public === true,
           meta: `${booked}${cap ? `/${cap}` : ''} booked${
-            s.public ? ' · public' : ''
-          }`,
+            s.room ? ` · ${s.room}` : ''
+          }${s.public ? ' · public' : ''}`,
           tone: 'violet' as const,
         };
       });
@@ -197,6 +198,7 @@ export default function CalendarPage() {
         date: form.date,
         start_time: form.start_time,
         location: form.location,
+        room: form.room || null,
         capacity: form.capacity ? Number(form.capacity) : null,
         public: form.public,
         public_notes: form.public_notes || undefined,
@@ -290,7 +292,7 @@ export default function CalendarPage() {
     <FitgraphWorkbench
       title="Calendar"
       titleAccent="gym schedule"
-      description="Click an empty time on the day or week calendar to schedule a class. Optionally book a member onto it. Filter by coach diary, set gym hours, publish to the website."
+      description="Click empty time to schedule. Multiple coaches can run at the same time — concurrent sessions sit side-by-side on the diary (large floor / train anywhere). Member payments stay your own arrangement."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -445,10 +447,18 @@ export default function CalendarPage() {
             />
             <input
               className={fc()}
-              placeholder="Location / room"
+              placeholder="Location / site"
               value={form.location}
               onChange={(e) =>
                 setForm((f) => ({ ...f, location: e.target.value }))
+              }
+            />
+            <input
+              className={fc()}
+              placeholder="Room / studio (resource)"
+              value={form.room}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, room: e.target.value }))
               }
             />
             <input

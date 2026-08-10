@@ -855,6 +855,7 @@ export async function POST(request: NextRequest) {
         }
       }
       let feedbackPath: string | null = null;
+      let packRemaining: number | null = null;
       if (status === 'attended') {
         const prompted = issueFeedbackPrompt(booking, now);
         booking.feedback_token = prompted.feedback_token;
@@ -866,6 +867,66 @@ export async function POST(request: NextRequest) {
             booking.feedback_token
           );
         }
+        // Consume PT / session pack if available
+        if (prevStatus !== 'attended') {
+          const {
+            consumePackSession,
+            fitPtPackToLedger,
+            ledgerToFitPtPack,
+          } = await import('@/lib/services/advisor-pack-ledger');
+          const ledgers = (store.pt_packs || []).map(fitPtPackToLedger);
+          const session = store.sessions.find((s) => s.id === booking.session_id);
+          const { packs, remaining, consumed } = consumePackSession(ledgers, {
+            personId: booking.client_id,
+            bookingId: booking.id,
+            providerId: session?.coach_id,
+            now,
+          });
+          store.pt_packs = packs.map(ledgerToFitPtPack) as typeof store.pt_packs;
+          packRemaining = remaining;
+          if (consumed) {
+            const { appendAdvisorEvent } = await import(
+              '@/lib/services/advisor-events'
+            );
+            const ev = appendAdvisorEvent(meta, {
+              module: 'fitgraph',
+              company_id: companyId,
+              type: 'pack.consumed',
+              person_id: booking.client_id,
+              booking_id: booking.id,
+              meta: { pack_id: consumed.id, remaining },
+            });
+            Object.assign(meta, ev.metadata);
+          }
+          // Progress active treatment plans
+          if (store.treatment_plans?.length) {
+            const { progressTreatmentPlanOnAttend } = await import(
+              '@/lib/services/advisor-clinical'
+            );
+            store.treatment_plans = store.treatment_plans.map((tp) =>
+              tp.person_id === booking.client_id && tp.status === 'active'
+                ? progressTreatmentPlanOnAttend(tp, now)
+                : tp
+            );
+          }
+        }
+      }
+      {
+        const { appendAdvisorEvent, dispatchAdvisorEventSideEffects } =
+          await import('@/lib/services/advisor-events');
+        const ev = appendAdvisorEvent(meta, {
+          module: 'fitgraph',
+          company_id: companyId,
+          type:
+            status === 'cancelled'
+              ? 'booking.cancelled'
+              : 'attendance.marked',
+          person_id: booking.client_id,
+          booking_id: booking.id,
+          meta: { status, prev: prevStatus },
+        });
+        Object.assign(meta, ev.metadata);
+        void dispatchAdvisorEventSideEffects(ev.event);
       }
       await saveStore(companyId, meta, store);
       return NextResponse.json({
@@ -876,6 +937,7 @@ export async function POST(request: NextRequest) {
         waitlist_promoted: promoted
           ? { booking_id: promoted.id, client_id: promoted.client_id }
           : null,
+        pack_remaining: packRemaining,
         feedback_prompt:
           status === 'attended' && booking.feedback_token
             ? {
@@ -1002,6 +1064,180 @@ export async function POST(request: NextRequest) {
         analysis: analysis(store),
         reminders: { sent, skipped, errors: errors.slice(0, 5) },
         message: `Sent ${sent} reminder${sent === 1 ? '' : 's'}`,
+      });
+    }
+
+    /** Phase A–C: visit notes, outcomes scores, treatment plans */
+    if (
+      action === 'upsert_visit_note' ||
+      action === 'record_outcome' ||
+      action === 'upsert_treatment_plan'
+    ) {
+      if (action === 'upsert_visit_note') {
+        const { newVisitNote } = await import('@/lib/services/advisor-clinical');
+        store.visit_notes = store.visit_notes || [];
+        const note = newVisitNote({
+          person_id: String(body.person_id || body.client_id || ''),
+          body: String(body.body || body.notes || ''),
+          booking_id: body.booking_id ? String(body.booking_id) : null,
+          session_id: body.session_id ? String(body.session_id) : null,
+          author_name: body.author_name ? String(body.author_name) : 'Desk',
+          soap: body.soap as
+            | {
+                subjective?: string;
+                objective?: string;
+                assessment?: string;
+                plan?: string;
+              }
+            | undefined,
+          pain_score:
+            body.pain_score != null ? Number(body.pain_score) : null,
+          function_score:
+            body.function_score != null ? Number(body.function_score) : null,
+          now,
+        });
+        store.visit_notes.unshift(note);
+        const { appendAdvisorEvent } = await import(
+          '@/lib/services/advisor-events'
+        );
+        const ev = appendAdvisorEvent(meta, {
+          module: 'fitgraph',
+          company_id: companyId,
+          type: 'visit_note.saved',
+          person_id: note.person_id,
+          booking_id: note.booking_id,
+        });
+        Object.assign(meta, ev.metadata);
+      } else if (action === 'record_outcome') {
+        const { newOutcomeScore } = await import(
+          '@/lib/services/advisor-clinical'
+        );
+        store.outcome_scores = store.outcome_scores || [];
+        const row = newOutcomeScore({
+          person_id: String(body.person_id || body.client_id || ''),
+          instrument: String(body.instrument || 'pain_nrs'),
+          score: Number(body.score),
+          max_score: body.max_score != null ? Number(body.max_score) : 10,
+          notes: body.notes ? String(body.notes) : undefined,
+          booking_id: body.booking_id ? String(body.booking_id) : null,
+          now,
+        });
+        store.outcome_scores.unshift(row);
+      } else {
+        const { newTreatmentPlan } = await import(
+          '@/lib/services/advisor-clinical'
+        );
+        store.treatment_plans = store.treatment_plans || [];
+        if (body.id) {
+          const i = store.treatment_plans.findIndex(
+            (t) => t.id === String(body.id)
+          );
+          if (i >= 0) {
+            store.treatment_plans[i] = {
+              ...store.treatment_plans[i],
+              title: body.title
+                ? String(body.title)
+                : store.treatment_plans[i].title,
+              goals: body.goals != null ? String(body.goals) : store.treatment_plans[i].goals,
+              status: (body.status as typeof store.treatment_plans[0]['status']) ||
+                store.treatment_plans[i].status,
+              updated_at: now,
+            };
+          }
+        } else {
+          store.treatment_plans.unshift(
+            newTreatmentPlan({
+              person_id: String(body.person_id || body.client_id || ''),
+              title: String(body.title || 'Program plan'),
+              goals: body.goals ? String(body.goals) : undefined,
+              steps: Array.isArray(body.steps) ? body.steps : undefined,
+              now,
+            })
+          );
+        }
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+      });
+    }
+
+    /** Reschedule booking (desk or self-serve with policy) */
+    if (action === 'reschedule_booking') {
+      const { evaluateReschedule } = await import(
+        '@/lib/services/advisor-reschedule'
+      );
+      const bookingId = String(body.booking_id || '');
+      const booking = store.bookings.find((b) => b.id === bookingId);
+      if (!booking) {
+        return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+      }
+      const session = store.sessions.find((s) => s.id === booking.session_id);
+      if (!session) {
+        return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+      }
+      const client = store.clients.find((c) => c.id === booking.client_id);
+      const decision = evaluateReschedule({
+        policy: store.settings?.reschedule_policy,
+        eventDate: session.date,
+        eventTime: session.start_time,
+        personSoftBlocked: client?.booking_soft_block === true,
+      });
+      if (body.check_only) {
+        return NextResponse.json({ success: true, decision });
+      }
+      if (!decision.allowed && body.force !== true) {
+        return NextResponse.json(
+          { error: decision.reason || 'Reschedule not allowed', decision },
+          { status: 403 }
+        );
+      }
+      const newSessionId = String(body.new_session_id || '');
+      const newSession = store.sessions.find((s) => s.id === newSessionId);
+      if (!newSession || newSession.status === 'cancelled') {
+        return NextResponse.json(
+          { error: 'new_session_id required and must be open' },
+          { status: 400 }
+        );
+      }
+      booking.session_id = newSessionId;
+      booking.notes = [
+        booking.notes,
+        `Rescheduled from ${session.date} ${session.start_time}`,
+        decision.fee_zar > 0 ? `Late fee R${decision.fee_zar}` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ');
+      const { appendAdvisorEvent } = await import(
+        '@/lib/services/advisor-events'
+      );
+      const ev = appendAdvisorEvent(meta, {
+        module: 'fitgraph',
+        company_id: companyId,
+        type: 'booking.rescheduled',
+        person_id: booking.client_id,
+        booking_id: booking.id,
+        amount_zar: decision.fee_zar || null,
+        meta: {
+          from_session: session.id,
+          to_session: newSessionId,
+          free: decision.free,
+        },
+      });
+      Object.assign(meta, ev.metadata);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        decision,
+        message: decision.free
+          ? 'Booking rescheduled'
+          : `Rescheduled · late fee R${decision.fee_zar}`,
       });
     }
 

@@ -93,6 +93,51 @@ type Props = {
   slotHint?: string;
 };
 
+/**
+ * Assign side-by-side columns for concurrent events (same time window).
+ * Coaches may train in parallel — do not treat overlaps as conflicts.
+ */
+function layoutConcurrentEvents(
+  events: ScheduleEvent[]
+): Array<{ ev: ScheduleEvent; col: number; colCount: number }> {
+  if (!events.length) return [];
+  const sorted = [...events].sort((a, b) => {
+    const t = a.start_time.localeCompare(b.start_time);
+    if (t !== 0) return t;
+    return (a.person_name || a.title).localeCompare(b.person_name || b.title);
+  });
+
+  type Active = { endMin: number; col: number };
+  const colEnds: Active[] = [];
+  const assigned: Array<{ ev: ScheduleEvent; col: number; startMin: number; endMin: number }> =
+    [];
+
+  for (const ev of sorted) {
+    const startMin = minutesFromMidnight(ev.start_time);
+    const endMin = minutesFromMidnight(endTime(ev));
+    // Free columns whose events have ended
+    for (let i = colEnds.length - 1; i >= 0; i--) {
+      if (colEnds[i].endMin <= startMin) colEnds.splice(i, 1);
+    }
+    const used = new Set(colEnds.map((c) => c.col));
+    let col = 0;
+    while (used.has(col)) col++;
+    colEnds.push({ endMin, col });
+    assigned.push({ ev, col, startMin, endMin });
+  }
+
+  // For each event, colCount = max concurrent cluster width among overlaps
+  return assigned.map((a) => {
+    let maxCol = a.col;
+    for (const b of assigned) {
+      if (a.startMin < b.endMin && b.startMin < a.endMin) {
+        maxCol = Math.max(maxCol, b.col);
+      }
+    }
+    return { ev: a.ev, col: a.col, colCount: maxCol + 1 };
+  });
+}
+
 const TONE: Record<
   NonNullable<ScheduleEvent['tone']>,
   { chip: string; bar: string; soft: string }
@@ -530,7 +575,13 @@ export function PracticeScheduleCalendar({
                     );
                   })
                 : null}
-              {dayEv.map((ev) => {
+              {/*
+                Concurrent sessions (e.g. multiple coaches training at once)
+                are laid out in side-by-side columns — gyms are large enough
+                that same-time schedules are normal, not conflicts.
+              */}
+              {layoutConcurrentEvents(dayEv).map((placed) => {
+                const { ev, col, colCount } = placed;
                 const start = minutesFromMidnight(ev.start_time);
                 const end = minutesFromMidnight(endTime(ev));
                 const top = Math.max(0, (start - openMin) * px);
@@ -539,6 +590,8 @@ export function PracticeScheduleCalendar({
                   Math.min(height - top, (end - start) * px)
                 );
                 const t = TONE[ev.tone || accent];
+                const widthPct = 100 / colCount;
+                const leftPct = col * widthPct;
                 return (
                   <button
                     key={ev.id}
@@ -548,8 +601,14 @@ export function PracticeScheduleCalendar({
                       e.stopPropagation();
                       onSelectEvent?.(ev);
                     }}
-                    className={`absolute left-0.5 right-0.5 rounded-lg border px-1 py-0.5 text-left overflow-hidden shadow-sm z-[1] ${t.chip}`}
-                    style={{ top, height: h, minHeight: compact ? 18 : 28 }}
+                    className={`absolute rounded-lg border px-1 py-0.5 text-left overflow-hidden shadow-sm z-[1] ${t.chip}`}
+                    style={{
+                      top,
+                      height: h,
+                      minHeight: compact ? 18 : 28,
+                      left: `calc(${leftPct}% + 2px)`,
+                      width: `calc(${widthPct}% - 4px)`,
+                    }}
                   >
                     <div
                       className={`font-black truncate ${

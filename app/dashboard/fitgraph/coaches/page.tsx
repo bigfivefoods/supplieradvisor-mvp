@@ -445,6 +445,13 @@ export default function CoachesPage() {
     toast.success('Copied portal link');
   };
 
+  const copyStaffToday = async (tok: string) => {
+    if (typeof window === 'undefined') return;
+    const url = `${window.location.origin}/staff/advisor/fitgraph/${encodeURIComponent(tok)}`;
+    await navigator.clipboard.writeText(url);
+    toast.success('Staff today (mobile) link copied');
+  };
+
   const activeCount =
     store?.coaches.filter((c) => c.active !== false && !c.end_date).length || 0;
   const endedCount =
@@ -782,13 +789,22 @@ export default function CoachesPage() {
                         {isEditing ? 'Close edit' : 'Edit details'}
                       </button>
                       {c.portal_token ? (
-                        <button
-                          type="button"
-                          className={`inline-flex items-center gap-1 text-xs font-bold ${toneLinkClass('coach')}`}
-                          onClick={() => void copyPortal(c.portal_token!)}
-                        >
-                          <Copy className="w-3.5 h-3.5" /> Copy portal link
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            className={`inline-flex items-center gap-1 text-xs font-bold ${toneLinkClass('coach')}`}
+                            onClick={() => void copyPortal(c.portal_token!)}
+                          >
+                            <Copy className="w-3.5 h-3.5" /> Copy portal link
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 dark:text-emerald-300"
+                            onClick={() => void copyStaffToday(c.portal_token!)}
+                          >
+                            Staff today PWA
+                          </button>
+                        </>
                       ) : null}
                       <button
                         type="button"
