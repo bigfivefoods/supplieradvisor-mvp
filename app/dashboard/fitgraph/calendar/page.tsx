@@ -244,6 +244,51 @@ export default function CalendarPage() {
     return n;
   };
 
+  /** Remove the open class from the calendar (optionally whole series). */
+  const deleteSelected = async () => {
+    if (!selectedSessionId || !store) return;
+    const prev = store.sessions.find((x) => x.id === selectedSessionId);
+    if (!prev) {
+      toast.error('Class not found');
+      return;
+    }
+    const seriesCount = prev.series_id
+      ? store.sessions.filter((s) => s.series_id === prev.series_id).length
+      : 0;
+    if (
+      !confirm(
+        seriesCount > 1
+          ? `Delete this class on ${prev.date} at ${String(prev.start_time).slice(0, 5)}? Bookings on it will be removed.`
+          : `Delete this class from the calendar? Bookings on it will be removed.`
+      )
+    ) {
+      return;
+    }
+    let deleteSeries = false;
+    if (seriesCount > 1) {
+      deleteSeries = confirm(
+        `This class is part of a series (${seriesCount} classes). OK = delete the entire series, Cancel = delete only this date.`
+      );
+    }
+    try {
+      const data = await post({
+        entity: 'sessions',
+        action: 'delete',
+        id: selectedSessionId,
+        delete_series: deleteSeries,
+      });
+      toast.success(
+        (data?.message as string) ||
+          (deleteSeries ? 'Series deleted' : 'Class deleted')
+      );
+      setSelectedSessionId(null);
+      setAddMemberIds([]);
+      startCreateMode({ date: prev.date });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not delete class');
+    }
+  };
+
   /** Save edits to the open class (view/edit mode). */
   const saveSelected = async () => {
     if (!selectedSessionId || !store) return;
@@ -561,13 +606,23 @@ export default function CalendarPage() {
               ))}
             </div>
             {selectedSessionId ? (
-              <button
-                type="button"
-                className="rounded-xl border border-violet-300 bg-white px-3 py-2 text-xs font-bold text-violet-800 dark:border-violet-600 dark:bg-violet-950 dark:text-violet-100"
-                onClick={() => startCreateMode({ date: day })}
-              >
-                + New class
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded-xl border border-violet-300 bg-white px-3 py-2 text-xs font-bold text-violet-800 dark:border-violet-600 dark:bg-violet-950 dark:text-violet-100"
+                  onClick={() => startCreateMode({ date: day })}
+                >
+                  + New class
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-800 hover:bg-rose-100 disabled:opacity-50 dark:border-rose-700 dark:bg-rose-950/50 dark:text-rose-200"
+                  onClick={() => void deleteSelected()}
+                >
+                  Delete class
+                </button>
+              </div>
             ) : null}
           </div>
           <FormCard
@@ -581,7 +636,7 @@ export default function CalendarPage() {
             }
             description={
               selectedSessionId
-                ? 'Edit details below, then Save. Coach and members are managed on the same open class card.'
+                ? 'Edit details below, then Save — or Delete class above. Coach and members are managed on the open class card.'
                 : undefined
             }
             onSubmit={() => void add()}
@@ -597,8 +652,9 @@ export default function CalendarPage() {
             {selectedSessionId ? (
               <p className="sm:col-span-2 lg:col-span-3 text-xs text-violet-700 dark:text-violet-300 font-medium rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50/80 dark:bg-violet-950/40 px-3 py-2">
                 Viewing / editing this class. Change fields and <strong>Save changes</strong>,
-                or assign coach and members on the card for this day below. Click empty
-                calendar time for a new class.
+                use <strong>Delete class</strong> to remove it from the calendar
+                (series can delete one date or all), or assign coach and members on the
+                card below. Click empty calendar time for a new class.
               </p>
             ) : slotPicked ? (
               <p className="sm:col-span-2 lg:col-span-3 text-xs text-violet-700 dark:text-violet-300 font-medium rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50/80 dark:bg-violet-950/40 px-3 py-2">

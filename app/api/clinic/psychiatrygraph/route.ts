@@ -552,7 +552,45 @@ export async function POST(request: NextRequest) {
       if (!Array.isArray(list)) {
         return NextResponse.json({ error: 'Unknown entity' }, { status: 400 });
       }
-      (store as Record<string, unknown>)[entity] = list.filter((r) => r.id !== id);
+
+      if (
+        entity === 'appointments' &&
+        (body.delete_series === true || body.series === true)
+      ) {
+        const target = store.appointments.find((a) => a.id === id);
+        const seriesId = target?.series_id ? String(target.series_id) : null;
+        if (seriesId) {
+          const removeIds = new Set(
+            store.appointments
+              .filter((a) => a.series_id === seriesId)
+              .map((a) => a.id)
+          );
+          store.appointments = store.appointments.filter(
+            (a) => !removeIds.has(a.id)
+          );
+          store.bookings = (store.bookings || []).filter(
+            (b) => !removeIds.has(b.appointment_id)
+          );
+          await saveStore(companyId, meta, store);
+          return NextResponse.json({
+            success: true,
+            store,
+            summary: summarisePsychiatrygraph(store),
+            analysis: analysis(store),
+            deleted: removeIds.size,
+            message: `Deleted ${removeIds.size} appointments in series`,
+          });
+        }
+      }
+
+      (store as Record<string, unknown>)[entity] = list.filter(
+        (r) => r.id !== id
+      );
+      if (entity === 'appointments') {
+        store.bookings = (store.bookings || []).filter(
+          (b) => b.appointment_id !== id
+        );
+      }
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,

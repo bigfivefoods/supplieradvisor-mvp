@@ -288,6 +288,44 @@ export default function CoachCalendarPage() {
     toast.success('B2C join link copied — send to members');
   };
 
+  const deleteOpenSession = async () => {
+    if (!openCard) return;
+    const s = openCard.session;
+    const seriesCount =
+      s.series_id && store?.sessions
+        ? store.sessions.filter((x) => x.series_id === s.series_id).length
+        : 0;
+    if (
+      !confirm(
+        `Delete this class on ${s.date} at ${String(s.start_time).slice(0, 5)}? Bookings on it will be removed.`
+      )
+    ) {
+      return;
+    }
+    let deleteSeries = false;
+    if (seriesCount > 1) {
+      deleteSeries = confirm(
+        `This class is part of a series (${seriesCount}). OK = delete the entire series, Cancel = delete only this date.`
+      );
+    }
+    try {
+      const data = await post({
+        entity: 'sessions',
+        action: 'delete',
+        id: s.id,
+        delete_series: deleteSeries,
+      });
+      toast.success(
+        (data?.message as string) ||
+          (deleteSeries ? 'Series deleted' : 'Class deleted')
+      );
+      setOpenSession(null);
+      await loadPortal();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not delete class');
+    }
+  };
+
   const bookMember = async (sessionId: string) => {
     if (!bookClientIds.length) {
       toast.error('Select at least one member');
@@ -536,6 +574,14 @@ export default function CoachCalendarPage() {
                       onClick={() => void copyInvite(openCard.session.id)}
                     >
                       <Share2 className="w-3.5 h-3.5" /> Copy join link
+                    </button>
+                    <button
+                      type="button"
+                      disabled={saving}
+                      className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-800 hover:bg-rose-100 disabled:opacity-50 dark:border-rose-700 dark:bg-rose-950/40 dark:text-rose-200"
+                      onClick={() => void deleteOpenSession()}
+                    >
+                      Delete class
                     </button>
                   </div>
                 </div>

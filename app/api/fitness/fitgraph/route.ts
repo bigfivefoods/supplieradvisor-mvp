@@ -1632,9 +1632,46 @@ export async function POST(request: NextRequest) {
       const key = entity as keyof FitgraphStore;
       const list = store[key];
       if (Array.isArray(list)) {
+        // Optional: delete whole class series when series_id matches
+        if (
+          entity === 'sessions' &&
+          (body.delete_series === true || body.series === true)
+        ) {
+          const target = store.sessions.find((s) => s.id === id);
+          const seriesId = target?.series_id
+            ? String(target.series_id)
+            : null;
+          if (seriesId) {
+            const removeIds = new Set(
+              store.sessions
+                .filter((s) => s.series_id === seriesId)
+                .map((s) => s.id)
+            );
+            store.sessions = store.sessions.filter((s) => !removeIds.has(s.id));
+            store.bookings = (store.bookings || []).filter(
+              (b) => !removeIds.has(b.session_id)
+            );
+            await saveStore(companyId, meta, store);
+            return NextResponse.json({
+              success: true,
+              store,
+              summary: summariseFitgraph(store),
+              analysis: analysis(store),
+              deleted: removeIds.size,
+              message: `Deleted ${removeIds.size} classes in series`,
+            });
+          }
+        }
+
         (store as Record<string, unknown>)[key] = list.filter(
           (row: { id?: string }) => row.id !== id
         );
+        // Drop bookings tied to a removed class
+        if (entity === 'sessions') {
+          store.bookings = (store.bookings || []).filter(
+            (b) => b.session_id !== id
+          );
+        }
       }
       await saveStore(companyId, meta, store);
       return NextResponse.json({

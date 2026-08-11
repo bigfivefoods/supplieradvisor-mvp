@@ -214,6 +214,51 @@ export default function CalendarPage() {
     return (p?.family || []).filter((m) => m.active !== false);
   }, [store, form.patient_id]);
 
+
+  const deleteSelected = async () => {
+    if (!selectedId || !store) return;
+    const prev = store.appointments.find((x) => x.id === selectedId);
+    if (!prev) {
+      toast.error('Appointment not found');
+      return;
+    }
+    const seriesCount = prev.series_id
+      ? store.appointments.filter((a) => a.series_id === prev.series_id).length
+      : 0;
+    if (
+      !confirm(
+        `Delete this appointment on ${prev.date} at ${String(prev.start_time).slice(0, 5)}? Bookings on it will be removed.`
+      )
+    ) {
+      return;
+    }
+    let deleteSeries = false;
+    if (seriesCount > 1) {
+      deleteSeries = confirm(
+        `This appointment is part of a series (${seriesCount}). OK = delete the entire series, Cancel = delete only this date.`
+      );
+    }
+    try {
+      const data = await post({
+        entity: 'appointments',
+        action: 'delete',
+        id: selectedId,
+        delete_series: deleteSeries,
+      });
+      toast.success(
+        (data as { message?: string })?.message ||
+          (deleteSeries ? 'Series deleted' : 'Appointment deleted')
+      );
+      setSelectedId(null);
+      setRecurrence(emptyRecurrenceForm());
+      startCreate({ date: prev.date });
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : 'Could not delete appointment'
+      );
+    }
+  };
+
   const save = async () => {
     if (!form.service_id) {
       toast.error('Pick a service');
@@ -458,13 +503,23 @@ export default function CalendarPage() {
                   : 'Create a new appointment, or click an existing one on the calendar to open it.'}
               </p>
               {selectedId ? (
-                <button
-                  type="button"
-                  className="rounded-xl border border-indigo-300 bg-white px-3 py-1.5 text-xs font-bold text-indigo-800"
-                  onClick={() => startCreate({ date: form.date })}
-                >
-                  + New appointment
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="rounded-xl border border-indigo-300 bg-white px-3 py-1.5 text-xs font-bold text-indigo-800"
+                    onClick={() => startCreate({ date: form.date })}
+                  >
+                    + New appointment
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-800 hover:bg-rose-100 disabled:opacity-50"
+                    onClick={() => void deleteSelected()}
+                  >
+                    Delete appointment
+                  </button>
+                </div>
               ) : null}
             </div>
 
