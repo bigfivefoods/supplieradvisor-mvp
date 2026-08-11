@@ -34,3 +34,26 @@ curl -sS -D- -o /tmp/ap.txt \
 ```
 
 Register **both** `www.supplieradvisor.com` and `supplieradvisor.com` if you take payments on either host.
+
+## If Paystack says "Could not verify domain / Domain could not be registered on Apple Pay"
+
+1. **Hosting is fine** when curl returns HTTP 200 + `application/text` + body starts with `{"pspId":`.
+2. **Check the signature cert inside the file** (Paystack platform cert, same for all merchants):
+
+   ```bash
+   # extract signature hex → DER → cert validity
+   python3 -c "import json; print(json.load(open('public/.well-known/apple-developer-merchantid-domain-association'))['createdOn'])"
+   ```
+
+   The file Paystack currently distributes embeds signing cert
+   `ecc-smp-broker-sign_UC4-PROD` with **notAfter May 16 2024**. After that date Apple
+   rejects domain registration even when the URL is perfect.
+
+3. **Action:** contact **Paystack Support** and ask for a **renewed Apple Pay domain
+   association file** (new `signature` / non-expired broker cert). When they send a
+   new download (hex or JSON), replace:
+
+   - `lib/billing/apple-pay-domain-association.ts`
+   - `public/.well-known/apple-developer-merchantid-domain-association`
+
+4. Redeploy, re-test curl, then click **Verify Domain** again in Paystack.
