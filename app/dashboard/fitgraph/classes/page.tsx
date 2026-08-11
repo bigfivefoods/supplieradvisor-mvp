@@ -40,7 +40,7 @@ export default function ClassesPage() {
     <FitgraphWorkbench
       title="Class types"
       titleAccent="catalogue"
-      description="Reusable class templates (HIIT, strength, yoga…) with default duration and capacity used when scheduling."
+      description="Step 1 of the floor flow: define class types first (HIIT, strength, yoga…). Then Calendar → create a class → assign coach → add members."
     >
       {loading || !store ? (
         <LoadingBlock />

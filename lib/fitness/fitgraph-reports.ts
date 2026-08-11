@@ -535,41 +535,89 @@ export type MemberReportRow = {
   id: string;
   code: string;
   name: string;
+  email: string;
   status: string;
   plan: string;
   coach: string;
+  /** True if member has ≥1 non-cancelled booking on a session in range */
+  assigned: boolean;
+  /** Distinct classes (sessions) they are booked on in range — multi-class OK */
+  class_count: number;
+  /** Human labels e.g. "2026-08-12 06:00 · HIIT · booked" */
+  classes_label: string;
   bookings_in_range: number;
+  waitlist_in_range: number;
   attended_in_range: number;
   no_show_in_range: number;
   check_ins_in_range: number;
   feedback_in_range: number;
 };
 
+/**
+ * Member × class assignment report.
+ * Every active member is listed; members may appear on multiple classes.
+ * Unassigned = no booked/waitlist/attended booking on sessions in the filter range.
+ */
 export function buildMemberReport(
   store: FitgraphStore,
   f: ReportFilters,
   facts: SessionFact[]
 ): MemberReportRow[] {
-  const sessionIds = new Set(facts.map((x) => x.session.id));
+  const sessionById = new Map(facts.map((x) => [x.session.id, x.session]));
+  const sessionIds = new Set(sessionById.keys());
+
   return (store.clients || [])
     .filter((c) => c.active !== false)
     .map((c) => {
       const books = (store.bookings || []).filter(
-        (b) => b.client_id === c.id && sessionIds.has(b.session_id)
+        (b) =>
+          b.client_id === c.id &&
+          sessionIds.has(b.session_id) &&
+          b.status !== 'cancelled'
       );
       const plan = store.membership_plans.find(
         (p) => p.id === c.membership_plan_id
       );
       const coach = coachById(store, c.coach_id);
+
+      const classLabels: string[] = [];
+      const seenSessions = new Set<string>();
+      for (const b of books) {
+        if (seenSessions.has(b.session_id)) {
+          // same session only once in label (multi booking edge case)
+          continue;
+        }
+        seenSessions.add(b.session_id);
+        const s = sessionById.get(b.session_id);
+        if (!s) continue;
+        const ct = classTypeById(store, s.class_type_id);
+        const coachName = coachById(store, s.coach_id)?.name;
+        classLabels.push(
+          `${s.date} ${String(s.start_time || '').slice(0, 5)} · ${ct?.name || 'Class'}${
+            coachName ? ` · ${coachName}` : ''
+          } · ${b.status}${
+            b.family_member_name ? ` (${b.family_member_name})` : ''
+          }`
+        );
+      }
+      classLabels.sort();
+
       return {
         id: c.id,
         code: c.code,
         name: c.name,
+        email: c.email || '',
         status: String(c.membership_status || '—'),
         plan: plan?.name || '—',
         coach: coach?.name || '—',
+        assigned: books.length > 0,
+        class_count: seenSessions.size,
+        classes_label: classLabels.length
+          ? classLabels.join(' | ')
+          : '— not on any class in range —',
         bookings_in_range: books.filter((b) => b.status !== 'cancelled')
           .length,
+        waitlist_in_range: books.filter((b) => b.status === 'waitlist').length,
         attended_in_range: books.filter((b) => b.status === 'attended').length,
         no_show_in_range: books.filter((b) => b.status === 'no_show').length,
         check_ins_in_range: (store.check_ins || []).filter(
@@ -584,17 +632,13 @@ export function buildMemberReport(
         ).length,
       };
     })
-    .filter(
-      (r) =>
-        r.bookings_in_range > 0 ||
-        r.check_ins_in_range > 0 ||
-        r.feedback_in_range > 0
-    )
-    .sort(
-      (a, b) =>
-        b.attended_in_range - a.attended_in_range ||
-        a.name.localeCompare(b.name)
-    );
+    .sort((a, b) => {
+      // Unassigned first when same name sort within groups — prefer assigned then name? User wants to see both; put unassigned first for actionability
+      if (a.assigned !== b.assigned) return a.assigned ? 1 : -1;
+      return (
+        b.class_count - a.class_count || a.name.localeCompare(b.name)
+      );
+    });
 }
 
 /** Daily time series for charts (simple bar data) */

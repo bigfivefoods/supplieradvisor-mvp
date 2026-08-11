@@ -37,7 +37,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'classes', label: 'Classes' },
   { id: 'plan_actual', label: 'Plan vs actual' },
   { id: 'feedback', label: 'Feedback' },
-  { id: 'members', label: 'Members' },
+  { id: 'members', label: 'Member · classes' },
   { id: 'daily', label: 'By day' },
 ];
 
@@ -66,6 +66,10 @@ export default function FitReportPage() {
     '' | 'scheduled' | 'completed' | 'cancelled' | 'full'
   >('');
   const [tab, setTab] = useState<TabId>('overview');
+  /** members tab: all | assigned | unassigned */
+  const [memberAssignFilter, setMemberAssignFilter] = useState<
+    'all' | 'assigned' | 'unassigned'
+  >('all');
 
   const filters: ReportFilters = useMemo(
     () => ({
@@ -271,28 +275,44 @@ export default function FitReportPage() {
           )
         );
       } else if (tab === 'members') {
+        const memberRows =
+          memberAssignFilter === 'assigned'
+            ? report.members.filter((m) => m.assigned)
+            : memberAssignFilter === 'unassigned'
+              ? report.members.filter((m) => !m.assigned)
+              : report.members;
         downloadCsv(
-          `fitgraph_members_${stamp}.csv`,
+          `fitgraph_member_class_assignment_${stamp}.csv`,
           toCsv(
             [
               'Code',
               'Name',
+              'Email',
               'Status',
               'Plan',
-              'Coach',
+              'Home coach',
+              'Assigned',
+              'Class count',
+              'Classes (date time · type · coach · status)',
               'Bookings',
+              'Waitlist',
               'Attended',
               'No-show',
               'Check-ins',
               'Feedback',
             ],
-            report.members.map((r) => [
+            memberRows.map((r) => [
               r.code,
               r.name,
+              r.email || '',
               r.status,
               r.plan,
               r.coach,
+              r.assigned ? 'yes' : 'no',
+              r.class_count,
+              r.classes_label,
               r.bookings_in_range,
+              r.waitlist_in_range,
               r.attended_in_range,
               r.no_show_in_range,
               r.check_ins_in_range,
@@ -365,7 +385,7 @@ export default function FitReportPage() {
     <FitgraphWorkbench
       title="Reports"
       titleAccent="slice & dice"
-      description="Filter by date, coach, class type and specialty. Explore coaches, classes, plan vs actual, feedback, members and daily trends — then export the active view as CSV."
+      description="Filter by date, coach, class type and specialty. Member · classes shows who is on which classes (multi-class OK) and who is unassigned. Export any tab as CSV."
     >
       {loading || !store || !report ? (
         <LoadingBlock />
@@ -1033,74 +1053,133 @@ export default function FitReportPage() {
             </div>
           )}
 
-          {/* MEMBERS */}
+          {/* MEMBERS · CLASS ASSIGNMENT */}
           {tab === 'members' && (
             <div className="space-y-4">
-              <StatRow
-                tone="member"
-                items={[
-                  {
-                    label: 'Members with activity',
-                    value: report.members.length,
-                  },
-                  {
-                    label: 'Attended seats',
-                    value: report.members.reduce(
-                      (n, m) => n + m.attended_in_range,
-                      0
-                    ),
-                  },
-                  {
-                    label: 'No-shows',
-                    value: report.members.reduce(
-                      (n, m) => n + m.no_show_in_range,
-                      0
-                    ),
-                  },
-                  {
-                    label: 'Check-ins',
-                    value: report.members.reduce(
-                      (n, m) => n + m.check_ins_in_range,
-                      0
-                    ),
-                  },
-                ]}
-              />
-              <DataTable
-                tone="member"
-                headers={[
-                  'Code',
-                  'Name',
-                  'Status',
-                  'Plan',
-                  'Coach',
-                  'Bookings',
-                  'Attended',
-                  'No-show',
-                  'Check-ins',
-                  'Feedback',
-                ]}
-                rows={report.members.map((r) => ({
-                  id: r.id,
-                  cells: [
-                    r.code,
-                    r.name,
-                    r.status,
-                    r.plan,
-                    r.coach,
-                    r.bookings_in_range,
-                    r.attended_in_range,
-                    r.no_show_in_range,
-                    r.check_ins_in_range,
-                    r.feedback_in_range,
-                  ],
-                }))}
-              />
-              {report.members.length === 0 && (
-                <p className="text-sm text-slate-600 dark:text-slate-300">
-                  No member activity in this date/coach/class slice.
-                </p>
-              )}
+              {(() => {
+                const assigned = report.members.filter((m) => m.assigned);
+                const unassigned = report.members.filter((m) => !m.assigned);
+                const rows =
+                  memberAssignFilter === 'assigned'
+                    ? assigned
+                    : memberAssignFilter === 'unassigned'
+                      ? unassigned
+                      : report.members;
+                const multi = assigned.filter((m) => m.class_count > 1).length;
+                return (
+                  <>
+                    <StatRow
+                      tone="member"
+                      items={[
+                        {
+                          label: 'All members',
+                          value: report.members.length,
+                        },
+                        {
+                          label: 'On ≥1 class',
+                          value: assigned.length,
+                        },
+                        {
+                          label: 'Not on any class',
+                          value: unassigned.length,
+                        },
+                        {
+                          label: 'On multiple classes',
+                          value: multi,
+                        },
+                      ]}
+                    />
+                    <div className="flex flex-wrap gap-2 items-center">
+                      {(
+                        [
+                          ['all', 'All'],
+                          ['assigned', 'Assigned to class'],
+                          ['unassigned', 'Not assigned'],
+                        ] as const
+                      ).map(([id, label]) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => setMemberAssignFilter(id)}
+                          className={`rounded-full border px-3 py-1.5 text-xs font-bold ${
+                            memberAssignFilter === id
+                              ? 'bg-sky-600 text-white border-sky-600'
+                              : 'border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                      <p className="text-[11px] text-slate-500 sm:ml-2">
+                        Members can be on many classes. Filter uses the date /
+                        coach / class slice above. Unassigned = no booking in
+                        range.
+                      </p>
+                    </div>
+                    <DataTable
+                      tone="member"
+                      headers={[
+                        'Code',
+                        'Name',
+                        'Status',
+                        'Assigned',
+                        '# Classes',
+                        'Classes (multi OK)',
+                        'Waitlist',
+                        'Attended',
+                        'No-show',
+                      ]}
+                      rows={rows.map((r) => ({
+                        id: r.id,
+                        cells: [
+                          r.code,
+                          <span key="n" className="block min-w-[8rem]">
+                            <span className="font-semibold">{r.name}</span>
+                            {r.email ? (
+                              <span className="block text-[10px] text-slate-500">
+                                {r.email}
+                              </span>
+                            ) : null}
+                          </span>,
+                          r.status,
+                          r.assigned ? (
+                            <span
+                              key="a"
+                              className="text-[10px] font-black uppercase text-emerald-700"
+                            >
+                              Yes
+                            </span>
+                          ) : (
+                            <span
+                              key="a"
+                              className="text-[10px] font-black uppercase text-amber-700"
+                            >
+                              No
+                            </span>
+                          ),
+                          r.class_count,
+                          <span
+                            key="c"
+                            className="block max-w-md text-[11px] text-slate-600 dark:text-slate-300 whitespace-pre-wrap"
+                            title={r.classes_label}
+                          >
+                            {r.classes_label}
+                          </span>,
+                          r.waitlist_in_range,
+                          r.attended_in_range,
+                          r.no_show_in_range,
+                        ],
+                      }))}
+                    />
+                    {rows.length === 0 && (
+                      <p className="text-sm text-slate-600 dark:text-slate-300">
+                        No members in this filter. Widen the date range or
+                        switch Assigned / Not assigned.
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
 

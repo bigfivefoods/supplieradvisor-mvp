@@ -81,7 +81,7 @@ function hubModules(hasFrontDesk: boolean): HubModule[] {
     icon: Dumbbell,
     code: '05',
     title: 'Class types',
-    desc: 'HIIT, strength, yoga — capacity and default duration.',
+    desc: 'First: define HIIT, strength, yoga — capacity & duration.',
     accent: 'from-amber-50 to-white border-amber-100',
   },
   {
@@ -89,7 +89,7 @@ function hubModules(hasFrontDesk: boolean): HubModule[] {
     icon: CalendarDays,
     code: '06',
     title: 'Calendar',
-    desc: 'Schedule coaches onto sessions; publish to website.',
+    desc: 'Then: create class → assign coach → add members; publish.',
     accent: 'from-rose-50 to-white border-rose-100',
   },
   {
@@ -97,7 +97,7 @@ function hubModules(hasFrontDesk: boolean): HubModule[] {
     icon: ClipboardCheck,
     code: '07',
     title: 'Bookings',
-    desc: 'Book members into classes; auto-waitlist when full.',
+    desc: 'Book or waitlist members on existing classes.',
     accent: 'from-cyan-50 to-white border-cyan-100',
   },
   {
@@ -141,7 +141,7 @@ function hubModules(hasFrontDesk: boolean): HubModule[] {
     icon: Package,
     code: '11',
     title: 'Reports',
-    desc: 'Slice & dice: coaches, classes, plan vs actual, feedback, members.',
+    desc: 'Slice & dice plus member × class assignment (who is / isn’t booked).',
     accent: 'from-slate-50 to-white border-slate-200',
   },
 ];

@@ -630,17 +630,19 @@ export async function POST(request: NextRequest) {
 
     /** Create one-off or weekly series of sessions (owner or for a coach) */
     if (action === 'create_session_series' || action === 'create_session') {
-      const coachId = String(body.coach_id || body.coachId || '');
+      const coachIdRaw = String(body.coach_id || body.coachId || '').trim();
+      const coachId = coachIdRaw || null;
       const classTypeId = String(body.class_type_id || '');
       const date = String(body.date || now.slice(0, 10));
       const startTime = String(body.start_time || '06:00');
-      if (!coachId || !classTypeId) {
+      // Flow: create class first → assign coach later → book members later
+      if (!classTypeId) {
         return NextResponse.json(
-          { error: 'coach_id and class_type_id required' },
+          { error: 'class_type_id required' },
           { status: 400 }
         );
       }
-      if (!store.coaches.find((c) => c.id === coachId)) {
+      if (coachId && !store.coaches.find((c) => c.id === coachId)) {
         return NextResponse.json({ error: 'Coach not found' }, { status: 404 });
       }
       if (!store.class_types.find((c) => c.id === classTypeId)) {
@@ -678,6 +680,7 @@ export async function POST(request: NextRequest) {
             body.duration_min != null ? Number(body.duration_min) : null,
           capacity: body.capacity != null ? Number(body.capacity) : null,
           location: body.location != null ? String(body.location) : undefined,
+          room: body.room != null ? String(body.room) : null,
           public: body.public === true,
           notes: body.notes != null ? String(body.notes) : undefined,
           public_notes:

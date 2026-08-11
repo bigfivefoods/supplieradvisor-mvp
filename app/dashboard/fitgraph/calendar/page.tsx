@@ -43,6 +43,10 @@ export default function CalendarPage() {
   const [personFilter, setPersonFilter] = useState('');
   const [diaryScope, setDiaryScope] = useState<DiaryScope>('practice');
   const [slotPicked, setSlotPicked] = useState<string | null>(null);
+  /** After create: assign coach / members on a session card */
+  const [manageSessionId, setManageSessionId] = useState<string | null>(null);
+  const [addMemberIds, setAddMemberIds] = useState<string[]>([]);
+  const [memberQuery, setMemberQuery] = useState('');
   const [form, setForm] = useState({
     class_type_id: '',
     coach_id: '',
@@ -57,11 +61,6 @@ export default function CalendarPage() {
     repeat: 'none' as 'none' | 'weekly',
     count: '8',
     weekdays: [] as number[],
-    /** Optional: book these members onto the new class */
-    client_ids: [] as string[],
-    /** When exactly one member is selected, optional family attendee */
-    family_member_id: '',
-    member_query: '',
   });
 
   const daySessions = useMemo(() => {
@@ -154,45 +153,45 @@ export default function CalendarPage() {
     });
   };
 
-  const bookMembersOntoSessions = async (sessionIds: string[]) => {
-    const ids = form.client_ids;
-    if (!ids.length || !sessionIds.length) return 0;
+  const bookMembersOntoSession = async (
+    sessionId: string,
+    clientIds: string[]
+  ) => {
+    if (!clientIds.length || !sessionId) return 0;
     let n = 0;
-    for (const sessionId of sessionIds) {
-      for (const clientId of ids) {
-        await post({
-          entity: 'bookings',
-          action: 'upsert',
-          record: {
-            session_id: sessionId,
-            client_id: clientId,
-            family_member_id:
-              ids.length === 1 && form.family_member_id
-                ? form.family_member_id
-                : null,
-            status: 'booked',
-            source: 'desk',
-          },
-        });
-        n += 1;
-      }
+    for (const clientId of clientIds) {
+      await post({
+        entity: 'bookings',
+        action: 'upsert',
+        record: {
+          session_id: sessionId,
+          client_id: clientId,
+          status: 'booked',
+          source: 'desk',
+        },
+      });
+      n += 1;
     }
     return n;
   };
 
+  /**
+   * Step 1 only: create the class (type + when + room).
+   * Coach and members are assigned afterwards on the class card.
+   */
   const add = async () => {
     if (!form.class_type_id) {
-      toast.error('Select a class type');
+      toast.error('Select a class type first (Classes catalogue)');
       return;
     }
-    if (!form.coach_id) {
-      toast.error('Assign a coach');
+    if (!form.date || !form.start_time) {
+      toast.error('Set date and start time');
       return;
     }
     if (form.repeat === 'weekly') {
       const data = await post({
         action: 'create_session_series',
-        coach_id: form.coach_id,
+        coach_id: form.coach_id || null,
         class_type_id: form.class_type_id,
         date: form.date,
         start_time: form.start_time,
@@ -210,20 +209,17 @@ export default function CalendarPage() {
             : [new Date(form.date + 'T12:00:00').getDay()],
       });
       const sessions = (data.sessions || []) as Array<{ id: string }>;
-      const sessionIds = sessions.map((s) => s.id).filter(Boolean);
-      const booked = await bookMembersOntoSessions(sessionIds);
+      const firstId = sessions[0]?.id || null;
       toast.success(
-        booked > 0
-          ? `${data.message || 'Series scheduled'} · ${form.client_ids.length} member(s) on each class`
-          : data.message || 'Series scheduled'
+        form.coach_id
+          ? data.message || 'Series scheduled'
+          : `${data.message || 'Series scheduled'} — assign a coach on each class, then add members`
       );
-      setForm((f) => ({
-        ...f,
-        client_ids: [],
-        family_member_id: '',
-        member_query: '',
-      }));
       setSlotPicked(null);
+      if (firstId) {
+        setManageSessionId(firstId);
+        setAddMemberIds([]);
+      }
       return;
     }
     const sessionId = `ses_${Date.now().toString(36)}_${Math.random()
@@ -247,38 +243,22 @@ export default function CalendarPage() {
         origin: 'owner',
       },
     });
-    const booked = await bookMembersOntoSessions([sessionId]);
-    if (booked > 0) {
-      toast.success(
-        form.public
-          ? `Class scheduled with ${form.client_ids.length} member(s), published to website`
-          : `Class scheduled with ${form.client_ids.length} member(s) booked`
-      );
-    } else {
-      toast.success(
-        form.public
-          ? 'Class scheduled, coach assigned, published to website'
-          : 'Class scheduled and coach assigned'
-      );
-    }
-    setForm((f) => ({
-      ...f,
-      client_ids: [],
-      family_member_id: '',
-      member_query: '',
-    }));
+    toast.success(
+      form.coach_id
+        ? form.public
+          ? 'Class created with coach · published'
+          : 'Class created with coach — now add members below'
+        : 'Class created — next: assign a coach, then add members'
+    );
     setSlotPicked(null);
+    setManageSessionId(sessionId);
+    setAddMemberIds([]);
+    setDay(form.date);
   };
-
-  const selectedClientFamily = useMemo(() => {
-    if (!store || form.client_ids.length !== 1) return [];
-    const c = store.clients.find((x) => x.id === form.client_ids[0]);
-    return (c?.family || []).filter((m) => m.active !== false);
-  }, [store, form.client_ids]);
 
   const memberChoices = useMemo(() => {
     if (!store) return [];
-    const q = form.member_query.trim().toLowerCase();
+    const q = memberQuery.trim().toLowerCase();
     return (store.clients || [])
       .filter((c) => c.active !== false)
       .filter((c) => {
@@ -294,21 +274,25 @@ export default function CalendarPage() {
         );
       })
       .slice(0, 80);
-  }, [store, form.member_query]);
+  }, [store, memberQuery]);
 
-  const toggleMember = (id: string) => {
-    setForm((f) => {
-      const on = f.client_ids.includes(id);
-      const client_ids = on
-        ? f.client_ids.filter((x) => x !== id)
-        : [...f.client_ids, id];
-      return {
-        ...f,
-        client_ids,
-        family_member_id:
-          client_ids.length === 1 ? f.family_member_id : '',
-      };
-    });
+  const toggleAddMember = (id: string) => {
+    setAddMemberIds((ids) =>
+      ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]
+    );
+  };
+
+  const saveMembersOnSession = async (sessionId: string) => {
+    if (!addMemberIds.length) {
+      toast.error('Select at least one member');
+      return;
+    }
+    const n = await bookMembersOntoSession(sessionId, addMemberIds);
+    toast.success(
+      n === 1 ? 'Member added to class' : `${n} members added to class`
+    );
+    setAddMemberIds([]);
+    setManageSessionId(null);
   };
 
   const copyInvite = async (sessionId: string) => {
@@ -361,7 +345,7 @@ export default function CalendarPage() {
     <FitgraphWorkbench
       title="Calendar"
       titleAccent="gym schedule"
-      description="Click empty time to schedule. Multiple coaches can run at the same time — concurrent sessions sit side-by-side (large floor / train anywhere). SupplierAdvisor only bills your platform subscription — member fees stay your own arrangement."
+      description="Flow: 1) Create the class (type · when · room) → 2) Assign a coach → 3) Add members. Multiple coaches can run at the same time. SupplierAdvisor only bills your platform subscription — member fees stay your own arrangement."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -437,35 +421,67 @@ export default function CalendarPage() {
           />
 
           <div ref={formAnchorRef}>
+          <div className="mb-3 grid grid-cols-3 gap-2 text-center text-[11px] font-bold">
+            {[
+              { n: '1', t: 'Create class', d: 'Type · when · room' },
+              { n: '2', t: 'Assign coach', d: 'On the class card' },
+              { n: '3', t: 'Add members', d: 'On the class card' },
+            ].map((s) => (
+              <div
+                key={s.n}
+                className={`rounded-2xl border px-2 py-2 ${
+                  s.n === '1'
+                    ? 'border-violet-400 bg-violet-50 text-violet-900 dark:border-violet-500 dark:bg-violet-950 dark:text-violet-100'
+                    : 'border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300'
+                }`}
+              >
+                <div className="text-[10px] font-black uppercase tracking-wide opacity-70">
+                  Step {s.n}
+                </div>
+                <div>{s.t}</div>
+                <div className="text-[10px] font-medium opacity-70">{s.d}</div>
+              </div>
+            ))}
+          </div>
           <FormCard
             tone="owner"
             title={
               slotPicked
-                ? `Schedule class · ${slotPicked}`
-                : 'Set out class · assign coach'
+                ? `Step 1 · Create class · ${slotPicked}`
+                : 'Step 1 · Create class'
             }
             onSubmit={() => void add()}
             saving={saving}
             submitLabel={
-              form.repeat === 'weekly'
-                ? form.client_ids.length
-                  ? `Schedule series + ${form.client_ids.length} member(s)`
-                  : 'Schedule series'
-                : form.client_ids.length
-                  ? `Schedule class + ${form.client_ids.length} member(s)`
-                  : 'Schedule class'
+              form.repeat === 'weekly' ? 'Create class series' : 'Create class'
             }
           >
             {slotPicked ? (
               <p className="sm:col-span-2 lg:col-span-3 text-xs text-violet-700 dark:text-violet-300 font-medium rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50/80 dark:bg-violet-950/40 px-3 py-2">
-                Slot from calendar: <strong>{slotPicked}</strong>. Pick class
-                type and coach, tick members to add, then save.
+                Slot from calendar: <strong>{slotPicked}</strong>. Choose a{' '}
+                <strong>class type</strong> (add types under Classes first),
+                save the class, then assign coach and members on the card below.
               </p>
             ) : (
               <p className="sm:col-span-2 lg:col-span-3 text-xs text-slate-500">
-                Tip: open <strong>Day</strong> or <strong>Week</strong> view and
-                click an empty time to fill date &amp; start time automatically.
-                Select members below to book them onto the new class.
+                Order:{' '}
+                <strong>
+                  Classes catalogue → create class → assign coach → add members
+                </strong>
+                . Open Day/Week and click empty time to prefill the slot.
+                {!store.class_types.length ? (
+                  <>
+                    {' '}
+                    No class types yet —{' '}
+                    <Link
+                      href="/dashboard/fitgraph/classes"
+                      className="font-bold text-violet-700 underline"
+                    >
+                      add class types
+                    </Link>{' '}
+                    first.
+                  </>
+                ) : null}
               </p>
             )}
             <select
@@ -475,7 +491,7 @@ export default function CalendarPage() {
                 setForm((f) => ({ ...f, class_type_id: e.target.value }))
               }
             >
-              <option value="">Class type…</option>
+              <option value="">Class type (required)…</option>
               {store.class_types.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -489,7 +505,7 @@ export default function CalendarPage() {
                 setForm((f) => ({ ...f, coach_id: e.target.value }))
               }
             >
-              <option value="">Coach (required)…</option>
+              <option value="">Coach (optional now — step 2)…</option>
               {store.coaches
                 .filter((c) => c.active !== false)
                 .map((c) => (
@@ -632,116 +648,11 @@ export default function CalendarPage() {
                 />
               </>
             )}
-            <div className="sm:col-span-2 lg:col-span-3 rounded-2xl border border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-950/30 p-3 space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-black uppercase tracking-wide text-violet-800 dark:text-violet-200">
-                  Add members to this class
-                  {form.client_ids.length
-                    ? ` · ${form.client_ids.length} selected`
-                    : ''}
-                </p>
-                {form.client_ids.length > 0 ? (
-                  <button
-                    type="button"
-                    className="text-[11px] font-bold text-violet-700 dark:text-violet-300 underline"
-                    onClick={() =>
-                      setForm((f) => ({
-                        ...f,
-                        client_ids: [],
-                        family_member_id: '',
-                      }))
-                    }
-                  >
-                    Clear all
-                  </button>
-                ) : null}
-              </div>
-              <input
-                className={fc()}
-                placeholder="Search members by name, email, code…"
-                value={form.member_query}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, member_query: e.target.value }))
-                }
-              />
-              <div className="max-h-44 overflow-y-auto rounded-xl border border-violet-100 dark:border-violet-900 bg-white dark:bg-slate-950 divide-y divide-slate-100 dark:divide-slate-800">
-                {memberChoices.length === 0 ? (
-                  <p className="text-xs text-slate-500 px-3 py-4 text-center">
-                    No members match. Add clients under FitAdvisor → Clients.
-                  </p>
-                ) : (
-                  memberChoices.map((c) => {
-                    const on = form.client_ids.includes(c.id);
-                    return (
-                      <label
-                        key={c.id}
-                        className="flex items-start gap-2.5 px-3 py-2 text-sm cursor-pointer hover:bg-violet-50/80 dark:hover:bg-violet-950/40"
-                      >
-                        <input
-                          type="checkbox"
-                          className="mt-1"
-                          checked={on}
-                          onChange={() => toggleMember(c.id)}
-                        />
-                        <span className="min-w-0">
-                          <span className="font-semibold text-slate-900 dark:text-white">
-                            {c.name}
-                          </span>
-                          {c.booking_soft_block ? (
-                            <span className="text-amber-700 dark:text-amber-300 text-[11px] font-bold">
-                              {' '}
-                              ⚠ no-shows
-                            </span>
-                          ) : null}
-                          {c.membership_status === 'frozen' ? (
-                            <span className="text-[11px] text-slate-500">
-                              {' '}
-                              · frozen
-                            </span>
-                          ) : null}
-                          <span className="block text-[11px] text-slate-500 truncate">
-                            {[c.code, c.email].filter(Boolean).join(' · ') ||
-                              '—'}
-                          </span>
-                        </span>
-                      </label>
-                    );
-                  })
-                )}
-              </div>
-              {form.client_ids.length === 1 &&
-              selectedClientFamily.length > 0 ? (
-                <select
-                  className={fc()}
-                  value={form.family_member_id}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      family_member_id: e.target.value,
-                    }))
-                  }
-                >
-                  <option value="">Attendee: account holder</option>
-                  {selectedClientFamily.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                      {m.relationship ? ` · ${m.relationship}` : ''}
-                      {m.is_minor ? ' (child)' : ''}
-                    </option>
-                  ))}
-                </select>
-              ) : form.client_ids.length > 1 ? (
-                <p className="text-[11px] text-slate-500">
-                  Multiple members selected — each is booked as the account
-                  holder. For a family child, select only that parent account.
-                </p>
-              ) : (
-                <p className="text-[11px] text-slate-500">
-                  Optional. Tick members now, or book later from Bookings /
-                  Coach calendar.
-                </p>
-              )}
-            </div>
+            <p className="sm:col-span-2 lg:col-span-3 text-[11px] text-slate-500 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 px-3 py-2">
+              <strong>Steps 2–3 after create:</strong> on the class card below,
+              assign a coach, then add members. You can also leave coach blank
+              now and assign later.
+            </p>
             {form.date && form.start_time ? (
               <a
                 className="sm:col-span-2 text-xs font-bold text-violet-700 underline"
@@ -764,21 +675,33 @@ export default function CalendarPage() {
           </div>
 
           <p className="text-xs text-slate-500">
-            After scheduling, use <strong>Copy join link</strong> on a class to
-            WhatsApp/email members (B2C). They book and add to calendar.{' '}
+            After the class exists: <strong>Step 2</strong> pick a coach on the
+            card · <strong>Step 3</strong> open Add members. Join links work once
+            a class is created.{' '}
+            <Link
+              href="/dashboard/fitgraph/classes"
+              className="font-bold text-violet-700 underline"
+            >
+              Class types
+            </Link>{' '}
+            ·{' '}
             <Link
               href="/dashboard/fitgraph/coach-calendar"
               className="font-bold text-violet-700 underline"
             >
               Coach calendar
-            </Link>{' '}
-            for plan/actuals.
+            </Link>
+            .
           </p>
 
           <div className="space-y-2">
+            <h3 className="text-sm font-black text-slate-800 dark:text-violet-100">
+              Classes on {day} · steps 2–3
+            </h3>
             {daySessions.length === 0 ? (
               <p className="text-sm text-slate-500 py-8 text-center border border-dashed border-slate-200 rounded-2xl">
-                No sessions on {day}. Schedule one above and assign a coach.
+                No classes on {day}. Create a class above (step 1), then assign
+                coach and members here.
               </p>
             ) : (
               daySessions.map((s) => {
@@ -788,12 +711,29 @@ export default function CalendarPage() {
                 const coach = store.coaches.find((c) => c.id === s.coach_id);
                 const booked = sessionBookingCount(store, s.id);
                 const cap = s.capacity ?? ct?.capacity ?? 0;
+                const managing = manageSessionId === s.id;
+                const roster = store.bookings.filter(
+                  (b) =>
+                    b.session_id === s.id &&
+                    b.status !== 'cancelled'
+                );
                 return (
                   <ListRowCard
                     key={s.id}
                     tone="owner"
                     actions={
                       <>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 text-xs font-bold text-violet-700 dark:text-violet-300"
+                          onClick={() => {
+                            setManageSessionId(managing ? null : s.id);
+                            setAddMemberIds([]);
+                            setMemberQuery('');
+                          }}
+                        >
+                          {managing ? 'Close members' : 'Add members'}
+                        </button>
                         <button
                           type="button"
                           className="inline-flex items-center gap-1 text-xs font-bold text-violet-700 dark:text-violet-300"
@@ -825,7 +765,7 @@ export default function CalendarPage() {
                       </>
                     }
                   >
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <div className="font-bold text-sm text-slate-900 dark:text-violet-50">
                         {s.start_time} · {ct?.name || 'Class'}
                         {s.public ? (
@@ -844,36 +784,139 @@ export default function CalendarPage() {
                         ) : null}
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-violet-200/80">
-                        {coach?.name || 'No coach'}
-                        {(coach?.specialties || []).length
-                          ? ` (${(coach?.specialties || []).join(', ')})`
-                          : ''}{' '}
-                        · {s.location || '—'} · {booked}/{cap} booked
+                        {s.location || s.room || '—'} · {booked}/{cap} booked
+                        {!coach ? (
+                          <span className="ml-1 font-bold text-amber-700 dark:text-amber-300">
+                            · needs coach
+                          </span>
+                        ) : null}
                       </div>
                       {s.class_plan ? (
                         <p className="text-[11px] text-violet-800 dark:text-violet-200 whitespace-pre-wrap line-clamp-3">
                           {s.class_plan}
                         </p>
                       ) : null}
-                      <div className="flex flex-wrap gap-2 items-center">
-                        <span className="text-[10px] font-black uppercase text-violet-600/80 dark:text-violet-300/80">
-                          Coach
-                        </span>
+
+                      {/* Step 2 — assign coach */}
+                      <div className="rounded-xl border border-violet-100 dark:border-violet-800 bg-violet-50/40 dark:bg-violet-950/30 px-3 py-2 space-y-1.5">
+                        <p className="text-[10px] font-black uppercase tracking-wide text-violet-700 dark:text-violet-300">
+                          Step 2 · Assign coach
+                        </p>
                         <select
-                          className="rounded-lg border border-slate-200 text-xs px-2 py-1 dark:border-violet-500/40 dark:bg-violet-950 dark:text-violet-50"
+                          className="w-full rounded-lg border border-slate-200 text-xs px-2 py-2 dark:border-violet-500/40 dark:bg-violet-950 dark:text-violet-50"
                           value={s.coach_id || ''}
                           onChange={(e) =>
                             void reassignCoach(s.id, e.target.value)
                           }
                         >
-                          <option value="">Unassigned</option>
-                          {store.coaches.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
-                            </option>
-                          ))}
+                          <option value="">Unassigned — pick coach…</option>
+                          {store.coaches
+                            .filter((c) => c.active !== false)
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name}
+                                {(c.specialties || []).length
+                                  ? ` · ${(c.specialties || []).join(', ')}`
+                                  : ''}
+                              </option>
+                            ))}
                         </select>
                       </div>
+
+                      {/* Step 3 — members */}
+                      {managing ? (
+                        <div className="rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 px-3 py-2 space-y-2">
+                          <p className="text-[10px] font-black uppercase tracking-wide text-sky-800 dark:text-sky-200">
+                            Step 3 · Add members
+                            {addMemberIds.length
+                              ? ` · ${addMemberIds.length} selected`
+                              : ''}
+                          </p>
+                          {roster.length > 0 ? (
+                            <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                              Already on class:{' '}
+                              {roster
+                                .map((b) => {
+                                  const cl = store.clients.find(
+                                    (c) => c.id === b.client_id
+                                  );
+                                  return (
+                                    b.family_member_name ||
+                                    cl?.name ||
+                                    b.client_id
+                                  );
+                                })
+                                .join(', ')}
+                            </p>
+                          ) : null}
+                          <input
+                            className={fc()}
+                            placeholder="Search members…"
+                            value={memberQuery}
+                            onChange={(e) => setMemberQuery(e.target.value)}
+                          />
+                          <div className="max-h-40 overflow-y-auto rounded-lg border border-sky-100 dark:border-sky-900 bg-white dark:bg-slate-950 divide-y divide-slate-100 dark:divide-slate-800">
+                            {memberChoices.map((c) => {
+                              const already = roster.some(
+                                (b) => b.client_id === c.id
+                              );
+                              const on = addMemberIds.includes(c.id);
+                              return (
+                                <label
+                                  key={c.id}
+                                  className={`flex items-start gap-2 px-2.5 py-1.5 text-sm ${
+                                    already
+                                      ? 'opacity-50'
+                                      : 'cursor-pointer hover:bg-sky-50 dark:hover:bg-sky-950/40'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="mt-1"
+                                    disabled={already}
+                                    checked={already || on}
+                                    onChange={() =>
+                                      !already && toggleAddMember(c.id)
+                                    }
+                                  />
+                                  <span>
+                                    <span className="font-semibold">
+                                      {c.name}
+                                    </span>
+                                    {already ? (
+                                      <span className="text-[10px] text-slate-500">
+                                        {' '}
+                                        · already booked
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                          <button
+                            type="button"
+                            disabled={saving || !addMemberIds.length}
+                            className="rounded-xl bg-sky-600 text-white px-3 py-2 text-xs font-bold disabled:opacity-50"
+                            onClick={() => void saveMembersOnSession(s.id)}
+                          >
+                            {addMemberIds.length
+                              ? `Book ${addMemberIds.length} member(s)`
+                              : 'Book selected members'}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="text-[11px] font-bold text-sky-700 dark:text-sky-300 underline"
+                          onClick={() => {
+                            setManageSessionId(s.id);
+                            setAddMemberIds([]);
+                          }}
+                        >
+                          Step 3 · Add members ({booked} on class)
+                        </button>
+                      )}
                     </div>
                   </ListRowCard>
                 );

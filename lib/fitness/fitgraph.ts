@@ -1391,13 +1391,15 @@ export function createSessionsFromTemplate(
   store: FitgraphStore,
   template: {
     class_type_id: string;
-    coach_id: string;
+    /** Optional — class can be created first, coach assigned later */
+    coach_id?: string | null;
     date: string;
     start_time: string;
     end_time?: string | null;
     duration_min?: number | null;
     capacity?: number | null;
     location?: string;
+    room?: string | null;
     public?: boolean;
     notes?: string;
     public_notes?: string;
@@ -1413,12 +1415,13 @@ export function createSessionsFromTemplate(
     dates.length > 1 ? newId('ser') : (null as string | null);
   const ct = classTypeById(store, template.class_type_id);
   const makePublic = template.public === true;
+  const coachId = template.coach_id ? String(template.coach_id) : null;
   return dates.map((date) => {
     const id = newId('ses');
     return {
       id,
       class_type_id: template.class_type_id,
-      coach_id: template.coach_id,
+      coach_id: coachId,
       date,
       start_time: template.start_time,
       end_time: template.end_time ?? null,
@@ -1426,6 +1429,7 @@ export function createSessionsFromTemplate(
         template.duration_min ?? ct?.default_duration_min ?? 45,
       capacity: template.capacity ?? ct?.capacity ?? 20,
       location: template.location,
+      room: template.room ?? null,
       status: 'scheduled' as const,
       public: makePublic,
       // Always issue a share code so B2C join links work (invite-only or public)
