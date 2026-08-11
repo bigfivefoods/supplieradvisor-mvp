@@ -470,6 +470,11 @@ export default function CoachCalendarPage() {
               printBrand={
                 store.settings?.brand_name || 'VUKA Fitness · FitAdvisor'
               }
+              pdfExport={{
+                companyId,
+                module: 'fitgraph',
+                personId: coachId || null,
+              }}
               accent="amber"
               events={scheduleEvents}
               people={store.coaches

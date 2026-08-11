@@ -10,9 +10,11 @@ import {
 import { FormCard, StatRow, fc } from '@/components/clinic/PsychiatryForm';
 import { AdvisorOpsPoliciesCard } from '@/components/services/AdvisorOpsPoliciesCard';
 import { AdvisorRoomsCard } from '@/components/services/AdvisorRoomsCard';
+import { PracticeProfilePdfButton } from '@/components/schedule/PracticeProfilePdfButton';
 
 export default function WebsitePage() {
-  const { store, loading, saving, post, summary } = usePsychiatrygraph();
+  const { companyId, store, loading, saving, post, summary } =
+    usePsychiatrygraph();
   const [form, setForm] = useState({
     enabled: false,
     brand_name: '',
@@ -78,6 +80,16 @@ export default function WebsitePage() {
               },
             ]}
           />
+          <div className="flex flex-wrap items-center gap-2">
+            <PracticeProfilePdfButton
+              companyId={companyId}
+              module="psychiatrygraph"
+              label="Download practice PDF"
+            />
+            <p className="text-[11px] text-slate-500">
+              Brand, hours, practitioners, and services as a printable A4 PDF.
+            </p>
+          </div>
           <FormCard
             title="Clinic public profile"
             onSubmit={() => void save()}

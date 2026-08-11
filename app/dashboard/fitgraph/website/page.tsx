@@ -13,6 +13,7 @@ import { FormCard, StatRow, fc } from '@/components/fitness/FitForm';
 import { FitContractDocsPanel } from '@/components/fitness/FitContractDocs';
 import type { FitContractDoc } from '@/lib/fitness/fitgraph';
 import { AdvisorRoomsCard } from '@/components/services/AdvisorRoomsCard';
+import { PracticeProfilePdfButton } from '@/components/schedule/PracticeProfilePdfButton';
 
 export default function FitgraphWebsitePage() {
   const { companyId, store, loading, saving, post, summary } = useFitgraph();
@@ -133,6 +134,18 @@ export default function FitgraphWebsitePage() {
               },
             ]}
           />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <PracticeProfilePdfButton
+              companyId={companyId}
+              module="fitgraph"
+              label="Download gym practice PDF"
+            />
+            <p className="text-[11px] text-slate-500">
+              Brand, operating hours, coaches, and class types as a printable A4
+              PDF.
+            </p>
+          </div>
 
           <FormCard
             tone="owner"

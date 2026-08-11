@@ -109,6 +109,20 @@ type Props = {
   }) => void;
   /** Hide practice/person scope toggle (e.g. single-coach diary) */
   hideScopeToggle?: boolean;
+  /**
+   * When set, A4 PDF downloads a real file from the server (pdfkit)
+   * instead of only opening the browser print dialog.
+   */
+  pdfExport?: {
+    companyId: number | string;
+    module:
+      | 'fitgraph'
+      | 'dentalgraph'
+      | 'medicalgraph'
+      | 'physiograph'
+      | 'psychiatrygraph';
+    personId?: string | null;
+  };
 };
 
 /**
@@ -379,7 +393,9 @@ export function PracticeScheduleCalendar({
   selectedEventId = null,
   onVisibleRangeChange,
   hideScopeToggle = false,
+  pdfExport,
 }: Props) {
+  const [pdfBusy, setPdfBusy] = useState(false);
   const today = toIsoDate(new Date());
   const [view, setView] = useState<ScheduleViewMode>('week');
   const [cursor, setCursor] = useState(initialDate || today);
@@ -695,6 +711,54 @@ export function PracticeScheduleCalendar({
       orientation,
       contentHtml,
     });
+  };
+
+  const downloadServerPdf = async (
+    orientation: 'landscape' | 'portrait'
+  ) => {
+    if (!pdfExport?.companyId) {
+      printCalendar(orientation);
+      return;
+    }
+    setPdfBusy(true);
+    try {
+      const q = new URLSearchParams({
+        companyId: String(pdfExport.companyId),
+        module: pdfExport.module,
+        kind: 'calendar',
+        view,
+        from: visibleFromTo.from,
+        to: visibleFromTo.to,
+        orientation,
+      });
+      if (pdfExport.personId) q.set('personId', String(pdfExport.personId));
+      const res = await fetch(`/api/schedule/practice-pdf?${q.toString()}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(
+          (err as { error?: string }).error || 'Could not build PDF'
+        );
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download =
+        res.headers
+          .get('Content-Disposition')
+          ?.match(/filename="?([^"]+)"?/)?.[1] ||
+        `schedule-${view}-${orientation}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setPrintMenuOpen(false);
+    } catch (e) {
+      console.error(e);
+      printCalendar(orientation);
+    } finally {
+      setPdfBusy(false);
+    }
   };
 
   const shift = (dir: -1 | 1) => {
@@ -1031,9 +1095,36 @@ export function PracticeScheduleCalendar({
               <div
                 ref={printMenuRef}
                 role="menu"
-                className="fixed z-[400] w-[13.75rem] rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 shadow-2xl p-1"
+                className="fixed z-[400] w-[14.5rem] rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 shadow-2xl p-1"
                 style={{ top: printMenuPos.top, left: printMenuPos.left }}
               >
+                <p className="px-2.5 pt-1.5 pb-0.5 text-[9px] font-black uppercase tracking-wide text-slate-400">
+                  Download PDF
+                </p>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={pdfBusy}
+                  className="w-full text-left rounded-lg px-2.5 py-2 text-[11px] font-bold hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-2 disabled:opacity-50"
+                  onClick={() => void downloadServerPdf('landscape')}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  A4 landscape PDF
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={pdfBusy}
+                  className="w-full text-left rounded-lg px-2.5 py-2 text-[11px] font-bold hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-2 disabled:opacity-50"
+                  onClick={() => void downloadServerPdf('portrait')}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  A4 portrait PDF
+                </button>
+                <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+                <p className="px-2.5 pt-0.5 pb-0.5 text-[9px] font-black uppercase tracking-wide text-slate-400">
+                  Browser print
+                </p>
                 <button
                   type="button"
                   role="menuitem"
@@ -1041,7 +1132,7 @@ export function PracticeScheduleCalendar({
                   onClick={() => printCalendar('landscape')}
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  A4 landscape
+                  Print landscape
                 </button>
                 <button
                   type="button"
@@ -1050,11 +1141,12 @@ export function PracticeScheduleCalendar({
                   onClick={() => printCalendar('portrait')}
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  A4 portrait
+                  Print portrait
                 </button>
                 <p className="px-2.5 py-1.5 text-[9px] text-slate-500 leading-snug">
-                  Opens print dialog — choose “Save as PDF” for a file. Uses
-                  current day / week / month view and operating hours.
+                  PDF uses this day / week / month view, events, and operating
+                  hours. Print opens the system dialog (Save as PDF also works
+                  there).
                 </p>
               </div>
             ) : null}

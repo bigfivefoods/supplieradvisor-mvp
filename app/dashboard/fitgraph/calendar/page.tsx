@@ -24,6 +24,7 @@ import {
   type ScheduleEvent,
 } from '@/components/schedule/PracticeScheduleCalendar';
 import { WorkingHoursEditor } from '@/components/schedule/WorkingHoursEditor';
+import { PracticeProfilePdfButton } from '@/components/schedule/PracticeProfilePdfButton';
 import {
   RecurrenceFields,
   emptyRecurrenceForm,
@@ -34,7 +35,7 @@ import {
 import { normalizeWorkingHours } from '@/lib/schedule/working-hours';
 
 export default function CalendarPage() {
-  const { store, loading, saving, post, summary } = useFitgraph();
+  const { companyId, store, loading, saving, post, summary } = useFitgraph();
   const formAnchorRef = useRef<HTMLDivElement>(null);
   const [day, setDay] = useState(new Date().toISOString().slice(0, 10));
   const [personFilter, setPersonFilter] = useState('');
@@ -540,11 +541,28 @@ export default function CalendarPage() {
             accentClass="border-violet-200 dark:border-violet-800"
           />
 
+          <div className="flex flex-wrap items-center gap-2 -mt-2">
+            <PracticeProfilePdfButton
+              companyId={companyId}
+              module="fitgraph"
+              label="Download gym practice PDF"
+            />
+            <span className="text-[11px] text-slate-500">
+              Full practice sheet (hours, coaches, classes). Calendar PDFs are on
+              the grid · A4 PDF.
+            </span>
+          </div>
+
           <PracticeScheduleCalendar
             title="Class schedule"
             printBrand={
               store.settings?.brand_name || 'FitAdvisor · SupplierAdvisor'
             }
+            pdfExport={{
+              companyId: companyId || '',
+              module: 'fitgraph',
+              personId: personFilter || null,
+            }}
             accent="violet"
             events={scheduleEvents}
             people={schedulePeople}

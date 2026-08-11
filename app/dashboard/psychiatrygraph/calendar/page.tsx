@@ -15,6 +15,7 @@ import {
   type ScheduleEvent,
 } from '@/components/schedule/PracticeScheduleCalendar';
 import { WorkingHoursEditor } from '@/components/schedule/WorkingHoursEditor';
+import { PracticeProfilePdfButton } from '@/components/schedule/PracticeProfilePdfButton';
 import {
   RecurrenceFields,
   emptyRecurrenceForm,
@@ -30,7 +31,8 @@ import {
 } from '@/lib/services/advisor-waitlist-desk';
 
 export default function CalendarPage() {
-  const { store, loading, saving, post, summary, load } = usePsychiatrygraph();
+  const { companyId, store, loading, saving, post, summary, load } =
+    usePsychiatrygraph();
   const formAnchorRef = useRef<HTMLDivElement>(null);
   const [personFilter, setPersonFilter] = useState('');
   const [diaryScope, setDiaryScope] = useState<DiaryScope>('practice');
@@ -453,12 +455,28 @@ export default function CalendarPage() {
             accentClass="border-indigo-200 dark:border-indigo-800"
           />
 
+          <div className="flex flex-wrap items-center gap-2 -mt-2">
+            <PracticeProfilePdfButton
+              companyId={companyId}
+              module="psychiatrygraph"
+              label="Download practice PDF"
+            />
+            <span className="text-[11px] text-slate-500">
+              Practice sheet (hours, team, services). Schedule PDFs: A4 PDF on the calendar.
+            </span>
+          </div>
+
           <PracticeScheduleCalendar
             title="Clinic schedule"
             printBrand={
               store.settings?.brand_name ||
               'PsychiatryAdvisor · SupplierAdvisor'
             }
+            pdfExport={{
+              companyId,
+              module: 'psychiatrygraph',
+              personId: personFilter || null,
+            }}
             accent="indigo"
             events={events}
             people={people}
