@@ -9,11 +9,8 @@ import Link from 'next/link';
 import {
   CalendarDays,
   Check,
-  ChevronLeft,
-  ChevronRight,
   Loader2,
   Plus,
-  Repeat,
   Share2,
   UserX,
   Users,
@@ -28,12 +25,18 @@ import {
 import { fc } from '@/components/fitness/FitForm';
 import { addDaysIso } from '@/lib/fitness/fitgraph';
 import {
+  PracticeScheduleCalendar,
+  type ScheduleEvent,
+} from '@/components/schedule/PracticeScheduleCalendar';
+import { WorkingHoursEditor } from '@/components/schedule/WorkingHoursEditor';
+import {
   RecurrenceFields,
   emptyRecurrenceForm,
   recurrenceApiPayload,
   validateRecurrenceForm,
   type RecurrenceFormValue,
 } from '@/components/schedule/RecurrenceFields';
+import { normalizeWorkingHours } from '@/lib/schedule/working-hours';
 
 
 type RosterRow = {
@@ -97,13 +100,16 @@ type Portal = {
 export default function CoachCalendarPage() {
   const { store, loading, saving, post, companyId } = useFitgraph();
   const [coachId, setCoachId] = useState('');
-  const [weekStart, setWeekStart] = useState(() => {
-    const d = new Date();
-    const day = d.getDay();
-    const monOffset = day === 0 ? -6 : 1 - day;
-    d.setDate(d.getDate() + monOffset);
-    return d.toISOString().slice(0, 10);
-  });
+  /** Visible calendar window — expanded for day/week/month navigation */
+  const [rangeFrom, setRangeFrom] = useState(() =>
+    addDaysIso(new Date().toISOString().slice(0, 10), -14)
+  );
+  const [rangeTo, setRangeTo] = useState(() =>
+    addDaysIso(new Date().toISOString().slice(0, 10), 45)
+  );
+  const [calendarDate, setCalendarDate] = useState(
+    () => new Date().toISOString().slice(0, 10)
+  );
   const [portal, setPortal] = useState<Portal | null>(null);
   const [busy, setBusy] = useState(false);
   const [openSession, setOpenSession] = useState<string | null>(null);
@@ -125,10 +131,9 @@ export default function CoachCalendarPage() {
   const [bookClientIds, setBookClientIds] = useState<string[]>([]);
   const [classPlanDraft, setClassPlanDraft] = useState('');
 
-  const weekEnd = useMemo(() => addDaysIso(weekStart, 6), [weekStart]);
-  const days = useMemo(
-    () => Array.from({ length: 7 }, (_, i) => addDaysIso(weekStart, i)),
-    [weekStart]
+  const workingHours = useMemo(
+    () => normalizeWorkingHours(store?.settings?.working_hours),
+    [store?.settings?.working_hours]
   );
 
   const loadPortal = useCallback(async () => {
@@ -145,8 +150,8 @@ export default function CoachCalendarPage() {
           companyId,
           action: 'coach_calendar',
           coachId,
-          from: weekStart,
-          to: weekEnd,
+          from: rangeFrom,
+          to: rangeTo,
         }),
       });
       const data = await res.json();
@@ -157,7 +162,49 @@ export default function CoachCalendarPage() {
     } finally {
       setBusy(false);
     }
-  }, [coachId, companyId, weekStart, weekEnd]);
+  }, [coachId, companyId, rangeFrom, rangeTo]);
+
+  const onVisibleRangeChange = useCallback(
+    (range: { from: string; to: string }) => {
+      // Pad so day/week/month navigation always has data
+      const from = addDaysIso(range.from, -7);
+      const to = addDaysIso(range.to, 7);
+      setRangeFrom((prev) => (prev === from ? prev : from));
+      setRangeTo((prev) => (prev === to ? prev : to));
+    },
+    []
+  );
+
+  const scheduleEvents: ScheduleEvent[] = useMemo(() => {
+    if (!portal?.sessions?.length) return [];
+    return portal.sessions.map((card) => ({
+      id: card.session.id,
+      date: card.session.date,
+      start_time: String(card.session.start_time || '06:00').slice(0, 5),
+      duration_min: 45,
+      title: card.class_name || 'Class',
+      subtitle: card.session.location || undefined,
+      person_id: coachId,
+      person_name: portal.coach?.name,
+      status: card.session.status,
+      public: card.session.public === true,
+      meta: `Plan ${card.planned}/${card.capacity} · Act ${card.attended}${
+        card.session.series_id ? ' · series' : ''
+      }`,
+      tone: 'amber' as const,
+    }));
+  }, [portal, coachId]);
+
+  const saveHours = async (hours: typeof workingHours) => {
+    await post({
+      action: 'update_settings',
+      settings: {
+        ...(store?.settings || {}),
+        working_hours: hours,
+      },
+    });
+    toast.success('Gym operating hours saved');
+  };
 
   useEffect(() => {
     if (store?.coaches?.length && !coachId) {
@@ -365,7 +412,7 @@ export default function CoachCalendarPage() {
     <FitgraphWorkbench
       title="Coach calendar"
       titleAccent="plan · actual"
-      description="Each coach’s week: planned classes (who is booked), create bespoke or repeating classes, then update actuals — who came or no-showed — before or after the class."
+      description="Day, week and month views with gym operating hours. Open a class for plan/actuals, create bespoke or repeating classes, and download A4 landscape or portrait."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -388,25 +435,6 @@ export default function CoachCalendarPage() {
                 ))}
               </select>
             </label>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                className="p-2 rounded-xl border border-amber-200 dark:border-amber-600"
-                onClick={() => setWeekStart(addDaysIso(weekStart, -7))}
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <div className="px-3 text-sm font-bold tabular-nums dark:text-amber-50">
-                {weekStart} → {weekEnd}
-              </div>
-              <button
-                type="button"
-                className="p-2 rounded-xl border border-amber-200 dark:border-amber-600"
-                onClick={() => setWeekStart(addDaysIso(weekStart, 7))}
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
             <button
               type="button"
               onClick={() => setShowCreate(true)}
@@ -422,67 +450,67 @@ export default function CoachCalendarPage() {
             </Link>
           </div>
 
+          <WorkingHoursEditor
+            value={workingHours}
+            defaultCollapsed
+            onSave={saveHours}
+            saving={saving}
+            title="Gym operating hours"
+            description="Open days and times for this gym. Closed days are dimmed; day and week views use this window."
+            accentClass="border-amber-200 dark:border-amber-800"
+          />
+
           {busy && !portal ? (
             <div className="py-16 flex justify-center">
               <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-2">
-              {days.map((d) => {
-                const list = portal?.by_date?.[d] || [];
-                const label = new Date(d + 'T12:00:00').toLocaleDateString(
-                  undefined,
-                  { weekday: 'short', day: 'numeric', month: 'short' }
-                );
-                return (
-                  <div
-                    key={d}
-                    className="rounded-2xl border border-amber-200/80 bg-white dark:!border-amber-500/40 dark:!bg-amber-950/60 min-h-[8rem] p-2"
-                  >
-                    <div className="text-[10px] font-black uppercase tracking-wider text-amber-800/80 dark:text-amber-300 mb-2">
-                      {label}
-                    </div>
-                    <div className="space-y-1.5">
-                      {list.length === 0 ? (
-                        <p className="text-[10px] text-slate-400 dark:text-amber-200/40 py-4 text-center">
-                          —
-                        </p>
-                      ) : (
-                        list.map((card) => (
-                          <button
-                            key={card.session.id}
-                            type="button"
-                            onClick={() => setOpenSession(card.session.id)}
-                            className="w-full text-left rounded-xl border border-amber-200 bg-amber-50/80 px-2 py-1.5 hover:border-amber-500 dark:!border-amber-500/50 dark:!bg-amber-900/50"
-                          >
-                            <div className="text-[11px] font-black tabular-nums dark:text-amber-50">
-                              {card.session.start_time}
-                            </div>
-                            <div className="text-[10px] font-semibold truncate dark:text-amber-100">
-                              {card.class_name || 'Class'}
-                            </div>
-                            <div className="text-[9px] text-slate-500 dark:text-amber-200/70 flex gap-1 flex-wrap">
-                              <span>
-                                Plan {card.planned}/{card.capacity}
-                              </span>
-                              <span>· Act {card.attended}</span>
-                              {card.session.series_id ? (
-                                <Repeat className="w-2.5 h-2.5 inline" />
-                              ) : null}
-                            </div>
-                            {card.session.class_plan ? (
-                              <p className="text-[9px] text-amber-800/80 dark:text-amber-200/80 line-clamp-2 mt-0.5">
-                                {card.session.class_plan}
-                              </p>
-                            ) : null}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <PracticeScheduleCalendar
+              title={`Coach diary · ${portal?.coach?.name || 'Coach'}`}
+              printBrand={
+                store.settings?.brand_name || 'VUKA Fitness · FitAdvisor'
+              }
+              accent="amber"
+              events={scheduleEvents}
+              people={store.coaches
+                .filter((c) => c.active !== false)
+                .map((c) => ({
+                  id: c.id,
+                  name: c.name,
+                  role: (c.specialties || []).slice(0, 2).join(', ') || undefined,
+                }))}
+              peopleLabel="Coach"
+              personFilter={coachId}
+              onPersonFilterChange={(id) => {
+                if (id) setCoachId(id);
+              }}
+              diaryScope="person"
+              hideScopeToggle
+              showDiaryScopeToggle={false}
+              workingHours={workingHours}
+              initialDate={calendarDate}
+              emptyLabel="No classes in this view"
+              slotHint="Click empty time to create a class for this coach"
+              selectedEventId={openSession}
+              onVisibleRangeChange={onVisibleRangeChange}
+              onSelectDate={(date) => {
+                setCalendarDate(date);
+                setCreate((f) => ({ ...f, date }));
+              }}
+              onSelectSlot={(slot) => {
+                setCalendarDate(slot.date);
+                setCreate((f) => ({
+                  ...f,
+                  date: slot.date,
+                  start_time: slot.start_time.slice(0, 5),
+                }));
+                setShowCreate(true);
+              }}
+              onSelectEvent={(ev) => {
+                setOpenSession(ev.id);
+                setCalendarDate(ev.date);
+              }}
+            />
           )}
 
           {/* Session detail: plan + actual */}

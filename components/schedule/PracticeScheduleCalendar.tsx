@@ -5,13 +5,15 @@
  * Presentational — parent supplies events, people filter, working hours.
  * Day/week height matches practice open hours for the day.
  */
-import { useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
+  Download,
   LayoutGrid,
   List,
+  Printer,
   Stethoscope,
   Building2,
   User,
@@ -51,7 +53,7 @@ export type SchedulePerson = {
 /** Practice = whole diary; person = single clinician/coach diary */
 export type DiaryScope = 'practice' | 'person';
 
-type ViewMode = 'day' | 'week' | 'month';
+export type ScheduleViewMode = 'day' | 'week' | 'month';
 
 type Props = {
   events: ScheduleEvent[];
@@ -77,6 +79,8 @@ type Props = {
   showDiaryScopeToggle?: boolean;
   accent?: ScheduleEvent['tone'];
   title?: string;
+  /** Optional brand line on printed A4 calendars */
+  printBrand?: string;
   emptyLabel?: string;
   onSelectDate?: (date: string) => void;
   onSelectEvent?: (ev: ScheduleEvent) => void;
@@ -93,6 +97,18 @@ type Props = {
   slotHint?: string;
   /** Highlight the open event (view/edit) on the grid */
   selectedEventId?: string | null;
+  /**
+   * Fires when day/week/month cursor or view changes — parents can reload
+   * sessions for the visible window (coach calendar, etc.).
+   */
+  onVisibleRangeChange?: (range: {
+    cursor: string;
+    view: ScheduleViewMode;
+    from: string;
+    to: string;
+  }) => void;
+  /** Hide practice/person scope toggle (e.g. single-coach diary) */
+  hideScopeToggle?: boolean;
 };
 
 /**
@@ -243,6 +259,104 @@ function hourTicks(startMinute: number, endMinute: number): number[] {
   return out;
 }
 
+function openA4Print(opts: {
+  title: string;
+  brand?: string;
+  rangeLabel: string;
+  hoursNote?: string;
+  orientation: 'landscape' | 'portrait';
+  contentHtml: string;
+}) {
+  const w = window.open('', '_blank', 'noopener,noreferrer');
+  if (!w) return;
+  const pageSize =
+    opts.orientation === 'landscape' ? 'A4 landscape' : 'A4 portrait';
+  w.document.open();
+  w.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>${opts.title.replace(/</g, '')}</title>
+  <style>
+    @page { size: ${pageSize}; margin: 10mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      color: #0f172a;
+      font-size: 11px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+    }
+    h1 { font-size: 16px; margin: 0; }
+    .meta { font-size: 11px; color: #475569; margin-top: 2px; }
+    .brand { font-size: 12px; font-weight: 800; text-align: right; }
+    .hours { font-size: 10px; color: #64748b; margin: 0 0 10px; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td {
+      border: 1px solid #cbd5e1;
+      vertical-align: top;
+      padding: 4px 5px;
+    }
+    th {
+      background: #f1f5f9;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .day-num { font-weight: 800; font-size: 12px; }
+    .closed { background: #f8fafc; color: #94a3b8; }
+    .ev {
+      border-left: 3px solid #7c3aed;
+      background: #f5f3ff;
+      margin: 2px 0;
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-size: 9px;
+      line-height: 1.25;
+      page-break-inside: avoid;
+    }
+    .ev .t { font-weight: 700; }
+    .footer {
+      margin-top: 10px;
+      font-size: 9px;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
+    }
+    @media print {
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>${opts.title.replace(/</g, '')}</h1>
+      <div class="meta">${opts.rangeLabel.replace(/</g, '')}</div>
+    </div>
+    <div class="brand">${(opts.brand || 'SupplierAdvisor').replace(/</g, '')}<div class="meta">A4 ${opts.orientation}</div></div>
+  </header>
+  ${opts.hoursNote ? `<p class="hours">${opts.hoursNote.replace(/</g, '')}</p>` : ''}
+  ${opts.contentHtml}
+  <div class="footer">
+    <span>Generated ${new Date().toLocaleString()}</span>
+    <span class="no-print">Use your browser Print dialog → Save as PDF if needed</span>
+  </div>
+  <script>window.onload = function () { setTimeout(function () { window.focus(); window.print(); }, 200); };</script>
+</body>
+</html>`);
+  w.document.close();
+}
+
 export function PracticeScheduleCalendar({
   events,
   people = [],
@@ -256,15 +370,18 @@ export function PracticeScheduleCalendar({
   showDiaryScopeToggle,
   accent = 'violet',
   title = 'Schedule',
+  printBrand,
   emptyLabel = 'Nothing scheduled',
   onSelectDate,
   onSelectEvent,
   onSelectSlot,
   slotHint,
   selectedEventId = null,
+  onVisibleRangeChange,
+  hideScopeToggle = false,
 }: Props) {
   const today = toIsoDate(new Date());
-  const [view, setView] = useState<ViewMode>('week');
+  const [view, setView] = useState<ScheduleViewMode>('week');
   const [cursor, setCursor] = useState(initialDate || today);
   const [personFilterLocal, setPersonFilterLocal] = useState(
     personFilterProp || ''
@@ -272,6 +389,8 @@ export function PracticeScheduleCalendar({
   const [diaryScopeLocal, setDiaryScopeLocal] = useState<DiaryScope>(
     diaryScopeProp || (personFilterProp ? 'person' : 'practice')
   );
+  const [printMenuOpen, setPrintMenuOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (personFilterProp !== undefined) setPersonFilterLocal(personFilterProp);
@@ -304,7 +423,10 @@ export function PracticeScheduleCalendar({
     }
   };
 
-  const showScope = showDiaryScopeToggle !== false && people.length > 0;
+  const showScope =
+    !hideScopeToggle &&
+    showDiaryScopeToggle !== false &&
+    people.length > 0;
   const tone = TONE[accent];
 
   const peopleLabelPlural =
@@ -379,6 +501,143 @@ export function PracticeScheduleCalendar({
     const d = parseIso(cursor);
     return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   }, [view, cursor, weekDays]);
+
+  const visibleFromTo = useMemo(() => {
+    if (view === 'day') return { from: cursor, to: cursor };
+    if (view === 'week') return { from: weekDays[0], to: weekDays[6] };
+    return {
+      from: monthGrid[0],
+      to: monthGrid[monthGrid.length - 1],
+    };
+  }, [view, cursor, weekDays, monthGrid]);
+
+  useEffect(() => {
+    onVisibleRangeChange?.({
+      cursor,
+      view,
+      from: visibleFromTo.from,
+      to: visibleFromTo.to,
+    });
+  }, [cursor, view, visibleFromTo.from, visibleFromTo.to, onVisibleRangeChange]);
+
+  const hoursNote = useMemo(() => {
+    if (!workingHours) return 'Operating hours not set — showing default day window.';
+    if (view === 'day') {
+      const oc = openCloseOn(workingHours, cursor);
+      return oc.closed
+        ? `Closed on ${formatDayLabel(cursor, { weekday: true })} (per operating hours).`
+        : `Operating hours ${oc.open}–${oc.close} on ${formatDayLabel(cursor, { weekday: true })}.`;
+    }
+    if (view === 'week') {
+      const parts = weekDays.map((d) => {
+        const oc = openCloseOn(workingHours, d);
+        const wd = parseIso(d).toLocaleDateString(undefined, { weekday: 'short' });
+        return oc.closed ? `${wd} closed` : `${wd} ${oc.open}–${oc.close}`;
+      });
+      return `Operating hours: ${parts.join(' · ')}`;
+    }
+    if (weekBounds.startMinute != null) {
+      const o = `${pad(Math.floor(weekBounds.startMinute / 60))}:${pad(weekBounds.startMinute % 60)}`;
+      const c = `${pad(Math.floor(weekBounds.endMinute / 60))}:${pad(weekBounds.endMinute % 60)}`;
+      return `Practice window (open days): ${o}–${c}. Closed days marked “off”.`;
+    }
+    return '';
+  }, [workingHours, view, cursor, weekDays, weekBounds]);
+
+  const printCalendar = (orientation: 'landscape' | 'portrait') => {
+    setPrintMenuOpen(false);
+    const esc = (s: string) =>
+      String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+
+    const eventCell = (date: string) => {
+      const list = eventsOn(date);
+      const oc = openCloseOn(workingHours, date);
+      if (oc.closed) {
+        return `<div class="day-num">${parseIso(date).getDate()}</div><div>Closed</div>`;
+      }
+      const items = list
+        .map((ev) => {
+          const meta = [ev.person_name, ev.subtitle, ev.meta]
+            .filter(Boolean)
+            .join(' · ');
+          return `<div class="ev"><span class="t">${esc(ev.start_time.slice(0, 5))} ${esc(ev.title)}</span>${
+            meta ? `<br/>${esc(meta)}` : ''
+          }</div>`;
+        })
+        .join('');
+      return `<div class="day-num">${parseIso(date).getDate()}</div>${items || '<div style="color:#94a3b8">—</div>'}`;
+    };
+
+    let contentHtml = '';
+    if (view === 'day') {
+      const list = eventsOn(cursor);
+      const oc = openCloseOn(workingHours, cursor);
+      contentHtml = `<table><thead><tr><th style="width:18%">Time</th><th>Event</th><th style="width:28%">Detail</th></tr></thead><tbody>`;
+      if (oc.closed) {
+        contentHtml += `<tr class="closed"><td colspan="3">Closed · ${esc(formatDayLabel(cursor, { weekday: true }))}</td></tr>`;
+      } else if (!list.length) {
+        contentHtml += `<tr><td colspan="3">${esc(emptyLabel)}</td></tr>`;
+      } else {
+        for (const ev of list) {
+          contentHtml += `<tr><td>${esc(ev.start_time.slice(0, 5))}${
+            ev.end_time ? `–${esc(String(ev.end_time).slice(0, 5))}` : ''
+          }</td><td><strong>${esc(ev.title)}</strong>${
+            ev.person_name ? `<br/><span style="color:#64748b">${esc(ev.person_name)}</span>` : ''
+          }</td><td>${esc([ev.subtitle, ev.meta, ev.status].filter(Boolean).join(' · '))}</td></tr>`;
+        }
+      }
+      contentHtml += `</tbody></table>`;
+    } else if (view === 'week') {
+      contentHtml = `<table><thead><tr>`;
+      for (const d of weekDays) {
+        const wd = parseIso(d).toLocaleDateString(undefined, {
+          weekday: 'short',
+          day: 'numeric',
+          month: 'short',
+        });
+        contentHtml += `<th>${esc(wd)}</th>`;
+      }
+      contentHtml += `</tr></thead><tbody><tr>`;
+      for (const d of weekDays) {
+        const closed = isClosedOn(workingHours, d);
+        contentHtml += `<td class="${closed ? 'closed' : ''}">${eventCell(d)}</td>`;
+      }
+      contentHtml += `</tr></tbody></table>`;
+    } else {
+      contentHtml = `<table><thead><tr>${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+        .map((d) => `<th>${d}</th>`)
+        .join('')}</tr></thead><tbody>`;
+      for (let i = 0; i < monthGrid.length; i += 7) {
+        contentHtml += '<tr>';
+        for (let j = 0; j < 7; j++) {
+          const d = monthGrid[i + j];
+          const inMonth =
+            parseIso(d).getMonth() === parseIso(cursor).getMonth();
+          const closed = isClosedOn(workingHours, d);
+          contentHtml += `<td class="${closed || !inMonth ? 'closed' : ''}" style="${
+            inMonth ? '' : 'opacity:0.45'
+          }">${eventCell(d)}</td>`;
+        }
+        contentHtml += '</tr>';
+      }
+      contentHtml += '</tbody></table>';
+    }
+
+    openA4Print({
+      title: diaryTitle,
+      brand: printBrand,
+      rangeLabel: `${rangeLabel} · ${view} view · ${filtered.length} event${
+        filtered.length === 1 ? '' : 's'
+      }`,
+      hoursNote,
+      orientation,
+      contentHtml,
+    });
+  };
 
   const shift = (dir: -1 | 1) => {
     if (view === 'day') setCursor(addDays(cursor, dir));
@@ -669,6 +928,7 @@ export function PracticeScheduleCalendar({
 
   return (
     <div
+      ref={rootRef}
       className={`rounded-3xl border border-slate-200 dark:border-slate-700 overflow-hidden ${tone.soft}`}
     >
       {/* Toolbar */}
@@ -688,9 +948,49 @@ export function PracticeScheduleCalendar({
                   ? ` · practice diary`
                   : ''}
             </div>
+            {hoursNote ? (
+              <div className="text-[10px] text-slate-400 font-medium mt-0.5 line-clamp-2 max-w-xl">
+                {hoursNote}
+              </div>
+            ) : null}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setPrintMenuOpen((o) => !o)}
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 dark:border-slate-600 px-2.5 py-1.5 text-[11px] font-bold hover:bg-slate-50 dark:hover:bg-slate-800"
+              title="Download / print A4 calendar"
+            >
+              <Download className="w-3.5 h-3.5" />
+              A4 PDF
+            </button>
+            {printMenuOpen ? (
+              <div className="absolute right-0 z-30 mt-1 w-52 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 shadow-lg p-1">
+                <button
+                  type="button"
+                  className="w-full text-left rounded-lg px-2.5 py-2 text-[11px] font-bold hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-2"
+                  onClick={() => printCalendar('landscape')}
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  A4 landscape
+                </button>
+                <button
+                  type="button"
+                  className="w-full text-left rounded-lg px-2.5 py-2 text-[11px] font-bold hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-2"
+                  onClick={() => printCalendar('portrait')}
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  A4 portrait
+                </button>
+                <p className="px-2.5 py-1.5 text-[9px] text-slate-500 leading-snug">
+                  Opens print dialog — choose “Save as PDF” for a file. Uses
+                  current day / week / month view and operating hours.
+                </p>
+              </div>
+            ) : null}
+          </div>
           {showScope ? (
             <div className="inline-flex rounded-xl border border-slate-200 dark:border-slate-600 p-0.5 bg-slate-50 dark:bg-slate-900">
               <button

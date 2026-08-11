@@ -542,6 +542,9 @@ export default function CalendarPage() {
 
           <PracticeScheduleCalendar
             title="Class schedule"
+            printBrand={
+              store.settings?.brand_name || 'FitAdvisor · SupplierAdvisor'
+            }
             accent="violet"
             events={scheduleEvents}
             people={schedulePeople}

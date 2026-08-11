@@ -455,6 +455,10 @@ export default function CalendarPage() {
 
           <PracticeScheduleCalendar
             title="Clinic schedule"
+            printBrand={
+              store.settings?.brand_name ||
+              'PsychiatryAdvisor · SupplierAdvisor'
+            }
             accent="indigo"
             events={events}
             people={people}
