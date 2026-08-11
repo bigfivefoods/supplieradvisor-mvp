@@ -121,8 +121,10 @@ export default function CoachCalendarPage() {
     count: '8',
     weekdays: [] as number[],
     public: false,
+    client_ids: [] as string[],
+    member_query: '',
   });
-  const [bookClientId, setBookClientId] = useState('');
+  const [bookClientIds, setBookClientIds] = useState<string[]>([]);
   const [classPlanDraft, setClassPlanDraft] = useState('');
 
   const weekEnd = useMemo(() => addDaysIso(weekStart, 6), [weekStart]);
@@ -207,9 +209,54 @@ export default function CoachCalendarPage() {
           ? create.weekdays
           : [new Date(create.date + 'T12:00:00').getDay()],
     });
-    toast.success(data.message || 'Class created');
+    const sessions = (data.sessions || []) as Array<{ id: string }>;
+    let sessionIds = sessions.map((s) => s.id).filter(Boolean);
+    // Single create_session may not return sessions array — find newest match
+    if (!sessionIds.length && data.store?.sessions) {
+      const storeSessions = data.store.sessions as Array<{
+        id: string;
+        date: string;
+        start_time: string;
+        coach_id?: string | null;
+        class_type_id: string;
+      }>;
+      const hit = storeSessions.find(
+        (s) =>
+          s.date === create.date &&
+          s.start_time.slice(0, 5) === create.start_time.slice(0, 5) &&
+          s.class_type_id === create.class_type_id &&
+          (s.coach_id === coachId || !s.coach_id)
+      );
+      if (hit) sessionIds = [hit.id];
+    }
+    if (create.client_ids.length && sessionIds.length) {
+      for (const sessionId of sessionIds) {
+        for (const clientId of create.client_ids) {
+          await post({
+            entity: 'bookings',
+            action: 'upsert',
+            record: {
+              session_id: sessionId,
+              client_id: clientId,
+              status: 'booked',
+              source: 'desk',
+            },
+          });
+        }
+      }
+      toast.success(
+        `${data.message || 'Class created'} · ${create.client_ids.length} member(s) booked`
+      );
+    } else {
+      toast.success(data.message || 'Class created');
+    }
     setShowCreate(false);
-    setCreate((f) => ({ ...f, class_plan: '' }));
+    setCreate((f) => ({
+      ...f,
+      class_plan: '',
+      client_ids: [],
+      member_query: '',
+    }));
     await loadPortal();
   };
 
@@ -239,22 +286,28 @@ export default function CoachCalendarPage() {
   };
 
   const bookMember = async (sessionId: string) => {
-    if (!bookClientId) {
-      toast.error('Select a member');
+    if (!bookClientIds.length) {
+      toast.error('Select at least one member');
       return;
     }
-    await post({
-      entity: 'bookings',
-      action: 'upsert',
-      record: {
-        session_id: sessionId,
-        client_id: bookClientId,
-        status: 'booked',
-        source: 'desk',
-      },
-    });
-    toast.success('Member added to plan');
-    setBookClientId('');
+    for (const clientId of bookClientIds) {
+      await post({
+        entity: 'bookings',
+        action: 'upsert',
+        record: {
+          session_id: sessionId,
+          client_id: clientId,
+          status: 'booked',
+          source: 'desk',
+        },
+      });
+    }
+    toast.success(
+      bookClientIds.length === 1
+        ? 'Member added to plan'
+        : `${bookClientIds.length} members added to plan`
+    );
+    setBookClientIds([]);
     await loadPortal();
   };
 
@@ -552,31 +605,48 @@ export default function CoachCalendarPage() {
                   )}
                 </div>
 
-                <div className="flex flex-wrap gap-2 items-end border-t border-amber-100 dark:border-amber-800 pt-3">
-                  <label className="flex-1 min-w-[10rem] text-sm">
-                    <span className="text-[10px] font-black uppercase text-slate-500 dark:text-amber-300">
-                      Add member to plan
-                    </span>
-                    <select
-                      className={fc() + ' mt-1'}
-                      value={bookClientId}
-                      onChange={(e) => setBookClientId(e.target.value)}
-                    >
-                      <option value="">Member…</option>
-                      {(portal?.members || []).map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.code} · {m.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                <div className="space-y-2 border-t border-amber-100 dark:border-amber-800 pt-3">
+                  <p className="text-[10px] font-black uppercase text-slate-500 dark:text-amber-300">
+                    Add members to plan
+                    {bookClientIds.length
+                      ? ` · ${bookClientIds.length} selected`
+                      : ''}
+                  </p>
+                  <div className="max-h-36 overflow-y-auto rounded-xl border border-amber-200 dark:border-amber-800 divide-y divide-amber-100 dark:divide-amber-900">
+                    {(portal?.members || []).map((m) => {
+                      const on = bookClientIds.includes(m.id);
+                      return (
+                        <label
+                          key={m.id}
+                          className="flex items-center gap-2 px-2.5 py-1.5 text-sm cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={on}
+                            onChange={() =>
+                              setBookClientIds((ids) =>
+                                on
+                                  ? ids.filter((x) => x !== m.id)
+                                  : [...ids, m.id]
+                              )
+                            }
+                          />
+                          <span>
+                            {m.code} · {m.name}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
                   <button
                     type="button"
-                    disabled={saving || !bookClientId}
-                    className="btn-primary !py-2 !px-3 text-sm"
+                    disabled={saving || !bookClientIds.length}
+                    className="btn-primary !py-2 !px-3 text-sm w-full sm:w-auto"
                     onClick={() => void bookMember(openCard.session.id)}
                   >
-                    Add to plan
+                    {bookClientIds.length
+                      ? `Add ${bookClientIds.length} to plan`
+                      : 'Add to plan'}
                   </button>
                 </div>
               </div>
@@ -731,6 +801,63 @@ export default function CoachCalendarPage() {
                   />
                   Publish on website calendar
                 </label>
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-black uppercase text-slate-500 dark:text-amber-300">
+                    Add members
+                    {create.client_ids.length
+                      ? ` · ${create.client_ids.length} selected`
+                      : ''}
+                  </p>
+                  <input
+                    className={fc()}
+                    placeholder="Search members…"
+                    value={create.member_query}
+                    onChange={(e) =>
+                      setCreate((f) => ({
+                        ...f,
+                        member_query: e.target.value,
+                      }))
+                    }
+                  />
+                  <div className="max-h-36 overflow-y-auto rounded-xl border border-amber-200 dark:border-amber-800 divide-y divide-amber-100 dark:divide-amber-900">
+                    {(portal?.members || [])
+                      .filter((m) => {
+                        const q = create.member_query.trim().toLowerCase();
+                        if (!q) return true;
+                        return (
+                          m.name.toLowerCase().includes(q) ||
+                          String(m.code || '')
+                            .toLowerCase()
+                            .includes(q)
+                        );
+                      })
+                      .map((m) => {
+                        const on = create.client_ids.includes(m.id);
+                        return (
+                          <label
+                            key={m.id}
+                            className="flex items-center gap-2 px-2.5 py-1.5 text-sm cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={on}
+                              onChange={() =>
+                                setCreate((f) => ({
+                                  ...f,
+                                  client_ids: on
+                                    ? f.client_ids.filter((x) => x !== m.id)
+                                    : [...f.client_ids, m.id],
+                                }))
+                              }
+                            />
+                            <span>
+                              {m.code} · {m.name}
+                            </span>
+                          </label>
+                        );
+                      })}
+                  </div>
+                </div>
                 <button
                   type="button"
                   disabled={saving}
@@ -740,8 +867,9 @@ export default function CoachCalendarPage() {
                   {saving ? (
                     <Loader2 className="w-4 h-4 animate-spin inline" />
                   ) : null}{' '}
-                  Create class
-                  {create.repeat === 'weekly' ? ' series' : ''}
+                  {create.client_ids.length
+                    ? `Create${create.repeat === 'weekly' ? ' series' : ' class'} + ${create.client_ids.length} member(s)`
+                    : `Create class${create.repeat === 'weekly' ? ' series' : ''}`}
                 </button>
               </div>
             </div>

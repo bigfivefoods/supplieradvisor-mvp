@@ -57,10 +57,11 @@ export default function CalendarPage() {
     repeat: 'none' as 'none' | 'weekly',
     count: '8',
     weekdays: [] as number[],
-    /** Optional: book this member onto the new class */
-    client_id: '',
-    /** Optional: book a family child under that member */
+    /** Optional: book these members onto the new class */
+    client_ids: [] as string[],
+    /** When exactly one member is selected, optional family attendee */
     family_member_id: '',
+    member_query: '',
   });
 
   const daySessions = useMemo(() => {
@@ -153,6 +154,32 @@ export default function CalendarPage() {
     });
   };
 
+  const bookMembersOntoSessions = async (sessionIds: string[]) => {
+    const ids = form.client_ids;
+    if (!ids.length || !sessionIds.length) return 0;
+    let n = 0;
+    for (const sessionId of sessionIds) {
+      for (const clientId of ids) {
+        await post({
+          entity: 'bookings',
+          action: 'upsert',
+          record: {
+            session_id: sessionId,
+            client_id: clientId,
+            family_member_id:
+              ids.length === 1 && form.family_member_id
+                ? form.family_member_id
+                : null,
+            status: 'booked',
+            source: 'desk',
+          },
+        });
+        n += 1;
+      }
+    }
+    return n;
+  };
+
   const add = async () => {
     if (!form.class_type_id) {
       toast.error('Select a class type');
@@ -170,6 +197,7 @@ export default function CalendarPage() {
         date: form.date,
         start_time: form.start_time,
         location: form.location || undefined,
+        room: form.room || undefined,
         capacity: form.capacity ? Number(form.capacity) : undefined,
         public: form.public,
         public_notes: form.public_notes || undefined,
@@ -181,7 +209,20 @@ export default function CalendarPage() {
             ? form.weekdays
             : [new Date(form.date + 'T12:00:00').getDay()],
       });
-      toast.success(data.message || 'Series scheduled');
+      const sessions = (data.sessions || []) as Array<{ id: string }>;
+      const sessionIds = sessions.map((s) => s.id).filter(Boolean);
+      const booked = await bookMembersOntoSessions(sessionIds);
+      toast.success(
+        booked > 0
+          ? `${data.message || 'Series scheduled'} · ${form.client_ids.length} member(s) on each class`
+          : data.message || 'Series scheduled'
+      );
+      setForm((f) => ({
+        ...f,
+        client_ids: [],
+        family_member_id: '',
+        member_query: '',
+      }));
       setSlotPicked(null);
       return;
     }
@@ -206,24 +247,12 @@ export default function CalendarPage() {
         origin: 'owner',
       },
     });
-    if (form.client_id) {
-      await post({
-        entity: 'bookings',
-        action: 'upsert',
-        record: {
-          session_id: sessionId,
-          client_id: form.client_id,
-          family_member_id: form.family_member_id || null,
-          status: 'booked',
-          source: 'desk',
-        },
-      });
+    const booked = await bookMembersOntoSessions([sessionId]);
+    if (booked > 0) {
       toast.success(
         form.public
-          ? 'Class scheduled, member booked, published to website'
-          : form.family_member_id
-            ? 'Class scheduled — family member booked'
-            : 'Class scheduled and member booked'
+          ? `Class scheduled with ${form.client_ids.length} member(s), published to website`
+          : `Class scheduled with ${form.client_ids.length} member(s) booked`
       );
     } else {
       toast.success(
@@ -232,15 +261,55 @@ export default function CalendarPage() {
           : 'Class scheduled and coach assigned'
       );
     }
-    setForm((f) => ({ ...f, client_id: '', family_member_id: '' }));
+    setForm((f) => ({
+      ...f,
+      client_ids: [],
+      family_member_id: '',
+      member_query: '',
+    }));
     setSlotPicked(null);
   };
 
   const selectedClientFamily = useMemo(() => {
-    if (!store || !form.client_id) return [];
-    const c = store.clients.find((x) => x.id === form.client_id);
+    if (!store || form.client_ids.length !== 1) return [];
+    const c = store.clients.find((x) => x.id === form.client_ids[0]);
     return (c?.family || []).filter((m) => m.active !== false);
-  }, [store, form.client_id]);
+  }, [store, form.client_ids]);
+
+  const memberChoices = useMemo(() => {
+    if (!store) return [];
+    const q = form.member_query.trim().toLowerCase();
+    return (store.clients || [])
+      .filter((c) => c.active !== false)
+      .filter((c) => {
+        if (!q) return true;
+        return (
+          c.name.toLowerCase().includes(q) ||
+          String(c.email || '')
+            .toLowerCase()
+            .includes(q) ||
+          String(c.code || '')
+            .toLowerCase()
+            .includes(q)
+        );
+      })
+      .slice(0, 80);
+  }, [store, form.member_query]);
+
+  const toggleMember = (id: string) => {
+    setForm((f) => {
+      const on = f.client_ids.includes(id);
+      const client_ids = on
+        ? f.client_ids.filter((x) => x !== id)
+        : [...f.client_ids, id];
+      return {
+        ...f,
+        client_ids,
+        family_member_id:
+          client_ids.length === 1 ? f.family_member_id : '',
+      };
+    });
+  };
 
   const copyInvite = async (sessionId: string) => {
     const data = await post({
@@ -379,21 +448,24 @@ export default function CalendarPage() {
             saving={saving}
             submitLabel={
               form.repeat === 'weekly'
-                ? 'Schedule series'
-                : form.client_id
-                  ? 'Schedule class + book member'
+                ? form.client_ids.length
+                  ? `Schedule series + ${form.client_ids.length} member(s)`
+                  : 'Schedule series'
+                : form.client_ids.length
+                  ? `Schedule class + ${form.client_ids.length} member(s)`
                   : 'Schedule class'
             }
           >
             {slotPicked ? (
               <p className="sm:col-span-2 lg:col-span-3 text-xs text-violet-700 dark:text-violet-300 font-medium rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50/80 dark:bg-violet-950/40 px-3 py-2">
                 Slot from calendar: <strong>{slotPicked}</strong>. Pick class
-                type and coach, optionally book a member, then save.
+                type and coach, tick members to add, then save.
               </p>
             ) : (
               <p className="sm:col-span-2 lg:col-span-3 text-xs text-slate-500">
                 Tip: open <strong>Day</strong> or <strong>Week</strong> view and
                 click an empty time to fill date &amp; start time automatically.
+                Select members below to book them onto the new class.
               </p>
             )}
             <select
@@ -560,50 +632,116 @@ export default function CalendarPage() {
                 />
               </>
             )}
-            <select
-              className={fc() + ' sm:col-span-2'}
-              value={form.client_id}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  client_id: e.target.value,
-                  family_member_id: '',
-                }))
-              }
-            >
-              <option value="">Book member onto this class (optional)…</option>
-              {(store.clients || [])
-                .filter((c) => c.active !== false)
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                    {c.booking_soft_block ? ' ⚠ no-shows' : ''}
-                    {c.membership_status === 'frozen' ? ' · frozen' : ''}
-                    {c.email ? ` · ${c.email}` : ''}
-                  </option>
-                ))}
-            </select>
-            {form.client_id && selectedClientFamily.length > 0 ? (
-              <select
-                className={fc() + ' sm:col-span-2'}
-                value={form.family_member_id}
+            <div className="sm:col-span-2 lg:col-span-3 rounded-2xl border border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-950/30 p-3 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-black uppercase tracking-wide text-violet-800 dark:text-violet-200">
+                  Add members to this class
+                  {form.client_ids.length
+                    ? ` · ${form.client_ids.length} selected`
+                    : ''}
+                </p>
+                {form.client_ids.length > 0 ? (
+                  <button
+                    type="button"
+                    className="text-[11px] font-bold text-violet-700 dark:text-violet-300 underline"
+                    onClick={() =>
+                      setForm((f) => ({
+                        ...f,
+                        client_ids: [],
+                        family_member_id: '',
+                      }))
+                    }
+                  >
+                    Clear all
+                  </button>
+                ) : null}
+              </div>
+              <input
+                className={fc()}
+                placeholder="Search members by name, email, code…"
+                value={form.member_query}
                 onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    family_member_id: e.target.value,
-                  }))
+                  setForm((f) => ({ ...f, member_query: e.target.value }))
                 }
-              >
-                <option value="">Attendee: account holder</option>
-                {selectedClientFamily.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                    {m.relationship ? ` · ${m.relationship}` : ''}
-                    {m.is_minor ? ' (child)' : ''}
-                  </option>
-                ))}
-              </select>
-            ) : null}
+              />
+              <div className="max-h-44 overflow-y-auto rounded-xl border border-violet-100 dark:border-violet-900 bg-white dark:bg-slate-950 divide-y divide-slate-100 dark:divide-slate-800">
+                {memberChoices.length === 0 ? (
+                  <p className="text-xs text-slate-500 px-3 py-4 text-center">
+                    No members match. Add clients under FitAdvisor → Clients.
+                  </p>
+                ) : (
+                  memberChoices.map((c) => {
+                    const on = form.client_ids.includes(c.id);
+                    return (
+                      <label
+                        key={c.id}
+                        className="flex items-start gap-2.5 px-3 py-2 text-sm cursor-pointer hover:bg-violet-50/80 dark:hover:bg-violet-950/40"
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={on}
+                          onChange={() => toggleMember(c.id)}
+                        />
+                        <span className="min-w-0">
+                          <span className="font-semibold text-slate-900 dark:text-white">
+                            {c.name}
+                          </span>
+                          {c.booking_soft_block ? (
+                            <span className="text-amber-700 dark:text-amber-300 text-[11px] font-bold">
+                              {' '}
+                              ⚠ no-shows
+                            </span>
+                          ) : null}
+                          {c.membership_status === 'frozen' ? (
+                            <span className="text-[11px] text-slate-500">
+                              {' '}
+                              · frozen
+                            </span>
+                          ) : null}
+                          <span className="block text-[11px] text-slate-500 truncate">
+                            {[c.code, c.email].filter(Boolean).join(' · ') ||
+                              '—'}
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+              {form.client_ids.length === 1 &&
+              selectedClientFamily.length > 0 ? (
+                <select
+                  className={fc()}
+                  value={form.family_member_id}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      family_member_id: e.target.value,
+                    }))
+                  }
+                >
+                  <option value="">Attendee: account holder</option>
+                  {selectedClientFamily.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                      {m.relationship ? ` · ${m.relationship}` : ''}
+                      {m.is_minor ? ' (child)' : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : form.client_ids.length > 1 ? (
+                <p className="text-[11px] text-slate-500">
+                  Multiple members selected — each is booked as the account
+                  holder. For a family child, select only that parent account.
+                </p>
+              ) : (
+                <p className="text-[11px] text-slate-500">
+                  Optional. Tick members now, or book later from Bookings /
+                  Coach calendar.
+                </p>
+              )}
+            </div>
             {form.date && form.start_time ? (
               <a
                 className="sm:col-span-2 text-xs font-bold text-violet-700 underline"
