@@ -281,27 +281,60 @@ function openA4Print(opts: {
   orientation: 'landscape' | 'portrait';
   contentHtml: string;
 }) {
-  const w = window.open('', '_blank', 'noopener,noreferrer');
-  if (!w) return;
+  const w = window.open('', '_blank');
+  if (!w) {
+    window.alert('Pop-up blocked — allow pop-ups to print the calendar.');
+    return;
+  }
   const pageSize =
     opts.orientation === 'landscape' ? 'A4 landscape' : 'A4 portrait';
+  const safeTitle = opts.title.replace(/</g, '');
   w.document.open();
   w.document.write(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>${opts.title.replace(/</g, '')}</title>
+  <meta name="color-scheme" content="light only" />
+  <title>${safeTitle}</title>
   <style>
     @page { size: ${pageSize}; margin: 10mm; }
     * { box-sizing: border-box; }
-    body {
+    html, body {
       margin: 0;
+      background: #ffffff !important;
+      color: #0f172a !important;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      color: #0f172a;
       font-size: 11px;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 12px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .toolbar button {
+      font: inherit;
+      font-weight: 700;
+      font-size: 12px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid #cbd5e1;
+      background: #0f172a;
+      color: #fff;
+      cursor: pointer;
+    }
+    .toolbar button.secondary {
+      background: #fff;
+      color: #0f172a;
+    }
+    .sheet { padding: 16px; background: #fff; color: #0f172a; }
     header {
       display: flex;
       justify-content: space-between;
@@ -348,27 +381,39 @@ function openA4Print(opts: {
     }
     @media print {
       .no-print { display: none !important; }
+      html, body { background: #ffffff !important; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <div>
-      <h1>${opts.title.replace(/</g, '')}</h1>
-      <div class="meta">${opts.rangeLabel.replace(/</g, '')}</div>
-    </div>
-    <div class="brand">${(opts.brand || 'SupplierAdvisor').replace(/</g, '')}<div class="meta">A4 ${opts.orientation}</div></div>
-  </header>
-  ${opts.hoursNote ? `<p class="hours">${opts.hoursNote.replace(/</g, '')}</p>` : ''}
-  ${opts.contentHtml}
-  <div class="footer">
-    <span>Generated ${new Date().toLocaleString()}</span>
-    <span class="no-print">Use your browser Print dialog → Save as PDF if needed</span>
+  <div class="toolbar no-print">
+    <button type="button" onclick="window.print()">Print / Save as PDF</button>
+    <button type="button" class="secondary" onclick="window.close()">Close</button>
+    <span style="font-size:11px;color:#64748b">Preview below · light page (not a blank tab)</span>
   </div>
-  <script>window.onload = function () { setTimeout(function () { window.focus(); window.print(); }, 200); };</script>
+  <div class="sheet">
+    <header>
+      <div>
+        <h1>${safeTitle}</h1>
+        <div class="meta">${opts.rangeLabel.replace(/</g, '')}</div>
+      </div>
+      <div class="brand">${(opts.brand || 'SupplierAdvisor').replace(/</g, '')}<div class="meta">A4 ${opts.orientation}</div></div>
+    </header>
+    ${opts.hoursNote ? `<p class="hours">${opts.hoursNote.replace(/</g, '')}</p>` : ''}
+    ${opts.contentHtml}
+    <div class="footer">
+      <span>Generated ${new Date().toLocaleString()}</span>
+      <span class="no-print">Click “Print / Save as PDF” above when ready</span>
+    </div>
+  </div>
 </body>
 </html>`);
   w.document.close();
+  try {
+    w.focus();
+  } catch {
+    /* ignore */
+  }
 }
 
 export function PracticeScheduleCalendar({
@@ -732,29 +777,47 @@ export function PracticeScheduleCalendar({
         orientation,
       });
       if (pdfExport.personId) q.set('personId', String(pdfExport.personId));
-      const res = await fetch(`/api/schedule/practice-pdf?${q.toString()}`);
+      // Open tab immediately (gesture) so popup blockers do not blank the viewer
+      const preview = window.open('about:blank', '_blank');
+      const res = await fetch(`/api/schedule/practice-pdf?${q.toString()}`, {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/pdf' },
+      });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
+        preview?.close();
         throw new Error(
           (err as { error?: string }).error || 'Could not build PDF'
         );
       }
-      const blob = await res.blob();
+      const buf = await res.arrayBuffer();
+      // Force PDF MIME — wrong type yields a blank black/white viewer tab
+      const blob = new Blob([buf], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download =
+      const filename =
         res.headers
           .get('Content-Disposition')
-          ?.match(/filename="?([^"]+)"?/)?.[1] ||
-        `schedule-${view}-${orientation}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+          ?.match(/filename="?([^";]+)"?/)?.[1]
+          ?.trim() || `schedule-${view}-${orientation}.pdf`;
+
+      if (preview && !preview.closed) {
+        preview.location.href = url;
+      } else {
+        // Popup blocked — force download instead of a blank tab
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      // Keep blob alive while the PDF viewer loads (revoking early = blank page)
+      window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
       setPrintMenuOpen(false);
     } catch (e) {
       console.error(e);
+      // Fall back to printable HTML (never a blank tab)
       printCalendar(orientation);
     } finally {
       setPdfBusy(false);

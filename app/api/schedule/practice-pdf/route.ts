@@ -286,12 +286,14 @@ export async function GET(request: NextRequest) {
         offerings,
       });
       const safe = brand.replace(/[^\w.-]+/g, '_').slice(0, 40);
+      // inline so browser PDF viewer can display (not a blank download tab)
       return new NextResponse(new Uint8Array(buf), {
         status: 200,
         headers: {
           'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="${safe}-practice-profile.pdf"`,
+          'Content-Disposition': `inline; filename="${safe}-practice-profile.pdf"`,
           'Cache-Control': 'no-store',
+          'X-Content-Type-Options': 'nosniff',
         },
       });
     }
@@ -351,8 +353,9 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${fname}"`,
+        'Content-Disposition': `inline; filename="${fname}"`,
         'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
       },
     });
   } catch (e: unknown) {

@@ -42,26 +42,42 @@ export function PracticeProfilePdfButton({
         module,
         kind: 'profile',
       });
-      const res = await fetch(`/api/schedule/practice-pdf?${q.toString()}`);
+      // Open tab on user gesture so the PDF viewer is not blocked / blank
+      const preview = window.open('about:blank', '_blank');
+      const res = await fetch(`/api/schedule/practice-pdf?${q.toString()}`, {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/pdf' },
+      });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
+        preview?.close();
         throw new Error(
           (err as { error?: string }).error || 'Could not build practice PDF'
         );
       }
-      const blob = await res.blob();
+      const buf = await res.arrayBuffer();
+      const blob = new Blob([buf], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download =
+      const filename =
         res.headers
           .get('Content-Disposition')
-          ?.match(/filename="?([^"]+)"?/)?.[1] || 'practice-profile.pdf';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      toast.success('Practice PDF downloaded');
+          ?.match(/filename="?([^";]+)"?/)?.[1]
+          ?.trim() || 'practice-profile.pdf';
+
+      if (preview && !preview.closed) {
+        preview.location.href = url;
+      } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      // Do not revoke immediately — that blanks the PDF viewer tab
+      window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
+      toast.success('Practice PDF ready');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'PDF download failed');
     } finally {

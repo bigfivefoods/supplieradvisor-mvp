@@ -102,7 +102,9 @@ export async function buildPracticeSchedulePdf(
     const doc = new PDFDocument({
       size: 'A4',
       layout: landscape ? 'landscape' : 'portrait',
-      margins: { top: 36, bottom: 36, left: 36, right: 36 },
+      bufferPages: true,
+      autoFirstPage: true,
+      margins: { top: 28, bottom: 50, left: 28, right: 28 },
       info: {
         Title: input.title,
         Author: 'SupplierAdvisor®',
@@ -117,8 +119,15 @@ export async function buildPracticeSchedulePdf(
 
     const pageW = doc.page.width;
     const pageH = doc.page.height;
-    const mx = 36;
+    const mx = 28;
     const contentW = pageW - mx * 2;
+    const textOpts = { lineBreak: false as const };
+    // pdfkit page-breaks if y + lineHeight > pageH - bottomMargin
+    // bottomMargin=50 ⇒ keep footer well above maxY
+    const footerY = pageH - 62;
+
+    // Solid white page (avoids dark / blank viewer look)
+    doc.rect(0, 0, pageW, pageH).fill('#ffffff');
 
     // Header
     doc.rect(0, 0, pageW, 48).fill(BRAND);
@@ -126,7 +135,10 @@ export async function buildPracticeSchedulePdf(
       .fillColor('#ffffff')
       .font('Helvetica-Bold')
       .fontSize(13)
-      .text(input.brand || 'SupplierAdvisor®', mx, 14, { width: contentW * 0.55 });
+      .text(input.brand || 'SupplierAdvisor®', mx, 14, {
+        width: contentW * 0.55,
+        ...textOpts,
+      });
     doc
       .font('Helvetica')
       .fontSize(9)
@@ -135,7 +147,7 @@ export async function buildPracticeSchedulePdf(
         `${input.moduleLabel || 'Practice'} · A4 ${input.orientation}`,
         mx + contentW * 0.55,
         16,
-        { width: contentW * 0.45, align: 'right' }
+        { width: contentW * 0.45, align: 'right', ...textOpts }
       );
 
     let y = 60;
@@ -143,7 +155,7 @@ export async function buildPracticeSchedulePdf(
       .fillColor(INK)
       .font('Helvetica-Bold')
       .fontSize(14)
-      .text(input.title, mx, y, { width: contentW });
+      .text(input.title, mx, y, { width: contentW, ...textOpts });
     y += 18;
 
     const rangeText =
@@ -158,30 +170,36 @@ export async function buildPracticeSchedulePdf(
         `${input.view.toUpperCase()} view · ${rangeText} · ${input.events.filter((e) => e.status !== 'cancelled').length} events`,
         mx,
         y,
-        { width: contentW }
+        { width: contentW, lineBreak: false }
       );
     y += 14;
 
-    // Operating hours note
+    // Operating hours note (short; avoid wrap that auto-adds blank pages)
     let hourDates: string[] = [];
     if (input.view === 'day') hourDates = [input.from];
     else if (input.view === 'week') {
       const ws = startOfWeekMon(input.from);
       hourDates = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
     } else {
-      // sample weekdays in month for summary
       hourDates = [1, 2, 3, 4, 5, 6, 0].map((wd) => {
         const d = parseIso(input.from.slice(0, 8) + '01');
         while (d.getDay() !== wd) d.setDate(d.getDate() + 1);
         return d.toISOString().slice(0, 10);
       });
     }
-    const hLine = hoursLine(
-      input.workingHours,
-      input.view === 'month' ? hourDates : hourDates
-    );
-    doc.fontSize(8).fillColor(MUTED).text(hLine, mx, y, { width: contentW });
-    y += 16;
+    const hLine = hoursLine(input.workingHours, hourDates);
+    doc
+      .fontSize(7.5)
+      .fillColor(MUTED)
+      .text(hLine, mx, y, {
+        width: contentW,
+        height: 20,
+        ellipsis: true,
+        lineBreak: true,
+      });
+    y = Math.max(y + 18, doc.y + 6);
+    // Clamp so we never start the grid past the printable area
+    if (y > pageH - 120) y = 88;
 
     const events = input.events || [];
 
@@ -301,7 +319,12 @@ export async function buildPracticeSchedulePdf(
               `${ev.start_time.slice(0, 5)} ${ev.title}`,
               x + 3,
               ey + 2,
-              { width: colW - 6, height: 18, ellipsis: true }
+              {
+                width: colW - 6,
+                height: 14,
+                ellipsis: true,
+                lineBreak: false,
+              }
             );
           ey += 16;
         }
@@ -402,17 +425,21 @@ export async function buildPracticeSchedulePdf(
       }
     }
 
-    // Footer
-    doc
-      .font('Helvetica')
-      .fontSize(7)
-      .fillColor(MUTED)
-      .text(
-        `Generated ${generated.toLocaleString()} · SupplierAdvisor®`,
-        mx,
-        pageH - 28,
-        { width: contentW, align: 'left' }
-      );
+    // Stamp footer inside bottom margin so pdfkit does not auto-add a blank page
+    const range = doc.bufferedPageRange();
+    for (let i = 0; i < range.count; i++) {
+      doc.switchToPage(range.start + i);
+      doc
+        .font('Helvetica')
+        .fontSize(7)
+        .fillColor(MUTED)
+        .text(
+          `Generated ${generated.toLocaleString()} · SupplierAdvisor® · ${i + 1}/${range.count}`,
+          mx,
+          footerY,
+          { width: contentW, align: 'left', lineBreak: false }
+        );
+    }
 
     doc.end();
   });
@@ -439,7 +466,8 @@ export async function buildPracticeProfilePdf(
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: 'A4',
-      margins: { top: 48, bottom: 48, left: 48, right: 48 },
+      bufferPages: true,
+      margins: { top: 40, bottom: 50, left: 40, right: 40 },
       info: {
         Title: `${input.brand} — practice profile`,
         Author: 'SupplierAdvisor®',
@@ -452,10 +480,14 @@ export async function buildPracticeProfilePdf(
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    const mx = 48;
-    const contentW = doc.page.width - mx * 2;
+    const mx = 40;
+    const pageW = doc.page.width;
+    const pageH = doc.page.height;
+    const contentW = pageW - mx * 2;
+    const footerY = pageH - 62;
 
-    doc.rect(0, 0, doc.page.width, 56).fill(BRAND);
+    doc.rect(0, 0, pageW, pageH).fill('#ffffff');
+    doc.rect(0, 0, pageW, 56).fill(BRAND);
     doc
       .fillColor('#fff')
       .font('Helvetica-Bold')
@@ -611,16 +643,20 @@ export async function buildPracticeProfilePdf(
       }
     }
 
-    doc
-      .font('Helvetica')
-      .fontSize(7)
-      .fillColor(MUTED)
-      .text(
-        `Generated ${generated.toLocaleString()} · SupplierAdvisor®`,
-        mx,
-        doc.page.height - 36,
-        { width: contentW }
-      );
+    const range = doc.bufferedPageRange();
+    for (let i = 0; i < range.count; i++) {
+      doc.switchToPage(range.start + i);
+      doc
+        .font('Helvetica')
+        .fontSize(7)
+        .fillColor(MUTED)
+        .text(
+          `Generated ${generated.toLocaleString()} · SupplierAdvisor® · ${i + 1}/${range.count}`,
+          mx,
+          footerY,
+          { width: contentW, lineBreak: false }
+        );
+    }
 
     doc.end();
   });
