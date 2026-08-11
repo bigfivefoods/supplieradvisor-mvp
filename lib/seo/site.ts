@@ -45,6 +45,11 @@ export const STATIC_SEO_ROUTES: Array<{
   { path: '/verification-sla', changeFrequency: 'monthly', priority: 0.75 },
   { path: '/privacy', changeFrequency: 'yearly', priority: 0.3 },
   { path: '/terms', changeFrequency: 'yearly', priority: 0.3 },
+  {
+    path: '/cancellation-refund',
+    changeFrequency: 'yearly',
+    priority: 0.3,
+  },
 ];
 
 export const SITE_KEYWORDS = [

@@ -161,6 +161,12 @@ export default function PrivacyPage() {
           <Link href="/terms" className="text-[#00b4d8] hover:underline">
             Terms of Service →
           </Link>
+          <Link
+            href="/cancellation-refund"
+            className="text-[#00b4d8] hover:underline"
+          >
+            Cancellation &amp; refunds →
+          </Link>
           <Link href="/" className="text-slate-500 hover:text-slate-800">
             ← Back to home
           </Link>

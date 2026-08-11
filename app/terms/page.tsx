@@ -111,7 +111,15 @@ export default function TermsPage() {
               Payment, verification, messaging, and blockchain networks may be provided by third
               parties under their terms. On-chain transactions are irreversible once confirmed; you
               are responsible for wallet security and network fees. Company SaaS subscriptions are
-              billed in ZAR via Paystack where enabled.
+              billed in ZAR via Paystack where enabled. Cancellation and refund rules for platform
+              subscriptions are set out in our{' '}
+              <Link
+                href="/cancellation-refund"
+                className="text-[#00b4d8] font-semibold hover:underline"
+              >
+                Cancellation &amp; Refund Policy
+              </Link>
+              .
             </p>
           </section>
 
@@ -222,6 +230,12 @@ export default function TermsPage() {
         <div className="mt-12 flex flex-wrap gap-4 text-sm font-semibold">
           <Link href="/privacy" className="text-[#00b4d8] hover:underline">
             Privacy Policy →
+          </Link>
+          <Link
+            href="/cancellation-refund"
+            className="text-[#00b4d8] hover:underline"
+          >
+            Cancellation &amp; refunds →
           </Link>
           <Link href="/" className="text-slate-500 hover:text-slate-800">
             ← Back to home

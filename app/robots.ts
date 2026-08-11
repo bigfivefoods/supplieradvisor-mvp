@@ -21,6 +21,7 @@ export default function robots(): MetadataRoute.Robots {
           '/verification-sla',
           '/privacy',
           '/terms',
+          '/cancellation-refund',
           '/llms.txt',
         ],
         disallow: [

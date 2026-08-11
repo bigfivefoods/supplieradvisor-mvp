@@ -2045,6 +2045,12 @@ export default function LandingPage() {
                 <Link href="/terms" className="block text-slate-600 hover:text-slate-900">
                   Terms
                 </Link>
+                <Link
+                  href="/cancellation-refund"
+                  className="block text-slate-600 hover:text-slate-900"
+                >
+                  Cancellation &amp; refunds
+                </Link>
               </div>
               <div className="col-span-2 space-y-2 sm:col-span-1">
                 <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
