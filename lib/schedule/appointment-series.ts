@@ -43,7 +43,8 @@ export function planAppointmentSeries(opts: {
   template: AppointmentSeriesTemplate;
   recurrence: ScheduleRecurrence;
   clinicianField: 'staff_id' | 'practitioner_id';
-  newId: (prefix?: string) => string;
+  /** Clinic modules require a prefix (e.g. 'apt', 'ser'). */
+  newId: (prefix: string) => string;
   nowIso: string;
 }): {
   dates: string[];
