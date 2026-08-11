@@ -66,14 +66,6 @@ const nextConfig = {
         destination: '/',
         permanent: true,
       },
-      // Apple Pay domain file must not be a trailing-slash directory listing
-      {
-        source:
-          '/.well-known/apple-developer-merchantid-domain-association/',
-        destination:
-          '/.well-known/apple-developer-merchantid-domain-association',
-        permanent: true,
-      },
     ];
   },
 };

@@ -88,5 +88,56 @@
       "path": "/api/services/advisor/cron",
       "schedule": "30 * * * *"
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/.well-known/apple-developer-merchantid-domain-association/",
+      "destination": "/api/public/apple-pay-domain"
+    },
+    {
+      "source": "/.well-known/apple-developer-merchantid-domain-association",
+      "destination": "/api/public/apple-pay-domain"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/.well-known/apple-developer-merchantid-domain-association",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/text"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/.well-known/apple-developer-merchantid-domain-association/",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/text"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/api/public/apple-pay-domain",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/text"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300, must-revalidate"
+        }
+      ]
+    }
   ]
 }

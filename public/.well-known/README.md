@@ -2,27 +2,35 @@
 
 Per [Paystack Apple Pay docs](https://paystack.com/docs/payments/apple-pay/):
 
-1. Enable Apple Pay under Dashboard → Preferences
-2. Register domain under Settings → Apple Pay → Web Domains
-3. Host verification file at:
+1. Enable Apple Pay under Dashboard → Preferences (accept Apple terms)
+2. Settings → Apple Pay → Web Domains → **Add new domain**
+3. Host verification file at the path below (already done in this repo)
+4. Click **Verify Domain**
 
-   `/.well-known/apple-developer-merchantid-domain-association`
+## Exact URL Apple checks
 
-4. Click **Verify Domain** in the dashboard
+```
+https://www.supplieradvisor.com/.well-known/apple-developer-merchantid-domain-association
+https://supplieradvisor.com/.well-known/apple-developer-merchantid-domain-association
+```
 
-**Content-Type must be `application/text`** (not `text/plain`).
+No trailing slash. No file extension. Content-Type: **application/text**.
 
-**Live source of truth:** `lib/billing/apple-pay-domain-association.ts`, served by
-`app/.well-known/apple-developer-merchantid-domain-association/route.ts`.
+## How we host it
 
-Static copy also in this folder. Optional env override:
-`APPLE_PAY_DOMAIN_ASSOCIATION` or `PAYSTACK_APPLE_PAY_DOMAIN_FILE`.
+| Layer | Path |
+|-------|------|
+| Source of truth | `lib/billing/apple-pay-domain-association.ts` |
+| Static copy | `public/.well-known/apple-developer-merchantid-domain-association` |
+| Edge route | `app/.well-known/.../route.ts` + `app/api/public/apple-pay-domain` |
+| Vercel rewrites | both paths (with/without trailing slash) → API route (HTTP 200) |
 
-Domains (both serve the same verification file over HTTPS):
+## Test before clicking Verify
 
-- `https://supplieradvisor.com/.well-known/apple-developer-merchantid-domain-association`
-- `https://www.supplieradvisor.com/.well-known/apple-developer-merchantid-domain-association`
+```bash
+curl -sS -D- -o /tmp/ap.txt \
+  https://www.supplieradvisor.com/.well-known/apple-developer-merchantid-domain-association | head -20
+# Expect: HTTP/2 200, content-type: application/text, body starts with {"pspId":
+```
 
-In Paystack: Settings → Apple Pay → add each domain → **Verify Domain**.
-Do not put the file under a different path; Apple/Paystack only check
-`/.well-known/apple-developer-merchantid-domain-association`.
+Register **both** `www.supplieradvisor.com` and `supplieradvisor.com` if you take payments on either host.
