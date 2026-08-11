@@ -72,15 +72,15 @@ const MODULES: HubModule[] = [
     icon: CalendarDays,
     code: '05',
     title: 'Calendar',
-    desc: 'Schedule appointments and assign practitioners.',
+    desc: 'Main practice diary — click an appointment to open (view/edit).',
     accent: 'from-violet-50 to-white border-violet-100',
   },
   {
     href: '/dashboard/medicalgraph/bookings',
     icon: ClipboardCheck,
     code: '06',
-    title: 'Bookings',
-    desc: 'Book patients onto appointments; mark attended.',
+    title: 'Desk',
+    desc: 'Front desk: waitlist queue, book patients, mark attended.',
     accent: 'from-amber-50 to-white border-amber-100',
   },
   {

@@ -89,15 +89,15 @@ function hubModules(hasFrontDesk: boolean): HubModule[] {
     icon: CalendarDays,
     code: '06',
     title: 'Calendar',
-    desc: 'Then: create class → assign coach → add members; publish.',
+    desc: 'Main diary — click an event to open (view/edit).',
     accent: 'from-rose-50 to-white border-rose-100',
   },
   {
     href: '/dashboard/fitgraph/bookings',
     icon: ClipboardCheck,
     code: '07',
-    title: 'Bookings',
-    desc: 'Book or waitlist members on existing classes.',
+    title: 'Desk',
+    desc: 'Front desk: book members, waitlist, mark attended.',
     accent: 'from-cyan-50 to-white border-cyan-100',
   },
   {

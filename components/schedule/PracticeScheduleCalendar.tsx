@@ -91,6 +91,8 @@ type Props = {
   }) => void;
   /** Hint under day timeline when slots are selectable */
   slotHint?: string;
+  /** Highlight the open event (view/edit) on the grid */
+  selectedEventId?: string | null;
 };
 
 /**
@@ -259,6 +261,7 @@ export function PracticeScheduleCalendar({
   onSelectEvent,
   onSelectSlot,
   slotHint,
+  selectedEventId = null,
 }: Props) {
   const today = toIsoDate(new Date());
   const [view, setView] = useState<ViewMode>('week');
@@ -277,6 +280,11 @@ export function PracticeScheduleCalendar({
   useEffect(() => {
     if (diaryScopeProp !== undefined) setDiaryScopeLocal(diaryScopeProp);
   }, [diaryScopeProp]);
+
+  /** Keep grid on the day the parent opens (e.g. after selecting an event) */
+  useEffect(() => {
+    if (initialDate) setCursor(initialDate);
+  }, [initialDate]);
 
   const personFilter = personFilterProp ?? personFilterLocal;
   const diaryScope = diaryScopeProp ?? diaryScopeLocal;
@@ -398,17 +406,23 @@ export function PracticeScheduleCalendar({
     dense?: boolean;
   }) => {
     const t = TONE[ev.tone || accent];
+    const selected = selectedEventId === ev.id;
     return (
       <button
         type="button"
+        data-schedule-event
         onClick={(e) => {
           e.stopPropagation();
           onSelectEvent?.(ev);
         }}
         className={`w-full text-left rounded-lg border px-1.5 py-1 ${t.chip} hover:opacity-90 transition ${
           dense ? 'text-[10px] leading-tight' : 'text-[11px]'
+        } ${
+          selected
+            ? 'ring-2 ring-offset-1 ring-slate-900 dark:ring-white dark:ring-offset-slate-900 shadow-md'
+            : ''
         }`}
-        title={`${ev.start_time} ${ev.title}${ev.person_name ? ` · ${ev.person_name}` : ''}`}
+        title={`${ev.start_time} ${ev.title}${ev.person_name ? ` · ${ev.person_name}` : ''} — click to open`}
       >
         <span className="font-bold tabular-nums">{ev.start_time.slice(0, 5)}</span>
         {!dense ? (
@@ -592,6 +606,7 @@ export function PracticeScheduleCalendar({
                 const t = TONE[ev.tone || accent];
                 const widthPct = 100 / colCount;
                 const leftPct = col * widthPct;
+                const selected = selectedEventId === ev.id;
                 return (
                   <button
                     key={ev.id}
@@ -601,7 +616,12 @@ export function PracticeScheduleCalendar({
                       e.stopPropagation();
                       onSelectEvent?.(ev);
                     }}
-                    className={`absolute rounded-lg border px-1 py-0.5 text-left overflow-hidden shadow-sm z-[1] ${t.chip}`}
+                    className={`absolute rounded-lg border px-1 py-0.5 text-left overflow-hidden shadow-sm z-[1] ${t.chip} ${
+                      selected
+                        ? 'ring-2 ring-offset-1 ring-slate-900 dark:ring-white dark:ring-offset-slate-900 z-[2]'
+                        : ''
+                    }`}
+                    title={`${ev.start_time} ${ev.title} — click to open`}
                     style={{
                       top,
                       height: h,

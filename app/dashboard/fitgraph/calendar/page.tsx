@@ -43,8 +43,13 @@ export default function CalendarPage() {
   const [personFilter, setPersonFilter] = useState('');
   const [diaryScope, setDiaryScope] = useState<DiaryScope>('practice');
   const [slotPicked, setSlotPicked] = useState<string | null>(null);
-  /** After create: assign coach / members on a session card */
-  const [manageSessionId, setManageSessionId] = useState<string | null>(null);
+  /**
+   * Selected class on the main gym calendar — open for view/edit, coach, members.
+   * null = create mode (new class).
+   */
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
+    null
+  );
   const [addMemberIds, setAddMemberIds] = useState<string[]>([]);
   const [memberQuery, setMemberQuery] = useState('');
   const [form, setForm] = useState({
@@ -58,10 +63,92 @@ export default function CalendarPage() {
     public: true,
     public_notes: '',
     class_plan: '',
+    status: 'scheduled',
     repeat: 'none' as 'none' | 'weekly',
     count: '8',
     weekdays: [] as number[],
   });
+
+  const blankCreateForm = () => ({
+    class_type_id: '',
+    coach_id: personFilter || '',
+    date: day,
+    start_time: '06:00',
+    location: 'Studio A',
+    room: '',
+    capacity: '',
+    public: true,
+    public_notes: '',
+    class_plan: '',
+    status: 'scheduled',
+    repeat: 'none' as 'none' | 'weekly',
+    count: '8',
+    weekdays: [] as number[],
+  });
+
+  const scrollToForm = () => {
+    requestAnimationFrame(() => {
+      formAnchorRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  };
+
+  /** Open an existing class from the calendar grid for view / edit. */
+  const openSession = (sessionId: string) => {
+    const s = store?.sessions.find((x) => x.id === sessionId);
+    if (!s) {
+      toast.error('Class not found');
+      return;
+    }
+    setSelectedSessionId(s.id);
+    setDay(s.date);
+    setSlotPicked(null);
+    setAddMemberIds([]);
+    setMemberQuery('');
+    setForm({
+      class_type_id: s.class_type_id || '',
+      coach_id: s.coach_id || '',
+      date: s.date,
+      start_time: String(s.start_time || '06:00').slice(0, 5),
+      location: s.location || '',
+      room: s.room || '',
+      capacity: s.capacity != null ? String(s.capacity) : '',
+      public: s.public === true,
+      public_notes: s.public_notes || '',
+      class_plan: s.class_plan || '',
+      status: s.status || 'scheduled',
+      repeat: 'none',
+      count: '8',
+      weekdays: [],
+    });
+    scrollToForm();
+  };
+
+  const startCreateMode = (partial?: {
+    date?: string;
+    start_time?: string;
+    coach_id?: string;
+  }) => {
+    setSelectedSessionId(null);
+    setAddMemberIds([]);
+    setMemberQuery('');
+    const d = partial?.date || day;
+    setDay(d);
+    setForm({
+      ...blankCreateForm(),
+      date: d,
+      start_time: partial?.start_time || '06:00',
+      coach_id: partial?.coach_id || personFilter || '',
+    });
+    if (partial?.date && partial?.start_time) {
+      setSlotPicked(`${partial.date} · ${partial.start_time.slice(0, 5)}`);
+    } else {
+      setSlotPicked(null);
+    }
+    scrollToForm();
+  };
 
   const daySessions = useMemo(() => {
     if (!store) return [];
@@ -132,24 +219,13 @@ export default function CalendarPage() {
     start_time: string;
     person_id?: string | null;
   }) => {
-    setDay(slot.date);
-    setForm((f) => ({
-      ...f,
+    startCreateMode({
       date: slot.date,
       start_time: slot.start_time.slice(0, 5),
-      coach_id: slot.person_id || f.coach_id || personFilter || '',
-      repeat: 'none',
-    }));
-    setSlotPicked(`${slot.date} · ${slot.start_time.slice(0, 5)}`);
-    // Scroll schedule form into view
-    requestAnimationFrame(() => {
-      formAnchorRef.current?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
-      });
+      coach_id: slot.person_id || personFilter || '',
     });
-    toast.message('Time selected', {
-      description: `${slot.date} at ${slot.start_time.slice(0, 5)} — finish the class details below`,
+    toast.message('New class slot', {
+      description: `${slot.date} at ${slot.start_time.slice(0, 5)} — finish details below, or click an existing class to open it`,
     });
   };
 
@@ -175,11 +251,53 @@ export default function CalendarPage() {
     return n;
   };
 
+  /** Save edits to the open class (view/edit mode). */
+  const saveSelected = async () => {
+    if (!selectedSessionId || !store) return;
+    const prev = store.sessions.find((x) => x.id === selectedSessionId);
+    if (!prev) {
+      toast.error('Class not found');
+      return;
+    }
+    if (!form.class_type_id) {
+      toast.error('Select a class type');
+      return;
+    }
+    if (!form.date || !form.start_time) {
+      toast.error('Set date and start time');
+      return;
+    }
+    await post({
+      entity: 'sessions',
+      action: 'upsert',
+      record: {
+        ...prev,
+        class_type_id: form.class_type_id,
+        coach_id: form.coach_id || null,
+        date: form.date,
+        start_time: form.start_time,
+        location: form.location || undefined,
+        room: form.room || null,
+        capacity: form.capacity ? Number(form.capacity) : null,
+        public: form.public,
+        public_notes: form.public_notes || undefined,
+        class_plan: form.class_plan || undefined,
+        status: form.status || prev.status || 'scheduled',
+      },
+    });
+    setDay(form.date);
+    toast.success('Class updated');
+  };
+
   /**
    * Step 1 only: create the class (type + when + room).
    * Coach and members are assigned afterwards on the class card.
    */
   const add = async () => {
+    if (selectedSessionId) {
+      await saveSelected();
+      return;
+    }
     if (!form.class_type_id) {
       toast.error('Select a class type first (Classes catalogue)');
       return;
@@ -217,8 +335,11 @@ export default function CalendarPage() {
       );
       setSlotPicked(null);
       if (firstId) {
-        setManageSessionId(firstId);
+        // post() refreshes store async in React — open by id + current form values
+        setSelectedSessionId(firstId);
         setAddMemberIds([]);
+        setDay(form.date);
+        scrollToForm();
       }
       return;
     }
@@ -251,9 +372,11 @@ export default function CalendarPage() {
         : 'Class created — next: assign a coach, then add members'
     );
     setSlotPicked(null);
-    setManageSessionId(sessionId);
-    setAddMemberIds([]);
     setDay(form.date);
+    // Reload form from server store happens via post(); open by id after brief tick
+    setSelectedSessionId(sessionId);
+    setAddMemberIds([]);
+    scrollToForm();
   };
 
   const memberChoices = useMemo(() => {
@@ -292,7 +415,6 @@ export default function CalendarPage() {
       n === 1 ? 'Member added to class' : `${n} members added to class`
     );
     setAddMemberIds([]);
-    setManageSessionId(null);
   };
 
   const copyInvite = async (sessionId: string) => {
@@ -344,8 +466,8 @@ export default function CalendarPage() {
   return (
     <FitgraphWorkbench
       title="Calendar"
-      titleAccent="gym schedule"
-      description="Flow: 1) Create the class (type · when · room) → 2) Assign a coach → 3) Add members. Multiple coaches can run at the same time. SupplierAdvisor only bills your platform subscription — member fees stay your own arrangement."
+      titleAccent="main gym diary"
+      description="Main gym calendar: click a class to open it (view/edit · coach · members). Click empty time to create. Multiple coaches can run at the same time. SA bills platform subscription only — member fees stay yours."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -399,76 +521,101 @@ export default function CalendarPage() {
             }}
             initialDate={day}
             emptyLabel="No classes"
-            slotHint="Click empty time to add a class"
+            slotHint="Click empty time to add a class · click a class to open"
+            selectedEventId={selectedSessionId}
             onSelectDate={(date) => {
               setDay(date);
               setForm((f) => ({ ...f, date }));
             }}
             onSelectSlot={pickSlot}
             onSelectEvent={(ev) => {
-              // Prefill form from existing class for quick re-use / edit flow
-              setDay(ev.date);
-              setForm((f) => ({
-                ...f,
-                date: ev.date,
-                start_time: ev.start_time.slice(0, 5),
-                coach_id: ev.person_id || f.coach_id,
-              }));
-              toast.message('Class selected', {
-                description: `${ev.start_time.slice(0, 5)} · ${ev.title} — use join link below or schedule another at this time`,
+              openSession(ev.id);
+              toast.message('Class open', {
+                description: `${ev.start_time.slice(0, 5)} · ${ev.title} — edit details, coach, or members below`,
               });
             }}
           />
 
           <div ref={formAnchorRef}>
-          <div className="mb-3 grid grid-cols-3 gap-2 text-center text-[11px] font-bold">
-            {[
-              { n: '1', t: 'Create class', d: 'Type · when · room' },
-              { n: '2', t: 'Assign coach', d: 'On the class card' },
-              { n: '3', t: 'Add members', d: 'On the class card' },
-            ].map((s) => (
-              <div
-                key={s.n}
-                className={`rounded-2xl border px-2 py-2 ${
-                  s.n === '1'
-                    ? 'border-violet-400 bg-violet-50 text-violet-900 dark:border-violet-500 dark:bg-violet-950 dark:text-violet-100'
-                    : 'border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300'
-                }`}
-              >
-                <div className="text-[10px] font-black uppercase tracking-wide opacity-70">
-                  Step {s.n}
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="grid flex-1 min-w-[240px] grid-cols-3 gap-2 text-center text-[11px] font-bold">
+              {[
+                {
+                  n: '1',
+                  t: selectedSessionId ? 'View / edit' : 'Create class',
+                  d: selectedSessionId ? 'Details · room' : 'Type · when · room',
+                },
+                { n: '2', t: 'Assign coach', d: 'On the class' },
+                { n: '3', t: 'Add members', d: 'On the class' },
+              ].map((s) => (
+                <div
+                  key={s.n}
+                  className={`rounded-2xl border px-2 py-2 ${
+                    selectedSessionId
+                      ? 'border-violet-400 bg-violet-50 text-violet-900 dark:border-violet-500 dark:bg-violet-950 dark:text-violet-100'
+                      : s.n === '1'
+                        ? 'border-violet-400 bg-violet-50 text-violet-900 dark:border-violet-500 dark:bg-violet-950 dark:text-violet-100'
+                        : 'border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300'
+                  }`}
+                >
+                  <div className="text-[10px] font-black uppercase tracking-wide opacity-70">
+                    Step {s.n}
+                  </div>
+                  <div>{s.t}</div>
+                  <div className="text-[10px] font-medium opacity-70">{s.d}</div>
                 </div>
-                <div>{s.t}</div>
-                <div className="text-[10px] font-medium opacity-70">{s.d}</div>
-              </div>
-            ))}
+              ))}
+            </div>
+            {selectedSessionId ? (
+              <button
+                type="button"
+                className="rounded-xl border border-violet-300 bg-white px-3 py-2 text-xs font-bold text-violet-800 dark:border-violet-600 dark:bg-violet-950 dark:text-violet-100"
+                onClick={() => startCreateMode({ date: day })}
+              >
+                + New class
+              </button>
+            ) : null}
           </div>
           <FormCard
             tone="owner"
             title={
-              slotPicked
-                ? `Step 1 · Create class · ${slotPicked}`
-                : 'Step 1 · Create class'
+              selectedSessionId
+                ? `Open class · ${form.date} ${form.start_time}`
+                : slotPicked
+                  ? `Create class · ${slotPicked}`
+                  : 'Create class'
+            }
+            description={
+              selectedSessionId
+                ? 'Edit details below, then Save. Coach and members are managed on the same open class card.'
+                : undefined
             }
             onSubmit={() => void add()}
             saving={saving}
             submitLabel={
-              form.repeat === 'weekly' ? 'Create class series' : 'Create class'
+              selectedSessionId
+                ? 'Save changes'
+                : form.repeat === 'weekly'
+                  ? 'Create class series'
+                  : 'Create class'
             }
           >
-            {slotPicked ? (
+            {selectedSessionId ? (
+              <p className="sm:col-span-2 lg:col-span-3 text-xs text-violet-700 dark:text-violet-300 font-medium rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50/80 dark:bg-violet-950/40 px-3 py-2">
+                Viewing / editing this class. Change fields and <strong>Save changes</strong>,
+                or assign coach and members on the card for this day below. Click empty
+                calendar time for a new class.
+              </p>
+            ) : slotPicked ? (
               <p className="sm:col-span-2 lg:col-span-3 text-xs text-violet-700 dark:text-violet-300 font-medium rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50/80 dark:bg-violet-950/40 px-3 py-2">
                 Slot from calendar: <strong>{slotPicked}</strong>. Choose a{' '}
                 <strong>class type</strong> (add types under Classes first),
-                save the class, then assign coach and members on the card below.
+                save the class, then assign coach and members on the open card.
               </p>
             ) : (
               <p className="sm:col-span-2 lg:col-span-3 text-xs text-slate-500">
-                Order:{' '}
-                <strong>
-                  Classes catalogue → create class → assign coach → add members
-                </strong>
-                . Open Day/Week and click empty time to prefill the slot.
+                <strong>Click a class</strong> on the calendar to open it, or click empty
+                time to create. Catalogue first under Classes if needed.
                 {!store.class_types.length ? (
                   <>
                     {' '}
@@ -583,6 +730,20 @@ export default function CalendarPage() {
                 setForm((f) => ({ ...f, class_plan: e.target.value }))
               }
             />
+            {selectedSessionId ? (
+              <select
+                className={fc()}
+                value={form.status}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, status: e.target.value }))
+                }
+              >
+                <option value="scheduled">Status: scheduled</option>
+                <option value="completed">Status: completed</option>
+                <option value="cancelled">Status: cancelled</option>
+              </select>
+            ) : null}
+            {!selectedSessionId ? (
             <div className="sm:col-span-2 lg:col-span-3 flex flex-wrap gap-2">
               <button
                 type="button"
@@ -607,7 +768,8 @@ export default function CalendarPage() {
                 <Repeat className="w-3 h-3" /> Weekly series
               </button>
             </div>
-            {form.repeat === 'weekly' && (
+            ) : null}
+            {!selectedSessionId && form.repeat === 'weekly' && (
               <>
                 <div className="sm:col-span-2 flex flex-wrap gap-1">
                   {WEEKDAYS.map((w) => {
@@ -648,11 +810,12 @@ export default function CalendarPage() {
                 />
               </>
             )}
+            {!selectedSessionId ? (
             <p className="sm:col-span-2 lg:col-span-3 text-[11px] text-slate-500 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 px-3 py-2">
-              <strong>Steps 2–3 after create:</strong> on the class card below,
-              assign a coach, then add members. You can also leave coach blank
-              now and assign later.
+              <strong>After create:</strong> the class opens automatically so you
+              can assign a coach and add members. Coach can stay blank until later.
             </p>
+            ) : null}
             {form.date && form.start_time ? (
               <a
                 className="sm:col-span-2 text-xs font-bold text-violet-700 underline"
@@ -675,9 +838,8 @@ export default function CalendarPage() {
           </div>
 
           <p className="text-xs text-slate-500">
-            After the class exists: <strong>Step 2</strong> pick a coach on the
-            card · <strong>Step 3</strong> open Add members. Join links work once
-            a class is created.{' '}
+            <strong>Click any class</strong> on the calendar to open it for
+            view/edit · coach · members. Join links work once a class exists.{' '}
             <Link
               href="/dashboard/fitgraph/classes"
               className="font-bold text-violet-700 underline"
@@ -690,18 +852,25 @@ export default function CalendarPage() {
               className="font-bold text-violet-700 underline"
             >
               Coach calendar
+            </Link>{' '}
+            ·{' '}
+            <Link
+              href="/dashboard/fitgraph/bookings"
+              className="font-bold text-violet-700 underline"
+            >
+              Desk · bookings
             </Link>
             .
           </p>
 
           <div className="space-y-2">
             <h3 className="text-sm font-black text-slate-800 dark:text-violet-100">
-              Classes on {day} · steps 2–3
+              Classes on {day}
+              {selectedSessionId ? ' · open class highlighted' : ''}
             </h3>
             {daySessions.length === 0 ? (
               <p className="text-sm text-slate-500 py-8 text-center border border-dashed border-slate-200 rounded-2xl">
-                No classes on {day}. Create a class above (step 1), then assign
-                coach and members here.
+                No classes on {day}. Click empty calendar time to create one.
               </p>
             ) : (
               daySessions.map((s) => {
@@ -711,7 +880,7 @@ export default function CalendarPage() {
                 const coach = store.coaches.find((c) => c.id === s.coach_id);
                 const booked = sessionBookingCount(store, s.id);
                 const cap = s.capacity ?? ct?.capacity ?? 0;
-                const managing = manageSessionId === s.id;
+                const managing = selectedSessionId === s.id;
                 const roster = store.bookings.filter(
                   (b) =>
                     b.session_id === s.id &&
@@ -727,12 +896,25 @@ export default function CalendarPage() {
                           type="button"
                           className="inline-flex items-center gap-1 text-xs font-bold text-violet-700 dark:text-violet-300"
                           onClick={() => {
-                            setManageSessionId(managing ? null : s.id);
+                            if (managing) {
+                              startCreateMode({ date: day });
+                            } else {
+                              openSession(s.id);
+                            }
+                          }}
+                        >
+                          {managing ? 'Close' : 'Open'}
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 text-xs font-bold text-sky-700 dark:text-sky-300"
+                          onClick={() => {
+                            openSession(s.id);
                             setAddMemberIds([]);
                             setMemberQuery('');
                           }}
                         >
-                          {managing ? 'Close members' : 'Add members'}
+                          Members
                         </button>
                         <button
                           type="button"
@@ -910,7 +1092,7 @@ export default function CalendarPage() {
                           type="button"
                           className="text-[11px] font-bold text-sky-700 dark:text-sky-300 underline"
                           onClick={() => {
-                            setManageSessionId(s.id);
+                            openSession(s.id);
                             setAddMemberIds([]);
                           }}
                         >
