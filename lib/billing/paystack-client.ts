@@ -12,7 +12,9 @@
  * - HTTPS (production); Safari / Apple devices only
  */
 
+/** apple_pay first so Safari/iOS surfaces it when domain is verified */
 export const PAYSTACK_CHANNELS_DEFAULT = [
+  'apple_pay',
   'card',
   'bank',
   'ussd',
@@ -20,7 +22,6 @@ export const PAYSTACK_CHANNELS_DEFAULT = [
   'mobile_money',
   'bank_transfer',
   'eft',
-  'apple_pay',
 ] as const;
 
 export type PaystackChannel = (typeof PAYSTACK_CHANNELS_DEFAULT)[number];
@@ -67,6 +68,8 @@ export function getPaystackPublicKey(): string | null {
   return k.trim() || null;
 }
 
+const PAYSTACK_V2_SRC = 'https://js.paystack.co/v2/inline.js';
+
 /** Detect likely Apple Pay environment (Safari / iOS) */
 export function likelyApplePayEnvironment(): boolean {
   if (typeof navigator === 'undefined') return false;
@@ -76,6 +79,63 @@ export function likelyApplePayEnvironment(): boolean {
     /Safari/i.test(ua) &&
     !/Chrome|CriOS|FxiOS|EdgiOS|OPiOS|Android/i.test(ua);
   return isIOS || isSafari;
+}
+
+/**
+ * Ensure InlineJS v2 is loaded (Apple Pay requires v2).
+ * Layout injects the script async — wait or inject if missing.
+ */
+export function ensurePaystackScriptLoaded(timeoutMs = 12_000): Promise<void> {
+  if (typeof window === 'undefined') {
+    return Promise.reject(new Error('Paystack only runs in the browser'));
+  }
+  if (window.PaystackPop) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(
+      `script[src*="js.paystack.co"]`
+    ) as HTMLScriptElement | null;
+
+    const finishOk = () => {
+      if (window.PaystackPop) resolve();
+      else reject(new Error('PaystackPop missing after script load'));
+    };
+
+    if (existing) {
+      if (window.PaystackPop) {
+        resolve();
+        return;
+      }
+      existing.addEventListener('load', finishOk, { once: true });
+      existing.addEventListener(
+        'error',
+        () => reject(new Error('Paystack script failed to load')),
+        { once: true }
+      );
+    } else {
+      const s = document.createElement('script');
+      s.src = PAYSTACK_V2_SRC;
+      s.async = true;
+      s.onload = finishOk;
+      s.onerror = () => reject(new Error('Paystack script failed to load'));
+      document.head.appendChild(s);
+    }
+
+    const t0 = Date.now();
+    const poll = window.setInterval(() => {
+      if (window.PaystackPop) {
+        window.clearInterval(poll);
+        resolve();
+      } else if (Date.now() - t0 > timeoutMs) {
+        window.clearInterval(poll);
+        reject(
+          new Error(
+            'Paystack is still loading. Check network / ad blockers and try again.'
+          )
+        );
+      }
+    }, 50);
+  });
 }
 
 function metadataToCustomFields(
@@ -96,11 +156,13 @@ function metadataToCustomFields(
 export async function openPaystackCheckout(
   opts: PaystackCheckoutOpts
 ): Promise<void> {
+  await ensurePaystackScriptLoaded();
   const Pop = window.PaystackPop;
   if (!Pop) {
     throw new Error('Paystack is still loading — try again in a moment');
   }
 
+  // Prefer apple_pay first on Apple devices so pre-checkout modal shows it
   const channels = opts.channels || [...PAYSTACK_CHANNELS_DEFAULT];
   const currency = opts.currency || 'ZAR';
   const baseMeta = {
@@ -135,7 +197,7 @@ export async function openPaystackCheckout(
       onError: (e: unknown) => opts.onError?.(e),
     };
 
-    // Prefer checkout() — shows Apple Pay pre-modal on Safari/iOS
+    // Prefer checkout() — shows Apple Pay pre-modal on Safari/iOS when domain verified
     if (typeof instance.checkout === 'function') {
       await instance.checkout(payload);
       return;
@@ -191,6 +253,11 @@ export async function mountPaystackApplePay(opts: {
   onCancel?: () => void;
   onError?: (err: unknown) => void;
 }): Promise<boolean> {
+  try {
+    await ensurePaystackScriptLoaded();
+  } catch {
+    return false;
+  }
   const Pop = window.PaystackPop;
   if (!Pop) return false;
   const isCtor = typeof Pop === 'function';
@@ -209,7 +276,14 @@ export async function mountPaystackApplePay(opts: {
     reference: opts.ref,
     container: opts.containerId,
     loadPaystackCheckoutButton: opts.otherChannelsButtonId,
-    channels: ['apple_pay', 'card', 'bank', 'ussd', 'mobile_money', 'bank_transfer'],
+    channels: [
+      'apple_pay',
+      'card',
+      'bank',
+      'ussd',
+      'mobile_money',
+      'bank_transfer',
+    ],
     metadata: {
       custom_fields: metadataToCustomFields(opts.metadata),
       ...opts.metadata,

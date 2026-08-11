@@ -17,9 +17,10 @@ export function middleware(request: NextRequest) {
   response.headers.set('X-Frame-Options', 'DENY');
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // payment=(self) required for Apple Pay / Payment Request API on Safari
   response.headers.set(
     'Permissions-Policy',
-    'camera=(), microphone=(), geolocation=(self)'
+    'camera=(), microphone=(), geolocation=(self), payment=(self)'
   );
 
   const { pathname } = request.nextUrl;

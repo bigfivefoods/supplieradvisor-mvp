@@ -14,6 +14,16 @@ const nextConfig = {
   async headers() {
     return [
       {
+        // Allow Payment Request API (Apple Pay) site-wide on HTTPS
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=(self), payment=(self)',
+          },
+        ],
+      },
+      {
         // Service worker must not be long-cached or scoped incorrectly
         source: '/sw.js',
         headers: [
@@ -54,6 +64,14 @@ const nextConfig = {
       {
         source: '/directory/:path*',
         destination: '/',
+        permanent: true,
+      },
+      // Apple Pay domain file must not be a trailing-slash directory listing
+      {
+        source:
+          '/.well-known/apple-developer-merchantid-domain-association/',
+        destination:
+          '/.well-known/apple-developer-merchantid-domain-association',
         permanent: true,
       },
     ];

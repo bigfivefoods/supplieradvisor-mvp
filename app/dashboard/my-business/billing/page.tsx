@@ -49,6 +49,7 @@ import { Panel } from '@/components/relationship/RelationshipChrome';
 import CommercialValueBanner from '@/components/billing/CommercialValueBanner';
 
 import {
+  ensurePaystackScriptLoaded,
   getPaystackPublicKey,
   likelyApplePayEnvironment,
   mountPaystackApplePay,
@@ -114,7 +115,9 @@ function BillingInner() {
   const selectedTerm = getBillingTerm(termId);
   const [selectedPackIds, setSelectedPackIds] = useState<string[]>([]);
   const [applePayReady, setApplePayReady] = useState(false);
+  /** Auto-open Apple Pay panel on Safari / iOS */
   const [showApplePay, setShowApplePay] = useState(false);
+  const [applePayHint, setApplePayHint] = useState<string | null>(null);
   const packQuote = useMemo(
     () => quoteIndustryPacks(selectedPackIds, termId),
     [selectedPackIds, termId]
@@ -486,7 +489,9 @@ function BillingInner() {
       );
       return;
     }
-    if (!window.PaystackPop) {
+    try {
+      await ensurePaystackScriptLoaded();
+    } catch {
       toast.error('Paystack is still loading — try again in a moment');
       return;
     }
@@ -533,7 +538,12 @@ function BillingInner() {
     }
   };
 
-  /** Mount dedicated Apple Pay button when on Safari / iOS */
+  /** Auto-show Apple Pay UI on Safari / iOS */
+  useEffect(() => {
+    if (likelyApplePayEnvironment()) setShowApplePay(true);
+  }, []);
+
+  /** Mount dedicated Apple Pay button when panel open (Safari / iOS) */
   useEffect(() => {
     if (!showApplePay || !likelyApplePayEnvironment()) {
       setApplePayReady(false);
@@ -541,7 +551,14 @@ function BillingInner() {
     }
     const key = getPaystackPublicKey();
     const payEmail = email || billingEmail;
-    if (!key || !payEmail || !window.PaystackPop) return;
+    if (!key || !payEmail) {
+      setApplePayHint(
+        !key
+          ? 'Paystack public key not configured.'
+          : 'Add a billing email to use Apple Pay.'
+      );
+      return;
+    }
     const term = getBillingTerm(termId);
     const amountCents = selectedPackIds.length
       ? combinedQuote.totalPayCents
@@ -550,15 +567,18 @@ function BillingInner() {
     let cancelled = false;
     void (async () => {
       try {
+        await ensurePaystackScriptLoaded();
+        if (cancelled) return;
         const el = document.getElementById('paystack-apple-pay');
         if (el) el.innerHTML = '';
         const ok = await mountPaystackApplePay({
           key,
           email: payEmail,
           amountCents,
+          currency: 'ZAR',
           ref,
           containerId: 'paystack-apple-pay',
-          otherChannelsButtonId: 'paystack-other-channels',
+          otherChannelsButtonId: 'paystack-more-channels',
           metadata: {
             product: selectedPackIds.length
               ? 'company_saas_plus_packs'
@@ -571,10 +591,31 @@ function BillingInner() {
             if (!cancelled) void activate(reference, term.id, selectedPackIds);
           },
           onCancel: () => setPaying(false),
+          onError: (e) => {
+            if (!cancelled) {
+              setApplePayHint(
+                e instanceof Error
+                  ? e.message
+                  : 'Apple Pay session could not start. Verify www.supplieradvisor.com in Paystack → Settings → Apple Pay.'
+              );
+            }
+          },
         });
-        if (!cancelled) setApplePayReady(ok);
-      } catch {
-        if (!cancelled) setApplePayReady(false);
+        if (!cancelled) {
+          setApplePayReady(ok);
+          setApplePayHint(
+            ok
+              ? null
+              : 'Apple Pay button did not mount. Use Safari on an Apple device, confirm domain is Verified in Paystack, and open billing on https://www.supplieradvisor.com (not a preview URL).'
+          );
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setApplePayReady(false);
+          setApplePayHint(
+            e instanceof Error ? e.message : 'Could not load Apple Pay'
+          );
+        }
       }
     })();
     return () => {
@@ -1023,11 +1064,41 @@ function BillingInner() {
                   </span>
                 </label>
 
+                {/* Apple Pay first on Safari / iOS (Paystack InlineJS v2 paymentRequest) */}
+                {likelyApplePayEnvironment() || showApplePay ? (
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-950 p-3 space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-center">
+                      Apple Pay · Safari / iPhone
+                    </p>
+                    {/* Paystack injects the Apple Pay button here */}
+                    <div id="paystack-apple-pay" className="min-h-[48px]" />
+                    <button
+                      type="button"
+                      id="paystack-more-channels"
+                      disabled={paying}
+                      onClick={() => void startPayment()}
+                      className="w-full rounded-xl border border-slate-600 bg-slate-900 py-2.5 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50"
+                    >
+                      More payment options (card · EFT · bank)
+                    </button>
+                    {applePayReady ? (
+                      <p className="text-[10px] text-emerald-400 text-center">
+                        Apple Pay ready — tap the button above
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 text-center">
+                        {applePayHint ||
+                          'Loading Apple Pay… Domain must show Verified in Paystack → Settings → Apple Pay for www.supplieradvisor.com. Use Safari on this site over HTTPS.'}
+                      </p>
+                    )}
+                  </div>
+                ) : null}
+
                 <button
                   type="button"
                   disabled={paying}
                   onClick={() => void startPayment()}
-                  id="paystack-other-channels"
+                  id="paystack-primary-checkout"
                   className="mt-4 w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-gradient-to-r from-[#00b4d8] to-[#0077b6] text-white font-black text-base shadow-xl shadow-sky-200/50 disabled:opacity-50"
                 >
                   {paying ? (
@@ -1049,46 +1120,19 @@ function BillingInner() {
                     : ''}
                 </button>
 
-                {/* Apple Pay — Paystack InlineJS v2 paymentRequest (Safari / iOS) */}
-                <div className="mt-3 space-y-2">
+                {!likelyApplePayEnvironment() ? (
                   <button
                     type="button"
                     onClick={() => setShowApplePay((v) => !v)}
-                    className="w-full text-xs font-bold text-slate-700 border border-slate-200 rounded-xl py-2 hover:bg-slate-50"
+                    className="mt-2 w-full text-xs font-bold text-slate-600 underline"
                   >
-                    {showApplePay ? 'Hide' : 'Show'} Apple Pay (Safari / iPhone)
+                    {showApplePay ? 'Hide' : 'Try'} Apple Pay panel
                   </button>
-                  {showApplePay ? (
-                    <div className="rounded-2xl border border-slate-200 bg-slate-950 p-3 space-y-2">
-                      {/* Payment request button injects into this div */}
-                      <div id="paystack-apple-pay" className="min-h-[48px]" />
-                      <button
-                        type="button"
-                        id="paystack-other-channels"
-                        onClick={() => void startPayment()}
-                        className="w-full rounded-xl border border-slate-600 bg-slate-900 py-2.5 text-xs font-bold text-white hover:bg-slate-800"
-                      >
-                        More payment options
-                      </button>
-                      {!applePayReady ? (
-                        <p className="text-[10px] text-slate-400 text-center">
-                          Apple Pay mounts on Safari / iOS after the domain is
-                          verified in Paystack (Settings → Apple Pay). HTTPS
-                          required. Card, EFT and other channels work via Pay
-                          above or More payment options.
-                        </p>
-                      ) : (
-                        <p className="text-[10px] text-emerald-400 text-center">
-                          Apple Pay ready — complete on your device
-                        </p>
-                      )}
-                    </div>
-                  ) : null}
-                </div>
+                ) : null}
 
                 <p className="mt-3 text-[11px] text-center text-neutral-500 flex items-center justify-center gap-1">
                   <Shield className="w-3 h-3" />
-                  Secure Paystack · Apple Pay · card · EFT · fees to
+                  Secure Paystack · Apple Pay (Safari) · card · EFT · fees to
                   SupplierAdvisor
                 </p>
               </>
