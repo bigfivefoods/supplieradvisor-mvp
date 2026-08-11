@@ -390,11 +390,69 @@ export function PracticeScheduleCalendar({
     diaryScopeProp || (personFilterProp ? 'person' : 'practice')
   );
   const [printMenuOpen, setPrintMenuOpen] = useState(false);
+  const [printMenuPos, setPrintMenuPos] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const printBtnRef = useRef<HTMLButtonElement>(null);
+  const printMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (personFilterProp !== undefined) setPersonFilterLocal(personFilterProp);
   }, [personFilterProp]);
+
+  /** Fixed menu must sit above app sidebar (z-20) + sticky rails */
+  useEffect(() => {
+    if (!printMenuOpen) return;
+    const place = () => {
+      const btn = printBtnRef.current;
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      const menuW = 220;
+      const pad = 8;
+      let left = r.right - menuW;
+      if (left < pad) left = pad;
+      if (left + menuW > window.innerWidth - pad) {
+        left = Math.max(pad, window.innerWidth - menuW - pad);
+      }
+      let top = r.bottom + 6;
+      const approxH = 150;
+      if (top + approxH > window.innerHeight - pad) {
+        top = Math.max(pad, r.top - approxH - 6);
+      }
+      setPrintMenuPos({ top, left });
+    };
+    place();
+    const onScroll = () => place();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPrintMenuOpen(false);
+    };
+    const onPointer = (e: Event) => {
+      const t = e.target as Node | null;
+      if (
+        printMenuRef.current?.contains(t) ||
+        printBtnRef.current?.contains(t)
+      ) {
+        return;
+      }
+      setPrintMenuOpen(false);
+    };
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('keydown', onKey);
+    // delay so the opening click does not immediately close
+    const tid = window.setTimeout(() => {
+      document.addEventListener('pointerdown', onPointer, true);
+    }, 0);
+    return () => {
+      window.clearTimeout(tid);
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointer, true);
+    };
+  }, [printMenuOpen]);
 
   useEffect(() => {
     if (diaryScopeProp !== undefined) setDiaryScopeLocal(diaryScopeProp);
@@ -929,10 +987,10 @@ export function PracticeScheduleCalendar({
   return (
     <div
       ref={rootRef}
-      className={`rounded-3xl border border-slate-200 dark:border-slate-700 overflow-hidden ${tone.soft}`}
+      className={`rounded-3xl border border-slate-200 dark:border-slate-700 ${tone.soft}`}
     >
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 dark:border-slate-700 bg-white/90 dark:bg-slate-950/80 px-3 sm:px-4 py-3">
+      {/* Toolbar — overflow visible so menus are not clipped */}
+      <div className="relative z-20 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 dark:border-slate-700 bg-white/90 dark:bg-slate-950/80 px-3 sm:px-4 py-3 rounded-t-3xl">
         <div className="flex items-center gap-2 min-w-0">
           <CalendarDays className="w-4 h-4 text-slate-500 shrink-0" />
           <div className="min-w-0">
@@ -958,18 +1016,27 @@ export function PracticeScheduleCalendar({
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <button
+              ref={printBtnRef}
               type="button"
               onClick={() => setPrintMenuOpen((o) => !o)}
               className="inline-flex items-center gap-1 rounded-xl border border-slate-200 dark:border-slate-600 px-2.5 py-1.5 text-[11px] font-bold hover:bg-slate-50 dark:hover:bg-slate-800"
               title="Download / print A4 calendar"
+              aria-expanded={printMenuOpen}
+              aria-haspopup="menu"
             >
               <Download className="w-3.5 h-3.5" />
               A4 PDF
             </button>
-            {printMenuOpen ? (
-              <div className="absolute right-0 z-30 mt-1 w-52 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 shadow-lg p-1">
+            {printMenuOpen && printMenuPos ? (
+              <div
+                ref={printMenuRef}
+                role="menu"
+                className="fixed z-[400] w-[13.75rem] rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 shadow-2xl p-1"
+                style={{ top: printMenuPos.top, left: printMenuPos.left }}
+              >
                 <button
                   type="button"
+                  role="menuitem"
                   className="w-full text-left rounded-lg px-2.5 py-2 text-[11px] font-bold hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-2"
                   onClick={() => printCalendar('landscape')}
                 >
@@ -978,6 +1045,7 @@ export function PracticeScheduleCalendar({
                 </button>
                 <button
                   type="button"
+                  role="menuitem"
                   className="w-full text-left rounded-lg px-2.5 py-2 text-[11px] font-bold hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-2"
                   onClick={() => printCalendar('portrait')}
                 >
@@ -1115,7 +1183,7 @@ export function PracticeScheduleCalendar({
         </div>
       </div>
 
-      <div className="p-3 sm:p-4 bg-white dark:bg-slate-950">
+      <div className="p-3 sm:p-4 bg-white dark:bg-slate-950 rounded-b-3xl overflow-hidden">
         {view === 'day' && <HoursTimeline date={cursor} />}
 
         {view === 'week' && (
