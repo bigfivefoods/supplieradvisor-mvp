@@ -2,7 +2,7 @@
 
 /**
  * Coach calendar (owner desk) — planned classes, roster (plan), actual attendance.
- * Create bespoke one-off or weekly repeating classes per coach.
+ * Create bespoke one-off or repeating (daily / weekly / monthly) classes per coach.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -13,7 +13,6 @@ import {
   ChevronRight,
   Loader2,
   Plus,
-  Repeat,
   Share2,
   UserX,
   Users,
@@ -27,6 +26,14 @@ import {
 } from '@/components/fitness/FitgraphWorkbench';
 import { fc } from '@/components/fitness/FitForm';
 import { addDaysIso } from '@/lib/fitness/fitgraph';
+import {
+  RecurrenceFields,
+  emptyRecurrenceForm,
+  recurrenceApiPayload,
+  validateRecurrenceForm,
+  type RecurrenceFormValue,
+} from '@/components/schedule/RecurrenceFields';
+
 
 type RosterRow = {
   booking_id: string;
@@ -86,16 +93,6 @@ type Portal = {
   }>;
 };
 
-const WEEKDAYS = [
-  { v: 1, l: 'Mon' },
-  { v: 2, l: 'Tue' },
-  { v: 3, l: 'Wed' },
-  { v: 4, l: 'Thu' },
-  { v: 5, l: 'Fri' },
-  { v: 6, l: 'Sat' },
-  { v: 0, l: 'Sun' },
-];
-
 export default function CoachCalendarPage() {
   const { store, loading, saving, post, companyId } = useFitgraph();
   const [coachId, setCoachId] = useState('');
@@ -117,13 +114,13 @@ export default function CoachCalendarPage() {
     location: '',
     capacity: '',
     class_plan: '',
-    repeat: 'none' as 'none' | 'weekly',
-    count: '8',
-    weekdays: [] as number[],
     public: false,
     client_ids: [] as string[],
     member_query: '',
   });
+  const [recurrence, setRecurrence] = useState<RecurrenceFormValue>(
+    emptyRecurrenceForm
+  );
   const [bookClientIds, setBookClientIds] = useState<string[]>([]);
   const [classPlanDraft, setClassPlanDraft] = useState('');
 
@@ -191,9 +188,19 @@ export default function CoachCalendarPage() {
       toast.error('Pick class type and coach');
       return;
     }
+    if (recurrence.frequency !== 'none') {
+      const recErr = validateRecurrenceForm(recurrence);
+      if (recErr) {
+        toast.error(recErr);
+        return;
+      }
+    }
+    const payload = recurrenceApiPayload(recurrence, create.date);
     const data = await post({
       action:
-        create.repeat === 'weekly' ? 'create_session_series' : 'create_session',
+        recurrence.frequency !== 'none'
+          ? 'create_session_series'
+          : 'create_session',
       coach_id: coachId,
       class_type_id: create.class_type_id,
       date: create.date,
@@ -202,12 +209,7 @@ export default function CoachCalendarPage() {
       capacity: create.capacity ? Number(create.capacity) : undefined,
       class_plan: create.class_plan.trim() || undefined,
       public: create.public,
-      repeat: create.repeat,
-      count: Number(create.count) || 8,
-      weekdays:
-        create.weekdays.length > 0
-          ? create.weekdays
-          : [new Date(create.date + 'T12:00:00').getDay()],
+      ...(payload || { frequency: 'none', repeat: 'none' }),
     });
     const sessions = (data.sessions || []) as Array<{ id: string }>;
     let sessionIds = sessions.map((s) => s.id).filter(Boolean);
@@ -722,75 +724,14 @@ export default function CoachCalendarPage() {
                     setCreate((f) => ({ ...f, class_plan: e.target.value }))
                   }
                 />
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    className={`flex-1 rounded-xl border py-2 text-xs font-bold ${
-                      create.repeat === 'none'
-                        ? 'bg-amber-600 text-white border-amber-600'
-                        : 'border-slate-200 dark:border-amber-600 dark:text-amber-100'
-                    }`}
-                    onClick={() =>
-                      setCreate((f) => ({ ...f, repeat: 'none' }))
-                    }
-                  >
-                    Bespoke (one-off)
-                  </button>
-                  <button
-                    type="button"
-                    className={`flex-1 rounded-xl border py-2 text-xs font-bold inline-flex items-center justify-center gap-1 ${
-                      create.repeat === 'weekly'
-                        ? 'bg-amber-600 text-white border-amber-600'
-                        : 'border-slate-200 dark:border-amber-600 dark:text-amber-100'
-                    }`}
-                    onClick={() =>
-                      setCreate((f) => ({ ...f, repeat: 'weekly' }))
-                    }
-                  >
-                    <Repeat className="w-3 h-3" /> Weekly series
-                  </button>
-                </div>
-                {create.repeat === 'weekly' && (
-                  <>
-                    <div className="flex flex-wrap gap-1">
-                      {WEEKDAYS.map((w) => {
-                        const on = create.weekdays.includes(w.v);
-                        return (
-                          <button
-                            key={w.v}
-                            type="button"
-                            className={`px-2 py-1 rounded-lg text-[10px] font-bold border ${
-                              on
-                                ? 'bg-amber-600 text-white border-amber-600'
-                                : 'border-slate-200 dark:border-amber-600 dark:text-amber-100'
-                            }`}
-                            onClick={() =>
-                              setCreate((f) => ({
-                                ...f,
-                                weekdays: on
-                                  ? f.weekdays.filter((x) => x !== w.v)
-                                  : [...f.weekdays, w.v],
-                              }))
-                            }
-                          >
-                            {w.l}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <input
-                      className={fc()}
-                      type="number"
-                      min={1}
-                      max={52}
-                      placeholder="Number of weeks"
-                      value={create.count}
-                      onChange={(e) =>
-                        setCreate((f) => ({ ...f, count: e.target.value }))
-                      }
-                    />
-                  </>
-                )}
+                <RecurrenceFields
+                  value={recurrence}
+                  onChange={setRecurrence}
+                  startDate={create.date}
+                  inputClass={fc()}
+                  accent="amber"
+                  unitLabel="classes"
+                />
                 <label className="flex items-center gap-2 text-xs font-medium dark:text-amber-100">
                   <input
                     type="checkbox"
@@ -868,8 +809,8 @@ export default function CoachCalendarPage() {
                     <Loader2 className="w-4 h-4 animate-spin inline" />
                   ) : null}{' '}
                   {create.client_ids.length
-                    ? `Create${create.repeat === 'weekly' ? ' series' : ' class'} + ${create.client_ids.length} member(s)`
-                    : `Create class${create.repeat === 'weekly' ? ' series' : ''}`}
+                    ? `Create${recurrence.frequency !== 'none' ? ' series' : ' class'} + ${create.client_ids.length} member(s)`
+                    : `Create class${recurrence.frequency !== 'none' ? ' series' : ''}`}
                 </button>
               </div>
             </div>

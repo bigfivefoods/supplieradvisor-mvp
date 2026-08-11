@@ -888,18 +888,33 @@ export async function POST(request: NextRequest) {
       }
 
       let recurrence: FitRecurrence | null = null;
-      if (action === 'create_series' || body.repeat === 'weekly') {
-        const weekdays = Array.isArray(body.weekdays)
-          ? (body.weekdays as number[]).map(Number)
-          : undefined;
-        recurrence = {
-          frequency: 'weekly',
-          weekdays,
-          until: body.until ? String(body.until) : null,
-          count: body.count != null ? Number(body.count) : 8,
-        };
-      } else {
+      const rawFreq = String(body.frequency || body.repeat || '')
+        .toLowerCase()
+        .trim();
+      const freq: FitRecurrence['frequency'] =
+        rawFreq === 'daily' || rawFreq === 'weekly' || rawFreq === 'monthly'
+          ? rawFreq
+          : action === 'create_series'
+            ? 'weekly'
+            : 'none';
+      if (freq === 'none') {
         recurrence = { frequency: 'none' };
+      } else {
+        recurrence = {
+          frequency: freq,
+          interval:
+            body.interval != null && body.interval !== ''
+              ? Number(body.interval)
+              : 1,
+          weekdays: Array.isArray(body.weekdays)
+            ? (body.weekdays as number[]).map(Number)
+            : undefined,
+          until: body.until ? String(body.until) : null,
+          count:
+            body.count != null && body.count !== ''
+              ? Number(body.count)
+              : null,
+        };
       }
 
       const created = createSessionsFromTemplate(

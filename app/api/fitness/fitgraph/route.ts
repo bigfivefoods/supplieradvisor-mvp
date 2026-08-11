@@ -628,7 +628,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    /** Create one-off or weekly series of sessions (owner or for a coach) */
+    /** Create one-off or repeating series (daily/weekly/monthly) of sessions */
     if (action === 'create_session_series' || action === 'create_session') {
       const coachIdRaw = String(body.coach_id || body.coachId || '').trim();
       const coachId = coachIdRaw || null;
@@ -652,21 +652,33 @@ export async function POST(request: NextRequest) {
         );
       }
       let recurrence: FitRecurrence | null = null;
-      if (
-        action === 'create_session_series' ||
-        body.repeat === 'weekly' ||
-        body.frequency === 'weekly'
-      ) {
+      const rawFreq = String(body.frequency || body.repeat || '')
+        .toLowerCase()
+        .trim();
+      const freq: FitRecurrence['frequency'] =
+        rawFreq === 'daily' || rawFreq === 'weekly' || rawFreq === 'monthly'
+          ? rawFreq
+          : action === 'create_session_series'
+            ? 'weekly' // legacy: series action defaulted to weekly
+            : 'none';
+      if (freq === 'none') {
+        recurrence = { frequency: 'none' };
+      } else {
         recurrence = {
-          frequency: 'weekly',
+          frequency: freq,
+          interval:
+            body.interval != null && body.interval !== ''
+              ? Number(body.interval)
+              : 1,
           weekdays: Array.isArray(body.weekdays)
             ? (body.weekdays as number[]).map(Number)
             : undefined,
           until: body.until ? String(body.until) : null,
-          count: body.count != null ? Number(body.count) : 8,
+          count:
+            body.count != null && body.count !== ''
+              ? Number(body.count)
+              : null,
         };
-      } else {
-        recurrence = { frequency: 'none' };
       }
       const created = createSessionsFromTemplate(
         store,

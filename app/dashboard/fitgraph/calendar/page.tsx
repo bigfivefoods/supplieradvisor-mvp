@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Link2, Repeat, Share2 } from 'lucide-react';
+import { Link2, Share2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   FitgraphWorkbench,
@@ -24,17 +24,14 @@ import {
   type ScheduleEvent,
 } from '@/components/schedule/PracticeScheduleCalendar';
 import { WorkingHoursEditor } from '@/components/schedule/WorkingHoursEditor';
+import {
+  RecurrenceFields,
+  emptyRecurrenceForm,
+  recurrenceApiPayload,
+  validateRecurrenceForm,
+  type RecurrenceFormValue,
+} from '@/components/schedule/RecurrenceFields';
 import { normalizeWorkingHours } from '@/lib/schedule/working-hours';
-
-const WEEKDAYS = [
-  { v: 1, l: 'Mon' },
-  { v: 2, l: 'Tue' },
-  { v: 3, l: 'Wed' },
-  { v: 4, l: 'Thu' },
-  { v: 5, l: 'Fri' },
-  { v: 6, l: 'Sat' },
-  { v: 0, l: 'Sun' },
-];
 
 export default function CalendarPage() {
   const { store, loading, saving, post, summary } = useFitgraph();
@@ -64,10 +61,10 @@ export default function CalendarPage() {
     public_notes: '',
     class_plan: '',
     status: 'scheduled',
-    repeat: 'none' as 'none' | 'weekly',
-    count: '8',
-    weekdays: [] as number[],
   });
+  const [recurrence, setRecurrence] = useState<RecurrenceFormValue>(
+    emptyRecurrenceForm
+  );
 
   const blankCreateForm = () => ({
     class_type_id: '',
@@ -81,9 +78,6 @@ export default function CalendarPage() {
     public_notes: '',
     class_plan: '',
     status: 'scheduled',
-    repeat: 'none' as 'none' | 'weekly',
-    count: '8',
-    weekdays: [] as number[],
   });
 
   const scrollToForm = () => {
@@ -119,10 +113,8 @@ export default function CalendarPage() {
       public_notes: s.public_notes || '',
       class_plan: s.class_plan || '',
       status: s.status || 'scheduled',
-      repeat: 'none',
-      count: '8',
-      weekdays: [],
     });
+    setRecurrence(emptyRecurrenceForm());
     scrollToForm();
   };
 
@@ -134,6 +126,7 @@ export default function CalendarPage() {
     setSelectedSessionId(null);
     setAddMemberIds([]);
     setMemberQuery('');
+    setRecurrence(emptyRecurrenceForm());
     const d = partial?.date || day;
     setDay(d);
     setForm({
@@ -306,7 +299,13 @@ export default function CalendarPage() {
       toast.error('Set date and start time');
       return;
     }
-    if (form.repeat === 'weekly') {
+    if (recurrence.frequency !== 'none') {
+      const recErr = validateRecurrenceForm(recurrence);
+      if (recErr) {
+        toast.error(recErr);
+        return;
+      }
+      const payload = recurrenceApiPayload(recurrence, form.date);
       const data = await post({
         action: 'create_session_series',
         coach_id: form.coach_id || null,
@@ -319,12 +318,7 @@ export default function CalendarPage() {
         public: form.public,
         public_notes: form.public_notes || undefined,
         class_plan: form.class_plan.trim() || undefined,
-        repeat: 'weekly',
-        count: Number(form.count) || 8,
-        weekdays:
-          form.weekdays.length > 0
-            ? form.weekdays
-            : [new Date(form.date + 'T12:00:00').getDay()],
+        ...payload,
       });
       const sessions = (data.sessions || []) as Array<{ id: string }>;
       const firstId = sessions[0]?.id || null;
@@ -595,7 +589,7 @@ export default function CalendarPage() {
             submitLabel={
               selectedSessionId
                 ? 'Save changes'
-                : form.repeat === 'weekly'
+                : recurrence.frequency !== 'none'
                   ? 'Create class series'
                   : 'Create class'
             }
@@ -744,72 +738,15 @@ export default function CalendarPage() {
               </select>
             ) : null}
             {!selectedSessionId ? (
-            <div className="sm:col-span-2 lg:col-span-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                className={`rounded-xl border px-3 py-1.5 text-xs font-bold ${
-                  form.repeat === 'none'
-                    ? 'bg-violet-600 text-white border-violet-600'
-                    : 'border-slate-200 dark:border-violet-600'
-                }`}
-                onClick={() => setForm((f) => ({ ...f, repeat: 'none' }))}
-              >
-                One-off
-              </button>
-              <button
-                type="button"
-                className={`rounded-xl border px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1 ${
-                  form.repeat === 'weekly'
-                    ? 'bg-violet-600 text-white border-violet-600'
-                    : 'border-slate-200 dark:border-violet-600'
-                }`}
-                onClick={() => setForm((f) => ({ ...f, repeat: 'weekly' }))}
-              >
-                <Repeat className="w-3 h-3" /> Weekly series
-              </button>
-            </div>
+              <RecurrenceFields
+                value={recurrence}
+                onChange={setRecurrence}
+                startDate={form.date}
+                inputClass={fc()}
+                accent="violet"
+                unitLabel="classes"
+              />
             ) : null}
-            {!selectedSessionId && form.repeat === 'weekly' && (
-              <>
-                <div className="sm:col-span-2 flex flex-wrap gap-1">
-                  {WEEKDAYS.map((w) => {
-                    const on = form.weekdays.includes(w.v);
-                    return (
-                      <button
-                        key={w.v}
-                        type="button"
-                        className={`px-2 py-1 rounded-lg text-[10px] font-bold border ${
-                          on
-                            ? 'bg-violet-600 text-white border-violet-600'
-                            : 'border-slate-200 dark:border-violet-600'
-                        }`}
-                        onClick={() =>
-                          setForm((f) => ({
-                            ...f,
-                            weekdays: on
-                              ? f.weekdays.filter((x) => x !== w.v)
-                              : [...f.weekdays, w.v],
-                          }))
-                        }
-                      >
-                        {w.l}
-                      </button>
-                    );
-                  })}
-                </div>
-                <input
-                  className={fc()}
-                  type="number"
-                  min={1}
-                  max={52}
-                  placeholder="Weeks"
-                  value={form.count}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, count: e.target.value }))
-                  }
-                />
-              </>
-            )}
             {!selectedSessionId ? (
             <p className="sm:col-span-2 lg:col-span-3 text-[11px] text-slate-500 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 px-3 py-2">
               <strong>After create:</strong> the class opens automatically so you

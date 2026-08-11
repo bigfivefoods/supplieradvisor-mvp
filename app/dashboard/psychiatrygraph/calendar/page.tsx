@@ -15,6 +15,13 @@ import {
   type ScheduleEvent,
 } from '@/components/schedule/PracticeScheduleCalendar';
 import { WorkingHoursEditor } from '@/components/schedule/WorkingHoursEditor';
+import {
+  RecurrenceFields,
+  emptyRecurrenceForm,
+  recurrenceApiPayload,
+  validateRecurrenceForm,
+  type RecurrenceFormValue,
+} from '@/components/schedule/RecurrenceFields';
 import { normalizeWorkingHours } from '@/lib/schedule/working-hours';
 import { AdvisorWaitlistDesk } from '@/components/services/AdvisorWaitlistDesk';
 import {
@@ -41,6 +48,9 @@ export default function CalendarPage() {
     patient_id: '',
     family_member_id: '',
   });
+  const [recurrence, setRecurrence] = useState<RecurrenceFormValue>(
+    emptyRecurrenceForm
+  );
 
   const scrollToForm = () => {
     requestAnimationFrame(() => {
@@ -59,6 +69,7 @@ export default function CalendarPage() {
     }
     const svc = store?.services.find((s) => s.id === a.service_id);
     setSelectedId(a.id);
+    setRecurrence(emptyRecurrenceForm());
     setForm({
       service_id: a.service_id || '',
       practitioner_id: a.practitioner_id || '',
@@ -82,6 +93,7 @@ export default function CalendarPage() {
     practitioner_id?: string;
   }) => {
     setSelectedId(null);
+    setRecurrence(emptyRecurrenceForm());
     setForm((f) => ({
       ...f,
       service_id: f.service_id,
@@ -211,6 +223,49 @@ export default function CalendarPage() {
       toast.error('Assign a practitioner');
       return;
     }
+
+    if (!selectedId && recurrence.frequency !== 'none') {
+      const recErr = validateRecurrenceForm(recurrence);
+      if (recErr) {
+        toast.error(recErr);
+        return;
+      }
+      const payload = recurrenceApiPayload(recurrence, form.date);
+      try {
+        const data = await post({
+          action: 'create_appointment_series',
+          service_id: form.service_id,
+          practitioner_id: form.practitioner_id,
+          date: form.date,
+          start_time: form.start_time,
+          duration_min: Number(form.duration_min) || 45,
+          location: form.location || undefined,
+          public: form.public,
+          patient_id: form.patient_id || undefined,
+          family_member_id: form.family_member_id || null,
+          ...payload,
+        });
+        const appointments = (data.appointments || []) as Array<{ id: string }>;
+        const firstId = appointments[0]?.id || null;
+        toast.success(
+          data.message ||
+            (form.patient_id
+              ? 'Series scheduled and patient booked'
+              : 'Series scheduled')
+        );
+        setRecurrence(emptyRecurrenceForm());
+        if (firstId) {
+          setSelectedId(firstId);
+          setForm((f) => ({ ...f, patient_id: '', family_member_id: '' }));
+        }
+      } catch (e) {
+        toast.error(
+          e instanceof Error ? e.message : 'Could not schedule series'
+        );
+      }
+      return;
+    }
+
     const { findClinicianDiaryConflict } = await import(
       '@/lib/schedule/clinician-diary'
     );
@@ -421,7 +476,13 @@ export default function CalendarPage() {
               }
               onSubmit={() => void save()}
               saving={saving}
-              submitLabel={selectedId ? 'Save changes' : 'Schedule'}
+              submitLabel={
+                selectedId
+                  ? 'Save changes'
+                  : recurrence.frequency !== 'none'
+                    ? 'Schedule series'
+                    : 'Schedule'
+              }
             >
               <select
                 className={fc()}
@@ -518,7 +579,16 @@ export default function CalendarPage() {
                   <option value="completed">Status: completed</option>
                   <option value="cancelled">Status: cancelled</option>
                 </select>
-              ) : null}
+              ) : (
+                <RecurrenceFields
+                  value={recurrence}
+                  onChange={setRecurrence}
+                  startDate={form.date}
+                  inputClass={fc()}
+                  accent="indigo"
+                  unitLabel="appointments"
+                />
+              )}
               <select
                 className={fc()}
                 value={form.patient_id}

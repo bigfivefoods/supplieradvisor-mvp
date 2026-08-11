@@ -354,6 +354,8 @@ export type PsychiatryAppointment = {
   public?: boolean;
   notes?: string;
   public_notes?: string;
+  /** Links occurrences created as a repeating series */
+  series_id?: string | null;
   created_at: string;
 };
 

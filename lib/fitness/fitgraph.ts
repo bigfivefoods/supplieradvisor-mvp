@@ -496,17 +496,8 @@ export type FitSession = {
   created_at: string;
 };
 
-/** Weekly recurrence rule for expanding sessions */
-export type FitRecurrence = {
-  /** weekly = same weekday(s) each week */
-  frequency: 'none' | 'weekly';
-  /** 0=Sun … 6=Sat; empty = use start date's weekday */
-  weekdays?: number[];
-  /** Inclusive end date YYYY-MM-DD */
-  until?: string | null;
-  /** Or number of occurrences including the first (max 52) */
-  count?: number | null;
-};
+/** @deprecated Prefer ScheduleRecurrence from @/lib/schedule/recurrence */
+export type FitRecurrence = import('@/lib/schedule/recurrence').ScheduleRecurrence;
 
 export type FitBooking = {
   id: string;
@@ -1337,54 +1328,13 @@ export function buildPublicCalendarPayload(
   };
 }
 
-/** Add calendar days to YYYY-MM-DD (local noon to avoid DST edge). */
-export function addDaysIso(dateIso: string, days: number): string {
-  const d = new Date(dateIso + 'T12:00:00');
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
-export function weekdayOf(dateIso: string): number {
-  return new Date(dateIso + 'T12:00:00').getDay();
-}
-
-/**
- * Expand a session template + recurrence into concrete session date list.
- * First date is always included; weekly repeats on matching weekdays until until/count.
- */
-export function expandRecurrenceDates(
-  startDate: string,
-  recurrence?: FitRecurrence | null
-): string[] {
-  if (!recurrence || recurrence.frequency === 'none') {
-    return [startDate];
-  }
-  const weekdays =
-    recurrence.weekdays && recurrence.weekdays.length > 0
-      ? [...new Set(recurrence.weekdays)].sort()
-      : [weekdayOf(startDate)];
-  const maxCount = Math.min(
-    52,
-    Math.max(1, Number(recurrence.count) || 0) || 12
-  );
-  const until = recurrence.until || addDaysIso(startDate, 7 * 12);
-  const out: string[] = [];
-  // Walk day-by-day from start
-  let cur = startDate;
-  let guard = 0;
-  while (cur <= until && out.length < maxCount && guard < 400) {
-    if (weekdays.includes(weekdayOf(cur))) {
-      out.push(cur);
-    }
-    cur = addDaysIso(cur, 1);
-    guard += 1;
-  }
-  if (!out.includes(startDate) && out.length < maxCount) {
-    out.unshift(startDate);
-    out.sort();
-  }
-  return out.slice(0, maxCount);
-}
+// Shared recurrence engine (also used by clinic Advisor calendars)
+export {
+  addDaysIso,
+  addMonthsIso,
+  expandRecurrenceDates,
+  weekdayOf,
+} from '@/lib/schedule/recurrence';
 
 /** Build one or many sessions for coach/owner scheduling */
 export function createSessionsFromTemplate(

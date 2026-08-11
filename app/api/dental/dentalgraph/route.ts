@@ -1022,6 +1022,149 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    /** Create one-off or repeating appointment series (daily/weekly/monthly) */
+    if (
+      action === 'create_appointment_series' ||
+      action === 'create_session_series'
+    ) {
+      const serviceId = String(body.service_id || '');
+      const staffId = String(body.staff_id || body.clinician_id || '');
+      const date = String(body.date || now.slice(0, 10)).slice(0, 10);
+      const startTime = String(body.start_time || '09:00').slice(0, 5);
+      if (!serviceId) {
+        return NextResponse.json(
+          { error: 'service_id required' },
+          { status: 400 }
+        );
+      }
+      if (!staffId) {
+        return NextResponse.json(
+          { error: 'staff_id required' },
+          { status: 400 }
+        );
+      }
+      if (!store.services.find((s) => s.id === serviceId)) {
+        return NextResponse.json(
+          { error: 'Service not found' },
+          { status: 404 }
+        );
+      }
+      if (!store.staff.find((s) => s.id === staffId)) {
+        return NextResponse.json(
+          { error: 'Clinician not found' },
+          { status: 404 }
+        );
+      }
+
+      const { planAppointmentSeries, recurrenceFromRequestBody } =
+        await import('@/lib/schedule/appointment-series');
+      const recurrence = recurrenceFromRequestBody(
+        body as Record<string, unknown>
+      );
+      const planned = planAppointmentSeries({
+        existing: store.appointments,
+        template: {
+          service_id: serviceId,
+          clinician_id: staffId,
+          date,
+          start_time: startTime,
+          duration_min:
+            body.duration_min != null ? Number(body.duration_min) : 45,
+          end_time: body.end_time != null ? String(body.end_time) : null,
+          location: body.location != null ? String(body.location) : undefined,
+          public: body.public === true,
+          notes: body.notes != null ? String(body.notes) : undefined,
+          public_notes:
+            body.public_notes != null ? String(body.public_notes) : undefined,
+        },
+        recurrence,
+        clinicianField: 'staff_id',
+        newId,
+        nowIso: now,
+      });
+
+      if (!planned.rows.length) {
+        return NextResponse.json(
+          {
+            error:
+              planned.conflicts[0]?.message ||
+              'Could not schedule any appointments (conflicts)',
+            code: 'SERIES_ALL_CONFLICT',
+            conflicts: planned.conflicts,
+          },
+          { status: 409 }
+        );
+      }
+
+      const created: DentalAppointment[] = planned.rows.map((r) => ({
+        id: r.id,
+        service_id: r.service_id,
+        staff_id: r.staff_id ?? staffId,
+        date: r.date,
+        start_time: r.start_time,
+        end_time: r.end_time ?? null,
+        duration_min: r.duration_min ?? 45,
+        location: r.location,
+        status: 'scheduled' as const,
+        public: r.public === true,
+        notes: r.notes,
+        public_notes: r.public_notes,
+        series_id: r.series_id ?? null,
+        created_at: r.created_at,
+      }));
+      store.appointments.push(...created);
+
+      const patientId = body.patient_id ? String(body.patient_id) : '';
+      const famId = body.family_member_id
+        ? String(body.family_member_id)
+        : null;
+      const bookingsCreated: DentalBooking[] = [];
+      if (patientId && store.patients.find((p) => p.id === patientId)) {
+        let famName: string | null = null;
+        if (famId) {
+          const patient = store.patients.find((p) => p.id === patientId);
+          const m = (patient?.family || []).find((f) => f.id === famId);
+          famName = m
+            ? `${m.name}${m.relationship ? ` (${m.relationship})` : ''}`
+            : null;
+        }
+        for (const apt of created) {
+          const b: DentalBooking = {
+            id: newId('bkg'),
+            appointment_id: apt.id,
+            patient_id: patientId,
+            status: 'booked',
+            booked_at: now,
+            source: 'desk',
+            family_member_id: famName ? famId : null,
+            family_member_name: famName,
+          };
+          store.bookings.push(b);
+          bookingsCreated.push(b);
+        }
+      }
+
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseDentalgraph(store),
+        analysis: analysis(store),
+        created: created.length,
+        skipped: planned.conflicts.length,
+        conflicts: planned.conflicts,
+        series_id: planned.series_id,
+        appointments: created,
+        bookings: bookingsCreated,
+        message:
+          created.length > 1
+            ? planned.conflicts.length
+              ? `Scheduled ${created.length} appointments (${planned.conflicts.length} date(s) skipped for conflicts)`
+              : `Scheduled ${created.length} appointments in series`
+            : 'Appointment scheduled',
+      });
+    }
+
     if (action === 'upsert' || action === 'create' || action === 'update') {
       const rec = (body.record || body) as Record<string, unknown>;
 
@@ -1476,6 +1619,12 @@ function upsert(
       notes: rec.notes != null ? String(rec.notes) : prev?.notes,
       public_notes:
         rec.public_notes != null ? String(rec.public_notes) : prev?.public_notes,
+      series_id:
+        rec.series_id !== undefined
+          ? rec.series_id
+            ? String(rec.series_id)
+            : null
+          : prev?.series_id ?? null,
       created_at: prev?.created_at || now,
     };
     if (i >= 0) store.appointments[i] = row;
