@@ -18,4 +18,11 @@ Per [Paystack Apple Pay docs](https://paystack.com/docs/payments/apple-pay/):
 Static copy also in this folder. Optional env override:
 `APPLE_PAY_DOMAIN_ASSOCIATION` or `PAYSTACK_APPLE_PAY_DOMAIN_FILE`.
 
-Domain: `www.supplieradvisor.com` (HTTPS).
+Domains (both serve the same verification file over HTTPS):
+
+- `https://supplieradvisor.com/.well-known/apple-developer-merchantid-domain-association`
+- `https://www.supplieradvisor.com/.well-known/apple-developer-merchantid-domain-association`
+
+In Paystack: Settings → Apple Pay → add each domain → **Verify Domain**.
+Do not put the file under a different path; Apple/Paystack only check
+`/.well-known/apple-developer-merchantid-domain-association`.
