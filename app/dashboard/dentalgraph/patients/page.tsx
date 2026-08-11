@@ -65,6 +65,7 @@ export default function PatientsPage() {
   const { companyId, store, loading, saving, post, summary } = useDentalgraph();
   const [form, setForm] = useState<PatientForm>(blankForm);
   const [editing, setEditing] = useState(false);
+  const [listEditId, setListEditId] = useState<string | null>(null);
 
   const openEdit = (p: DentalPatient) => {
     setForm({
@@ -401,7 +402,8 @@ export default function PatientsPage() {
             />
           </FormCard>
           <p className="text-[11px] text-slate-500 -mb-2">
-            Click a field in the list to edit it (code, name, status, clinician, package). Full profile: <strong>Edit</strong>.
+            Press <strong>Edit</strong> on a row to change list fields. Press{' '}
+            <strong>Done</strong> to lock the row. Use the full form or Chart for more.
           </p>
           <DataTable
             headers={[
@@ -420,10 +422,11 @@ export default function PatientsPage() {
               );
               const pkg = store.packages.find((x) => x.id === p.package_id);
               const injured = isInjured(p.clinical);
+              const rowEditing = listEditId === p.id;
               return {
                 id: p.id,
                 cells: [
-                  (
+                  rowEditing ? (
                     <InlineText
                       key="code"
                       value={p.code || ''}
@@ -431,8 +434,12 @@ export default function PatientsPage() {
                       disabled={saving}
                       onSave={(code) => void patchPatient(p, { code })}
                     />
+                  ) : (
+                    <span key="code" className="font-semibold">
+                      {p.code || '—'}
+                    </span>
                   ),
-                  (
+                  rowEditing ? (
                     <InlineText
                       key="name"
                       value={p.name || ''}
@@ -441,8 +448,12 @@ export default function PatientsPage() {
                       disabled={saving}
                       onSave={(name) => void patchPatient(p, { name })}
                     />
+                  ) : (
+                    <span key="name" className="font-semibold">
+                      {p.name || '—'}
+                    </span>
                   ),
-                  (
+                  rowEditing ? (
                     <InlineSelect
                       key="status"
                       value={p.status || 'active'}
@@ -454,8 +465,10 @@ export default function PatientsPage() {
                       }))}
                       onSave={(status) => void patchPatient(p, { status })}
                     />
+                  ) : (
+                    <span key="status">{p.status || '—'}</span>
                   ),
-                  (
+                  rowEditing ? (
                     <InlineSelect
                       key="person"
                       value={p.staff_id || ''}
@@ -473,8 +486,10 @@ export default function PatientsPage() {
                         })
                       }
                     />
+                  ) : (
+                    <span key="person">{prac?.name || '—'}</span>
                   ),
-                  (
+                  rowEditing ? (
                     <InlineSelect
                       key="pkg"
                       value={p.package_id || ''}
@@ -490,6 +505,8 @@ export default function PatientsPage() {
                         })
                       }
                     />
+                  ) : (
+                    <span key="pkg">{pkg?.code || '—'}</span>
                   ),
                   (
                     <span
@@ -571,19 +588,35 @@ export default function PatientsPage() {
                       </button>
                       <button
                         type="button"
+                        className={`inline-flex items-center gap-1 text-[11px] font-bold ${
+                          rowEditing
+                            ? 'text-emerald-700 dark:text-emerald-300'
+                            : 'text-sky-700 dark:text-sky-300'
+                        }`}
+                        onClick={() =>
+                          setListEditId((id) => (id === p.id ? null : p.id))
+                        }
+                      >
+                        <Pencil className="w-3 h-3" />
+                        {rowEditing ? 'Done' : 'Edit'}
+                      </button>
+                      <button
+                        type="button"
                         className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300"
                         onClick={() => openEdit(p)}
+                        title="Open full profile form"
                       >
-                        <Pencil className="w-3 h-3" /> Edit
+                        Profile
                       </button>
                     </span>
                   ),
                 ],
               };
             })}
-            onDelete={(id) =>
-              void post({ entity: 'patients', action: 'delete', id })
-            }
+            onDelete={(id) => {
+              if (listEditId === id) setListEditId(null);
+              void post({ entity: 'patients', action: 'delete', id });
+            }}
           />
         </div>
       )}

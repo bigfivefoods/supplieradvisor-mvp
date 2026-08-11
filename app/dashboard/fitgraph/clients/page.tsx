@@ -86,6 +86,8 @@ export default function ClientsPage() {
   const [importing, setImporting] = useState(false);
   const [form, setForm] = useState<ClientForm>(blankForm);
   const [editing, setEditing] = useState(false);
+  /** Row id with list inline editors open (toggle via Edit / Done) */
+  const [listEditId, setListEditId] = useState<string | null>(null);
 
   const openEdit = (c: FitClient) => {
     setForm({
@@ -633,8 +635,9 @@ export default function ClientsPage() {
           ) : null}
 
           <p className="text-[11px] text-slate-500 -mb-2">
-            Click a field in the list to edit it (code, name, type, plan, status,
-            coach). Full profile: <strong>Edit</strong>.
+            Press <strong>Edit</strong> on a row to change code, name, type,
+            plan, status, and coach. Press <strong>Done</strong> to lock the
+            row. <strong>Profile</strong> opens the full form.
           </p>
 
           <DataTable
@@ -658,6 +661,7 @@ export default function ClientsPage() {
               const coach = store.coaches.find((x) => x.id === c.coach_id);
               const injured = isInjured(c.health);
               const isPrivate = c.private_client === true;
+              const rowEditing = listEditId === c.id;
               return {
                 id: c.id,
                 cells: [
@@ -673,7 +677,7 @@ export default function ClientsPage() {
                       —
                     </span>
                   ),
-                  (
+                  rowEditing ? (
                     <InlineText
                       key="code"
                       value={c.code || ''}
@@ -681,19 +685,27 @@ export default function ClientsPage() {
                       onSave={(code) => void patchClient(c, { code })}
                       disabled={saving}
                     />
+                  ) : (
+                    <span key="code" className="font-semibold">
+                      {c.code || '—'}
+                    </span>
                   ),
                   (
                     <span
                       key="n"
                       className="inline-flex flex-col gap-1 min-w-[8rem]"
                     >
-                      <InlineText
-                        value={c.name || ''}
-                        placeholder="Name"
-                        wide
-                        onSave={(name) => void patchClient(c, { name })}
-                        disabled={saving}
-                      />
+                      {rowEditing ? (
+                        <InlineText
+                          value={c.name || ''}
+                          placeholder="Name"
+                          wide
+                          onSave={(name) => void patchClient(c, { name })}
+                          disabled={saving}
+                        />
+                      ) : (
+                        <span className="font-semibold">{c.name || '—'}</span>
+                      )}
                       <span className="inline-flex flex-wrap items-center gap-1">
                         {c.identity?.status === 'verified' ? (
                           <span
@@ -735,7 +747,7 @@ export default function ClientsPage() {
                       </span>
                     </span>
                   ),
-                  (
+                  rowEditing ? (
                     <InlineToggleSelect
                       key="type"
                       value={isPrivate}
@@ -746,8 +758,26 @@ export default function ClientsPage() {
                         void patchClient(c, { private_client })
                       }
                     />
+                  ) : (
+                    <span
+                      key="type"
+                      className={
+                        isPrivate
+                          ? 'inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-violet-900 dark:bg-violet-950 dark:text-violet-200'
+                          : 'inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                      }
+                      title={
+                        isPrivate
+                          ? coach
+                            ? `Private client of ${coach.name}`
+                            : 'Private client — assign a coach'
+                          : 'General gym member'
+                      }
+                    >
+                      {isPrivate ? 'Private client' : 'Gym member'}
+                    </span>
                   ),
-                  (
+                  rowEditing ? (
                     <InlineSelect
                       key="plan"
                       value={c.membership_plan_id || ''}
@@ -763,21 +793,27 @@ export default function ClientsPage() {
                         })
                       }
                     />
+                  ) : (
+                    <span key="plan">{plan?.code || '—'}</span>
                   ),
                   (
                     <span key="ms" className="inline-flex flex-col gap-1">
-                      <InlineSelect
-                        value={c.membership_status || 'active'}
-                        allowEmpty={false}
-                        disabled={saving}
-                        options={MEMBERSHIP_STATUSES.map((s) => ({
-                          value: s,
-                          label: s,
-                        }))}
-                        onSave={(membership_status) =>
-                          void patchClient(c, { membership_status })
-                        }
-                      />
+                      {rowEditing ? (
+                        <InlineSelect
+                          value={c.membership_status || 'active'}
+                          allowEmpty={false}
+                          disabled={saving}
+                          options={MEMBERSHIP_STATUSES.map((s) => ({
+                            value: s,
+                            label: s,
+                          }))}
+                          onSave={(membership_status) =>
+                            void patchClient(c, { membership_status })
+                          }
+                        />
+                      ) : (
+                        <span>{c.membership_status || '—'}</span>
+                      )}
                       <button
                         type="button"
                         className="text-[10px] font-bold text-violet-700 underline text-left"
@@ -794,7 +830,7 @@ export default function ClientsPage() {
                       </button>
                     </span>
                   ),
-                  (
+                  rowEditing ? (
                     <InlineSelect
                       key="coach"
                       value={c.coach_id || ''}
@@ -814,6 +850,29 @@ export default function ClientsPage() {
                         })
                       }
                     />
+                  ) : (
+                    <span
+                      key="coach"
+                      className={
+                        coach
+                          ? 'font-semibold text-slate-800 dark:text-slate-100'
+                          : isPrivate
+                            ? 'text-[11px] font-bold text-amber-700 dark:text-amber-300'
+                            : 'text-[11px] text-slate-400'
+                      }
+                      title={
+                        coach
+                          ? isPrivate
+                            ? `Private coach: ${coach.name}`
+                            : `Assigned coach: ${coach.name}`
+                          : isPrivate
+                            ? 'Private client needs a coach'
+                            : 'No coach assigned'
+                      }
+                    >
+                      {coach?.name ||
+                        (isPrivate ? 'Coach unassigned' : '—')}
+                    </span>
                   ),
                   (
                     <span
@@ -878,21 +937,40 @@ export default function ClientsPage() {
                     </div>
                   ),
                   (
-                    <button
-                      key="e"
-                      type="button"
-                      className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-700 dark:text-cyan-300"
-                      onClick={() => openEdit(c)}
-                    >
-                      <Pencil className="w-3 h-3" /> Edit
-                    </button>
+                    <span key="e" className="inline-flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className={`inline-flex items-center gap-1 text-[11px] font-bold ${
+                          rowEditing
+                            ? 'text-emerald-700 dark:text-emerald-300'
+                            : 'text-sky-700 dark:text-cyan-300'
+                        }`}
+                        onClick={() =>
+                          setListEditId((id) =>
+                            id === c.id ? null : c.id
+                          )
+                        }
+                      >
+                        <Pencil className="w-3 h-3" />
+                        {rowEditing ? 'Done' : 'Edit'}
+                      </button>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300"
+                        onClick={() => openEdit(c)}
+                        title="Open full profile form"
+                      >
+                        Profile
+                      </button>
+                    </span>
                   ),
                 ],
               };
             })}
-            onDelete={(id) =>
-              void post({ entity: 'clients', action: 'delete', id })
-            }
+            onDelete={(id) => {
+              if (listEditId === id) setListEditId(null);
+              void post({ entity: 'clients', action: 'delete', id });
+            }}
           />
         </div>
       )}
