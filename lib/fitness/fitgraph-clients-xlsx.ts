@@ -22,6 +22,7 @@ export const FIT_CLIENT_HEADERS = [
   'phone',
   'membership_plan_code',
   'membership_status',
+  'private_client',
   'coach_code',
   'start_date',
   'end_date',
@@ -48,6 +49,14 @@ function parseActive(raw: string): boolean {
   if (!s) return true;
   if (['n', 'no', 'false', '0', 'inactive', 'ended'].includes(s)) return false;
   return true;
+}
+
+function parsePrivateClient(raw: string): boolean {
+  const s = raw.toLowerCase().trim();
+  if (!s) return false;
+  return ['y', 'yes', 'true', '1', 'private', 'pt', 'private_client'].includes(
+    s
+  );
 }
 
 function normalizeHeader(h: string): string {
@@ -83,6 +92,11 @@ const HEADER_ALIASES: Record<string, (typeof FIT_CLIENT_HEADERS)[number]> = {
   membership_status: 'membership_status',
   status: 'membership_status',
   member_status: 'membership_status',
+  private_client: 'private_client',
+  private: 'private_client',
+  is_private: 'private_client',
+  is_private_client: 'private_client',
+  pt_client: 'private_client',
   coach_code: 'coach_code',
   coach: 'coach_code',
   trainer: 'coach_code',
@@ -148,6 +162,7 @@ function clientToRow(store: FitgraphStore, c: FitClient): string[] {
     c.phone || '',
     planCode(store, c.membership_plan_id),
     String(c.membership_status || 'active'),
+    c.private_client === true ? 'Y' : 'N',
     coachCode(store, c.coach_id),
     c.start_date || '',
     c.end_date || '',
@@ -181,6 +196,7 @@ export function buildFitClientsXlsx(
         '0820000001',
         store.membership_plans[0]?.code || 'UNLIM',
         'active',
+        'N',
         store.coaches[0]?.code || '',
         new Date().toISOString().slice(0, 10),
         '',
@@ -195,11 +211,12 @@ export function buildFitClientsXlsx(
         '0831112222',
         store.membership_plans[1]?.code || store.membership_plans[0]?.code || '',
         'trial',
+        'Y',
         store.coaches[1]?.code || store.coaches[0]?.code || '',
         new Date().toISOString().slice(0, 10),
         '',
         '',
-        'Morning classes preferred',
+        'Private PT client · morning preferred',
         'Y',
       ],
     ];
@@ -256,11 +273,14 @@ export function buildFitClientsXlsx(
       `4. membership_status: ${MEMBERSHIP_STATUSES.join(' | ')} (default active).`,
     ],
     ['5. start_date / end_date: YYYY-MM-DD (Excel date cells are accepted).'],
-    ['6. active: Y / N (or Yes / No). Default Y if blank.'],
     [
-      '7. On upload: rows match existing clients by code (preferred) or email; otherwise a new client is created.',
+      '6. private_client: Y / N (or Yes / Private). Marks 1:1 PT private clients vs gym members.',
     ],
-    ['8. Delete example rows before import if you used the blank template.'],
+    ['7. active: Y / N (or Yes / No). Default Y if blank.'],
+    [
+      '8. On upload: rows match existing clients by code (preferred) or email; otherwise a new client is created.',
+    ],
+    ['9. Delete example rows before import if you used the blank template.'],
     [''],
     ['Sheets'],
     ['Clients — import / export data'],
@@ -283,6 +303,7 @@ export type FitClientImportRow = {
   phone?: string;
   membership_plan_code?: string;
   membership_status?: string;
+  private_client?: boolean;
   coach_code?: string;
   start_date?: string;
   end_date?: string;
@@ -439,6 +460,7 @@ export function parseFitClientsImport(input: {
       phone: get('phone') || undefined,
       membership_plan_code: get('membership_plan_code') || undefined,
       membership_status: status,
+      private_client: parsePrivateClient(get('private_client')),
       coach_code: get('coach_code') || undefined,
       start_date: start_date || undefined,
       end_date: end_date || undefined,
@@ -517,6 +539,10 @@ export function applyFitClientImport(
                 ? null
                 : prev.membership_plan_id,
           membership_status: row.membership_status || prev.membership_status,
+          private_client:
+            row.private_client !== undefined
+              ? row.private_client === true
+              : prev.private_client === true,
           coach_id:
             row.coach_code && coachId
               ? coachId
@@ -560,6 +586,7 @@ export function applyFitClientImport(
           phone: row.phone,
           membership_plan_id: planId,
           membership_status: row.membership_status || 'active',
+          private_client: row.private_client === true,
           coach_id: coachId,
           start_date: row.start_date || now.slice(0, 10),
           end_date: row.end_date || null,

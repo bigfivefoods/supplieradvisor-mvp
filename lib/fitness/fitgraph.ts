@@ -412,6 +412,11 @@ export type FitClient = {
   membership_status?: (typeof MEMBERSHIP_STATUSES)[number] | string;
   start_date?: string | null;
   end_date?: string | null;
+  /**
+   * Private / PT client of an assigned coach (vs general gym member).
+   * Shown on the members list with the coach name.
+   */
+  private_client?: boolean;
   coach_id?: string | null;
   emergency_contact?: string;
   notes?: string;

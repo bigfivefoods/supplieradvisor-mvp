@@ -49,6 +49,7 @@ type ClientForm = {
   photo_url: string;
   membership_plan_id: string;
   membership_status: string;
+  private_client: boolean;
   coach_id: string;
   start_date: string;
   emergency_contact: string;
@@ -65,6 +66,7 @@ const blankForm = (): ClientForm => ({
   photo_url: '',
   membership_plan_id: '',
   membership_status: 'active',
+  private_client: false,
   coach_id: '',
   start_date: new Date().toISOString().slice(0, 10),
   emergency_contact: '',
@@ -91,6 +93,7 @@ export default function ClientsPage() {
       photo_url: c.photo_url || '',
       membership_plan_id: c.membership_plan_id || '',
       membership_status: c.membership_status || 'active',
+      private_client: c.private_client === true,
       coach_id: c.coach_id || '',
       start_date:
         c.start_date || new Date().toISOString().slice(0, 10),
@@ -104,6 +107,10 @@ export default function ClientsPage() {
   const save = async () => {
     if (!form.name.trim()) {
       toast.error('Name required');
+      return;
+    }
+    if (form.private_client && !form.coach_id) {
+      toast.error('Private clients need an assigned coach');
       return;
     }
     const health = formToHealthPayload(form.health);
@@ -120,6 +127,7 @@ export default function ClientsPage() {
         photo_url: form.photo_url || '',
         membership_plan_id: form.membership_plan_id || null,
         membership_status: form.membership_status,
+        private_client: form.private_client === true,
         coach_id: form.coach_id || null,
         start_date: form.start_date,
         emergency_contact: form.emergency_contact,
@@ -275,12 +283,14 @@ export default function ClientsPage() {
 
   const injuredCount =
     store?.clients.filter((c) => isInjured(c.health)).length || 0;
+  const privateCount =
+    store?.clients.filter((c) => c.private_client === true).length || 0;
 
   return (
     <FitgraphWorkbench
       title="Clients / members"
       titleAccent="member book"
-      description="Member register with plan, coach assignment, injury profile, email invites, and member portals so clients can join, book open classes, leave feedback, and manage their profile."
+      description="Member register with plan, private-client flag, coach assignment, injury profile, email invites, and member portals so clients can join, book open classes, leave feedback, and manage their profile."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -291,6 +301,7 @@ export default function ClientsPage() {
             items={[
               { label: 'Clients', value: Number(summary?.clientCount) || 0 },
               { label: 'Active', value: Number(summary?.activeMembers) || 0 },
+              { label: 'Private clients', value: privateCount },
               { label: 'Injured / recovering', value: injuredCount },
             ]}
           />
@@ -462,13 +473,36 @@ export default function ClientsPage() {
                 setForm((f) => ({ ...f, coach_id: e.target.value }))
               }
             >
-              <option value="">Coach (optional)…</option>
+              <option value="">
+                {form.private_client
+                  ? 'Coach (required for private)…'
+                  : 'Coach (optional)…'}
+              </option>
               {store.coaches.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
             </select>
+            <label className="flex items-center gap-2 text-sm font-medium rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50/40 dark:bg-violet-950/30 px-3 py-2">
+              <input
+                type="checkbox"
+                checked={form.private_client}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    private_client: e.target.checked,
+                  }))
+                }
+              />
+              <span>
+                Private client
+                <span className="block text-[10px] font-normal text-slate-500">
+                  1:1 / PT client of the assigned coach (not only gym-floor
+                  member)
+                </span>
+              </span>
+            </label>
             <input
               className={fc()}
               type="date"
@@ -564,6 +598,7 @@ export default function ClientsPage() {
               '',
               'Code',
               'Name',
+              'Type',
               'Plan',
               'Status',
               'Coach',
@@ -577,6 +612,7 @@ export default function ClientsPage() {
               );
               const coach = store.coaches.find((x) => x.id === c.coach_id);
               const injured = isInjured(c.health);
+              const isPrivate = c.private_client === true;
               return {
                 id: c.id,
                 cells: [
@@ -635,6 +671,25 @@ export default function ClientsPage() {
                       ) : null}
                     </span>
                   ),
+                  (
+                    <span
+                      key="type"
+                      className={
+                        isPrivate
+                          ? 'inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-violet-900 dark:bg-violet-950 dark:text-violet-200'
+                          : 'inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                      }
+                      title={
+                        isPrivate
+                          ? coach
+                            ? `Private client of ${coach.name}`
+                            : 'Private client — assign a coach'
+                          : 'General gym member'
+                      }
+                    >
+                      {isPrivate ? 'Private client' : 'Gym member'}
+                    </span>
+                  ),
                   plan?.code || '—',
                   (
                     <span key="ms" className="inline-flex flex-wrap items-center gap-1">
@@ -655,7 +710,30 @@ export default function ClientsPage() {
                       </button>
                     </span>
                   ),
-                  coach?.name || '—',
+                  (
+                    <span
+                      key="coach"
+                      className={
+                        coach
+                          ? 'font-semibold text-slate-800 dark:text-slate-100'
+                          : isPrivate
+                            ? 'text-[11px] font-bold text-amber-700 dark:text-amber-300'
+                            : 'text-[11px] text-slate-400'
+                      }
+                      title={
+                        coach
+                          ? isPrivate
+                            ? `Private coach: ${coach.name}`
+                            : `Assigned coach: ${coach.name}`
+                          : isPrivate
+                            ? 'Private client needs a coach'
+                            : 'No coach assigned'
+                      }
+                    >
+                      {coach?.name ||
+                        (isPrivate ? 'Coach unassigned' : '—')}
+                    </span>
+                  ),
                   (
                     <span
                       key="h"

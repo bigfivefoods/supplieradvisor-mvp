@@ -1909,6 +1909,10 @@ function upsert(
             ? String(rec.end_date).slice(0, 10)
             : null
           : prev?.end_date ?? null,
+      private_client:
+        rec.private_client !== undefined
+          ? rec.private_client === true
+          : prev?.private_client === true,
       coach_id:
         rec.coach_id !== undefined
           ? rec.coach_id
