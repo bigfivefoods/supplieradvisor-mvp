@@ -1,7 +1,10 @@
 /**
- * Platform company messaging API.
- * GET  ?companyId= — threads + directory (colleagues, connected peers)
+ * Platform company + personal messaging API.
+ * GET  ?companyId= — company threads merged with personal user inbox
  * POST { companyId, action, ... } — create / reply / mark_read / archive
+ *
+ * Delivery is by platform user id: recipients get a personal inbox copy
+ * and a copy on every company workspace they belong to.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
@@ -9,8 +12,10 @@ import {
   requireCompanyAccess,
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
+import { getCanonicalUserId } from '@/lib/auth/identity';
 import {
   applyCompanyMessageAction,
+  markThreadRead,
   readCompanyInbox,
   summariseCompanyInbox,
   writeCompanyInbox,
@@ -19,6 +24,16 @@ import {
   type CompanyMsgParticipant,
   type CompanyThread,
 } from '@/lib/messaging/company-inbox';
+import {
+  deliverThreadToPlatformUsers,
+  resolvePlatformUserIdsForCompany,
+} from '@/lib/messaging/service-to-company';
+import {
+  mergeInboxThreads,
+  readUserInbox,
+  targetUserIdsFromThread,
+  writeUserInboxThreads,
+} from '@/lib/messaging/user-inbox';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -206,6 +221,67 @@ async function loadDirectory(companyId: number) {
   return { colleagues, peers };
 }
 
+function viewerForUser(
+  userId: string | null | undefined,
+  companyId: number
+): CompanyMsgParticipant {
+  const uid = getCanonicalUserId(userId);
+  if (uid) {
+    return {
+      kind: 'user',
+      ref_id: uid,
+      company_id: companyId,
+      name: 'You',
+    };
+  }
+  return { kind: 'desk', ref_id: 'desk', company_id: companyId, name: 'Desk' };
+}
+
+/**
+ * Recipients for system-wide delivery by platform user id.
+ */
+async function collectDeliveryUserIds(
+  thread: CompanyThread,
+  companyId: number,
+  actorUserId: string | null
+): Promise<string[]> {
+  const ids = new Set(targetUserIdsFromThread(thread));
+
+  // Colleague: with_user on participants already covered; also fan to
+  // all company members when thread is company-wide colleague (no specific user).
+  if (thread.channel === 'colleague') {
+    const hasSpecificUser = (thread.participants || []).some(
+      (p) => p.kind === 'user'
+    );
+    if (!hasSpecificUser) {
+      for (const u of await resolvePlatformUserIdsForCompany(companyId)) {
+        ids.add(u);
+      }
+    }
+  }
+
+  // Trade: deliver to users on the peer company
+  if (
+    thread.peer_company_id &&
+    thread.peer_company_id !== companyId &&
+    (thread.channel === 'supplier' ||
+      thread.channel === 'customer' ||
+      thread.channel === 'connection')
+  ) {
+    for (const u of await resolvePlatformUserIdsForCompany(
+      thread.peer_company_id
+    )) {
+      ids.add(u);
+    }
+  }
+
+  // Always include sender so their personal inbox stays in sync
+  const actor = getCanonicalUserId(actorUserId);
+  if (actor) ids.add(actor);
+
+  return [...ids];
+}
+
 export async function GET(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
@@ -217,21 +293,51 @@ export async function GET(request: NextRequest) {
     });
     if (!gate.ok) return gate.response;
 
+    const userId = getCanonicalUserId(gate.userId);
     const { store, tradingName } = await loadMeta(companyId);
     const directory = await loadDirectory(companyId);
-    const viewer: Pick<CompanyMsgParticipant, 'kind' | 'ref_id'> = {
+
+    // Merge company workspace inbox + personal user inbox (system-wide)
+    let personalThreads: CompanyThread[] = [];
+    if (userId) {
+      try {
+        const personal = await readUserInbox(userId);
+        personalThreads = personal?.threads || [];
+      } catch (e) {
+        console.warn('[messaging/inbox GET] personal', e);
+      }
+    }
+
+    const threads = mergeInboxThreads(store.threads || [], personalThreads);
+    const viewer = viewerForUser(userId, companyId);
+
+    // Unread for this user OR company desk (so desk-mode still works)
+    const summaryUser = summariseCompanyInbox(threads, viewer);
+    const summaryDesk = summariseCompanyInbox(threads, {
       kind: 'desk',
       ref_id: 'desk',
-    };
-    const threads = normalizeThreads(store.threads).filter((t) => !t.archived);
+    });
 
     return NextResponse.json({
       success: true,
       companyId,
       companyName: tradingName,
+      userId: userId || null,
       threads,
-      summary: summariseCompanyInbox(threads, viewer),
+      summary: {
+        ...summaryUser,
+        // Prefer user unread when logged in; fall back to desk
+        unreadMessages: userId
+          ? summaryUser.unreadMessages
+          : summaryDesk.unreadMessages,
+      },
       directory,
+      delivery: {
+        personal_threads: personalThreads.filter((t) => !t.archived).length,
+        company_threads: normalizeThreads(store.threads).filter(
+          (t) => !t.archived
+        ).length,
+      },
     });
   } catch (e: unknown) {
     console.error('[messaging/inbox GET]', e);
@@ -254,14 +360,16 @@ export async function POST(request: NextRequest) {
     });
     if (!gate.ok) return gate.response;
 
+    const userId = getCanonicalUserId(gate.userId);
     const { meta, store, tradingName } = await loadMeta(companyId);
     const now = new Date().toISOString();
 
+    // Prefer real platform user as author so recipients address a person id
     const author: CompanyMsgParticipant = {
-      kind: body.author_kind === 'user' ? 'user' : 'desk',
+      kind: 'user',
       ref_id: String(
         body.author_ref_id ||
-          (gate.ok && 'userId' in gate ? gate.userId : null) ||
+          userId ||
           'desk'
       ),
       company_id: companyId,
@@ -273,19 +381,67 @@ export async function POST(request: NextRequest) {
       ),
       role_label: body.author_role_label
         ? String(body.author_role_label)
-        : undefined,
+        : body.author_kind === 'desk'
+          ? 'desk'
+          : undefined,
     };
+    // Allow explicit desk posts when requested
+    if (body.author_kind === 'desk' && !body.author_ref_id) {
+      author.kind = 'desk';
+      author.ref_id = 'desk';
+      author.name = String(body.company_name || tradingName || 'Desk');
+    }
 
-    const result = applyCompanyMessageAction(store.threads, body, {
+    // For mark_read on personal-only threads, operate on merged set then split saves
+    const action = String(body.action || '');
+    let workingThreads = store.threads;
+
+    if (
+      (action === 'message_mark_read' || action === 'mark_read') &&
+      userId
+    ) {
+      const personal = await readUserInbox(userId);
+      const merged = mergeInboxThreads(
+        store.threads || [],
+        personal?.threads || []
+      );
+      const threadId = String(body.thread_id || body.id || '');
+      const idx = merged.findIndex((t) => t.id === threadId);
+      if (idx < 0) {
+        return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
+      }
+      const updated = markThreadRead(merged[idx], author, now);
+      // Save into company if present there
+      const companyHas = (store.threads || []).some((t) => t.id === threadId);
+      if (companyHas) {
+        await saveInbox(
+          companyId,
+          meta,
+          upsertThread(store.threads || [], updated)
+        );
+      }
+      // Always update personal
+      const nextPersonal = upsertThread(personal?.threads || [], updated);
+      await writeUserInboxThreads(userId, nextPersonal);
+
+      const all = mergeInboxThreads(
+        companyHas
+          ? upsertThread(store.threads || [], updated)
+          : store.threads || [],
+        nextPersonal
+      );
+      return NextResponse.json({
+        success: true,
+        thread: updated,
+        threads: all,
+        summary: summariseCompanyInbox(all, author),
+        message: 'Marked read',
+      });
+    }
+
+    const result = applyCompanyMessageAction(workingThreads, body, {
       companyId,
-      author: {
-        ...author,
-        // Prefer named company desk for trade clarity when not user-mode
-        name:
-          author.kind === 'desk'
-            ? String(body.company_name || tradingName)
-            : author.name,
-      },
+      author,
       now,
     });
 
@@ -307,18 +463,57 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const viewer: Pick<CompanyMsgParticipant, 'kind' | 'ref_id'> = {
-      kind: 'desk',
-      ref_id: 'desk',
-    };
-    const open = normalizeThreads(result.threads).filter((t) => !t.archived);
+    // System-wide delivery by platform user id (personal + all company workspaces)
+    let fanOut: { users: number; companies: number } | undefined;
+    if (
+      result.thread &&
+      (action === 'message_create_thread' ||
+        action === 'create_thread' ||
+        action === 'message_start' ||
+        action === 'message_post' ||
+        action === 'post_message' ||
+        action === 'message_reply')
+    ) {
+      try {
+        const userIds = await collectDeliveryUserIds(
+          result.thread,
+          companyId,
+          userId
+        );
+        fanOut = await deliverThreadToPlatformUsers({
+          thread: result.thread,
+          userIds,
+          skipCompanyId: companyId,
+        });
+        // Peer company already dual-written; still skip it in company fan-out
+        // (deliverThreadToPlatformUsers writes peer company members' other workspaces)
+      } catch (e) {
+        console.warn('[messaging/inbox] user fan-out failed', e);
+      }
+    }
+
+    // Merge personal for response
+    let personalThreads: CompanyThread[] = [];
+    if (userId) {
+      try {
+        const personal = await readUserInbox(userId);
+        personalThreads = personal?.threads || [];
+      } catch {
+        /* soft */
+      }
+    }
+    const open = mergeInboxThreads(result.threads, personalThreads);
 
     return NextResponse.json({
       success: true,
       thread: result.thread,
       threads: open,
-      summary: summariseCompanyInbox(open, viewer),
-      message: 'Message saved',
+      summary: summariseCompanyInbox(open, author),
+      message:
+        fanOut && (fanOut.users > 0 || fanOut.companies > 0)
+          ? `Message saved · delivered to ${fanOut.users} user inbox(es), ${fanOut.companies} company workspace(s)`
+          : 'Message saved',
+      fan_out: fanOut,
     });
   } catch (e: unknown) {
     console.error('[messaging/inbox POST]', e);

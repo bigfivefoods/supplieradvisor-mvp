@@ -19,7 +19,9 @@ import {
   Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
+import { getCanonicalUserId } from '@/lib/auth/identity';
 import { CompanyRequired as BaseCompanyRequired } from '@/components/business/BusinessShell';
 import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 import {
@@ -27,7 +29,6 @@ import {
   previewText,
   threadTitleForCompany,
   unreadForViewer,
-  type CompanyMsgChannel,
   type CompanyThread,
 } from '@/lib/messaging/company-inbox';
 import {
@@ -79,6 +80,8 @@ export default function PlatformMessagesPage() {
 
 function Inner() {
   const searchParams = useSearchParams();
+  const { user } = usePrivy();
+  const platformUserId = getCanonicalUserId(user?.id);
   const companyId = getSelectedCompanyId()!;
   const ctx = useMemo(
     () =>
@@ -172,6 +175,13 @@ function Inner() {
         body: JSON.stringify({
           companyId,
           company_name: companyName,
+          // Platform user id — delivery & unread are keyed system-wide
+          author_kind: 'user',
+          author_ref_id: platformUserId || undefined,
+          author_name:
+            user?.email?.address ||
+            (user as { google?: { name?: string } } | null)?.google?.name ||
+            companyName,
           ...payload,
         }),
       });
@@ -209,9 +219,6 @@ function Inner() {
     void post({
       action: 'message_mark_read',
       thread_id: active.id,
-      author_kind: 'desk',
-      author_ref_id: 'desk',
-      author_name: companyName,
     }).catch(() => {
       /* soft */
     });
@@ -232,14 +239,12 @@ function Inner() {
       toast.error('Write a message');
       return;
     }
-    let channel: CompanyMsgChannel = 'colleague';
+    let channel: 'colleague' | 'supplier' | 'customer' | 'connection' =
+      'colleague';
     const payload: Record<string, unknown> = {
       action: 'message_create_thread',
       body: body.trim(),
       subject: subject.trim() || undefined,
-      author_kind: 'desk',
-      author_ref_id: 'desk',
-      author_name: companyName,
     };
 
     if (composeMode === 'colleague') {
@@ -298,9 +303,6 @@ function Inner() {
         action: 'message_post',
         thread_id: active.id,
         body: reply.trim(),
-        author_kind: 'desk',
-        author_ref_id: 'desk',
-        author_name: companyName,
       });
       setReply('');
       toast.success('Message sent');
@@ -315,7 +317,9 @@ function Inner() {
     setActiveId(null);
   };
 
-  const viewer = { kind: 'desk' as const, ref_id: 'desk' };
+  const viewer = platformUserId
+    ? { kind: 'user' as const, ref_id: platformUserId }
+    : { kind: 'desk' as const, ref_id: 'desk' };
 
   return (
     <>
@@ -339,7 +343,7 @@ function Inner() {
         eyebrow={`Platform · ${ctx.label}`}
         title="Messages"
         titleAccent={ctx.titleAccent}
-        description={ctx.description}
+        description={`${ctx.description} Messages are delivered by your system user id across every company workspace you belong to.`}
         action={
           <button
             type="button"

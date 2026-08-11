@@ -18,9 +18,14 @@ import {
   upsertThread,
   writeCompanyInbox,
   type CompanyMsgParticipant,
+  type CompanyThread,
 } from '@/lib/messaging/company-inbox';
 import type { ServiceThread } from '@/lib/messaging/service-inbox';
-import { getCanonicalUserId } from '@/lib/auth/identity';
+import {
+  getCanonicalUserId,
+  userIdMatchVariants,
+} from '@/lib/auth/identity';
+import { upsertUserInboxThread } from '@/lib/messaging/user-inbox';
 
 export type ServiceModuleId =
   | 'fitgraph'
@@ -53,7 +58,7 @@ function normalizeUserId(raw: string | null | undefined): string | null {
 
 /**
  * Find company profile ids where this platform user is an active team member
- * (or owns the profile).
+ * (or owns the profile). Uses indexed user_id lookups + id variants.
  */
 export async function resolveCompanyIdsForPlatformUser(
   userId: string
@@ -62,55 +67,140 @@ export async function resolveCompanyIdsForPlatformUser(
   if (!uid) return [];
   const supabase = getSupabaseServer();
   const ids = new Set<number>();
-
-  const variants = [
-    uid,
-    uid.replace(/^did:privy:/i, ''),
-    uid.startsWith('did:privy:') ? uid : `did:privy:${uid}`,
-  ];
+  const variants = userIdMatchVariants(uid);
 
   const { data: byMember } = await supabase
     .from('business_users')
     .select('profile_id, user_id')
     .eq('status', 'active')
-    .limit(500);
+    .in('user_id', variants)
+    .limit(100);
   for (const m of byMember || []) {
-    const mu = String(m.user_id || '');
-    if (
-      variants.some(
-        (v) =>
-          mu === v ||
-          mu.toLowerCase() === v.toLowerCase() ||
-          mu.endsWith(v.replace(/^did:privy:/i, '')) ||
-          v.endsWith(mu.replace(/^did:privy:/i, ''))
-      )
-    ) {
-      const n = Number(m.profile_id);
-      if (Number.isFinite(n) && n > 0) ids.add(n);
-    }
+    const n = Number(m.profile_id);
+    if (Number.isFinite(n) && n > 0) ids.add(n);
   }
 
+  // Owner profiles (profiles.user_id)
   const { data: byOwner } = await supabase
     .from('profiles')
     .select('id, user_id')
-    .limit(200);
+    .in('user_id', variants)
+    .limit(50);
   for (const p of byOwner || []) {
-    const pu = String(p.user_id || '');
-    if (
-      variants.some(
-        (v) =>
-          pu === v ||
-          pu.toLowerCase() === v.toLowerCase() ||
-          pu.endsWith(v.replace(/^did:privy:/i, '')) ||
-          v.endsWith(pu.replace(/^did:privy:/i, ''))
-      )
-    ) {
-      const n = Number(p.id);
-      if (Number.isFinite(n) && n > 0) ids.add(n);
-    }
+    const n = Number(p.id);
+    if (Number.isFinite(n) && n > 0) ids.add(n);
   }
 
   return [...ids];
+}
+
+/**
+ * Active platform user ids for members of a company (for trade fan-out).
+ */
+export async function resolvePlatformUserIdsForCompany(
+  companyId: number
+): Promise<string[]> {
+  if (!Number.isFinite(companyId) || companyId <= 0) return [];
+  const supabase = getSupabaseServer();
+  const out = new Set<string>();
+
+  const { data: members } = await supabase
+    .from('business_users')
+    .select('user_id')
+    .eq('profile_id', companyId)
+    .eq('status', 'active')
+    .not('user_id', 'is', null)
+    .limit(200);
+  for (const m of members || []) {
+    const u = normalizeUserId(m.user_id as string);
+    if (u) out.add(u);
+  }
+
+  const { data: owner } = await supabase
+    .from('profiles')
+    .select('user_id')
+    .eq('id', companyId)
+    .maybeSingle();
+  const ou = normalizeUserId(owner?.user_id as string | undefined);
+  if (ou) out.add(ou);
+
+  return [...out];
+}
+
+/**
+ * Deliver a company thread copy into:
+ *  1) personal user inbox (platform_user_inboxes) — always when user id known
+ *  2) every company workspace inbox that user belongs to
+ *
+ * Call after any message that should be received system-wide by user id.
+ */
+export async function deliverThreadToPlatformUsers(opts: {
+  thread: CompanyThread;
+  userIds: string[];
+  /** Skip writing into this company (already saved by caller) */
+  skipCompanyId?: number | null;
+}): Promise<{ users: number; companies: number }> {
+  const userIds = [
+    ...new Set(
+      (opts.userIds || [])
+        .map((u) => normalizeUserId(u))
+        .filter(Boolean) as string[]
+    ),
+  ];
+  if (!userIds.length) return { users: 0, companies: 0 };
+
+  let users = 0;
+  let companies = 0;
+  const companyDone = new Set<number>();
+  if (opts.skipCompanyId) companyDone.add(opts.skipCompanyId);
+
+  const supabase = getSupabaseServer();
+
+  for (const uid of userIds) {
+    try {
+      const personal = await upsertUserInboxThread(uid, opts.thread);
+      if (personal.ok) users += 1;
+    } catch (e) {
+      console.warn('[deliver] user inbox', uid, e);
+    }
+
+    try {
+      const companyIds = await resolveCompanyIdsForPlatformUser(uid);
+      for (const companyId of companyIds) {
+        if (companyDone.has(companyId)) continue;
+        companyDone.add(companyId);
+        try {
+          const { data: prof } = await supabase
+            .from('profiles')
+            .select('id, metadata')
+            .eq('id', companyId)
+            .maybeSingle();
+          if (!prof) continue;
+          const meta =
+            prof.metadata && typeof prof.metadata === 'object'
+              ? { ...(prof.metadata as Record<string, unknown>) }
+              : {};
+          const inbox = readCompanyInbox(meta);
+          const nextThreads = upsertThread(inbox.threads || [], opts.thread);
+          const nextMeta = writeCompanyInbox(meta, { threads: nextThreads });
+          const { error } = await supabase
+            .from('profiles')
+            .update({
+              metadata: nextMeta,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', companyId);
+          if (!error) companies += 1;
+        } catch (e) {
+          console.warn('[deliver] company inbox', companyId, e);
+        }
+      }
+    } catch (e) {
+      console.warn('[deliver] resolve companies', uid, e);
+    }
+  }
+
+  return { users, companies };
 }
 
 /**
@@ -231,17 +321,18 @@ export async function fanOutServiceThreadToMemberCompanies(opts: {
 }): Promise<{
   delivered: number;
   companyIds: number[];
+  userIds: string[];
   via: Array<'platform_user' | 'email' | 'none'>;
 }> {
   const { gymCompanyId, gymName, module, serviceThread, people } = opts;
   const last = lastServiceMessage(serviceThread);
   if (!last || !String(last.body || '').trim()) {
-    return { delivered: 0, companyIds: [], via: [] };
+    return { delivered: 0, companyIds: [], userIds: [], via: [] };
   }
 
   const staffRoles = new Set(['desk', 'coach', 'practitioner']);
   if (!staffRoles.has(String(last.author_role || ''))) {
-    return { delivered: 0, companyIds: [], via: [] };
+    return { delivered: 0, companyIds: [], userIds: [], via: [] };
   }
 
   const memberRoles = new Set(['member', 'patient']);
@@ -249,7 +340,7 @@ export async function fanOutServiceThreadToMemberCompanies(opts: {
     memberRoles.has(String(p.role))
   );
   if (!memberParticipants.length) {
-    return { delivered: 0, companyIds: [], via: [] };
+    return { delivered: 0, companyIds: [], userIds: [], via: [] };
   }
 
   const peopleById = new Map(people.map((p) => [String(p.id), p]));
@@ -258,6 +349,7 @@ export async function fanOutServiceThreadToMemberCompanies(opts: {
   const subject = serviceThread.subject || `Care · ${gymName}`;
 
   const deliveredCompanies = new Set<number>();
+  const deliveredUsers = new Set<string>();
   const vias: Array<'platform_user' | 'email' | 'none'> = [];
   const supabase = getSupabaseServer();
 
@@ -270,13 +362,85 @@ export async function fanOutServiceThreadToMemberCompanies(opts: {
 
     const resolved = await resolveInAppCompanyIdsForPerson(person);
     vias.push(resolved.via);
-    if (!resolved.companyIds.length) continue;
 
+    const platformUid = normalizeUserId(person.platform_user_id);
     const memberRef =
-      normalizeUserId(person.platform_user_id) ||
+      platformUid ||
       normalizeEmail(person.email) ||
       normalizeEmail(person.invite_email) ||
       person.id;
+
+    // Build a canonical service thread snapshot for this member
+    const memberPerson: CompanyMsgParticipant = {
+      kind: 'user',
+      ref_id: memberRef,
+      company_id: resolved.companyIds[0] || 0,
+      name: person?.name || memberRef,
+      role_label: 'member',
+    };
+
+    // Always deliver to personal user inbox when linked to a system user
+    if (platformUid) {
+      try {
+        const personalThread = createCompanyThread({
+          id: threadKey,
+          channel: 'service',
+          subject,
+          company_ids: [gymCompanyId, ...resolved.companyIds],
+          participants: [memberPerson, author],
+          body: last.body,
+          author,
+          peer_company_id: gymCompanyId,
+          peer_company_name: gymName,
+          peer_relation: 'peer',
+          service_module: module,
+          service_thread_id: serviceThread.id,
+          now: last.created_at || new Date().toISOString(),
+        });
+        // If already exists on personal, append instead
+        const { readUserInbox } = await import('@/lib/messaging/user-inbox');
+        const personal = await readUserInbox(platformUid);
+        const existingP = (personal?.threads || []).find(
+          (t) => t.id === threadKey
+        );
+        if (existingP) {
+          const lastP = existingP.messages[existingP.messages.length - 1];
+          if (
+            !(
+              lastP &&
+              lastP.body === last.body &&
+              Math.abs(
+                Date.parse(lastP.created_at) - Date.parse(last.created_at)
+              ) < 5000
+            )
+          ) {
+            await upsertUserInboxThread(
+              platformUid,
+              appendCompanyMessage(
+                {
+                  ...existingP,
+                  subject: subject || existingP.subject,
+                  service_module: module,
+                  service_thread_id: serviceThread.id,
+                  peer_company_id: gymCompanyId,
+                  peer_company_name: gymName,
+                },
+                last.body,
+                author,
+                last.created_at || new Date().toISOString()
+              )
+            );
+          }
+        } else {
+          await upsertUserInboxThread(platformUid, personalThread);
+        }
+        deliveredUsers.add(platformUid);
+      } catch (e) {
+        console.warn('[service-to-company] user inbox', e);
+      }
+    }
+
+    if (!resolved.companyIds.length) continue;
 
     for (const memberCompanyId of resolved.companyIds) {
       if (memberCompanyId === gymCompanyId) continue;
@@ -302,13 +466,6 @@ export async function fanOutServiceThreadToMemberCompanies(opts: {
           ref_id: 'desk',
           company_id: memberCompanyId,
           name: String(prof.trading_name || prof.legal_name || 'Your company'),
-        };
-        const memberPerson: CompanyMsgParticipant = {
-          kind: 'user',
-          ref_id: memberRef,
-          company_id: memberCompanyId,
-          name: person?.name || memberRef,
-          role_label: 'member',
         };
 
         const existing = threads.find(
@@ -351,7 +508,11 @@ export async function fanOutServiceThreadToMemberCompanies(opts: {
             channel: 'service',
             subject,
             company_ids: [memberCompanyId, gymCompanyId],
-            participants: [memberDesk, memberPerson, author],
+            participants: [
+              memberDesk,
+              { ...memberPerson, company_id: memberCompanyId },
+              author,
+            ],
             body: last.body,
             author,
             peer_company_id: gymCompanyId,
@@ -388,8 +549,9 @@ export async function fanOutServiceThreadToMemberCompanies(opts: {
   }
 
   return {
-    delivered: deliveredCompanies.size,
+    delivered: deliveredCompanies.size + deliveredUsers.size,
     companyIds: [...deliveredCompanies],
+    userIds: [...deliveredUsers],
     via: vias,
   };
 }
