@@ -34,6 +34,7 @@ import {
   targetUserIdsFromThread,
   writeUserInboxThreads,
 } from '@/lib/messaging/user-inbox';
+import { loadMergedInboxForUser } from '@/lib/messaging/sync-inbound-care';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -297,21 +298,35 @@ export async function GET(request: NextRequest) {
     const { store, tradingName } = await loadMeta(companyId);
     const directory = await loadDirectory(companyId);
 
-    // Merge company workspace inbox + personal user inbox (system-wide)
+    // System-wide: pull care messages (Fit/clinic) into personal + this company,
+    // then merge company workspace inbox with personal user inbox.
+    let threads = normalizeThreads(store.threads).filter((t) => !t.archived);
     let personalThreads: CompanyThread[] = [];
+    let synced = 0;
     if (userId) {
       try {
-        const personal = await readUserInbox(userId);
-        personalThreads = personal?.threads || [];
+        const merged = await loadMergedInboxForUser({
+          userId,
+          companyThreads: store.threads || [],
+          activeCompanyId: companyId,
+          syncCare: true,
+        });
+        threads = merged.threads;
+        personalThreads = merged.personalThreads;
+        synced = merged.synced;
       } catch (e) {
-        console.warn('[messaging/inbox GET] personal', e);
+        console.warn('[messaging/inbox GET] merge/sync', e);
+        try {
+          const personal = await readUserInbox(userId);
+          personalThreads = personal?.threads || [];
+          threads = mergeInboxThreads(store.threads || [], personalThreads);
+        } catch (e2) {
+          console.warn('[messaging/inbox GET] personal', e2);
+        }
       }
     }
 
-    const threads = mergeInboxThreads(store.threads || [], personalThreads);
     const viewer = viewerForUser(userId, companyId);
-
-    // Unread for this user OR company desk (so desk-mode still works)
     const summaryUser = summariseCompanyInbox(threads, viewer);
     const summaryDesk = summariseCompanyInbox(threads, {
       kind: 'desk',
@@ -326,7 +341,6 @@ export async function GET(request: NextRequest) {
       threads,
       summary: {
         ...summaryUser,
-        // Prefer user unread when logged in; fall back to desk
         unreadMessages: userId
           ? summaryUser.unreadMessages
           : summaryDesk.unreadMessages,
@@ -337,6 +351,7 @@ export async function GET(request: NextRequest) {
         company_threads: normalizeThreads(store.threads).filter(
           (t) => !t.archived
         ).length,
+        care_synced: synced,
       },
     });
   } catch (e: unknown) {

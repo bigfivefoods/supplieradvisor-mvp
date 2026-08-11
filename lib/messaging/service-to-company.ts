@@ -240,22 +240,80 @@ export async function resolveCompanyIdsForEmail(
   return [...ids];
 }
 
+/**
+ * Resolve platform user id from an email local-part when it uniquely maps
+ * to one active system user (e.g. craig@gym.com → craig@company.com).
+ */
+export async function resolvePlatformUserIdFromEmailLocal(
+  email: string
+): Promise<string | null> {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return null;
+  const local = normalized.split('@')[0] || '';
+  if (local.length < 3) return null;
+  const supabase = getSupabaseServer();
+  // Match any business_users email with same local-part
+  const { data: rows } = await supabase
+    .from('business_users')
+    .select('user_id, email, invited_email')
+    .eq('status', 'active')
+    .not('user_id', 'is', null)
+    .or(
+      `email.ilike."${local}@%",invited_email.ilike."${local}@%"`
+    )
+    .limit(40);
+
+  const userIds = new Set<string>();
+  for (const r of rows || []) {
+    const e1 = normalizeEmail(r.email as string);
+    const e2 = normalizeEmail(r.invited_email as string);
+    const hit =
+      (e1 && e1.split('@')[0] === local) ||
+      (e2 && e2.split('@')[0] === local);
+    if (!hit) continue;
+    const u = normalizeUserId(r.user_id as string);
+    if (u) userIds.add(u);
+  }
+  if (userIds.size === 1) return [...userIds][0];
+  return null;
+}
+
 /** Resolve in-app delivery targets for a service person */
 export async function resolveInAppCompanyIdsForPerson(
   person: ClientLike
-): Promise<{ companyIds: number[]; via: 'platform_user' | 'email' | 'none' }> {
-  const uid = normalizeUserId(person.platform_user_id);
+): Promise<{
+  companyIds: number[];
+  via: 'platform_user' | 'email' | 'email_local' | 'none';
+  platformUserId?: string | null;
+}> {
+  let uid = normalizeUserId(person.platform_user_id);
   if (uid) {
     const ids = await resolveCompanyIdsForPlatformUser(uid);
-    if (ids.length) return { companyIds: ids, via: 'platform_user' };
+    if (ids.length) {
+      return { companyIds: ids, via: 'platform_user', platformUserId: uid };
+    }
   }
   const email =
     normalizeEmail(person.email) || normalizeEmail(person.invite_email);
   if (email) {
     const ids = await resolveCompanyIdsForEmail(email);
-    if (ids.length) return { companyIds: ids, via: 'email' };
+    if (ids.length) {
+      return { companyIds: ids, via: 'email', platformUserId: uid };
+    }
+    // Same person, different email domains (gym portal vs company login)
+    const inferred = await resolvePlatformUserIdFromEmailLocal(email);
+    if (inferred) {
+      const ids2 = await resolveCompanyIdsForPlatformUser(inferred);
+      if (ids2.length) {
+        return {
+          companyIds: ids2,
+          via: 'email_local',
+          platformUserId: inferred,
+        };
+      }
+    }
   }
-  return { companyIds: [], via: 'none' };
+  return { companyIds: [], via: 'none', platformUserId: uid };
 }
 
 function stableServiceThreadId(
@@ -322,7 +380,7 @@ export async function fanOutServiceThreadToMemberCompanies(opts: {
   delivered: number;
   companyIds: number[];
   userIds: string[];
-  via: Array<'platform_user' | 'email' | 'none'>;
+  via: Array<'platform_user' | 'email' | 'email_local' | 'none'>;
 }> {
   const { gymCompanyId, gymName, module, serviceThread, people } = opts;
   const last = lastServiceMessage(serviceThread);
@@ -350,7 +408,7 @@ export async function fanOutServiceThreadToMemberCompanies(opts: {
 
   const deliveredCompanies = new Set<number>();
   const deliveredUsers = new Set<string>();
-  const vias: Array<'platform_user' | 'email' | 'none'> = [];
+  const vias: Array<'platform_user' | 'email' | 'email_local' | 'none'> = [];
   const supabase = getSupabaseServer();
 
   for (const mp of memberParticipants) {
@@ -363,7 +421,14 @@ export async function fanOutServiceThreadToMemberCompanies(opts: {
     const resolved = await resolveInAppCompanyIdsForPerson(person);
     vias.push(resolved.via);
 
-    const platformUid = normalizeUserId(person.platform_user_id);
+    // Prefer linked or inferred system user id so delivery is system-wide
+    const platformUid =
+      normalizeUserId(person.platform_user_id) ||
+      normalizeUserId(resolved.platformUserId);
+    // Persist inferred link on the in-memory person so later steps use it
+    if (platformUid && !person.platform_user_id) {
+      person.platform_user_id = platformUid;
+    }
     const memberRef =
       platformUid ||
       normalizeEmail(person.email) ||
