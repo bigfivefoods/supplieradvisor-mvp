@@ -25,6 +25,10 @@ import {
 } from '@/components/health/InjuryProfileFields';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
+import {
+  InlineSelect,
+  InlineText,
+} from '@/components/services/InlineListFields';
 
 type PatientForm = {
   id?: string;
@@ -79,6 +83,32 @@ export default function PatientsPage() {
       popia_consent: !!p.popia_consent_at,
     });
     setEditing(true);
+  };
+
+
+  /** Inline list save — visible columns only */
+  const patchPatient = async (
+    patient: DentalPatient,
+    patch: Partial<DentalPatient> & Record<string, unknown>
+  ) => {
+    if (patch.name !== undefined && !String(patch.name || '').trim()) {
+      toast.error('Name required');
+      return;
+    }
+    try {
+      await post({
+        entity: 'patients',
+        action: 'upsert',
+        record: {
+          ...patient,
+          ...patch,
+          id: patient.id,
+        },
+      });
+      toast.success('Saved');
+    } catch {
+      /* post toasts */
+    }
   };
 
   const save = async () => {
@@ -370,6 +400,9 @@ export default function PatientsPage() {
               inputClass={fc()}
             />
           </FormCard>
+          <p className="text-[11px] text-slate-500 -mb-2">
+            Click a field in the list to edit it (code, name, status, clinician, package). Full profile: <strong>Edit</strong>.
+          </p>
           <DataTable
             headers={[
               'Code',
@@ -390,11 +423,74 @@ export default function PatientsPage() {
               return {
                 id: p.id,
                 cells: [
-                  p.code,
-                  p.name,
-                  p.status || '—',
-                  prac?.name || '—',
-                  pkg?.code || '—',
+                  (
+                    <InlineText
+                      key="code"
+                      value={p.code || ''}
+                      placeholder="Code"
+                      disabled={saving}
+                      onSave={(code) => void patchPatient(p, { code })}
+                    />
+                  ),
+                  (
+                    <InlineText
+                      key="name"
+                      value={p.name || ''}
+                      placeholder="Name"
+                      wide
+                      disabled={saving}
+                      onSave={(name) => void patchPatient(p, { name })}
+                    />
+                  ),
+                  (
+                    <InlineSelect
+                      key="status"
+                      value={p.status || 'active'}
+                      allowEmpty={false}
+                      disabled={saving}
+                      options={PATIENT_STATUSES.map((s) => ({
+                        value: s,
+                        label: s,
+                      }))}
+                      onSave={(status) => void patchPatient(p, { status })}
+                    />
+                  ),
+                  (
+                    <InlineSelect
+                      key="person"
+                      value={p.staff_id || ''}
+                      emptyLabel="No clinician"
+                      disabled={saving}
+                      options={store.staff
+                        .filter((x) => x.active !== false)
+                        .map((x) => ({
+                          value: x.id,
+                          label: x.name,
+                        }))}
+                      onSave={(v) =>
+                        void patchPatient(p, {
+                          staff_id: v || null,
+                        })
+                      }
+                    />
+                  ),
+                  (
+                    <InlineSelect
+                      key="pkg"
+                      value={p.package_id || ''}
+                      emptyLabel="No package"
+                      disabled={saving}
+                      options={store.packages.map((x) => ({
+                        value: x.id,
+                        label: `${x.code} · ${x.name}`,
+                      }))}
+                      onSave={(package_id) =>
+                        void patchPatient(p, {
+                          package_id: package_id || null,
+                        })
+                      }
+                    />
+                  ),
                   (
                     <span
                       key="h"

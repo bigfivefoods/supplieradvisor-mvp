@@ -25,6 +25,11 @@ import {
 } from '@/components/health/InjuryProfileFields';
 import { AdvisorTreatmentPlanPanel } from '@/components/services/AdvisorTreatmentPlanPanel';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
+import {
+  InlineSelect,
+  InlineText,
+  InlineToggleSelect,
+} from '@/components/services/InlineListFields';
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -139,6 +144,41 @@ export default function ClientsPage() {
     toast.success(form.id ? 'Client profile updated' : 'Client saved');
     setForm(blankForm());
     setEditing(false);
+  };
+
+  /** Inline list save — only patches visible columns */
+  const patchClient = async (
+    client: FitClient,
+    patch: Partial<FitClient> & Record<string, unknown>
+  ) => {
+    const nextPrivate =
+      patch.private_client !== undefined
+        ? patch.private_client === true
+        : client.private_client === true;
+    const nextCoach =
+      patch.coach_id !== undefined ? patch.coach_id : client.coach_id;
+    if (nextPrivate && !nextCoach) {
+      toast.error('Private clients need an assigned coach');
+      return;
+    }
+    if (patch.name !== undefined && !String(patch.name || '').trim()) {
+      toast.error('Name required');
+      return;
+    }
+    try {
+      await post({
+        entity: 'clients',
+        action: 'upsert',
+        record: {
+          ...client,
+          ...patch,
+          id: client.id,
+        },
+      });
+      toast.success('Saved');
+    } catch {
+      /* toast from post */
+    }
   };
 
   const downloadXlsx = (kind: 'clients' | 'clients_template') => {
@@ -290,7 +330,7 @@ export default function ClientsPage() {
     <FitgraphWorkbench
       title="Clients / members"
       titleAccent="member book"
-      description="Member register with plan, private-client flag, coach assignment, injury profile, email invites, and member portals so clients can join, book open classes, leave feedback, and manage their profile."
+      description="Member register with plan, private-client flag, and coach. Edit code, name, type, plan, status, and coach directly in the list — use Edit for the full profile, injury notes, and portal tools."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -592,6 +632,11 @@ export default function ClientsPage() {
             />
           ) : null}
 
+          <p className="text-[11px] text-slate-500 -mb-2">
+            Click a field in the list to edit it (code, name, type, plan, status,
+            coach). Full profile: <strong>Edit</strong>.
+          </p>
+
           <DataTable
             tone="member"
             headers={[
@@ -628,75 +673,114 @@ export default function ClientsPage() {
                       —
                     </span>
                   ),
-                  c.code,
                   (
-                    <span key="n" className="inline-flex flex-wrap items-center gap-1.5">
-                      {c.name}
-                      {c.identity?.status === 'verified' ? (
-                        <span
-                          className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
-                          title={
-                            c.identity.verified_name
-                              ? `Verified: ${c.identity.verified_name}`
-                              : 'Identity verified'
-                          }
-                        >
-                          ✓ ID
-                        </span>
-                      ) : null}
-                      {(c.family || []).filter((m) => m.active !== false)
-                        .length > 0 ? (
-                        <span
-                          className="rounded-full bg-sky-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-sky-800 dark:bg-sky-950 dark:text-sky-200"
-                          title={(c.family || [])
-                            .filter((m) => m.active !== false)
-                            .map((m) => m.name)
-                            .join(', ')}
-                        >
-                          +
-                          {
-                            (c.family || []).filter((m) => m.active !== false)
-                              .length
-                          }{' '}
-                          family
-                        </span>
-                      ) : null}
-                      {c.booking_soft_block ? (
-                        <span
-                          className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-900"
-                          title={`${c.no_show_count || 0} no-shows`}
-                        >
-                          no-show risk
-                        </span>
-                      ) : null}
-                    </span>
+                    <InlineText
+                      key="code"
+                      value={c.code || ''}
+                      placeholder="Code"
+                      onSave={(code) => void patchClient(c, { code })}
+                      disabled={saving}
+                    />
                   ),
                   (
                     <span
-                      key="type"
-                      className={
-                        isPrivate
-                          ? 'inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-violet-900 dark:bg-violet-950 dark:text-violet-200'
-                          : 'inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300'
-                      }
-                      title={
-                        isPrivate
-                          ? coach
-                            ? `Private client of ${coach.name}`
-                            : 'Private client — assign a coach'
-                          : 'General gym member'
-                      }
+                      key="n"
+                      className="inline-flex flex-col gap-1 min-w-[8rem]"
                     >
-                      {isPrivate ? 'Private client' : 'Gym member'}
+                      <InlineText
+                        value={c.name || ''}
+                        placeholder="Name"
+                        wide
+                        onSave={(name) => void patchClient(c, { name })}
+                        disabled={saving}
+                      />
+                      <span className="inline-flex flex-wrap items-center gap-1">
+                        {c.identity?.status === 'verified' ? (
+                          <span
+                            className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+                            title={
+                              c.identity.verified_name
+                                ? `Verified: ${c.identity.verified_name}`
+                                : 'Identity verified'
+                            }
+                          >
+                            ✓ ID
+                          </span>
+                        ) : null}
+                        {(c.family || []).filter((m) => m.active !== false)
+                          .length > 0 ? (
+                          <span
+                            className="rounded-full bg-sky-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-sky-800 dark:bg-sky-950 dark:text-sky-200"
+                            title={(c.family || [])
+                              .filter((m) => m.active !== false)
+                              .map((m) => m.name)
+                              .join(', ')}
+                          >
+                            +
+                            {
+                              (c.family || []).filter((m) => m.active !== false)
+                                .length
+                            }{' '}
+                            family
+                          </span>
+                        ) : null}
+                        {c.booking_soft_block ? (
+                          <span
+                            className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-900"
+                            title={`${c.no_show_count || 0} no-shows`}
+                          >
+                            no-show risk
+                          </span>
+                        ) : null}
+                      </span>
                     </span>
                   ),
-                  plan?.code || '—',
                   (
-                    <span key="ms" className="inline-flex flex-wrap items-center gap-1">
-                      {c.membership_status || '—'}
+                    <InlineToggleSelect
+                      key="type"
+                      value={isPrivate}
+                      trueLabel="Private client"
+                      falseLabel="Gym member"
+                      disabled={saving}
+                      onSave={(private_client) =>
+                        void patchClient(c, { private_client })
+                      }
+                    />
+                  ),
+                  (
+                    <InlineSelect
+                      key="plan"
+                      value={c.membership_plan_id || ''}
+                      emptyLabel="No plan"
+                      disabled={saving}
+                      options={store.membership_plans.map((p) => ({
+                        value: p.id,
+                        label: `${p.code} · ${p.name}`,
+                      }))}
+                      onSave={(membership_plan_id) =>
+                        void patchClient(c, {
+                          membership_plan_id: membership_plan_id || null,
+                        })
+                      }
+                    />
+                  ),
+                  (
+                    <span key="ms" className="inline-flex flex-col gap-1">
+                      <InlineSelect
+                        value={c.membership_status || 'active'}
+                        allowEmpty={false}
+                        disabled={saving}
+                        options={MEMBERSHIP_STATUSES.map((s) => ({
+                          value: s,
+                          label: s,
+                        }))}
+                        onSave={(membership_status) =>
+                          void patchClient(c, { membership_status })
+                        }
+                      />
                       <button
                         type="button"
-                        className="text-[10px] font-bold text-violet-700 underline"
+                        className="text-[10px] font-bold text-violet-700 underline text-left"
                         onClick={() =>
                           void freezeMembership(
                             c,
@@ -711,28 +795,25 @@ export default function ClientsPage() {
                     </span>
                   ),
                   (
-                    <span
+                    <InlineSelect
                       key="coach"
-                      className={
-                        coach
-                          ? 'font-semibold text-slate-800 dark:text-slate-100'
-                          : isPrivate
-                            ? 'text-[11px] font-bold text-amber-700 dark:text-amber-300'
-                            : 'text-[11px] text-slate-400'
+                      value={c.coach_id || ''}
+                      emptyLabel={
+                        isPrivate ? 'Coach required…' : 'No coach'
                       }
-                      title={
-                        coach
-                          ? isPrivate
-                            ? `Private coach: ${coach.name}`
-                            : `Assigned coach: ${coach.name}`
-                          : isPrivate
-                            ? 'Private client needs a coach'
-                            : 'No coach assigned'
+                      disabled={saving}
+                      options={store.coaches
+                        .filter((x) => x.active !== false)
+                        .map((x) => ({
+                          value: x.id,
+                          label: x.name,
+                        }))}
+                      onSave={(coach_id) =>
+                        void patchClient(c, {
+                          coach_id: coach_id || null,
+                        })
                       }
-                    >
-                      {coach?.name ||
-                        (isPrivate ? 'Coach unassigned' : '—')}
-                    </span>
+                    />
                   ),
                   (
                     <span
