@@ -16,6 +16,7 @@ import {
   Star,
   RefreshCw,
   Wallet,
+  MessageSquare,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { formatMoney } from '@/lib/customers/types';
@@ -122,6 +123,14 @@ function HubInner() {
       accent: 'from-emerald-50 to-white border-emerald-100',
       metric: s?.invitePending ?? '—',
       metricLabel: 'pending',
+    },
+    {
+      href: '/dashboard/messages?from=customers&channel=customer',
+      icon: MessageSquare,
+      code: '04b',
+      title: 'Messages',
+      desc: 'Message connected customers about quotes, orders, and collections.',
+      accent: 'from-fuchsia-50 to-white border-fuchsia-100',
     },
     {
       href: '/dashboard/customers/quotes',

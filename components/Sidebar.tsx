@@ -208,44 +208,50 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     });
   }, [pathname, visibleModules]);
 
+  /** Path only — nav items may carry ?query for deep-links (e.g. Messages). */
+  const pathOnly = (href: string) => href.split('?')[0] || href;
+
   const isModuleActive = (href: string) => {
     if (!pathname) return false;
-    if (href === '/dashboard') return pathname === '/dashboard';
-    if (href === '/sales') return pathname === '/sales' || pathname.startsWith('/sales/');
-    if (href === '/dashboard/connections') {
+    const base = pathOnly(href);
+    if (base === '/dashboard') return pathname === '/dashboard';
+    if (base === '/sales') return pathname === '/sales' || pathname.startsWith('/sales/');
+    if (base === '/dashboard/connections') {
       return (
         pathname === '/dashboard/connections' ||
         pathname.startsWith('/dashboard/connections/') ||
-        pathname.startsWith('/dashboard/invite-business')
+        pathname.startsWith('/dashboard/invite-business') ||
+        pathname.startsWith('/dashboard/messages')
       );
     }
-    if (href === '/dashboard/customers') {
+    if (base === '/dashboard/customers') {
       return (
         pathname === '/dashboard/customers' ||
         pathname.startsWith('/dashboard/customers/') ||
         pathname.startsWith('/dashboard/settle')
       );
     }
-    if (href === '/dashboard/suppliers') {
+    if (base === '/dashboard/suppliers') {
       return (
         pathname === '/dashboard/suppliers' ||
         pathname.startsWith('/dashboard/suppliers/') ||
         pathname.startsWith('/dashboard/escrow')
       );
     }
-    return pathname === href || pathname.startsWith(`${href}/`);
+    return pathname === base || pathname.startsWith(`${base}/`);
   };
 
   const isSubActive = (href: string, exact?: boolean) => {
     if (!pathname) return false;
-    if (exact || href === '/sales' || href === '/dashboard') {
-      return pathname === href;
+    const base = pathOnly(href);
+    if (exact || base === '/sales' || base === '/dashboard') {
+      return pathname === base;
     }
-    if (pathname === href) return true;
+    if (pathname === base) return true;
     // Prefer longest match among siblings later; simple prefix for nested
-    const parts = href.split('/').filter(Boolean);
-    if (parts.length <= 2) return pathname === href;
-    return pathname === href || pathname.startsWith(href + '/');
+    const parts = base.split('/').filter(Boolean);
+    if (parts.length <= 2) return pathname === base;
+    return pathname === base || pathname.startsWith(base + '/');
   };
 
   /** Switch company + expand/collapse — always under brand (same row, expanded & collapsed) */

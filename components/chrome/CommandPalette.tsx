@@ -20,6 +20,13 @@ type Cmd = {
 
 const EXTRA: Cmd[] = [
   {
+    id: 'messages',
+    label: 'Messages (inbox)',
+    href: '/dashboard/messages',
+    group: 'Network',
+    keywords: 'chat message colleague supplier customer inbox team trade care',
+  },
+  {
     id: 'settle',
     label: 'Settle cockpit',
     href: '/dashboard/settle',

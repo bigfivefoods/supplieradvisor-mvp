@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Globe,
   RefreshCw,
+  MessageSquare,
 } from 'lucide-react';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -160,6 +161,14 @@ function HubInner() {
       accent: 'from-cyan-50 to-white border-cyan-100',
       metric: s?.connected ?? '—',
       metricLabel: 'connected',
+    },
+    {
+      href: '/dashboard/messages?from=suppliers&channel=supplier',
+      icon: MessageSquare,
+      code: '03b',
+      title: 'Messages',
+      desc: 'Message connected suppliers about POs, OTIFEF, and follow-ups.',
+      accent: 'from-fuchsia-50 to-white border-fuchsia-100',
     },
     {
       href: '/dashboard/suppliers/network',

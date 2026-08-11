@@ -20,6 +20,7 @@ import {
   Tractor,
   Users,
   Warehouse,
+  MessageSquare,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -125,6 +126,14 @@ const EXTENDED_MODULES: HubModule[] = [
     title: 'Trade',
     desc: 'Hand off to mills, silos, and buyers on the SupplierAdvisor network.',
     accent: 'from-cyan-50 to-white border-cyan-100',
+  },
+  {
+    href: '/dashboard/messages?from=fieldgraph&channel=connection',
+    icon: MessageSquare,
+    code: '08b',
+    title: 'Messages',
+    desc: 'Farm · mill · buyer threads — platform inbox for CropAdvisor.',
+    accent: 'from-fuchsia-50 to-white border-fuchsia-100',
   },
   {
     href: '/dashboard/inventory/lots',

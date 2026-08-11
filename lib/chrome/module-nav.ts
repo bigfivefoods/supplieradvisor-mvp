@@ -87,7 +87,9 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     name: 'Home',
     icon: LayoutDashboard,
     href: '/dashboard',
-    steps: [],
+    steps: [
+      { name: 'Messages', href: '/dashboard/messages?from=home', desc: 'Team · trade · care inbox', section: 'Home', rail: false },
+    ],
     resource: 'dashboard',
   },
   {
@@ -150,6 +152,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Invoice', href: '/sales/invoices', section: 'Trade' },
       { name: 'Earn', href: '/sales/earnings', section: 'Money' },
       { name: 'Subscribe', href: '/sales/subscribe', section: 'Money' },
+    
+      { name: 'Messages', href: '/dashboard/messages?from=sales&channel=customer', desc: 'Message customers & team', section: 'Trade', rail: false },
     ],
   },
   {
@@ -246,6 +250,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         desc: 'Company RIAD register',
         section: 'Field',
       },
+    
+      { name: 'Messages', href: '/dashboard/messages?from=company&channel=colleague', desc: 'Team & partner inbox', section: 'People', rail: false },
     ],
   },
   {
@@ -300,6 +306,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         desc: 'Slice & dice — spend, OTIFEF, risk, PO ledger',
         section: 'Score',
       },
+    
+      { name: 'Messages', href: '/dashboard/messages?from=suppliers&channel=supplier', desc: 'Message connected suppliers', section: 'Trade', rail: false },
     ],
   },
   {
@@ -324,6 +332,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         desc: 'Slice & dice — revenue, AR, pipeline, risk',
         section: 'Score',
       },
+    
+      { name: 'Messages', href: '/dashboard/messages?from=customers&channel=customer', desc: 'Message connected customers', section: 'Trade', rail: false },
     ],
   },
   {
@@ -346,6 +356,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Reports', href: '/dashboard/containers/reports', section: 'Insights' },
       { name: 'Share', href: '/dashboard/containers/settings', section: 'Govern' },
       { name: 'RIAD', href: '/dashboard/containers/riad-log', section: 'Govern' },
+    
+      { name: 'Messages', href: '/dashboard/messages?from=containers&channel=connection', desc: 'Contractors · resellers · team', section: 'Partners', rail: false },
     ],
   },
   {
@@ -362,6 +374,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Receive', href: '/dashboard/inventory/scan', section: 'Move' },
       { name: 'Move', href: '/dashboard/inventory/stock-transfers', section: 'Move' },
       { name: 'Count', href: '/dashboard/inventory/counts', section: 'Move' },
+    
+      { name: 'Messages', href: '/dashboard/messages?from=inventory&channel=colleague', desc: 'Team stock & warehouse notes', section: 'Home', rail: false },
     ],
   },
   {
@@ -378,6 +392,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Outbound', href: '/dashboard/operations/outbound', section: 'Flow' },
       { name: 'Fulfill', href: '/dashboard/operations/customer-orders', section: 'Flow' },
       { name: 'Fix', href: '/dashboard/operations/exceptions', section: 'Fix' },
+    
+      { name: 'Messages', href: '/dashboard/messages?from=operations&channel=colleague', desc: 'Ops team coordination', section: 'Home', rail: false },
     ],
   },
   {
@@ -399,6 +415,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         desc: 'BUs, stations, assets & cost centres',
         section: 'Cost',
       },
+    
+      { name: 'Messages', href: '/dashboard/messages?from=manufacturing&channel=colleague', desc: 'Floor & planning team', section: 'Home', rail: false },
     ],
   },
   {
@@ -414,6 +432,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Track', href: '/dashboard/distribution/tracking', section: 'Track' },
       { name: 'Carrier', href: '/dashboard/distribution/carriers', section: 'Fleet' },
       { name: 'Fleet', href: '/dashboard/distribution/fleet-drivers', section: 'Fleet' },
+    
+      { name: 'Messages', href: '/dashboard/messages?from=distribution&channel=connection', desc: 'Carriers · fleet · partners', section: 'Home', rail: false },
     ],
   },
   {
@@ -437,6 +457,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Assets', href: '/dashboard/accounting/fixed-assets', section: 'Report' },
       { name: 'Entities', href: '/dashboard/accounting/entities', section: 'Govern' },
       { name: 'Settings', href: '/dashboard/accounting/settings', desc: 'Close / periods', section: 'Govern' },
+    
+      { name: 'Messages', href: '/dashboard/messages?from=accounting&channel=colleague', desc: 'Finance team notes', section: 'Home', rail: false },
     ],
   },
   {
@@ -455,6 +477,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Leave', href: '/dashboard/people/leave', section: 'Pay' },
       { name: 'Train', href: '/dashboard/people/training', section: 'Grow' },
       { name: 'Onboard', href: '/dashboard/people/onboarding', section: 'Grow' },
+    
+      { name: 'Messages', href: '/dashboard/messages?from=people&channel=colleague', desc: 'Internal team messages', section: 'Book', rail: false },
     ],
   },
   {
@@ -470,6 +494,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'NCR', href: '/dashboard/sheq/ncrs', section: 'Assure' },
       { name: 'CAPA', href: '/dashboard/sheq/capas', section: 'Assure' },
       { name: 'Quality', href: '/dashboard/quality', section: 'Link' },
+    
+      { name: 'Messages', href: '/dashboard/messages?from=sheq&channel=colleague', desc: 'SHEQ team & site notes', section: 'Home', rail: false },
     ],
   },
   {
@@ -486,6 +512,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Recall', href: '/dashboard/quality/recall-simulator', section: 'Trace' },
       { name: 'Export', href: '/dashboard/quality/regulatory-reports', section: 'Report' },
       { name: 'SHEQ', href: '/dashboard/sheq', section: 'Link' },
+    
+      { name: 'Messages', href: '/dashboard/messages?from=quality&channel=colleague', desc: 'Quality team & suppliers', section: 'Home', rail: false },
     ],
   },
   {
@@ -503,6 +531,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Kanban', href: '/dashboard/projects/kanban-boards', section: 'Method' },
       { name: 'RIAD', href: '/dashboard/projects/risk-register', section: 'Risk' },
       { name: 'Time', href: '/dashboard/projects/timesheets', section: 'Time' },
+    
+      { name: 'Messages', href: '/dashboard/messages?from=projects&channel=colleague', desc: 'Project team threads', section: 'Home', rail: false },
     ],
   },
   {
@@ -520,6 +550,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Certs', href: '/dashboard/sustainability/green-certificates', section: 'Prove' },
       { name: 'Actions', href: '/dashboard/sustainability/initiatives', section: 'Act' },
       { name: 'Pack', href: '/dashboard/sustainability/reports', section: 'Report' },
+    
+      { name: 'Messages', href: '/dashboard/messages?from=sustainability&channel=colleague', desc: 'Impact team notes', section: 'Home', rail: false },
     ],
   },
   {
@@ -536,6 +568,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Score', href: '/dashboard/intelligence/custom-scorecards', section: 'Score' },
       { name: 'Lab', href: '/dashboard/intelligence/simulation-lab', section: 'Lab' },
       { name: 'Lead', href: '/dashboard/intelligence/leadership-development', section: 'Lead' },
+    
+      { name: 'Messages', href: '/dashboard/messages?from=intelligence&channel=colleague', desc: 'Insights team notes', section: 'Home', rail: false },
     ],
   },
   {
@@ -560,6 +594,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Regen', href: '/dashboard/fieldgraph/regen', desc: 'Soil · water · cover', section: 'Regen' },
       { name: 'Trade', href: '/dashboard/fieldgraph/trade', desc: 'Mill · buyer · lots', section: 'Trade' },
       { name: 'Reports', href: '/dashboard/fieldgraph/report', desc: 'Slice & dice · yield · fleet · labour', section: 'Insights' },
+    
+      { name: 'Messages', href: '/dashboard/messages?from=fieldgraph&channel=connection', desc: 'Farm · mill · buyer threads', section: 'Trade', rail: false },
     ],
   },
   {
@@ -587,6 +623,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Quality', href: '/dashboard/quarrygraph/quality', desc: 'Lab · CS · grading', section: 'Assure' },
       { name: 'Compliance', href: '/dashboard/quarrygraph/compliance', desc: 'Rights · WUL · EMP', section: 'Assure' },
       { name: 'Reports', href: '/dashboard/quarrygraph/report', desc: 'Key management pack', section: 'Insights' },
+    
+      { name: 'Messages', href: '/dashboard/messages?from=quarrygraph&channel=connection', desc: 'Office · pit · trade threads', section: 'Ops', rail: false },
     ],
   },
   {
@@ -1132,6 +1170,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         group: 'SP',
         section: 'Trade',
       },
+    
+      { name: 'Messages', href: '/dashboard/messages?from=schools&channel=colleague', desc: 'DBE · school · SP threads', section: 'Govern', rail: false },
     ],
   },
   {
@@ -1275,6 +1315,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         group: 'SP',
         section: 'Supply',
       },
+    
+      { name: 'Messages', href: '/dashboard/messages?from=health&channel=colleague', desc: 'DoH · facility · SP threads', section: 'Govern', rail: false },
     ],
   },
   /**

@@ -1,10 +1,13 @@
 'use client';
 
 /**
- * Platform Messages — colleagues + connected suppliers / customers.
+ * Platform Messages — core product inbox for every module.
+ * Colleagues + connected suppliers / customers + mirrored care threads.
+ * Deep-link: /dashboard/messages?from=<module>&channel=supplier|customer|colleague&peer=<id>&compose=1
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Archive,
   ArrowLeft,
@@ -27,6 +30,11 @@ import {
   type CompanyMsgChannel,
   type CompanyThread,
 } from '@/lib/messaging/company-inbox';
+import {
+  resolveModuleMessageContext,
+  threadMatchesFilter,
+  type ComposeMode,
+} from '@/lib/messaging/module-context';
 
 type Directory = {
   colleagues: Array<{
@@ -43,8 +51,6 @@ type Directory = {
   }>;
 };
 
-type ComposeMode = 'colleague' | 'supplier' | 'customer' | 'connection';
-
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <BaseCompanyRequired>
@@ -58,13 +64,36 @@ function Shell({ children }: { children: React.ReactNode }) {
 export default function PlatformMessagesPage() {
   return (
     <Shell>
-      <Inner />
+      <Suspense
+        fallback={
+          <div className="py-16 flex justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-sky-600" />
+          </div>
+        }
+      >
+        <Inner />
+      </Suspense>
     </Shell>
   );
 }
 
 function Inner() {
+  const searchParams = useSearchParams();
   const companyId = getSelectedCompanyId()!;
+  const ctx = useMemo(
+    () =>
+      resolveModuleMessageContext(
+        searchParams.get('from'),
+        searchParams.get('channel')
+      ),
+    [searchParams]
+  );
+  const peerQuery = searchParams.get('peer') || '';
+  const openCompose =
+    searchParams.get('compose') === '1' ||
+    searchParams.get('compose') === 'true' ||
+    Boolean(peerQuery);
+
   const [companyName, setCompanyName] = useState('Company');
   const [threads, setThreads] = useState<CompanyThread[]>([]);
   const [directory, setDirectory] = useState<Directory>({
@@ -76,12 +105,39 @@ function Inner() {
   const [saving, setSaving] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [reply, setReply] = useState('');
-  const [showCompose, setShowCompose] = useState(false);
-  const [composeMode, setComposeMode] = useState<ComposeMode>('colleague');
-  const [peerId, setPeerId] = useState('');
+  const [showCompose, setShowCompose] = useState(openCompose);
+  const [composeMode, setComposeMode] = useState<ComposeMode>(
+    ctx.defaultCompose
+  );
+  const [channelFilter, setChannelFilter] = useState<
+    'all' | 'colleague' | 'supplier' | 'customer' | 'trade'
+  >(
+    ctx.filterChannel === 'supplier' ||
+      ctx.filterChannel === 'customer' ||
+      ctx.filterChannel === 'colleague' ||
+      ctx.filterChannel === 'trade'
+      ? ctx.filterChannel
+      : 'all'
+  );
+  const [peerId, setPeerId] = useState(peerQuery);
   const [colleagueId, setColleagueId] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+
+  // Sync deep-link when query changes
+  useEffect(() => {
+    setComposeMode(ctx.defaultCompose);
+    if (
+      ctx.filterChannel === 'supplier' ||
+      ctx.filterChannel === 'customer' ||
+      ctx.filterChannel === 'colleague' ||
+      ctx.filterChannel === 'trade'
+    ) {
+      setChannelFilter(ctx.filterChannel);
+    }
+    if (openCompose) setShowCompose(true);
+    if (peerQuery) setPeerId(peerQuery);
+  }, [ctx, openCompose, peerQuery]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -136,8 +192,9 @@ function Inner() {
     () =>
       [...threads]
         .filter((t) => !t.archived)
+        .filter((t) => threadMatchesFilter(t.channel, channelFilter))
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
-    [threads]
+    [threads, channelFilter]
   );
 
   const active =
@@ -262,19 +319,27 @@ function Inner() {
 
   return (
     <>
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <Link
-          href="/dashboard/connections"
+          href={ctx.backHref}
           className="inline-flex items-center gap-1 text-xs font-bold text-sky-700 hover:text-sky-900 dark:text-sky-300"
         >
-          <ArrowLeft className="w-3.5 h-3.5" /> Network
+          <ArrowLeft className="w-3.5 h-3.5" /> {ctx.backLabel}
         </Link>
+        {ctx.from !== 'network' ? (
+          <Link
+            href="/dashboard/messages?from=network"
+            className="text-xs font-bold text-slate-500 hover:text-sky-700"
+          >
+            Full inbox
+          </Link>
+        ) : null}
       </div>
       <RelationshipHeader
-        eyebrow="Platform · Network"
+        eyebrow={`Platform · ${ctx.label}`}
         title="Messages"
-        titleAccent="team & trade"
-        description="Message colleagues, connected suppliers and customers — and care messages from gyms or clinics where you are a member/patient (matched by email)."
+        titleAccent={ctx.titleAccent}
+        description={ctx.description}
         action={
           <button
             type="button"
@@ -294,8 +359,8 @@ function Inner() {
         <div className="space-y-4">
           <div className="grid sm:grid-cols-4 gap-3">
             {[
-              { label: 'Open threads', value: summary.threadCount ?? openThreads.length },
-              { label: 'Unread', value: summary.unreadMessages ?? 0 },
+              { label: 'Open (view)', value: openThreads.length },
+              { label: 'Unread (all)', value: summary.unreadMessages ?? 0 },
               { label: 'Team', value: summary.colleagueThreads ?? 0 },
               {
                 label: 'Trade / care',
@@ -441,9 +506,34 @@ function Inner() {
                     Inbox
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Colleagues · suppliers · customers
+                    Available in every module · colleagues · suppliers ·
+                    customers · care
                   </p>
                 </div>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {(
+                  [
+                    ['all', 'All'],
+                    ['colleague', 'Team'],
+                    ['supplier', 'Suppliers'],
+                    ['customer', 'Customers'],
+                    ['trade', 'Trade / care'],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setChannelFilter(id)}
+                    className={`rounded-full border px-2.5 py-1 text-[10px] font-bold ${
+                      channelFilter === id
+                        ? 'border-sky-600 bg-sky-600 text-white'
+                        : 'border-slate-200 bg-white text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
 

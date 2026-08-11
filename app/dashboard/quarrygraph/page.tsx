@@ -20,6 +20,7 @@ import {
   Tractor,
   Truck,
   Users,
+  MessageSquare,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -156,6 +157,14 @@ const ASSURE: HubModule[] = [
     title: 'Trade (CRM)',
     desc: 'Customers, quotes and invoices on the SupplierAdvisor network.',
     accent: 'from-indigo-50 to-white border-indigo-100',
+  },
+  {
+    href: '/dashboard/messages?from=quarrygraph&channel=connection',
+    icon: MessageSquare,
+    code: '14',
+    title: 'Messages',
+    desc: 'Office · pit · trade threads — platform inbox for QuarryAdvisor.',
+    accent: 'from-fuchsia-50 to-white border-fuchsia-100',
   },
 ];
 

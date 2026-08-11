@@ -33,16 +33,18 @@ export function lifecycleForPath(pathname: string | null | undefined): ModuleLif
 }
 
 export function isStepActive(pathname: string, href: string, exact?: boolean) {
-  if (exact) return pathname === href;
-  if (pathname === href) return true;
-  const parts = href.split('/').filter(Boolean);
+  // Nav hrefs may include ?query (e.g. Messages deep-links) — match path only
+  const base = (href || '').split('?')[0] || href;
+  if (exact) return pathname === base;
+  if (pathname === base) return true;
+  const parts = base.split('/').filter(Boolean);
   // Hub roots under /dashboard or /sales — exact only
   if (
     (parts.length === 2 && parts[0] === 'dashboard') ||
     (parts.length === 1 && parts[0] === 'sales') ||
-    (parts.length === 0 && href === '/sales')
+    (parts.length === 0 && base === '/sales')
   ) {
-    return pathname === href || pathname === href + '/';
+    return pathname === base || pathname === base + '/';
   }
-  return pathname.startsWith(href + '/');
+  return pathname.startsWith(base + '/');
 }
