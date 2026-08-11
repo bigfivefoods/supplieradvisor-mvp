@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 
 /**
  * FitAdvisor role tones — match end-to-end process “Who does what”:
@@ -160,13 +160,16 @@ export function DataTable({
   headers,
   rows,
   onDelete,
+  onEdit,
   tone = 'owner',
 }: {
   headers: string[];
   rows: Array<{ id: string; cells: Array<string | number | ReactNode> }>;
   onDelete?: (id: string) => void;
+  onEdit?: (id: string) => void;
   tone?: FitTone;
 }) {
+  const hasActions = Boolean(onDelete || onEdit);
   return (
     <div
       className={`overflow-x-auto rounded-3xl border bg-white ${TONE_TABLE[tone]}`}
@@ -181,14 +184,14 @@ export function DataTable({
                 {h}
               </th>
             ))}
-            {onDelete ? <th className="px-3 py-2.5" /> : null}
+            {hasActions ? <th className="px-3 py-2.5" /> : null}
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
             <tr>
               <td
-                colSpan={headers.length + (onDelete ? 1 : 0)}
+                colSpan={headers.length + (hasActions ? 1 : 0)}
                 className="px-3 py-10 text-center text-slate-500 dark:text-neutral-400"
               >
                 No rows yet.
@@ -210,15 +213,28 @@ export function DataTable({
                     {c}
                   </td>
                 ))}
-                {onDelete ? (
-                  <td className="px-3 py-2.5 text-right">
-                    <button
-                      type="button"
-                      onClick={() => onDelete(r.id)}
-                      className="text-rose-600 dark:text-rose-400 p-1"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                {hasActions ? (
+                  <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                    {onEdit ? (
+                      <button
+                        type="button"
+                        onClick={() => onEdit(r.id)}
+                        className="text-violet-700 dark:text-violet-300 p-1 inline-flex"
+                        title="Edit"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    ) : null}
+                    {onDelete ? (
+                      <button
+                        type="button"
+                        onClick={() => onDelete(r.id)}
+                        className="text-rose-600 dark:text-rose-400 p-1 inline-flex"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    ) : null}
                   </td>
                 ) : null}
               </tr>

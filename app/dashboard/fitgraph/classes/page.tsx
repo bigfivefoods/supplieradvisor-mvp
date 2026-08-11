@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   FitgraphWorkbench,
@@ -9,17 +9,60 @@ import {
 } from '@/components/fitness/FitgraphWorkbench';
 import { DataTable, FormCard, StatRow, fc } from '@/components/fitness/FitForm';
 
+const blankForm = () => ({
+  code: '',
+  name: '',
+  category: 'HIIT',
+  default_duration_min: '45',
+  capacity: '16',
+  description: '',
+  active: true,
+});
+
 export default function ClassesPage() {
   const { store, loading, saving, post, summary } = useFitgraph();
-  const [form, setForm] = useState({
-    code: '',
-    name: '',
-    category: 'HIIT',
-    default_duration_min: '45',
-    capacity: '16',
-  });
+  const formAnchorRef = useRef<HTMLDivElement>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState(blankForm);
 
-  const add = async () => {
+  const editing = useMemo(
+    () =>
+      editingId && store
+        ? store.class_types.find((c) => c.id === editingId) || null
+        : null,
+    [store, editingId]
+  );
+
+  const startEdit = (id: string) => {
+    const c = store?.class_types.find((x) => x.id === id);
+    if (!c) {
+      toast.error('Class type not found');
+      return;
+    }
+    setEditingId(c.id);
+    setForm({
+      code: c.code || '',
+      name: c.name || '',
+      category: c.category || '',
+      default_duration_min: String(c.default_duration_min ?? 45),
+      capacity: String(c.capacity ?? 16),
+      description: c.description || '',
+      active: c.active !== false,
+    });
+    requestAnimationFrame(() => {
+      formAnchorRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setForm(blankForm());
+  };
+
+  const save = async () => {
     if (!form.name.trim()) {
       toast.error('Name required');
       return;
@@ -28,41 +71,156 @@ export default function ClassesPage() {
       entity: 'class_types',
       action: 'upsert',
       record: {
-        ...form,
+        ...(editingId ? { id: editingId } : {}),
+        code: form.code.trim(),
+        name: form.name.trim(),
+        category: form.category.trim() || undefined,
         default_duration_min: Number(form.default_duration_min) || 45,
         capacity: Number(form.capacity) || 16,
+        description: form.description.trim() || undefined,
+        active: form.active,
       },
     });
-    toast.success('Class type saved');
+    toast.success(editingId ? 'Class type updated' : 'Class type saved');
+    setEditingId(null);
+    setForm(blankForm());
   };
 
   return (
     <FitgraphWorkbench
       title="Class types"
       titleAccent="catalogue"
-      description="Step 1 of the floor flow: define class types first (HIIT, strength, yoga…). Then Calendar → create a class → assign coach → add members."
+      description="Step 1 of the floor flow: define class types first (HIIT, strength, yoga…). Edit any type below, then Calendar → create a class → assign coach → add members."
     >
       {loading || !store ? (
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow tone="owner"
+          <StatRow
+            tone="owner"
             items={[
               {
                 label: 'Class types',
-                value: Number(summary?.classTypeCount) || store.class_types.length,
+                value:
+                  Number(summary?.classTypeCount) || store.class_types.length,
+              },
+              {
+                label: 'Active',
+                value: store.class_types.filter((c) => c.active !== false)
+                  .length,
               },
             ]}
           />
-          <FormCard tone="owner" title="Add class type" onSubmit={() => void add()} saving={saving}>
-            <input className={fc()} placeholder="Code" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} />
-            <input className={fc()} placeholder="Name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-            <input className={fc()} placeholder="Category" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} />
-            <input className={fc()} type="number" placeholder="Duration min" value={form.default_duration_min} onChange={(e) => setForm((f) => ({ ...f, default_duration_min: e.target.value }))} />
-            <input className={fc()} type="number" placeholder="Capacity" value={form.capacity} onChange={(e) => setForm((f) => ({ ...f, capacity: e.target.value }))} />
-          </FormCard>
-          <DataTable tone="owner"
-            headers={['Code', 'Name', 'Category', 'Duration', 'Capacity']}
+
+          <div ref={formAnchorRef}>
+            <FormCard
+              tone="owner"
+              title={
+                editingId
+                  ? `Edit class type · ${editing?.name || form.name || '…'}`
+                  : 'Add class type'
+              }
+              description={
+                editingId
+                  ? 'Update the catalogue entry. Existing calendar classes keep this type; name/duration/capacity defaults apply to new bookings.'
+                  : undefined
+              }
+              onSubmit={() => void save()}
+              saving={saving}
+              submitLabel={editingId ? 'Save changes' : 'Add class type'}
+            >
+              {editingId ? (
+                <p className="sm:col-span-2 lg:col-span-3 text-xs text-violet-700 dark:text-violet-300 font-medium rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50/80 dark:bg-violet-950/40 px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    Editing <strong>{editing?.code || editingId}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    className="text-xs font-bold underline"
+                    onClick={cancelEdit}
+                  >
+                    Cancel · new type
+                  </button>
+                </p>
+              ) : null}
+              <input
+                className={fc()}
+                placeholder="Code"
+                value={form.code}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, code: e.target.value }))
+                }
+              />
+              <input
+                className={fc()}
+                placeholder="Name"
+                value={form.name}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, name: e.target.value }))
+                }
+              />
+              <input
+                className={fc()}
+                placeholder="Category"
+                value={form.category}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, category: e.target.value }))
+                }
+              />
+              <input
+                className={fc()}
+                type="number"
+                min={5}
+                placeholder="Duration min"
+                value={form.default_duration_min}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    default_duration_min: e.target.value,
+                  }))
+                }
+              />
+              <input
+                className={fc()}
+                type="number"
+                min={1}
+                placeholder="Capacity"
+                value={form.capacity}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, capacity: e.target.value }))
+                }
+              />
+              <textarea
+                className={fc() + ' min-h-[4rem] resize-y sm:col-span-2'}
+                placeholder="Description (optional)"
+                value={form.description}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, description: e.target.value }))
+                }
+              />
+              <label className="flex items-center gap-2 text-sm font-medium px-1 sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={form.active}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, active: e.target.checked }))
+                  }
+                />
+                Active (available when scheduling classes)
+              </label>
+            </FormCard>
+          </div>
+
+          <DataTable
+            tone="owner"
+            headers={[
+              'Code',
+              'Name',
+              'Category',
+              'Duration',
+              'Capacity',
+              'Status',
+            ]}
             rows={store.class_types.map((c) => ({
               id: c.id,
               cells: [
@@ -71,9 +229,14 @@ export default function ClassesPage() {
                 c.category || '—',
                 c.default_duration_min ?? '—',
                 c.capacity ?? '—',
+                c.active === false ? 'Inactive' : 'Active',
               ],
             }))}
-            onDelete={(id) => void post({ entity: 'class_types', action: 'delete', id })}
+            onEdit={(id) => startEdit(id)}
+            onDelete={(id) => {
+              if (editingId === id) cancelEdit();
+              void post({ entity: 'class_types', action: 'delete', id });
+            }}
           />
         </div>
       )}
