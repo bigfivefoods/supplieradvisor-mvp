@@ -11,6 +11,15 @@ import {
   totalUnread,
   unreadInThread,
 } from '@/lib/messaging/service-inbox';
+import {
+  addDaysIso,
+  addMonthsIso,
+  expandRecurrenceDates,
+  weekdayOf,
+} from '@/lib/schedule/recurrence';
+
+// Re-export shared recurrence helpers for existing Fit imports
+export { addDaysIso, addMonthsIso, expandRecurrenceDates, weekdayOf };
 
 export const FITGRAPH_MODULE_ID = 'fitgraph' as const;
 export const FITGRAPH_META_KEY = 'fitgraph';
@@ -1327,14 +1336,6 @@ export function buildPublicCalendarPayload(
     contracts,
   };
 }
-
-// Shared recurrence engine (also used by clinic Advisor calendars)
-export {
-  addDaysIso,
-  addMonthsIso,
-  expandRecurrenceDates,
-  weekdayOf,
-} from '@/lib/schedule/recurrence';
 
 /** Build one or many sessions for coach/owner scheduling */
 export function createSessionsFromTemplate(
