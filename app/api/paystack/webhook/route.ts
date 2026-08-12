@@ -14,8 +14,9 @@ export const runtime = 'nodejs';
  * POST /api/paystack/webhook
  * Verify Paystack signature; on charge.success run CIPC; always record pulse.
  *
- * Configure in Paystack Dashboard → Settings → Webhooks:
+ * Configure in Paystack Dashboard → Settings → Webhooks (either URL works):
  *   https://www.supplieradvisor.com/api/paystack/webhook
+ *   https://www.supplieradvisor.com/api/billing/webhook   (alias)
  *
  * Must stay public (no Privy) — middleware allows paths containing /webhook.
  */
@@ -436,8 +437,9 @@ export async function GET(request: NextRequest) {
     ok: true,
     service: 'paystack-webhook',
     path: '/api/paystack/webhook',
+    aliases: ['/api/billing/webhook'],
     configure:
-      'Paystack Dashboard → Settings → Webhooks → https://www.supplieradvisor.com/api/paystack/webhook',
+      'Paystack Dashboard → Settings → Webhooks → https://www.supplieradvisor.com/api/paystack/webhook (or /api/billing/webhook)',
     events: ['charge.success', 'refund.*'],
     public: true,
     pulse,

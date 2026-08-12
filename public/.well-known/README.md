@@ -25,11 +25,14 @@ No trailing slash. No file extension. Content-Type: **application/text**.
 | Edge route | `app/.well-known/.../route.ts` + `app/api/public/apple-pay-domain` |
 | Vercel rewrites | both paths (with/without trailing slash) → API route (HTTP 200) |
 
-## Live check (hosting) — as of last verify
+## Live check (hosting) — re-verified 2026-08-12
 
 ```bash
 curl -sS -D- -o /tmp/ap.txt \
   https://www.supplieradvisor.com/.well-known/apple-developer-merchantid-domain-association | head -20
+
+# Full ops diagnostic (includes cert expiry + optional ?register=1)
+curl -sS 'https://www.supplieradvisor.com/api/system/apple-pay-domain-status' | jq .
 ```
 
 Expected:
@@ -39,7 +42,9 @@ Expected:
 - Body starts with `{"pspId":`
 - Body length **4559** (current clean PKCS#7 payload)
 
-**Our hosting matches this.** The failure is not a missing file.
+**Our hosting matches this.** Live keys work (`/balance` OK). Paystack still returns
+`registered domains: []` and `Domain could not be registered on Apple Pay` because
+Apple rejects the **expired broker cert** inside the association signature.
 
 ## Why Paystack still says “Domain could not be registered on Apple Pay”
 

@@ -8,9 +8,11 @@ export const PUBLIC_API_PREFIXES = [
   '/api/system/health',
   '/api/system/trade-loop-smoke',
   '/api/system/settle-smoke',
+  '/api/system/apple-pay-domain-status',
   '/api/invites/validate',
   '/api/banking/webhooks/',
   '/api/paystack/webhook',
+  '/api/billing/webhook',
   '/api/public/marketplace-listings',
   '/api/inventory/products/public',
   '/api/geo',
@@ -23,9 +25,11 @@ const PUBLIC_EXACT = new Set([
   '/api/system/health',
   '/api/system/trade-loop-smoke',
   '/api/system/settle-smoke',
+  '/api/system/apple-pay-domain-status',
   '/api/fx/rates',
   '/api/invites/validate',
   '/api/paystack/webhook',
+  '/api/billing/webhook',
 ]);
 
 export function isPublicApiPath(pathname: string): boolean {
