@@ -25,6 +25,7 @@ import { RelationshipHeader } from '@/components/relationship/RelationshipChrome
 import { AdvisorOutcomesPanel } from '@/components/services/AdvisorOutcomesPanel';
 import { AdvisorRecallPanel } from '@/components/services/AdvisorRecallPanel';
 import { AdvisorTodayBoard } from '@/components/services/AdvisorTodayBoard';
+import { AdvisorBillingClarityCard } from '@/components/services/AdvisorBillingClarityCard';
 import {
   HubModuleGrid,
   HubTelemetryGrid,
@@ -345,6 +346,14 @@ function Inner() {
       ) : (
         <>
           <div className="space-y-4 mb-6">
+            <AdvisorBillingClarityCard
+              brand={
+                (store as { settings?: { brand_name?: string } } | null)?.settings
+                  ?.brand_name || 'your practice'
+              }
+              moduleLabel="DentalAdvisor®"
+              accentClass="border-sky-200 bg-sky-50/70 dark:border-sky-800 dark:bg-sky-950/30"
+            />
             <AdvisorOutcomesPanel
               outcomes={outcomes}
               accent="sky"

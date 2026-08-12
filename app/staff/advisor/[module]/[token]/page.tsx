@@ -16,6 +16,7 @@ type Row = {
   status: string;
   location?: string;
   session_id?: string;
+  appointment_id?: string;
 };
 
 export default function StaffAdvisorTodayPage() {
@@ -80,11 +81,43 @@ export default function StaffAdvisorTodayPage() {
       setMsg(
         data.pack_remaining != null
           ? `Marked ${status.replace('_', ' ')} · pack left ${data.pack_remaining}`
-          : `Marked ${status.replace('_', ' ')}`
+          : status === 'cancelled'
+            ? 'Cancelled — waitlist promoted if someone was waiting'
+            : `Marked ${status.replace('_', ' ')}`
       );
       void load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Update failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const deleteSlot = async (row: Row) => {
+    const id = row.session_id || row.appointment_id;
+    if (!id) return;
+    if (!confirm('Delete this diary entry for today? Bookings will be removed.'))
+      return;
+    setBusyId(id);
+    setMsg(null);
+    try {
+      const res = await fetch('/api/public/advisor/staff-today', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          module: mod,
+          token,
+          action: 'delete_appointment',
+          session_id: id,
+          appointment_id: id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Delete failed');
+      setMsg(data.message || 'Deleted');
+      void load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Delete failed');
     } finally {
       setBusyId(null);
     }
@@ -105,6 +138,16 @@ export default function StaffAdvisorTodayPage() {
             </p>
           </div>
           <div className="flex items-center gap-1.5">
+            <a
+              href={
+                mod === 'fitgraph'
+                  ? `/coach/fitgraph/${encodeURIComponent(token)}`
+                  : `/clinician/${encodeURIComponent(mod)}/${encodeURIComponent(token)}`
+              }
+              className="rounded-xl border border-sky-400/40 bg-sky-500/20 px-2.5 py-2 text-[10px] font-black uppercase tracking-wide text-sky-100"
+            >
+              Full diary
+            </a>
             <button
               type="button"
               onClick={() => setShowInstall((v) => !v)}
@@ -178,35 +221,50 @@ export default function StaffAdvisorTodayPage() {
                     .filter(Boolean)
                     .join(' · ')}
                 </p>
-                {r.booking_id &&
-                (r.status === 'booked' || r.status === 'waitlist') ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {r.booking_id &&
+                  (r.status === 'booked' || r.status === 'waitlist') ? (
+                    <>
+                      <button
+                        type="button"
+                        disabled={busyId === r.booking_id}
+                        onClick={() => void mark(r.booking_id!, 'attended')}
+                        className="flex-1 min-w-[5rem] rounded-xl bg-emerald-600 py-2.5 text-xs font-black disabled:opacity-50"
+                      >
+                        Attended
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busyId === r.booking_id}
+                        onClick={() => void mark(r.booking_id!, 'no_show')}
+                        className="flex-1 min-w-[5rem] rounded-xl bg-amber-600 py-2.5 text-xs font-black disabled:opacity-50"
+                      >
+                        No-show
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busyId === r.booking_id}
+                        onClick={() => void mark(r.booking_id!, 'cancelled')}
+                        className="rounded-xl border border-white/20 px-3 py-2.5 text-xs font-bold disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : null}
+                  {(r.session_id || r.appointment_id) &&
+                  (r.status === 'open' || !r.booking_id) ? (
                     <button
                       type="button"
-                      disabled={busyId === r.booking_id}
-                      onClick={() => void mark(r.booking_id!, 'attended')}
-                      className="flex-1 min-w-[5rem] rounded-xl bg-emerald-600 py-2.5 text-xs font-black disabled:opacity-50"
+                      disabled={
+                        busyId === (r.session_id || r.appointment_id || '')
+                      }
+                      onClick={() => void deleteSlot(r)}
+                      className="rounded-xl border border-rose-400/40 bg-rose-500/20 px-3 py-2.5 text-xs font-bold text-rose-100 disabled:opacity-50"
                     >
-                      Attended
+                      Delete slot
                     </button>
-                    <button
-                      type="button"
-                      disabled={busyId === r.booking_id}
-                      onClick={() => void mark(r.booking_id!, 'no_show')}
-                      className="flex-1 min-w-[5rem] rounded-xl bg-amber-600 py-2.5 text-xs font-black disabled:opacity-50"
-                    >
-                      No-show
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busyId === r.booking_id}
-                      onClick={() => void mark(r.booking_id!, 'cancelled')}
-                      className="rounded-xl border border-white/20 px-3 py-2.5 text-xs font-bold disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : null}
+                  ) : null}
+                </div>
               </li>
             ))}
           </ul>

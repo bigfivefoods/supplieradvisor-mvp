@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Copy, Link2, Pencil, Plus, Trash2 } from 'lucide-react';
 import {
   LoadingBlock,
   PsychiatrygraphWorkbench,
@@ -27,6 +27,20 @@ import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
+}
+
+async function copyClinicianPortal(tok: string) {
+  if (typeof window === 'undefined') return;
+  const url = `${window.location.origin}/clinician/psychiatrygraph/${encodeURIComponent(tok)}`;
+  await navigator.clipboard.writeText(url);
+  toast.success('Clinician diary portal link copied');
+}
+
+async function copyStaffToday(tok: string) {
+  if (typeof window === 'undefined') return;
+  const url = `${window.location.origin}/staff/advisor/psychiatrygraph/${encodeURIComponent(tok)}`;
+  await navigator.clipboard.writeText(url);
+  toast.success('Staff today (mobile) link copied');
 }
 
 function formatEngagement(p: PsychiatryPractitioner) {
@@ -724,6 +738,42 @@ export default function PractitionersPage() {
                         }
                       >
                         {isEditing ? 'Close edit' : 'Edit details'}
+                      </button>
+                      {p.portal_token ? (
+                        <>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-xs font-bold text-violet-700 dark:text-violet-300"
+                            onClick={() => void copyClinicianPortal(p.portal_token!)}
+                          >
+                            <Copy className="w-3.5 h-3.5" /> Diary portal
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 dark:text-emerald-300"
+                            onClick={() => void copyStaffToday(p.portal_token!)}
+                          >
+                            Staff today
+                          </button>
+                        </>
+                      ) : null}
+                      <button
+                        type="button"
+                        disabled={saving}
+                        className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 border border-slate-200 rounded-xl px-2.5 py-1.5 hover:bg-slate-50 dark:text-indigo-100 dark:border-indigo-500/40"
+                        onClick={() =>
+                          void post({
+                            action: 'issue_practitioner_portal',
+                            practitionerId: p.id,
+                          }).then(async (data) => {
+                            const tok = data?.portal_token as string | undefined;
+                            if (tok) await copyClinicianPortal(tok);
+                            else toast.success('Portal issued');
+                          })
+                        }
+                      >
+                        <Link2 className="w-3.5 h-3.5" />
+                        {p.portal_token ? 'Re-issue portal' : 'Issue portal'}
                       </button>
                       <button
                         type="button"

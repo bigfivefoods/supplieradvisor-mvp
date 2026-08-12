@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import {
   LoadingBlock,
   DentalgraphWorkbench,
@@ -7,6 +8,7 @@ import {
 } from '@/components/dental/DentalgraphWorkbench';
 import { DataTable, StatRow } from '@/components/dental/DentalForm';
 import { healthSummaryLabel, isInjured } from '@/lib/health/body-map';
+import { clinicDiaryMetrics } from '@/lib/services/clinician-portal';
 
 export default function ReportPage() {
   const { store, loading, summary, analysis } = useDentalgraph();
@@ -23,11 +25,23 @@ export default function ReportPage() {
   const injured =
     store?.patients.filter((p) => isInjured(p.clinical)).length || 0;
 
+  const metrics = useMemo(() => {
+    if (!store) return null;
+    const to = new Date().toISOString().slice(0, 10);
+    const fromD = new Date(to + 'T12:00:00');
+    fromD.setDate(fromD.getDate() - 30);
+    const from = fromD.toISOString().slice(0, 10);
+    return clinicDiaryMetrics(store, from, to, 'dentalgraph');
+  }, [store]);
+
+  const softBlocked =
+    store?.patients.filter((p) => p.booking_soft_block).length || 0;
+
   return (
     <DentalgraphWorkbench
       title="Reports"
       titleAccent="practice pulse"
-      description="Clinician load, oral health awareness, patient book, and this week’s diary utilisation."
+      description="Fill rate, attendance, clinician load, clinical alerts, and no-show soft-blocks (last 30 days)."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -36,15 +50,25 @@ export default function ReportPage() {
           <StatRow
             items={[
               {
-                label: 'Clinicians',
-                value: Number(summary?.staffCount) || 0,
+                label: 'Fill rate (30d)',
+                value: metrics ? `${metrics.fillRate}%` : '—',
               },
               {
-                label: 'Active patients',
-                value: Number(summary?.activePatients) || 0,
+                label: 'Attended / no-show',
+                value: metrics
+                  ? `${metrics.attended} / ${metrics.noShow}`
+                  : '—',
               },
               {
-                label: 'Active clinical notes',
+                label: 'Waitlist now',
+                value: metrics?.waitlist ?? 0,
+              },
+              {
+                label: 'Soft-blocked patients',
+                value: softBlocked,
+              },
+              {
+                label: 'Clinical notes',
                 value: injured,
               },
               {
@@ -53,6 +77,29 @@ export default function ReportPage() {
               },
             ]}
           />
+          {metrics ? (
+            <DataTable
+              headers={[
+                'Clinician',
+                'Slots',
+                'Booked',
+                'Fill %',
+                'Attended',
+                'No-show',
+              ]}
+              rows={metrics.byClinician.map((c) => ({
+                id: c.id,
+                cells: [
+                  c.name,
+                  c.appointments,
+                  c.booked,
+                  `${c.fill_pct}%`,
+                  c.attended,
+                  c.no_show,
+                ],
+              }))}
+            />
+          ) : null}
           <DataTable
             headers={['Date', 'Time', 'Service', 'Clinician', 'Booked', 'Status']}
             rows={week.map((a) => {

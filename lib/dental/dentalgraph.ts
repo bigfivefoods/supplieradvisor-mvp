@@ -517,6 +517,7 @@ export function readDentalgraphFromMetadata(
 }
 
 export const DENTALGRAPH_PATIENT_TOKENS_KEY = 'dentalgraph_patient_tokens';
+export const DENTALGRAPH_STAFF_TOKENS_KEY = 'dentalgraph_staff_tokens';
 
 export function writeDentalgraphToMetadata(
   meta: Record<string, unknown>,
@@ -526,6 +527,10 @@ export function writeDentalgraphToMetadata(
   for (const p of store.patients || []) {
     if (p.portal_token) patientTokens[String(p.portal_token)] = p.id;
   }
+  const staffTokens: Record<string, string> = {};
+  for (const p of store.staff || []) {
+    if (p.portal_token) staffTokens[String(p.portal_token)] = p.id;
+  }
   return {
     ...meta,
     [DENTALGRAPH_META_KEY]: {
@@ -533,6 +538,7 @@ export function writeDentalgraphToMetadata(
       updated_at: new Date().toISOString(),
     },
     [DENTALGRAPH_PATIENT_TOKENS_KEY]: patientTokens,
+    [DENTALGRAPH_STAFF_TOKENS_KEY]: staffTokens,
   };
 }
 
@@ -541,11 +547,18 @@ export function issueDentalPatientPortalToken(companyId: number): string {
   return `dpat_${companyId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** Issue staff/clinician diary portal token. */
+export function issueDentalStaffPortalToken(companyId: number): string {
+  return `clin_${companyId}_dent_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export function parseDentalCompanyIdFromToken(token: string): number | null {
   const m = /^dpat_(\d+)_/.exec(token);
   if (m) return Number(m[1]);
   const dg = /^dg_(\d+)_/.exec(token);
   if (dg) return Number(dg[1]);
+  const clin = /^clin_(\d+)_/.exec(token);
+  if (clin) return Number(clin[1]);
   return null;
 }
 

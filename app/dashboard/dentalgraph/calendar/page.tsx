@@ -25,6 +25,7 @@ import {
 } from '@/components/schedule/RecurrenceFields';
 import { normalizeWorkingHours } from '@/lib/schedule/working-hours';
 import { AdvisorWaitlistDesk } from '@/components/services/AdvisorWaitlistDesk';
+import { AdvisorEmptyDiary } from '@/components/services/AdvisorEmptyDiary';
 import {
   buildDeskQueueRows,
   buildDeskSlotWaitlist,
@@ -260,7 +261,7 @@ export default function CalendarPage() {
     }
   };
 
-  const save = async () => {
+  const save = async (editScope: 'one' | 'future' = 'one') => {
     if (!form.service_id) {
       toast.error('Pick a service');
       return;
@@ -337,6 +338,57 @@ export default function CalendarPage() {
       ? store?.appointments.find((x) => x.id === selectedId)
       : null;
 
+    // Series: this occurrence only vs this and future
+    if (selectedId && prev?.series_id && editScope === 'future') {
+      const { resolveSeriesEditIds, applySeriesPatch } = await import(
+        '@/lib/services/advisor-series-edit'
+      );
+      const ids = resolveSeriesEditIds(
+        (store?.appointments || []).map((a) => ({
+          id: a.id,
+          date: a.date,
+          series_id: a.series_id,
+        })),
+        prev.id,
+        'future'
+      );
+      const patch = {
+        start_time: form.start_time,
+        location: form.location,
+        duration_min: Number(form.duration_min) || 45,
+        service_id: form.service_id,
+        public: form.public,
+        status: form.status || 'scheduled',
+      };
+      try {
+        for (const id of ids) {
+          const row = store?.appointments.find((a) => a.id === id);
+          if (!row) continue;
+          const isAnchor = id === prev.id;
+          const next = applySeriesPatch(row as never, patch, {
+            isAnchor,
+            newDate: isAnchor ? form.date : undefined,
+          });
+          await post({
+            entity: 'appointments',
+            action: 'upsert',
+            record: {
+              ...next,
+              staff_id: isAnchor ? form.staff_id : row.staff_id,
+            },
+          });
+        }
+        toast.success(`Updated ${ids.length} appointments (this & future)`);
+        setSelectedId(prev.id);
+        return;
+      } catch (e) {
+        toast.error(
+          e instanceof Error ? e.message : 'Could not update series'
+        );
+        return;
+      }
+    }
+
     try {
       await post({
         entity: 'appointments',
@@ -360,6 +412,12 @@ export default function CalendarPage() {
     }
 
     if (form.patient_id) {
+      const patient = store?.patients.find((p) => p.id === form.patient_id);
+      if (patient?.booking_soft_block) {
+        toast.warning(
+          'Patient is soft-blocked after repeated no-shows — booking saved; review policy.'
+        );
+      }
       await post({
         entity: 'bookings',
         action: 'upsert',
@@ -516,6 +574,18 @@ export default function CalendarPage() {
             }}
           />
 
+          {(store.appointments || []).length === 0 ? (
+            <AdvisorEmptyDiary
+              title="No appointments on the diary yet"
+              description="Click empty calendar time above, or schedule below. Issue clinician portals from Staff so dentists can manage their own diary."
+              primaryLabel="Schedule first appointment"
+              onPrimaryClick={() => startCreate()}
+              secondaryHref="/dashboard/dentalgraph/staff"
+              secondaryLabel="Issue clinician portals"
+              accentClass="border-sky-200 dark:border-sky-800"
+            />
+          ) : null}
+
           <div ref={formAnchorRef} className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs text-slate-500">
@@ -532,6 +602,17 @@ export default function CalendarPage() {
                   >
                     + New appointment
                   </button>
+                  {store?.appointments.find((a) => a.id === selectedId)
+                    ?.series_id ? (
+                    <button
+                      type="button"
+                      disabled={saving}
+                      className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 disabled:opacity-50"
+                      onClick={() => void save('future')}
+                    >
+                      Save this &amp; future
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     disabled={saving}

@@ -290,8 +290,8 @@ export default function CalendarPage() {
     }
   };
 
-  /** Save edits to the open class (view/edit mode). */
-  const saveSelected = async () => {
+  /** Save edits to the open class (view/edit mode). Supports series “this & future”. */
+  const saveSelected = async (editScope: 'one' | 'future' = 'one') => {
     if (!selectedSessionId || !store) return;
     const prev = store.sessions.find((x) => x.id === selectedSessionId);
     if (!prev) {
@@ -306,26 +306,56 @@ export default function CalendarPage() {
       toast.error('Set date and start time');
       return;
     }
-    await post({
-      entity: 'sessions',
-      action: 'upsert',
-      record: {
-        ...prev,
-        class_type_id: form.class_type_id,
-        coach_id: form.coach_id || null,
-        date: form.date,
-        start_time: form.start_time,
-        location: form.location || undefined,
-        room: form.room || null,
-        capacity: form.capacity ? Number(form.capacity) : null,
-        public: form.public,
-        public_notes: form.public_notes || undefined,
-        class_plan: form.class_plan || undefined,
-        status: form.status || prev.status || 'scheduled',
-      },
-    });
+    const { resolveSeriesEditIds, applySeriesPatch } = await import(
+      '@/lib/services/advisor-series-edit'
+    );
+    const scope =
+      editScope === 'future' && prev.series_id
+        ? ('future' as const)
+        : ('one' as const);
+    const ids = resolveSeriesEditIds(
+      store.sessions.map((s) => ({
+        id: s.id,
+        date: s.date,
+        series_id: s.series_id,
+      })),
+      prev.id,
+      scope
+    );
+    const patch = {
+      start_time: form.start_time,
+      location: form.location || undefined,
+      capacity: form.capacity ? Number(form.capacity) : null,
+      class_type_id: form.class_type_id,
+      public: form.public,
+      public_notes: form.public_notes || undefined,
+      class_plan: form.class_plan || undefined,
+      status: form.status || prev.status || 'scheduled',
+    };
+    for (const id of ids) {
+      const row = store.sessions.find((s) => s.id === id);
+      if (!row) continue;
+      const isAnchor = id === prev.id;
+      const next = applySeriesPatch(row as never, patch, {
+        isAnchor,
+        newDate: isAnchor ? form.date : undefined,
+      }) as typeof row;
+      await post({
+        entity: 'sessions',
+        action: 'upsert',
+        record: {
+          ...next,
+          coach_id: isAnchor ? form.coach_id || null : row.coach_id,
+          room: isAnchor ? form.room || null : row.room,
+        },
+      });
+    }
     setDay(form.date);
-    toast.success('Class updated');
+    toast.success(
+      scope === 'future'
+        ? `Updated ${ids.length} classes (this & future)`
+        : 'Class updated'
+    );
   };
 
   /**
@@ -635,6 +665,17 @@ export default function CalendarPage() {
                 >
                   + New class
                 </button>
+                {store?.sessions.find((s) => s.id === selectedSessionId)
+                  ?.series_id ? (
+                  <button
+                    type="button"
+                    disabled={saving}
+                    className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 disabled:opacity-50 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-100"
+                    onClick={() => void saveSelected('future')}
+                  >
+                    Save this &amp; future
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   disabled={saving}

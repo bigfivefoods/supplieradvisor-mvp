@@ -540,6 +540,42 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    /** Owner: issue practitioner diary portal */
+    if (
+      action === 'issue_practitioner_portal' ||
+      action === 'issue_staff_portal' ||
+      action === 'issue_clinician_portal'
+    ) {
+      const pracId = String(
+        body.practitionerId ||
+          body.practitioner_id ||
+          body.staffId ||
+          body.id ||
+          ''
+      );
+      const person = store.practitioners.find((p) => p.id === pracId);
+      if (!person) {
+        return NextResponse.json(
+          { error: 'Practitioner not found' },
+          { status: 404 }
+        );
+      }
+      const { issuePractitionerPortalToken } = await import(
+        '@/lib/clinic/psychiatrygraph'
+      );
+      person.portal_token = issuePractitionerPortalToken(companyId);
+      person.can_manage = true;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summarisePsychiatrygraph(store),
+        portal_token: person.portal_token,
+        analysis: analysis(store),
+        message: 'Clinician portal link issued',
+      });
+    }
+
     if (action === 'delete') {
       const id = String(body.id || '');
       if (!id || !entity) {

@@ -33,6 +33,7 @@ import {
 import { AdvisorOutcomesPanel } from '@/components/services/AdvisorOutcomesPanel';
 import { AdvisorRecallPanel } from '@/components/services/AdvisorRecallPanel';
 import { AdvisorTodayBoard } from '@/components/services/AdvisorTodayBoard';
+import { AdvisorBillingClarityCard } from '@/components/services/AdvisorBillingClarityCard';
 
 function hubModules(hasFrontDesk: boolean): HubModule[] {
   return [
@@ -180,6 +181,7 @@ function Inner() {
     clients?: Array<{ id: string; name: string }>;
     coaches?: Array<{ id: string; name: string }>;
     class_types?: Array<{ id: string; name: string }>;
+    settings?: { brand_name?: string } | null;
   } | null>(null);
   const [outcomes, setOutcomes] = useState<import('@/lib/services/advisor-outcomes').OutcomesSnapshot | null>(null);
   const [recalls, setRecalls] = useState<
@@ -386,6 +388,11 @@ function Inner() {
       ) : (
         <>
         <div className="space-y-4 mb-6">
+          <AdvisorBillingClarityCard
+            brand={store?.settings?.brand_name || 'your gym'}
+            moduleLabel="FitAdvisor®"
+            accentClass="border-amber-200 bg-amber-50/70 dark:border-amber-800 dark:bg-amber-950/30"
+          />
           <AdvisorOutcomesPanel
             outcomes={outcomes}
             accent="violet"

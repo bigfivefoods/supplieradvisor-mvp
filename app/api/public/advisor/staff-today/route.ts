@@ -25,7 +25,11 @@ import {
   readPsychiatrygraphFromMetadata,
   writePsychiatrygraphToMetadata,
 } from '@/lib/clinic/psychiatrygraph';
-import { applyAttendanceToPersonStats } from '@/lib/services/advisor-booking';
+import {
+  applyAttendanceToPersonStats,
+  promoteNextWaitlist,
+} from '@/lib/services/advisor-booking';
+import { sendWaitlistOfferEmail } from '@/lib/services/advisor-reminders';
 import {
   consumePackSession,
   fitPtPackToLedger,
@@ -269,9 +273,18 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const module = String(body.module || 'fitgraph');
     const token = String(body.token || '');
+    const action = String(body.action || 'mark');
     const bookingId = String(body.booking_id || '');
     const status = String(body.status || 'attended');
-    if (!token || !bookingId) {
+    const sessionId = String(body.session_id || body.appointment_id || '');
+    if (!token) {
+      return NextResponse.json({ error: 'token required' }, { status: 400 });
+    }
+    if (
+      action !== 'delete_session' &&
+      action !== 'delete_appointment' &&
+      !bookingId
+    ) {
       return NextResponse.json(
         { error: 'token and booking_id required' },
         { status: 400 }
@@ -296,6 +309,36 @@ export async function POST(req: NextRequest) {
         const coach = store.coaches.find((c) => c.portal_token === token);
         if (!coach) continue;
 
+        const now = new Date().toISOString();
+
+        if (action === 'delete_session' || action === 'delete_appointment') {
+          const session = store.sessions.find(
+            (s) =>
+              s.id === sessionId &&
+              (s.coach_id === coach.id || !s.coach_id)
+          );
+          if (!session) {
+            return NextResponse.json(
+              { error: 'Session not found' },
+              { status: 404 }
+            );
+          }
+          store.sessions = store.sessions.filter((s) => s.id !== session.id);
+          store.bookings = store.bookings.filter(
+            (b) => b.session_id !== session.id
+          );
+          const meta = writeFitgraphToMetadata(meta0, store);
+          await supabase
+            .from('profiles')
+            .update({ metadata: meta, updated_at: now })
+            .eq('id', row.id);
+          return NextResponse.json({
+            success: true,
+            deleted: 1,
+            message: 'Class deleted',
+          });
+        }
+
         const booking = store.bookings.find((b) => b.id === bookingId);
         if (!booking) {
           return NextResponse.json(
@@ -303,9 +346,39 @@ export async function POST(req: NextRequest) {
             { status: 404 }
           );
         }
-        const now = new Date().toISOString();
         const prev = booking.status;
         booking.status = status as typeof booking.status;
+
+        if (status === 'cancelled' && prev !== 'cancelled') {
+          const promoted = promoteNextWaitlist(
+            store.bookings,
+            (b) => b.session_id === booking.session_id,
+            now
+          );
+          if (promoted) {
+            const client = store.clients.find(
+              (c) => c.id === promoted.client_id
+            );
+            const session = store.sessions.find(
+              (s) => s.id === booking.session_id
+            );
+            const ct = session
+              ? store.class_types.find((t) => t.id === session.class_type_id)
+              : null;
+            if (client?.email && session) {
+              void sendWaitlistOfferEmail({
+                to: client.email,
+                personName: client.name,
+                brand: store.settings?.brand_name || 'Gym',
+                eventTitle: ct?.name || 'Class',
+                date: session.date,
+                start_time: session.start_time,
+                location: session.location,
+                moduleLabel: 'FitAdvisor®',
+              });
+            }
+          }
+        }
 
         if (
           (status === 'attended' || status === 'no_show') &&
@@ -379,6 +452,36 @@ export async function POST(req: NextRequest) {
         const store = readDentalgraphFromMetadata(meta0);
         const staff = store.staff.find((c) => c.portal_token === token);
         if (!staff) continue;
+        const now = new Date().toISOString();
+
+        if (action === 'delete_session' || action === 'delete_appointment') {
+          const appt = store.appointments.find(
+            (a) => a.id === sessionId && a.staff_id === staff.id
+          );
+          if (!appt) {
+            return NextResponse.json(
+              { error: 'Appointment not found' },
+              { status: 404 }
+            );
+          }
+          store.appointments = store.appointments.filter(
+            (a) => a.id !== appt.id
+          );
+          store.bookings = store.bookings.filter(
+            (b) => b.appointment_id !== appt.id
+          );
+          const meta = writeDentalgraphToMetadata(meta0, store);
+          await supabase
+            .from('profiles')
+            .update({ metadata: meta, updated_at: now })
+            .eq('id', row.id);
+          return NextResponse.json({
+            success: true,
+            deleted: 1,
+            message: 'Appointment deleted',
+          });
+        }
+
         const booking = store.bookings.find((b) => b.id === bookingId);
         if (!booking) {
           return NextResponse.json(
@@ -386,7 +489,6 @@ export async function POST(req: NextRequest) {
             { status: 404 }
           );
         }
-        const now = new Date().toISOString();
         const prev = booking.status;
         booking.status = status as typeof booking.status;
         if (
@@ -406,6 +508,13 @@ export async function POST(req: NextRequest) {
               )
             );
           }
+        }
+        if (status === 'cancelled' && prev !== 'cancelled') {
+          promoteNextWaitlist(
+            store.bookings,
+            (b) => b.appointment_id === booking.appointment_id,
+            now
+          );
         }
         if (status === 'attended' && prev !== 'attended') {
           store.care_packs = store.care_packs || [];

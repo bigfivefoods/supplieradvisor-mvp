@@ -485,6 +485,7 @@ export function readPsychiatrygraphFromMetadata(
 }
 
 export const PSYCHIATRYGRAPH_PATIENT_TOKENS_KEY = 'psychiatrygraph_patient_tokens';
+export const PSYCHIATRYGRAPH_STAFF_TOKENS_KEY = 'psychiatrygraph_staff_tokens';
 
 export function writePsychiatrygraphToMetadata(
   meta: Record<string, unknown>,
@@ -494,6 +495,10 @@ export function writePsychiatrygraphToMetadata(
   for (const p of store.patients || []) {
     if (p.portal_token) patientTokens[String(p.portal_token)] = p.id;
   }
+  const staffTokens: Record<string, string> = {};
+  for (const p of store.practitioners || []) {
+    if (p.portal_token) staffTokens[String(p.portal_token)] = p.id;
+  }
   return {
     ...meta,
     [PSYCHIATRYGRAPH_META_KEY]: {
@@ -501,6 +506,7 @@ export function writePsychiatrygraphToMetadata(
       updated_at: new Date().toISOString(),
     },
     [PSYCHIATRYGRAPH_PATIENT_TOKENS_KEY]: patientTokens,
+    [PSYCHIATRYGRAPH_STAFF_TOKENS_KEY]: staffTokens,
   };
 }
 
@@ -509,11 +515,18 @@ export function issuePatientPortalToken(companyId: number): string {
   return `psyp_${companyId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** Issue practitioner diary portal token. */
+export function issuePractitionerPortalToken(companyId: number): string {
+  return `clin_${companyId}_psyc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export function parsePsychiatryCompanyIdFromToken(token: string): number | null {
   const m = /^psyp_(\d+)_/.exec(token);
   if (m) return Number(m[1]);
   const pg = /^psyg_(\d+)_/.exec(token);
   if (pg) return Number(pg[1]);
+  const clin = /^clin_(\d+)_/.exec(token);
+  if (clin) return Number(clin[1]);
   return null;
 }
 

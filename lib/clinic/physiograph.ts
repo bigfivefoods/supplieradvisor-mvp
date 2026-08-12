@@ -497,6 +497,7 @@ export function readPhysiographFromMetadata(
 }
 
 export const PHYSIOGRAPH_PATIENT_TOKENS_KEY = 'physiograph_patient_tokens';
+export const PHYSIOGRAPH_STAFF_TOKENS_KEY = 'physiograph_staff_tokens';
 
 export function writePhysiographToMetadata(
   meta: Record<string, unknown>,
@@ -506,6 +507,10 @@ export function writePhysiographToMetadata(
   for (const p of store.patients || []) {
     if (p.portal_token) patientTokens[String(p.portal_token)] = p.id;
   }
+  const staffTokens: Record<string, string> = {};
+  for (const p of store.practitioners || []) {
+    if (p.portal_token) staffTokens[String(p.portal_token)] = p.id;
+  }
   return {
     ...meta,
     [PHYSIOGRAPH_META_KEY]: {
@@ -513,6 +518,7 @@ export function writePhysiographToMetadata(
       updated_at: new Date().toISOString(),
     },
     [PHYSIOGRAPH_PATIENT_TOKENS_KEY]: patientTokens,
+    [PHYSIOGRAPH_STAFF_TOKENS_KEY]: staffTokens,
   };
 }
 
@@ -521,11 +527,18 @@ export function issuePatientPortalToken(companyId: number): string {
   return `ppat_${companyId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** Issue practitioner diary portal token. */
+export function issuePractitionerPortalToken(companyId: number): string {
+  return `clin_${companyId}_phys_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export function parsePhysioCompanyIdFromToken(token: string): number | null {
   const m = /^ppat_(\d+)_/.exec(token);
   if (m) return Number(m[1]);
   const pg = /^pg_(\d+)_/.exec(token);
   if (pg) return Number(pg[1]);
+  const clin = /^clin_(\d+)_/.exec(token);
+  if (clin) return Number(clin[1]);
   return null;
 }
 

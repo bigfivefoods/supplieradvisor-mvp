@@ -10,6 +10,7 @@ import {
 import { FormCard, StatRow, fc } from '@/components/dental/DentalForm';
 import { AdvisorOpsPoliciesCard } from '@/components/services/AdvisorOpsPoliciesCard';
 import { AdvisorRoomsCard } from '@/components/services/AdvisorRoomsCard';
+import { AdvisorEmbedSnippet } from '@/components/services/AdvisorEmbedSnippet';
 import { PracticeProfilePdfButton } from '@/components/schedule/PracticeProfilePdfButton';
 
 export default function WebsitePage() {
@@ -90,6 +91,12 @@ export default function WebsitePage() {
               Brand, hours, clinicians, and services as a printable A4 PDF.
             </p>
           </div>
+          {token ? (
+            <AdvisorEmbedSnippet
+              embedPath={`/embed/advisor/dentalgraph/${encodeURIComponent(token)}`}
+              title="Public booking embed"
+            />
+          ) : null}
           <FormCard
             title="Clinic public profile"
             onSubmit={() => void save()}

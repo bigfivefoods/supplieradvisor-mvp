@@ -544,6 +544,35 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    /** Owner: issue clinician diary portal (edit/delete appointments) */
+    if (
+      action === 'issue_staff_portal' ||
+      action === 'issue_clinician_portal' ||
+      action === 'issue_practitioner_portal'
+    ) {
+      const staffId = String(
+        body.staffId || body.staff_id || body.practitionerId || body.id || ''
+      );
+      const person = store.staff.find((p) => p.id === staffId);
+      if (!person) {
+        return NextResponse.json({ error: 'Staff not found' }, { status: 404 });
+      }
+      const { issueDentalStaffPortalToken } = await import(
+        '@/lib/dental/dentalgraph'
+      );
+      person.portal_token = issueDentalStaffPortalToken(companyId);
+      person.can_manage = true;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseDentalgraph(store),
+        portal_token: person.portal_token,
+        analysis: analysis(store),
+        message: 'Clinician portal link issued',
+      });
+    }
+
     /** Owner: email invite so patient can join the portal */
     if (
       action === 'invite_patient' ||
