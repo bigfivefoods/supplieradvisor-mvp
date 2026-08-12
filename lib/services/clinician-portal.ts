@@ -120,6 +120,7 @@ export type ClinicianStoreLike = {
     active?: boolean;
     staff_id?: string | null;
     practitioner_id?: string | null;
+    portal_token?: string | null;
     clinical?: unknown;
     health?: unknown;
     booking_soft_block?: boolean;
