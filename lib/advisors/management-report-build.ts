@@ -183,6 +183,13 @@ function buildClinicReport(
     kpi('Services', store.services.filter((s) => s.active !== false).length),
     kpi('Attended', attended),
     kpi('No-shows', noShow),
+    kpi(
+      'Show-up %',
+      attended + noShow > 0
+        ? `${Math.round((attended / (attended + noShow)) * 100)}%`
+        : '—'
+    ),
+    kpi('Patients on book', store.patients.length),
   ];
 
   let tables: ManagementTable[] = [];
@@ -393,6 +400,7 @@ async function buildFit(
     headline: 'Gym owner pack — attendance, fill & coaching',
     kpis: [
       kpi('Sessions', o.sessions),
+      kpi('Completed', o.completed),
       kpi('Attended seats', o.attended),
       kpi('Fill %', o.fill_pct ?? '—'),
       kpi('Show-up %', o.show_up_pct ?? '—'),
@@ -400,6 +408,9 @@ async function buildFit(
       kpi('Waitlist', o.waitlist),
       kpi('Check-ins', o.check_ins_in_range),
       kpi('Active members', o.active_members),
+      kpi('Coaches teaching', o.coaches_teaching),
+      kpi('Class types run', o.class_types_run),
+      kpi('Member feedback', o.member_feedback),
     ],
     tables,
     highlights: [

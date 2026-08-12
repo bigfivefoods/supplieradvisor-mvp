@@ -59,8 +59,10 @@ export async function GET(request: NextRequest) {
     const period = defaultPeriod(30);
     const from = sp.get('from') || period.from;
     const to = sp.get('to') || period.to;
-    const slice = sp.get('slice') || 'overview';
     const format = String(sp.get('format') || 'json').toLowerCase();
+    // PDF one-pager always uses overview (full key metrics pack)
+    const slice =
+      format === 'pdf' ? 'overview' : sp.get('slice') || 'overview';
 
     const dims: Record<string, string> = {};
     sp.forEach((value, key) => {

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Owner management report panel — slice & dice + one-page A4 PDF download.
+ * Owner management report panel — slice & dice + one-page A4 landscape PDF.
  * Works for every Advisor via /api/advisors/management-report.
  */
 import { useCallback, useEffect, useState } from 'react';
@@ -85,9 +85,11 @@ export default function ManagementReportPanel({
       const url = managementReportApiUrl(advisor, companyId, {
         from: period.from,
         to: period.to,
-        slice,
+        // PDF always packs full overview key metrics
+        slice: 'overview',
         dims,
         format: 'pdf',
+        orientation: 'landscape',
       });
       const res = await fetch(url, { cache: 'no-store', credentials: 'same-origin' });
       if (!res.ok) {
@@ -102,10 +104,10 @@ export default function ManagementReportPanel({
         res.headers
           .get('Content-Disposition')
           ?.match(/filename="([^"]+)"/)?.[1] ||
-        `${advisor}-owner-management.pdf`;
+        `${advisor}-Management-A4-Landscape.pdf`;
       a.click();
       URL.revokeObjectURL(objectUrl);
-      toast.success('Owner A4 management report downloaded');
+      toast.success('A4 landscape management report downloaded');
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'PDF failed');
     } finally {
@@ -123,14 +125,15 @@ export default function ManagementReportPanel({
       <div className="bg-gradient-to-r from-[#0077b6] via-[#00b4d8] to-emerald-600 px-4 py-3 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-white/80">
-            Owner pack · one-page A4
+            Owner pack · one-page A4 landscape
           </p>
           <h2 className="text-base sm:text-lg font-black leading-tight">
             Management report
             {report?.brand ? ` · ${report.brand}` : ''}
           </h2>
           <p className="text-xs text-white/90 mt-0.5">
-            Slice & dice KPIs for the period, then download a board-ready PDF.
+            Slice & dice on screen, then download a one-page A4 landscape PDF
+            with all key metrics for the period.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -152,7 +155,7 @@ export default function ManagementReportPanel({
             ) : (
               <Download className="h-3.5 w-3.5" />
             )}
-            Download A4 PDF
+            Download A4 landscape PDF
           </button>
         </div>
       </div>

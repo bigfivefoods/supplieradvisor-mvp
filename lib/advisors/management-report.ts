@@ -130,21 +130,30 @@ export function defaultPeriod(days = 30): { from: string; to: string } {
 
 export function managementReportPdfFilename(doc: ManagementReportDoc) {
   const brand = doc.brand.replace(/[®™]/g, '').replace(/\s+/g, '');
-  return `${brand}-Owner-Management-${doc.period.from}_${doc.period.to}-${doc.slice}.pdf`;
+  return `${brand}-Management-A4-Landscape-${doc.period.from}_${doc.period.to}.pdf`;
 }
 
 export function managementReportApiUrl(
   advisor: AdvisorReportId,
   companyId: number,
-  filters: ManagementReportFilters & { format?: 'json' | 'pdf' }
+  filters: ManagementReportFilters & {
+    format?: 'json' | 'pdf';
+    /** PDF is always one-page A4 landscape key-metrics pack */
+    orientation?: 'landscape' | 'portrait';
+  }
 ) {
   const q = new URLSearchParams({
     advisor,
     companyId: String(companyId),
     from: filters.from,
     to: filters.to,
-    slice: filters.slice || 'overview',
+    // PDF pack always uses overview (full key metrics)
+    slice:
+      filters.format === 'pdf'
+        ? 'overview'
+        : filters.slice || 'overview',
     format: filters.format || 'json',
+    orientation: filters.orientation || 'landscape',
   });
   if (filters.dims) {
     for (const [k, v] of Object.entries(filters.dims)) {
