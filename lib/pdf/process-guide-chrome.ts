@@ -352,7 +352,7 @@ export function drawSectionLabel(
   x: number,
   y: number,
   w: number,
-  accent = PROCESS_PDF.brandDeep
+  accent: string = PROCESS_PDF.brandDeep
 ): number {
   doc.roundedRect(x, y + 1, 3, 7, 1).fill(accent);
   doc.font('Helvetica-Bold').fontSize(6.5).fillColor(PROCESS_PDF.muted);
