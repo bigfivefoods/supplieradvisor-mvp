@@ -312,7 +312,7 @@ function Inner() {
     <SuppliersPage>
       <SuppliersHeader
         title="Supplier reports"
-        titleAccent="Govern · A4 landscape"
+        titleAccent="Insights · A4 landscape"
         description={`Decision pack for your supply base · ${period.label} (${period.from} → ${period.to}). All POs live under Order.`}
         action={
           <div className="flex flex-wrap gap-2">

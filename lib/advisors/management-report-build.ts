@@ -830,7 +830,401 @@ async function buildQuarry(
 
 // ── Schools ──────────────────────────────────────────────────────────────
 
-async function buildSchools(
+/**
+ * DBE / PEU department owner pack — detailed network roll-up from every
+ * school joined via school_agency_links. Never reads another department's schools.
+ */
+async function buildSchoolsAgency(
+  supabase: SupabaseClient,
+  companyId: number,
+  companyName: string,
+  filters: ManagementReportFilters,
+  agency: Record<string, unknown>
+): Promise<ManagementReportDoc> {
+  const { fetchAgencySchoolLinks, fetchByIds } = await import(
+    '@/lib/schools/supabase-page'
+  );
+
+  let links: Array<Record<string, unknown>> = [];
+  try {
+    links = await fetchAgencySchoolLinks(supabase, companyId, [
+      'active',
+      'pending',
+      'suspended',
+    ]);
+  } catch {
+    links = [];
+  }
+
+  const activeLinks = links.filter((l) => l.status === 'active');
+  const pendingLinks = links.filter((l) => l.status === 'pending');
+  const suspendedLinks = links.filter((l) => l.status === 'suspended');
+
+  // Prefer active schools for learner totals; fall back to all if none active
+  const rollupLinks = activeLinks.length ? activeLinks : links;
+  const schoolIds = [
+    ...new Set(
+      rollupLinks
+        .map((l) => Number(l.school_profile_id))
+        .filter((n) => Number.isFinite(n) && n > 0)
+    ),
+  ];
+
+  let schools: Array<Record<string, unknown>> = [];
+  if (schoolIds.length) {
+    try {
+      schools = await fetchByIds(
+        supabase,
+        'school_profiles',
+        'id, profile_id, school_name, emis_number, province, district, circuit, quintile, learner_count_enrolled, learner_count_verified, learner_count_nsnp_eligible, final_nsnp_approved_enrol, final_emis_enrol, staff_count, status, member_type',
+        schoolIds
+      );
+    } catch {
+      try {
+        schools = await fetchByIds(
+          supabase,
+          'school_profiles',
+          'id, profile_id, school_name, emis_number, province, district, learner_count_enrolled, learner_count_verified, learner_count_nsnp_eligible, staff_count, status, member_type',
+          schoolIds
+        );
+      } catch {
+        schools = [];
+      }
+    }
+  }
+
+  // Education desk only
+  schools = schools.filter((s) => {
+    const mt = String(s.member_type || 'school');
+    return !['hospital', 'clinic', 'shelter'].includes(mt);
+  });
+
+  // Optional slice-and-dice within this department's network only
+  const filterProvince = dim(filters, 'province').toLowerCase();
+  const filterDistrict = dim(filters, 'district').toLowerCase();
+  if (filterProvince) {
+    schools = schools.filter(
+      (s) => String(s.province || '').toLowerCase() === filterProvince
+    );
+  }
+  if (filterDistrict) {
+    schools = schools.filter(
+      (s) => String(s.district || '').toLowerCase() === filterDistrict
+    );
+  }
+
+  const learnerOf = (s: Record<string, unknown>) =>
+    Number(
+      s.learner_count_enrolled ||
+        s.final_emis_enrol ||
+        s.final_nsnp_approved_enrol ||
+        0
+    );
+
+  const totalLearners = schools.reduce((n, s) => n + learnerOf(s), 0);
+  const totalVerified = schools.reduce(
+    (n, s) => n + Number(s.learner_count_verified || 0),
+    0
+  );
+  const totalEligible = schools.reduce(
+    (n, s) => n + Number(s.learner_count_nsnp_eligible || 0),
+    0
+  );
+  const totalNsnpApproved = schools.reduce(
+    (n, s) => n + Number(s.final_nsnp_approved_enrol || 0),
+    0
+  );
+  const totalStaff = schools.reduce(
+    (n, s) => n + Number(s.staff_count || 0),
+    0
+  );
+
+  const byDistrict = new Map<string, { schools: number; learners: number }>();
+  const byProvince = new Map<string, { schools: number; learners: number }>();
+  const byQuintile = new Map<string, { schools: number; learners: number }>();
+  for (const s of schools) {
+    const d = String(s.district || '—').trim() || '—';
+    const p = String(s.province || '—').trim() || '—';
+    const q =
+      s.quintile != null && Number.isFinite(Number(s.quintile))
+        ? `Q${Number(s.quintile)}`
+        : '—';
+    const L = learnerOf(s);
+    const dist = byDistrict.get(d) || { schools: 0, learners: 0 };
+    dist.schools += 1;
+    dist.learners += L;
+    byDistrict.set(d, dist);
+    const prov = byProvince.get(p) || { schools: 0, learners: 0 };
+    prov.schools += 1;
+    prov.learners += L;
+    byProvince.set(p, prov);
+    const quint = byQuintile.get(q) || { schools: 0, learners: 0 };
+    quint.schools += 1;
+    quint.learners += L;
+    byQuintile.set(q, quint);
+  }
+
+  // Light ops sample (meals / open compliance) for smaller networks only
+  let mealsServed = 0;
+  let openCompliance = 0;
+  const sampleIds = schools.map((s) => Number(s.id)).filter((n) => n > 0);
+  if (sampleIds.length > 0 && sampleIds.length <= 400) {
+    try {
+      for (let i = 0; i < sampleIds.length; i += 100) {
+        const chunk = sampleIds.slice(i, i + 100);
+        const [feedRes, compRes] = await Promise.all([
+          supabase
+            .from('school_feeding_days')
+            .select('school_profile_id, served_meals')
+            .in('school_profile_id', chunk)
+            .gte('feed_date', filters.from)
+            .lte('feed_date', filters.to)
+            .limit(8000),
+          supabase
+            .from('school_compliance_events')
+            .select('id, status, school_profile_id')
+            .in('school_profile_id', chunk)
+            .limit(2000),
+        ]);
+        for (const f of feedRes.data || []) {
+          mealsServed += Number(
+            (f as { served_meals?: number }).served_meals || 0
+          );
+        }
+        openCompliance += (compRes.data || []).filter(
+          (c) =>
+            !['closed', 'resolved'].includes(
+              String((c as { status?: string }).status || '').toLowerCase()
+            )
+        ).length;
+      }
+    } catch {
+      /* soft — network pack still valid without ops sample */
+    }
+  }
+
+  const topSchools = schools
+    .slice()
+    .sort((a, b) => learnerOf(b) - learnerOf(a))
+    .slice(0, 8)
+    .map((s) => [
+      String(s.school_name || '—').slice(0, 36),
+      String(s.district || '—').slice(0, 18),
+      learnerOf(s),
+      Number(s.learner_count_verified || 0),
+    ]);
+
+  const districtRows = [...byDistrict.entries()]
+    .sort((a, b) => b[1].learners - a[1].learners || b[1].schools - a[1].schools)
+    .slice(0, 8)
+    .map(([d, v]) => [d, v.schools, v.learners]);
+
+  const provinceRows = [...byProvince.entries()]
+    .sort((a, b) => b[1].learners - a[1].learners || b[1].schools - a[1].schools)
+    .slice(0, 8)
+    .map(([p, v]) => [p, v.schools, v.learners]);
+
+  const quintileRows = [...byQuintile.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([q, v]) => [q, v.schools, v.learners]);
+
+  const agencyName = String(
+    agency.agency_name || agency.name || companyName
+  );
+  const agencyType = String(agency.agency_type || 'dbe');
+  const slice = filters.slice || 'overview';
+  const slices = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'learners', label: 'Learners' },
+    { id: 'schools', label: 'Schools' },
+    { id: 'district', label: 'By district' },
+    { id: 'province', label: 'By province' },
+    { id: 'quintile', label: 'By quintile' },
+  ];
+
+  let tables: ManagementTable[] = [];
+  if (slice === 'learners' || slice === 'schools') {
+    tables = [
+      {
+        title: 'Top schools by learners (this department only)',
+        headers: ['School', 'District', 'Enrolled', 'Verified'],
+        rows: topSchools.length
+          ? (topSchools as Array<Array<string | number>>)
+          : [['—', '—', 0, 0]],
+      },
+    ];
+  } else if (slice === 'district') {
+    tables = [
+      {
+        title: 'Schools & learners by district',
+        headers: ['District', 'Schools', 'Learners'],
+        rows: districtRows.length
+          ? (districtRows as Array<Array<string | number>>)
+          : [['—', 0, 0]],
+      },
+    ];
+  } else if (slice === 'province') {
+    tables = [
+      {
+        title: 'Schools & learners by province',
+        headers: ['Province', 'Schools', 'Learners'],
+        rows: provinceRows.length
+          ? (provinceRows as Array<Array<string | number>>)
+          : [['—', 0, 0]],
+      },
+    ];
+  } else if (slice === 'quintile') {
+    tables = [
+      {
+        title: 'Schools & learners by quintile',
+        headers: ['Quintile', 'Schools', 'Learners'],
+        rows: quintileRows.length
+          ? (quintileRows as Array<Array<string | number>>)
+          : [['—', 0, 0]],
+      },
+    ];
+  } else {
+    tables = [
+      {
+        title: 'Department network roll-up',
+        headers: ['Metric', 'Value'],
+        rows: [
+          ['Linked schools (active)', activeLinks.length],
+          ['Pending joins', pendingLinks.length],
+          ['Suspended', suspendedLinks.length],
+          ['Learners enrolled (all joined schools)', totalLearners],
+          ['Learners verified', totalVerified],
+          ['NSNP eligible', totalEligible || totalNsnpApproved],
+          ['Staff (network)', totalStaff],
+          ['Districts', byDistrict.size],
+          ['Provinces', byProvince.size],
+          ...(mealsServed > 0
+            ? ([['Meals served (period sample)', mealsServed]] as Array<
+                Array<string | number>
+              >)
+            : []),
+          ...(openCompliance > 0
+            ? ([['Open compliance items', openCompliance]] as Array<
+                Array<string | number>
+              >)
+            : []),
+        ],
+      },
+      {
+        title: 'Top schools by learners',
+        headers: ['School', 'District', 'Enrolled', 'Verified'],
+        rows: topSchools.slice(0, 5) as Array<Array<string | number>>,
+      },
+    ];
+  }
+
+  const fmt = (n: number) =>
+    Number.isFinite(n) ? n.toLocaleString('en-ZA') : '0';
+
+  return {
+    ...baseDoc(
+      'schools',
+      companyId,
+      agencyName,
+      filters,
+      slice,
+      slices.find((s) => s.id === slice)?.label || 'Overview',
+      slices
+    ),
+    product: 'NSNP department (DBE / PEU) — network programme pack',
+    filterSummary: filterLine([
+      `Department ${agencyType.toUpperCase()}`,
+      'All joined schools',
+      filterProvince ? `Province ${filterProvince}` : '',
+      filterDistrict ? `District ${filterDistrict}` : '',
+      `${activeLinks.length} active school link(s)`,
+      `Period ${filters.from} → ${filters.to}`,
+    ]),
+    headline:
+      'SchoolAdvisor® department pack — learners & schools across the DBE network',
+    kpis: [
+      kpi(
+        'Learners',
+        fmt(totalLearners),
+        'Sum of enrolled across all schools joined to this department'
+      ),
+      kpi('Schools', schools.length, 'Joined schools in this filter'),
+      kpi('Verified learners', fmt(totalVerified)),
+      kpi('NSNP eligible', fmt(totalEligible || totalNsnpApproved)),
+      kpi('Districts', byDistrict.size),
+      kpi('Pending joins', pendingLinks.length),
+      ...(mealsServed > 0
+        ? [kpi('Meals served', fmt(mealsServed), 'Period · linked schools')]
+        : []),
+    ].slice(0, 8),
+    tables,
+    charts: [
+      {
+        id: 'learners_network',
+        title: 'Network learners (joined schools)',
+        type: 'bar',
+        series: [
+          { label: 'Enrolled', value: totalLearners, color: '#0077b6' },
+          { label: 'Verified', value: totalVerified, color: '#059669' },
+          {
+            label: 'Eligible',
+            value: totalEligible || totalNsnpApproved,
+            color: '#00b4d8',
+          },
+          { label: 'Schools', value: schools.length, color: '#7c3aed' },
+        ],
+      },
+      {
+        id: 'by_district',
+        title: 'Learners by district',
+        type: 'horizontal_bar',
+        series: [...byDistrict.entries()]
+          .sort((a, b) => b[1].learners - a[1].learners)
+          .slice(0, 8)
+          .map(([d, v], i) => ({
+            label: d.slice(0, 16),
+            value: v.learners,
+            color: ['#0077b6', '#00b4d8', '#059669', '#d97706', '#7c3aed'][
+              i % 5
+            ],
+          })),
+      },
+    ],
+    highlights: [
+      `${fmt(totalLearners)} learners rolled up from ${schools.length} school(s) joined to this department`,
+      `${activeLinks.length} active · ${pendingLinks.length} pending · ${suspendedLinks.length} suspended join(s)`,
+      byProvince.size
+        ? `Coverage: ${byProvince.size} province(s), ${byDistrict.size} district(s)`
+        : 'No geographic coverage yet',
+      'Each school sees only its own school pack — this is the department network view',
+    ].slice(0, 5),
+    risks: [
+      schools.length === 0
+        ? 'No schools joined — approve joins on the agency desk'
+        : totalLearners === 0
+          ? 'Schools linked but learner counts are zero — refresh EMIS / school learner rolls'
+          : 'Learner roll-up available from joined schools only',
+      pendingLinks.length > 0
+        ? `${pendingLinks.length} school join(s) awaiting approval`
+        : 'No pending school joins',
+      openCompliance > 0
+        ? `${openCompliance} open compliance item(s) across sample`
+        : 'No open compliance in sample',
+    ].slice(0, 5),
+    actions: [
+      'Approve pending school joins so they enter the learner roll-up',
+      'Drive schools to keep learner rolls / EMIS current',
+      'Review district coverage gaps on the agency map',
+      'Use agency claims / monitoring for period close-out',
+    ],
+  };
+}
+
+/**
+ * Single-school owner pack — scoped strictly to this company's school_profiles row.
+ * Does not include other schools or the department network.
+ */
+async function buildSchoolsSingle(
   supabase: SupabaseClient,
   companyId: number,
   companyName: string,
@@ -1091,10 +1485,16 @@ async function buildSchools(
       slices.find((s) => s.id === slice)?.label || 'Overview',
       slices
     ),
-    filterSummary: filterLine([`EMIS ${school?.emis_number || '—'}`, kitchenLabel]),
-    headline: 'SchoolAdvisor® owner pack — feed, stock, kitchen monthly audits',
+    product: 'NSNP school kitchen — this school only',
+    filterSummary: filterLine([
+      'Single school',
+      `EMIS ${school?.emis_number || '—'}`,
+      kitchenLabel,
+    ]),
+    headline:
+      'SchoolAdvisor® school pack — this school’s feed, stock & kitchen audits',
     kpis: [
-      kpi('Learners', learnersN),
+      kpi('Learners', learnersN, 'This school only'),
       kpi('Meals served', served),
       kpi('Kitchen CoA band', kitchenBand),
       kpi('Open compliance', openCompliance),
@@ -1134,6 +1534,7 @@ async function buildSchools(
       },
     ],
     highlights: [
+      `${learnersN} learners enrolled at this school`,
       `${served} meals served across ${feed.length} feed days`,
       kitchenLabel,
       ...monthlyHighlights,
@@ -1155,6 +1556,115 @@ async function buildSchools(
       'Submit claims only when match + SLA + CoA gates are green',
     ],
   };
+}
+
+/**
+ * SchoolAdvisor management report entry:
+ *  - Department (DBE / PEU) → network aggregate of joined schools
+ *  - School → this school only
+ *  - SP → no school kitchen create; school pack only if they already have a school row
+ */
+async function buildSchools(
+  supabase: SupabaseClient,
+  companyId: number,
+  companyName: string,
+  filters: ManagementReportFilters
+): Promise<ManagementReportDoc> {
+  const { resolveProgrammeRole } = await import(
+    '@/lib/schools/programme-role'
+  );
+  const roleInfo = await resolveProgrammeRole(supabase, companyId);
+
+  if (roleInfo.role === 'department') {
+    let agency: Record<string, unknown> | null = null;
+    try {
+      const { getAgencyRegistration } = await import(
+        '@/lib/schools/approved-catalogue'
+      );
+      agency = await getAgencyRegistration(supabase, companyId);
+    } catch {
+      agency = null;
+    }
+    if (!agency) {
+      try {
+        const { data } = await supabase
+          .from('nsnp_agency_profiles')
+          .select('*')
+          .eq('profile_id', companyId)
+          .maybeSingle();
+        agency = (data as Record<string, unknown>) || null;
+      } catch {
+        agency = null;
+      }
+    }
+    return buildSchoolsAgency(
+      supabase,
+      companyId,
+      companyName,
+      filters,
+      agency || {
+        agency_name: companyName,
+        agency_type: 'dbe',
+      }
+    );
+  }
+
+  // School (and SP with an existing school profile): never the department network
+  if (roleInfo.role === 'sp') {
+    const { data: existing } = await supabase
+      .from('school_profiles')
+      .select('id')
+      .eq('profile_id', companyId)
+      .maybeSingle();
+    if (!existing) {
+      // SP desk — no school kitchen pack; point them at ISP tools
+      const slice = filters.slice || 'overview';
+      const slices = [{ id: 'overview', label: 'Overview' }];
+      return {
+        ...baseDoc(
+          'schools',
+          companyId,
+          companyName,
+          filters,
+          slice,
+          'Overview',
+          slices
+        ),
+        product: 'NSNP service provider — not a school kitchen pack',
+        filterSummary: filterLine(['Service provider workspace']),
+        headline:
+          'SchoolAdvisor® SP workspace — use ISP scorecard & orders, not school kitchen pack',
+        kpis: [
+          kpi('Role', 'Service provider'),
+          kpi('School pack', 'N/A'),
+        ],
+        tables: [
+          {
+            title: 'Scope',
+            headers: ['Note', 'Detail'],
+            rows: [
+              [
+                'Management report',
+                'Each school has its own pack; department has the network pack',
+              ],
+              ['This company', 'Service provider — open ISP desk for SLA & orders'],
+            ],
+          },
+        ],
+        highlights: [
+          'Schools only see their own school management report',
+          'DBE / PEU sees the aggregated network of joined schools',
+        ],
+        risks: ['SP is not the school kitchen owner pack'],
+        actions: [
+          'Open ISP desk for deliveries and SLA',
+          'Use the department catalogue for approved brands',
+        ],
+      };
+    }
+  }
+
+  return buildSchoolsSingle(supabase, companyId, companyName, filters);
 }
 
 // ── Health (DoH) ─────────────────────────────────────────────────────────

@@ -593,7 +593,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Labour & rates', href: '/dashboard/fieldgraph/labour', desc: 'Gangs · rates · field costs', section: 'Season' },
       { name: 'Regen', href: '/dashboard/fieldgraph/regen', desc: 'Soil · water · cover', section: 'Regen' },
       { name: 'Trade', href: '/dashboard/fieldgraph/trade', desc: 'Mill · buyer · lots', section: 'Trade' },
-      { name: 'Management report', href: '/dashboard/fieldgraph/management', desc: 'A4 landscape PDF · key metrics', section: 'Govern' },
+      { name: 'Management report', href: '/dashboard/fieldgraph/management', desc: 'A4 landscape PDF · key metrics', section: 'Insights' },
     
       { name: 'Messages', href: '/dashboard/messages?from=fieldgraph&channel=connection', desc: 'Farm · mill · buyer threads', section: 'Trade', rail: false },
     ],
@@ -622,7 +622,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Labour & rates', href: '/dashboard/quarrygraph/labour', desc: 'Crews · cost', section: 'Ops' },
       { name: 'Quality', href: '/dashboard/quarrygraph/quality', desc: 'Lab · CS · grading', section: 'Assure' },
       { name: 'Compliance', href: '/dashboard/quarrygraph/compliance', desc: 'Rights · WUL · EMP', section: 'Assure' },
-      { name: 'Management report', href: '/dashboard/quarrygraph/management', desc: 'A4 landscape PDF · key metrics', section: 'Govern' },
+      { name: 'Management report', href: '/dashboard/quarrygraph/management', desc: 'A4 landscape PDF · key metrics', section: 'Insights' },
     
       { name: 'Messages', href: '/dashboard/messages?from=quarrygraph&channel=connection', desc: 'Office · pit · trade threads', section: 'Ops', rail: false },
     ],
@@ -651,7 +651,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Check-ins', href: '/dashboard/fitgraph/checkins', desc: 'Front desk', section: 'Floor' },
       { name: 'Messages', href: '/dashboard/fitgraph/messages', desc: 'Desk · coaches · members', section: 'Floor' },
       { name: 'Website', href: '/dashboard/fitgraph/website', desc: 'Embed · public calendar', section: 'Grow' },
-      { name: 'Management report', href: '/dashboard/fitgraph/management', desc: 'A4 landscape PDF · key metrics', section: 'Govern' },
+      { name: 'Management report', href: '/dashboard/fitgraph/management', desc: 'A4 landscape PDF · key metrics', section: 'Insights' },
     ],
   },
   {
@@ -675,7 +675,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Bookings', href: '/dashboard/physiograph/bookings', desc: 'Book · attend', section: 'Floor' },
       { name: 'Messages', href: '/dashboard/physiograph/messages', desc: 'Desk · physios · patients', section: 'Floor' },
       { name: 'Website', href: '/dashboard/physiograph/website', desc: 'Clinic profile · booking', section: 'Grow' },
-      { name: 'Management report', href: '/dashboard/physiograph/management', desc: 'A4 landscape PDF · key metrics', section: 'Govern' },
+      { name: 'Management report', href: '/dashboard/physiograph/management', desc: 'A4 landscape PDF · key metrics', section: 'Insights' },
     ],
   },
   {
@@ -699,7 +699,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Bookings', href: '/dashboard/dentalgraph/bookings', desc: 'Book · attend', section: 'Floor' },
       { name: 'Messages', href: '/dashboard/dentalgraph/messages', desc: 'Desk · staff · patients', section: 'Floor' },
       { name: 'Website', href: '/dashboard/dentalgraph/website', desc: 'Practice profile · booking', section: 'Grow' },
-      { name: 'Management report', href: '/dashboard/dentalgraph/management', desc: 'A4 landscape PDF · key metrics', section: 'Govern' },
+      { name: 'Management report', href: '/dashboard/dentalgraph/management', desc: 'A4 landscape PDF · key metrics', section: 'Insights' },
     ],
   },
   {
@@ -723,7 +723,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Bookings', href: '/dashboard/psychiatrygraph/bookings', desc: 'Book · attend', section: 'Floor' },
       { name: 'Messages', href: '/dashboard/psychiatrygraph/messages', desc: 'Desk · clinicians · patients', section: 'Floor' },
       { name: 'Website', href: '/dashboard/psychiatrygraph/website', desc: 'Practice profile · booking', section: 'Grow' },
-      { name: 'Management report', href: '/dashboard/psychiatrygraph/management', desc: 'A4 landscape PDF · key metrics', section: 'Govern' },
+      { name: 'Management report', href: '/dashboard/psychiatrygraph/management', desc: 'A4 landscape PDF · key metrics', section: 'Insights' },
     ],
   },
   {
@@ -747,7 +747,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Bookings', href: '/dashboard/medicalgraph/bookings', desc: 'Book · attend', section: 'Floor' },
       { name: 'Messages', href: '/dashboard/medicalgraph/messages', desc: 'Desk · clinicians · patients', section: 'Floor' },
       { name: 'Website', href: '/dashboard/medicalgraph/website', desc: 'Practice profile · booking', section: 'Grow' },
-      { name: 'Management report', href: '/dashboard/medicalgraph/management', desc: 'A4 landscape PDF · key metrics', section: 'Govern' },
+      { name: 'Management report', href: '/dashboard/medicalgraph/management', desc: 'A4 landscape PDF · key metrics', section: 'Insights' },
     ],
   },
   {
@@ -807,7 +807,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         href: '/dashboard/schools/report',
         desc: 'A4 landscape PDF · key metrics · kitchen audits',
         group: 'DBE',
-        section: 'Govern',
+        section: 'Insights',
       },
       {
         name: 'School register',
@@ -1062,7 +1062,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         href: '/dashboard/schools/report',
         desc: 'A4 landscape PDF · key metrics · kitchen audits',
         group: 'School',
-        section: 'Govern',
+        section: 'Insights',
       },
       {
         name: 'Claims',
@@ -1251,7 +1251,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         href: '/dashboard/health/report',
         desc: 'A4 landscape PDF · coverage · key metrics',
         group: 'DoH',
-        section: 'Govern',
+        section: 'Insights',
       },
       {
         name: 'Map',

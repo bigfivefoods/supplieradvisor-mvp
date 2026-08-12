@@ -27,7 +27,7 @@ export default function ReportPage() {
   return (
     <PhysiographWorkbench
       title="Management report"
-      titleAccent="Govern · A4 landscape"
+      titleAccent="Insights · A4 landscape"
       description="Practitioner load, injury awareness, patient book, and this week’s diary utilisation."
     >
       {loading || !store ? (

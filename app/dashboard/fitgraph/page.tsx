@@ -142,7 +142,7 @@ function hubModules(hasFrontDesk: boolean): HubModule[] {
     icon: Package,
     code: '11',
     title: 'Management report',
-    desc: 'Govern · A4 landscape key metrics PDF · slice & dice.',
+    desc: 'Insights · A4 landscape key metrics PDF · slice & dice.',
     accent: 'from-slate-50 to-white border-slate-200',
   },
 ];

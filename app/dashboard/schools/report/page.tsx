@@ -105,8 +105,8 @@ function Inner() {
     <SchoolsPage>
       <SchoolsHeader
         title="Management report"
-        titleAccent="Govern · A4 landscape"
-        description={`${period.label} · learners, meals, stock, approved-brand %, district roll-up.`}
+        titleAccent="Insights · A4 landscape"
+        description={`${period.label} · School: this school only. DBE/PEU: network roll-up of all joined schools (learners, districts, coverage).`}
         action={
           <div className="flex gap-2">
             <button

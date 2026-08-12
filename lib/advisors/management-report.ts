@@ -55,7 +55,7 @@ export const ADVISOR_REPORT_META: Record<
   },
   schools: {
     brand: 'SchoolAdvisor®',
-    product: 'NSNP school / programme kitchen',
+    product: 'NSNP school or department programme',
     defaultHref: '/dashboard/schools/report',
   },
   health: {
@@ -146,13 +146,14 @@ function parseNumeric(v: string | number | null | undefined): number | null {
 }
 
 /**
- * Build up to 2 charts from KPIs + first table when builders omit charts.
+ * Ensure charts for web + PDF. Prefer builder charts; otherwise derive from KPIs/tables.
+ * Returns up to 4 charts (PDF renders the first 2).
  */
 export function ensureManagementCharts(
   doc: ManagementReportDoc
 ): ManagementChart[] {
   if (doc.charts && doc.charts.length > 0) {
-    return doc.charts.slice(0, 3).map((c, i) => ({
+    return doc.charts.slice(0, 4).map((c) => ({
       ...c,
       series: c.series.map((p, j) => ({
         ...p,
@@ -241,7 +242,46 @@ export function ensureManagementCharts(
     });
   }
 
-  return charts.slice(0, 2);
+  // Prefer a second table chart when available
+  const table2 = doc.tables[1];
+  if (table2 && table2.rows.length >= 2 && charts.length < 3) {
+    let valueCol = -1;
+    for (let c = 1; c < (table2.headers?.length || 0); c++) {
+      const nums = table2.rows
+        .map((r) => parseNumeric(r[c]))
+        .filter((n): n is number => n != null);
+      if (nums.length >= Math.min(2, table2.rows.length)) {
+        valueCol = c;
+        break;
+      }
+    }
+    if (valueCol > 0) {
+      const series = table2.rows
+        .map((r) => {
+          const value = parseNumeric(r[valueCol]);
+          if (value == null) return null;
+          return {
+            label: String(r[0] ?? '—').slice(0, 18),
+            value,
+          };
+        })
+        .filter((p): p is ManagementChartPoint => p != null)
+        .slice(0, 8);
+      if (series.length >= 2) {
+        charts.push({
+          id: 'table2_bars',
+          title: table2.title,
+          type: 'horizontal_bar',
+          series: series.map((p, i) => ({
+            ...p,
+            color: CHART_PALETTE[i % CHART_PALETTE.length],
+          })),
+        });
+      }
+    }
+  }
+
+  return charts.slice(0, 4);
 }
 
 export type ManagementReportFilters = {
