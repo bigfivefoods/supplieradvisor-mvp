@@ -52,6 +52,7 @@ type RosterRow = {
 type PortalSession = {
   session: {
     id: string;
+    class_type_id?: string;
     date: string;
     start_time: string;
     location?: string;
@@ -94,6 +95,17 @@ type PortalSession = {
     enjoyment?: number;
     comment?: string;
   }>;
+};
+
+type SessionEditForm = {
+  class_type_id: string;
+  date: string;
+  start_time: string;
+  location: string;
+  capacity: string;
+  status: string;
+  public: boolean;
+  class_plan: string;
 };
 
 type Portal = {
@@ -225,6 +237,7 @@ export default function CoachFitgraphPortalPage() {
     public: false,
   });
   const [classPlanDraft, setClassPlanDraft] = useState('');
+  const [sessionEdit, setSessionEdit] = useState<SessionEditForm | null>(null);
   const [showProfile, setShowProfile] = useState(false);
   const [profile, setProfile] = useState({
     name: '',
@@ -354,8 +367,97 @@ export default function CoachFitgraphPortalPage() {
   useEffect(() => {
     if (openCard) {
       setClassPlanDraft(openCard.session.class_plan || '');
+      setSessionEdit({
+        class_type_id: openCard.session.class_type_id || '',
+        date: openCard.session.date || '',
+        start_time: String(openCard.session.start_time || '06:00').slice(0, 5),
+        location: openCard.session.location || '',
+        capacity:
+          openCard.session.capacity != null
+            ? String(openCard.session.capacity)
+            : openCard.capacity
+              ? String(openCard.capacity)
+              : '',
+        status: openCard.session.status || 'scheduled',
+        public: openCard.session.public === true,
+        class_plan: openCard.session.class_plan || '',
+      });
+    } else {
+      setSessionEdit(null);
     }
-  }, [openCard?.session.id, openCard?.session.class_plan]);
+  }, [
+    openCard?.session.id,
+    openCard?.session.class_plan,
+    openCard?.session.date,
+    openCard?.session.start_time,
+    openCard?.session.location,
+    openCard?.session.capacity,
+    openCard?.session.status,
+    openCard?.session.public,
+    openCard?.session.class_type_id,
+    openCard?.capacity,
+  ]);
+
+  const saveSessionEdit = async () => {
+    if (!openCard || !sessionEdit) return;
+    if (!sessionEdit.class_type_id) {
+      setError('Pick a class type');
+      return;
+    }
+    if (!sessionEdit.date || !sessionEdit.start_time) {
+      setError('Set date and start time');
+      return;
+    }
+    await post({
+      action: 'update_session',
+      session_id: openCard.session.id,
+      class_type_id: sessionEdit.class_type_id,
+      date: sessionEdit.date,
+      start_time: sessionEdit.start_time,
+      location: sessionEdit.location || '',
+      capacity: sessionEdit.capacity ? Number(sessionEdit.capacity) : null,
+      status: sessionEdit.status,
+      public: sessionEdit.public,
+      class_plan: sessionEdit.class_plan,
+    });
+    setClassPlanDraft(sessionEdit.class_plan);
+    void load();
+  };
+
+  const deleteOpenSession = async () => {
+    if (!openCard || !portal) return;
+    const s = openCard.session;
+    if (
+      !confirm(
+        `Delete this class on ${s.date} at ${String(s.start_time).slice(0, 5)}? Bookings on it will be removed.`
+      )
+    ) {
+      return;
+    }
+    let deleteSeries = false;
+    if (s.series_id) {
+      const seriesCount = portal.sessions.filter(
+        (c) => c.session.series_id === s.series_id
+      ).length;
+      // series may span weeks — always offer series delete when series_id is set
+      deleteSeries = confirm(
+        seriesCount > 1
+          ? `This class is part of a series (${seriesCount} visible this week). OK = delete the entire series, Cancel = delete only this date.`
+          : `This class is part of a series. OK = delete the entire series, Cancel = delete only this date.`
+      );
+    }
+    try {
+      await post({
+        action: 'delete_session',
+        session_id: s.id,
+        delete_series: deleteSeries,
+      });
+      setOpenId(null);
+      void load();
+    } catch {
+      /* error already set by post */
+    }
+  };
 
   if (loading && !portal) {
     return (
@@ -615,6 +717,10 @@ export default function CoachFitgraphPortalPage() {
                     action: 'share_session',
                     session_id: openCard.session.id,
                     public: !openCard.session.public,
+                  }).then(() => {
+                    setSessionEdit((f) =>
+                      f ? { ...f, public: !openCard.session.public } : f
+                    );
                   })
                 }
               >
@@ -654,41 +760,144 @@ export default function CoachFitgraphPortalPage() {
               >
                 <Share2 className="w-3 h-3" /> Copy join link
               </button>
-            </div>
-
-            <div>
-              <h4 className="text-[10px] font-black uppercase tracking-wider text-amber-400 mb-1">
-                Class plan · activities
-              </h4>
-              <p className="text-[10px] text-slate-500 mb-1.5">
-                What you will do — members and other coaches can see this.
-              </p>
-              <textarea
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[5rem] resize-y"
-                placeholder={
-                  'e.g.\n• Warm-up 5 min\n• Strength circuit\n• HIIT finisher\n• Stretch'
-                }
-                value={classPlanDraft}
-                onChange={(e) => setClassPlanDraft(e.target.value)}
-              />
               <button
                 type="button"
                 disabled={busy}
-                className="mt-2 rounded-xl bg-amber-500 text-amber-950 px-3 py-1.5 text-xs font-black"
-                onClick={() =>
-                  void post({
-                    action: 'update_session',
-                    session_id: openCard.session.id,
-                    class_plan: classPlanDraft,
-                  }).then(() => void load())
-                }
+                className="inline-flex items-center gap-1 rounded-xl border border-rose-500/50 bg-rose-950/40 px-2.5 py-1.5 text-[11px] font-bold text-rose-200"
+                onClick={() => void deleteOpenSession()}
               >
-                {busy ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
-                ) : null}{' '}
-                Save class plan
+                Delete class
               </button>
             </div>
+
+            {sessionEdit && (
+              <div className="space-y-2 rounded-2xl border border-amber-500/30 bg-amber-950/20 p-3">
+                <h4 className="text-[10px] font-black uppercase tracking-wider text-amber-400">
+                  Edit calendar entry
+                </h4>
+                <p className="text-[10px] text-slate-500">
+                  Change type, date, time, room, capacity or status. Save to
+                  update this class on the gym calendar.
+                </p>
+                <select
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                  value={sessionEdit.class_type_id}
+                  onChange={(e) =>
+                    setSessionEdit((f) =>
+                      f ? { ...f, class_type_id: e.target.value } : f
+                    )
+                  }
+                >
+                  <option value="">Class type…</option>
+                  {portal.class_types.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="date"
+                    className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                    value={sessionEdit.date}
+                    onChange={(e) =>
+                      setSessionEdit((f) =>
+                        f ? { ...f, date: e.target.value } : f
+                      )
+                    }
+                  />
+                  <input
+                    type="time"
+                    className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                    value={sessionEdit.start_time}
+                    onChange={(e) =>
+                      setSessionEdit((f) =>
+                        f ? { ...f, start_time: e.target.value } : f
+                      )
+                    }
+                  />
+                </div>
+                <input
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                  placeholder="Room / location"
+                  value={sessionEdit.location}
+                  onChange={(e) =>
+                    setSessionEdit((f) =>
+                      f ? { ...f, location: e.target.value } : f
+                    )
+                  }
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                    placeholder="Capacity"
+                    value={sessionEdit.capacity}
+                    onChange={(e) =>
+                      setSessionEdit((f) =>
+                        f ? { ...f, capacity: e.target.value } : f
+                      )
+                    }
+                  />
+                  <select
+                    className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                    value={sessionEdit.status}
+                    onChange={(e) =>
+                      setSessionEdit((f) =>
+                        f ? { ...f, status: e.target.value } : f
+                      )
+                    }
+                  >
+                    <option value="scheduled">Scheduled</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+                <label className="flex items-center gap-2 text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={sessionEdit.public}
+                    onChange={(e) =>
+                      setSessionEdit((f) =>
+                        f ? { ...f, public: e.target.checked } : f
+                      )
+                    }
+                  />
+                  Publish on website calendar
+                </label>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-amber-400 mb-1">
+                    Class plan · activities
+                  </p>
+                  <textarea
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[5rem] resize-y"
+                    placeholder={
+                      'e.g.\n• Warm-up 5 min\n• Strength circuit\n• HIIT finisher\n• Stretch'
+                    }
+                    value={sessionEdit.class_plan}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setSessionEdit((f) =>
+                        f ? { ...f, class_plan: v } : f
+                      );
+                      setClassPlanDraft(v);
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={busy}
+                  className="w-full rounded-xl bg-amber-500 text-amber-950 px-3 py-2 text-xs font-black disabled:opacity-50"
+                  onClick={() => void saveSessionEdit()}
+                >
+                  {busy ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
+                  ) : null}{' '}
+                  Save calendar entry
+                </button>
+              </div>
+            )}
 
             <div>
               <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1">

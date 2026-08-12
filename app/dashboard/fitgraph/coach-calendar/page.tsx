@@ -130,6 +130,16 @@ export default function CoachCalendarPage() {
   );
   const [bookClientIds, setBookClientIds] = useState<string[]>([]);
   const [classPlanDraft, setClassPlanDraft] = useState('');
+  const [sessionEdit, setSessionEdit] = useState({
+    class_type_id: '',
+    date: '',
+    start_time: '06:00',
+    location: '',
+    capacity: '',
+    status: 'scheduled',
+    public: false,
+    class_plan: '',
+  });
 
   const workingHours = useMemo(
     () => normalizeWorkingHours(store?.settings?.working_hours),
@@ -320,6 +330,41 @@ export default function CoachCalendarPage() {
     await loadPortal();
   };
 
+  const saveSessionEdit = async (sessionId: string) => {
+    if (!sessionEdit.class_type_id) {
+      toast.error('Pick a class type');
+      return;
+    }
+    if (!sessionEdit.date || !sessionEdit.start_time) {
+      toast.error('Set date and start time');
+      return;
+    }
+    const prev = store?.sessions.find((x) => x.id === sessionId);
+    if (!prev) {
+      toast.error('Class not found');
+      return;
+    }
+    await post({
+      entity: 'sessions',
+      action: 'upsert',
+      record: {
+        ...prev,
+        class_type_id: sessionEdit.class_type_id,
+        date: sessionEdit.date,
+        start_time: sessionEdit.start_time,
+        location: sessionEdit.location || undefined,
+        capacity: sessionEdit.capacity
+          ? Number(sessionEdit.capacity)
+          : null,
+        status: sessionEdit.status || prev.status || 'scheduled',
+        public: sessionEdit.public,
+        class_plan: sessionEdit.class_plan.trim() || undefined,
+      },
+    });
+    toast.success('Class updated');
+    await loadPortal();
+  };
+
   const copyInvite = async (sessionId: string) => {
     const data = await post({
       action: 'issue_class_invite',
@@ -401,12 +446,38 @@ export default function CoachCalendarPage() {
 
   const openCard = portal?.sessions.find((s) => s.session.id === openSession);
 
-  // Sync plan draft when opening a session
+  // Sync edit form when opening a session
   useEffect(() => {
     if (openCard) {
       setClassPlanDraft(openCard.session.class_plan || '');
+      setSessionEdit({
+        class_type_id: openCard.session.class_type_id || '',
+        date: openCard.session.date || '',
+        start_time: String(openCard.session.start_time || '06:00').slice(0, 5),
+        location: openCard.session.location || '',
+        capacity:
+          openCard.session.capacity != null
+            ? String(openCard.session.capacity)
+            : openCard.capacity
+              ? String(openCard.capacity)
+              : '',
+        status: openCard.session.status || 'scheduled',
+        public: openCard.session.public === true,
+        class_plan: openCard.session.class_plan || '',
+      });
     }
-  }, [openCard?.session.id, openCard?.session.class_plan]);
+  }, [
+    openCard?.session.id,
+    openCard?.session.class_plan,
+    openCard?.session.class_type_id,
+    openCard?.session.date,
+    openCard?.session.start_time,
+    openCard?.session.location,
+    openCard?.session.capacity,
+    openCard?.session.status,
+    openCard?.session.public,
+    openCard?.capacity,
+  ]);
 
   return (
     <FitgraphWorkbench
@@ -572,33 +643,132 @@ export default function CoachCalendarPage() {
                   </div>
                 </div>
 
-                <div>
-                  <h4 className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 mb-1.5">
-                    Class plan · activities
+                <div className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-700 dark:bg-amber-950/40">
+                  <h4 className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                    Edit calendar entry
                   </h4>
-                  <p className="text-[10px] text-slate-500 dark:text-amber-200/70 mb-1.5">
-                    What you will do in this class — members and other coaches
-                    can see this.
-                  </p>
+                  <select
+                    className={fc()}
+                    value={sessionEdit.class_type_id}
+                    onChange={(e) =>
+                      setSessionEdit((f) => ({
+                        ...f,
+                        class_type_id: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">Class type…</option>
+                    {store.class_types.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="date"
+                      className={fc()}
+                      value={sessionEdit.date}
+                      onChange={(e) =>
+                        setSessionEdit((f) => ({ ...f, date: e.target.value }))
+                      }
+                    />
+                    <input
+                      type="time"
+                      className={fc()}
+                      value={sessionEdit.start_time}
+                      onChange={(e) =>
+                        setSessionEdit((f) => ({
+                          ...f,
+                          start_time: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <input
+                    className={fc()}
+                    placeholder="Room / location"
+                    value={sessionEdit.location}
+                    onChange={(e) =>
+                      setSessionEdit((f) => ({
+                        ...f,
+                        location: e.target.value,
+                      }))
+                    }
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      className={fc()}
+                      placeholder="Capacity"
+                      value={sessionEdit.capacity}
+                      onChange={(e) =>
+                        setSessionEdit((f) => ({
+                          ...f,
+                          capacity: e.target.value,
+                        }))
+                      }
+                    />
+                    <select
+                      className={fc()}
+                      value={sessionEdit.status}
+                      onChange={(e) =>
+                        setSessionEdit((f) => ({
+                          ...f,
+                          status: e.target.value,
+                        }))
+                      }
+                    >
+                      <option value="scheduled">Scheduled</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs font-medium dark:text-amber-100">
+                    <input
+                      type="checkbox"
+                      checked={sessionEdit.public}
+                      onChange={(e) =>
+                        setSessionEdit((f) => ({
+                          ...f,
+                          public: e.target.checked,
+                        }))
+                      }
+                    />
+                    Publish on website calendar
+                  </label>
                   <textarea
                     className={fc() + ' min-h-[5.5rem] resize-y'}
                     placeholder={
                       'e.g.\n• Warm-up 5 min\n• Strength circuit 20 min\n• HIIT finisher 10 min\n• Cool-down & stretch'
                     }
-                    value={classPlanDraft}
-                    onChange={(e) => setClassPlanDraft(e.target.value)}
+                    value={sessionEdit.class_plan}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setSessionEdit((f) => ({ ...f, class_plan: v }));
+                      setClassPlanDraft(v);
+                    }}
                   />
-                  <div className="flex flex-wrap gap-2 mt-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       disabled={saving}
                       className="btn-primary !py-1.5 !px-3 text-xs"
-                      onClick={() => void saveClassPlan(openCard.session.id)}
+                      onClick={() => void saveSessionEdit(openCard.session.id)}
                     >
                       {saving ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
                       ) : null}{' '}
-                      Save class plan
+                      Save changes
+                    </button>
+                    <button
+                      type="button"
+                      disabled={saving}
+                      className="btn-secondary !py-1.5 !px-3 text-xs"
+                      onClick={() => void saveClassPlan(openCard.session.id)}
+                    >
+                      Save plan only
                     </button>
                     <button
                       type="button"

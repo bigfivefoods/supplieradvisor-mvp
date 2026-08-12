@@ -1,7 +1,7 @@
 /**
  * Coach portal API (token auth, no Supabase user session).
  * GET  ?token=  — coach's upcoming sessions + roster
- * POST { token, action, ... } — share session, update capacity/notes, book guest
+ * POST { token, action, ... } — create/update/delete sessions, share, book guest, attendance
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
@@ -601,7 +601,37 @@ export async function POST(request: NextRequest) {
       if (!session) {
         return NextResponse.json({ error: 'Session not found' }, { status: 404 });
       }
-      if (body.capacity != null) session.capacity = Number(body.capacity);
+      if (body.class_type_id != null && String(body.class_type_id).trim()) {
+        const ctId = String(body.class_type_id);
+        const ct = store.class_types.find((c) => c.id === ctId);
+        if (!ct) {
+          return NextResponse.json(
+            { error: 'Class type not found' },
+            { status: 404 }
+          );
+        }
+        session.class_type_id = ctId;
+      }
+      if (body.date != null && String(body.date).trim()) {
+        session.date = String(body.date).slice(0, 10);
+      }
+      if (body.start_time != null && String(body.start_time).trim()) {
+        session.start_time = String(body.start_time).slice(0, 5);
+      }
+      if (body.end_time !== undefined) {
+        session.end_time =
+          body.end_time == null || body.end_time === ''
+            ? null
+            : String(body.end_time).slice(0, 5);
+      }
+      if (body.duration_min != null && body.duration_min !== '') {
+        session.duration_min = Number(body.duration_min);
+      }
+      if (body.capacity === null || body.capacity === '') {
+        session.capacity = null;
+      } else if (body.capacity != null) {
+        session.capacity = Number(body.capacity);
+      }
       if (body.notes != null) session.notes = String(body.notes);
       if (body.public_notes != null) session.public_notes = String(body.public_notes);
       if (body.class_plan != null) {
@@ -614,13 +644,66 @@ export async function POST(request: NextRequest) {
           }
         }
       }
-      if (body.status === 'cancelled' || body.status === 'completed') {
+      if (
+        body.status === 'cancelled' ||
+        body.status === 'completed' ||
+        body.status === 'scheduled'
+      ) {
         session.status = body.status;
       }
       if (body.location != null) session.location = String(body.location);
+      if (body.public === true || body.public === false) {
+        session.public = body.public;
+        if (session.public) {
+          ensureSessionShareCode(session);
+          if (store.settings) store.settings.enabled = true;
+        }
+      }
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
+        message: 'Class updated',
+        portal: buildCoachPortalPayload(store, coach),
+      });
+    }
+
+    if (action === 'delete_session' || action === 'delete') {
+      const session = store.sessions.find(
+        (s) => s.id === sessionId && s.coach_id === coach.id
+      );
+      if (!session) {
+        return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+      }
+      const deleteSeries =
+        body.delete_series === true || body.series === true;
+      const seriesId = session.series_id ? String(session.series_id) : null;
+      if (deleteSeries && seriesId) {
+        const removeIds = new Set(
+          store.sessions
+            .filter((s) => s.series_id === seriesId)
+            .map((s) => s.id)
+        );
+        store.sessions = store.sessions.filter((s) => !removeIds.has(s.id));
+        store.bookings = (store.bookings || []).filter(
+          (b) => !removeIds.has(b.session_id)
+        );
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          deleted: removeIds.size,
+          message: `Deleted ${removeIds.size} classes in series`,
+          portal: buildCoachPortalPayload(store, coach),
+        });
+      }
+      store.sessions = store.sessions.filter((s) => s.id !== session.id);
+      store.bookings = (store.bookings || []).filter(
+        (b) => b.session_id !== session.id
+      );
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        deleted: 1,
+        message: 'Class deleted',
         portal: buildCoachPortalPayload(store, coach),
       });
     }
