@@ -210,9 +210,19 @@ function portalJson(resolved: Resolved, from?: string, to?: string) {
 
 export async function GET(req: NextRequest) {
   const ip = clientIp(req);
-  const rl = rateLimit(`clinician-portal-get:${ip}`, 120, 60_000);
+  const rl = rateLimit({
+    key: `clinician-portal-get:${ip}`,
+    limit: 120,
+    windowMs: 60_000,
+  });
   if (!rl.ok) {
-    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      {
+        status: 429,
+        headers: { 'Retry-After': String(rl.retryAfterSec) },
+      }
+    );
   }
   const module = String(req.nextUrl.searchParams.get('module') || '');
   const token = String(req.nextUrl.searchParams.get('token') || '');
@@ -231,9 +241,19 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const ip = clientIp(req);
-    const rl = rateLimit(`clinician-portal-post:${ip}`, 60, 60_000);
+    const rl = rateLimit({
+      key: `clinician-portal-post:${ip}`,
+      limit: 60,
+      windowMs: 60_000,
+    });
     if (!rl.ok) {
-      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rl.retryAfterSec) },
+        }
+      );
     }
     const body = await req.json();
     const module = String(body.module || '');
