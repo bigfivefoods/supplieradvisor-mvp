@@ -13,7 +13,7 @@
  */
 
 /** School operational path */
-export type SchoolStepId = 'stock' | 'po' | 'receive' | 'serve';
+export type SchoolStepId = 'stock' | 'po' | 'receive' | 'safety' | 'serve';
 
 /** SP operational path */
 export type IspStepId = 'receive_po' | 'procure' | 'deliver';
@@ -26,6 +26,7 @@ export type AgencyStepId =
   | 'recipes'
   | 'calendar'
   | 'compliance'
+  | 'kitchen_safety'
   | 'claims';
 
 /** @deprecated use SchoolStepId | IspStepId — kept for soft compatibility */
@@ -85,8 +86,14 @@ const SCHOOL_STEPS: Array<{
     href: '/dashboard/schools/deliveries',
   },
   {
+    id: 'safety',
+    label: 'Kitchen CoA / R638',
+    short: 'CoA',
+    href: '/dashboard/schools/kitchen-safety',
+  },
+  {
     id: 'serve',
-    label: 'Serve meals',
+    label: 'Serve + micro-log',
     short: 'Feed',
     href: '/dashboard/schools/serve-day',
   },
@@ -161,6 +168,12 @@ const AGENCY_STEPS: Array<{
     href: '/dashboard/schools/monitoring',
   },
   {
+    id: 'kitchen_safety',
+    label: 'Kitchen CoA register',
+    short: 'CoA',
+    href: '/dashboard/schools/kitchen-safety',
+  },
+  {
     id: 'claims',
     label: 'Review claims',
     short: 'Review',
@@ -188,6 +201,9 @@ export type PathCounts = {
   lateDeliveries: number;
   openRiads: number;
   probationSps: number;
+  /** Kitchen CoA / R638 — green when passport risk band is green/valid */
+  kitchenSafetyOk?: boolean;
+  kitchenSafetyBand?: string | null;
   /** DBE programme */
   pendingAssociations: number;
   activeSchools: number;
@@ -196,6 +212,8 @@ export type PathCounts = {
   recipesConfigured: boolean;
   calendarConfigured: boolean;
   submittedClaims: number;
+  /** Agency: schools missing valid CoA */
+  kitchenCoaAtRisk?: number;
 };
 
 export function emptyPathCounts(): PathCounts {
@@ -214,6 +232,8 @@ export function emptyPathCounts(): PathCounts {
     lateDeliveries: 0,
     openRiads: 0,
     probationSps: 0,
+    kitchenSafetyOk: undefined,
+    kitchenSafetyBand: null,
     pendingAssociations: 0,
     activeSchools: 0,
     catalogueProducts: 0,
@@ -221,15 +241,18 @@ export function emptyPathCounts(): PathCounts {
     recipesConfigured: false,
     calendarConfigured: false,
     submittedClaims: 0,
+    kitchenCoaAtRisk: 0,
   };
 }
 
 function buildSchoolPath(c: PathCounts): GoldenPathSnapshot {
-  // Bottleneck: short stock → raise PO; else open PO/awaiting → receive; else serve
+  // Bottleneck: short stock → raise PO; else open PO/awaiting → receive; else CoA; else serve
+  const safetyOpen = c.kitchenSafetyOk === false;
   let activeId: SchoolStepId | null = null;
   if (c.awaitingReceive > 0) activeId = 'receive';
   else if (c.openPos > 0) activeId = 'po';
   else if (c.stockShort > 0 || !c.stockOk) activeId = 'stock';
+  else if (safetyOpen) activeId = 'safety';
   else if (!c.serveToday) activeId = 'serve';
   else activeId = 'serve';
 
@@ -273,6 +296,17 @@ function buildSchoolPath(c: PathCounts): GoldenPathSnapshot {
         state = 'todo';
         detail = 'Await delivery';
       }
+    } else if (m.id === 'safety') {
+      if (c.kitchenSafetyOk === true) {
+        state = 'done';
+        detail = c.kitchenSafetyBand || 'CoA OK';
+      } else if (c.kitchenSafetyOk === false) {
+        state = activeId === 'safety' ? 'active' : 'todo';
+        detail = c.kitchenSafetyBand || 'CoA / R638';
+      } else {
+        state = 'todo';
+        detail = 'Set passport';
+      }
     } else if (m.id === 'serve') {
       if (c.serveToday) {
         state = 'done';
@@ -300,7 +334,7 @@ function buildSchoolPath(c: PathCounts): GoldenPathSnapshot {
     steps.find((s) => s.state === 'todo');
 
   let health: GoldenPathSnapshot['health'] = 'green';
-  if (c.lateDeliveries > 0 || c.claimsBlocked) health = 'red';
+  if (c.lateDeliveries > 0 || c.claimsBlocked || safetyOpen) health = 'red';
   else if (c.stockShort > 0 || c.awaitingReceive > 0 || c.openPos > 0)
     health = 'amber';
 
@@ -313,6 +347,7 @@ function buildSchoolPath(c: PathCounts): GoldenPathSnapshot {
     health,
     metrics: {
       stockShort: c.stockShort,
+      kitchenSafetyOk: c.kitchenSafetyOk === true ? 1 : 0,
       openPos: c.openPos,
       awaitingReceive: c.awaitingReceive,
       receivedThisWeek: c.receivedThisWeek,
@@ -417,6 +452,7 @@ function buildAgencyPath(c: PathCounts): GoldenPathSnapshot {
   const complianceClear =
     c.lateDeliveries === 0 && c.openRiads === 0 && c.probationSps === 0;
   const claimsInboxClear = c.submittedClaims === 0;
+  const kitchenRegisterClear = (c.kitchenCoaAtRisk || 0) === 0;
 
   let activeId: AgencyStepId | null = null;
   if (c.pendingAssociations > 0) activeId = 'associations';
@@ -425,6 +461,7 @@ function buildAgencyPath(c: PathCounts): GoldenPathSnapshot {
   else if (!setupDone.recipes) activeId = 'recipes';
   else if (!setupDone.calendar) activeId = 'calendar';
   else if (!complianceClear) activeId = 'compliance';
+  else if (!kitchenRegisterClear) activeId = 'kitchen_safety';
   else if (c.submittedClaims > 0) activeId = 'claims';
   else if (!setupDone.associations) activeId = 'associations';
 
@@ -459,6 +496,11 @@ function buildAgencyPath(c: PathCounts): GoldenPathSnapshot {
       else if (c.openRiads > 0) detail = `${c.openRiads} RIAD`;
       else if (c.probationSps > 0) detail = `${c.probationSps} SP risk`;
       else detail = 'Clear';
+    } else if (m.id === 'kitchen_safety') {
+      state = kitchenRegisterClear ? 'done' : 'active';
+      if ((c.kitchenCoaAtRisk || 0) > 0)
+        detail = `${c.kitchenCoaAtRisk} kitchens at risk`;
+      else detail = 'CoA register OK';
     } else if (m.id === 'claims') {
       state = claimsInboxClear ? 'done' : 'active';
       if (c.submittedClaims > 0) detail = `${c.submittedClaims} to review`;
@@ -482,7 +524,8 @@ function buildAgencyPath(c: PathCounts): GoldenPathSnapshot {
     steps.find((s) => s.state === 'todo');
 
   let health: GoldenPathSnapshot['health'] = 'green';
-  if (c.openRiads > 3 || c.lateDeliveries > 10) health = 'red';
+  if (c.openRiads > 3 || c.lateDeliveries > 10 || (c.kitchenCoaAtRisk || 0) > 5)
+    health = 'red';
   else if (
     c.pendingAssociations > 0 ||
     c.submittedClaims > 0 ||
@@ -509,6 +552,7 @@ function buildAgencyPath(c: PathCounts): GoldenPathSnapshot {
       lateDeliveries: c.lateDeliveries,
       openRiads: c.openRiads,
       probationSps: c.probationSps,
+      kitchenCoaAtRisk: c.kitchenCoaAtRisk ?? 0,
       openPos: null,
       awaitingReceive: null,
     },

@@ -800,9 +800,9 @@ function Inner() {
 
       {/* Efficient daily ops — ordered process */}
       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-        Efficient daily process · order → receive → stock → feed → fund
+        Efficient daily process · order → receive → stock → CoA → serve → claim
       </p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 mb-6">
         {[
           {
             step: 1,
@@ -839,35 +839,52 @@ function Inner() {
           },
           {
             step: 4,
+            href: '/dashboard/schools/kitchen-safety',
+            icon: ShieldAlert,
+            label: 'CoA / R638',
+            desc:
+              kitchenSafety?.band === 'green'
+                ? kitchenSafety.label || 'Compliant'
+                : kitchenSafety?.band === 'red'
+                  ? 'Non-compliant'
+                  : kitchenSafety?.label || 'Passport',
+            urgent:
+              kitchenSafety?.band === 'red' ||
+              kitchenSafety?.band === 'amber' ||
+              !kitchenSafety,
+            accent: 'from-violet-500 to-fuchsia-400',
+          },
+          {
+            step: 5,
             href: '/dashboard/schools/serve-day',
             icon: UtensilsCrossed,
             label: 'Serve',
             desc: r?.today.serveComplete
               ? `✓ ${r.today.served} meals`
-              : 'Present → meals → waste',
+              : 'Meals + micro-log',
             urgent: !r?.today.serveComplete,
             accent: 'from-sky-500 to-cyan-400',
           },
           {
-            step: 5,
+            step: 6,
             href: '/dashboard/schools/claims',
             icon: FileText,
             label: 'Claim',
             desc: r?.readyForClaims
-              ? 'Submit funding pack'
+              ? 'Match · SLA · CoA gates'
               : 'After serve days',
             urgent: Boolean(r?.readyForClaims && r?.today.serveComplete),
             accent: 'from-emerald-500 to-teal-400',
           },
           {
-            step: 6,
+            step: 7,
             href: '/dashboard/schools/prizes',
             icon: Award,
             label: 'Prizes',
             desc:
               prizeScore != null
                 ? `Score ${prizeScore.toFixed(0)}`
-                : 'Compliance rank',
+                : 'CoA-compliant rank',
             urgent: false,
             accent: 'from-amber-400 to-yellow-300',
           },

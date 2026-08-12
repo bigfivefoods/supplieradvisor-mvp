@@ -459,6 +459,25 @@ async function gatherCounts(
       .maybeSingle();
     c.serveToday = Boolean(feed);
 
+    // Kitchen CoA / R638 passport risk (drives golden-path safety step)
+    try {
+      const {
+        readKitchenPassport,
+        evaluateKitchenRisk,
+      } = await import('@/lib/schools/kitchen-safety');
+      const smeta =
+        school.metadata && typeof school.metadata === 'object'
+          ? (school.metadata as Record<string, unknown>)
+          : {};
+      const risk = evaluateKitchenRisk(readKitchenPassport(smeta));
+      c.kitchenSafetyBand = risk.band;
+      c.kitchenSafetyOk =
+        risk.band === 'green' ||
+        (risk.coa_status === 'valid' && risk.band !== 'red');
+    } catch {
+      c.kitchenSafetyOk = undefined;
+    }
+
     const { data: recs } = await supabase
       .from('school_kitchen_receipts')
       .select('compliance_ok')
@@ -558,6 +577,41 @@ async function gatherCounts(
       c.calendarConfigured = (cal || []).length > 0;
     } catch {
       c.calendarConfigured = false;
+    }
+
+    // Kitchen CoA / R638 at-risk schools (golden-path + register signal)
+    try {
+      const {
+        readKitchenPassport,
+        evaluateKitchenRisk,
+      } = await import('@/lib/schools/kitchen-safety');
+      const activeIds = schoolIds.slice(0, 200);
+      let atRisk = 0;
+      for (let i = 0; i < activeIds.length; i += 80) {
+        const slice = activeIds.slice(i, i + 80);
+        const { data: schools } = await supabase
+          .from('school_profiles')
+          .select('id, metadata')
+          .in('id', slice)
+          .limit(100);
+        for (const s of schools || []) {
+          const meta =
+            s.metadata && typeof s.metadata === 'object'
+              ? (s.metadata as Record<string, unknown>)
+              : {};
+          const risk = evaluateKitchenRisk(readKitchenPassport(meta));
+          if (
+            risk.band === 'red' ||
+            risk.coa_status === 'none' ||
+            risk.coa_status === 'expired'
+          ) {
+            atRisk += 1;
+          }
+        }
+      }
+      c.kitchenCoaAtRisk = atRisk;
+    } catch {
+      c.kitchenCoaAtRisk = 0;
     }
 
     // Oversight only: late deliveries in network (DBE monitors, does not GRN)

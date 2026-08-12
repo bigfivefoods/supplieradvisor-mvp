@@ -49,17 +49,17 @@ const AUDIENCE_COPY: Record<
 > = {
   dbe: {
     eyebrow: 'Full programme — your command view',
-    lead: 'You set the rules (catalogue, menus, recipes, calendar) and check compliance. You never order or receive food. Schools stock-check and order; SPs procure and deliver; children are fed; you review claims.',
+    lead: 'You set the rules (catalogue, menus, recipes, calendar) and check compliance — including kitchen CoA / R638 risk and claim gates. You never order or receive food. Schools stock-check, keep kitchens legally compliant, order and serve; SPs procure and deliver; PEU verifies; you review claims and prizes.',
     youAre: 'You are DBE / PEU',
   },
   school: {
     eyebrow: 'Full programme — your kitchen view',
-    lead: 'DBE sets the menu. You check kitchen stock against that menu; when short, raise a PO to your SP; receive stock into the kitchen; serve meals. SPs do not invent menus — they supply what you order.',
+    lead: 'DBE sets the menu. You keep a valid CoA (R638), check kitchen stock, raise POs when short, receive stock, serve meals with a daily safety micro-log, then claim when match + SP SLA + kitchen safety are green. Field PWAs cover serve day and PEU visits.',
     youAre: 'You are the school',
   },
   isp: {
     eyebrow: 'Full programme — your supply view',
-    lead: 'DBE sets the catalogue and menus. Schools raise POs when kitchens are short. You receive those POs, procure approved items, and deliver to schools. You do not set menus or serve children.',
+    lead: 'DBE sets the catalogue and menus. Schools raise POs when kitchens are short. You receive those POs, procure approved items, and deliver with photo POD. Keep OTIFEF green so schools can submit claims. You do not set menus or serve children.',
     youAre: 'You are the service provider',
   },
 };
@@ -243,8 +243,8 @@ const PHASES: Phase[] = [
   },
   {
     id: 'feed',
-    title: '5 · School receives → children fed',
-    subtitle: 'GRN into kitchen, then plates on feed days',
+    title: '5 · School receives → safe kitchen → children fed',
+    subtitle: 'GRN · CoA/R638 passport · serve-day micro-log · plates',
     steps: [
       {
         id: 'grn',
@@ -257,23 +257,23 @@ const PHASES: Phase[] = [
         role: 'school',
       },
       {
-        id: 'serve',
+        id: 'kitchen-safety',
         n: '5b',
-        title: 'Serve meals',
+        title: 'Kitchen safety (CoA / R638)',
         who: 'School',
-        desc: 'Log serve-day against the DBE feeding calendar + R638 micro-log.',
-        href: '/dashboard/schools/serve-day',
-        icon: UtensilsCrossed,
+        desc: 'Valid CoA, PIC, monthly self-audit — legal kitchen passport.',
+        href: '/dashboard/schools/kitchen-safety',
+        icon: ShieldAlert,
         role: 'school',
       },
       {
-        id: 'kitchen-safety',
+        id: 'serve',
         n: '5c',
-        title: 'Kitchen safety (CoA / R638)',
+        title: 'Serve meals + micro-log',
         who: 'School',
-        desc: 'Valid CoA, PIC, monthly self-audit; PEU verifies on field visits.',
-        href: '/dashboard/schools/kitchen-safety',
-        icon: ShieldAlert,
+        desc: 'Present → meals → waste → R638 daily micro-log (desk or field PWA).',
+        href: '/dashboard/schools/serve-day',
+        icon: UtensilsCrossed,
         role: 'school',
       },
       {
@@ -281,7 +281,7 @@ const PHASES: Phase[] = [
         n: '5d',
         title: 'Children fed',
         who: 'All',
-        desc: 'Outcome: learners eat the authorised menu that day.',
+        desc: 'Outcome: learners eat the authorised menu from a compliant kitchen.',
         href: '/dashboard/schools/serve-day',
         icon: Users,
         role: 'shared',
@@ -326,46 +326,67 @@ const PHASES: Phase[] = [
     ],
   },
   {
+  {
     id: 'close',
-    title: '7 · Verify, pay, reward',
-    subtitle: 'Close the loop without DBE ordering food',
+    title: '7 · Verify, match, pay, reward',
+    subtitle: 'Match · SLA · CoA gates · PEU · claims · prizes',
     steps: [
       {
-        id: 'monitor',
+        id: 'match',
         n: '7a',
-        title: 'PEU monitoring',
+        title: 'Three-way match · ops',
+        who: 'School',
+        desc: 'PO · DN · POD · GRN cleanliness on supply ops before one-click claim.',
+        href: '/dashboard/schools/ops',
+        icon: CheckCircle2,
+        role: 'school',
+      },
+      {
+        id: 'monitor',
+        n: '7b',
+        title: 'PEU monitoring + kitchen verify',
         who: 'PEU',
-        desc: 'Field visits and NSNP monitoring scores.',
+        desc: 'Field visits (desk or PEU PWA), NSNP scores, CoA/R638 kitchen outcome.',
         href: '/dashboard/schools/monitoring',
         icon: ShieldCheck,
         role: 'peu',
       },
       {
         id: 'claim',
-        n: '7b',
+        n: '7c',
         title: 'School claim pack',
         who: 'School',
-        desc: 'Submit claim with evidence after feeding.',
+        desc: 'Submit after feeding when match, SP OTIFEF and kitchen CoA gates pass.',
         href: '/dashboard/schools/claims',
         icon: ClipboardCheck,
         role: 'school',
       },
       {
         id: 'review',
-        n: '7c',
+        n: '7d',
         title: 'DBE reviews claims',
         who: 'DBE',
-        desc: 'Approve or query claims — not GRN or warehouse.',
+        desc: 'Approve or query claims — kitchen safety pack included in audit trail.',
         href: '/dashboard/schools/agency-report?report=claims',
         icon: Landmark,
         role: 'dbe',
       },
       {
+        id: 'kitchen-register',
+        n: '7e',
+        title: 'Kitchen safety register',
+        who: 'DBE',
+        desc: 'District Valid CoA % · R638 risk · soft/hard claim gate policy.',
+        href: '/dashboard/schools/kitchen-safety',
+        icon: ShieldAlert,
+        role: 'dbe',
+      },
+      {
         id: 'prizes',
-        n: '7d',
+        n: '7f',
         title: 'Prizes & preferred SPs',
         who: 'DBE',
-        desc: 'Reward school compliance and on-catalogue SPs.',
+        desc: 'Reward compliance; non-compliant CoA kitchens are prize-blocked.',
         href: '/dashboard/schools/prizes',
         icon: Award,
         role: 'dbe',
@@ -389,13 +410,14 @@ const ROLE_CARDS: Array<{
     audienceKey: 'dbe',
     icon: Landmark,
     title: 'DBE / PEU',
-    subtitle: 'Sets rules & checks compliance',
+    subtitle: 'Sets rules · kitchen register · claims',
     does: [
       'Approve schools and service providers',
       'Publish catalogue, menu, recipes, calendar',
-      'PEU visits and monitoring',
-      'Review and approve claim packs',
-      'Run prizes and preferred-SP scoring',
+      'PEU visits with kitchen CoA / R638 verify',
+      'Track Valid CoA % on kitchen safety register',
+      'Set soft/hard claim gates (SLA + kitchen safety)',
+      'Review claim packs and run prizes',
       'Message schools and SPs in-app on programme threads',
     ],
     doesNot: [
@@ -410,13 +432,14 @@ const ROLE_CARDS: Array<{
     audienceKey: 'school',
     icon: Building2,
     title: 'Schools',
-    subtitle: 'Stock → order → receive → serve',
+    subtitle: 'Stock → safety → order → serve → claim',
     does: [
       'Join DBE and import learners',
+      'Keep CoA (R638) passport + PIC + monthly self-audit',
       'Check kitchen stock against DBE menu',
-      'Raise PO to SP when short',
-      'Receive stock (GRN) into kitchen',
-      'Serve meals on feed days · claim',
+      'Raise PO to SP when short · receive GRN',
+      'Serve meals + R638 daily micro-log (desk or field PWA)',
+      'Claim when match + SP SLA + kitchen safety are green',
       'Message SPs on order and delivery threads',
     ],
     doesNot: [
@@ -430,14 +453,14 @@ const ROLE_CARDS: Array<{
     audienceKey: 'isp',
     icon: Truck,
     title: 'Service providers',
-    subtitle: 'PO in → procure → deliver',
+    subtitle: 'PO in → procure → deliver · OTIFEF',
     does: [
       'Join DBE and link to schools',
       'Receive purchase orders from schools',
       'Procure approved catalogue items',
       'Deliver with DN + photo POD',
-      'Earn preferred score and OTIF',
-      'Message schools on PO and POD threads',
+      'Keep OTIFEF green so schools can claim',
+      'Earn preferred score and message schools in-app',
     ],
     doesNot: [
       'Does not set DBE menus',
@@ -461,16 +484,24 @@ const COMPLIANCE_GATES = [
     desc: 'Stock cover and suggested POs come from DBE menu, recipes and feed days.',
   },
   {
-    title: 'POD + GRN match',
-    desc: 'SP delivers with photo proof; school receives into kitchen stock.',
+    title: 'POD + GRN three-way match',
+    desc: 'PO · DN · photo POD · kitchen GRN must align before one-click claim.',
+  },
+  {
+    title: 'SP OTIFEF claim gate',
+    desc: 'Linked SPs below ~60% OTIFEF can soft/hard-block school claim submit.',
+  },
+  {
+    title: 'Kitchen CoA / R638',
+    desc: 'Valid Certificate of Acceptability + PIC + recent self-audit. Soft gate by default; agency may hard-block. Non-compliant kitchens prize-blocked.',
   },
   {
     title: 'PEU field proof',
-    desc: 'Monitoring checks that meals match the authorised programme.',
+    desc: 'Monitoring + kitchen verification on desk or field PWA — non-compliant opens compliance.',
   },
   {
     title: 'Claims only after feeding',
-    desc: 'DBE pays claims backed by serve-day and compliance evidence.',
+    desc: 'DBE pays claims backed by serve-day evidence, match, SLA and kitchen safety pack.',
   },
 ];
 
@@ -513,7 +544,7 @@ export default function NsnpSystemFlow({
               {copy.eyebrow}
             </p>
             <h2 className="text-lg sm:text-xl font-black mt-0.5 leading-tight">
-              DBE → Schools → Service providers → Messages → Children fed
+              DBE → Schools (CoA) → SPs → Serve → Verify → Children fed
             </h2>
             <p className="text-sm text-white/90 mt-1.5 max-w-3xl leading-snug">
               {copy.lead}
@@ -546,7 +577,7 @@ export default function NsnpSystemFlow({
           <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 text-center">
             {[
               { label: 'DBE / PEU', sub: 'Sets rules', tone: 'sky' },
-              { label: 'Schools', sub: 'Stock · order · serve', tone: 'emerald' },
+              { label: 'Schools', sub: 'Stock · CoA · serve', tone: 'emerald' },
               { label: 'Service providers', sub: 'Procure · deliver', tone: 'amber' },
               { label: 'Messages', sub: 'DBE · school · SP', tone: 'fuchsia' },
               { label: 'Children fed', sub: 'Outcome', tone: 'rose' },
@@ -688,9 +719,11 @@ export default function NsnpSystemFlow({
                 <Users className="w-5 h-5 shrink-0 text-[#0077b6] mt-0.5" />
                 <p className="text-sm leading-snug">
                   <strong className="font-black">One sentence:</strong> DBE sets
-                  catalogue, menus and calendar → schools check stock and order
-                  from SPs when short → SPs procure and deliver → schools GRN and
-                  serve → PEU verifies → DBE pays claims and rewards compliance.
+                  catalogue, menus and calendar → schools keep CoA/R638 kitchens,
+                  stock-check and order when short → SPs procure and deliver with
+                  POD → schools GRN, serve and micro-log → PEU verifies kitchen
+                  safety → claims pass match + SLA + CoA gates → prizes reward
+                  compliance.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2 shrink-0">

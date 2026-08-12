@@ -26,23 +26,24 @@ export type ProcessPhase = {
 };
 
 export const PROCESS_CHAIN = [
-  { label: 'DBE / PEU', sub: 'Sets rules & checks' },
-  { label: 'Schools', sub: 'Stock · order · serve' },
-  { label: 'Service providers', sub: 'Procure · deliver' },
+  { label: 'DBE / PEU', sub: 'Rules · CoA register · claims' },
+  { label: 'Schools', sub: 'Stock · CoA · serve' },
+  { label: 'Service providers', sub: 'Procure · POD · OTIFEF' },
   { label: 'Messages', sub: 'DBE · school · SP' },
-  { label: 'Children fed', sub: 'Authorised meals' },
+  { label: 'Children fed', sub: 'Authorised safe meals' },
 ] as const;
 
 export const ROLE_CARDS = [
   {
     title: 'DBE / PEU',
-    subtitle: 'Sets rules & checks compliance',
+    subtitle: 'Sets rules · kitchen register · claims',
     does: [
       'Approve schools and service providers',
       'Publish catalogue, menu, recipes, calendar',
-      'PEU visits and monitoring',
-      'Review and approve claim packs',
-      'Run prizes and preferred-SP scoring',
+      'PEU visits with kitchen CoA / R638 verification',
+      'Track Valid CoA % on kitchen safety register',
+      'Set soft/hard claim gates (SP SLA + kitchen safety)',
+      'Review claim packs and run prizes',
       'Message schools and SPs in-app on programme threads',
     ],
     doesNot: [
@@ -53,14 +54,14 @@ export const ROLE_CARDS = [
   },
   {
     title: 'Schools',
-    subtitle: 'Stock → order → receive → serve',
+    subtitle: 'Stock → safety → order → serve → claim',
     does: [
       'Join DBE and import learners',
+      'Keep CoA (R638) passport + PIC + monthly self-audit',
       'Check kitchen stock against DBE menu',
-      'Raise PO to SP when short',
-      'Receive stock (GRN) into kitchen',
-      'Serve meals on feed days · R638 micro-log · claim',
-      'Keep CoA (R638) kitchen passport current',
+      'Raise PO to SP when short · receive GRN',
+      'Serve meals + R638 daily micro-log (desk or field PWA)',
+      'Claim when match + SP SLA + kitchen safety are green',
       'Message SPs on order and delivery threads',
     ],
     doesNot: [
@@ -70,14 +71,14 @@ export const ROLE_CARDS = [
   },
   {
     title: 'Service providers',
-    subtitle: 'PO in → procure → deliver',
+    subtitle: 'PO in → procure → deliver · OTIFEF',
     does: [
       'Join DBE and link to schools',
       'Receive purchase orders from schools',
       'Procure approved catalogue items',
       'Deliver with DN + photo POD',
-      'Earn preferred score and OTIF',
-      'Message schools on PO and POD threads',
+      'Keep OTIFEF green so schools can claim',
+      'Earn preferred score and message schools in-app',
     ],
     doesNot: [
       'Does not set DBE menus',
@@ -190,8 +191,8 @@ export const PROCESS_PHASES: ProcessPhase[] = [
     ],
   },
   {
-    title: '5 · School receives → children fed',
-    subtitle: 'GRN into kitchen, then plates on feed days',
+    title: '5 · School receives → safe kitchen → children fed',
+    subtitle: 'GRN · CoA/R638 passport · serve-day micro-log · plates',
     steps: [
       {
         n: '5a',
@@ -201,21 +202,21 @@ export const PROCESS_PHASES: ProcessPhase[] = [
       },
       {
         n: '5b',
-        title: 'Serve meals',
+        title: 'Kitchen safety (CoA / R638)',
         who: 'School',
-        desc: 'Log serve-day against the DBE feeding calendar + R638 micro-log.',
+        desc: 'Valid Certificate of Acceptability, PIC, monthly self-audit — legal kitchen passport.',
       },
       {
         n: '5c',
-        title: 'Kitchen safety (CoA / R638)',
+        title: 'Serve meals + micro-log',
         who: 'School',
-        desc: 'Valid Certificate of Acceptability, PIC, monthly self-audit; PEU verifies on field visits.',
+        desc: 'Present → meals → waste → R638 daily micro-log (desk or field serve PWA).',
       },
       {
         n: '5d',
         title: 'Children fed',
         who: 'All',
-        desc: 'Outcome: learners eat the authorised menu that day.',
+        desc: 'Outcome: learners eat the authorised menu from a compliant kitchen.',
       },
     ],
   },
@@ -234,7 +235,7 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '6b',
         title: 'DBE / PEU coordination',
         who: 'DBE / PEU',
-        desc: 'Programme messages for joins, monitoring and claim queries.',
+        desc: 'Programme messages for joins, monitoring, kitchen risk and claim queries.',
       },
       {
         n: '6c',
@@ -245,32 +246,44 @@ export const PROCESS_PHASES: ProcessPhase[] = [
     ],
   },
   {
-    title: '7 · Verify, pay, reward',
-    subtitle: 'Close the loop without DBE ordering food',
+    title: '7 · Verify, match, pay, reward',
+    subtitle: 'Match · SLA · CoA gates · PEU · claims · prizes',
     steps: [
       {
         n: '7a',
-        title: 'PEU monitoring',
-        who: 'PEU',
-        desc: 'Field visits, NSNP scores, and kitchen CoA / R638 verification.',
+        title: 'Three-way match · ops',
+        who: 'School / DBE',
+        desc: 'PO · DN · POD · GRN cleanliness on supply ops before one-click claim.',
       },
       {
         n: '7b',
-        title: 'School claim pack',
-        who: 'School',
-        desc: 'Submit claim with evidence after feeding (SLA + kitchen safety gates).',
+        title: 'PEU monitoring + kitchen verify',
+        who: 'PEU',
+        desc: 'Field visits (desk or PEU PWA), NSNP scores, CoA/R638 kitchen outcome.',
       },
       {
         n: '7c',
-        title: 'DBE reviews claims',
-        who: 'DBE',
-        desc: 'Approve or query claims — not GRN or warehouse.',
+        title: 'School claim pack',
+        who: 'School',
+        desc: 'Submit after feeding when match, SP OTIFEF and kitchen CoA gates pass.',
       },
       {
         n: '7d',
+        title: 'DBE reviews claims',
+        who: 'DBE',
+        desc: 'Approve or query claims — kitchen safety included in audit pack.',
+      },
+      {
+        n: '7e',
+        title: 'Kitchen safety register',
+        who: 'DBE',
+        desc: 'Valid CoA % by district · soft/hard claim gate policy.',
+      },
+      {
+        n: '7f',
         title: 'Prizes & preferred SPs',
         who: 'DBE',
-        desc: 'Reward school compliance and on-catalogue SPs (CoA-compliant kitchens only).',
+        desc: 'Reward excellence; non-compliant CoA kitchens are prize-blocked.',
       },
     ],
   },
@@ -286,20 +299,24 @@ export const COMPLIANCE_GATES = [
     desc: 'Schools only order from approved, linked service providers.',
   },
   {
-    title: 'Kitchen CoA / R638',
-    desc: 'Valid Certificate of Acceptability + PIC + recent self-audit. Soft claim gate by default; agency can enforce hard block. Non-compliant kitchens blocked from prizes.',
-  },
-  {
     title: 'Menu + calendar drive demand',
     desc: 'Stock cover and suggested POs come from DBE menu, recipes and feed days.',
   },
   {
-    title: 'POD + GRN match',
-    desc: 'SP delivers with photo proof; school receives into kitchen stock.',
+    title: 'POD + GRN three-way match',
+    desc: 'PO · DN · photo POD · kitchen GRN must align before one-click claim.',
+  },
+  {
+    title: 'SP OTIFEF claim gate',
+    desc: 'Linked SPs below ~60% OTIFEF can soft/hard-block school claim submit.',
+  },
+  {
+    title: 'Kitchen CoA / R638',
+    desc: 'Valid Certificate of Acceptability + PIC + recent self-audit. Soft claim gate by default; agency can hard-block. Non-compliant kitchens prize-blocked.',
   },
   {
     title: 'PEU field proof',
-    desc: 'Monitoring checks that meals match the authorised programme.',
+    desc: 'Monitoring + kitchen verification on desk or field PWA — non-compliant opens compliance.',
   },
   {
     title: 'Messages stay in-app',
@@ -307,7 +324,7 @@ export const COMPLIANCE_GATES = [
   },
   {
     title: 'Claims only after feeding',
-    desc: 'DBE pays claims backed by serve-day and compliance evidence.',
+    desc: 'DBE pays claims backed by serve-day evidence, match, SLA and kitchen safety pack.',
   },
 ];
 
@@ -315,7 +332,11 @@ export const COMPLIANCE_GATES = [
 export const SYSTEM_BENEFITS = [
   {
     title: 'One programme OS',
-    desc: 'Catalogue, menus, stock, orders, deliveries, serve logs, monitoring and claims live in one verified network — not scattered spreadsheets.',
+    desc: 'Catalogue, menus, stock, kitchen CoA, orders, deliveries, serve logs, monitoring and claims live in one verified network — not scattered spreadsheets.',
+  },
+  {
+    title: 'Legal kitchen passport',
+    desc: 'R638 Certificate of Acceptability, PIC training, monthly self-audit and PEU verify — continuous evidence on serve day.',
   },
   {
     title: 'In-app messaging',
@@ -323,15 +344,15 @@ export const SYSTEM_BENEFITS = [
   },
   {
     title: 'Clear role boundaries',
-    desc: 'DBE sets rules and checks; schools order and serve; SPs procure and deliver. No confused double order books.',
+    desc: 'DBE sets rules and checks; schools order, keep kitchens safe and serve; SPs procure and deliver. No confused double order books.',
   },
   {
     title: 'Hard compliance',
-    desc: 'Off-catalogue products cannot be ordered or received. Children get what was authorised.',
+    desc: 'Off-catalogue products cannot be ordered or received. Claim gates enforce SP SLA and kitchen food safety.',
   },
   {
     title: 'End-to-end proof trail',
-    desc: 'PO → delivery note → photo POD → kitchen GRN → serve-day → PEU visit → claim — auditable every step.',
+    desc: 'PO → DN → photo POD → kitchen GRN → serve-day + micro-log → PEU kitchen verify → claim — auditable every step.',
   },
   {
     title: 'Stock honesty',
@@ -339,19 +360,23 @@ export const SYSTEM_BENEFITS = [
   },
   {
     title: 'Faster fulfilment',
-    desc: 'Linked SPs see school POs immediately; OTIF and preferred scoring reward reliable delivery.',
+    desc: 'Linked SPs see school POs immediately; OTIFEF and preferred scoring reward reliable delivery.',
   },
   {
     title: 'Evidence-backed pay',
-    desc: 'Claims only after feeding with evidence — reduces waste, fraud risk and query cycles.',
+    desc: 'Claims only after feeding with match + SLA + CoA evidence — reduces waste, fraud risk and query cycles.',
   },
   {
     title: 'National visibility',
-    desc: 'DBE/PEU command sees associations, coverage, exceptions and compliance without chasing phones.',
+    desc: 'DBE/PEU command sees associations, Valid CoA %, exceptions and compliance without chasing phones.',
   },
   {
     title: 'Fair rewards',
-    desc: 'Prizes for schools and preferred SP lists make good performance visible and repeatable.',
+    desc: 'Prizes for CoA-compliant schools and preferred SP lists make good performance visible and repeatable.',
+  },
+  {
+    title: 'Field PWAs',
+    desc: 'Kitchen serve day and PEU visit links work offline on phones — no desk login required.',
   },
   {
     title: 'SupplierAdvisor® as system of record',
@@ -360,7 +385,7 @@ export const SYSTEM_BENEFITS = [
 ];
 
 export const ONE_SENTENCE =
-  'DBE sets catalogue, menu and calendar → schools stock-check and order from linked SPs → SPs procure and deliver with POD → schools GRN and serve meals → message DBE, schools and SPs in-app → PEU monitors and claims close the loop.';
+  'DBE sets catalogue, menu and calendar → schools keep CoA/R638 kitchens, stock-check and order from linked SPs → SPs procure and deliver with POD → schools GRN, serve and micro-log → PEU verifies kitchen safety → claims pass match + SLA + CoA gates → prizes reward compliance.';
 
 // ── PDF geometry (A4 landscape | portrait) ──────────────────────────────
 

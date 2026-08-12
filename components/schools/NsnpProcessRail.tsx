@@ -26,7 +26,10 @@ export default function NsnpProcessRail({
   for (const c of checks) {
     // map check ids to stages roughly
     const stage =
-      c.id === 'profile' || c.id === 'photo' || c.id === 'agency'
+      c.id === 'profile' ||
+      c.id === 'photo' ||
+      c.id === 'agency' ||
+      c.id === 'packaging'
         ? 'setup'
         : c.id === 'learners' || c.id === 'verify'
           ? 'register'
@@ -35,13 +38,20 @@ export default function NsnpProcessRail({
               c.id === 'recipes' ||
               c.id === 'approved'
             ? 'catalogue'
-            : c.id === 'isp'
+            : c.id === 'isp' || c.id === 'isp_sla' || c.id === 'orders'
               ? 'supply'
-              : c.id === 'stock' || c.id === 'kitchen' || c.id === 'cover'
+              : c.id === 'stock' ||
+                  c.id === 'kitchen' ||
+                  c.id === 'cover' ||
+                  c.id === 'kitchen_safety'
                 ? 'kitchen'
-                : c.id === 'serve'
+                : c.id === 'serve' || c.id === 'serve_day'
                   ? 'serve'
-                  : 'setup';
+                  : c.id === 'claims' || c.id === 'prizes' || c.id === 'audit'
+                    ? 'fund'
+                    : c.id === 'compliance' || c.id === 'surveys'
+                      ? 'quality'
+                      : 'setup';
     const cur = byStage.get(stage) || { done: 0, total: 0 };
     cur.total += 1;
     if (c.done) cur.done += 1;
@@ -78,8 +88,8 @@ export default function NsnpProcessRail({
           </p>
           <p className="text-sm font-black text-slate-900">
             {role === 'agency'
-              ? 'Approve · Catalogue · Oversight · Fund'
-              : 'Setup → Feed → Fund → Improve'}
+              ? 'Approve · Catalogue · CoA register · Claims'
+              : 'Setup → Kitchen safety → Feed → Fund'}
           </p>
         </div>
         {typeof score === 'number' ? (
