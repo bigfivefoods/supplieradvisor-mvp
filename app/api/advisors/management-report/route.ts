@@ -31,6 +31,7 @@ const ADVISORS: AdvisorReportId[] = [
   'psychiatrygraph',
   'fieldgraph',
   'quarrygraph',
+  'hiregraph',
   'schools',
   'health',
 ];

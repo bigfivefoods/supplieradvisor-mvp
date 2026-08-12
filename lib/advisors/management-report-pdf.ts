@@ -14,6 +14,11 @@ import {
   ensureManagementCharts,
   managementReportPdfFilename,
 } from '@/lib/advisors/management-report';
+import {
+  BRAND_SAFE_TOP,
+  fillBrandHGradient,
+  paintBrandHeroBand,
+} from '@/lib/pdf/brand-gradient';
 
 // A4 landscape points
 const PAGE_W = 841.89;
@@ -25,14 +30,10 @@ const CONTENT_W = PAGE_W - MX * 2;
  * inside a safe inset so headers don’t clip when printing.
  * ~12 pt ≈ 4.2 mm top; ~10 pt ≈ 3.5 mm bottom.
  */
-const SAFE_TOP = 12;
+const SAFE_TOP = BRAND_SAFE_TOP;
 const SAFE_BOTTOM = 10;
 const BRAND = '#00b4d8';
 const BRAND_DEEP = '#0077b6';
-const BRAND_MID = '#0891b2';
-/** Lighter teal end of the hero gradient */
-const BRAND_TEAL = '#5eead4';
-const BRAND_TEAL_MID = '#2dd4bf';
 const INK = '#0f172a';
 const MUTED = '#64748b';
 const LINE = '#e2e8f0';
@@ -53,38 +54,8 @@ const PALETTE = [
 ];
 
 type PdfDoc = InstanceType<typeof PDFDocument>;
-type Rgb = { r: number; g: number; b: number };
 
-function hexToRgb(hex: string): Rgb {
-  const h = hex.replace('#', '').trim();
-  const full =
-    h.length === 3
-      ? h
-          .split('')
-          .map((c) => c + c)
-          .join('')
-      : h;
-  const n = parseInt(full, 16);
-  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
-}
-
-function mixRgb(a: Rgb, b: Rgb, t: number): string {
-  const u = Math.max(0, Math.min(1, t));
-  const r = Math.round(a.r + (b.r - a.r) * u);
-  const g = Math.round(a.g + (b.g - a.g) * u);
-  const bl = Math.round(a.b + (b.b - a.b) * u);
-  return (
-    '#' +
-    [r, g, bl]
-      .map((v) => v.toString(16).padStart(2, '0'))
-      .join('')
-  );
-}
-
-/**
- * Horizontal multi-stop gradient (pdfkit has no native gradients).
- * Smooth left→right blend via thin vertical strips.
- */
+/** Local alias — same strip algorithm as process guide PDFs. */
 function fillHGradient(
   pdf: PdfDoc,
   x: number,
@@ -94,26 +65,7 @@ function fillHGradient(
   stops: Array<{ t: number; color: string }>,
   steps = 96
 ) {
-  const sorted = [...stops].sort((a, b) => a.t - b.t);
-  if (sorted.length < 2 || w <= 0 || h <= 0) return;
-  const stripW = w / steps;
-  for (let i = 0; i < steps; i++) {
-    const t = (i + 0.5) / steps;
-    let c0 = sorted[0];
-    let c1 = sorted[sorted.length - 1];
-    for (let s = 0; s < sorted.length - 1; s++) {
-      if (t >= sorted[s].t && t <= sorted[s + 1].t) {
-        c0 = sorted[s];
-        c1 = sorted[s + 1];
-        break;
-      }
-    }
-    const span = Math.max(1e-6, c1.t - c0.t);
-    const local = (t - c0.t) / span;
-    const color = mixRgb(hexToRgb(c0.color), hexToRgb(c1.color), local);
-    // slight overlap avoids hairline gaps between strips
-    pdf.rect(x + i * stripW, y, stripW + 0.6, h).fill(color);
-  }
+  fillBrandHGradient(pdf, x, y, w, h, stops, steps);
 }
 
 function str(v: string | number | null | undefined) {
@@ -480,78 +432,30 @@ export async function buildManagementReportPdf(
 
     const charts = ensureManagementCharts(doc);
 
-    // Soft page wash (cool slate → whisper of teal)
-    fillHGradient(pdf, 0, 0, PAGE_W, PAGE_H, [
-      { t: 0, color: '#f0f9ff' },
-      { t: 0.55, color: '#f1f5f9' },
-      { t: 1, color: '#f0fdfa' },
-    ], 48);
-
-    // ── Brand hero — smooth blue → lighter teal ───────────────────────
-    // Include SAFE_TOP so brand text sits below the typical printer clip zone.
-    // Background still fills from y=0 (full-bleed look); text starts lower.
+    // Soft page wash (cool slate → whisper of teal) — below hero only
+    // after band is painted so header gradient is never covered.
     const heroInnerH = 40;
-    const heroH = SAFE_TOP + heroInnerH;
+    const heroH = paintBrandHeroBand(pdf, {
+      innerH: heroInnerH,
+      mx: MX,
+      glass: true,
+    });
     fillHGradient(
       pdf,
       0,
-      0,
-      PAGE_W,
       heroH,
-      [
-        { t: 0, color: '#005f8a' }, // deep ocean blue (left)
-        { t: 0.22, color: BRAND_DEEP }, // #0077b6
-        { t: 0.48, color: BRAND_MID }, // #0891b2
-        { t: 0.72, color: BRAND }, // #00b4d8
-        { t: 0.9, color: BRAND_TEAL_MID }, // #2dd4bf
-        { t: 1, color: BRAND_TEAL }, // #5eead4 (light teal right)
-      ],
-      120
-    );
-    // Subtle top sheen (visual only — may clip on some printers)
-    pdf
-      .rect(0, 0, PAGE_W, SAFE_TOP + 4)
-      .fillOpacity(0.1)
-      .fill('#ffffff')
-      .fillOpacity(1);
-    // Soft bottom edge blend into page
-    fillHGradient(
-      pdf,
-      0,
-      heroH - 3.5,
       PAGE_W,
-      3.5,
+      Math.max(0, PAGE_H - heroH),
       [
-        { t: 0, color: '#67e8f9' },
-        { t: 0.5, color: '#5eead4' },
-        { t: 1, color: '#99f6e4' },
+        { t: 0, color: '#f0f9ff' },
+        { t: 0.55, color: '#f1f5f9' },
+        { t: 1, color: '#f0fdfa' },
       ],
-      64
+      48
     );
-    // Decorative glass orbs (right side — over lighter teal), below safe top
-    pdf
-      .circle(PAGE_W - 56, SAFE_TOP + 10, 22)
-      .fillOpacity(0.14)
-      .fill('#ffffff')
-      .fillOpacity(1);
-    pdf
-      .circle(PAGE_W - 22, SAFE_TOP + 22, 14)
-      .fillOpacity(0.12)
-      .fill('#ffffff')
-      .fillOpacity(1);
-    pdf
-      .circle(PAGE_W - 90, SAFE_TOP + 24, 8)
-      .fillOpacity(0.1)
-      .fill('#ffffff')
-      .fillOpacity(1);
 
-    // Brand mark chip — inside print-safe band
+    // Brand text on shared hero band (chip already painted by paintBrandHeroBand)
     const heroTextY = SAFE_TOP + 4;
-    pdf
-      .roundedRect(MX, heroTextY + 2, 3.5, 24, 1.5)
-      .fillOpacity(0.95)
-      .fill('#ffffff')
-      .fillOpacity(1);
 
     pdf.font('Helvetica-Bold').fontSize(13.5).fillColor('#ffffff');
     t(pdf, doc.brand, MX + 10, heroTextY, CONTENT_W * 0.48, 14);

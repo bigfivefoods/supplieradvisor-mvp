@@ -50,6 +50,8 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
     'PsychiatryAdvisor® (tertiary services) — clinicians, patients, therapy packs, diary, medical chart, scripts, portal, bookings & messages',
   medicalgraph:
     'MedicalAdvisor® (tertiary services) — GPs & nurses, patients, consults, care packs, diary, scripts, medical chart, portal & messages',
+  hiregraph:
+    'HireAdvisor® — hire/rental marketplace: suppliers list gear, people rent (B2C), category requirements, dual 2.5%+2.5% commission',
   intelligence: 'Pulse, forecasts, scorecards & Super-Cube® leadership',
   schools:
     'SchoolAdvisor® (public sector) — NSNP kitchen, learners, SPs, catalogue, feeding, prizes (DBE / PEU / schools)',
@@ -175,13 +177,14 @@ export const MODULE_CATEGORIES: ModuleCategory[] = [
     band: 'industry',
     title: 'Services',
     blurb:
-      'FitAdvisor® (gyms · invites · portals), PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor® and MedicalAdvisor® (charts · scripts · portals).',
+      'FitAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, MedicalAdvisor® and HireAdvisor® (hire marketplace · dual commission).',
     moduleIds: [
       'fitgraph',
       'physiograph',
       'dentalgraph',
       'psychiatrygraph',
       'medicalgraph',
+      'hiregraph',
     ],
   },
   {
@@ -424,6 +427,7 @@ export function normalizeEnabledModules(
         id === 'dentalgraph' ||
         id === 'psychiatrygraph' ||
         id === 'medicalgraph' ||
+        id === 'hiregraph' ||
         id === 'platform'
           ? false
           : true;
@@ -459,6 +463,7 @@ export function isModuleEnabled(
       moduleId !== 'dentalgraph' &&
       moduleId !== 'psychiatrygraph' &&
       moduleId !== 'medicalgraph' &&
+      moduleId !== 'hiregraph' &&
       moduleId !== 'platform'
     );
   }
@@ -475,6 +480,7 @@ export function isModuleEnabled(
     moduleId !== 'dentalgraph' &&
     moduleId !== 'psychiatrygraph' &&
     moduleId !== 'medicalgraph' &&
+    moduleId !== 'hiregraph' &&
     moduleId !== 'platform'
   );
 }
@@ -535,6 +541,7 @@ export function moduleIdForPath(pathname: string | null | undefined): string | n
   if (pathname.startsWith('/dashboard/dentalgraph')) return 'dentalgraph';
   if (pathname.startsWith('/dashboard/psychiatrygraph')) return 'psychiatrygraph';
   if (pathname.startsWith('/dashboard/medicalgraph')) return 'medicalgraph';
+  if (pathname.startsWith('/dashboard/hiregraph')) return 'hiregraph';
   if (pathname.startsWith('/dashboard/schools')) return 'schools';
   if (pathname.startsWith('/dashboard/health')) return 'health';
   if (pathname.startsWith('/dashboard/platform')) return 'platform';

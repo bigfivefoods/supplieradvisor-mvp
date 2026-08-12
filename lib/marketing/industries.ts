@@ -14,6 +14,8 @@ export type IndustrySlug =
   | 'dental'
   | 'mental-health'
   | 'medical-practices'
+  | 'staffing-recruitment'
+  | 'hire-rental'
   | 'public-sector'
   | 'multi-entity';
 
@@ -343,6 +345,55 @@ export const INDUSTRIES: IndustryPage[] = [
       'Website · marketplace',
       'Reports',
     ],
+  },
+  {
+    slug: 'hire-rental',
+    name: 'Hire & rental',
+    headline: 'List gear · people rent · 2.5% + 2.5%.',
+    subhead:
+      'HireAdvisor® is a hire/rental marketplace: suppliers list plant, vehicles, tools, events gear and more; customers (people) rent B2C. Categories enforce different requirements (licence, deposit, insurance, site access). Commercial model is dual commission — 2.5% to the supplier and 2.5% to the customer on rental GMV — not a subscription desk like FitAdvisor® or clinic Advisors. Deposits stay refundable and are never commissionable.',
+    cardBlurb:
+      'HireAdvisor® — suppliers, catalogue, B2C rentals, dual 2.5% commission.',
+    pack: 'HireAdvisor®',
+    pains: [
+      'WhatsApp hire books and lost deposits',
+      'No category rules for licence / insurance / site access',
+      'Supplier and renter fees not transparent',
+      'Handover condition notes nowhere near the booking',
+    ],
+    wins: [
+      'Category stacks (plant · vehicles · tools · events…)',
+      'B2C bookings with dual fee quote before OUT',
+      '2.5% supplier + 2.5% customer on rental GMV',
+      'Handover OUT/RETURN + management pack + process PDF',
+    ],
+    modules: [
+      'HireAdvisor®',
+      'Suppliers',
+      'Categories',
+      'Catalogue',
+      'Customers (B2C)',
+      'Bookings & handover',
+      'Settlements 2.5%+2.5%',
+      'Network',
+    ],
+  },
+  {
+    /** Legacy slug — same product as hire-rental */
+    slug: 'staffing-recruitment',
+    name: 'Hire & rental (legacy URL)',
+    headline: 'List gear · people rent · 2.5% + 2.5%.',
+    subhead:
+      'Redirect path: HireAdvisor® is the hire/rental marketplace (not recruitment staffing). Suppliers list gear; people rent; dual 2.5% + 2.5% commission on rental GMV.',
+    cardBlurb: 'See Hire & rental — HireAdvisor® marketplace.',
+    pack: 'HireAdvisor®',
+    pains: [
+      'Wrong product expectation if you landed on the old staffing URL',
+    ],
+    wins: [
+      'Use /industries/hire-rental for the live HireAdvisor® story',
+    ],
+    modules: ['HireAdvisor®'],
   },
   {
     slug: 'public-sector',

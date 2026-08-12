@@ -47,6 +47,7 @@ import {
   BrainCircuit,
   Hospital,
   School,
+  BriefcaseBusiness,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import LandingNav from '@/components/marketing/LandingNav';
@@ -82,6 +83,7 @@ import {
   DentalgraphMock,
   PsychiatrygraphMock,
   MedicalgraphMock,
+  HiregraphMock,
   SchoolsMock,
   NavMock,
   ModuleGallery,
@@ -130,7 +132,7 @@ const MODULE_BAND_META: Record<
   industry: {
     title: 'Industry',
     blurb:
-      'Vertical OS modules for agri, extractives, and services — CropAdvisor®, QuarryAdvisor®, FitAdvisor® and clinic Advisors with diaries, waitlists, treatment plans, rooms, marketplace, and in-app care.',
+      'Vertical OS modules for agri, extractives, and services — CropAdvisor®, QuarryAdvisor®, FitAdvisor®, HireAdvisor® and clinic Advisors with diaries, waitlists, treatment plans, rooms, marketplace, and in-app care.',
     accent:
       'text-emerald-800 border-emerald-200 bg-emerald-50/80 dark:text-emerald-300 dark:border-emerald-500/40 dark:bg-emerald-500/10',
     step: '03',
@@ -535,6 +537,22 @@ const MODULES = [
     ],
     Mock: MedicalgraphMock,
     icon: Hospital,
+  },
+  {
+    id: 'hiregraph',
+    band: 'industry' as ModuleBand,
+    code: 'I8',
+    title: 'HireAdvisor®',
+    short: 'HireAdvisor',
+    tagline: 'Hire / rental marketplace · dual commission',
+    body: 'Suppliers list plant, vehicles, tools, events gear and more; people rent B2C. Categories enforce different requirements (licence, deposit, insurance, site access). Commercial model is different from other Advisors: 2.5% commission to the supplier and 2.5% to the customer on hire rental GMV — deposits stay refundable and are never commissionable.',
+    bullets: [
+      'Categories · catalogue · supplier list',
+      'B2C bookings · requirements · handover',
+      '2.5% + 2.5% settlements · management pack',
+    ],
+    Mock: HiregraphMock,
+    icon: BriefcaseBusiness,
   },
   {
     id: 'schools',
@@ -1083,7 +1101,7 @@ export default function LandingPage() {
               {
                 icon: Stethoscope,
                 t: 'Industry & programme solutions that operate',
-                b: 'CropAdvisor®, QuarryAdvisor®, FitAdvisor®, clinic Advisors, and SchoolAdvisor® (public-sector NSNP: DBE · school · SP) — exclusive diaries & rooms, waitlist desks, treatment plans, kitchens, catalogue, and marketplace. SA bills platform subscription only; practice and programme fees stay yours.',
+                b: 'CropAdvisor®, QuarryAdvisor®, FitAdvisor®, HireAdvisor® (hire marketplace · 2.5%+2.5% dual commission), clinic Advisors, and SchoolAdvisor® (public-sector NSNP: DBE · school · SP). Most Advisors bill subscription only; HireAdvisor® is primarily transaction-commissioned on hire GMV.',
               },
               {
                 icon: Fingerprint,
@@ -1657,7 +1675,7 @@ export default function LandingPage() {
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-neutral-400">
                 Pick your economic sector, then one or more industries. Industry
-                Packs unlock CropAdvisor®, QuarryAdvisor®, FitAdvisor® and clinic
+                Packs unlock CropAdvisor®, QuarryAdvisor®, FitAdvisor®, HireAdvisor® and clinic
                 Advisors. Choose <strong>Public Sector</strong> for SchoolAdvisor®
                 (NSNP / DBE) and government programmes — at +R
                 {INDUSTRY_PACK_MONTHLY_ZAR}/mo each for industry packs.

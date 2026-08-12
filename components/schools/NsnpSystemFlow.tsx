@@ -526,13 +526,13 @@ export default function NsnpSystemFlow({
 
   return (
     <section
-      className={`rounded-3xl border border-slate-200 bg-white overflow-hidden ${
+      className={`rounded-3xl border border-slate-200 bg-white overflow-hidden dark:border-cyan-500/25 dark:bg-gradient-to-br dark:from-[#061825] dark:via-[#0b2f44] dark:to-[#0a3d3a] ${
         compact ? 'mb-4' : 'mb-6'
       }`}
       aria-label="NSNP full process diagram: DBE to schools to service providers to children fed"
       id="nsnp-system-flow"
     >
-      <div className="bg-gradient-to-r from-[#0077b6] via-[#00b4d8] to-emerald-600 px-5 py-4 text-white">
+      <div className="bg-gradient-to-r from-[#005f8a] via-[#00b4d8] to-[#5eead4] px-5 py-4 text-white dark:from-[#0077b6] dark:via-[#00b4d8] dark:to-[#2dd4bf]">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <button
             type="button"
@@ -689,21 +689,23 @@ export default function NsnpSystemFlow({
           </div>
 
           {/* Compliance */}
-          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <ShieldCheck className="w-5 h-5 text-emerald-700" />
-              <h3 className="text-sm font-black text-emerald-950">
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 dark:border-emerald-400/30 dark:bg-gradient-to-br dark:from-emerald-950 dark:via-[#065f46]/70 dark:to-emerald-400/30">
+            <div className="mb-3 flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-emerald-700 dark:text-emerald-300" />
+              <h3 className="text-sm font-black text-emerald-950 dark:text-white">
                 Guardrails — children get what was authorised
               </h3>
             </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {COMPLIANCE_GATES.map((g) => (
                 <div
                   key={g.title}
-                  className="rounded-xl bg-white border border-emerald-100 px-3 py-2.5"
+                  className="rounded-xl border border-emerald-100 bg-white px-3 py-2.5 dark:border-emerald-400/25 dark:bg-gradient-to-br dark:from-emerald-950/90 dark:to-emerald-700/40"
                 >
-                  <p className="text-xs font-bold text-slate-900">{g.title}</p>
-                  <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
+                  <p className="text-xs font-bold text-slate-900 dark:text-white">
+                    {g.title}
+                  </p>
+                  <p className="mt-0.5 text-[11px] leading-snug text-slate-600 dark:text-emerald-50/80">
                     {g.desc}
                   </p>
                 </div>
@@ -712,10 +714,10 @@ export default function NsnpSystemFlow({
           </div>
 
           {/* Outcome */}
-          <div className="rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-3">
-            <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-              <div className="flex items-start gap-2 text-sky-950 min-w-0 flex-1">
-                <Users className="w-5 h-5 shrink-0 text-[#0077b6] mt-0.5" />
+          <div className="rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-3 dark:border-cyan-400/30 dark:bg-gradient-to-br dark:from-sky-950 dark:via-[#0e7490]/50 dark:to-teal-400/30">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <div className="flex min-w-0 flex-1 items-start gap-2 text-sky-950 dark:text-cyan-50">
+                <Users className="mt-0.5 h-5 w-5 shrink-0 text-[#0077b6] dark:text-cyan-300" />
                 <p className="text-sm leading-snug">
                   <strong className="font-black">One sentence:</strong> DBE sets
                   catalogue, menus and calendar → schools keep CoA/R638 kitchens,
@@ -725,22 +727,22 @@ export default function NsnpSystemFlow({
                   compliance.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2 shrink-0">
+              <div className="flex shrink-0 flex-wrap gap-2">
                 <Link
                   href="/dashboard/schools"
-                  className="text-[11px] font-bold rounded-full bg-[#0077b6] text-white px-3 py-1.5"
+                  className="rounded-full bg-[#0077b6] px-3 py-1.5 text-[11px] font-bold text-white dark:bg-gradient-to-r dark:from-cyan-500 dark:to-teal-400 dark:text-slate-950"
                 >
                   Command home
                 </Link>
                 <Link
                   href="/dashboard/schools/ops"
-                  className="text-[11px] font-bold rounded-full bg-white border border-sky-200 px-3 py-1.5 text-[#0077b6]"
+                  className="rounded-full border border-sky-200 bg-white px-3 py-1.5 text-[11px] font-bold text-[#0077b6] dark:border-cyan-300/40 dark:bg-cyan-950/50 dark:text-cyan-100"
                 >
                   Ops cockpit
                 </Link>
                 <Link
                   href="/dashboard/schools/menu"
-                  className="text-[11px] font-bold rounded-full bg-white border border-sky-200 px-3 py-1.5 text-[#0077b6]"
+                  className="rounded-full border border-sky-200 bg-white px-3 py-1.5 text-[11px] font-bold text-[#0077b6] dark:border-cyan-300/40 dark:bg-cyan-950/50 dark:text-cyan-100"
                 >
                   Menu
                 </Link>
@@ -758,7 +760,7 @@ const ROLE_STYLES = {
   dbe: {
     // Sky / SA blue — DBE / PEU
     card:
-      'border-sky-300 bg-sky-50/50 dark:border-sky-400 dark:bg-sky-950 dark:ring-1 dark:ring-sky-500/40',
+      'border-sky-300 bg-sky-50/50 dark:border-cyan-400/40 dark:bg-gradient-to-br dark:from-sky-950 dark:via-[#0c4a6e] dark:to-cyan-500/40 dark:ring-1 dark:ring-cyan-400/40',
     badge: 'bg-sky-600 dark:bg-sky-500',
     chip: 'bg-sky-600 text-white dark:bg-sky-500 dark:text-sky-950',
     title: 'text-slate-900 dark:text-sky-50',
@@ -772,7 +774,7 @@ const ROLE_STYLES = {
   school: {
     // Emerald — schools
     card:
-      'border-emerald-300 bg-emerald-50/50 dark:border-emerald-400 dark:bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40',
+      'border-emerald-300 bg-emerald-50/50 dark:border-emerald-400/40 dark:bg-gradient-to-br dark:from-emerald-950 dark:via-[#065f46] dark:to-emerald-400/45 dark:ring-1 dark:ring-emerald-400/40',
     badge: 'bg-emerald-600 dark:bg-emerald-500',
     chip:
       'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-emerald-950',
@@ -787,7 +789,7 @@ const ROLE_STYLES = {
   sp: {
     // Amber — service providers
     card:
-      'border-amber-300 bg-amber-50/50 dark:border-amber-400 dark:bg-amber-950 dark:ring-1 dark:ring-amber-500/40',
+      'border-amber-300 bg-amber-50/50 dark:border-amber-400/40 dark:bg-gradient-to-br dark:from-amber-950 dark:via-[#b45309] dark:to-amber-400/45 dark:ring-1 dark:ring-amber-400/40',
     badge: 'bg-amber-600 dark:bg-amber-500',
     chip:
       'bg-amber-600 text-white dark:bg-amber-500 dark:text-amber-950',
@@ -923,8 +925,8 @@ function PhaseStepCard({
       href={step.href}
       className={`flex-1 min-w-0 rounded-2xl border px-3 py-3 transition-all hover:shadow-sm group dark:hover:bg-neutral-900 ${
         mine
-          ? 'border-[#00b4d8] bg-[#e8f8fc] ring-1 ring-[#00b4d8]/40 dark:border-sky-500 dark:bg-sky-950/60 dark:ring-sky-500/40'
-          : 'border-slate-200 bg-slate-50/80 hover:border-slate-300 hover:bg-white dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-neutral-700'
+          ? 'border-[#00b4d8] bg-[#e8f8fc] ring-1 ring-[#00b4d8]/40 dark:border-cyan-400/50 dark:bg-gradient-to-br dark:from-cyan-950 dark:via-[#0e7490]/50 dark:to-teal-500/30 dark:ring-cyan-400/40'
+          : 'border-slate-200 bg-slate-50/80 hover:border-slate-300 hover:bg-white dark:border-cyan-500/15 dark:bg-gradient-to-br dark:from-[#0b1e33]/90 dark:to-[#0c3a4f]/40 dark:hover:border-cyan-400/30'
       }`}
     >
       <div className="flex items-center gap-2 mb-1.5">

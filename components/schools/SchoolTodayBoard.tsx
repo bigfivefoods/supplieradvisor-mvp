@@ -63,25 +63,29 @@ export default function SchoolTodayBoard({
   }, [load]);
 
   const severityClass = (s: string) => {
-    if (s === 'critical') return 'border-rose-200 bg-rose-50 text-rose-950';
-    if (s === 'high') return 'border-amber-200 bg-amber-50 text-amber-950';
-    if (s === 'medium') return 'border-sky-200 bg-sky-50 text-sky-950';
-    if (s === 'done') return 'border-emerald-200 bg-emerald-50 text-emerald-950';
-    return 'border-slate-200 bg-white text-slate-900';
+    if (s === 'critical')
+      return 'border-rose-200 bg-rose-50 text-rose-950 dark:border-rose-400/30 dark:bg-gradient-to-r dark:from-rose-950/80 dark:to-rose-900/40 dark:text-rose-50';
+    if (s === 'high')
+      return 'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-400/30 dark:bg-gradient-to-r dark:from-amber-950/70 dark:to-amber-900/30 dark:text-amber-50';
+    if (s === 'medium')
+      return 'border-sky-200 bg-sky-50 text-sky-950 dark:border-cyan-400/30 dark:bg-gradient-to-r dark:from-sky-950/80 dark:to-cyan-900/40 dark:text-cyan-50';
+    if (s === 'done')
+      return 'border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-400/30 dark:bg-gradient-to-r dark:from-emerald-950/80 dark:to-emerald-900/40 dark:text-emerald-50';
+    return 'border-slate-200 bg-white text-slate-900 dark:border-amber-500/20 dark:bg-amber-950/30 dark:text-amber-50';
   };
 
   return (
-    <section className="mb-6 rounded-3xl border border-slate-200 bg-white overflow-hidden">
-      <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-gradient-to-r from-amber-50 via-white to-sky-50">
+    <section className="mb-6 overflow-hidden rounded-3xl border border-slate-200 bg-white dark:border-amber-500/30 dark:bg-gradient-to-br dark:from-[#1c1003] dark:via-[#422006] dark:to-[#78350f]/70">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-gradient-to-r from-amber-50 via-white to-sky-50 px-5 py-4 dark:border-amber-500/20 dark:from-[#422006] dark:via-[#b45309]/50 dark:to-[#0c4a6e]/50">
         <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-2xl bg-amber-500 text-white flex items-center justify-center">
+          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-amber-500 text-white dark:bg-gradient-to-br dark:from-amber-400 dark:to-orange-300 dark:text-slate-950">
             <Sun className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-200">
               Today · next 10 minutes
             </p>
-            <h2 className="text-base font-black text-slate-900">
+            <h2 className="text-base font-black text-slate-900 dark:text-white">
               {board?.date
                 ? `School board · ${board.date}`
                 : 'School board'}
@@ -127,12 +131,14 @@ export default function SchoolTodayBoard({
               ].map((k) => (
                 <div
                   key={k.l}
-                  className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2"
+                  className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 dark:border-amber-500/25 dark:bg-gradient-to-br dark:from-[#422006] dark:via-[#b45309]/40 dark:to-amber-400/25"
                 >
-                  <p className="text-[10px] font-bold uppercase text-slate-400">
+                  <p className="text-[10px] font-bold uppercase text-slate-400 dark:text-amber-100/70">
                     {k.l}
                   </p>
-                  <p className="text-lg font-black tabular-nums">{k.v}</p>
+                  <p className="text-lg font-black tabular-nums dark:text-white">
+                    {k.v}
+                  </p>
                 </div>
               ))}
             </div>

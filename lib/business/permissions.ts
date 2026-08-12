@@ -358,6 +358,7 @@ export const SIDEBAR_MODULE_RESOURCE: Record<string, PermissionResource> = {
   fitgraph: 'operations',
   physiograph: 'operations',
   dentalgraph: 'operations',
+  hiregraph: 'operations',
   intelligence: 'intelligence',
   guide: 'dashboard',
   platform: 'platform',
@@ -411,6 +412,7 @@ export function resourceForPath(pathname: string | null | undefined): Permission
   if (pathname.startsWith('/dashboard/fitgraph')) return 'operations';
   if (pathname.startsWith('/dashboard/physiograph')) return 'operations';
   if (pathname.startsWith('/dashboard/dentalgraph')) return 'operations';
+  if (pathname.startsWith('/dashboard/hiregraph')) return 'operations';
   if (pathname.startsWith('/dashboard/invite-business')) return 'network';
   if (pathname.startsWith('/dashboard/procurement')) return 'suppliers';
   if (pathname.startsWith('/dashboard/supplychain')) return 'operations';

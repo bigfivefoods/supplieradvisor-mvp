@@ -35,6 +35,7 @@ import {
   Shield,
   BrainCircuit,
   Hospital,
+  BriefcaseBusiness,
 } from 'lucide-react';
 import type { ProcessStep } from '@/components/relationship/RelationshipChrome';
 import type { PermissionResource } from '@/lib/business/permissions';
@@ -748,6 +749,30 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Messages', href: '/dashboard/medicalgraph/messages', desc: 'Desk · clinicians · patients', section: 'Floor' },
       { name: 'Website', href: '/dashboard/medicalgraph/website', desc: 'Practice profile · booking', section: 'Grow' },
       { name: 'Management report', href: '/dashboard/medicalgraph/management', desc: 'A4 landscape PDF · key metrics', section: 'Insights' },
+    ],
+  },
+  {
+    id: 'hiregraph',
+    name: 'HireAdvisor',
+    icon: BriefcaseBusiness,
+    href: '/dashboard/hiregraph',
+    resource: 'operations',
+    /**
+     * HireAdvisor® — hire / rental marketplace (B2C + suppliers).
+     * Dual commission commercial model: 2.5% supplier + 2.5% customer on rental GMV.
+     * Categories enforce different hire requirements.
+     */
+    steps: [
+      { name: 'Command', href: '/dashboard/hiregraph', exact: true, desc: 'Hire marketplace home', section: 'Home' },
+      { name: 'Suppliers', href: '/dashboard/hiregraph/suppliers', desc: 'List gear · insurance', section: 'Supply' },
+      { name: 'Categories', href: '/dashboard/hiregraph/categories', desc: 'Requirement stacks', section: 'Supply' },
+      { name: 'Catalogue', href: '/dashboard/hiregraph/catalogue', desc: 'Items · rates · deposits', section: 'Supply' },
+      { name: 'Customers', href: '/dashboard/hiregraph/customers', desc: 'People renting (B2C)', section: 'Demand' },
+      { name: 'Bookings', href: '/dashboard/hiregraph/bookings', desc: 'Requests · dual fee quote', section: 'Demand' },
+      { name: 'Handover', href: '/dashboard/hiregraph/handover', desc: 'Out · return · condition', section: 'Ops' },
+      { name: 'Settlements', href: '/dashboard/hiregraph/settlements', desc: '2.5% + 2.5% ledger', section: 'Money' },
+      { name: 'Management report', href: '/dashboard/hiregraph/management', desc: 'A4 landscape PDF · GMV', section: 'Insights' },
+      { name: 'Messages', href: '/dashboard/messages?from=hiregraph&channel=connection', desc: 'Supplier · renter threads', section: 'Ops', rail: false },
     ],
   },
   {

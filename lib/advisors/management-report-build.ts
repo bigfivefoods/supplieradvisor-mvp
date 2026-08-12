@@ -1987,6 +1987,181 @@ async function buildHealth(
   };
 }
 
+// ── HireAdvisor® rental marketplace ──────────────────────────────────────
+
+async function buildHire(
+  meta: Record<string, unknown>,
+  companyId: number,
+  companyName: string,
+  filters: ManagementReportFilters
+): Promise<ManagementReportDoc> {
+  const {
+    readHiregraphFromMetadata,
+    summariseHiregraph,
+    HIRE_CATEGORIES,
+  } = await import('@/lib/hire/hiregraph');
+  const {
+    HIRE_CUSTOMER_COMMISSION_PCT,
+    HIRE_SUPPLIER_COMMISSION_PCT,
+  } = await import('@/lib/hire/commercial');
+  const store = readHiregraphFromMetadata(meta);
+  const summary = summariseHiregraph(store);
+  const slice = filters.slice || 'overview';
+  const slices = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'bookings', label: 'Bookings' },
+    { id: 'catalogue', label: 'Catalogue' },
+    { id: 'settlements', label: 'Settlements' },
+  ];
+
+  const kpis: ManagementKpi[] = [
+    kpi('Suppliers', summary.supplierCount),
+    kpi('Customers (B2C)', summary.customerCount),
+    kpi('Listed items', summary.listedItems, `${summary.itemCount} total`),
+    kpi('Open bookings', summary.openBookings, `${summary.outNow} out now`),
+    kpi(
+      'Hire GMV',
+      `R${Number(summary.gmvZar || 0).toLocaleString('en-ZA')}`
+    ),
+    kpi(
+      `Supplier ${HIRE_SUPPLIER_COMMISSION_PCT}%`,
+      `R${Number(summary.supplierCommissionZar || 0).toLocaleString('en-ZA')}`
+    ),
+    kpi(
+      `Customer ${HIRE_CUSTOMER_COMMISSION_PCT}%`,
+      `R${Number(summary.customerCommissionZar || 0).toLocaleString('en-ZA')}`
+    ),
+    kpi(
+      'Platform total',
+      `R${Number(summary.platformFeesZar || 0).toLocaleString('en-ZA')}`
+    ),
+  ];
+
+  let tables: ManagementTable[] = [
+    {
+      title: 'Open bookings',
+      headers: ['Code', 'Item', 'Customer', 'Status'],
+      rows: store.bookings
+        .filter((b) =>
+          ['requested', 'awaiting_requirements', 'approved', 'paid', 'out'].includes(
+            String(b.status || '')
+          )
+        )
+        .slice(0, 8)
+        .map((b) => [
+          b.code,
+          b.item_title || '—',
+          b.customer_name || '—',
+          b.status || '—',
+        ]),
+    },
+    {
+      title: 'Catalogue by category',
+      headers: ['Category', 'Items'],
+      rows: HIRE_CATEGORIES.map((c) => [
+        c.short,
+        (summary.categoryCounts as Record<string, number>)?.[c.id] || 0,
+      ])
+        .filter(([, n]) => Number(n) > 0)
+        .slice(0, 8) as Array<Array<string | number>>,
+    },
+  ];
+
+  if (slice === 'bookings') {
+    tables = [
+      {
+        title: 'Bookings',
+        headers: ['Code', 'Item', 'Customer pays', 'Status'],
+        rows: store.bookings.slice(0, 8).map((b) => [
+          b.code,
+          b.item_title || '—',
+          b.customer_pays_zar != null
+            ? Number(b.customer_pays_zar).toLocaleString('en-ZA')
+            : '—',
+          b.status || '—',
+        ]),
+      },
+    ];
+  } else if (slice === 'catalogue') {
+    tables = [
+      {
+        title: 'Catalogue',
+        headers: ['Code', 'Title', 'Category', 'Rate'],
+        rows: store.items.slice(0, 8).map((i) => [
+          i.code,
+          i.title,
+          i.category_name || i.category_id,
+          `R${Number(i.rate_zar || 0).toLocaleString('en-ZA')}/${i.rate_unit || 'day'}`,
+        ]),
+      },
+    ];
+  } else if (slice === 'settlements') {
+    tables = [
+      {
+        title: 'Commission ledger',
+        headers: ['Code', 'Rental', 'Supp. fee', 'Cust. fee', 'Platform'],
+        rows: store.bookings
+          .filter((b) => Number(b.platform_total_zar) > 0)
+          .slice(0, 8)
+          .map((b) => [
+            b.code,
+            Number(b.rental_zar || 0).toLocaleString('en-ZA'),
+            Number(b.supplier_commission_zar || 0).toLocaleString('en-ZA'),
+            Number(b.customer_commission_zar || 0).toLocaleString('en-ZA'),
+            Number(b.platform_total_zar || 0).toLocaleString('en-ZA'),
+          ]),
+      },
+    ];
+  }
+
+  const base = baseDoc(
+    'hiregraph',
+    companyId,
+    companyName,
+    filters,
+    slice,
+    slices.find((s) => s.id === slice)?.label || 'Overview',
+    slices
+  );
+
+  return {
+    ...base,
+    filterSummary: filterLine([
+      `${filters.from} → ${filters.to}`,
+      `Slice: ${slice}`,
+      `${HIRE_SUPPLIER_COMMISSION_PCT}%+${HIRE_CUSTOMER_COMMISSION_PCT}% model`,
+    ]),
+    headline:
+      summary.openBookings > 0 || summary.gmvZar > 0
+        ? `${summary.openBookings} open hires · R${Number(summary.gmvZar || 0).toLocaleString('en-ZA')} GMV · R${Number(summary.platformFeesZar || 0).toLocaleString('en-ZA')} platform (${HIRE_SUPPLIER_COMMISSION_PCT}%+${HIRE_CUSTOMER_COMMISSION_PCT}%)`
+        : 'HireAdvisor® marketplace — list gear, take B2C bookings, earn dual commission on GMV',
+    kpis,
+    tables,
+    highlights: [
+      `${summary.supplierCount} hire suppliers · ${summary.customerCount} B2C renters`,
+      `${summary.listedItems} listed items across categories`,
+      `Dual commission: ${HIRE_SUPPLIER_COMMISSION_PCT}% supplier + ${HIRE_CUSTOMER_COMMISSION_PCT}% customer (deposits not commissionable)`,
+    ],
+    risks: [
+      summary.openBookings > 0 && summary.outNow === 0
+        ? 'Open bookings but nothing marked out — check handovers'
+        : '',
+      store.bookings.some(
+        (b) =>
+          b.status === 'awaiting_requirements' &&
+          (b.requirements_pending || []).length > 0
+      )
+        ? 'Bookings blocked on category requirements'
+        : '',
+    ].filter(Boolean),
+    actions: [
+      'Clear outstanding category requirements on open bookings',
+      'Record OUT / RETURN handovers with condition notes',
+      'Complete returned bookings so dual commission posts to GMV',
+    ],
+  };
+}
+
 // ── Public entry ─────────────────────────────────────────────────────────
 
 export async function buildAdvisorManagementReport(opts: {
@@ -2011,6 +2186,8 @@ export async function buildAdvisorManagementReport(opts: {
     core = await buildField(meta, companyId, companyName, filters);
   } else if (advisor === 'quarrygraph') {
     core = await buildQuarry(meta, companyId, companyName, filters);
+  } else if (advisor === 'hiregraph') {
+    core = await buildHire(meta, companyId, companyName, filters);
   } else if (advisor === 'schools') {
     core = await buildSchools(supabase, companyId, companyName, filters);
   } else if (advisor === 'health') {

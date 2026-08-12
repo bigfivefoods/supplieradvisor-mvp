@@ -788,8 +788,8 @@ export async function buildNsnpProcessGuidePdf(opts?: {
     doc.on('error', reject);
 
     // ── PAGE 1 ────────────────────────────────────────────────────────
-    drawProcessPageWash(doc, g);
     let y = drawHero(doc, g);
+    drawProcessPageWash(doc, g, Math.max(0, y - 8));
     y = drawChain(doc, g, y);
     y = drawRoleCards(doc, g, y);
 
@@ -813,7 +813,6 @@ export async function buildNsnpProcessGuidePdf(opts?: {
       margins: pageMargins,
     });
 
-    drawProcessPageWash(doc, g);
     y = drawProcessGuidePageHeader(doc, g, {
       eyebrow: 'SchoolAdvisor® · end-to-end process · continued',
       title: g.isLandscape
@@ -821,6 +820,7 @@ export async function buildNsnpProcessGuidePdf(opts?: {
         : 'Process continued · Guardrails · Benefits · Outcome',
       landscape: g.isLandscape,
     });
+    drawProcessPageWash(doc, g, Math.max(0, y - 8));
     y = drawSectionLabel(
       doc,
       'Full process — Part B (SP supply → safe serve → verify · pay · reward)',

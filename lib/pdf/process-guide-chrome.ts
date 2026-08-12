@@ -1,9 +1,17 @@
 /**
  * Shared chrome for Advisor / SchoolAdvisor end-to-end process design PDFs.
- * Blue → teal gradient heroes (matches management report), print-safe insets,
- * legible section chrome. Pure pdfkit — Vercel serverless safe.
+ * Headers use the SAME paint path as management report PDFs
+ * (lib/pdf/brand-gradient.ts → paintBrandHeroBand).
+ * Pure pdfkit — Vercel serverless safe. PDF-only (no website styling).
  */
 import type PDFDocument from 'pdfkit';
+import {
+  BRAND_EDGE_STOPS,
+  BRAND_HERO_STOPS,
+  BRAND_SAFE_TOP,
+  fillBrandHGradient,
+  paintBrandHeroBand,
+} from '@/lib/pdf/brand-gradient';
 
 export type ProcessGuidePdfDoc = InstanceType<typeof PDFDocument>;
 
@@ -16,8 +24,7 @@ export type ProcessGuideGeo = {
   isLandscape: boolean;
 };
 
-/** ~4.2 mm — keeps brand text out of printer non-printable edge */
-export const PROCESS_SAFE_TOP = 12;
+export const PROCESS_SAFE_TOP = BRAND_SAFE_TOP;
 
 export const PROCESS_PDF = {
   brand: '#00b4d8',
@@ -36,88 +43,17 @@ export const PROCESS_PDF = {
   violet: '#7c3aed',
 } as const;
 
-type Rgb = { r: number; g: number; b: number };
-
-function hexToRgb(hex: string): Rgb {
-  const h = hex.replace('#', '').trim();
-  const full =
-    h.length === 3
-      ? h
-          .split('')
-          .map((c) => c + c)
-          .join('')
-      : h;
-  const n = parseInt(full, 16);
-  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
-}
-
-function mixRgb(a: Rgb, b: Rgb, t: number): string {
-  const u = Math.max(0, Math.min(1, t));
-  const r = Math.round(a.r + (b.r - a.r) * u);
-  const g = Math.round(a.g + (b.g - a.g) * u);
-  const bl = Math.round(a.b + (b.b - a.b) * u);
-  return (
-    '#' +
-    [r, g, bl]
-      .map((v) => v.toString(16).padStart(2, '0'))
-      .join('')
-  );
-}
-
-/**
- * Management-report hero palette (left → right):
- * deep ocean blue → brand blue → cyan → light teal
- */
-export const MANAGEMENT_HERO_STOPS: Array<{ t: number; color: string }> = [
-  { t: 0, color: '#005f8a' },
-  { t: 0.22, color: '#0077b6' },
-  { t: 0.48, color: '#0891b2' },
-  { t: 0.72, color: '#00b4d8' },
-  { t: 0.9, color: '#2dd4bf' },
-  { t: 1, color: '#5eead4' },
-];
-
-/**
- * Horizontal multi-stop gradient via thin vertical strips.
- * Same algorithm as lib/advisors/management-report-pdf.ts so process PDFs
- * match management report headers exactly (no website styling).
- */
+/** @deprecated use fillBrandHGradient — kept for external callers */
 export function fillHGradient(
   doc: ProcessGuidePdfDoc,
   x: number,
   y: number,
   w: number,
   h: number,
-  stops: Array<{ t: number; color: string }> = MANAGEMENT_HERO_STOPS,
+  stops: Array<{ t: number; color: string }> = BRAND_HERO_STOPS,
   steps = 120
 ) {
-  const sorted = [...stops].sort((a, b) => a.t - b.t);
-  if (sorted.length < 2 || w <= 0 || h <= 0) return;
-
-  try {
-    doc.fillOpacity(1);
-  } catch {
-    /* soft */
-  }
-
-  const stripW = w / steps;
-  for (let i = 0; i < steps; i++) {
-    const t = (i + 0.5) / steps;
-    let c0 = sorted[0];
-    let c1 = sorted[sorted.length - 1];
-    for (let s = 0; s < sorted.length - 1; s++) {
-      if (t >= sorted[s].t && t <= sorted[s + 1].t) {
-        c0 = sorted[s];
-        c1 = sorted[s + 1];
-        break;
-      }
-    }
-    const span = Math.max(1e-6, c1.t - c0.t);
-    const local = (t - c0.t) / span;
-    const color = mixRgb(hexToRgb(c0.color), hexToRgb(c1.color), local);
-    // slight overlap avoids hairline gaps between strips (management report)
-    doc.rect(x + i * stripW, y, stripW + 0.6, h).fill(color);
-  }
+  fillBrandHGradient(doc, x, y, w, h, stops, steps);
 }
 
 export function withOpenMargins(doc: ProcessGuidePdfDoc, fn: () => void) {
@@ -142,15 +78,27 @@ export function withOpenMargins(doc: ProcessGuidePdfDoc, fn: () => void) {
   }
 }
 
-/** Soft cool wash under content (legibility + polish). */
-export function drawProcessPageWash(doc: ProcessGuidePdfDoc, g: ProcessGuideGeo) {
+/**
+ * Soft cool wash under content.
+ * Pass fromY = hero height so the wash NEVER paints over the gradient header.
+ * Default fromY=0 is only for legacy callers that paint wash before the hero
+ * (hero is always drawn after and overwrites).
+ */
+export function drawProcessPageWash(
+  doc: ProcessGuidePdfDoc,
+  g: ProcessGuideGeo,
+  fromY = 0
+) {
   withOpenMargins(doc, () => {
-    fillHGradient(
+    const y = Math.max(0, fromY);
+    const h = Math.max(0, (doc.page.height || g.pageH) - y);
+    if (h <= 0) return;
+    fillBrandHGradient(
       doc,
       0,
-      0,
-      g.pageW,
-      g.pageH,
+      y,
+      doc.page.width || g.pageW,
+      h,
       [
         { t: 0, color: '#f0f9ff' },
         { t: 0.55, color: '#f8fafc' },
@@ -162,21 +110,20 @@ export function drawProcessPageWash(doc: ProcessGuidePdfDoc, g: ProcessGuideGeo)
 }
 
 export type ProcessHeroOpts = {
-  /** e.g. SCHOOLADVISOR® · END-TO-END PROCESS */
   eyebrow: string;
-  /** Main title line */
   title: string;
-  /** Optional subtitle / blurb */
   subtitle?: string;
-  /** Landscape packs subtitle to the right of title when set */
   sideNote?: string;
   landscape?: boolean;
 };
 
 /**
- * Blue → teal gradient hero — matched to management-report-pdf.ts.
+ * Blue → teal gradient hero — identical paint path to management-report-pdf.
  * Returns content start Y below the band.
- * Text sits below PROCESS_SAFE_TOP for print safety.
+ *
+ * Call order (recommended):
+ *   const y = drawProcessGuideHero(...)
+ *   drawProcessPageWash(doc, g, y)  // wash only below header
  */
 export function drawProcessGuideHero(
   doc: ProcessGuidePdfDoc,
@@ -184,113 +131,72 @@ export function drawProcessGuideHero(
   opts: ProcessHeroOpts
 ): number {
   const landscape = opts.landscape ?? g.isLandscape;
-  // Match management report proportions (landscape A4 pack)
+  // Match management report landscape hero proportions
   const innerH = landscape ? 40 : 52;
-  const heroH = PROCESS_SAFE_TOP + innerH;
 
-  withOpenMargins(doc, () => {
-    doc.fillOpacity(1);
-    // Full-bleed hero — same stops + step count as management report
-    fillHGradient(doc, 0, 0, g.pageW, heroH, MANAGEMENT_HERO_STOPS, 120);
+  // Same band as management report (glass orbs + sheen + strip gradient)
+  const heroH = paintBrandHeroBand(doc, {
+    innerH,
+    mx: g.mx,
+    glass: true,
+  });
 
-    // Subtle top sheen (management report)
-    doc
-      .rect(0, 0, g.pageW, PROCESS_SAFE_TOP + 4)
-      .fillOpacity(0.1)
-      .fill('#ffffff')
-      .fillOpacity(1);
+  const ty = BRAND_SAFE_TOP + 4;
+  // Text uses normal page margins (left = g.mx from PDFDocument config)
+  doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#ecfeff');
+  doc.text(opts.eyebrow.toUpperCase(), g.mx + 10, ty, {
+    width: g.contentW - 12,
+    lineBreak: false,
+    ellipsis: true,
+  });
 
-    // Soft bottom edge blend into page (management report)
-    fillHGradient(
-      doc,
-      0,
-      heroH - 3.5,
-      g.pageW,
-      3.5,
-      [
-        { t: 0, color: '#67e8f9' },
-        { t: 0.5, color: '#5eead4' },
-        { t: 1, color: '#99f6e4' },
-      ],
-      64
-    );
-
-    // Decorative glass orbs — same placement language as management report
-    doc
-      .circle(g.pageW - 56, PROCESS_SAFE_TOP + 10, 22)
-      .fillOpacity(0.14)
-      .fill('#ffffff')
-      .fillOpacity(1);
-    doc
-      .circle(g.pageW - 22, PROCESS_SAFE_TOP + 22, 14)
-      .fillOpacity(0.12)
-      .fill('#ffffff')
-      .fillOpacity(1);
-    doc
-      .circle(g.pageW - 90, PROCESS_SAFE_TOP + 24, 8)
-      .fillOpacity(0.1)
-      .fill('#ffffff')
-      .fillOpacity(1);
-
-    // Brand mark chip
-    const ty = PROCESS_SAFE_TOP + 4;
-    doc
-      .roundedRect(g.mx, ty + 2, 3.5, landscape ? 24 : 32, 1.5)
-      .fillOpacity(0.95)
-      .fill('#ffffff')
-      .fillOpacity(1);
-
-    doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#ecfeff');
-    doc.text(opts.eyebrow.toUpperCase(), g.mx + 10, ty, {
-      width: g.contentW - 12,
-      lineBreak: false,
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(landscape ? 13 : 12)
+    .fillColor('#ffffff');
+  if (landscape && opts.sideNote) {
+    doc.text(opts.title, g.mx + 10, ty + 14, {
+      width: g.contentW * 0.62,
+      height: 22,
+      lineBreak: true,
       ellipsis: true,
     });
-
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(landscape ? 13 : 12)
-      .fillColor('#ffffff');
-    if (landscape && opts.sideNote) {
-      doc.text(opts.title, g.mx + 10, ty + 14, {
-        width: g.contentW * 0.62,
-        height: 22,
-        lineBreak: true,
-        ellipsis: true,
-      });
-      doc.font('Helvetica').fontSize(7).fillColor('#f0fdfa');
-      doc.text(opts.sideNote, g.mx + g.contentW * 0.64, ty + 14, {
-        width: g.contentW * 0.34,
-        height: 24,
-        lineBreak: true,
-        ellipsis: true,
-      });
-    } else {
-      doc.text(opts.title, g.mx + 10, ty + 14, {
+    doc.font('Helvetica').fontSize(7).fillColor('#f0fdfa');
+    doc.text(opts.sideNote, g.mx + g.contentW * 0.64, ty + 14, {
+      width: g.contentW * 0.34,
+      height: 24,
+      lineBreak: true,
+      ellipsis: true,
+    });
+  } else {
+    doc.text(opts.title, g.mx + 10, ty + 14, {
+      width: g.contentW - 12,
+      height: 18,
+      lineBreak: true,
+      ellipsis: true,
+    });
+    if (opts.subtitle) {
+      doc.font('Helvetica').fontSize(7.5).fillColor('#ecfeff');
+      doc.text(opts.subtitle, g.mx + 10, ty + 34, {
         width: g.contentW - 12,
-        height: 18,
+        height: 16,
         lineBreak: true,
         ellipsis: true,
       });
-      if (opts.subtitle) {
-        doc.font('Helvetica').fontSize(7.5).fillColor('#ecfeff');
-        doc.text(opts.subtitle, g.mx + 10, ty + 34, {
-          width: g.contentW - 12,
-          height: 16,
-          lineBreak: true,
-          ellipsis: true,
-        });
-      }
     }
+  }
+
+  try {
     doc.fillOpacity(1);
-  });
+  } catch {
+    /* soft */
+  }
 
   return heroH + 8;
 }
 
 /**
- * Page 2+ header band — same management-report blue→teal gradient, shorter.
- * Returns Y below header for content.
+ * Page 2+ header — same blue→teal gradient as management report (shorter).
  */
 export function drawProcessGuidePageHeader(
   doc: ProcessGuidePdfDoc,
@@ -299,55 +205,40 @@ export function drawProcessGuidePageHeader(
 ): number {
   const landscape = opts.landscape ?? g.isLandscape;
   const innerH = landscape ? 26 : 34;
-  const headH = PROCESS_SAFE_TOP + innerH;
 
-  withOpenMargins(doc, () => {
-    doc.fillOpacity(1);
-    fillHGradient(doc, 0, 0, g.pageW, headH, MANAGEMENT_HERO_STOPS, 120);
-    fillHGradient(
-      doc,
-      0,
-      headH - 3,
-      g.pageW,
-      3,
-      [
-        { t: 0, color: '#67e8f9' },
-        { t: 0.5, color: '#5eead4' },
-        { t: 1, color: '#99f6e4' },
-      ],
-      48
-    );
-    doc
-      .circle(g.pageW - 40, PROCESS_SAFE_TOP + 8, 14)
-      .fillOpacity(0.12)
-      .fill('#ffffff')
-      .fillOpacity(1);
-
-    const ty = PROCESS_SAFE_TOP + 3;
-    doc.roundedRect(g.mx, ty + 1, 3.5, landscape ? 18 : 24, 1.5).fill('#ffffff');
-    doc.font('Helvetica-Bold').fontSize(6).fillColor('#ecfeff');
-    doc.text(opts.eyebrow.toUpperCase(), g.mx + 10, ty, {
-      width: g.contentW - 12,
-      lineBreak: false,
-      ellipsis: true,
-    });
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(landscape ? 11 : 11.5)
-      .fillColor('#ffffff');
-    doc.text(opts.title, g.mx + 10, ty + 11, {
-      width: g.contentW - 12,
-      height: 16,
-      lineBreak: true,
-      ellipsis: true,
-    });
-    doc.fillOpacity(1);
+  const headH = paintBrandHeroBand(doc, {
+    innerH,
+    mx: g.mx,
+    glass: true,
   });
+
+  const ty = BRAND_SAFE_TOP + 3;
+  doc.font('Helvetica-Bold').fontSize(6).fillColor('#ecfeff');
+  doc.text(opts.eyebrow.toUpperCase(), g.mx + 10, ty, {
+    width: g.contentW - 12,
+    lineBreak: false,
+    ellipsis: true,
+  });
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(landscape ? 11 : 11.5)
+    .fillColor('#ffffff');
+  doc.text(opts.title, g.mx + 10, ty + 11, {
+    width: g.contentW - 12,
+    height: 16,
+    lineBreak: true,
+    ellipsis: true,
+  });
+
+  try {
+    doc.fillOpacity(1);
+  } catch {
+    /* soft */
+  }
 
   return headH + 8;
 }
 
-/** Soft elevated card (shadow underlay + white body). */
 export function drawSoftCard(
   doc: ProcessGuidePdfDoc,
   x: number,
@@ -367,7 +258,6 @@ export function drawSoftCard(
   }
 }
 
-/** Section label with accent bar */
 export function drawSectionLabel(
   doc: ProcessGuidePdfDoc,
   label: string,
@@ -399,7 +289,7 @@ export function drawProcessFooter(
     const y = g.footerY - 5;
     doc
       .moveTo(g.mx, y)
-      .lineTo(g.pageW - g.mx, y)
+      .lineTo((doc.page.width || g.pageW) - g.mx, y)
       .strokeColor(PROCESS_PDF.line)
       .lineWidth(0.5)
       .stroke();
@@ -417,3 +307,5 @@ export function drawProcessFooter(
     });
   });
 }
+
+export { BRAND_EDGE_STOPS, BRAND_HERO_STOPS };

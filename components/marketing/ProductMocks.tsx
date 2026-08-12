@@ -774,6 +774,52 @@ export function FitgraphMock() {
   );
 }
 
+/** Industry — hire / rental marketplace (dual 2.5% commission) */
+export function HiregraphMock() {
+  return (
+    <Frame title="dashboard/hiregraph">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[9px] font-bold uppercase tracking-widest text-violet-700">
+            HireAdvisor® · Marketplace
+          </div>
+          <div className="text-sm sm:text-base font-black tracking-tight text-slate-900 dark:text-white">
+            List · rent · 2.5% + 2.5%.
+          </div>
+        </div>
+        <span className="rounded-full border border-emerald-200 bg-emerald-600 px-2 py-0.5 text-[9px] font-black uppercase text-white">
+          Commission
+        </span>
+      </div>
+      <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
+        <Telemetry label="Listed" value="126" tone="violet" />
+        <Telemetry label="Open" value="18" tone="sky" />
+        <Telemetry label="Supp 2.5%" value="R42k" tone="cyan" />
+        <Telemetry label="Cust 2.5%" value="R42k" tone="emerald" />
+      </div>
+      <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#151c26]">
+        {[
+          { left: 'TLB · plant · 3 days', right: 'Awaiting licence' },
+          { left: 'Party tent · weekend', right: 'Paid' },
+          { left: 'Generator 50kVA', right: 'Out' },
+        ].map((row) => (
+          <div
+            key={row.left}
+            className="flex items-center justify-between gap-2 text-[10px]"
+          >
+            <span className="font-semibold text-slate-800 dark:text-white">
+              {row.left}
+            </span>
+            <span className="rounded-full bg-violet-600 px-1.5 py-0.5 text-[9px] font-black text-white">
+              {row.right}
+            </span>
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
 /** Government / public sector — SchoolAdvisor® NSNP programme */
 export function SchoolsMock() {
   return (

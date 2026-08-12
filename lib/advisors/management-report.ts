@@ -11,6 +11,7 @@ export type AdvisorReportId =
   | 'psychiatrygraph'
   | 'fieldgraph'
   | 'quarrygraph'
+  | 'hiregraph'
   | 'schools'
   | 'health';
 
@@ -52,6 +53,11 @@ export const ADVISOR_REPORT_META: Record<
     brand: 'QuarryAdvisor®',
     product: 'Quarrying & aggregates',
     defaultHref: '/dashboard/quarrygraph/report',
+  },
+  hiregraph: {
+    brand: 'HireAdvisor®',
+    product: 'Hire / rental marketplace (2.5% + 2.5%)',
+    defaultHref: '/dashboard/hiregraph/management',
   },
   schools: {
     brand: 'SchoolAdvisor®',

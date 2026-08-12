@@ -890,6 +890,48 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     ],
   },
   {
+    id: 'staffing_hire',
+    name: 'Hire & Rental Marketplace',
+    shortName: 'Hire',
+    description:
+      'HireAdvisor® — suppliers list gear for hire; people rent (B2C). Categories (plant, vehicles, tools, events…) enforce different requirements. Commercial model is dual commission: 2.5% supplier + 2.5% customer on rental GMV (not subscription-led like other Advisors). Pack unlocks the desk; take-rate is on completed hires.',
+    monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
+    priority: 1,
+    recommendSectors: ['tertiary', 'secondary', 'primary'],
+    recommendEntities: ['private_company'],
+    modules: [
+      {
+        id: 'hire_os',
+        name: 'HireAdvisor® marketplace OS',
+        description:
+          'Suppliers, catalogue, categories, B2C customers, bookings, handover, dual commission ledger.',
+        unlocks: ['hiregraph', 'customers', 'suppliers'],
+      },
+      {
+        id: 'hire_network',
+        name: 'Supplier & renter network',
+        description: 'Connect hire suppliers and related trade partners.',
+        unlocks: ['network', 'suppliers', 'hiregraph'],
+      },
+      {
+        id: 'hire_ops',
+        name: 'Handover & ops',
+        description: 'Outbound/return logistics and ops tower for hire fleets.',
+        unlocks: ['operations', 'distribution', 'hiregraph'],
+      },
+    ],
+    industryToolsHrefs: [
+      { name: 'HireAdvisor®', href: '/dashboard/hiregraph', desc: 'Hire marketplace' },
+      { name: 'Suppliers', href: '/dashboard/hiregraph/suppliers', desc: 'List gear' },
+      { name: 'Categories', href: '/dashboard/hiregraph/categories', desc: 'Requirement stacks' },
+      { name: 'Catalogue', href: '/dashboard/hiregraph/catalogue', desc: 'Items · rates' },
+      { name: 'Customers', href: '/dashboard/hiregraph/customers', desc: 'People renting' },
+      { name: 'Bookings', href: '/dashboard/hiregraph/bookings', desc: 'Dual fee quotes' },
+      { name: 'Settlements', href: '/dashboard/hiregraph/settlements', desc: '2.5% + 2.5%' },
+      { name: 'Handover', href: '/dashboard/hiregraph/handover', desc: 'Out · return' },
+    ],
+  },
+  {
     id: 'impact_esg',
     name: 'Impact, ESG & Traceability',
     shortName: 'Impact',
@@ -1157,6 +1199,15 @@ export function enabledModulesMapFromPacks(
     unlocked.add('inventory');
     unlocked.add('people');
     unlocked.add('quality');
+  }
+  // Hire & rental marketplace → HireAdvisor (dual commission product)
+  if (packIds.includes('staffing_hire')) {
+    unlocked.add('hiregraph');
+    unlocked.add('suppliers');
+    unlocked.add('customers');
+    unlocked.add('network');
+    unlocked.add('operations');
+    unlocked.add('distribution');
   }
   // Impact pack
   if (packIds.includes('impact_esg')) {

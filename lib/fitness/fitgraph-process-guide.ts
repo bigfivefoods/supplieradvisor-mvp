@@ -714,8 +714,8 @@ export async function buildFitgraphProcessGuidePdf(opts?: {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    drawProcessPageWash(doc, g);
     let y = drawHero(doc, g);
+    drawProcessPageWash(doc, g, Math.max(0, y - 8));
     y = drawChain(doc, g, y);
     y = drawRoleCards(doc, g, y);
 
@@ -733,12 +733,12 @@ export async function buildFitgraphProcessGuidePdf(opts?: {
     }
 
     doc.addPage({ size: 'A4', layout });
-    drawProcessPageWash(doc, g);
     y = drawProcessGuidePageHeader(doc, g, {
       eyebrow: 'FitAdvisor® · end-to-end process · continued',
       title: 'Process continued · Floor · Messages · Website · Guardrails',
       landscape: g.isLandscape,
     });
+    drawProcessPageWash(doc, g, Math.max(0, y - 8));
 
     for (const phase of PROCESS_PHASES.slice(3)) {
       y = drawPhase(doc, g, phase, y);

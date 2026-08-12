@@ -121,6 +121,10 @@ export const ROLE_TONES: Record<string, TonePack> = {
   'qg-office': AMBER,
   'qg-ops': VIOLET,
   'qg-trade': CYAN,
+  // HireAdvisor
+  'hg-desk': VIOLET,
+  'hg-talent': CYAN,
+  'hg-client': EMERALD,
   // NSNP / DBE
   dbe: SKY,
   school: EMERALD,
