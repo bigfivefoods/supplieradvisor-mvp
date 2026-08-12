@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   Building2,
   CheckCircle2,
+  Download,
   Loader2,
   Network,
   RefreshCw,
@@ -696,7 +697,14 @@ export function ManagementReportView({
 }: {
   management?: ManagementReport;
 }) {
+  const { user } = usePrivy();
+  const privyUserId = getCanonicalUserId(user?.id);
+  const privyEmail =
+    user?.email?.address ||
+    (user as { google?: { email?: string } } | null)?.google?.email ||
+    null;
   const [signupQuery, setSignupQuery] = useState('');
+  const [pdfBusy, setPdfBusy] = useState(false);
   const signups = management?.recentCompanies || [];
   const filteredSignups = useMemo(() => {
     const q = signupQuery.trim().toLowerCase();
@@ -721,6 +729,48 @@ export function ManagementReportView({
     });
   }, [signups, signupQuery]);
 
+  const downloadLandscapePdf = async () => {
+    setPdfBusy(true);
+    try {
+      const q = new URLSearchParams();
+      if (privyUserId) q.set('privyUserId', privyUserId);
+      if (privyEmail) q.set('email', String(privyEmail).toLowerCase());
+      const res = await fetch(
+        `/api/system/platform-console/management-pdf?${q}`,
+        {
+          cache: 'no-store',
+          credentials: 'same-origin',
+          headers: {
+            ...(privyUserId ? { 'x-privy-user-id': privyUserId } : {}),
+            ...(privyEmail
+              ? { 'x-platform-email': String(privyEmail).toLowerCase() }
+              : {}),
+          },
+        }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'PDF failed');
+      }
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      a.href = url;
+      a.download =
+        res.headers
+          .get('Content-Disposition')
+          ?.match(/filename="([^"]+)"/)?.[1] ||
+        'SupplierAdvisor-Platform-Management-A4-Landscape.pdf';
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('A4 landscape platform management report downloaded');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'PDF failed');
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   if (!management) return null;
   const c = management.companies;
   const p = management.people;
@@ -731,6 +781,34 @@ export function ManagementReportView({
 
   return (
     <div className="space-y-5">
+      <div className="rounded-3xl border border-sky-200 bg-gradient-to-r from-[#0077b6] via-[#00b4d8] to-emerald-600 px-4 py-3 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-white/80">
+            Platform pack · one-page A4 landscape
+          </p>
+          <h2 className="text-base sm:text-lg font-black leading-tight">
+            Management report pack
+          </h2>
+          <p className="text-xs text-white/90 mt-0.5">
+            Sign-ups, commercial, network, trade funnel and Advisor adoption —
+            download as a board-ready one-pager.
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={pdfBusy}
+          onClick={() => void downloadLandscapePdf()}
+          className="inline-flex items-center gap-1.5 rounded-full bg-white text-[#0077b6] px-3 py-2 text-xs font-black hover:bg-sky-50 disabled:opacity-50"
+        >
+          {pdfBusy ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Download className="h-3.5 w-3.5" />
+          )}
+          Download A4 landscape PDF
+        </button>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard label="Total companies" value={c?.total ?? '—'} />
         <MetricCard

@@ -115,7 +115,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Management',
         href: '/dashboard/platform/management',
-        desc: 'Companies, people, trade, commercial',
+        desc: 'Companies · trade · A4 landscape pack',
         section: 'Reports',
       },
       {
