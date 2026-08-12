@@ -781,6 +781,36 @@ async function exceptionsView(
     });
   }
 
+  // SP probation / compliance risk (network)
+  try {
+    const { data: isps } = await supabase
+      .from('nsnp_isp_profiles')
+      .select('profile_id, trading_name, name, compliance_status, preferred, metadata')
+      .limit(80);
+    for (const isp of isps || []) {
+      const st = String(isp.compliance_status || '').toLowerCase();
+      const meta =
+        isp.metadata && typeof isp.metadata === 'object'
+          ? (isp.metadata as Record<string, unknown>)
+          : {};
+      const probation =
+        st === 'probation' ||
+        meta.sp_tier === 'probation' ||
+        meta.preferred === false && st.includes('prob');
+      if (probation || st === 'suspended') {
+        exceptions.push({
+          kind: 'sp_probation',
+          severity: st === 'suspended' ? 'critical' : 'high',
+          title: `SP ${isp.trading_name || isp.name || isp.profile_id} on ${st || 'probation'}`,
+          isp_profile_id: isp.profile_id,
+          href: '/dashboard/schools/isp-sla',
+        });
+      }
+    }
+  } catch {
+    /* soft */
+  }
+
   // Claims inbox
   const { data: claims } = await supabase
     .from('nsnp_claim_packs')

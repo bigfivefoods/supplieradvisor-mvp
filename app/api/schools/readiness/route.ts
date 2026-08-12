@@ -52,6 +52,32 @@ export async function GET(request: NextRequest) {
         ? 'isp'
         : 'school';
 
+    // Enforce SchoolAdvisor® public-sector packaging on every hub load
+    let packagingSnapshot: {
+      updated: boolean;
+      compliant: boolean;
+      sectorId?: string;
+      entityTypeId?: string;
+    } | null = null;
+    try {
+      const { ensureSchoolAdvisorPackagingForCompany } = await import(
+        '@/lib/schools/ensure-packaging'
+      );
+      const ensured = await ensureSchoolAdvisorPackagingForCompany(
+        supabase,
+        companyId,
+        role
+      );
+      packagingSnapshot = {
+        updated: ensured.updated,
+        compliant: ensured.compliant,
+        sectorId: ensured.packaging?.sectorId,
+        entityTypeId: ensured.packaging?.entityTypeId,
+      };
+    } catch {
+      /* soft */
+    }
+
     if (role === 'isp' && ispRow) {
       const { data: dels } = await supabase
         .from('school_nsnp_deliveries')
@@ -76,6 +102,7 @@ export async function GET(request: NextRequest) {
         success: true,
         role: 'isp' as const,
         isp: ispRow,
+        packaging: packagingSnapshot,
         summary: {
           openPos: (openPos || []).length,
           deliveriesActive: toMove,
@@ -119,6 +146,7 @@ export async function GET(request: NextRequest) {
         success: true,
         role: 'agency' as const,
         agency: agencyRow,
+        packaging: packagingSnapshot,
         summary: {
           pendingSchools: pending,
           activeSchools: active,
@@ -131,11 +159,17 @@ export async function GET(request: NextRequest) {
                 href: '/dashboard/schools/agency',
                 desc: `${pending} school(s) waiting for DBE/PEU approval`,
               }
-            : {
-                label: 'Open agency pack',
-                href: '/dashboard/schools/agency-report',
-                desc: 'Multi-school performance, risks & heatmaps',
-              },
+            : (claims || []).length > 0
+              ? {
+                  label: 'Review submitted claims',
+                  href: '/dashboard/schools/ops',
+                  desc: `${(claims || []).length} claim(s) in exception cockpit`,
+                }
+              : {
+                  label: 'Exception cockpit',
+                  href: '/dashboard/schools/ops',
+                  desc: 'Late deliveries, joins, off-catalogue & programme risks',
+                },
       });
     }
 
@@ -364,6 +398,17 @@ export async function GET(request: NextRequest) {
         href: '/dashboard/schools/serve-day',
         weight: 5,
       },
+      {
+        id: 'packaging',
+        label: 'Public Sector · SchoolAdvisor packaging',
+        done: packagingSnapshot?.compliant === true,
+        required: true,
+        href: '/dashboard/my-business/modules',
+        hint: packagingSnapshot?.compliant
+          ? `Sector ${packagingSnapshot.sectorId || 'public_sector'}`
+          : 'Auto-applied on this load if missing — refresh if still open',
+        weight: 10,
+      },
     ];
 
     const totalW = checks.reduce((n, c) => n + c.weight, 0);
@@ -514,6 +559,7 @@ export async function GET(request: NextRequest) {
         motto: school.motto,
       },
       readiness,
+      packaging: packagingSnapshot,
       role: 'school' as const,
     });
   } catch (e: unknown) {

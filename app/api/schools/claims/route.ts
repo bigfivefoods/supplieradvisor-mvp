@@ -202,6 +202,28 @@ export async function GET(request: NextRequest) {
       .limit(1)
       .maybeSingle();
 
+    // SP SLA / OTIFEF gate (probation or critically low OTIFEF)
+    let slaGate: {
+      blocked: boolean;
+      reason: string | null;
+      sp_count: number;
+      probation_count: number;
+      worst_otifef_pct: number | null;
+      isps: Array<Record<string, unknown>>;
+    } | null = null;
+    try {
+      const { evaluateClaimSlaGate } = await import(
+        '@/lib/schools/claim-sla-gate'
+      );
+      slaGate = await evaluateClaimSlaGate(supabase, companyId, {
+        from,
+        to,
+        schoolProfileId: schoolId,
+      });
+    } catch {
+      /* soft */
+    }
+
     const approvedBlocked = Boolean(approvedIncentive.block_reason);
     const submitBlock =
       periodLocked
@@ -216,7 +238,9 @@ export async function GET(request: NextRequest) {
                 ? approvedIncentive.block_reason
                 : approvedBrandPct < CLAIM_APPROVED_MIN_PCT
                   ? `Approved foods ${approvedBrandPct}% — need ≥${CLAIM_APPROVED_MIN_PCT}% for full claim submit (order only from department list)`
-                  : null;
+                  : slaGate?.blocked
+                    ? slaGate.reason
+                    : null;
 
     // Priority 3 — three-way match cleanliness for one-click claim
     let matchSummary: {
@@ -315,7 +339,8 @@ export async function GET(request: NextRequest) {
       !periodLocked &&
       !agencyClaimsLocked &&
       approvedBrandPct >= CLAIM_APPROVED_MIN_PCT &&
-      !approvedBlocked;
+      !approvedBlocked &&
+      !slaGate?.blocked;
 
     const matchBlocks =
       matchSummary &&
@@ -341,6 +366,17 @@ export async function GET(request: NextRequest) {
       feeding_completeness_pct: feedingCompletenessPct,
       agency: catalogue.agencyName,
       agency_linked: Boolean(agencyLink),
+      sp_sla: slaGate
+        ? {
+            blocked: slaGate.blocked,
+            reason: slaGate.reason,
+            sp_count: slaGate.sp_count,
+            probation_count: slaGate.probation_count,
+            worst_otifef_pct: slaGate.worst_otifef_pct,
+            isps: slaGate.isps,
+            min_otifef_pct: 60,
+          }
+        : null,
       claim_amount: approvedIncentive.claim_amount,
       claim_amount_full: approvedIncentive.claim_amount_full,
       claim_clawback_pct: approvedIncentive.clawback_pct,

@@ -36,6 +36,9 @@ import GoldenPathStrip from '@/components/schools/GoldenPathStrip';
 import NsnpSystemFlow from '@/components/schools/NsnpSystemFlow';
 import ProcessGuidePdfButtons from '@/components/schools/ProcessGuidePdfButtons';
 import SchoolTodayBoard from '@/components/schools/SchoolTodayBoard';
+import { SchoolAdvisorBillingCard } from '@/components/schools/SchoolAdvisorBillingCard';
+import AgencyExceptionBoard from '@/components/schools/AgencyExceptionBoard';
+import SchoolFieldLinks from '@/components/schools/SchoolFieldLinks';
 
 export default function SchoolsHubPage() {
   return (
@@ -143,7 +146,7 @@ function Inner() {
         <SchoolsHeader
           title="SchoolAdvisor · SP"
           titleAccent="Supply"
-          description="SchoolAdvisor® service provider path (public sector NSNP): receive school POs → procure approved items → deliver. You do not set menus. DBE → school → SP → children fed."
+          description="SchoolAdvisor® service provider path (public sector NSNP): receive school POs → procure approved items → deliver. You do not set menus. DBE → school → SP → children fed. Keep OTIFEF green so schools can submit claims."
           mode="isp"
           action={
             <div className="flex flex-wrap items-center gap-2">
@@ -158,10 +161,25 @@ function Inner() {
             </div>
           }
         />
+        <div className="mb-4 space-y-3">
+          <SchoolAdvisorBillingCard brand="your SP business" />
+        </div>
         <GoldenPathStrip companyId={companyId} />
         <NsnpSystemFlow audience="isp" />
-        <div className="mb-4">
+        <div className="mb-4 flex flex-wrap gap-2 items-center">
           <ProcessGuidePdfButtons variant="inline" />
+          <Link
+            href="/dashboard/schools/isp-sla"
+            className="btn-secondary !py-1.5 !px-3 text-xs"
+          >
+            Your OTIFEF / SLA
+          </Link>
+          <Link
+            href="/dashboard/schools/ops"
+            className="btn-secondary !py-1.5 !px-3 text-xs"
+          >
+            Fulfil queue
+          </Link>
         </div>
         <div className="rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-sky-50 p-6 mb-6">
           <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
@@ -302,7 +320,11 @@ function Inner() {
             </div>
           }
         />
+        <div className="mb-4">
+          <SchoolAdvisorBillingCard brand="your PEU / department" />
+        </div>
         <GoldenPathStrip companyId={companyId} />
+        <AgencyExceptionBoard companyId={companyId} />
         <NsnpSystemFlow audience="dbe" />
 
         <div className="mb-4 flex flex-wrap gap-2 items-center">
@@ -310,7 +332,13 @@ function Inner() {
             href="/dashboard/schools/ops"
             className="btn-primary !py-2 !px-3 text-xs"
           >
-            Exception cockpit
+            Full exception cockpit
+          </Link>
+          <Link
+            href="/dashboard/schools/isp-sla"
+            className="btn-secondary !py-2 !px-3 text-xs"
+          >
+            SP OTIFEF / SLA
           </Link>
           <ProcessGuidePdfButtons variant="inline" />
         </div>
@@ -519,6 +547,12 @@ function Inner() {
         }
       />
 
+      <div className="mb-4 space-y-3">
+        <SchoolAdvisorBillingCard
+          brand={String(school?.school_name || 'your school')}
+        />
+        <SchoolFieldLinks companyId={companyId} />
+      </div>
       <GoldenPathStrip companyId={companyId} />
       <NsnpSystemFlow audience="school" />
       <div className="mb-4 flex flex-wrap gap-2 items-center">
@@ -528,6 +562,18 @@ function Inner() {
           className="btn-secondary !py-1.5 !px-3 text-xs"
         >
           Supply ops · match · funding sim
+        </Link>
+        <Link
+          href="/dashboard/schools/claims"
+          className="btn-secondary !py-1.5 !px-3 text-xs"
+        >
+          Claims (SLA-gated)
+        </Link>
+        <Link
+          href="/dashboard/schools/surveys"
+          className="btn-secondary !py-1.5 !px-3 text-xs"
+        >
+          Parent / learner surveys
         </Link>
       </div>
 
