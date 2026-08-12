@@ -7,6 +7,11 @@
  * Client UI should use `@/lib/quarry/quarrygraph-process-guide-links` only.
  */
 import PDFDocument from 'pdfkit';
+import {
+  drawProcessGuideHero,
+  drawProcessGuidePageHeader,
+  drawProcessPageWash,
+} from '@/lib/pdf/process-guide-chrome';
 import type { QuarrygraphProcessGuideOrientation } from '@/lib/quarry/quarrygraph-process-guide-links';
 export type { QuarrygraphProcessGuideOrientation } from '@/lib/quarry/quarrygraph-process-guide-links';
 
@@ -433,57 +438,14 @@ function drawFooter(doc: PdfDoc, g: Geo, pageNum: number, total: number) {
   });
 }
 
-function drawHero(doc: PdfDoc, g: Geo) {
-  withOpenMargins(doc, () => {
-    const heroH = g.isLandscape ? 68 : 92;
-    doc.rect(0, 0, g.pageW, heroH).fill(BRAND_DEEP);
-    doc.rect(0, heroH - 4, g.pageW, 4).fill(BRAND);
-    const orientLabel = g.isLandscape ? 'A4 LANDSCAPE' : 'A4 PORTRAIT';
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(8)
-      .fillColor('#fde68a')
-      .text(
-        `QUARRYGRAPH®  ·  PROCESS DESIGN  ·  ${orientLabel}`,
-        g.mx,
-        12,
-        { width: g.contentW, characterSpacing: 1 }
-      );
-    const title =
-      'Locations → Sites → Reserves → Plant → Dispatch → Sold & compliant';
-    if (g.isLandscape) {
-      doc
-        .font('Helvetica-Bold')
-        .fontSize(13)
-        .fillColor('#ffffff')
-        .text(title, g.mx, 28, { width: g.contentW * 0.68 });
-      doc
-        .font('Helvetica')
-        .fontSize(8)
-        .fillColor('#fef3c7')
-        .text(
-          'End-to-end quarrying & aggregates on SupplierAdvisor® — permanent, temporary and batching plants.',
-          g.mx + g.contentW * 0.68,
-          28,
-          { width: g.contentW * 0.32 }
-        );
-    } else {
-      doc
-        .font('Helvetica-Bold')
-        .fontSize(12)
-        .fillColor('#ffffff')
-        .text(title, g.mx, 30, { width: g.contentW });
-      doc
-        .font('Helvetica')
-        .fontSize(8.5)
-        .fillColor('#fef3c7')
-        .text(
-          'Primary-sector quarry OS — multi-site, project plants, fleet util and weighbridge.',
-          g.mx,
-          62,
-          { width: g.contentW }
-        );
-    }
+function drawHero(doc: PdfDoc, g: Geo): number {
+  const orientLabel = g.isLandscape ? 'A4 LANDSCAPE · 2 PAGES' : 'A4 PORTRAIT · 2 PAGES';
+  return drawProcessGuideHero(doc, g, {
+    eyebrow: 'QuarryAdvisor® · end-to-end process · ' + orientLabel,
+    title: 'Quarries → Production → Plant → Dispatch → Fleet → Compliance',
+    subtitle: g.isLandscape ? undefined : 'Primary sector quarrying OS — sites, products, reserves, dispatch, permits.',
+    sideNote: g.isLandscape ? 'End-to-end aggregates OS on SupplierAdvisor® — production, weighbridge, fleet, rights.' : undefined,
+    landscape: g.isLandscape,
   });
 }
 
@@ -736,8 +698,8 @@ export async function buildQuarrygraphProcessGuidePdf(opts?: {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    drawHero(doc, g);
-    let y = g.isLandscape ? 76 : 100;
+    drawProcessPageWash(doc, g);
+    let y = drawHero(doc, g);
     y = drawChain(doc, g, y);
     y = drawRoleCards(doc, g, y);
 
@@ -755,23 +717,13 @@ export async function buildQuarrygraphProcessGuidePdf(opts?: {
     }
 
     doc.addPage({ size: 'A4', layout });
-    withOpenMargins(doc, () => {
-      const headH = g.isLandscape ? 40 : 48;
-      doc.rect(0, 0, g.pageW, headH).fill(BRAND_DEEP);
-      doc.rect(0, headH - 4, g.pageW, 4).fill(BRAND);
-      doc
-        .font('Helvetica-Bold')
-        .fontSize(g.isLandscape ? 11 : 10)
-        .fillColor('#ffffff')
-        .text(
-          'Process continued · Dispatch · Messages · QA · Guardrails',
-          g.mx,
-          g.isLandscape ? 12 : 14,
-          { width: g.contentW }
-        );
+    drawProcessPageWash(doc, g);
+    y = drawProcessGuidePageHeader(doc, g, {
+      eyebrow: 'QuarryAdvisor® · end-to-end process · continued',
+      title: 'Process continued · Fleet · Quality · Compliance · Guardrails',
+      landscape: g.isLandscape,
     });
 
-    y = g.isLandscape ? 48 : 56;
     for (const phase of PROCESS_PHASES.slice(3)) {
       y = drawPhase(doc, g, phase, y);
     }

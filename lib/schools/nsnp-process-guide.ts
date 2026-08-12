@@ -7,6 +7,15 @@
  * Client UI should use `@/lib/schools/process-guide-links` only.
  */
 import PDFDocument from 'pdfkit';
+import {
+  drawProcessFooter,
+  drawProcessGuideHero,
+  drawProcessGuidePageHeader,
+  drawProcessPageWash,
+  drawSectionLabel,
+  drawSoftCard,
+  PROCESS_PDF,
+} from '@/lib/pdf/process-guide-chrome';
 import type { ProcessGuideOrientation } from '@/lib/schools/process-guide-links';
 export type { ProcessGuideOrientation } from '@/lib/schools/process-guide-links';
 
@@ -423,16 +432,16 @@ function geoFor(orientation: ProcessGuideOrientation): Geo {
   };
 }
 
-const BRAND = '#00b4d8';
-const BRAND_DEEP = '#0077b6';
-const INK = '#0f172a';
-const MUTED = '#64748b';
-const LINE = '#e2e8f0';
-const SOFT = '#f8fafc';
-const EMERALD = '#059669';
-const AMBER = '#d97706';
-const ROSE = '#e11d48';
-const VIOLET = '#7c3aed';
+const BRAND = PROCESS_PDF.brand;
+const BRAND_DEEP = PROCESS_PDF.brandDeep;
+const INK = PROCESS_PDF.ink;
+const MUTED = PROCESS_PDF.muted;
+const LINE = PROCESS_PDF.line;
+const SOFT = PROCESS_PDF.soft;
+const EMERALD = PROCESS_PDF.emerald;
+const AMBER = PROCESS_PDF.amber;
+const ROSE = PROCESS_PDF.rose;
+const VIOLET = PROCESS_PDF.violet;
 
 const CHAIN_COLORS = [BRAND_DEEP, EMERALD, AMBER, VIOLET, ROSE] as const;
 
@@ -477,181 +486,110 @@ function fitText(
   });
 }
 
-function withOpenMargins(doc: PdfDoc, fn: () => void) {
-  const page = doc.page;
-  const saved = {
-    top: page.margins.top,
-    bottom: page.margins.bottom,
-    left: page.margins.left,
-    right: page.margins.right,
-  };
-  page.margins.top = 0;
-  page.margins.bottom = 0;
-  page.margins.left = 0;
-  page.margins.right = 0;
-  try {
-    fn();
-  } finally {
-    page.margins.top = saved.top;
-    page.margins.bottom = saved.bottom;
-    page.margins.left = saved.left;
-    page.margins.right = saved.right;
-  }
-}
-
 function drawFooter(doc: PdfDoc, g: Geo, pageNum: number, total: number) {
-  withOpenMargins(doc, () => {
-    const y = g.footerY - 4;
-    doc
-      .moveTo(g.mx, y)
-      .lineTo(g.pageW - g.mx, y)
-      .strokeColor(LINE)
-      .lineWidth(0.4)
-      .stroke();
-    const orientLabel = g.isLandscape ? 'A4 landscape' : 'A4 portrait';
-    doc.font('Helvetica').fontSize(6).fillColor(MUTED);
-    fitText(
-      doc,
-      `SupplierAdvisor® · SchoolAdvisor® NSNP · ${orientLabel} · 2-page process design`,
-      g.mx,
-      y + 3,
-      { width: g.contentW * 0.75 }
-    );
-    fitText(doc, `Page ${pageNum} of ${total}`, g.mx, y + 3, {
-      width: g.contentW,
-      align: 'right',
-    });
+  drawProcessFooter(doc, g, {
+    productLine: 'SupplierAdvisor® · SchoolAdvisor® NSNP',
+    pageNum,
+    total,
   });
 }
 
 function drawHero(doc: PdfDoc, g: Geo): number {
-  const heroH = g.isLandscape ? 42 : 64;
-  withOpenMargins(doc, () => {
-    doc.rect(0, 0, g.pageW, heroH).fill(BRAND_DEEP);
-    doc.rect(0, heroH - 3, g.pageW, 3).fill(BRAND);
-    const orientLabel = g.isLandscape
-      ? 'A4 LANDSCAPE · 2 PAGES'
-      : 'A4 PORTRAIT · 2 PAGES';
-    doc.font('Helvetica-Bold').fontSize(7).fillColor('#bae6fd');
-    fitText(
-      doc,
-      `SCHOOLADVISOR®  ·  END-TO-END PROCESS  ·  ${orientLabel}`,
-      g.mx,
-      8,
-      { width: g.contentW }
-    );
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(g.isLandscape ? 13 : 12)
-      .fillColor('#ffffff');
-    fitText(
-      doc,
-      'DBE → Schools → Service providers → Children fed',
-      g.mx,
-      g.isLandscape ? 20 : 24,
-      { width: g.isLandscape ? g.contentW * 0.7 : g.contentW }
-    );
-    if (g.isLandscape) {
-      doc.font('Helvetica').fontSize(7).fillColor('#e0f2fe');
-      fitText(
-        doc,
-        'National School Nutrition Programme on SupplierAdvisor® — roles, steps, CoA/R638, claim gates.',
-        g.mx + g.contentW * 0.7,
-        20,
-        { width: g.contentW * 0.3, height: 18 }
-      );
-    } else {
-      doc.font('Helvetica').fontSize(7.5).fillColor('#e0f2fe');
-      fitText(
-        doc,
-        'Roles, steps, kitchen safety, claim gates — system of record.',
-        g.mx,
-        44,
-        { width: g.contentW }
-      );
-    }
+  const orientLabel = g.isLandscape
+    ? 'A4 LANDSCAPE · 2 PAGES'
+    : 'A4 PORTRAIT · 2 PAGES';
+  return drawProcessGuideHero(doc, g, {
+    eyebrow: `SchoolAdvisor® · end-to-end process · ${orientLabel}`,
+    title: 'DBE → Schools → Service providers → Children fed',
+    subtitle: g.isLandscape
+      ? undefined
+      : 'Roles, steps, kitchen safety (CoA/R638), claim gates — system of record.',
+    sideNote: g.isLandscape
+      ? 'National School Nutrition Programme on SupplierAdvisor® — roles, steps, CoA/R638, claim gates.'
+      : undefined,
+    landscape: g.isLandscape,
   });
-  return heroH + 6;
 }
 
 function drawChain(doc: PdfDoc, g: Geo, y: number): number {
+  y = drawSectionLabel(doc, 'Process chain', g.mx, y, g.contentW, BRAND_DEEP);
   const gap = 5;
   const n = PROCESS_CHAIN.length;
   const boxW = (g.contentW - gap * (n - 1)) / n;
-  const boxH = g.isLandscape ? 26 : 32;
+  const boxH = g.isLandscape ? 28 : 34;
   PROCESS_CHAIN.forEach((node, i) => {
     const x = g.mx + i * (boxW + gap);
     const color = CHAIN_COLORS[i] || BRAND;
-    doc.roundedRect(x, y, boxW, boxH, 4).fillAndStroke('#ffffff', color);
-    doc.rect(x, y, 3, boxH).fill(color);
+    drawSoftCard(doc, x, y, boxW, boxH, { accent: color, radius: 5 });
     doc
       .font('Helvetica-Bold')
       .fontSize(g.isLandscape ? 7.5 : 7.5)
       .fillColor(INK);
-    fitText(doc, node.label, x + 7, y + 4, { width: boxW - 12 });
+    fitText(doc, node.label, x + 8, y + 5, { width: boxW - 14 });
     doc.font('Helvetica').fontSize(6).fillColor(MUTED);
-    fitText(doc, node.sub, x + 7, y + 14, { width: boxW - 12 });
+    fitText(doc, node.sub, x + 8, y + 16, { width: boxW - 14 });
   });
-  return y + boxH + 6;
+  return y + boxH + 8;
 }
 
 function drawRoleCards(doc: PdfDoc, g: Geo, y: number): number {
-  doc.font('Helvetica-Bold').fontSize(6.5).fillColor(MUTED);
-  fitText(doc, 'WHO DOES WHAT', g.mx, y, { width: g.contentW });
-  y += 9;
+  y = drawSectionLabel(doc, 'Who does what', g.mx, y, g.contentW, BRAND_DEEP);
 
   const gap = 5;
   const colW = (g.contentW - gap * 2) / 3;
   const tones = [BRAND_DEEP, EMERALD, AMBER];
-  const h = g.isLandscape ? 88 : 108;
+  const h = g.isLandscape ? 90 : 110;
 
   PDF_ROLE_CARDS.forEach((card, i) => {
     const x = g.mx + i * (colW + gap);
     const tone = tones[i];
-    let cy = y + 5;
+    let cy = y + 6;
     const maxY = y + h - 4;
 
-    doc.roundedRect(x, y, colW, h, 5).fillAndStroke(SOFT, LINE);
-    doc.rect(x, y, colW, 2.5).fill(tone);
+    drawSoftCard(doc, x, y, colW, h, {
+      fill: SOFT,
+      accent: tone,
+      radius: 6,
+    });
     doc.font('Helvetica-Bold').fontSize(8).fillColor(INK);
-    fitText(doc, card.title, x + 6, cy, { width: colW - 12 });
-    cy += 10;
+    fitText(doc, card.title, x + 8, cy, { width: colW - 14 });
+    cy += 11;
     doc.font('Helvetica').fontSize(6).fillColor(MUTED);
-    fitText(doc, card.subtitle, x + 6, cy, { width: colW - 12 });
-    cy += 9;
+    fitText(doc, card.subtitle, x + 8, cy, { width: colW - 14 });
+    cy += 10;
     doc.font('Helvetica-Bold').fontSize(5.5).fillColor(tone);
-    fitText(doc, 'DOES', x + 6, cy, { width: colW - 12 });
-    cy += 7;
+    fitText(doc, 'DOES', x + 8, cy, { width: colW - 14 });
+    cy += 8;
     for (const line of card.does) {
       if (cy + 7 > maxY - 22) break;
       doc.font('Helvetica').fontSize(5.5).fillColor(INK);
-      fitText(doc, `• ${line}`, x + 6, cy, {
-        width: colW - 12,
+      fitText(doc, `• ${line}`, x + 8, cy, {
+        width: colW - 14,
         height: 7,
       });
-      cy += 7;
+      cy += 7.5;
     }
     doc.font('Helvetica-Bold').fontSize(5.5).fillColor(MUTED);
-    fitText(doc, 'DOES NOT', x + 6, cy, { width: colW - 12 });
-    cy += 7;
+    fitText(doc, 'DOES NOT', x + 8, cy, { width: colW - 14 });
+    cy += 8;
     for (const line of card.doesNot) {
       if (cy + 7 > maxY) break;
       doc.font('Helvetica').fontSize(5.5).fillColor(MUTED);
-      fitText(doc, `• ${line}`, x + 6, cy, {
-        width: colW - 12,
+      fitText(doc, `• ${line}`, x + 8, cy, {
+        width: colW - 14,
         height: 7,
       });
-      cy += 7;
+      cy += 7.5;
     }
   });
 
-  return y + h + 6;
+  return y + h + 8;
 }
 
 function drawPhase(doc: PdfDoc, g: Geo, phase: ProcessPhase, y: number): number {
-  const titleH = g.isLandscape ? 9 : 18;
-  doc.font('Helvetica-Bold').fontSize(7).fillColor(BRAND_DEEP);
+  const titleH = g.isLandscape ? 11 : 18;
   if (g.isLandscape) {
+    doc.font('Helvetica-Bold').fontSize(7.5).fillColor(BRAND_DEEP);
     fitText(doc, phase.title, g.mx, y, { width: g.contentW * 0.42 });
     doc.font('Helvetica').fontSize(6).fillColor(MUTED);
     fitText(doc, phase.subtitle, g.mx + g.contentW * 0.42, y + 0.5, {
@@ -659,23 +597,24 @@ function drawPhase(doc: PdfDoc, g: Geo, phase: ProcessPhase, y: number): number 
       align: 'right',
     });
   } else {
+    doc.font('Helvetica-Bold').fontSize(8).fillColor(BRAND_DEEP);
     fitText(doc, phase.title, g.mx, y, { width: g.contentW });
-    doc.font('Helvetica').fontSize(6).fillColor(MUTED);
-    fitText(doc, phase.subtitle, g.mx, y + 9, { width: g.contentW });
+    doc.font('Helvetica').fontSize(6.5).fillColor(MUTED);
+    fitText(doc, phase.subtitle, g.mx, y + 10, { width: g.contentW });
   }
   y += titleH;
 
-  const gap = 3;
+  const gap = 4;
   const n = Math.max(1, phase.steps.length);
   const boxW = (g.contentW - gap * (n - 1)) / n;
-  const boxH = g.isLandscape ? 36 : 44;
+  const boxH = g.isLandscape ? 38 : 46;
 
   phase.steps.forEach((step, i) => {
     const x = g.mx + i * (boxW + gap);
     const wc = whoColor(step.who);
-    doc.roundedRect(x, y, boxW, boxH, 3).fillAndStroke('#ffffff', LINE);
+    drawSoftCard(doc, x, y, boxW, boxH, { accent: wc, radius: 4 });
     doc.font('Helvetica-Bold').fontSize(5.5).fillColor(wc);
-    fitText(doc, step.n, x + 3, y + 3, { width: 18 });
+    fitText(doc, step.n, x + 6, y + 4, { width: 18 });
     const badgeW = Math.min(32, boxW - 22);
     doc.roundedRect(x + boxW - badgeW - 3, y + 2.5, badgeW, 8, 2).fill(wc);
     doc.font('Helvetica-Bold').fontSize(5).fillColor('#ffffff');
@@ -699,85 +638,106 @@ function drawPhase(doc: PdfDoc, g: Geo, phase: ProcessPhase, y: number): number 
 }
 
 function drawGates(doc: PdfDoc, g: Geo, y: number): number {
-  doc.font('Helvetica-Bold').fontSize(6.5).fillColor(MUTED);
-  fitText(doc, 'GUARDRAILS — CHILDREN GET WHAT WAS AUTHORISED', g.mx, y, {
-    width: g.contentW,
-  });
-  y += 8;
+  y = drawSectionLabel(
+    doc,
+    'Guardrails — children get what was authorised',
+    g.mx,
+    y,
+    g.contentW,
+    EMERALD
+  );
 
-  const gap = 3;
+  const gap = 4;
   const cols = g.isLandscape ? 5 : 3;
   const boxW = (g.contentW - gap * (cols - 1)) / cols;
-  const boxH = g.isLandscape ? 28 : 36;
+  const boxH = g.isLandscape ? 30 : 38;
   COMPLIANCE_GATES.forEach((gate, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
     const x = g.mx + col * (boxW + gap);
     const gy = y + row * (boxH + gap);
-    doc.roundedRect(x, gy, boxW, boxH, 3).fillAndStroke('#ecfdf5', '#a7f3d0');
+    drawSoftCard(doc, x, gy, boxW, boxH, {
+      fill: '#ecfdf5',
+      stroke: '#a7f3d0',
+      accent: EMERALD,
+      radius: 4,
+    });
     doc.font('Helvetica-Bold').fontSize(5.5).fillColor(EMERALD);
-    fitText(doc, gate.title, x + 3, gy + 3, {
-      width: boxW - 6,
+    fitText(doc, gate.title, x + 6, gy + 4, {
+      width: boxW - 10,
       height: 8,
     });
     doc.font('Helvetica').fontSize(5).fillColor(INK);
-    fitText(doc, gate.desc, x + 3, gy + 11, {
-      width: boxW - 6,
-      height: boxH - 13,
+    fitText(doc, gate.desc, x + 6, gy + 13, {
+      width: boxW - 10,
+      height: boxH - 16,
     });
   });
   const rows = Math.ceil(COMPLIANCE_GATES.length / cols);
-  return y + rows * (boxH + gap) + 4;
+  return y + rows * (boxH + gap) + 6;
 }
 
 function drawBenefits(doc: PdfDoc, g: Geo, y: number): number {
-  doc.font('Helvetica-Bold').fontSize(6.5).fillColor(MUTED);
-  fitText(doc, 'BENEFITS OF THE SYSTEM', g.mx, y, { width: g.contentW });
-  y += 8;
+  y = drawSectionLabel(
+    doc,
+    'Benefits of the system',
+    g.mx,
+    y,
+    g.contentW,
+    BRAND_DEEP
+  );
 
-  const gap = 3;
+  const gap = 4;
   const cols = g.isLandscape ? 5 : 2;
   const benefits = PDF_BENEFITS;
   const boxW = (g.contentW - gap * (cols - 1)) / cols;
-  const boxH = g.isLandscape ? 26 : 34;
+  const boxH = g.isLandscape ? 28 : 36;
 
   benefits.forEach((b, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
     const x = g.mx + col * (boxW + gap);
     const by = y + row * (boxH + gap);
-    doc.roundedRect(x, by, boxW, boxH, 3).fillAndStroke(SOFT, LINE);
-    doc.circle(x + 5, by + 6, 1.8).fill(BRAND);
+    drawSoftCard(doc, x, by, boxW, boxH, {
+      fill: SOFT,
+      accent: BRAND,
+      radius: 4,
+    });
     doc.font('Helvetica-Bold').fontSize(5.5).fillColor(INK);
-    fitText(doc, b.title, x + 10, by + 3, {
-      width: boxW - 14,
+    fitText(doc, b.title, x + 8, by + 4, {
+      width: boxW - 12,
       height: 7,
     });
     doc.font('Helvetica').fontSize(5).fillColor(MUTED);
-    fitText(doc, b.desc, x + 4, by + 11, {
-      width: boxW - 8,
-      height: boxH - 13,
+    fitText(doc, b.desc, x + 8, by + 13, {
+      width: boxW - 12,
+      height: boxH - 16,
     });
   });
 
   const rows = Math.ceil(benefits.length / cols);
-  return y + rows * (boxH + gap) + 4;
+  return y + rows * (boxH + gap) + 6;
 }
 
 function drawOutcome(doc: PdfDoc, g: Geo, y: number): number {
-  const h = g.isLandscape ? 28 : 40;
+  const h = g.isLandscape ? 30 : 42;
   const maxY = g.contentBottom - h;
   if (y > maxY) y = maxY;
 
-  doc.roundedRect(g.mx, y, g.contentW, h, 4).fillAndStroke('#e0f2fe', '#7dd3fc');
-  doc.font('Helvetica-Bold').fontSize(6).fillColor(BRAND_DEEP);
-  fitText(doc, 'ONE SENTENCE — THE FULL LOOP', g.mx + 8, y + 3, {
-    width: g.contentW - 16,
+  drawSoftCard(doc, g.mx, y, g.contentW, h, {
+    fill: '#e0f2fe',
+    stroke: '#7dd3fc',
+    accent: BRAND_DEEP,
+    radius: 5,
   });
-  doc.font('Helvetica').fontSize(6).fillColor(INK);
-  fitText(doc, ONE_SENTENCE, g.mx + 8, y + 12, {
-    width: g.contentW - 16,
-    height: h - 14,
+  doc.font('Helvetica-Bold').fontSize(6).fillColor(BRAND_DEEP);
+  fitText(doc, 'ONE SENTENCE — THE FULL LOOP', g.mx + 10, y + 5, {
+    width: g.contentW - 18,
+  });
+  doc.font('Helvetica').fontSize(6.5).fillColor(INK);
+  fitText(doc, ONE_SENTENCE, g.mx + 10, y + 14, {
+    width: g.contentW - 18,
+    height: h - 18,
   });
   return y + h;
 }
@@ -828,19 +788,19 @@ export async function buildNsnpProcessGuidePdf(opts?: {
     doc.on('error', reject);
 
     // ── PAGE 1 ────────────────────────────────────────────────────────
+    drawProcessPageWash(doc, g);
     let y = drawHero(doc, g);
     y = drawChain(doc, g, y);
     y = drawRoleCards(doc, g, y);
 
-    doc.font('Helvetica-Bold').fontSize(6.5).fillColor(MUTED);
-    fitText(
+    y = drawSectionLabel(
       doc,
-      'FULL PROCESS — PART A (JOIN → RULES → SCHOOL STOCK / ORDER)',
+      'Full process — Part A (join → rules → school stock / order)',
       g.mx,
       y,
-      { width: g.contentW }
+      g.contentW,
+      BRAND_DEEP
     );
-    y += 9;
 
     for (const phase of PROCESS_PHASES.slice(0, 3)) {
       y = drawPhase(doc, g, phase, y);
@@ -853,43 +813,22 @@ export async function buildNsnpProcessGuidePdf(opts?: {
       margins: pageMargins,
     });
 
-    withOpenMargins(doc, () => {
-      const headH = g.isLandscape ? 28 : 40;
-      doc.rect(0, 0, g.pageW, headH).fill(BRAND_DEEP);
-      doc.rect(0, headH - 2.5, g.pageW, 2.5).fill(BRAND);
-      doc
-        .font('Helvetica-Bold')
-        .fontSize(10)
-        .fillColor('#ffffff');
-      fitText(
-        doc,
-        'Process continued · Guardrails · Benefits · Outcome',
-        g.mx,
-        g.isLandscape ? 9 : 10,
-        { width: g.contentW }
-      );
-      if (!g.isLandscape) {
-        doc.font('Helvetica').fontSize(7).fillColor('#bae6fd');
-        fitText(
-          doc,
-          'SP supply → safe kitchen → children fed → match · SLA · CoA · PEU · claims · prizes.',
-          g.mx,
-          24,
-          { width: g.contentW }
-        );
-      }
+    drawProcessPageWash(doc, g);
+    y = drawProcessGuidePageHeader(doc, g, {
+      eyebrow: 'SchoolAdvisor® · end-to-end process · continued',
+      title: g.isLandscape
+        ? 'Process continued · Guardrails · Benefits · Outcome'
+        : 'Process continued · Guardrails · Benefits · Outcome',
+      landscape: g.isLandscape,
     });
-
-    y = g.isLandscape ? 34 : 46;
-    doc.font('Helvetica-Bold').fontSize(6.5).fillColor(MUTED);
-    fitText(
+    y = drawSectionLabel(
       doc,
-      'FULL PROCESS — PART B (SP SUPPLY → SAFE SERVE → VERIFY · PAY · REWARD)',
+      'Full process — Part B (SP supply → safe serve → verify · pay · reward)',
       g.mx,
       y,
-      { width: g.contentW }
+      g.contentW,
+      BRAND_DEEP
     );
-    y += 9;
 
     // Phases 4–7; reserve ~110pt for gates + benefits + outcome on landscape
     const reserve = g.isLandscape ? 108 : 160;

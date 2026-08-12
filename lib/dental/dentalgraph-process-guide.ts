@@ -7,6 +7,11 @@
  * Client UI should use `@/lib/dental/dentalgraph-process-guide-links` only.
  */
 import PDFDocument from 'pdfkit';
+import {
+  drawProcessGuideHero,
+  drawProcessGuidePageHeader,
+  drawProcessPageWash,
+} from '@/lib/pdf/process-guide-chrome';
 import type { DentalgraphProcessGuideOrientation } from '@/lib/dental/dentalgraph-process-guide-links';
 export type { DentalgraphProcessGuideOrientation } from '@/lib/dental/dentalgraph-process-guide-links';
 
@@ -409,57 +414,14 @@ function drawFooter(doc: PdfDoc, g: Geo, pageNum: number, total: number) {
   });
 }
 
-function drawHero(doc: PdfDoc, g: Geo) {
-  withOpenMargins(doc, () => {
-    const heroH = g.isLandscape ? 68 : 92;
-    doc.rect(0, 0, g.pageW, heroH).fill(BRAND_DEEP);
-    doc.rect(0, heroH - 4, g.pageW, 4).fill(BRAND);
-    const orientLabel = g.isLandscape ? 'A4 LANDSCAPE' : 'A4 PORTRAIT';
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(8)
-      .fillColor('#bae6fd')
-      .text(
-        `DENTALGRAPH®  ·  PROCESS DESIGN  ·  ${orientLabel}`,
-        g.mx,
-        12,
-        { width: g.contentW, characterSpacing: 1 }
-      );
-    const title =
-      'Staff → Patients → Services → Diary → Bookings → Website';
-    if (g.isLandscape) {
-      doc
-        .font('Helvetica-Bold')
-        .fontSize(13)
-        .fillColor('#ffffff')
-        .text(title, g.mx, 28, { width: g.contentW * 0.68 });
-      doc
-        .font('Helvetica')
-        .fontSize(8)
-        .fillColor('#e0f2fe')
-        .text(
-          'End-to-end dental practice OS on SupplierAdvisor® — diary, care plans, clinical chart, website.',
-          g.mx + g.contentW * 0.68,
-          28,
-          { width: g.contentW * 0.32 }
-        );
-    } else {
-      doc
-        .font('Helvetica-Bold')
-        .fontSize(12)
-        .fillColor('#ffffff')
-        .text(title, g.mx, 30, { width: g.contentW });
-      doc
-        .font('Helvetica')
-        .fontSize(8.5)
-        .fillColor('#e0f2fe')
-        .text(
-          'Tertiary / services dental OS — people, diary, attendance, messages, website & reports.',
-          g.mx,
-          62,
-          { width: g.contentW }
-        );
-    }
+function drawHero(doc: PdfDoc, g: Geo): number {
+  const orientLabel = g.isLandscape ? 'A4 LANDSCAPE · 2 PAGES' : 'A4 PORTRAIT · 2 PAGES';
+  return drawProcessGuideHero(doc, g, {
+    eyebrow: 'DentalAdvisor® · end-to-end process · ' + orientLabel,
+    title: 'Staff → Patients → Services → Diary → Bookings → Website',
+    subtitle: g.isLandscape ? undefined : 'Tertiary / services dental OS — people, diary, attendance, messages, website & reports.',
+    sideNote: g.isLandscape ? 'End-to-end dental practice OS on SupplierAdvisor® — schedule, care plans, website booking.' : undefined,
+    landscape: g.isLandscape,
   });
 }
 
@@ -720,8 +682,8 @@ export async function buildDentalgraphProcessGuidePdf(opts?: {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    drawHero(doc, g);
-    let y = g.isLandscape ? 76 : 100;
+    drawProcessPageWash(doc, g);
+    let y = drawHero(doc, g);
     y = drawChain(doc, g, y);
     y = drawRoleCards(doc, g, y);
 
@@ -739,23 +701,13 @@ export async function buildDentalgraphProcessGuidePdf(opts?: {
     }
 
     doc.addPage({ size: 'A4', layout });
-    withOpenMargins(doc, () => {
-      const headH = g.isLandscape ? 40 : 48;
-      doc.rect(0, 0, g.pageW, headH).fill(BRAND_DEEP);
-      doc.rect(0, headH - 4, g.pageW, 4).fill(BRAND);
-      doc
-        .font('Helvetica-Bold')
-        .fontSize(g.isLandscape ? 11 : 10)
-        .fillColor('#ffffff')
-        .text(
-          'Process continued · Floor · Messages · Website · Guardrails',
-          g.mx,
-          g.isLandscape ? 12 : 14,
-          { width: g.contentW }
-        );
+    drawProcessPageWash(doc, g);
+    y = drawProcessGuidePageHeader(doc, g, {
+      eyebrow: 'DentalAdvisor® · end-to-end process · continued',
+      title: 'Process continued · Floor · Messages · Website · Guardrails',
+      landscape: g.isLandscape,
     });
 
-    y = g.isLandscape ? 48 : 56;
     for (const phase of PROCESS_PHASES.slice(3)) {
       y = drawPhase(doc, g, phase, y);
     }

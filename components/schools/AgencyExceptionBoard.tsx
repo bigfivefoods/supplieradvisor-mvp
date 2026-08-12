@@ -73,24 +73,27 @@ export default function AgencyExceptionBoard({
   }, [load]);
 
   const sev = (s?: string) => {
-    if (s === 'critical') return 'border-rose-300 bg-rose-50 text-rose-950';
-    if (s === 'high') return 'border-amber-300 bg-amber-50 text-amber-950';
-    return 'border-slate-200 bg-white text-slate-900';
+    if (s === 'critical')
+      return 'border-rose-300 bg-rose-50 text-rose-950 dark:border-rose-400/30 dark:bg-gradient-to-r dark:from-rose-950/80 dark:to-rose-900/40 dark:text-rose-50';
+    if (s === 'high')
+      return 'border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-400/30 dark:bg-gradient-to-r dark:from-amber-950/70 dark:to-amber-900/30 dark:text-amber-50';
+    return 'border-slate-200 bg-white text-slate-900 dark:border-violet-500/20 dark:bg-violet-950/30 dark:text-violet-50';
   };
 
   return (
-    <section className="mb-6 overflow-hidden rounded-3xl border border-violet-200 bg-white dark:border-violet-800 dark:bg-slate-950">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-amber-50 px-5 py-4 dark:border-violet-900 dark:from-violet-950 dark:via-slate-950 dark:to-amber-950">
+    <section className="mb-6 overflow-hidden rounded-3xl border border-violet-200 bg-white dark:border-violet-500/30 dark:bg-gradient-to-br dark:from-[#12081f] dark:via-[#1e1033] dark:to-[#2e1065]/80">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-amber-50 px-5 py-4 dark:border-violet-500/20 dark:from-[#1e1033] dark:via-[#4c1d95]/60 dark:to-[#7c3aed]/40">
         <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-violet-600 text-white">
+          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-violet-600 text-white dark:bg-gradient-to-br dark:from-violet-500 dark:to-fuchsia-400 dark:text-slate-950">
             <ShieldAlert className="h-5 w-5" />
           </div>
           <div>
             <p className="text-sm font-black text-slate-900 dark:text-white">
               Exception cockpit · today
             </p>
-            <p className="text-[11px] text-slate-500">
-              Claims · late deliveries · joins · off-catalogue · SP risk
+            <p className="text-[11px] text-slate-500 dark:text-violet-100/75">
+              Full network · kitchen CoA/R638 · claims · late deliveries · joins ·
+              off-catalogue · SP risk
             </p>
           </div>
         </div>
@@ -113,21 +116,47 @@ export default function AgencyExceptionBoard({
       </div>
 
       {summary ? (
-        <div className="grid grid-cols-2 gap-2 border-b border-slate-100 px-4 py-3 sm:grid-cols-4 dark:border-slate-800">
+        <div className="grid grid-cols-2 gap-2 border-b border-slate-100 px-4 py-3 sm:grid-cols-3 lg:grid-cols-6 dark:border-slate-800">
           {[
-            { label: 'Open', v: summary.total ?? 0 },
-            { label: 'Critical', v: summary.critical ?? 0 },
+            {
+              label: 'Schools scanned',
+              v: summary.schools_scanned ?? summary.schools_active ?? 0,
+              hint:
+                summary.schools_active != null
+                  ? `${Number(summary.schools_active).toLocaleString('en-ZA')} active links`
+                  : undefined,
+            },
+            {
+              label: 'Kitchen issues',
+              v: summary.kitchen_issues ?? summary.critical ?? 0,
+              hint:
+                summary.kitchen_coa_missing != null
+                  ? `${Number(summary.kitchen_coa_missing).toLocaleString('en-ZA')} no CoA`
+                  : undefined,
+            },
+            {
+              label: 'No CoA',
+              v: summary.kitchen_coa_missing ?? 0,
+            },
+            { label: 'Open total', v: summary.total ?? 0 },
             { label: 'Claims', v: summary.claims ?? 0 },
             { label: 'Deliveries', v: summary.deliveries ?? 0 },
           ].map((x) => (
             <div
               key={x.label}
-              className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-900"
+              className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 dark:border-violet-500/25 dark:bg-gradient-to-br dark:from-[#1e1033] dark:via-[#4c1d95]/50 dark:to-[#7c3aed]/30"
             >
-              <div className="text-[10px] font-black uppercase text-slate-400">
+              <div className="text-[10px] font-black uppercase text-slate-400 dark:text-violet-200/70">
                 {x.label}
               </div>
-              <div className="text-lg font-black tabular-nums">{x.v}</div>
+              <div className="text-lg font-black tabular-nums text-slate-900 dark:text-white">
+                {Number(x.v).toLocaleString('en-ZA')}
+              </div>
+              {x.hint ? (
+                <div className="text-[10px] font-medium text-slate-400 dark:text-violet-100/60">
+                  {x.hint}
+                </div>
+              ) : null}
             </div>
           ))}
         </div>

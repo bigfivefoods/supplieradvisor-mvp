@@ -811,20 +811,53 @@ async function exceptionsView(
   supabase: ReturnType<typeof getSupabaseServer>,
   companyId: number
 ) {
+  const { fetchByIds } = await import('@/lib/schools/supabase-page');
   const links = await fetchAgencySchoolLinks(supabase, companyId, [
     'active',
     'pending',
+    'suspended',
   ]).catch(() => []);
   const schoolIds = [
     ...new Set(
-      links.map((l) => Number(l.school_profile_id)).filter(Boolean)
+      links
+        .map((l) => Number(l.school_profile_id))
+        .filter((n) => Number.isFinite(n) && n > 0)
     ),
   ];
+  const activeIds = [
+    ...new Set(
+      links
+        .filter((x) => x.status === 'active')
+        .map((l) => Number(l.school_profile_id))
+        .filter((n) => Number.isFinite(n) && n > 0)
+    ),
+  ];
+  const pendingLinks = links.filter((x) => x.status === 'pending');
 
   const exceptions: Array<Record<string, unknown>> = [];
 
-  // Pending school joins
-  for (const l of links.filter((x) => x.status === 'pending').slice(0, 30)) {
+  // Network size context (always surface for DBE)
+  exceptions.push({
+    kind: 'network_scope',
+    severity: 'low',
+    title: `${activeIds.length.toLocaleString('en-ZA')} active school link(s) · ${pendingLinks.length.toLocaleString('en-ZA')} pending · ${schoolIds.length.toLocaleString('en-ZA')} total on book`,
+    href: '/dashboard/schools/agency',
+    schools_active: activeIds.length,
+    schools_pending: pendingLinks.length,
+    schools_total: schoolIds.length,
+  });
+
+  // Pending school joins (count all; list sample)
+  if (pendingLinks.length) {
+    exceptions.push({
+      kind: 'school_pending_rollup',
+      severity: pendingLinks.length > 50 ? 'high' : 'medium',
+      title: `${pendingLinks.length.toLocaleString('en-ZA')} school join(s) awaiting DBE approval`,
+      href: '/dashboard/schools/join',
+      count: pendingLinks.length,
+    });
+  }
+  for (const l of pendingLinks.slice(0, 40)) {
     exceptions.push({
       kind: 'school_pending',
       severity: 'medium',
@@ -835,42 +868,79 @@ async function exceptionsView(
     });
   }
 
-  // Kitchen food safety (CoA / R638) across active schools
+  // Kitchen food safety (CoA / R638) across **all** active schools (not a 200 sample)
+  const kitchenCounts = {
+    scanned: 0,
+    coa_missing: 0,
+    coa_expired: 0,
+    r638_red: 0,
+    peu_noncompliant: 0,
+    ok: 0,
+  };
+  const kitchenSamples: Array<Record<string, unknown>> = [];
   try {
     const {
       readKitchenPassport,
       evaluateKitchenRisk,
     } = await import('@/lib/schools/kitchen-safety');
-    const activeIds = links
-      .filter((x) => x.status === 'active')
-      .map((l) => Number(l.school_profile_id))
-      .filter(Boolean)
-      .slice(0, 200);
-    for (let i = 0; i < activeIds.length; i += 80) {
-      const slice = activeIds.slice(i, i + 80);
-      const { data: schools } = await supabase
-        .from('school_profiles')
-        .select('id, school_name, metadata')
-        .in('id', slice)
-        .limit(100);
-      for (const s of schools || []) {
+
+    // Chunked full-network load via fetchByIds (handles 5k+ schools)
+    for (let i = 0; i < activeIds.length; i += 200) {
+      const slice = activeIds.slice(i, i + 200);
+      let schools: Array<Record<string, unknown>> = [];
+      try {
+        schools = await fetchByIds(
+          supabase,
+          'school_profiles',
+          'id, school_name, metadata, member_type',
+          slice
+        );
+      } catch {
+        const { data } = await supabase
+          .from('school_profiles')
+          .select('id, school_name, metadata, member_type')
+          .in('id', slice)
+          .limit(250);
+        schools = (data || []) as Array<Record<string, unknown>>;
+      }
+      for (const s of schools) {
+        const mt = String(s.member_type || 'school');
+        if (['hospital', 'clinic', 'shelter'].includes(mt)) continue;
+        kitchenCounts.scanned += 1;
         const meta =
           s.metadata && typeof s.metadata === 'object'
             ? (s.metadata as Record<string, unknown>)
             : {};
         const risk = evaluateKitchenRisk(readKitchenPassport(meta));
-        if (risk.band === 'red' || risk.coa_status === 'none' || risk.coa_status === 'expired') {
-          const peuNon =
-            risk.reasons.some((r) => r.toLowerCase().includes('peu'));
-          exceptions.push({
-            kind:
-              risk.coa_status === 'none'
-                ? 'kitchen_coa_missing'
-                : risk.coa_status === 'expired'
-                  ? 'kitchen_coa_expired'
-                  : peuNon
-                    ? 'kitchen_peu_noncompliant'
-                    : 'kitchen_r638_red',
+        const peuNon = risk.reasons.some((r) =>
+          r.toLowerCase().includes('peu')
+        );
+        const flag =
+          risk.band === 'red' ||
+          risk.coa_status === 'none' ||
+          risk.coa_status === 'expired' ||
+          peuNon;
+        if (!flag) {
+          kitchenCounts.ok += 1;
+          continue;
+        }
+        let kind = 'kitchen_r638_red';
+        if (risk.coa_status === 'none') {
+          kind = 'kitchen_coa_missing';
+          kitchenCounts.coa_missing += 1;
+        } else if (risk.coa_status === 'expired') {
+          kind = 'kitchen_coa_expired';
+          kitchenCounts.coa_expired += 1;
+        } else if (peuNon) {
+          kind = 'kitchen_peu_noncompliant';
+          kitchenCounts.peu_noncompliant += 1;
+        } else {
+          kitchenCounts.r638_red += 1;
+        }
+        // Keep a drill-down sample so the list stays readable at 5k scale
+        if (kitchenSamples.length < 80) {
+          kitchenSamples.push({
+            kind,
             severity:
               risk.coa_status === 'none' || risk.band === 'red'
                 ? 'critical'
@@ -882,6 +952,66 @@ async function exceptionsView(
           });
         }
       }
+    }
+
+    const kitchenIssues =
+      kitchenCounts.coa_missing +
+      kitchenCounts.coa_expired +
+      kitchenCounts.r638_red +
+      kitchenCounts.peu_noncompliant;
+
+    if (kitchenCounts.scanned > 0) {
+      exceptions.push({
+        kind: 'kitchen_compliance_rollup',
+        severity:
+          kitchenCounts.coa_missing > 0 || kitchenCounts.r638_red > 0
+            ? 'critical'
+            : kitchenIssues > 0
+              ? 'high'
+              : 'low',
+        title:
+          kitchenIssues > 0
+            ? `${kitchenIssues.toLocaleString('en-ZA')} of ${kitchenCounts.scanned.toLocaleString('en-ZA')} schools need kitchen compliance (CoA / R638 / PEU)`
+            : `Kitchen compliance OK across ${kitchenCounts.scanned.toLocaleString('en-ZA')} schools`,
+        href: '/dashboard/schools/ops',
+        count: kitchenIssues,
+        schools_scanned: kitchenCounts.scanned,
+        coa_missing: kitchenCounts.coa_missing,
+        coa_expired: kitchenCounts.coa_expired,
+        r638_red: kitchenCounts.r638_red,
+        peu_noncompliant: kitchenCounts.peu_noncompliant,
+        ok: kitchenCounts.ok,
+      });
+    }
+    if (kitchenCounts.coa_missing > 0) {
+      exceptions.push({
+        kind: 'kitchen_coa_missing_rollup',
+        severity: 'critical',
+        title: `${kitchenCounts.coa_missing.toLocaleString('en-ZA')} school(s) have no Certificate of Acceptability (CoA)`,
+        href: '/dashboard/schools/kitchen-safety',
+        count: kitchenCounts.coa_missing,
+      });
+    }
+    if (kitchenCounts.coa_expired > 0) {
+      exceptions.push({
+        kind: 'kitchen_coa_expired_rollup',
+        severity: 'critical',
+        title: `${kitchenCounts.coa_expired.toLocaleString('en-ZA')} school(s) have expired CoA`,
+        href: '/dashboard/schools/kitchen-safety',
+        count: kitchenCounts.coa_expired,
+      });
+    }
+    if (kitchenCounts.r638_red > 0) {
+      exceptions.push({
+        kind: 'kitchen_r638_red_rollup',
+        severity: 'critical',
+        title: `${kitchenCounts.r638_red.toLocaleString('en-ZA')} school(s) on R638 red band`,
+        href: '/dashboard/schools/kitchen-safety',
+        count: kitchenCounts.r638_red,
+      });
+    }
+    for (const sample of kitchenSamples) {
+      exceptions.push(sample);
     }
   } catch {
     /* soft */
@@ -939,9 +1069,14 @@ async function exceptionsView(
     });
   }
 
-  // Late / stuck deliveries
+  // Late / stuck deliveries + off-catalogue GRNs — full linked network (chunked)
+  let deliveryIssueCount = 0;
+  let offCatalogueCount = 0;
   if (schoolIds.length) {
-    for (let i = 0; i < Math.min(schoolIds.length, 400); i += 100) {
+    const from14 = new Date();
+    from14.setDate(from14.getDate() - 14);
+    const from14Str = from14.toISOString().slice(0, 10);
+    for (let i = 0; i < schoolIds.length; i += 100) {
       const slice = schoolIds.slice(i, i + 100);
       const { data: dels } = await supabase
         .from('school_nsnp_deliveries')
@@ -950,56 +1085,77 @@ async function exceptionsView(
         )
         .in('school_profile_id', slice)
         .in('status', ['dispatched', 'delivered', 'confirmed'])
-        .limit(200);
+        .limit(500);
       for (const d of dels || []) {
         const late =
           d.expected_date &&
           String(d.expected_date).slice(0, 10) < today();
         const noPod = !(d.metadata as { has_pod_photo?: boolean })
           ?.has_pod_photo;
-        const stuckHours =
-          d.updated_at
-            ? (Date.now() - new Date(String(d.updated_at)).getTime()) /
-              36e5
-            : 0;
+        const stuckHours = d.updated_at
+          ? (Date.now() - new Date(String(d.updated_at)).getTime()) / 36e5
+          : 0;
         if (late || (stuckHours > 48 && d.status !== 'received')) {
-          exceptions.push({
-            kind: late ? 'delivery_late' : 'delivery_stuck',
-            severity: late ? 'high' : 'medium',
-            title: late
-              ? `Late delivery ${d.delivery_number || d.id}`
-              : `Delivery not received >48h ${d.delivery_number || d.id}`,
-            school_profile_id: d.school_profile_id,
-            isp_profile_id: d.isp_profile_id,
-            delivery_id: d.id,
-            no_pod: noPod,
-            href: '/dashboard/schools/ops',
-          });
+          deliveryIssueCount += 1;
+          if (deliveryIssueCount <= 60) {
+            exceptions.push({
+              kind: late ? 'delivery_late' : 'delivery_stuck',
+              severity: late ? 'high' : 'medium',
+              title: late
+                ? `Late delivery ${d.delivery_number || d.id}`
+                : `Delivery not received >48h ${d.delivery_number || d.id}`,
+              school_profile_id: d.school_profile_id,
+              isp_profile_id: d.isp_profile_id,
+              delivery_id: d.id,
+              no_pod: noPod,
+              href: '/dashboard/schools/ops',
+            });
+          }
         }
       }
 
-      // Off-catalogue GRNs last 14 days
-      const from14 = new Date();
-      from14.setDate(from14.getDate() - 14);
       const { data: recs } = await supabase
         .from('school_kitchen_receipts')
-        .select('id, school_profile_id, isp_profile_id, compliance_ok, received_at')
+        .select(
+          'id, school_profile_id, isp_profile_id, compliance_ok, received_at'
+        )
         .in('school_profile_id', slice)
         .eq('compliance_ok', false)
-        .gte('received_at', from14.toISOString().slice(0, 10))
-        .limit(100);
+        .gte('received_at', from14Str)
+        .limit(300);
       for (const r of recs || []) {
-        exceptions.push({
-          kind: 'off_catalogue_grn',
-          severity: 'high',
-          title: 'Off-catalogue kitchen GRN',
-          school_profile_id: r.school_profile_id,
-          isp_profile_id: r.isp_profile_id,
-          receipt_id: r.id,
-          href: '/dashboard/schools/registry-report',
-          action: 'riad',
-        });
+        offCatalogueCount += 1;
+        if (offCatalogueCount <= 40) {
+          exceptions.push({
+            kind: 'off_catalogue_grn',
+            severity: 'high',
+            title: 'Off-catalogue kitchen GRN',
+            school_profile_id: r.school_profile_id,
+            isp_profile_id: r.isp_profile_id,
+            receipt_id: r.id,
+            href: '/dashboard/schools/registry-report',
+            action: 'riad',
+          });
+        }
       }
+    }
+    if (deliveryIssueCount > 0) {
+      exceptions.push({
+        kind: 'delivery_issues_rollup',
+        severity: 'high',
+        title: `${deliveryIssueCount.toLocaleString('en-ZA')} late / stuck delivery issue(s) across network`,
+        href: '/dashboard/schools/ops',
+        count: deliveryIssueCount,
+      });
+    }
+    if (offCatalogueCount > 0) {
+      exceptions.push({
+        kind: 'off_catalogue_rollup',
+        severity: 'high',
+        title: `${offCatalogueCount.toLocaleString('en-ZA')} off-catalogue GRN(s) in last 14 days`,
+        href: '/dashboard/schools/registry-report',
+        count: offCatalogueCount,
+      });
     }
   }
 
@@ -1050,9 +1206,10 @@ async function exceptionsView(
     });
   }
 
-  // Sprint C1 — disputed deliveries + open credit notes across linked schools
+  // Sprint C1 — disputed deliveries + open credit notes (full network, sample list)
+  let disputedCount = 0;
   if (schoolIds.length) {
-    for (let i = 0; i < Math.min(schoolIds.length, 400); i += 100) {
+    for (let i = 0; i < schoolIds.length; i += 100) {
       const slice = schoolIds.slice(i, i + 100);
       const { data: disputed } = await supabase
         .from('school_nsnp_deliveries')
@@ -1061,8 +1218,10 @@ async function exceptionsView(
         )
         .in('school_profile_id', slice)
         .eq('status', 'disputed')
-        .limit(80);
+        .limit(200);
       for (const d of disputed || []) {
+        disputedCount += 1;
+        if (disputedCount > 40) continue;
         const meta = (d.metadata || {}) as Record<string, unknown>;
         const cnStatus = String(meta.credit_note_status || '');
         exceptions.push({
@@ -1085,6 +1244,15 @@ async function exceptionsView(
         });
       }
     }
+    if (disputedCount > 0) {
+      exceptions.push({
+        kind: 'delivery_disputed_rollup',
+        severity: 'high',
+        title: `${disputedCount.toLocaleString('en-ZA')} disputed delivery(ies) / credit-note cases`,
+        href: '/dashboard/schools/deliveries',
+        count: disputedCount,
+      });
+    }
   }
 
   const severityRank: Record<string, number> = {
@@ -1093,37 +1261,76 @@ async function exceptionsView(
     medium: 2,
     low: 3,
   };
-  exceptions.sort(
-    (a, b) =>
-      (severityRank[String(a.severity)] ?? 9) -
-      (severityRank[String(b.severity)] ?? 9)
-  );
+  // Prefer roll-ups first within same severity
+  const isRollup = (e: Record<string, unknown>) =>
+    String(e.kind || '').includes('rollup') || e.kind === 'network_scope';
+  exceptions.sort((a, b) => {
+    const sa = severityRank[String(a.severity)] ?? 9;
+    const sb = severityRank[String(b.severity)] ?? 9;
+    if (sa !== sb) return sa - sb;
+    const ra = isRollup(a) ? 0 : 1;
+    const rb = isRollup(b) ? 0 : 1;
+    return ra - rb;
+  });
 
   const path = buildGoldenPath(
     'agency',
     await gatherCounts(supabase, companyId, 'agency')
   );
 
+  const kitchenIssueTotal =
+    kitchenCounts.coa_missing +
+    kitchenCounts.coa_expired +
+    kitchenCounts.r638_red +
+    kitchenCounts.peu_noncompliant;
+
+  // Open issues count for summary: use roll-up metrics, not raw sample row count
+  const openIssues =
+    kitchenIssueTotal +
+    pendingLinks.length +
+    deliveryIssueCount +
+    offCatalogueCount +
+    disputedCount +
+    exceptions.filter((e) => e.kind === 'claim_submitted').length +
+    exceptions.filter((e) => e.kind === 'open_riad').length +
+    exceptions.filter((e) => e.kind === 'sp_probation' || e.kind === 'sp_pending')
+      .length;
+
   return {
     success: true,
     role: 'agency',
     path,
-    exceptions: exceptions.slice(0, 100),
+    // List: roll-ups + samples (cap keeps payload sane at 5k schools)
+    exceptions: exceptions.slice(0, 120),
     summary: {
-      total: exceptions.length,
-      critical: exceptions.filter((e) => e.severity === 'critical').length,
-      high: exceptions.filter((e) => e.severity === 'high').length,
+      total: openIssues,
+      // Critical = kitchen compliance gaps (full network) + aged RIADs
+      critical:
+        kitchenIssueTotal +
+        exceptions.filter(
+          (e) => e.kind === 'open_riad' && e.severity === 'critical'
+        ).length,
+      high:
+        deliveryIssueCount +
+        offCatalogueCount +
+        disputedCount +
+        pendingLinks.length +
+        exceptions.filter((e) => e.kind === 'claim_submitted').length,
       claims: exceptions.filter((e) => e.kind === 'claim_submitted').length,
-      deliveries: exceptions.filter((e) =>
-        String(e.kind).startsWith('delivery')
-      ).length,
+      deliveries: deliveryIssueCount,
       riads: exceptions.filter((e) => e.kind === 'open_riad').length,
-      off_catalogue: exceptions.filter((e) => e.kind === 'off_catalogue_grn')
-        .length,
-      disputed: exceptions.filter(
-        (e) =>
-          e.kind === 'delivery_disputed' || e.kind === 'credit_note_open'
-      ).length,
+      off_catalogue: offCatalogueCount,
+      disputed: disputedCount,
+      schools_active: activeIds.length,
+      schools_pending: pendingLinks.length,
+      schools_total: schoolIds.length,
+      schools_scanned: kitchenCounts.scanned,
+      kitchen_coa_missing: kitchenCounts.coa_missing,
+      kitchen_coa_expired: kitchenCounts.coa_expired,
+      kitchen_r638_red: kitchenCounts.r638_red,
+      kitchen_peu_noncompliant: kitchenCounts.peu_noncompliant,
+      kitchen_ok: kitchenCounts.ok,
+      kitchen_issues: kitchenIssueTotal,
     },
   };
 }
