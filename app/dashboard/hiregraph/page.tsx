@@ -172,22 +172,22 @@ export default function HiregraphHubPage() {
             <TelemetryCard
               label="Listed items"
               value={Number(summary?.listedItems) || 0}
-              hint={`${Number(summary?.itemCount) || 0} in catalogue`}
+              sub={`${Number(summary?.itemCount) || 0} in catalogue`}
             />
             <TelemetryCard
               label="Open bookings"
               value={Number(summary?.openBookings) || 0}
-              hint={`${Number(summary?.outNow) || 0} out now`}
+              sub={`${Number(summary?.outNow) || 0} out now`}
             />
             <TelemetryCard
               label="Hire GMV"
               value={`R${Number(summary?.gmvZar || 0).toLocaleString('en-ZA')}`}
-              hint="Completed rentals"
+              sub="Completed rentals"
             />
             <TelemetryCard
               label="Platform fees"
               value={`R${Number(summary?.platformFeesZar || 0).toLocaleString('en-ZA')}`}
-              hint={`${HIRE_SUPPLIER_COMMISSION_PCT}% + ${HIRE_CUSTOMER_COMMISSION_PCT}%`}
+              sub={`${HIRE_SUPPLIER_COMMISSION_PCT}% + ${HIRE_CUSTOMER_COMMISSION_PCT}%`}
             />
           </HubTelemetryGrid>
         )}
