@@ -204,11 +204,11 @@ const MODULE_OPTIONS: Array<{
     title: 'Government',
     price: 'Specialist setup',
     eyebrow: 'Public programmes',
-    body: 'National → Provincial → Municipal → Local programme workspaces — DBE / NSNP schools, DoH facilities, multi-entity roles.',
+    body: 'National → Provincial → Municipal → Local programme workspaces — SchoolAdvisor® (DBE / NSNP), DoH facilities, multi-entity roles. Schools always run the public-sector government process.',
     tone: 'border-violet-200 bg-gradient-to-br from-violet-50/80 to-white dark:border-violet-500/30 dark:from-violet-500/10 dark:to-black',
     iconTone: 'bg-violet-100 text-violet-800 dark:bg-violet-500/15 dark:text-violet-300',
     bullets: [
-      'Schools (NSNP / DBE)',
+      'SchoolAdvisor® (NSNP / DBE · public sector)',
       'Health (DoH facilities)',
       'National · Provincial · Municipal · Local',
     ],
@@ -1880,7 +1880,7 @@ export default function LandingPage() {
               },
               {
                 icon: Users2,
-                t: 'Schools & associations',
+                t: 'SchoolAdvisor® & associations',
                 b: 'Shared metrics, accountable spend, and collective network power.',
                 href: '/onboarding?type=association',
                 cta: 'Register group',

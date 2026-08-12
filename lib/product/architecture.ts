@@ -347,11 +347,11 @@ export const PUBLIC_SECTOR_TIERS = [
     programmes: [
       {
         id: 'local_schools',
-        name: 'Schools (NSNP kitchen)',
+        name: 'SchoolAdvisor® (NSNP kitchen)',
         description:
-          'School kitchen workspace — learners, approved brands, SPs, feeding calendar, serve day, prizes. Local NSNP site, not the national DoE or provincial DBE agency.',
+          'SchoolAdvisor® kitchen workspace — learners, approved brands, SPs, feeding calendar, serve day, prizes. Local NSNP site under public-sector government process (not private company packaging).',
         moduleIds: ['schools'] as const,
-        chips: ['School', 'Kitchen', 'Serve day', 'NSNP local'],
+        chips: ['SchoolAdvisor', 'Kitchen', 'Serve day', 'NSNP local'],
       },
       {
         id: 'local_health',
@@ -416,10 +416,10 @@ export const OS_ENTITY_TYPES = [
   },
   {
     id: 'school',
-    label: 'Local — School',
-    shortLabel: 'Local',
+    label: 'Local — SchoolAdvisor school',
+    shortLabel: 'School',
     description:
-      'Local school kitchen & NSNP site workspace — simplified navigation.',
+      'SchoolAdvisor® local kitchen & NSNP site — always Public Sector (government process), not private OS packaging.',
     businessType: 'school',
     setupPath: 'self_serve' as const,
     publicSector: true,
@@ -945,9 +945,9 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     modules: [
       {
         id: 'pp_nsnp',
-        name: 'NSNP programme (DBE provincial + local schools)',
+        name: 'SchoolAdvisor® (DBE provincial + local schools)',
         description:
-          'Full Schools hub — DBE/PEU agency views (provincial) and school kitchen (local).',
+          'SchoolAdvisor® hub — DBE/PEU agency views (provincial) and school kitchen (local). Public sector government process only.',
         unlocks: ['schools'],
       },
       {
@@ -964,7 +964,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       },
     ],
     industryToolsHrefs: [
-      { name: 'Schools hub', href: '/dashboard/schools', desc: 'DBE + local NSNP OS' },
+      { name: 'SchoolAdvisor® hub', href: '/dashboard/schools', desc: 'DBE + local NSNP OS' },
       { name: 'Approved foods', href: '/dashboard/schools/approved-list', desc: 'Catalogue' },
       { name: 'Kitchen', href: '/dashboard/schools/kitchen', desc: 'Local school stock' },
       { name: 'Orders / SP', href: '/dashboard/schools/orders', desc: 'School POs' },
@@ -1228,15 +1228,36 @@ export function packagingFromSelection(opts: {
     opts.businessTypeId,
     opts.businessTypeIds
   );
+  // SchoolAdvisor / public-sector school entities always stay on government process
+  let sectorId = opts.sectorId;
+  let packIds = [...new Set(opts.packIds)];
+  let moduleIds = [...new Set(opts.moduleIds || [])];
+  const isSchoolEntity =
+    opts.entityTypeId === 'school' ||
+    businessTypeIds.some((b) => /school|public_school|special_school/i.test(b));
+  if (isSchoolEntity || entity?.publicSector) {
+    if (isSchoolEntity || opts.entityTypeId === 'provincial' || opts.entityTypeId === 'national') {
+      sectorId = 'public_sector';
+    }
+  }
+  if (isSchoolEntity) {
+    sectorId = 'public_sector';
+    if (!packIds.includes('public_procurement')) {
+      packIds = [...packIds, 'public_procurement'];
+    }
+    if (!moduleIds.includes('schools')) {
+      moduleIds = [...moduleIds, 'schools'];
+    }
+  }
   return {
     entityTypeId: opts.entityTypeId,
-    sectorId: opts.sectorId,
+    sectorId,
     industryIds,
     industryId: industryIds[0] || null,
     businessTypeIds,
     businessTypeId: businessTypeIds[0] || null,
-    packIds: [...new Set(opts.packIds)],
-    moduleIds: [...new Set(opts.moduleIds || [])],
+    packIds,
+    moduleIds,
     setupPath,
     setupStatus:
       setupPath === 'contact_required' ? 'contact_required' : 'active',
@@ -1297,15 +1318,39 @@ export function readPackagingFromMetadata(
       : null
   );
   const setupStatus = String(meta.setup_status || 'active') as PackagingSelection['setupStatus'];
+  // Coerce legacy school packaging off private sectors onto public_sector
+  let ent = entityTypeId || 'private_company';
+  let sec = sectorId || 'secondary';
+  let packs = packIds;
+  let mods = moduleIds;
+  const looksSchool =
+    ent === 'school' ||
+    businessTypeIds.some((b) => /school/i.test(b)) ||
+    String(meta.entity_kind || '') === 'school' ||
+    String(meta.programme || '') === 'schooladvisor' ||
+    mods.includes('schools');
+  if (ent === 'school' || String(meta.entity_kind || '') === 'school') {
+    ent = 'school';
+    sec = 'public_sector';
+    if (!packs.includes('public_procurement')) {
+      packs = [...packs, 'public_procurement'];
+    }
+    if (!mods.includes('schools')) mods = [...mods, 'schools'];
+  } else if (looksSchool && (sec === 'secondary' || sec === 'tertiary' || !sectorId)) {
+    // SchoolAdvisor modules enabled under wrong sector → force public sector
+    if (mods.includes('schools') && ent === 'school') {
+      sec = 'public_sector';
+    }
+  }
   return {
-    entityTypeId: entityTypeId || 'private_company',
-    sectorId: sectorId || 'secondary',
+    entityTypeId: ent,
+    sectorId: sec,
     industryIds,
     industryId: industryIds[0] || null,
     businessTypeIds,
     businessTypeId: businessTypeIds[0] || null,
-    packIds,
-    moduleIds,
+    packIds: packs,
+    moduleIds: mods,
     setupPath:
       setupStatus === 'contact_required' || setupStatus === 'pending_specialist'
         ? 'contact_required'

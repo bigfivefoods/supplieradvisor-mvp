@@ -21,7 +21,7 @@ import {
 /**
  * Functional ordering of existing MODULE_NAV ids (1:1, full trees preserved).
  * 1) Control Tower (+ Platform admin sits under it)
- * 2) Industry / programme OS (FitAdvisor · QuarryAdvisor · CropAdvisor · DBE/Schools)
+ * 2) Industry / programme OS (FitAdvisor · QuarryAdvisor · CropAdvisor · SchoolAdvisor)
  * 3) Core modules
  */
 export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
@@ -37,7 +37,7 @@ export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
   'medicalgraph', // MedicalAdvisor® medical practice OS
   'quarrygraph', // QuarryAdvisor® aggregates OS
   'fieldgraph', // CropAdvisor® agri OS
-  'schools', // DBE / NSNP (Schools)
+  'schools', // SchoolAdvisor® (public sector / NSNP)
   'health', // DoH programme (with industry/programmes)
   'containers', // Industry vertical (packs)
 
@@ -87,7 +87,7 @@ export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
   psychiatrygraph: 'PsychiatryAdvisor (Mental health)',
   medicalgraph: 'MedicalAdvisor (Medical)',
   containers: 'Containers',
-  schools: 'DBE / Schools',
+  schools: 'SchoolAdvisor',
   health: 'Health',
   network: 'Network',
   people: 'People',
@@ -314,7 +314,7 @@ function buildIndustryToolsSubs(
     push('Containers hub', '/dashboard/containers', 'Full container OS');
   }
   if (isModuleEnabled('schools')) {
-    push('Schools / NSNP hub', '/dashboard/schools', 'Full schools programme');
+    push('SchoolAdvisor® hub', '/dashboard/schools', 'Public sector NSNP programme');
   }
   if (isModuleEnabled('manufacturing')) {
     push('Make · MPS/MRP', '/dashboard/manufacturing', 'Full manufacturing');

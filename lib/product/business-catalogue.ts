@@ -418,22 +418,25 @@ export const INDUSTRIES: readonly IndustryOption[] = [
   },
   {
     id: 'public_local',
-    label: 'Local — schools & facilities',
-    description: 'Schools (NSNP kitchens), clinics and local service sites.',
+    label: 'Local — SchoolAdvisor & facilities',
+    description:
+      'SchoolAdvisor® (NSNP kitchens), clinics and local public service sites. Schools always use the public-sector government process.',
     sectorId: 'public_sector',
     packIds: ['public_procurement'],
     businessTypes: [
       {
         id: 'public_school',
-        label: 'Public school (NSNP kitchen)',
-        description: 'School kitchen, learners, SPs, serve day — local NSNP site.',
+        label: 'SchoolAdvisor® · Public school (NSNP kitchen)',
+        description:
+          'School kitchen, learners, SPs, serve day — local NSNP site under public sector.',
         profileBusinessType: 'school',
         entityTypeId: 'school',
       },
       {
         id: 'special_school',
-        label: 'Special / LSEN school',
-        description: 'Special needs school on NSNP or feeding programmes.',
+        label: 'SchoolAdvisor® · Special / LSEN school',
+        description:
+          'Special needs school on NSNP or feeding programmes (public sector).',
         profileBusinessType: 'school',
         entityTypeId: 'school',
       },

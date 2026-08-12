@@ -1911,10 +1911,10 @@ export const GUIDE_SECTIONS: GuideSection[] = [
   {
     slug: 'schools',
     moduleId: 'schools',
-    title: 'Schools (NSNP)',
-    tagline: 'DBE → school → SP → learners · process design',
+    title: 'SchoolAdvisor® (NSNP)',
+    tagline: 'Public sector · DBE → school → SP → learners',
     purpose:
-      'National School Nutrition Programme OS: department govern, school kitchen & learners, SP supply. Expandable process design + printable PDF on Schools hubs (same pattern as CropAdvisor).',
+      'SchoolAdvisor® — National School Nutrition Programme OS on the government / public-sector pathway only: department govern, school kitchen & learners, SP supply. Expandable process design + printable PDF on SchoolAdvisor hubs.',
     who: ['DBE / PEU', 'School kitchen', 'Service provider'],
     flow: [
       { id: 'a', label: 'Govern', hint: 'DBE', tone: 'slate' },
@@ -1927,16 +1927,21 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       {
         name: 'Open role-correct hub',
         href: '/dashboard/schools',
-        summary: 'DBE, School, or SP tree depends on programme role.',
+        summary: 'DBE, School, or SP tree depends on programme role (public sector).',
         steps: [
           'Confirm programme role (department / school / SP)',
+          'Confirm packaging is Public Sector (not private company)',
           'Follow sidebar sections for your role only',
-          'Expand full process design on the Schools hub',
+          'Expand full process design on the SchoolAdvisor hub',
           'Download process PDF for training packs',
         ],
       },
     ],
-    checklist: ['Role correct on sidebar', 'Opened process design once'],
+    checklist: [
+      'Role correct on sidebar',
+      'Sector = Public Sector',
+      'Opened process design once',
+    ],
     related: ['suppliers', 'inventory'],
   },
   {
@@ -2108,7 +2113,7 @@ export function buildGuideNavSteps(
     'roles-security': 'Secure',
     people: 'People',
     sheq: 'SHEQ',
-    schools: 'Schools',
+    schools: 'SchoolAdvisor',
     health: 'Health',
   };
 

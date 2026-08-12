@@ -135,10 +135,21 @@ function ModulesInner() {
       setSelectedPacks(packSel?.packIds || []);
       setPacksDirty(false);
       const org = `${profile.org_type || ''} ${profile.business_type || ''}`.toLowerCase();
+      const packagingSector = String(packSel?.sectorId || '');
+      const packagingEntity = String(packSel?.entityTypeId || '');
       const isGov =
         org.includes('government') ||
         org.includes('dbe') ||
-        org.includes('health');
+        org.includes('health') ||
+        org.includes('school') ||
+        org.includes('nsnp') ||
+        packagingSector === 'public_sector' ||
+        packagingEntity === 'school' ||
+        packagingEntity === 'provincial' ||
+        packagingEntity === 'national' ||
+        packagingEntity === 'municipal' ||
+        String(meta.programme || '') === 'schooladvisor' ||
+        String(meta.entity_kind || '') === 'school';
       let operator = false;
       if (ctrlRes.ok) {
         const ctrl = await ctrlRes.json();
@@ -288,7 +299,7 @@ function ModulesInner() {
     if (govLocked) {
       toast.message(
         lockMessage ||
-          'Programme modules for government departments are managed centrally.'
+          'SchoolAdvisor® and other government programmes use the public-sector process and are managed centrally.'
       );
       return;
     }
@@ -755,7 +766,7 @@ function ModulesInner() {
       {govLocked ? (
         <div className="mb-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950">
           {lockMessage ||
-            'Programme modules for government departments are managed centrally and cannot be changed here.'}
+            'SchoolAdvisor® (schools / DBE / NSNP SP) and other government programmes use the public-sector process and cannot be re-packaged as private companies here.'}
           {platformOperator ? null : null}
         </div>
       ) : null}

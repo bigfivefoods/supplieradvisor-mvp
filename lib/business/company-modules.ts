@@ -52,7 +52,7 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
     'MedicalAdvisor® (tertiary services) — GPs & nurses, patients, consults, care packs, diary, scripts, medical chart, portal & messages',
   intelligence: 'Pulse, forecasts, scorecards & Super-Cube® leadership',
   schools:
-    'NSNP schools: kitchen, learners, SPs, approved brands, feeding, prizes (DBE only)',
+    'SchoolAdvisor® (public sector) — NSNP kitchen, learners, SPs, catalogue, feeding, prizes (DBE / PEU / schools)',
   health:
     'Department of Health: clinics, hospitals, SPs, approved foods & nutrition',
   platform:
@@ -188,7 +188,7 @@ export const MODULE_CATEGORIES: ModuleCategory[] = [
     id: 'ind_programme',
     band: 'industry',
     title: 'Public programmes',
-    blurb: 'Schools (NSNP / DBE) and Health (DoH).',
+    blurb: 'SchoolAdvisor® (NSNP / DBE) and Health (DoH) — government process only.',
     moduleIds: ['schools', 'health'],
   },
 ];
@@ -260,23 +260,23 @@ export const MODULE_PRESETS: Array<{
   },
   {
     id: 'school_nsnp',
-    label: 'School / NSNP',
+    label: 'SchoolAdvisor · School',
     description:
-      'School kitchen, learners, approved brands, SPs, feeding & prizes.',
+      'Public sector school kitchen — learners, catalogue, SPs, feeding & prizes (government process).',
     enable: ['schools', 'inventory', 'suppliers', 'network', 'quality', 'sheq'],
   },
   {
     id: 'dbe_agency',
-    label: 'DBE / PEU agency',
+    label: 'SchoolAdvisor · DBE / PEU',
     description:
-      'Approve schools, catalogue, PEU visits, claims, multi-school nutrition. (Not DoH.)',
+      'Provincial/national education agency — approve schools, catalogue, PEU visits, claims. (Not DoH.)',
     enable: ['schools', 'network', 'intelligence'],
   },
   {
     id: 'nsnp_isp',
-    label: 'NSNP SP',
+    label: 'SchoolAdvisor · NSNP SP',
     description:
-      'Deliver to schools + buy from wholesalers (suppliers, inventory, schools).',
+      'Service provider to schools — deliver + buy from wholesalers (suppliers, inventory, SchoolAdvisor).',
     enable: [
       'schools',
       'suppliers',

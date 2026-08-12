@@ -11,6 +11,7 @@ import {
   fetchByIds,
 } from '@/lib/schools/supabase-page';
 import { familyForAgencyType } from '@/lib/entities/programme-hierarchy';
+import { schoolAdvisorWorkspaceMetadata } from '@/lib/schools/schooladvisor-packaging';
 
 function familyForAgencyTypeSafe(t: string) {
   try {
@@ -1420,17 +1421,10 @@ export async function POST(request: NextRequest) {
           status: 'active',
           created_at: now,
           updated_at: now,
-          metadata: {
-            entity_kind: 'school',
+          metadata: schoolAdvisorWorkspaceMetadata({
             dbe_created: true,
             dbe_agency_profile_id: companyId,
-            enabled_modules: {
-              schools: true,
-              home: true,
-              guide: true,
-              network: true,
-            },
-          },
+          }),
         })
         .select('id')
         .single();
@@ -1677,11 +1671,24 @@ export async function POST(request: NextRequest) {
       }
       // Align identity as school
       try {
+        const { data: existingProf } = await supabase
+          .from('profiles')
+          .select('metadata')
+          .eq('id', targetCompanyId)
+          .maybeSingle();
+        const meta0 =
+          existingProf?.metadata && typeof existingProf.metadata === 'object'
+            ? { ...(existingProf.metadata as Record<string, unknown>) }
+            : {};
+        const { applySchoolAdvisorPackagingToMetadata } = await import(
+          '@/lib/schools/schooladvisor-packaging'
+        );
         await supabase
           .from('profiles')
           .update({
             org_type: 'school',
             business_type: 'school',
+            metadata: applySchoolAdvisorPackagingToMetadata(meta0, 'school'),
             updated_at: new Date().toISOString(),
           })
           .eq('id', targetCompanyId);

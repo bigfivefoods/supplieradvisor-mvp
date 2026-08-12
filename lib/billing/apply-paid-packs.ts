@@ -133,15 +133,24 @@ export async function applyPaidIndustryPacks(
     const nextPackIds = [
       ...new Set([...(currentPack?.packIds || []), ...packIds]),
     ];
+    const isSchool =
+      String(fullProf.business_type || '') === 'school' ||
+      String(fullProf.business_type || '').includes('school') ||
+      currentPack?.entityTypeId === 'school';
     const selection = packagingFromSelection({
       entityTypeId:
         currentPack?.entityTypeId ||
-        (String(fullProf.business_type || '') === 'school'
-          ? 'school'
-          : 'private_company'),
-      sectorId: currentPack?.sectorId || 'secondary',
-      packIds: nextPackIds,
-      moduleIds: currentPack?.moduleIds || [],
+        (isSchool ? 'school' : 'private_company'),
+      // SchoolAdvisor always uses public-sector government process
+      sectorId: isSchool
+        ? 'public_sector'
+        : currentPack?.sectorId || 'secondary',
+      packIds: isSchool
+        ? [...new Set([...nextPackIds, 'public_procurement'])]
+        : nextPackIds,
+      moduleIds: isSchool
+        ? [...new Set([...(currentPack?.moduleIds || []), 'schools'])]
+        : currentPack?.moduleIds || [],
     });
     Object.assign(meta, packagingMetadataBlob(selection));
     if (opts.paystackReference) {

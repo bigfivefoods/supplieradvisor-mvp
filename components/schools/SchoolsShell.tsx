@@ -9,8 +9,8 @@ import {
 } from '@/components/relationship/RelationshipChrome';
 
 /**
- * In-page schools nav is OFF by default — module chrome (sidebar + process bar)
- * is the single source of truth, grouped DBE → School → SP.
+ * In-page SchoolAdvisor® nav is OFF by default — module chrome (sidebar + process bar)
+ * is the single source of truth, grouped DBE → School → SP (public sector only).
  * Kept for rare explicit showNav=true use.
  */
 export const SCHOOLS_NAV: readonly NavItem[] = [
@@ -29,7 +29,7 @@ export function SchoolsNav() {
 }
 
 export function CompanyRequired({ children }: { children: React.ReactNode }) {
-  return <CompanyGate noun="Schools / NSNP">{children}</CompanyGate>;
+  return <CompanyGate noun="SchoolAdvisor®">{children}</CompanyGate>;
 }
 
 export function SchoolsHeader({
@@ -50,15 +50,15 @@ export function SchoolsHeader({
 }) {
   const eyebrow =
     mode === 'agency'
-      ? 'DBE · PEU programme'
+      ? 'SchoolAdvisor® · DBE / PEU (public sector)'
       : mode === 'isp'
-        ? 'SP · NSNP supply'
-        : 'School · NSNP kitchen';
+        ? 'SchoolAdvisor® · SP supply'
+        : 'SchoolAdvisor® · NSNP kitchen';
 
   return (
     <RelationshipHeader
       backHref="/dashboard/schools"
-      backLabel="Schools command"
+      backLabel="SchoolAdvisor command"
       eyebrow={eyebrow}
       title={title}
       titleAccent={titleAccent}

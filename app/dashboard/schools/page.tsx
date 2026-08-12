@@ -125,9 +125,9 @@ function Inner() {
     return (
       <SchoolsPage>
         <SchoolsHeader
-          title="NSNP command"
-          titleAccent="Loading"
-          description="Building your school / DBE command centre…"
+          title="SchoolAdvisor"
+          titleAccent="®"
+          description="Building your SchoolAdvisor® public-sector command centre…"
           mode={role}
         />
         <div className="py-20 flex justify-center">
@@ -141,9 +141,9 @@ function Inner() {
     return (
       <SchoolsPage>
         <SchoolsHeader
-          title="SP command"
+          title="SchoolAdvisor · SP"
           titleAccent="Supply"
-          description="Receive school POs → procure approved items → deliver to schools. You do not set menus. See the full DBE → school → SP → children fed process below."
+          description="SchoolAdvisor® service provider path (public sector NSNP): receive school POs → procure approved items → deliver. You do not set menus. DBE → school → SP → children fed."
           mode="isp"
           action={
             <div className="flex flex-wrap items-center gap-2">
@@ -285,9 +285,9 @@ function Inner() {
     return (
       <SchoolsPage>
         <SchoolsHeader
-          title="DBE / PEU command"
+          title="SchoolAdvisor · DBE / PEU"
           titleAccent="Programme"
-          description="DBE does not order or receive food. Set the catalogue, menus, recipes and feeding calendar; approve schools & SPs; run PEU compliance; review claims. Schools order and receive; SPs supply."
+          description="SchoolAdvisor® agency path (public sector). DBE does not order or receive food. Set the catalogue, menus, recipes and feeding calendar; approve schools & SPs; run PEU compliance; review claims. Schools order and receive; SPs supply."
           mode="agency"
           action={
             <div className="flex flex-wrap items-center gap-2">
@@ -490,18 +490,19 @@ function Inner() {
   return (
     <SchoolsPage>
       <SchoolsHeader
-        title={String(school?.school_name || 'School NSNP')}
-        titleAccent="Command"
+        title={String(school?.school_name || 'SchoolAdvisor')}
+        titleAccent="®"
         description={
           String(school?.motto || '') ||
           [
             school?.emis_number && `EMIS ${school.emis_number}`,
             school?.district,
             school?.province,
+            'Public sector · NSNP kitchen',
           ]
             .filter(Boolean)
             .join(' · ') ||
-          'Own kitchen · approved brands · better meals for every child'
+          'SchoolAdvisor® · own kitchen · approved brands · better meals for every child'
         }
         mode="school"
         action={

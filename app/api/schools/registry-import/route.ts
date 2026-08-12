@@ -11,6 +11,7 @@ import {
   REGISTRY_BATCH_SIZE,
 } from '@/lib/schools/school-registry-import';
 import { getAgencyRegistration } from '@/lib/schools/approved-catalogue';
+import { schoolAdvisorWorkspaceMetadata } from '@/lib/schools/schooladvisor-packaging';
 
 export const runtime = 'nodejs';
 /** Prefer Pro plan 60s; Hobby still caps ~10s — keep batches small + bulk SQL. */
@@ -381,12 +382,10 @@ async function importBatchFast(
           business_type: 'school',
           province: row.province || provinceDefault,
           city: row.local_municipality || null,
-          metadata: {
-            entity_kind: 'school',
+          metadata: schoolAdvisorWorkspaceMetadata({
             registry_import: true,
             natemis: row.natemis,
-            enabled_modules: { schools: true, home: true, guide: true },
-          },
+          }),
           updated_at: now,
         })
         .select('id')

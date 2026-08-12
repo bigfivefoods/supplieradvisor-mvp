@@ -29,14 +29,14 @@ Automated: `lib/chrome/module-nav-integrity.test.ts` (or script).
 | 13 | `intelligence` | Intelligence | 7 | ✅ Full |
 | 14 | `sustainability` | Impact | 8 | ✅ Full |
 | 15 | `containers` | Containers | 13 | ✅ Full |
-| 16 | `schools` | Schools | 57* | ✅ Full (role-filtered steps) |
+| 16 | `schools` | SchoolAdvisor | 57* | ✅ Full (role-filtered steps) |
 | 17 | `health` | Health | 18* | ✅ Full (role-filtered steps) |
 | 18 | `network` | Network | 5 | ✅ Full |
 | 19 | `people` | People | 9 | ✅ Full |
 | 20 | `my-business` | Company | 15 | ✅ Full (+ Packaging) |
 | 21 | `guide` | Guide | 12 | ✅ Full |
 
-\* Schools/Health step counts include DBE / School / SP (or DoH / Facility / SP) groups; sidebar filters by programme role but does **not** drop the module tree definition.
+\* SchoolAdvisor/Health step counts include DBE / School / SP (or DoH / Facility / SP) groups; sidebar filters by programme role but does **not** drop the module tree definition. SchoolAdvisor is public-sector only.
 
 **Total:** 21 modules · **233** process steps in `MODULE_NAV`.
 
@@ -148,7 +148,7 @@ Command · Manage · Map · Impact · Feasibility · Add · Contractors · Resel
 
 ---
 
-## Schools (`schools`) — full NSNP (DBE / School / SP groups)
+## SchoolAdvisor (`schools`) — full NSNP public sector (DBE / School / SP groups)
 
 Includes (non-exhaustive of 57): Command, Desk, Join, Registry import, Catalogue, Menu, Recipes, Feeding calendar, Kitchen, Kitchen pack, Orders, Deliveries, Serve day, Claims, SP SLA, Visits, Monitoring, Prizes, SP workspace, etc. — **all defined in MODULE_NAV** ✅  
 Sidebar filters by programme role; definitions never stripped by packaging.
@@ -173,7 +173,7 @@ DoH desk · Join · Facilities · Catalogue · Orders · Kitchen · Nutrition ·
 ## School simplified visibility
 
 When entity = school, some **hubs** are hidden by default (Customers, Make, Sales portal, Containers, Projects) if not pack-enabled.  
-**Schools module remains fully available** with kitchen, orders, serve day, claims, etc.
+**SchoolAdvisor® remains fully available** with kitchen, orders, serve day, claims, etc. Always packaged under Public Sector (government process).
 
 ---
 

@@ -752,15 +752,16 @@ export const MODULE_NAV: readonly ModuleNav[] = [
   },
   {
     id: 'schools',
-    name: 'Schools',
+    name: 'SchoolAdvisor',
     icon: School,
     href: '/dashboard/schools',
     resource: 'schools',
     /**
-     * Education / NSNP only (filtered by company role):
+     * SchoolAdvisor® — public sector / government programme only:
      * 1) DBE / PEU — department governs programme
-     * 2) School — kitchen & learners
+     * 2) School — kitchen & learners (local NSNP site)
      * 3) SP — service provider
+     * Always sector public_sector (not private OS packaging).
      */
     steps: [
       // ── DBE / PEU (concise, sectioned) ───────────────────────────────

@@ -1,8 +1,8 @@
 /**
- * Programme role under the Schools module (education / NSNP only):
+ * Programme role under SchoolAdvisor® (public sector / NSNP only):
  *   department (DBE / PEU) · school · sp (service provider)
  *
- * Schools module is DBE / PEU / schools / SPs only.
+ * SchoolAdvisor is the government-process education programme — never private OS packaging.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { familyForAgencyType } from '@/lib/entities/programme-hierarchy';
@@ -74,7 +74,7 @@ export function infoForProgrammeRole(role: ProgrammeRole): ProgrammeRoleInfo {
     return {
       role: 'department',
       group: 'DBE',
-      label: 'Department (DBE / PEU)',
+      label: 'SchoolAdvisor · Department (DBE / PEU)',
       homePath: '/dashboard/schools',
     };
   }
@@ -82,14 +82,14 @@ export function infoForProgrammeRole(role: ProgrammeRole): ProgrammeRoleInfo {
     return {
       role: 'sp',
       group: 'SP',
-      label: 'Service Provider',
+      label: 'SchoolAdvisor · Service Provider',
       homePath: '/dashboard/schools/isp',
     };
   }
   return {
     role: 'school',
     group: 'School',
-    label: 'School',
+    label: 'SchoolAdvisor · School',
     homePath: '/dashboard/schools',
   };
 }

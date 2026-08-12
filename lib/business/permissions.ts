@@ -492,7 +492,7 @@ export function resourceLabel(resource: PermissionResource): string {
     sales_portal: 'Sales contractor portal',
     sheq: 'SHEQ',
     people: 'People (HR)',
-    schools: 'Schools (NSNP)',
+    schools: 'SchoolAdvisor® (NSNP)',
     platform: 'Platform console',
   };
   return map[resource];
