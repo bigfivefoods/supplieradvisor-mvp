@@ -342,7 +342,7 @@ export const PROCESS_STEPS: ProcessStep[] = [
     stage: 'govern',
     label: 'Analytics',
     href: '/dashboard/schools/report',
-    desc: 'Slice & dice NSNP performance',
+    desc: 'Owner A4 management pack · slice & dice',
     school: true,
     agency: true,
   },

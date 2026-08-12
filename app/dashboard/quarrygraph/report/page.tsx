@@ -12,6 +12,7 @@ import {
   useQuarrygraph,
 } from '@/components/quarry/QuarrygraphWorkbench';
 import { DataTable, StatRow } from '@/components/quarry/SimpleEntityForm';
+import ManagementReportPanel from '@/components/advisors/ManagementReportPanel';
 
 const TABS = [
   'overview',
@@ -166,6 +167,8 @@ export default function QuarryReportPage() {
       titleAccent="management pack"
       description="Multi-quarry roll-up, vehicle KPIs (fuel util L/h · L/km, cost R/km, R/t), plant vs dispatch balance, labour and compliance — filter and export CSV."
     >
+
+      <ManagementReportPanel advisor="quarrygraph" className="mb-6" />
       {loading || !store ? (
         <LoadingBlock />
       ) : (

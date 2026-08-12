@@ -11,6 +11,7 @@ import {
   HealthPage,
 } from '@/components/health/HealthShell';
 import { useHealthProgrammeRole } from '@/lib/health/useProgrammeRole';
+import ManagementReportPanel from '@/components/advisors/ManagementReportPanel';
 
 export default function HealthReportPage() {
   return (
@@ -136,6 +137,7 @@ function Inner() {
 
   return (
     <HealthPage>
+      <ManagementReportPanel advisor="health" className="mb-6" />
       <HealthHeader
         title="Health coverage report"
         titleAccent={String(agency?.agency_name || 'DoH')}

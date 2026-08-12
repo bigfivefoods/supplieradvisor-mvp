@@ -7,6 +7,7 @@ import {
 } from '@/components/clinic/MedicalgraphWorkbench';
 import { DataTable, StatRow } from '@/components/clinic/MedicalForm';
 import { healthSummaryLabel, isInjured } from '@/lib/health/body-map';
+import ManagementReportPanel from '@/components/advisors/ManagementReportPanel';
 
 export default function ReportPage() {
   const { store, loading, summary, analysis } = useMedicalgraph();
@@ -33,6 +34,9 @@ export default function ReportPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
+
+      <ManagementReportPanel advisor="medicalgraph" className="mb-6" />
+
           <StatRow
             items={[
               {

@@ -593,7 +593,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Labour & rates', href: '/dashboard/fieldgraph/labour', desc: 'Gangs · rates · field costs', section: 'Season' },
       { name: 'Regen', href: '/dashboard/fieldgraph/regen', desc: 'Soil · water · cover', section: 'Regen' },
       { name: 'Trade', href: '/dashboard/fieldgraph/trade', desc: 'Mill · buyer · lots', section: 'Trade' },
-      { name: 'Reports', href: '/dashboard/fieldgraph/report', desc: 'Slice & dice · yield · fleet · labour', section: 'Insights' },
+      { name: 'Reports', href: '/dashboard/fieldgraph/report', desc: 'Owner A4 pack · slice & dice', section: 'Insights' },
     
       { name: 'Messages', href: '/dashboard/messages?from=fieldgraph&channel=connection', desc: 'Farm · mill · buyer threads', section: 'Trade', rail: false },
     ],
@@ -622,7 +622,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Labour & rates', href: '/dashboard/quarrygraph/labour', desc: 'Crews · cost', section: 'Ops' },
       { name: 'Quality', href: '/dashboard/quarrygraph/quality', desc: 'Lab · CS · grading', section: 'Assure' },
       { name: 'Compliance', href: '/dashboard/quarrygraph/compliance', desc: 'Rights · WUL · EMP', section: 'Assure' },
-      { name: 'Reports', href: '/dashboard/quarrygraph/report', desc: 'Key management pack', section: 'Insights' },
+      { name: 'Reports', href: '/dashboard/quarrygraph/report', desc: 'Owner A4 pack · slice & dice', section: 'Insights' },
     
       { name: 'Messages', href: '/dashboard/messages?from=quarrygraph&channel=connection', desc: 'Office · pit · trade threads', section: 'Ops', rail: false },
     ],
@@ -651,7 +651,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Check-ins', href: '/dashboard/fitgraph/checkins', desc: 'Front desk', section: 'Floor' },
       { name: 'Messages', href: '/dashboard/fitgraph/messages', desc: 'Desk · coaches · members', section: 'Floor' },
       { name: 'Website', href: '/dashboard/fitgraph/website', desc: 'Embed · public calendar', section: 'Grow' },
-      { name: 'Reports', href: '/dashboard/fitgraph/report', desc: 'Attendance · members', section: 'Insights' },
+      { name: 'Reports', href: '/dashboard/fitgraph/report', desc: 'Owner A4 pack · slice & dice', section: 'Insights' },
     ],
   },
   {
@@ -675,7 +675,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Bookings', href: '/dashboard/physiograph/bookings', desc: 'Book · attend', section: 'Floor' },
       { name: 'Messages', href: '/dashboard/physiograph/messages', desc: 'Desk · physios · patients', section: 'Floor' },
       { name: 'Website', href: '/dashboard/physiograph/website', desc: 'Clinic profile · booking', section: 'Grow' },
-      { name: 'Reports', href: '/dashboard/physiograph/report', desc: 'Utilisation · load', section: 'Insights' },
+      { name: 'Reports', href: '/dashboard/physiograph/report', desc: 'Owner A4 pack · slice & dice', section: 'Insights' },
     ],
   },
   {
@@ -699,7 +699,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Bookings', href: '/dashboard/dentalgraph/bookings', desc: 'Book · attend', section: 'Floor' },
       { name: 'Messages', href: '/dashboard/dentalgraph/messages', desc: 'Desk · staff · patients', section: 'Floor' },
       { name: 'Website', href: '/dashboard/dentalgraph/website', desc: 'Practice profile · booking', section: 'Grow' },
-      { name: 'Reports', href: '/dashboard/dentalgraph/report', desc: 'Utilisation · load', section: 'Insights' },
+      { name: 'Reports', href: '/dashboard/dentalgraph/report', desc: 'Owner A4 pack · slice & dice', section: 'Insights' },
     ],
   },
   {
@@ -723,7 +723,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Bookings', href: '/dashboard/psychiatrygraph/bookings', desc: 'Book · attend', section: 'Floor' },
       { name: 'Messages', href: '/dashboard/psychiatrygraph/messages', desc: 'Desk · clinicians · patients', section: 'Floor' },
       { name: 'Website', href: '/dashboard/psychiatrygraph/website', desc: 'Practice profile · booking', section: 'Grow' },
-      { name: 'Reports', href: '/dashboard/psychiatrygraph/report', desc: 'Utilisation · load', section: 'Insights' },
+      { name: 'Reports', href: '/dashboard/psychiatrygraph/report', desc: 'Owner A4 pack · slice & dice', section: 'Insights' },
     ],
   },
   {
@@ -747,7 +747,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Bookings', href: '/dashboard/medicalgraph/bookings', desc: 'Book · attend', section: 'Floor' },
       { name: 'Messages', href: '/dashboard/medicalgraph/messages', desc: 'Desk · clinicians · patients', section: 'Floor' },
       { name: 'Website', href: '/dashboard/medicalgraph/website', desc: 'Practice profile · booking', section: 'Grow' },
-      { name: 'Reports', href: '/dashboard/medicalgraph/report', desc: 'Utilisation · load', section: 'Insights' },
+      { name: 'Reports', href: '/dashboard/medicalgraph/report', desc: 'Owner A4 pack · slice & dice', section: 'Insights' },
     ],
   },
   {

@@ -7,6 +7,7 @@ import {
 } from '@/components/clinic/PsychiatrygraphWorkbench';
 import { DataTable, StatRow } from '@/components/clinic/PsychiatryForm';
 import { healthSummaryLabel, isInjured } from '@/lib/health/body-map';
+import ManagementReportPanel from '@/components/advisors/ManagementReportPanel';
 
 export default function ReportPage() {
   const { store, loading, summary, analysis } = usePsychiatrygraph();
@@ -33,6 +34,9 @@ export default function ReportPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
+
+      <ManagementReportPanel advisor="psychiatrygraph" className="mb-6" />
+
           <StatRow
             items={[
               {

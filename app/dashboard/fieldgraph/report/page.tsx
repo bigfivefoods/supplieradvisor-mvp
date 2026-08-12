@@ -26,6 +26,7 @@ import {
   type FieldgraphDiceFilters,
   type FieldgraphReportId,
 } from '@/lib/agri/fieldgraph-reports';
+import ManagementReportPanel from '@/components/advisors/ManagementReportPanel';
 
 function formatZar(n: number | null | undefined) {
   if (n == null || Number.isNaN(Number(n))) return '—';
@@ -173,6 +174,7 @@ export default function FieldgraphReportPage() {
       titleAccent="Slice & dice"
       description={`${period.label} · filter by season, crop, farm, mill group, field and employment type. Yield, harvest, fleet fuel, labour cost, inputs and regen on one desk.`}
     >
+      <ManagementReportPanel advisor="fieldgraph" className="mb-6" />
       {loading || !store ? (
         <LoadingBlock />
       ) : (

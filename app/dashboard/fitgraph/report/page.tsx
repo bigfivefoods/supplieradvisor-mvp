@@ -21,6 +21,7 @@ import {
   type ReportFilters,
 } from '@/lib/fitness/fitgraph-reports';
 import { getCoachSpecialtyOptions } from '@/lib/fitness/fitgraph';
+import ManagementReportPanel from '@/components/advisors/ManagementReportPanel';
 
 type TabId =
   | 'overview'
@@ -387,6 +388,8 @@ export default function FitReportPage() {
       titleAccent="slice & dice"
       description="Filter by date, coach, class type and specialty. Member · classes shows who is on which classes (multi-class OK) and who is unassigned. Export any tab as CSV."
     >
+
+      <ManagementReportPanel advisor="fitgraph" className="mb-6" />
       {loading || !store || !report ? (
         <LoadingBlock />
       ) : (

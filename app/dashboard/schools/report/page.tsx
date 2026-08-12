@@ -14,6 +14,7 @@ import {
   SchoolsHeader,
   SchoolsPage,
 } from '@/components/schools/SchoolsShell';
+import ManagementReportPanel from '@/components/advisors/ManagementReportPanel';
 
 const REPORTS = [
   { id: 'overview', label: 'Overview' },
@@ -125,6 +126,8 @@ function Inner() {
           </div>
         }
       />
+
+      <ManagementReportPanel advisor="schools" className="mb-6" />
 
       <PeriodSlicer
         value={period}
