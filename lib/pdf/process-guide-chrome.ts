@@ -64,18 +64,58 @@ function mixRgb(a: Rgb, b: Rgb, t: number): string {
   );
 }
 
-/** Horizontal multi-stop gradient via thin vertical strips (pdfkit has no native gradients). */
+/**
+ * Management-report hero palette (left → right):
+ * deep ocean blue → brand blue → cyan → light teal
+ */
+export const MANAGEMENT_HERO_STOPS: Array<{ t: number; color: string }> = [
+  { t: 0, color: '#005f8a' },
+  { t: 0.22, color: '#0077b6' },
+  { t: 0.48, color: '#0891b2' },
+  { t: 0.72, color: '#00b4d8' },
+  { t: 0.9, color: '#2dd4bf' },
+  { t: 1, color: '#5eead4' },
+];
+
+/**
+ * Horizontal multi-stop gradient.
+ * Prefers pdfkit linearGradient (smooth); falls back to thin strips.
+ */
 export function fillHGradient(
   doc: ProcessGuidePdfDoc,
   x: number,
   y: number,
   w: number,
   h: number,
-  stops: Array<{ t: number; color: string }>,
-  steps = 96
+  stops: Array<{ t: number; color: string }> = MANAGEMENT_HERO_STOPS,
+  steps = 120
 ) {
   const sorted = [...stops].sort((a, b) => a.t - b.t);
   if (sorted.length < 2 || w <= 0 || h <= 0) return;
+
+  // Reset any prior opacity so gradient is fully opaque (same as solid fills)
+  try {
+    doc.fillOpacity(1);
+  } catch {
+    /* soft */
+  }
+
+  // Native linear gradient — exact smooth blue→teal like management report intent
+  try {
+    // pdfkit: linearGradient(x1, y1, x2, y2)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const grad = (doc as any).linearGradient(x, y, x + w, y);
+    if (grad && typeof grad.stop === 'function') {
+      for (const s of sorted) {
+        grad.stop(s.t, s.color);
+      }
+      doc.rect(x, y, w, h).fill(grad);
+      return;
+    }
+  } catch {
+    /* fall through to strips */
+  }
+
   const stripW = w / steps;
   for (let i = 0; i < steps; i++) {
     const t = (i + 0.5) / steps;
@@ -91,7 +131,8 @@ export function fillHGradient(
     const span = Math.max(1e-6, c1.t - c0.t);
     const local = (t - c0.t) / span;
     const color = mixRgb(hexToRgb(c0.color), hexToRgb(c1.color), local);
-    doc.rect(x + i * stripW, y, stripW + 0.6, h).fill(color);
+    // slight overlap avoids hairline gaps between strips
+    doc.rect(x + i * stripW, y, stripW + 0.65, h).fill(color);
   }
 }
 
@@ -149,7 +190,8 @@ export type ProcessHeroOpts = {
 };
 
 /**
- * Blue → teal gradient hero. Returns content start Y below the band.
+ * Blue → teal gradient hero — matched to management-report-pdf.ts.
+ * Returns content start Y below the band.
  * Text sits below PROCESS_SAFE_TOP for print safety.
  */
 export function drawProcessGuideHero(
@@ -158,61 +200,61 @@ export function drawProcessGuideHero(
   opts: ProcessHeroOpts
 ): number {
   const landscape = opts.landscape ?? g.isLandscape;
-  const innerH = landscape ? 38 : 52;
+  // Match management report proportions (landscape A4 pack)
+  const innerH = landscape ? 40 : 52;
   const heroH = PROCESS_SAFE_TOP + innerH;
 
   withOpenMargins(doc, () => {
-    fillHGradient(
-      doc,
-      0,
-      0,
-      g.pageW,
-      heroH,
-      [
-        { t: 0, color: '#005f8a' },
-        { t: 0.22, color: PROCESS_PDF.brandDeep },
-        { t: 0.48, color: PROCESS_PDF.brandMid },
-        { t: 0.72, color: PROCESS_PDF.brand },
-        { t: 0.9, color: PROCESS_PDF.brandTealMid },
-        { t: 1, color: PROCESS_PDF.brandTeal },
-      ],
-      110
-    );
-    // top sheen
+    doc.fillOpacity(1);
+    // Full-bleed hero — same stops + step count as management report
+    fillHGradient(doc, 0, 0, g.pageW, heroH, MANAGEMENT_HERO_STOPS, 120);
+
+    // Subtle top sheen (management report)
     doc
-      .rect(0, 0, g.pageW, PROCESS_SAFE_TOP + 3)
+      .rect(0, 0, g.pageW, PROCESS_SAFE_TOP + 4)
       .fillOpacity(0.1)
       .fill('#ffffff')
       .fillOpacity(1);
-    // bottom edge glow
+
+    // Soft bottom edge blend into page (management report)
     fillHGradient(
       doc,
       0,
-      heroH - 3,
+      heroH - 3.5,
       g.pageW,
-      3,
+      3.5,
       [
         { t: 0, color: '#67e8f9' },
         { t: 0.5, color: '#5eead4' },
         { t: 1, color: '#99f6e4' },
       ],
-      48
+      64
     );
-    // soft orbs
+
+    // Decorative glass orbs — same placement language as management report
     doc
-      .circle(g.pageW - 52, PROCESS_SAFE_TOP + 10, 20)
+      .circle(g.pageW - 56, PROCESS_SAFE_TOP + 10, 22)
+      .fillOpacity(0.14)
+      .fill('#ffffff')
+      .fillOpacity(1);
+    doc
+      .circle(g.pageW - 22, PROCESS_SAFE_TOP + 22, 14)
       .fillOpacity(0.12)
       .fill('#ffffff')
       .fillOpacity(1);
     doc
-      .circle(g.pageW - 20, PROCESS_SAFE_TOP + 24, 12)
+      .circle(g.pageW - 90, PROCESS_SAFE_TOP + 24, 8)
       .fillOpacity(0.1)
       .fill('#ffffff')
       .fillOpacity(1);
 
-    const ty = PROCESS_SAFE_TOP + 3;
-    // accent chip
-    doc.roundedRect(g.mx, ty + 2, 3.2, landscape ? 26 : 36, 1.5).fill('#ffffff');
+    // Brand mark chip
+    const ty = PROCESS_SAFE_TOP + 4;
+    doc
+      .roundedRect(g.mx, ty + 2, 3.5, landscape ? 24 : 32, 1.5)
+      .fillOpacity(0.95)
+      .fill('#ffffff')
+      .fillOpacity(1);
 
     doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#ecfeff');
     doc.text(opts.eyebrow.toUpperCase(), g.mx + 10, ty, {
@@ -223,24 +265,24 @@ export function drawProcessGuideHero(
 
     doc
       .font('Helvetica-Bold')
-      .fontSize(landscape ? 12.5 : 12)
+      .fontSize(landscape ? 13 : 12)
       .fillColor('#ffffff');
     if (landscape && opts.sideNote) {
-      doc.text(opts.title, g.mx + 10, ty + 12, {
+      doc.text(opts.title, g.mx + 10, ty + 14, {
         width: g.contentW * 0.62,
         height: 22,
         lineBreak: true,
         ellipsis: true,
       });
       doc.font('Helvetica').fontSize(7).fillColor('#f0fdfa');
-      doc.text(opts.sideNote, g.mx + g.contentW * 0.64, ty + 12, {
+      doc.text(opts.sideNote, g.mx + g.contentW * 0.64, ty + 14, {
         width: g.contentW * 0.34,
         height: 24,
         lineBreak: true,
         ellipsis: true,
       });
     } else {
-      doc.text(opts.title, g.mx + 10, ty + 12, {
+      doc.text(opts.title, g.mx + 10, ty + 14, {
         width: g.contentW - 12,
         height: 18,
         lineBreak: true,
@@ -248,7 +290,7 @@ export function drawProcessGuideHero(
       });
       if (opts.subtitle) {
         doc.font('Helvetica').fontSize(7.5).fillColor('#ecfeff');
-        doc.text(opts.subtitle, g.mx + 10, ty + 32, {
+        doc.text(opts.subtitle, g.mx + 10, ty + 34, {
           width: g.contentW - 12,
           height: 16,
           lineBreak: true,
@@ -256,13 +298,14 @@ export function drawProcessGuideHero(
         });
       }
     }
+    doc.fillOpacity(1);
   });
 
   return heroH + 8;
 }
 
 /**
- * Page 2+ header band — same blue→teal language, shorter.
+ * Page 2+ header band — same management-report blue→teal gradient, shorter.
  * Returns Y below header for content.
  */
 export function drawProcessGuidePageHeader(
@@ -271,39 +314,33 @@ export function drawProcessGuidePageHeader(
   opts: { eyebrow: string; title: string; landscape?: boolean }
 ): number {
   const landscape = opts.landscape ?? g.isLandscape;
-  const innerH = landscape ? 24 : 32;
+  const innerH = landscape ? 26 : 34;
   const headH = PROCESS_SAFE_TOP + innerH;
 
   withOpenMargins(doc, () => {
+    doc.fillOpacity(1);
+    fillHGradient(doc, 0, 0, g.pageW, headH, MANAGEMENT_HERO_STOPS, 120);
     fillHGradient(
       doc,
       0,
-      0,
+      headH - 3,
       g.pageW,
-      headH,
-      [
-        { t: 0, color: '#005f8a' },
-        { t: 0.35, color: PROCESS_PDF.brandDeep },
-        { t: 0.7, color: PROCESS_PDF.brand },
-        { t: 1, color: PROCESS_PDF.brandTealMid },
-      ],
-      90
-    );
-    fillHGradient(
-      doc,
-      0,
-      headH - 2.5,
-      g.pageW,
-      2.5,
+      3,
       [
         { t: 0, color: '#67e8f9' },
-        { t: 1, color: '#5eead4' },
+        { t: 0.5, color: '#5eead4' },
+        { t: 1, color: '#99f6e4' },
       ],
-      32
+      48
     );
+    doc
+      .circle(g.pageW - 40, PROCESS_SAFE_TOP + 8, 14)
+      .fillOpacity(0.12)
+      .fill('#ffffff')
+      .fillOpacity(1);
 
-    const ty = PROCESS_SAFE_TOP + 2;
-    doc.roundedRect(g.mx, ty + 1, 3, landscape ? 16 : 22, 1).fill('#ffffff');
+    const ty = PROCESS_SAFE_TOP + 3;
+    doc.roundedRect(g.mx, ty + 1, 3.5, landscape ? 18 : 24, 1.5).fill('#ffffff');
     doc.font('Helvetica-Bold').fontSize(6).fillColor('#ecfeff');
     doc.text(opts.eyebrow.toUpperCase(), g.mx + 10, ty, {
       width: g.contentW - 12,
@@ -312,14 +349,15 @@ export function drawProcessGuidePageHeader(
     });
     doc
       .font('Helvetica-Bold')
-      .fontSize(landscape ? 10 : 11)
+      .fontSize(landscape ? 11 : 11.5)
       .fillColor('#ffffff');
-    doc.text(opts.title, g.mx + 10, ty + 10, {
+    doc.text(opts.title, g.mx + 10, ty + 11, {
       width: g.contentW - 12,
       height: 16,
       lineBreak: true,
       ellipsis: true,
     });
+    doc.fillOpacity(1);
   });
 
   return headH + 8;
