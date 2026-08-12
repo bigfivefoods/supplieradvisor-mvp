@@ -1,8 +1,11 @@
 /**
  * School kitchen food safety (R638 / CoA) API.
- * GET  ?companyId=           school passport + audits + risk
- * GET  ?companyId=&view=register  agency kitchen safety register
- * POST { companyId, action: save_passport | self_audit | daily_log | peu_verify | save_policy }
+ * GET  ?companyId=           school passport + monthly audits + risk
+ * GET  ?companyId=&view=register  agency kitchen safety register + monthly compliance
+ * POST actions:
+ *   save_passport | schedule_monthly_audit | reschedule_monthly_audit |
+ *   cancel_monthly_audit | self_audit | complete_monthly_audit |
+ *   daily_log | peu_verify | save_policy
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
@@ -14,17 +17,20 @@ import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
 import { fetchAgencySchoolLinks } from '@/lib/schools/supabase-page';
 import {
   DEFAULT_KITCHEN_POLICY,
+  buildAuditCalendarMonth,
+  completeMonthlyAudit,
   evaluateKitchenRisk,
-  emptyKitchenPassport,
   kitchenSafetySummary,
   mergePassport,
+  monthlyAuditStats,
   readKitchenPassport,
   readKitchenPolicy,
+  readMonthlyAudits,
   readSelfAudits,
+  refreshMonthlyAuditStatuses,
   registerRowFromSchool,
-  scoreR638,
+  upsertMonthlySchedule,
   writeKitchenToSchoolMeta,
-  type KitchenSelfAudit,
   type KitchenSafetyPassport,
   type R638Answer,
   type R638ItemId,
@@ -125,7 +131,15 @@ export async function GET(request: NextRequest) {
               ? rows.filter((r) => r.coa_status === 'expired')
               : filter === 'amber'
                 ? rows.filter((r) => r.risk_band === 'amber')
-                : rows;
+                : filter === 'audit_overdue'
+                  ? rows.filter((r) => r.monthly_audit_status === 'overdue')
+                  : filter === 'audit_missing'
+                    ? rows.filter(
+                        (r) =>
+                          !r.monthly_audit_status ||
+                          r.monthly_audit_status === 'none'
+                      )
+                    : rows;
 
       return NextResponse.json({
         success: true,
@@ -145,6 +159,9 @@ export async function GET(request: NextRequest) {
     const meta = schoolMeta(school as Record<string, unknown>);
     const passport = readKitchenPassport(meta);
     const audits = readSelfAudits(meta);
+    const monthly = refreshMonthlyAuditStatuses(readMonthlyAudits(meta));
+    const calYear = Number(sp.get('year')) || new Date().getFullYear();
+    const calMonth = Number(sp.get('month')) || new Date().getMonth() + 1;
     // Agency policy if linked
     let policy = DEFAULT_KITCHEN_POLICY;
     try {
@@ -168,7 +185,11 @@ export async function GET(request: NextRequest) {
     } catch {
       /* soft */
     }
-    const risk = evaluateKitchenRisk(passport, { policy });
+    const risk = evaluateKitchenRisk(passport, {
+      policy,
+      monthlyAudits: monthly,
+    });
+    const stats = monthlyAuditStats(monthly);
 
     return NextResponse.json({
       success: true,
@@ -182,6 +203,13 @@ export async function GET(request: NextRequest) {
       risk,
       policy,
       audits: audits.slice(0, 12),
+      monthly_audits: monthly.slice(0, 36),
+      monthly_stats: stats,
+      calendar: {
+        year: calYear,
+        month: calMonth,
+        weeks: buildAuditCalendarMonth(calYear, calMonth, monthly),
+      },
       checklist: R638_CHECKLIST,
     });
   } catch (e: unknown) {
@@ -320,50 +348,155 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    if (action === 'self_audit') {
+    if (
+      action === 'schedule_monthly_audit' ||
+      action === 'reschedule_monthly_audit'
+    ) {
+      let monthly = readMonthlyAudits(meta);
+      const plannedDate = String(
+        body.planned_date || body.date || ''
+      ).slice(0, 10);
+      if (!plannedDate) {
+        return NextResponse.json(
+          { error: 'planned_date required (YYYY-MM-DD)' },
+          { status: 400 }
+        );
+      }
+      const result = upsertMonthlySchedule(monthly, plannedDate, {
+        id: body.monthly_audit_id || body.id || undefined,
+        notes: body.notes != null ? String(body.notes) : null,
+      });
+      if (result.error) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      monthly = result.audits;
+      const nextMeta = writeKitchenToSchoolMeta(
+        meta,
+        passport,
+        readSelfAudits(meta),
+        monthly
+      );
+      const sErr = await saveSchoolMeta(supabase, schoolId, nextMeta);
+      if (sErr) {
+        return NextResponse.json({ error: sErr.message }, { status: 400 });
+      }
+      return NextResponse.json({
+        success: true,
+        monthly_audit: result.entry,
+        monthly_audits: monthly.slice(0, 36),
+        monthly_stats: monthlyAuditStats(monthly),
+        message: `Monthly audit scheduled for ${result.entry.planned_date}`,
+      });
+    }
+
+    if (action === 'cancel_monthly_audit') {
+      const id = String(body.monthly_audit_id || body.id || '');
+      if (!id) {
+        return NextResponse.json(
+          { error: 'monthly_audit_id required' },
+          { status: 400 }
+        );
+      }
+      let monthly = readMonthlyAudits(meta);
+      const found = monthly.find((m) => m.id === id);
+      if (!found) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      }
+      if (found.status === 'done') {
+        return NextResponse.json(
+          { error: 'Cannot cancel a completed audit' },
+          { status: 400 }
+        );
+      }
+      monthly = monthly.map((m) =>
+        m.id === id
+          ? {
+              ...m,
+              status: 'cancelled' as const,
+              updated_at: now,
+            }
+          : m
+      );
+      const nextMeta = writeKitchenToSchoolMeta(
+        meta,
+        passport,
+        readSelfAudits(meta),
+        monthly
+      );
+      const sErr = await saveSchoolMeta(supabase, schoolId, nextMeta);
+      if (sErr) {
+        return NextResponse.json({ error: sErr.message }, { status: 400 });
+      }
+      return NextResponse.json({
+        success: true,
+        monthly_audits: monthly.slice(0, 36),
+        monthly_stats: monthlyAuditStats(monthly),
+        message: 'Monthly audit cancelled',
+      });
+    }
+
+    if (action === 'self_audit' || action === 'complete_monthly_audit') {
       const items = (body.items || {}) as Partial<
         Record<R638ItemId, R638Answer>
       >;
-      const scored = scoreR638(items);
-      if (scored.applicable === 0) {
+      const monthlyIn = readMonthlyAudits(meta);
+      const selfIn = readSelfAudits(meta);
+      const result = completeMonthlyAudit(monthlyIn, selfIn, {
+        planned_date: body.planned_date || body.date || undefined,
+        monthly_audit_id: body.monthly_audit_id || body.id || undefined,
+        items,
+        notes: body.notes != null ? String(body.notes) : null,
+        by_name: body.by_name != null ? String(body.by_name) : null,
+        completed_date:
+          body.completed_date ||
+          body.date ||
+          now.slice(0, 10),
+      });
+      if (result.error) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      if (result.scored.applicable === 0) {
         return NextResponse.json(
           { error: 'Answer at least one applicable R638 item' },
           { status: 400 }
         );
       }
-      const audit: KitchenSelfAudit = {
-        id: `r638_${Date.now().toString(36)}`,
-        audited_at: now,
-        items: items as Record<R638ItemId, R638Answer>,
-        score: scored.score,
-        band: scored.band,
-        notes: body.notes != null ? String(body.notes) : null,
-        by_name: body.by_name != null ? String(body.by_name) : null,
-      };
-      audits = [audit, ...audits].slice(0, 24);
+      const audits = result.selfAudits;
+      const monthly = result.monthly;
       passport = mergePassport(passport, {
-        r638_score: scored.score,
-        r638_band: scored.band,
-        r638_last_audit_at: now.slice(0, 10),
+        r638_score: result.scored.score,
+        r638_band: result.scored.band,
+        r638_last_audit_at:
+          result.entry.completed_date || now.slice(0, 10),
       });
-      const nextMeta = writeKitchenToSchoolMeta(meta, passport, audits);
+      const nextMeta = writeKitchenToSchoolMeta(
+        meta,
+        passport,
+        audits,
+        monthly
+      );
       const sErr = await saveSchoolMeta(supabase, schoolId, nextMeta);
       if (sErr) {
         return NextResponse.json({ error: sErr.message }, { status: 400 });
       }
       // Soft: open compliance event if red
-      if (scored.band === 'red') {
+      if (result.scored.band === 'red') {
         try {
           await supabase.from('school_compliance_events').insert({
             school_profile_id: schoolId,
             profile_id: companyId,
             kind: 'kitchen_r638',
-            title: 'R638 kitchen self-audit red',
+            title: 'R638 kitchen monthly audit red',
             status: 'open',
             severity: 'high',
-            event_date: now.slice(0, 10),
-            body: `Score ${scored.score}% — ${scored.no} fail item(s). Remediate premises/hygiene.`,
-            metadata: { audit_id: audit.id, score: scored.score },
+            event_date: result.entry.completed_date || now.slice(0, 10),
+            body: `Score ${result.scored.score}% — ${result.scored.no} fail item(s). Remediate premises/hygiene. Planned ${result.entry.planned_date}.`,
+            metadata: {
+              audit_id: result.selfAudit.id,
+              monthly_audit_id: result.entry.id,
+              score: result.scored.score,
+              planned_date: result.entry.planned_date,
+            },
             created_by: gate.userId || null,
           });
         } catch {
@@ -372,10 +505,13 @@ export async function POST(request: NextRequest) {
       }
       return NextResponse.json({
         success: true,
-        audit,
+        audit: result.selfAudit,
+        monthly_audit: result.entry,
+        monthly_audits: monthly.slice(0, 36),
+        monthly_stats: monthlyAuditStats(monthly),
         passport,
         risk: evaluateKitchenRisk(passport),
-        message: `Self-audit saved · ${scored.band} (${scored.score}%)`,
+        message: `Monthly audit complete · ${result.scored.band} (${result.scored.score}%) · ${result.entry.completed_date || result.entry.planned_date}`,
       });
     }
 

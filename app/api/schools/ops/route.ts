@@ -2139,13 +2139,16 @@ async function auditPack(
     hash += String(raw.length);
   }
 
-  // Kitchen food safety (R638 / CoA) for auditors
+  // Kitchen food safety (R638 / CoA) + monthly audit trail for auditors
   let kitchen_safety: Record<string, unknown> | null = null;
   try {
     const {
       readKitchenPassport,
       evaluateKitchenRisk,
       readSelfAudits,
+      readMonthlyAudits,
+      monthlyAuditStats,
+      refreshMonthlyAuditStatuses,
     } = await import('@/lib/schools/kitchen-safety');
     const smeta =
       school.metadata && typeof school.metadata === 'object'
@@ -2153,12 +2156,17 @@ async function auditPack(
         : {};
     const passport = readKitchenPassport(smeta);
     const risk = evaluateKitchenRisk(passport);
+    const monthly = refreshMonthlyAuditStatuses(readMonthlyAudits(smeta));
     kitchen_safety = {
       passport,
       risk,
-      recent_self_audits: readSelfAudits(smeta).slice(0, 3),
+      monthly_stats: monthlyAuditStats(monthly, { from, to }),
+      monthly_audits: monthly
+        .filter((m) => m.status !== 'cancelled')
+        .slice(0, 18),
+      recent_self_audits: readSelfAudits(smeta).slice(0, 6),
       note:
-        'Regulation R638 / Certificate of Acceptability — school kitchen legal food-handling status.',
+        'Regulation R638 / Certificate of Acceptability — school kitchen legal food-handling status. Monthly audits are calendar-scheduled with checklist saved on the planned/completed day.',
     };
     (pack as Record<string, unknown>).kitchen_safety = kitchen_safety;
   } catch {
@@ -2185,7 +2193,7 @@ async function auditPack(
       filename: `NSNP_Audit_${school.emis_number || schoolId}_${from}_${to}.json`,
       mime: 'application/json',
     },
-    tip: 'Download JSON for auditors. Includes PO, DN, POD, GRN, feed days, kitchen CoA/R638 safety, three-way match and funding simulation.',
+    tip: 'Download JSON for auditors. Includes PO, DN, POD, GRN, feed days, kitchen CoA/R638 passport, monthly audit calendar results, three-way match and funding simulation.',
   };
 }
 

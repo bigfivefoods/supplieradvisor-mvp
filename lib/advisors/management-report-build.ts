@@ -754,13 +754,20 @@ async function buildSchools(
       .limit(100),
   ]);
 
-  // Kitchen safety
+  // Kitchen safety + monthly R638 audits (critical for owner / DBE pack)
   let kitchenBand = 'unknown';
   let kitchenLabel = 'Kitchen safety unknown';
+  let monthlyRows: Array<Array<string | number>> = [];
+  let monthlyKpis: ManagementKpi[] = [];
+  let monthlyHighlights: string[] = [];
+  let monthlyRisks: string[] = [];
   try {
     const {
       readKitchenPassport,
       evaluateKitchenRisk,
+      readMonthlyAudits,
+      monthlyAuditStats,
+      refreshMonthlyAuditStatuses,
     } = await import('@/lib/schools/kitchen-safety');
     const smeta =
       school?.metadata && typeof school.metadata === 'object'
@@ -769,6 +776,57 @@ async function buildSchools(
     const risk = evaluateKitchenRisk(readKitchenPassport(smeta));
     kitchenBand = risk.band;
     kitchenLabel = risk.label;
+    const monthly = refreshMonthlyAuditStatuses(readMonthlyAudits(smeta)).filter(
+      (m) => {
+        if (m.status === 'cancelled') return false;
+        const d = m.completed_date || m.planned_date;
+        if (filters.from && d < filters.from) return false;
+        if (filters.to && d > filters.to) return false;
+        return true;
+      }
+    );
+    const stats = monthlyAuditStats(monthly, {
+      from: filters.from,
+      to: filters.to,
+    });
+    monthlyKpis = [
+      kpi('Month audits done', stats.done),
+      kpi('Month audits overdue', stats.overdue),
+      kpi('Avg R638 score', stats.avg_score != null ? `${stats.avg_score}%` : '—'),
+      kpi(
+        'This month',
+        stats.this_month_status === 'none'
+          ? 'Not scheduled'
+          : `${stats.this_month_status}${stats.this_month_score != null ? ` · ${stats.this_month_score}%` : ''}`
+      ),
+    ];
+    monthlyRows = monthly
+      .slice()
+      .sort((a, b) =>
+        String(b.planned_date).localeCompare(String(a.planned_date))
+      )
+      .slice(0, 8)
+      .map((m) => [
+        m.planned_date,
+        m.status,
+        m.completed_date || '—',
+        m.score != null ? `${m.score}%` : '—',
+        m.band || '—',
+      ]);
+    monthlyHighlights = [
+      `${stats.done} monthly R638 audit(s) done in period`,
+      stats.avg_score != null
+        ? `Average kitchen audit score ${stats.avg_score}%`
+        : 'No completed monthly scores yet',
+    ];
+    monthlyRisks = [
+      stats.overdue > 0
+        ? `${stats.overdue} overdue monthly audit(s)`
+        : 'No overdue monthly audits',
+      stats.this_month_status === 'none' || stats.this_month_status === 'overdue'
+        ? 'This month kitchen audit not complete'
+        : `This month audit: ${stats.this_month_status}`,
+    ];
   } catch {
     /* soft */
   }
@@ -812,6 +870,7 @@ async function buildSchools(
   const slice = filters.slice || 'overview';
   const slices = [
     { id: 'overview', label: 'Overview' },
+    { id: 'kitchen_audit', label: 'Kitchen audits' },
     { id: 'meals', label: 'Meals' },
     { id: 'learners', label: 'Learners' },
     { id: 'stock', label: 'Stock' },
@@ -847,6 +906,16 @@ async function buildSchools(
         ],
       },
     ];
+  } else if (slice === 'kitchen_audit') {
+    tables = [
+      {
+        title: 'Monthly R638 kitchen audits',
+        headers: ['Planned', 'Status', 'Completed', 'Score', 'Band'],
+        rows: monthlyRows.length
+          ? monthlyRows
+          : [['—', 'none', '—', '—', '—']],
+      },
+    ];
   } else if (slice === 'compliance') {
     tables = [
       {
@@ -866,18 +935,27 @@ async function buildSchools(
             String(c.status || '—'),
           ]),
       },
+      {
+        title: 'Monthly R638 kitchen audits',
+        headers: ['Planned', 'Status', 'Completed', 'Score', 'Band'],
+        rows: monthlyRows.slice(0, 6).length
+          ? monthlyRows.slice(0, 6)
+          : [['—', 'none', '—', '—', '—']],
+      },
     ];
   } else {
     tables = [
       {
+        title: 'Monthly R638 kitchen audits',
+        headers: ['Planned', 'Status', 'Completed', 'Score', 'Band'],
+        rows: monthlyRows.slice(0, 5).length
+          ? monthlyRows.slice(0, 5)
+          : [['—', 'none', '—', '—', '—']],
+      },
+      {
         title: 'Serve days (latest)',
         headers: ['Date', 'Served', 'Planned', 'Present'],
         rows: feedRows.slice(0, 5) as Array<Array<string | number>>,
-      },
-      {
-        title: 'Learners by grade',
-        headers: ['Grade', 'Count'],
-        rows: gradeRows.slice(0, 5) as Array<Array<string | number>>,
       },
     ];
   }
@@ -893,33 +971,33 @@ async function buildSchools(
       slices
     ),
     filterSummary: filterLine([`EMIS ${school?.emis_number || '—'}`, kitchenLabel]),
-    headline: 'SchoolAdvisor® owner pack — feed, stock, kitchen safety',
+    headline: 'SchoolAdvisor® owner pack — feed, stock, kitchen monthly audits',
     kpis: [
       kpi('Learners', learnersN),
-      kpi('Days fed', feed.length),
       kpi('Meals served', served),
-      kpi('Planned meals', planned),
-      kpi('Stock short', stockShort),
-      kpi('Orders', (orders.data || []).length),
+      kpi('Kitchen CoA band', kitchenBand),
       kpi('Open compliance', openCompliance),
-      kpi('Kitchen CoA', kitchenBand),
-    ],
+      ...monthlyKpis.slice(0, 4),
+    ].slice(0, 8),
     tables,
     highlights: [
       `${served} meals served across ${feed.length} feed days`,
       kitchenLabel,
-    ],
+      ...monthlyHighlights,
+    ].slice(0, 5),
     risks: [
       stockShort > 0 ? `${stockShort} stock line(s) at/below reorder` : 'Stock cover OK',
       kitchenBand === 'red' || kitchenBand === 'amber'
         ? 'Kitchen food safety needs remediation'
         : 'Kitchen safety band acceptable',
+      ...monthlyRisks,
       openCompliance > 0
         ? `${openCompliance} open compliance item(s)`
         : 'No open compliance',
-    ],
+    ].slice(0, 5),
     actions: [
-      'Complete serve-day + R638 micro-log daily',
+      'Schedule and complete this month’s R638 kitchen audit on the calendar',
+      'Complete serve-day + daily micro-log',
       'Keep CoA / PIC passport current',
       'Submit claims only when match + SLA + CoA gates are green',
     ],

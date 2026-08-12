@@ -22,6 +22,7 @@ import {
 } from '@/components/schools/SchoolsShell';
 import type {
   CoaStatus,
+  KitchenMonthlyAudit,
   KitchenSafetyPassport,
   R638Answer,
   R638ItemId,
@@ -29,6 +30,14 @@ import type {
 } from '@/lib/schools/kitchen-safety';
 
 type ChecklistItem = { id: R638ItemId; label: string; guidance: string };
+
+type CalendarCell = {
+  date: string;
+  inMonth: boolean;
+  audit: KitchenMonthlyAudit | null;
+};
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export default function KitchenSafetyPage() {
   return (
@@ -65,11 +74,26 @@ function Inner() {
     Partial<Record<R638ItemId, R638Answer>>
   >({});
   const [auditNotes, setAuditNotes] = useState('');
+  const [auditByName, setAuditByName] = useState('');
   const [audits, setAudits] = useState<
     Array<{ id: string; audited_at: string; score: number; band: string }>
   >([]);
+  const [monthlyAudits, setMonthlyAudits] = useState<KitchenMonthlyAudit[]>([]);
+  const [monthlyStats, setMonthlyStats] = useState<Record<string, unknown> | null>(
+    null
+  );
+  const now = new Date();
+  const [calYear, setCalYear] = useState(now.getFullYear());
+  const [calMonth, setCalMonth] = useState(now.getMonth() + 1);
+  const [calendarWeeks, setCalendarWeeks] = useState<CalendarCell[][]>([]);
+  const [selectedDate, setSelectedDate] = useState<string>(
+    now.toISOString().slice(0, 10)
+  );
+  const [selectedMonthlyId, setSelectedMonthlyId] = useState<string | null>(
+    null
+  );
   const [register, setRegister] = useState<{
-    summary?: Record<string, number>;
+    summary?: Record<string, number | null>;
     rows?: Array<Record<string, unknown>>;
     policy?: Record<string, unknown>;
   } | null>(null);
@@ -94,7 +118,7 @@ function Inner() {
         }
       }
       const res = await fetch(
-        `/api/schools/kitchen-safety?companyId=${companyId}`,
+        `/api/schools/kitchen-safety?companyId=${companyId}&year=${calYear}&month=${calMonth}`,
         { cache: 'no-store' }
       );
       const data = await res.json();
@@ -104,6 +128,11 @@ function Inner() {
       setRisk(data.risk || null);
       setChecklist(data.checklist || []);
       setAudits(data.audits || []);
+      setMonthlyAudits(data.monthly_audits || []);
+      setMonthlyStats(data.monthly_stats || null);
+      setCalendarWeeks(data.calendar?.weeks || []);
+      if (data.calendar?.year) setCalYear(Number(data.calendar.year));
+      if (data.calendar?.month) setCalMonth(Number(data.calendar.month));
       const last = (data.audits || [])[0];
       if (last?.items) setAuditItems(last.items);
     } catch (e: unknown) {
@@ -111,7 +140,7 @@ function Inner() {
     } finally {
       setLoading(false);
     }
-  }, [companyId, filter]);
+  }, [companyId, filter, calYear, calMonth]);
 
   useEffect(() => {
     void load();
@@ -143,6 +172,32 @@ function Inner() {
     }
   };
 
+  const scheduleSelectedDay = async () => {
+    if (!selectedDate) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/schools/kitchen-safety', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          action: 'schedule_monthly_audit',
+          planned_date: selectedDate,
+          monthly_audit_id: selectedMonthlyId || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Schedule failed');
+      toast.success(data.message || 'Scheduled');
+      setSelectedMonthlyId(data.monthly_audit?.id || null);
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Schedule failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const saveAudit = async () => {
     setSaving(true);
     try {
@@ -151,22 +206,50 @@ function Inner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           companyId,
-          action: 'self_audit',
+          action: 'complete_monthly_audit',
+          planned_date: selectedDate,
+          monthly_audit_id: selectedMonthlyId || undefined,
+          completed_date: selectedDate,
           items: auditItems,
           notes: auditNotes,
+          by_name: auditByName || undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Audit failed');
       setPassport(data.passport);
       setRisk(data.risk);
-      toast.success(data.message || 'Self-audit saved');
+      toast.success(data.message || 'Monthly audit saved');
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Audit failed');
     } finally {
       setSaving(false);
     }
+  };
+
+  const selectCalendarDay = (cell: CalendarCell) => {
+    setSelectedDate(cell.date);
+    setSelectedMonthlyId(cell.audit?.id || null);
+    if (cell.audit?.items) {
+      setAuditItems(cell.audit.items as Partial<Record<R638ItemId, R638Answer>>);
+    }
+    if (cell.audit?.notes) setAuditNotes(String(cell.audit.notes));
+    if (cell.audit?.by_name) setAuditByName(String(cell.audit.by_name));
+  };
+
+  const shiftMonth = (delta: number) => {
+    let m = calMonth + delta;
+    let y = calYear;
+    if (m < 1) {
+      m = 12;
+      y -= 1;
+    } else if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+    setCalMonth(m);
+    setCalYear(y);
   };
 
   const savePolicy = async (claim_gate: 'soft' | 'hard') => {
@@ -205,7 +288,7 @@ function Inner() {
         <SchoolsHeader
           title="Kitchen safety register"
           titleAccent="R638 · CoA"
-          description="DBE/PEU view of Certificate of Acceptability and R638 kitchen risk across linked schools — for audits and remediation."
+          description="DBE/PEU view of Certificate of Acceptability, monthly R638 audit compliance, and kitchen risk across linked schools."
           mode="agency"
           action={
             <button
@@ -217,12 +300,25 @@ function Inner() {
             </button>
           }
         />
-        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
           {[
             { l: 'Schools', v: s.schools ?? 0 },
             { l: 'Valid CoA %', v: `${s.valid_coa_pct ?? 0}%` },
             { l: 'No CoA', v: s.none_coa ?? 0 },
             { l: 'Red kitchens', v: s.red ?? 0 },
+            {
+              l: 'Month audits done',
+              v: `${s.monthly_audit_done_pct ?? 0}%`,
+            },
+            { l: 'Month overdue', v: s.monthly_audit_overdue ?? 0 },
+            { l: 'Month missing', v: s.monthly_audit_missing ?? 0 },
+            {
+              l: 'Month avg score',
+              v:
+                s.monthly_audit_avg_score != null
+                  ? `${s.monthly_audit_avg_score}%`
+                  : '—',
+            },
           ].map((x) => (
             <div
               key={x.l}
@@ -236,7 +332,15 @@ function Inner() {
           ))}
         </div>
         <div className="mb-4 flex flex-wrap gap-2">
-          {['all', 'red', 'no_coa', 'expired', 'amber'].map((f) => (
+          {[
+            'all',
+            'red',
+            'no_coa',
+            'expired',
+            'amber',
+            'audit_overdue',
+            'audit_missing',
+          ].map((f) => (
             <button
               key={f}
               type="button"
@@ -275,6 +379,7 @@ function Inner() {
                 <th className="px-3 py-2">District</th>
                 <th className="px-3 py-2">CoA</th>
                 <th className="px-3 py-2">R638</th>
+                <th className="px-3 py-2">This month audit</th>
                 <th className="px-3 py-2">PIC</th>
                 <th className="px-3 py-2">Risk</th>
               </tr>
@@ -302,6 +407,19 @@ function Inner() {
                     <span className="uppercase opacity-70">
                       {String(r.r638_band || '')}
                     </span>
+                  </td>
+                  <td className="px-3 py-2 text-xs">
+                    <span className="font-bold uppercase">
+                      {String(r.monthly_audit_status || 'none')}
+                    </span>
+                    {r.monthly_audit_planned_date ? (
+                      <div className="text-[10px] text-slate-400">
+                        {String(r.monthly_audit_planned_date).slice(0, 10)}
+                        {r.monthly_audit_score != null
+                          ? ` · ${r.monthly_audit_score}%`
+                          : ''}
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2 text-xs">{String(r.pic_name || '—')}</td>
                   <td className="px-3 py-2">
@@ -532,11 +650,152 @@ function Inner() {
         </div>
       ) : null}
 
-      <div className="mb-6 space-y-3 rounded-3xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-950">
-        <h3 className="text-sm font-black">Monthly R638 self-audit</h3>
-        <p className="text-[11px] text-slate-500">
-          Complete monthly. Red scores open a compliance item and raise risk on
-          the DBE kitchen register.
+      {/* Monthly audit calendar + checklist */}
+      <div className="mb-6 space-y-4 rounded-3xl border border-violet-200 bg-white p-5 dark:border-violet-900 dark:bg-slate-950">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-black">
+              Monthly R638 audit calendar
+            </h3>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Schedule the monthly kitchen audit on a calendar day, complete the
+              checklist that day (or when done). Results sync to the DBE register
+              and owner management pack.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 text-[11px]">
+            {(
+              [
+                ['planned', 'Planned'],
+                ['done', 'Done'],
+                ['overdue', 'Overdue'],
+              ] as const
+            ).map(([k, l]) => (
+              <span
+                key={k}
+                className={`rounded-full border px-2 py-0.5 font-bold ${
+                  k === 'done'
+                    ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                    : k === 'overdue'
+                      ? 'border-rose-300 bg-rose-50 text-rose-900'
+                      : 'border-amber-300 bg-amber-50 text-amber-900'
+                }`}
+              >
+                {l}:{' '}
+                {k === 'done'
+                  ? Number(monthlyStats?.done || 0)
+                  : k === 'overdue'
+                    ? Number(monthlyStats?.overdue || 0)
+                    : Number(monthlyStats?.planned || 0)}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            className="btn-secondary !py-1.5 !px-3 text-xs"
+            onClick={() => shiftMonth(-1)}
+          >
+            ← Prev
+          </button>
+          <p className="text-sm font-black tabular-nums">
+            {new Date(calYear, calMonth - 1, 1).toLocaleString(undefined, {
+              month: 'long',
+              year: 'numeric',
+            })}
+          </p>
+          <button
+            type="button"
+            className="btn-secondary !py-1.5 !px-3 text-xs"
+            onClick={() => shiftMonth(1)}
+          >
+            Next →
+          </button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <div className="min-w-[320px] grid grid-cols-7 gap-1">
+            {WEEKDAYS.map((d) => (
+              <div
+                key={d}
+                className="text-center text-[10px] font-black uppercase text-slate-400 py-1"
+              >
+                {d}
+              </div>
+            ))}
+            {calendarWeeks.flat().map((cell) => {
+              const st = cell.audit?.status;
+              const selected = cell.date === selectedDate;
+              return (
+                <button
+                  key={cell.date + String(cell.inMonth)}
+                  type="button"
+                  onClick={() => selectCalendarDay(cell)}
+                  className={`min-h-[3.25rem] rounded-xl border px-1 py-1 text-left transition-colors ${
+                    selected
+                      ? 'border-violet-600 ring-2 ring-violet-300'
+                      : 'border-slate-100'
+                  } ${
+                    !cell.inMonth
+                      ? 'bg-slate-50 opacity-50'
+                      : st === 'done'
+                        ? 'bg-emerald-50 border-emerald-200'
+                        : st === 'overdue'
+                          ? 'bg-rose-50 border-rose-200'
+                          : st === 'planned'
+                            ? 'bg-amber-50 border-amber-200'
+                            : 'bg-white hover:bg-violet-50'
+                  }`}
+                >
+                  <div className="text-[11px] font-black tabular-nums">
+                    {Number(cell.date.slice(8, 10))}
+                  </div>
+                  {cell.audit ? (
+                    <div className="text-[9px] font-bold uppercase leading-tight mt-0.5">
+                      {cell.audit.status}
+                      {cell.audit.score != null
+                        ? ` · ${cell.audit.score}%`
+                        : ''}
+                    </div>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2">
+          <span className="text-xs font-bold text-slate-700">
+            Selected day:{' '}
+            <span className="tabular-nums font-black">{selectedDate}</span>
+          </span>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => void scheduleSelectedDay()}
+            className="btn-secondary !py-1.5 !px-3 text-xs"
+          >
+            Schedule monthly audit on this day
+          </button>
+          {monthlyStats?.this_month_status ? (
+            <span className="text-[11px] text-slate-500">
+              This month: {String(monthlyStats.this_month_status)}
+              {monthlyStats.this_month_planned_date
+                ? ` · planned ${String(monthlyStats.this_month_planned_date)}`
+                : ''}
+            </span>
+          ) : null}
+        </div>
+
+        <h4 className="text-sm font-black pt-1">
+          Checklist for {selectedDate}
+        </h4>
+        <p className="text-[11px] text-slate-500 -mt-2">
+          Complete and save — stored against this planned/completion day. Red
+          scores open a compliance item and raise risk on the DBE kitchen
+          register.
         </p>
         <ul className="space-y-2">
           {checklist.map((c) => (
@@ -571,6 +830,20 @@ function Inner() {
             </li>
           ))}
         </ul>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <input
+            className="rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+            placeholder="Completed by (name)"
+            value={auditByName}
+            onChange={(e) => setAuditByName(e.target.value)}
+          />
+          <input
+            type="date"
+            className="rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+          />
+        </div>
         <textarea
           className="min-h-[4rem] w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
           placeholder="Notes / remediation plan"
@@ -583,9 +856,21 @@ function Inner() {
           onClick={() => void saveAudit()}
           className="btn-primary !py-2 !px-4 text-sm"
         >
-          Save self-audit
+          Save checklist on {selectedDate}
         </button>
-        {audits.length > 0 ? (
+        {monthlyAudits.filter((m) => m.status === 'done').length > 0 ? (
+          <div className="text-[11px] text-slate-500">
+            Recent completed:{' '}
+            {monthlyAudits
+              .filter((m) => m.status === 'done')
+              .slice(0, 4)
+              .map(
+                (a) =>
+                  `${String(a.completed_date || a.planned_date).slice(0, 10)} · ${a.score ?? '—'}% ${a.band || ''}`
+              )
+              .join(' · ')}
+          </div>
+        ) : audits.length > 0 ? (
           <div className="text-[11px] text-slate-500">
             Last audits:{' '}
             {audits
