@@ -384,8 +384,8 @@ export default function FitReportPage() {
 
   return (
     <FitgraphWorkbench
-      title="Reports"
-      titleAccent="slice & dice"
+      title="Management report"
+      titleAccent="Govern · A4 landscape"
       description="Filter by date, coach, class type and specialty. Member · classes shows who is on which classes (multi-class OK) and who is unassigned. Export any tab as CSV."
     >
 

@@ -141,8 +141,8 @@ function hubModules(hasFrontDesk: boolean): HubModule[] {
     href: '/dashboard/fitgraph/report',
     icon: Package,
     code: '11',
-    title: 'Reports',
-    desc: 'Slice & dice plus member × class assignment (who is / isn’t booked).',
+    title: 'Management report',
+    desc: 'Govern · A4 landscape key metrics PDF · slice & dice.',
     accent: 'from-slate-50 to-white border-slate-200',
   },
 ];

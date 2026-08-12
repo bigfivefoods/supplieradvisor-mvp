@@ -104,8 +104,8 @@ function Inner() {
   return (
     <SchoolsPage>
       <SchoolsHeader
-        title="NSNP reports"
-        titleAccent="Slice & dice"
+        title="Management report"
+        titleAccent="Govern · A4 landscape"
         description={`${period.label} · learners, meals, stock, approved-brand %, district roll-up.`}
         action={
           <div className="flex gap-2">

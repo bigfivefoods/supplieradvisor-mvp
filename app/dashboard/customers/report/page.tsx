@@ -396,7 +396,7 @@ function Inner() {
     <CustomersPage>
       <CustomersHeader
         title="Customer reports"
-        titleAccent="Slice & dice"
+        titleAccent="Govern · A4 landscape"
         description={`CRM decision pack · ${period.label} (${period.from} → ${period.to}). Orders, invoices, AR, pipeline, ratings & risk.`}
         action={
           <div className="flex flex-wrap gap-2">

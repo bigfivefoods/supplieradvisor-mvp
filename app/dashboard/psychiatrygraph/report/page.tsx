@@ -26,8 +26,8 @@ export default function ReportPage() {
 
   return (
     <PsychiatrygraphWorkbench
-      title="Reports"
-      titleAccent="clinic pulse"
+      title="Management report"
+      titleAccent="Govern · A4 landscape"
       description="Practitioner load, injury awareness, patient book, and this week’s diary utilisation."
     >
       {loading || !store ? (

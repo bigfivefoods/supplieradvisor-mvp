@@ -170,8 +170,8 @@ export default function FieldgraphReportPage() {
 
   return (
     <FieldgraphWorkbench
-      title="Reports"
-      titleAccent="Slice & dice"
+      title="Management report"
+      titleAccent="Govern · A4 landscape"
       description={`${period.label} · filter by season, crop, farm, mill group, field and employment type. Yield, harvest, fleet fuel, labour cost, inputs and regen on one desk.`}
     >
       <ManagementReportPanel advisor="fieldgraph" className="mb-6" />

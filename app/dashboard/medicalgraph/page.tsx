@@ -103,7 +103,7 @@ const MODULES: HubModule[] = [
     href: '/dashboard/medicalgraph/report',
     icon: Sparkles,
     code: '09',
-    title: 'Reports',
+    title: 'Management report',
     desc: 'Practitioners, patients, appointments utilisation.',
     accent: 'from-slate-50 to-white border-slate-200',
   },

@@ -119,7 +119,8 @@ export default function ManagementReportPanel({
 
   return (
     <section
-      className={`rounded-3xl border border-slate-200 bg-white overflow-hidden ${className}`}
+      id="management-report"
+      className={`rounded-3xl border border-slate-200 bg-white overflow-hidden scroll-mt-24 ${className}`}
       aria-label="Owner management report"
     >
       <div className="bg-gradient-to-r from-[#0077b6] via-[#00b4d8] to-emerald-600 px-4 py-3 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

@@ -40,7 +40,7 @@ export default function ReportPage() {
 
   return (
     <DentalgraphWorkbench
-      title="Reports"
+      title="Management report"
       titleAccent="practice pulse"
       description="Fill rate, attendance, clinician load, clinical alerts, and no-show soft-blocks (last 30 days)."
     >
