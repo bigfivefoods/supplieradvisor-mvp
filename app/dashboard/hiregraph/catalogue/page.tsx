@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
+import { ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   HiregraphWorkbench,
@@ -16,12 +18,13 @@ import {
 import { HIRE_CATEGORIES, ITEM_STATUSES, getHireCategory } from '@/lib/hire/hiregraph';
 
 export default function HireCataloguePage() {
-  const { store, loading, saving, post, summary } = useHiregraph();
+  const { store, coreSuppliers, loading, saving, post, summary } =
+    useHiregraph();
   const [form, setForm] = useState({
     code: '',
     title: '',
     category_id: 'kids_party',
-    supplier_id: '',
+    srm_supplier_id: '',
     rate_zar: '',
     rate_unit: 'day',
     qty_available: '1',
@@ -38,23 +41,34 @@ export default function HireCataloguePage() {
       toast.error('Code and title required');
       return;
     }
-    const supplier = store?.suppliers.find((s) => s.id === form.supplier_id);
+    const srmId = Number(form.srm_supplier_id);
+    if (!Number.isFinite(srmId) || srmId <= 0) {
+      toast.error('Select a supplier from Core Suppliers');
+      return;
+    }
+    const supplier = coreSuppliers.find((s) => s.id === srmId);
     const cat = HIRE_CATEGORIES.find((c) => c.id === form.category_id);
     await post({
       entity: 'items',
       action: 'upsert',
       record: {
-        ...form,
-        supplier_id: form.supplier_id || null,
+        code: form.code,
+        title: form.title,
+        category_id: form.category_id,
+        srm_supplier_id: srmId,
         supplier_name: supplier?.name || '',
         category_name: cat?.name || '',
         rate_zar: Number(form.rate_zar) || 0,
+        rate_unit: form.rate_unit,
         qty_available: form.qty_available ? Number(form.qty_available) : 1,
         deposit_zar: form.deposit_zar ? Number(form.deposit_zar) : null,
+        location: form.location,
+        status: form.status,
+        description: form.description,
         active: true,
       },
     });
-    toast.success('Item listed');
+    toast.success('Item listed against core supplier');
     setForm((f) => ({
       ...f,
       code: '',
@@ -69,12 +83,25 @@ export default function HireCataloguePage() {
     <HiregraphWorkbench
       title="Catalogue"
       titleAccent="items for hire"
-      description="List gear under a category so the right requirements (licence, deposit, insurance…) apply automatically when a person books."
+      description="List gear against a Core Suppliers (SRM) row. Category rules (licence, deposit, castle safety…) apply automatically when a person from Core Customers books."
     >
       {loading || !store ? (
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-sky-200 bg-sky-50/70 px-4 py-3 dark:border-sky-500/30 dark:bg-sky-950/40">
+            <p className="text-sm text-sky-950 dark:text-sky-50">
+              <strong>Owner of gear:</strong> pick from Core Suppliers — manage
+              the book under Suppliers module.
+            </p>
+            <Link
+              href="/dashboard/suppliers"
+              className="inline-flex items-center gap-1 rounded-full bg-sky-700 px-3 py-1.5 text-xs font-bold text-white"
+            >
+              Open Suppliers <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+
           <StatRow
             tone="hg-client"
             items={[
@@ -84,8 +111,8 @@ export default function HireCataloguePage() {
               },
               { label: 'Listed', value: Number(summary?.listedItems) || 0 },
               {
-                label: 'Open bookings',
-                value: Number(summary?.openBookings) || 0,
+                label: 'Core suppliers',
+                value: coreSuppliers.length,
               },
             ]}
           />
@@ -151,22 +178,35 @@ export default function HireCataloguePage() {
                 </div>
               ) : null}
               <label className="text-xs font-bold">
-                Supplier
+                Supplier (Core SRM)
                 <select
                   className={fieldClass()}
-                  value={form.supplier_id}
+                  value={form.srm_supplier_id}
                   onChange={(e) =>
-                    setForm({ ...form, supplier_id: e.target.value })
+                    setForm({ ...form, srm_supplier_id: e.target.value })
                   }
                 >
-                  <option value="">— select —</option>
-                  {store.suppliers.map((s) => (
+                  <option value="">— select from Suppliers —</option>
+                  {coreSuppliers.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}
+                      {s.city ? ` · ${s.city}` : ''}
                     </option>
                   ))}
                 </select>
               </label>
+              {coreSuppliers.length === 0 ? (
+                <p className="sm:col-span-2 text-[11px] text-amber-800 dark:text-amber-100">
+                  No core suppliers yet.{' '}
+                  <Link
+                    href="/dashboard/suppliers"
+                    className="font-bold underline"
+                  >
+                    Add one in Suppliers
+                  </Link>{' '}
+                  first.
+                </p>
+              ) : null}
               <label className="text-xs font-bold">
                 Rate (R)
                 <input
@@ -241,12 +281,14 @@ export default function HireCataloguePage() {
           </FormCard>
           <DataTable
             tone="hg-client"
-            headers={['Code', 'Title', 'Category', 'Rate', 'Status']}
+            headers={['Code', 'Title', 'Supplier', 'Category', 'Rate', 'Status']}
             rows={store.items.map((i) => ({
               id: i.id,
               cells: [
                 i.code,
                 i.title,
+                i.supplier_name ||
+                  (i.srm_supplier_id ? `SRM #${i.srm_supplier_id}` : '—'),
                 i.category_name || i.category_id,
                 `R${Number(i.rate_zar || 0).toLocaleString('en-ZA')}/${i.rate_unit || 'day'}`,
                 i.status || 'listed',

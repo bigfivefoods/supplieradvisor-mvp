@@ -9,15 +9,32 @@ import {
   HiregraphPage,
   HiregraphRequired,
 } from '@/components/hire/HiregraphShell';
-import type { HiregraphStore } from '@/lib/hire/hiregraph';
+import type {
+  HireCorePartyRef,
+  HiregraphStore,
+} from '@/lib/hire/hiregraph';
 import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 
 export function useHiregraph() {
   const companyId = getSelectedCompanyId()!;
   const [store, setStore] = useState<HiregraphStore | null>(null);
+  const [coreSuppliers, setCoreSuppliers] = useState<HireCorePartyRef[]>([]);
+  const [coreCustomers, setCoreCustomers] = useState<HireCorePartyRef[]>([]);
   const [summary, setSummary] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const applyPayload = (data: {
+    store?: HiregraphStore;
+    summary?: Record<string, unknown> | null;
+    coreSuppliers?: HireCorePartyRef[];
+    coreCustomers?: HireCorePartyRef[];
+  }) => {
+    if (data.store) setStore(data.store);
+    if (data.summary !== undefined) setSummary(data.summary || null);
+    if (Array.isArray(data.coreSuppliers)) setCoreSuppliers(data.coreSuppliers);
+    if (Array.isArray(data.coreCustomers)) setCoreCustomers(data.coreCustomers);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -28,8 +45,7 @@ export function useHiregraph() {
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Load failed');
-      setStore(data.store);
-      setSummary(data.summary || null);
+      applyPayload(data);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
     } finally {
@@ -51,8 +67,7 @@ export function useHiregraph() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Save failed');
-      setStore(data.store);
-      setSummary(data.summary || null);
+      applyPayload(data);
       return data;
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Save failed');
@@ -65,6 +80,8 @@ export function useHiregraph() {
   return {
     companyId,
     store,
+    coreSuppliers,
+    coreCustomers,
     summary,
     loading,
     saving,

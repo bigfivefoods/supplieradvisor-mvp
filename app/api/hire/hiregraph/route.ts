@@ -12,8 +12,10 @@ import {
   summariseHiregraph,
   upsertEntity,
   writeHiregraphToMetadata,
+  type HireCorePartyRef,
   type HireEntity,
   type HiregraphStore,
+  type HireRequirementKey,
 } from '@/lib/hire/hiregraph';
 import {
   HIRE_COMMERCIAL_COPY,
@@ -24,13 +26,7 @@ import {
 
 export const runtime = 'nodejs';
 
-const ENTITIES: HireEntity[] = [
-  'suppliers',
-  'customers',
-  'items',
-  'bookings',
-  'handovers',
-];
+const ENTITIES: HireEntity[] = ['items', 'bookings', 'handovers'];
 
 function isEntity(v: unknown): v is HireEntity {
   return typeof v === 'string' && (ENTITIES as string[]).includes(v);
@@ -47,7 +43,57 @@ async function loadStore(companyId: number) {
     prof?.metadata && typeof prof.metadata === 'object'
       ? { ...(prof.metadata as Record<string, unknown>) }
       : {};
-  return { meta, store: readHiregraphFromMetadata(meta) };
+  return { meta, store: readHiregraphFromMetadata(meta), supabase };
+}
+
+async function loadCoreBooks(companyId: number) {
+  const supabase = getSupabaseServer();
+  const [{ data: srm }, { data: crm }] = await Promise.all([
+    supabase
+      .from('srm_suppliers')
+      .select(
+        'id, trading_name, legal_name, email, phone, contact_name, city, status, linked_profile_id'
+      )
+      .eq('profile_id', companyId)
+      .order('trading_name')
+      .limit(500),
+    supabase
+      .from('customers')
+      .select(
+        'id, trading_name, legal_name, email, phone, contact_name, city, status, linked_profile_id, address'
+      )
+      .eq('profile_id', companyId)
+      .order('trading_name')
+      .limit(500),
+  ]);
+
+  const coreSuppliers: HireCorePartyRef[] = (srm || []).map((s) => ({
+    id: Number(s.id),
+    name: String(s.trading_name || s.legal_name || `Supplier #${s.id}`),
+    email: s.email,
+    phone: s.phone,
+    city: s.city,
+    status: s.status,
+    linked_profile_id: s.linked_profile_id
+      ? Number(s.linked_profile_id)
+      : null,
+  }));
+
+  const coreCustomers: HireCorePartyRef[] = (crm || []).map((c) => ({
+    id: Number(c.id),
+    name: String(
+      c.trading_name || c.legal_name || c.contact_name || `Customer #${c.id}`
+    ),
+    email: c.email,
+    phone: c.phone,
+    city: c.city,
+    status: c.status,
+    linked_profile_id: c.linked_profile_id
+      ? Number(c.linked_profile_id)
+      : null,
+  }));
+
+  return { coreSuppliers, coreCustomers };
 }
 
 async function saveStore(
@@ -68,6 +114,30 @@ async function saveStore(
   return nextMeta;
 }
 
+function denormaliseNames(
+  store: HiregraphStore,
+  coreSuppliers: HireCorePartyRef[],
+  coreCustomers: HireCorePartyRef[]
+) {
+  const sMap = new Map(coreSuppliers.map((s) => [s.id, s]));
+  const cMap = new Map(coreCustomers.map((c) => [c.id, c]));
+  for (const item of store.items) {
+    const sid = Number(item.srm_supplier_id);
+    if (sid && sMap.has(sid)) {
+      item.supplier_name = sMap.get(sid)!.name;
+    }
+  }
+  for (const b of store.bookings) {
+    const sid = Number(b.srm_supplier_id);
+    const cid = Number(b.crm_customer_id || b.customer_id);
+    if (sid && sMap.has(sid)) b.supplier_name = sMap.get(sid)!.name;
+    if (cid && cMap.has(cid)) {
+      b.customer_name = cMap.get(cid)!.name;
+      b.crm_customer_id = cid;
+    }
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const companyId = Number(req.nextUrl.searchParams.get('companyId'));
@@ -82,10 +152,18 @@ export async function GET(req: NextRequest) {
     }
 
     const { store } = await loadStore(companyId);
+    const { coreSuppliers, coreCustomers } = await loadCoreBooks(companyId);
+    denormaliseNames(store, coreSuppliers, coreCustomers);
+
     return NextResponse.json({
       success: true,
       store,
-      summary: summariseHiregraph(store),
+      coreSuppliers,
+      coreCustomers,
+      summary: summariseHiregraph(store, {
+        coreSupplierCount: coreSuppliers.length,
+        coreCustomerCount: coreCustomers.length,
+      }),
       categories: HIRE_CATEGORIES,
       requirementLabels: HIRE_REQUIREMENT_LABELS,
       commercial: {
@@ -93,6 +171,11 @@ export async function GET(req: NextRequest) {
         customer_commission_pct: HIRE_CUSTOMER_COMMISSION_PCT,
         platform_commission_pct: HIRE_PLATFORM_COMMISSION_PCT,
         copy: HIRE_COMMERCIAL_COPY,
+      },
+      links: {
+        suppliersModule: '/dashboard/suppliers',
+        customersModule: '/dashboard/customers',
+        note: 'HireAdvisor uses Core OS Suppliers (SRM) and Customers (CRM). Add parties there, then link them on catalogue and bookings.',
       },
     });
   } catch (e: unknown) {
@@ -118,16 +201,52 @@ export async function POST(req: NextRequest) {
     }
 
     const action = String(body.action || 'upsert');
+    const { meta, store } = await loadStore(companyId);
+    const { coreSuppliers, coreCustomers } = await loadCoreBooks(companyId);
+    let next: HiregraphStore = store;
+
+    // Update hire KYC for a core CRM customer
+    if (action === 'set_kyc') {
+      const crmId = Number(body.crm_customer_id || body.customer_id);
+      if (!Number.isFinite(crmId) || crmId <= 0) {
+        return NextResponse.json(
+          { error: 'crm_customer_id required' },
+          { status: 400 }
+        );
+      }
+      const reqs = Array.isArray(body.requirements_met)
+        ? (body.requirements_met as HireRequirementKey[])
+        : [];
+      next = {
+        ...store,
+        customer_kyc: {
+          ...store.customer_kyc,
+          [String(crmId)]: reqs,
+        },
+      };
+      await saveStore(companyId, meta, next);
+      denormaliseNames(next, coreSuppliers, coreCustomers);
+      return NextResponse.json({
+        success: true,
+        store: next,
+        coreSuppliers,
+        coreCustomers,
+        summary: summariseHiregraph(next, {
+          coreSupplierCount: coreSuppliers.length,
+          coreCustomerCount: coreCustomers.length,
+        }),
+      });
+    }
+
     const entity = body.entity;
     if (!isEntity(entity)) {
       return NextResponse.json(
-        { error: `entity must be one of: ${ENTITIES.join(', ')}` },
+        {
+          error: `entity must be one of: ${ENTITIES.join(', ')} (suppliers/customers live in Core OS modules)`,
+        },
         { status: 400 }
       );
     }
-
-    const { meta, store } = await loadStore(companyId);
-    let next: HiregraphStore = store;
 
     if (action === 'delete') {
       const id = String(body.id || body.record?.id || '');
@@ -141,14 +260,89 @@ export async function POST(req: NextRequest) {
           ? (body.record as Record<string, unknown>)
           : body;
       const { companyId: _c, entity: _e, action: _a, ...rest } = record;
+
+      // Resolve names from core books (parties are never stored locally)
+      if (entity === 'items') {
+        const sid = Number(rest.srm_supplier_id || rest.supplier_id);
+        if (!Number.isFinite(sid) || sid <= 0) {
+          return NextResponse.json(
+            {
+              error:
+                'srm_supplier_id required — list items against Core Suppliers (SRM)',
+            },
+            { status: 400 }
+          );
+        }
+        const s = coreSuppliers.find((x) => x.id === sid);
+        if (!s) {
+          return NextResponse.json(
+            {
+              error: `Supplier #${sid} not found in this company's Core Suppliers book`,
+            },
+            { status: 400 }
+          );
+        }
+        rest.srm_supplier_id = sid;
+        rest.supplier_name = s.name;
+        delete rest.supplier_id;
+      }
+      if (entity === 'bookings') {
+        const cid = Number(rest.crm_customer_id || rest.customer_id);
+        if (!Number.isFinite(cid) || cid <= 0) {
+          return NextResponse.json(
+            {
+              error:
+                'crm_customer_id required — book against Core Customers (CRM)',
+            },
+            { status: 400 }
+          );
+        }
+        const c = coreCustomers.find((x) => x.id === cid);
+        if (!c) {
+          return NextResponse.json(
+            {
+              error: `Customer #${cid} not found in this company's Core Customers book`,
+            },
+            { status: 400 }
+          );
+        }
+        rest.crm_customer_id = cid;
+        rest.customer_name = c.name;
+
+        let sid = Number(rest.srm_supplier_id);
+        if ((!Number.isFinite(sid) || sid <= 0) && rest.item_id) {
+          const item = store.items.find((i) => i.id === rest.item_id);
+          if (item?.srm_supplier_id) {
+            sid = Number(item.srm_supplier_id);
+            rest.supplier_name = item.supplier_name;
+          }
+        }
+        if (Number.isFinite(sid) && sid > 0) {
+          const s = coreSuppliers.find((x) => x.id === sid);
+          if (s) {
+            rest.srm_supplier_id = sid;
+            rest.supplier_name = s.name;
+          } else {
+            rest.srm_supplier_id = sid;
+          }
+        }
+      }
+
       next = upsertEntity(store, entity, rest);
     }
 
     await saveStore(companyId, meta, next);
+    denormaliseNames(next, coreSuppliers, coreCustomers);
+
     return NextResponse.json({
       success: true,
       store: next,
-      summary: summariseHiregraph(next),
+      coreSuppliers,
+      coreCustomers,
+      summary: summariseHiregraph(next, {
+        coreSupplierCount: coreSuppliers.length,
+        coreCustomerCount: coreCustomers.length,
+      }),
       commercial: {
         supplier_commission_pct: HIRE_SUPPLIER_COMMISSION_PCT,
         customer_commission_pct: HIRE_CUSTOMER_COMMISSION_PCT,

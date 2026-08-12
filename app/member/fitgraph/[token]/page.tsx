@@ -7,11 +7,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
+  AlertTriangle,
   CalendarDays,
   Check,
+  CheckCircle2,
   Loader2,
   MapPin,
   MessageSquare,
+  QrCode,
   Send,
   User,
   Users,
@@ -22,6 +25,8 @@ import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify
 import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
 import { VerifiedBadge } from '@/components/services/VerifiedBadge';
 import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
+
+const MEMBER_TOKEN_KEY = 'sa_fitgraph_member_token';
 
 type OpenClass = {
   id: string;
@@ -106,6 +111,20 @@ type Portal = {
     sessions_total: number;
     expires_at?: string | null;
   }>;
+  gym_checkin?: {
+    public_token: string;
+    path: string;
+    brand: string;
+  } | null;
+  access?: {
+    level: string;
+    payment_ok: boolean;
+    membership_status: string;
+    subscription_status: string | null;
+    plan_name: string | null;
+    alert: string | null;
+    member_message: string;
+  };
   threads?: Array<{
     id: string;
     title?: string;
@@ -132,9 +151,11 @@ export default function MemberFitgraphPortalPage() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [tab, setTab] = useState<'open' | 'mine' | 'messages' | 'profile'>(
-    'open'
-  );
+  const [tab, setTab] = useState<
+    'checkin' | 'open' | 'mine' | 'messages' | 'profile'
+  >('open');
+  const [checkinBusy, setCheckinBusy] = useState(false);
+  const [checkinScan, setCheckinScan] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -175,6 +196,16 @@ export default function MemberFitgraphPortalPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Remember portal token for gym QR check-in page + PWA
+  useEffect(() => {
+    if (!token) return;
+    try {
+      localStorage.setItem(MEMBER_TOKEN_KEY, token);
+    } catch {
+      /* ignore */
+    }
+  }, [token]);
 
   const post = async (body: Record<string, unknown>) => {
     const res = await fetch('/api/public/fitgraph/member', {
@@ -247,6 +278,29 @@ export default function MemberFitgraphPortalPage() {
       setError(e instanceof Error ? e.message : 'Save failed');
     } finally {
       setBusyId(null);
+    }
+  };
+
+  /** Check in at the door — optional gym QR token for physical presence */
+  const doCheckIn = async (withGymToken?: string) => {
+    setCheckinBusy(true);
+    setMsg(null);
+    setError(null);
+    try {
+      let gymToken = (withGymToken || checkinScan || '').trim();
+      // Accept full check-in URL pasted from camera / QR apps
+      const m = gymToken.match(/checkin\/fitgraph\/([^/?#]+)/i);
+      if (m) gymToken = decodeURIComponent(m[1]);
+      const data = await post({
+        action: 'checkin',
+        gym_token: gymToken || undefined,
+      });
+      setMsg(data.message || 'Checked in');
+      if (data.portal) setPortal(data.portal);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Check-in failed');
+    } finally {
+      setCheckinBusy(false);
     }
   };
 
@@ -376,10 +430,11 @@ export default function MemberFitgraphPortalPage() {
         <div className="flex gap-1 rounded-2xl bg-white border border-slate-200 p-1 flex-wrap">
           {(
             [
-              ['open', 'Open classes'],
-              ['mine', 'My bookings'],
+              ['checkin', 'Check in'],
+              ['open', 'Classes'],
+              ['mine', 'Bookings'],
               ['messages', 'Messages'],
-              ['profile', 'My profile'],
+              ['profile', 'Profile'],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -390,7 +445,7 @@ export default function MemberFitgraphPortalPage() {
                 setError(null);
                 setMsg(null);
               }}
-              className={`flex-1 min-w-[4.5rem] rounded-xl py-2 text-xs font-bold ${
+              className={`flex-1 min-w-[4rem] rounded-xl py-2 text-xs font-bold ${
                 tab === id
                   ? 'bg-violet-600 text-white'
                   : 'text-slate-600 hover:bg-slate-50'
@@ -403,6 +458,82 @@ export default function MemberFitgraphPortalPage() {
             </button>
           ))}
         </div>
+
+        {tab === 'checkin' && (
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-violet-200 bg-white p-4">
+              <div className="flex items-center gap-2 text-violet-800">
+                <QrCode className="h-4 w-4" />
+                <h2 className="text-sm font-black">Gym door check-in</h2>
+              </div>
+              <p className="mt-2 text-xs text-slate-600">
+                At reception, scan the gym&apos;s QR with your phone camera (or
+                paste the code below). Your membership status is shared with the
+                gym — paid / unpaid / frozen.
+              </p>
+              {portal.access ? (
+                <div
+                  className={`mt-3 rounded-xl border px-3 py-2 text-xs ${
+                    portal.access.level === 'blocked'
+                      ? 'border-rose-200 bg-rose-50 text-rose-900'
+                      : portal.access.payment_ok
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                        : 'border-amber-200 bg-amber-50 text-amber-950'
+                  }`}
+                >
+                  <p className="font-bold">
+                    Membership: {portal.access.membership_status}
+                    {portal.access.subscription_status
+                      ? ` · sub ${portal.access.subscription_status}`
+                      : ''}
+                  </p>
+                  {portal.access.alert ? (
+                    <p className="mt-1 flex items-start gap-1">
+                      <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                      {portal.access.alert}
+                    </p>
+                  ) : (
+                    <p className="mt-1">Dues look current — good to train.</p>
+                  )}
+                </div>
+              ) : null}
+              <label className="mt-3 block text-xs font-bold text-slate-700">
+                Gym QR code or check-in URL (optional)
+                <input
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-mono"
+                  value={checkinScan}
+                  onChange={(e) => setCheckinScan(e.target.value)}
+                  placeholder="Paste fg_… token or full check-in link"
+                />
+              </label>
+              <button
+                type="button"
+                disabled={checkinBusy}
+                onClick={() => void doCheckIn()}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3 text-sm font-black text-white disabled:opacity-50"
+              >
+                {checkinBusy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4" />
+                )}
+                I&apos;m at the gym — check in
+              </button>
+              {portal.gym_checkin?.path ? (
+                <a
+                  href={`${portal.gym_checkin.path}?member=${encodeURIComponent(token)}`}
+                  className="mt-2 block text-center text-xs font-bold text-violet-700 underline"
+                >
+                  Open gym door page (scan-friendly)
+                </a>
+              ) : null}
+              <p className="mt-3 text-[11px] text-slate-500">
+                Tip: add this portal to your home screen (PWA) for one-tap class
+                booking and check-in.
+              </p>
+            </div>
+          </div>
+        )}
 
         {tab === 'messages' && (
           <div className="space-y-3">

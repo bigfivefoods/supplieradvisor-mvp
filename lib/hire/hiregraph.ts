@@ -1,7 +1,10 @@
 /**
  * HireAdvisor® — hire / rental marketplace OS (B2C + suppliers).
  *
- * Suppliers list items for hire; customers (people) rent them.
+ * Parties: Core OS Suppliers (`srm_suppliers`) and Customers (`customers`).
+ * Hire only stores catalogue items, bookings, handovers, and hire KYC cache
+ * (keyed by CRM customer id). No local supplier/customer address books.
+ *
  * Commercial model: 2.5% supplier + 2.5% customer commission on rental GMV
  * (see lib/hire/commercial.ts). Distinct from subscription-led Advisors.
  *
@@ -355,47 +358,18 @@ export const BOOKING_STATUSES = [
 export const HANDOVER_TYPES = ['out', 'return'] as const;
 
 // ── Types ────────────────────────────────────────────────────────────────
+// Suppliers & renters live in Core OS books (srm_suppliers + customers).
+// HireAdvisor only stores hire items, bookings, handovers, and KYC cache.
 
-export type HireSupplier = {
-  id: string;
-  code: string;
+/** Lightweight pointer used when denormalising names from core books */
+export type HireCorePartyRef = {
+  id: number;
   name: string;
-  trading_name?: string;
-  contact_name?: string;
-  contact_email?: string;
-  contact_phone?: string;
-  city?: string;
-  province?: string;
-  country?: string;
-  /** Categories this supplier may list */
-  category_ids?: string[];
-  public_liability_ref?: string;
-  status?: (typeof SUPPLIER_STATUSES)[number] | string;
-  notes?: string;
-  active?: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
-export type HireCustomer = {
-  id: string;
-  code: string;
-  /** Person renting (B2C) */
-  full_name: string;
-  email?: string;
-  phone?: string;
-  id_number?: string;
-  city?: string;
-  province?: string;
-  country?: string;
-  address?: string;
-  status?: (typeof CUSTOMER_STATUSES)[number] | string;
-  /** Satisfied requirement keys (platform-wide KYC cache) */
-  requirements_met?: HireRequirementKey[];
-  notes?: string;
-  active?: boolean;
-  created_at: string;
-  updated_at: string;
+  email?: string | null;
+  phone?: string | null;
+  city?: string | null;
+  status?: string | null;
+  linked_profile_id?: number | null;
 };
 
 export type HireItem = {
@@ -404,6 +378,12 @@ export type HireItem = {
   title: string;
   category_id: string;
   category_name?: string;
+  /**
+   * Core SRM book row id (`srm_suppliers.id`) — owner of the gear.
+   * Prefer this over legacy local supplier_id.
+   */
+  srm_supplier_id?: number | null;
+  /** @deprecated legacy local hire supplier id */
   supplier_id?: string | null;
   supplier_name?: string;
   description?: string;
@@ -429,9 +409,17 @@ export type HireBooking = {
   item_id: string;
   item_title?: string;
   category_id?: string;
+  srm_supplier_id?: number | null;
+  /** @deprecated legacy local hire supplier id */
   supplier_id?: string | null;
   supplier_name?: string;
-  customer_id: string;
+  /**
+   * Core CRM customer id (`customers.id`) — person / company renting.
+   * Prefer this over legacy local customer_id strings.
+   */
+  crm_customer_id?: number | null;
+  /** @deprecated legacy local hire customer id */
+  customer_id?: string | number | null;
   customer_name?: string;
   status?: (typeof BOOKING_STATUSES)[number] | string;
   start_date?: string | null;
@@ -475,11 +463,14 @@ export type HireHandover = {
 };
 
 export type HiregraphStore = {
-  version: 2;
-  /** Marketplace model (v2). Legacy staffing v1 stores are migrated empty. */
+  /** v3: core SRM/CRM linked; no local supplier/customer books */
+  version: 3;
   model: 'rental_marketplace';
-  suppliers: HireSupplier[];
-  customers: HireCustomer[];
+  /**
+   * Hire-specific KYC / requirements met, keyed by CRM `customers.id`.
+   * Core CRM remains source of party identity; this is hire-only checklist state.
+   */
+  customer_kyc: Record<string, HireRequirementKey[]>;
   items: HireItem[];
   bookings: HireBooking[];
   handovers: HireHandover[];
@@ -487,10 +478,9 @@ export type HiregraphStore = {
 
 export function emptyHiregraphStore(): HiregraphStore {
   return {
-    version: 2,
+    version: 3,
     model: 'rental_marketplace',
-    suppliers: [],
-    customers: [],
+    customer_kyc: {},
     items: [],
     bookings: [],
     handovers: [],
@@ -513,14 +503,18 @@ export function readHiregraphFromMetadata(
   if (s.model !== 'rental_marketplace' && (s.clients || s.candidates || s.jobs)) {
     return emptyHiregraphStore();
   }
+  // Drop legacy local suppliers/customers arrays — core books own parties
+  const customer_kyc =
+    s.customer_kyc && typeof s.customer_kyc === 'object' && !Array.isArray(s.customer_kyc)
+      ? (s.customer_kyc as Record<string, HireRequirementKey[]>)
+      : {};
   return {
-    version: 2,
+    version: 3,
     model: 'rental_marketplace',
-    suppliers: Array.isArray(s.suppliers) ? s.suppliers : [],
-    customers: Array.isArray(s.customers) ? s.customers : [],
-    items: Array.isArray(s.items) ? s.items : [],
-    bookings: Array.isArray(s.bookings) ? s.bookings : [],
-    handovers: Array.isArray(s.handovers) ? s.handovers : [],
+    customer_kyc,
+    items: Array.isArray(s.items) ? (s.items as HireItem[]) : [],
+    bookings: Array.isArray(s.bookings) ? (s.bookings as HireBooking[]) : [],
+    handovers: Array.isArray(s.handovers) ? (s.handovers as HireHandover[]) : [],
   };
 }
 
@@ -531,10 +525,10 @@ export function writeHiregraphToMetadata(
   return {
     ...meta,
     [HIREGRAPH_META_KEY]: {
-      version: 2,
+      version: 3,
       model: 'rental_marketplace',
-      suppliers: store.suppliers,
-      customers: store.customers,
+      links_core_books: true,
+      customer_kyc: store.customer_kyc || {},
       items: store.items,
       bookings: store.bookings,
       handovers: store.handovers,
@@ -546,12 +540,7 @@ export function writeHiregraphToMetadata(
   };
 }
 
-export type HireEntity =
-  | 'suppliers'
-  | 'customers'
-  | 'items'
-  | 'bookings'
-  | 'handovers';
+export type HireEntity = 'items' | 'bookings' | 'handovers';
 
 export function listForEntity(
   store: HiregraphStore,
@@ -612,10 +601,9 @@ function enrichBooking(
   raw: Record<string, unknown> & { id: string }
 ): Record<string, unknown> & { id: string } {
   const item = store.items.find((i) => i.id === raw.item_id);
-  const customer = store.customers.find((c) => c.id === raw.customer_id);
-  const supplier = store.suppliers.find(
-    (s) => s.id === (raw.supplier_id || item?.supplier_id)
-  );
+  const crmId = Number(raw.crm_customer_id || raw.customer_id) || null;
+  const srmId =
+    Number(raw.srm_supplier_id || item?.srm_supplier_id) || null;
   const categoryId = String(
     raw.category_id || item?.category_id || 'specialty_other'
   );
@@ -647,20 +635,34 @@ function enrichBooking(
     ...((item?.extra_requirements || []) as HireRequirementKey[]),
   ];
   const uniqueReq = [...new Set(required)];
-  const metFromCustomer = new Set(customer?.requirements_met || []);
+  const kycKey = crmId != null ? String(crmId) : '';
+  const metFromKyc = new Set(
+    kycKey ? store.customer_kyc[kycKey] || [] : []
+  );
   const metFromBooking = new Set(
     (raw.requirements_met as HireRequirementKey[]) || []
   );
-  const met = uniqueReq.filter((r) => metFromCustomer.has(r) || metFromBooking.has(r));
+  const met = uniqueReq.filter(
+    (r) => metFromKyc.has(r) || metFromBooking.has(r)
+  );
   const pending = uniqueReq.filter((r) => !met.includes(r));
+
+  // Persist booking-level met requirements back into customer KYC cache
+  if (kycKey && met.length) {
+    const prev = new Set(store.customer_kyc[kycKey] || []);
+    for (const r of met) prev.add(r);
+    store.customer_kyc[kycKey] = [...prev];
+  }
 
   return {
     ...raw,
     item_title: raw.item_title || item?.title || '',
     category_id: categoryId,
-    supplier_id: raw.supplier_id || item?.supplier_id || null,
-    supplier_name: raw.supplier_name || supplier?.name || item?.supplier_name || '',
-    customer_name: raw.customer_name || customer?.full_name || '',
+    srm_supplier_id: srmId,
+    supplier_name: raw.supplier_name || item?.supplier_name || '',
+    crm_customer_id: crmId,
+    customer_id: crmId,
+    customer_name: raw.customer_name || '',
     units,
     qty,
     rate_zar: rate,
@@ -678,7 +680,10 @@ function enrichBooking(
   };
 }
 
-export function summariseHiregraph(store: HiregraphStore) {
+export function summariseHiregraph(
+  store: HiregraphStore,
+  opts?: { coreSupplierCount?: number; coreCustomerCount?: number }
+) {
   const listed = store.items.filter(
     (i) => i.status === 'listed' || i.status === 'hired_out' || !i.status
   ).length;
@@ -709,10 +714,26 @@ export function summariseHiregraph(store: HiregraphStore) {
     const k = i.category_id || 'specialty_other';
     byCategory[k] = (byCategory[k] || 0) + 1;
   }
+  const linkedSupplierIds = new Set(
+    store.items
+      .map((i) => Number(i.srm_supplier_id))
+      .filter((n) => Number.isFinite(n) && n > 0)
+  );
+  const linkedCustomerIds = new Set(
+    store.bookings
+      .map((b) => Number(b.crm_customer_id || b.customer_id))
+      .filter((n) => Number.isFinite(n) && n > 0)
+  );
 
   return {
-    supplierCount: store.suppliers.filter((s) => s.active !== false).length,
-    customerCount: store.customers.filter((c) => c.active !== false).length,
+    /** From core SRM book when provided */
+    supplierCount:
+      opts?.coreSupplierCount ?? linkedSupplierIds.size,
+    /** From core CRM book when provided */
+    customerCount:
+      opts?.coreCustomerCount ?? linkedCustomerIds.size,
+    linkedSupplierCount: linkedSupplierIds.size,
+    linkedCustomerCount: linkedCustomerIds.size,
     itemCount: store.items.length,
     listedItems: listed,
     bookingCount: store.bookings.length,
@@ -727,6 +748,7 @@ export function summariseHiregraph(store: HiregraphStore) {
     customerCommissionPct: HIRE_CUSTOMER_COMMISSION_PCT,
     categoryCounts: byCategory,
     handoverCount: store.handovers.length,
+    linksCoreBooks: true,
   };
 }
 

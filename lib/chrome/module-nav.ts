@@ -649,9 +649,9 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Classes', href: '/dashboard/fitgraph/classes', desc: 'Class types', section: 'Services' },
       { name: 'Calendar', href: '/dashboard/fitgraph/calendar', desc: 'Schedule coaches · public', section: 'Floor' },
       { name: 'Bookings', href: '/dashboard/fitgraph/bookings', desc: 'Class bookings', section: 'Floor' },
-      { name: 'Check-ins', href: '/dashboard/fitgraph/checkins', desc: 'Front desk', section: 'Floor' },
+      { name: 'Check-ins', href: '/dashboard/fitgraph/checkins', desc: 'Phone QR · paid/unpaid alerts', section: 'Floor' },
       { name: 'Messages', href: '/dashboard/fitgraph/messages', desc: 'Desk · coaches · members', section: 'Floor' },
-      { name: 'Website', href: '/dashboard/fitgraph/website', desc: 'Embed · public calendar', section: 'Grow' },
+      { name: 'Website', href: '/dashboard/fitgraph/website', desc: 'Gym QR · embed · booking', section: 'Grow' },
       { name: 'Management report', href: '/dashboard/fitgraph/management', desc: 'A4 landscape PDF · key metrics', section: 'Insights' },
     ],
   },
@@ -759,16 +759,16 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     resource: 'operations',
     /**
      * HireAdvisor® — hire / rental marketplace (B2C + suppliers).
-     * Dual commission commercial model: 2.5% supplier + 2.5% customer on rental GMV.
-     * Categories enforce different hire requirements.
+     * Parties live in Core OS Suppliers (SRM) + Customers (CRM); hire stores items/bookings/KYC.
+     * Dual commission: 2.5% supplier + 2.5% customer on rental GMV.
      */
     steps: [
       { name: 'Command', href: '/dashboard/hiregraph', exact: true, desc: 'Hire marketplace home', section: 'Home' },
-      { name: 'Suppliers', href: '/dashboard/hiregraph/suppliers', desc: 'List gear · insurance', section: 'Supply' },
+      { name: 'Suppliers', href: '/dashboard/hiregraph/suppliers', desc: 'Core SRM bridge · gear owners', section: 'Supply' },
       { name: 'Categories', href: '/dashboard/hiregraph/categories', desc: 'Requirement stacks', section: 'Supply' },
-      { name: 'Catalogue', href: '/dashboard/hiregraph/catalogue', desc: 'Items · rates · deposits', section: 'Supply' },
-      { name: 'Customers', href: '/dashboard/hiregraph/customers', desc: 'People renting (B2C)', section: 'Demand' },
-      { name: 'Bookings', href: '/dashboard/hiregraph/bookings', desc: 'Requests · dual fee quote', section: 'Demand' },
+      { name: 'Catalogue', href: '/dashboard/hiregraph/catalogue', desc: 'Items linked to core suppliers', section: 'Supply' },
+      { name: 'Customers', href: '/dashboard/hiregraph/customers', desc: 'Core CRM bridge · hire KYC', section: 'Demand' },
+      { name: 'Bookings', href: '/dashboard/hiregraph/bookings', desc: 'Core customer · dual fee quote', section: 'Demand' },
       { name: 'Handover', href: '/dashboard/hiregraph/handover', desc: 'Out · return · condition', section: 'Ops' },
       { name: 'Settlements', href: '/dashboard/hiregraph/settlements', desc: '2.5% + 2.5% ledger', section: 'Money' },
       { name: 'Management report', href: '/dashboard/hiregraph/management', desc: 'A4 landscape PDF · GMV', section: 'Insights' },

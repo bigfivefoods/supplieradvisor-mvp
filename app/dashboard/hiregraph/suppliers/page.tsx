@@ -1,197 +1,129 @@
 'use client';
 
-import { useState } from 'react';
-import { toast } from 'sonner';
+import Link from 'next/link';
+import { ArrowRight, Building2, Package } from 'lucide-react';
 import {
   HiregraphWorkbench,
   LoadingBlock,
   useHiregraph,
 } from '@/components/hire/HiregraphWorkbench';
-import {
-  DataTable,
-  FormCard,
-  StatRow,
-  fieldClass,
-} from '@/components/hire/SimpleEntityForm';
-import { HIRE_CATEGORIES, SUPPLIER_STATUSES } from '@/lib/hire/hiregraph';
-import { HIRE_SUPPLIER_COMMISSION_PCT } from '@/lib/hire/commercial';
+import { StatRow } from '@/components/hire/SimpleEntityForm';
 
+/**
+ * Hire suppliers = Core OS Suppliers (SRM) book.
+ * Gear is listed against an SRM row; manage parties under Suppliers module.
+ */
 export default function HireSuppliersPage() {
-  const { store, loading, saving, post, summary } = useHiregraph();
-  const [form, setForm] = useState({
-    code: '',
-    name: '',
-    contact_name: '',
-    contact_email: '',
-    contact_phone: '',
-    city: '',
-    public_liability_ref: '',
-    status: 'active',
-    category_ids: [] as string[],
-  });
+  const { store, coreSuppliers, loading, summary } = useHiregraph();
 
-  const toggleCat = (id: string) => {
-    setForm((f) => ({
-      ...f,
-      category_ids: f.category_ids.includes(id)
-        ? f.category_ids.filter((x) => x !== id)
-        : [...f.category_ids, id],
-    }));
-  };
-
-  const add = async () => {
-    if (!form.code.trim() || !form.name.trim()) {
-      toast.error('Code and name required');
-      return;
-    }
-    await post({
-      entity: 'suppliers',
-      action: 'upsert',
-      record: { ...form, active: true },
-    });
-    toast.success('Supplier saved');
-    setForm((f) => ({
-      ...f,
-      code: '',
-      name: '',
-      contact_name: '',
-      contact_email: '',
-      contact_phone: '',
-      public_liability_ref: '',
-      category_ids: [],
-    }));
-  };
+  const itemCountBySupplier = new Map<number, number>();
+  for (const item of store?.items || []) {
+    const sid = Number(item.srm_supplier_id);
+    if (!sid) continue;
+    itemCountBySupplier.set(sid, (itemCountBySupplier.get(sid) || 0) + 1);
+  }
 
   return (
     <HiregraphWorkbench
-      title="Suppliers"
-      titleAccent="list gear for hire"
-      description={`Owners listing items on HireAdvisor®. They pay ${HIRE_SUPPLIER_COMMISSION_PCT}% platform commission on completed hire rental value (not on deposits).`}
+      title="Hire suppliers"
+      titleAccent="Core Suppliers module"
+      description="Owners of gear live in Core OS Suppliers (SRM). Add or invite suppliers there, then list catalogue items against them here. Dual commission still applies on completed hires."
     >
       {loading || !store ? (
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-violet-200 bg-violet-50/70 px-4 py-3 dark:border-violet-500/30 dark:bg-violet-950/40">
+            <p className="text-sm text-violet-950 dark:text-violet-50">
+              <strong>Source of truth:</strong> Suppliers module — not a
+              separate HireAdvisor address book.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/dashboard/suppliers"
+                className="inline-flex items-center gap-1 rounded-full bg-violet-700 px-3 py-1.5 text-xs font-bold text-white"
+              >
+                Open Suppliers <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+              <Link
+                href="/dashboard/hiregraph/catalogue"
+                className="inline-flex items-center gap-1 rounded-full border border-violet-300 bg-white px-3 py-1.5 text-xs font-bold text-violet-900 dark:border-violet-400/40 dark:bg-violet-900/40 dark:text-violet-50"
+              >
+                List gear on catalogue
+              </Link>
+            </div>
+          </div>
+
           <StatRow
             tone="hg-desk"
             items={[
               {
-                label: 'Suppliers',
-                value: Number(summary?.supplierCount) || store.suppliers.length,
+                label: 'Core suppliers',
+                value: coreSuppliers.length,
               },
-              { label: 'Catalogue', value: store.items.length },
               {
-                label: 'Supplier fees earned',
-                value: `R${Number(summary?.supplierCommissionZar || 0).toLocaleString('en-ZA')}`,
+                label: 'With hire gear',
+                value: itemCountBySupplier.size,
+              },
+              {
+                label: 'Catalogue items',
+                value: Number(summary?.itemCount) || store.items.length,
               },
             ]}
           />
-          <FormCard
-            title="Add hire supplier"
-            tone="hg-desk"
-            saving={saving}
-            onSubmit={() => void add()}
-          >
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-xs font-bold">
-                Code
-                <input
-                  className={fieldClass()}
-                  value={form.code}
-                  onChange={(e) => setForm({ ...form, code: e.target.value })}
-                />
-              </label>
-              <label className="text-xs font-bold">
-                Name
-                <input
-                  className={fieldClass()}
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                />
-              </label>
-              <label className="text-xs font-bold">
-                Contact
-                <input
-                  className={fieldClass()}
-                  value={form.contact_name}
-                  onChange={(e) =>
-                    setForm({ ...form, contact_name: e.target.value })
-                  }
-                />
-              </label>
-              <label className="text-xs font-bold">
-                Email
-                <input
-                  className={fieldClass()}
-                  value={form.contact_email}
-                  onChange={(e) =>
-                    setForm({ ...form, contact_email: e.target.value })
-                  }
-                />
-              </label>
-              <label className="text-xs font-bold">
-                PL insurance ref
-                <input
-                  className={fieldClass()}
-                  value={form.public_liability_ref}
-                  onChange={(e) =>
-                    setForm({ ...form, public_liability_ref: e.target.value })
-                  }
-                />
-              </label>
-              <label className="text-xs font-bold">
-                Status
-                <select
-                  className={fieldClass()}
-                  value={form.status}
-                  onChange={(e) => setForm({ ...form, status: e.target.value })}
-                >
-                  {SUPPLIER_STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="sm:col-span-2">
-                <p className="mb-1 text-xs font-bold">Categories allowed</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {HIRE_CATEGORIES.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => toggleCat(c.id)}
-                      className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
-                        form.category_ids.includes(c.id)
-                          ? 'border-violet-500 bg-violet-600 text-white'
-                          : 'border-slate-200 bg-white text-slate-600 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-300'
-                      }`}
-                    >
-                      {c.short}
-                    </button>
-                  ))}
-                </div>
-              </div>
+
+          {coreSuppliers.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-10 text-center dark:border-violet-500/20 dark:bg-violet-950/30">
+              <Building2 className="mx-auto h-8 w-8 text-slate-300 dark:text-violet-300" />
+              <p className="mt-3 font-bold text-slate-800 dark:text-white">
+                No suppliers on this company yet
+              </p>
+              <p className="mt-1 text-sm text-slate-500 dark:text-violet-100/70">
+                Add hire partners under Core Suppliers, then come back to list
+                jumping castles, plant, tools and more against them.
+              </p>
+              <Link
+                href="/dashboard/suppliers"
+                className="mt-4 inline-flex items-center gap-1 rounded-full bg-[#0077b6] px-4 py-2 text-xs font-bold text-white"
+              >
+                Go to Suppliers <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
             </div>
-          </FormCard>
-          <DataTable
-            tone="hg-desk"
-            headers={['Code', 'Name', 'Contact', 'Status', 'Categories']}
-            rows={store.suppliers.map((s) => ({
-              id: s.id,
-              cells: [
-                s.code,
-                s.name,
-                s.contact_name || s.contact_email || '—',
-                s.status || 'active',
-                (s.category_ids || []).length || '—',
-              ],
-            }))}
-            onDelete={async (id) => {
-              await post({ entity: 'suppliers', action: 'delete', id });
-              toast.success('Supplier removed');
-            }}
-          />
+          ) : (
+            <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 dark:divide-violet-500/15 dark:border-violet-500/25">
+              {coreSuppliers.map((s) => {
+                const n = itemCountBySupplier.get(s.id) || 0;
+                return (
+                  <li
+                    key={s.id}
+                    className="flex flex-wrap items-center justify-between gap-3 bg-white px-4 py-3 dark:bg-transparent"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-900 dark:text-white">
+                        {s.name}
+                      </p>
+                      <p className="text-[11px] text-slate-500 dark:text-violet-100/65">
+                        {[s.email, s.phone, s.city, s.status]
+                          .filter(Boolean)
+                          .join(' · ') || `SRM #${s.id}`}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:border-violet-400/30 dark:text-violet-100">
+                        <Package className="h-3 w-3" /> {n} items
+                      </span>
+                      <Link
+                        href={`/dashboard/hiregraph/catalogue`}
+                        className="text-xs font-bold text-[#0077b6] dark:text-cyan-200"
+                      >
+                        Catalogue
+                      </Link>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       )}
     </HiregraphWorkbench>

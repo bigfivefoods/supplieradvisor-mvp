@@ -785,11 +785,317 @@ export type FitCheckIn = {
   client_id: string;
   date: string;
   time?: string | null;
-  method?: 'front_desk' | 'app' | 'class' | 'other';
+  method?: 'front_desk' | 'app' | 'class' | 'qr_phone' | 'other' | string;
   session_id?: string | null;
   notes?: string;
   created_at: string;
+  /** Snapshot of access evaluation at check-in (phone QR / desk) */
+  membership_status?: string | null;
+  subscription_status?: string | null;
+  /** true when dues are current enough to train */
+  payment_ok?: boolean;
+  /** Owner-facing alert when past due / expired / frozen */
+  access_alert?: string | null;
+  access_level?: FitMemberAccessLevel | string | null;
 };
+
+/** Member access for floor check-in / class gate */
+export type FitMemberAccessLevel =
+  | 'allowed'
+  | 'allowed_with_warning'
+  | 'blocked';
+
+export type FitMemberAccess = {
+  level: FitMemberAccessLevel;
+  payment_ok: boolean;
+  membership_status: string;
+  subscription_status: string | null;
+  plan_name: string | null;
+  /** Short owner-facing reason when not fully paid / frozen */
+  alert: string | null;
+  /** Short member-facing message */
+  member_message: string;
+  frozen: boolean;
+  period_end: string | null;
+};
+
+/**
+ * Evaluate whether a member may train today based on membership + subscription.
+ * Gym owners still get the check-in event even when unpaid — flagged for desk.
+ */
+export function evaluateMemberAccess(
+  store: FitgraphStore,
+  client: FitClient
+): FitMemberAccess {
+  const membership = String(client.membership_status || 'active').toLowerCase();
+  const frozen =
+    Boolean(client.membership_frozen_at) &&
+    (!client.membership_freeze_until ||
+      client.membership_freeze_until >= new Date().toISOString().slice(0, 10));
+
+  const subs = (store.subscriptions || []).filter(
+    (s) => s.client_id === client.id
+  );
+  const preferred =
+    subs.find((s) => s.status === 'active' || s.status === 'trialing') ||
+    subs.find((s) => s.status === 'past_due') ||
+    subs.find((s) => s.status === 'paused') ||
+    subs[0] ||
+    null;
+  const subStatus = preferred ? String(preferred.status) : null;
+  const plan = client.membership_plan_id
+    ? store.membership_plans.find((p) => p.id === client.membership_plan_id)
+    : preferred
+      ? store.membership_plans.find((p) => p.id === preferred.plan_id)
+      : null;
+  const periodEnd = preferred?.current_period_end || client.end_date || null;
+
+  if (client.active === false) {
+    return {
+      level: 'blocked',
+      payment_ok: false,
+      membership_status: membership,
+      subscription_status: subStatus,
+      plan_name: plan?.name || null,
+      alert: 'Member marked inactive',
+      member_message: 'Your membership is inactive. Please speak to reception.',
+      frozen: false,
+      period_end: periodEnd,
+    };
+  }
+
+  if (frozen) {
+    return {
+      level: 'blocked',
+      payment_ok: false,
+      membership_status: membership,
+      subscription_status: subStatus,
+      plan_name: plan?.name || null,
+      alert: `Membership frozen${
+        client.membership_freeze_until
+          ? ` until ${client.membership_freeze_until}`
+          : ''
+      }`,
+      member_message: 'Your membership is frozen. Please speak to reception.',
+      frozen: true,
+      period_end: periodEnd,
+    };
+  }
+
+  if (membership === 'cancelled' || membership === 'expired') {
+    return {
+      level: 'blocked',
+      payment_ok: false,
+      membership_status: membership,
+      subscription_status: subStatus,
+      plan_name: plan?.name || null,
+      alert: `Membership ${membership}`,
+      member_message: `Your membership is ${membership}. Please renew at reception.`,
+      frozen: false,
+      period_end: periodEnd,
+    };
+  }
+
+  if (subStatus === 'past_due') {
+    return {
+      level: 'allowed_with_warning',
+      payment_ok: false,
+      membership_status: membership,
+      subscription_status: subStatus,
+      plan_name: plan?.name || null,
+      alert: 'Subscription past due — payment outstanding',
+      member_message:
+        'Checked in — please settle outstanding membership fees with reception.',
+      frozen: false,
+      period_end: periodEnd,
+    };
+  }
+
+  if (subStatus === 'cancelled' || subStatus === 'expired') {
+    return {
+      level: 'allowed_with_warning',
+      payment_ok: false,
+      membership_status: membership,
+      subscription_status: subStatus,
+      plan_name: plan?.name || null,
+      alert: `Subscription ${subStatus}`,
+      member_message:
+        'Checked in — your subscription needs attention at reception.',
+      frozen: false,
+      period_end: periodEnd,
+    };
+  }
+
+  if (subStatus === 'paused') {
+    return {
+      level: 'allowed_with_warning',
+      payment_ok: false,
+      membership_status: membership,
+      subscription_status: subStatus,
+      plan_name: plan?.name || null,
+      alert: 'Subscription paused',
+      member_message: 'Checked in — subscription is paused; speak to reception.',
+      frozen: false,
+      period_end: periodEnd,
+    };
+  }
+
+  // Active / trial membership (and active/trialing sub if present) — OK
+  const paymentOk =
+    (membership === 'active' || membership === 'trial') &&
+    (subStatus == null ||
+      subStatus === 'active' ||
+      subStatus === 'trialing');
+
+  return {
+    level: 'allowed',
+    payment_ok: paymentOk,
+    membership_status: membership,
+    subscription_status: subStatus,
+    plan_name: plan?.name || null,
+    alert: null,
+    member_message: 'You are checked in. Have a great session!',
+    frozen: false,
+    period_end: periodEnd,
+  };
+}
+
+/** Public URL path for gym door / reception QR (unique per gym public_token). */
+export function gymCheckinPath(publicToken: string): string {
+  return `/checkin/fitgraph/${encodeURIComponent(publicToken)}`;
+}
+
+export function gymCheckinUrl(origin: string, publicToken: string): string {
+  const base = origin.replace(/\/$/, '');
+  return `${base}${gymCheckinPath(publicToken)}`;
+}
+
+/**
+ * Record a check-in (desk or phone QR). Dedupes same client same day within 30 min
+ * for qr_phone to avoid double-tap spam; returns existing row if so.
+ */
+export function recordMemberCheckIn(
+  store: FitgraphStore,
+  client: FitClient,
+  opts?: {
+    method?: FitCheckIn['method'];
+    session_id?: string | null;
+    notes?: string;
+    now?: Date;
+    /** Allow blocked members to still log a denied attempt */
+    allow_blocked_log?: boolean;
+  }
+): {
+  store: FitgraphStore;
+  check_in: FitCheckIn;
+  access: FitMemberAccess;
+  duplicate: boolean;
+  denied: boolean;
+} {
+  const access = evaluateMemberAccess(store, client);
+  const now = opts?.now || new Date();
+  const date = now.toISOString().slice(0, 10);
+  const time = now.toISOString().slice(11, 16);
+  const method = opts?.method || 'front_desk';
+
+  // Soft dedupe: same client + method within 30 minutes today
+  const recent = (store.check_ins || []).find((c) => {
+    if (c.client_id !== client.id || c.date !== date) return false;
+    if (String(c.method) !== String(method)) return false;
+    const created = c.created_at ? new Date(c.created_at).getTime() : 0;
+    return Number.isFinite(created) && now.getTime() - created < 30 * 60 * 1000;
+  });
+  if (recent) {
+    return {
+      store,
+      check_in: recent,
+      access,
+      duplicate: true,
+      denied: access.level === 'blocked',
+    };
+  }
+
+  const denied = access.level === 'blocked';
+  // Still record blocked attempts so owners see unpaid/frozen try-ins
+  const check_in: FitCheckIn = {
+    id: newId('cin'),
+    client_id: client.id,
+    date,
+    time,
+    method,
+    session_id: opts?.session_id || null,
+    notes: [
+      opts?.notes,
+      denied ? `DENIED: ${access.alert || 'blocked'}` : null,
+      access.alert && !denied ? access.alert : null,
+    ]
+      .filter(Boolean)
+      .join(' · ') || undefined,
+    created_at: now.toISOString(),
+    membership_status: access.membership_status,
+    subscription_status: access.subscription_status,
+    payment_ok: access.payment_ok,
+    access_alert: access.alert,
+    access_level: access.level,
+  };
+
+  const check_ins = [check_in, ...(store.check_ins || [])];
+  return {
+    store: { ...store, check_ins },
+    check_in,
+    access,
+    duplicate: false,
+    denied,
+  };
+}
+
+/** Find active client by portal token, code, email, or phone (normalised). */
+export function findClientForCheckIn(
+  store: FitgraphStore,
+  lookup: {
+    member_token?: string | null;
+    code?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  }
+): FitClient | null {
+  const token = String(lookup.member_token || '').trim();
+  if (token) {
+    const byToken = store.clients.find(
+      (c) => c.portal_token === token && c.active !== false
+    );
+    if (byToken) return byToken;
+  }
+  const code = String(lookup.code || '').trim().toLowerCase();
+  if (code) {
+    const byCode = store.clients.find(
+      (c) =>
+        c.active !== false &&
+        (String(c.code || '').toLowerCase() === code ||
+          String(c.id_number || '').toLowerCase() === code)
+    );
+    if (byCode) return byCode;
+  }
+  const email = String(lookup.email || '').trim().toLowerCase();
+  if (email) {
+    const byEmail = store.clients.find(
+      (c) =>
+        c.active !== false && String(c.email || '').toLowerCase() === email
+    );
+    if (byEmail) return byEmail;
+  }
+  const phoneRaw = String(lookup.phone || '').replace(/\D/g, '');
+  if (phoneRaw.length >= 7) {
+    const byPhone = store.clients.find((c) => {
+      if (c.active === false) return false;
+      const p = String(c.phone || '').replace(/\D/g, '');
+      if (!p) return false;
+      return p.endsWith(phoneRaw) || phoneRaw.endsWith(p);
+    });
+    if (byPhone) return byPhone;
+  }
+  return null;
+}
 
 export type FitPtPack = {
   id: string;
@@ -1142,6 +1448,18 @@ export function buildMemberPortalPayload(
         expires_at: p.expires_at || null,
         status: p.status || 'active',
       })),
+    /** Gym door QR — member scans on arrival (same unique public_token) */
+    gym_checkin: store.settings?.public_token
+      ? {
+          public_token: store.settings.public_token,
+          path: gymCheckinPath(store.settings.public_token),
+          brand:
+            store.settings.brand_name ||
+            store.settings.public_bio?.slice(0, 40) ||
+            'Gym',
+        }
+      : null,
+    access: evaluateMemberAccess(store, client),
   };
 }
 
@@ -1182,6 +1500,12 @@ export function summariseFitgraph(store: FitgraphStore) {
     (b) => b.status === 'booked' || b.status === 'waitlist'
   );
   const checkInsToday = store.check_ins.filter((c) => c.date === today);
+  const checkInsUnpaidToday = checkInsToday.filter(
+    (c) => c.payment_ok === false || Boolean(c.access_alert)
+  );
+  const checkInsBlockedToday = checkInsToday.filter(
+    (c) => c.access_level === 'blocked'
+  );
   const ptRemaining = store.pt_packs.reduce(
     (n, p) =>
       n + Math.max(0, (Number(p.sessions_total) || 0) - (Number(p.sessions_used) || 0)),
@@ -1209,7 +1533,10 @@ export function summariseFitgraph(store: FitgraphStore) {
     publicSessionsUpcoming: publicSessions.length,
     bookingsOpen: bookingsOpen.length,
     checkInsToday: checkInsToday.length,
+    checkInsUnpaidToday: checkInsUnpaidToday.length,
+    checkInsBlockedToday: checkInsBlockedToday.length,
     checkInsTotal: store.check_ins.length,
+    gymCheckinEnabled: Boolean(store.settings?.public_token),
     feedbackCount: (store.class_feedback || []).length,
     memberFeedbackCount: (store.class_feedback || []).filter(
       (f) => f.role === 'member'

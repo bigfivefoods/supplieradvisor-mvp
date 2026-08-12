@@ -32,8 +32,8 @@ export default function HireCategoriesPage() {
               { label: 'Categories', value: HIRE_CATEGORIES.length },
               { label: 'Catalogue items', value: store.items.length },
               {
-                label: 'Suppliers',
-                value: Number(summary?.supplierCount) || store.suppliers.length,
+                label: 'Core suppliers',
+                value: Number(summary?.supplierCount) || 0,
               },
             ]}
           />

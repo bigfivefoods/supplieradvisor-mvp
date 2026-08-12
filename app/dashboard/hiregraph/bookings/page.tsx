@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
+import { ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   HiregraphWorkbench,
@@ -19,6 +21,7 @@ import {
   computeHireCommissions,
   getHireCategory,
   itemRequirements,
+  type HireRequirementKey,
 } from '@/lib/hire/hiregraph';
 import {
   HIRE_CUSTOMER_COMMISSION_PCT,
@@ -26,11 +29,12 @@ import {
 } from '@/lib/hire/commercial';
 
 export default function HireBookingsPage() {
-  const { store, loading, saving, post, summary } = useHiregraph();
+  const { store, coreCustomers, loading, saving, post, summary } =
+    useHiregraph();
   const [form, setForm] = useState({
     code: '',
     item_id: '',
-    customer_id: '',
+    crm_customer_id: '',
     start_date: '',
     end_date: '',
     units: '1',
@@ -53,26 +57,56 @@ export default function HireBookingsPage() {
       (cat?.defaultDepositPct
         ? Math.round((rental * cat.defaultDepositPct) / 100)
         : 0);
-    const fees = computeHireCommissions({ rentalZar: rental, depositZar: deposit });
+    const fees = computeHireCommissions({
+      rentalZar: rental,
+      depositZar: deposit,
+    });
     const reqs = itemRequirements(item);
-    const customer = store.customers.find((c) => c.id === form.customer_id);
-    const met = new Set(customer?.requirements_met || []);
+    const crmId = Number(form.crm_customer_id);
+    const kycKey = Number.isFinite(crmId) && crmId > 0 ? String(crmId) : '';
+    const met = new Set<HireRequirementKey>(
+      kycKey ? store.customer_kyc?.[kycKey] || [] : []
+    );
     const pending = reqs.filter((r) => !met.has(r));
-    return { fees, pending, item, reqs };
-  }, [store, form.item_id, form.customer_id, form.units, form.qty]);
+    const customer = coreCustomers.find((c) => c.id === crmId);
+    return { fees, pending, item, reqs, customer };
+  }, [
+    store,
+    coreCustomers,
+    form.item_id,
+    form.crm_customer_id,
+    form.units,
+    form.qty,
+  ]);
 
   const add = async () => {
-    if (!form.code.trim() || !form.item_id || !form.customer_id) {
-      toast.error('Code, item and customer required');
+    if (!form.code.trim() || !form.item_id || !form.crm_customer_id) {
+      toast.error('Code, item and core customer required');
       return;
     }
+    const crmId = Number(form.crm_customer_id);
+    if (!Number.isFinite(crmId) || crmId <= 0) {
+      toast.error('Select a customer from Core Customers');
+      return;
+    }
+    const customer = coreCustomers.find((c) => c.id === crmId);
+    const item = store?.items.find((i) => i.id === form.item_id);
     await post({
       entity: 'bookings',
       action: 'upsert',
       record: {
-        ...form,
+        code: form.code,
+        item_id: form.item_id,
+        crm_customer_id: crmId,
+        customer_name: customer?.name || '',
+        srm_supplier_id: item?.srm_supplier_id ?? null,
+        supplier_name: item?.supplier_name || '',
+        start_date: form.start_date || null,
+        end_date: form.end_date || null,
         units: Number(form.units) || 1,
         qty: Number(form.qty) || 1,
+        delivery_address: form.delivery_address,
+        notes: form.notes,
         status:
           preview && preview.pending.length
             ? 'awaiting_requirements'
@@ -94,12 +128,33 @@ export default function HireBookingsPage() {
     <HiregraphWorkbench
       title="Bookings"
       titleAccent="hire requests"
-      description={`Request hire dates. System quotes rental, ${HIRE_SUPPLIER_COMMISSION_PCT}% supplier fee, ${HIRE_CUSTOMER_COMMISSION_PCT}% customer fee, and deposit — and lists outstanding category requirements.`}
+      description={`Request hire dates against a Core Customers (CRM) renter. System quotes rental, ${HIRE_SUPPLIER_COMMISSION_PCT}% supplier fee, ${HIRE_CUSTOMER_COMMISSION_PCT}% customer fee, and deposit — and lists outstanding category requirements from hire KYC.`}
     >
       {loading || !store ? (
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-cyan-200 bg-cyan-50/70 px-4 py-3 dark:border-cyan-500/30 dark:bg-cyan-950/40">
+            <p className="text-sm text-cyan-950 dark:text-cyan-50">
+              <strong>Renter:</strong> pick from Core Customers — set hire KYC
+              under Hire customers if needed.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/dashboard/customers"
+                className="inline-flex items-center gap-1 rounded-full bg-cyan-700 px-3 py-1.5 text-xs font-bold text-white"
+              >
+                Open Customers <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+              <Link
+                href="/dashboard/hiregraph/customers"
+                className="inline-flex items-center gap-1 rounded-full border border-cyan-300 bg-white px-3 py-1.5 text-xs font-bold text-cyan-900 dark:border-cyan-400/40 dark:bg-cyan-900/40 dark:text-cyan-50"
+              >
+                Hire KYC
+              </Link>
+            </div>
+          </div>
+
           <StatRow
             tone="hg-talent"
             items={[
@@ -108,7 +163,10 @@ export default function HireBookingsPage() {
                 value: Number(summary?.bookingCount) || store.bookings.length,
               },
               { label: 'Open', value: Number(summary?.openBookings) || 0 },
-              { label: 'Out now', value: Number(summary?.outNow) || 0 },
+              {
+                label: 'Core customers',
+                value: coreCustomers.length,
+              },
             ]}
           />
           <FormCard
@@ -151,27 +209,41 @@ export default function HireBookingsPage() {
                   {store.items.map((i) => (
                     <option key={i.id} value={i.id}>
                       {i.code} · {i.title}
+                      {i.supplier_name ? ` (${i.supplier_name})` : ''}
                     </option>
                   ))}
                 </select>
               </label>
               <label className="text-xs font-bold">
-                Customer (person)
+                Customer (Core CRM)
                 <select
                   className={fieldClass()}
-                  value={form.customer_id}
+                  value={form.crm_customer_id}
                   onChange={(e) =>
-                    setForm({ ...form, customer_id: e.target.value })
+                    setForm({ ...form, crm_customer_id: e.target.value })
                   }
                 >
-                  <option value="">— select —</option>
-                  {store.customers.map((c) => (
+                  <option value="">— select from Customers —</option>
+                  {coreCustomers.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.code} · {c.full_name}
+                      {c.name}
+                      {c.email ? ` · ${c.email}` : ''}
                     </option>
                   ))}
                 </select>
               </label>
+              {coreCustomers.length === 0 ? (
+                <p className="sm:col-span-2 text-[11px] text-amber-800 dark:text-amber-100">
+                  No core customers yet.{' '}
+                  <Link
+                    href="/dashboard/customers"
+                    className="font-bold underline"
+                  >
+                    Add one in Customers
+                  </Link>{' '}
+                  first.
+                </p>
+              ) : null}
               <label className="text-xs font-bold">
                 Start
                 <input
@@ -225,6 +297,7 @@ export default function HireBookingsPage() {
               <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-3 text-xs dark:border-emerald-400/30 dark:bg-emerald-950/40">
                 <p className="font-black text-emerald-950 dark:text-emerald-100">
                   Quote preview · dual commission
+                  {preview.customer ? ` · ${preview.customer.name}` : ''}
                 </p>
                 <div className="mt-2 grid gap-1 sm:grid-cols-2">
                   <span>
@@ -242,13 +315,19 @@ export default function HireBookingsPage() {
                   <span>
                     Supplier {HIRE_SUPPLIER_COMMISSION_PCT}%:{' '}
                     <strong>
-                      R{preview.fees.supplierCommissionZar.toLocaleString('en-ZA')}
+                      R
+                      {preview.fees.supplierCommissionZar.toLocaleString(
+                        'en-ZA'
+                      )}
                     </strong>
                   </span>
                   <span>
                     Customer {HIRE_CUSTOMER_COMMISSION_PCT}%:{' '}
                     <strong>
-                      R{preview.fees.customerCommissionZar.toLocaleString('en-ZA')}
+                      R
+                      {preview.fees.customerCommissionZar.toLocaleString(
+                        'en-ZA'
+                      )}
                     </strong>
                   </span>
                   <span>
@@ -271,11 +350,11 @@ export default function HireBookingsPage() {
                       .map((r) => HIRE_REQUIREMENT_LABELS[r])
                       .join(', ')}
                   </p>
-                ) : (
+                ) : form.crm_customer_id ? (
                   <p className="mt-2 text-emerald-800 dark:text-emerald-200">
                     All category requirements met for this customer.
                   </p>
-                )}
+                ) : null}
               </div>
             ) : null}
           </FormCard>
@@ -287,7 +366,11 @@ export default function HireBookingsPage() {
               cells: [
                 b.code,
                 b.item_title || b.item_id,
-                b.customer_name || b.customer_id,
+                b.customer_name ||
+                  (b.crm_customer_id
+                    ? `CRM #${b.crm_customer_id}`
+                    : b.customer_id) ||
+                  '—',
                 b.status || 'requested',
                 b.customer_pays_zar != null
                   ? `R${Number(b.customer_pays_zar).toLocaleString('en-ZA')}`

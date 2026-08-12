@@ -102,19 +102,19 @@ const ROLES = [
 
 const PHASES = [
   {
-    title: '1 · Supplier onboarding & catalogue',
+    title: '1 · Core suppliers & catalogue',
     steps: [
-      'Register hire supplier (PL insurance where needed)',
-      'Choose categories (plant, vehicles, tools, events…)',
-      'List items with rate unit, deposit, stock qty',
+      'Add gear owners in Core Suppliers (SRM) — not a hire-only address book',
+      'Choose categories (plant, vehicles, tools, kids party…)',
+      'List catalogue items linked to srm_suppliers (rate, deposit, stock)',
     ],
   },
   {
-    title: '2 · Customer request (B2C)',
+    title: '2 · Core customers & hire request (B2C)',
     steps: [
-      'Person browses catalogue and requests hire dates',
-      'System applies category requirements (licence, ID, deposit…)',
-      'Customer completes outstanding KYC / docs',
+      'Renters live in Core Customers (CRM); set hire KYC per customer',
+      'Book against crm_customers + catalogue item; dual fee quote',
+      'Clear category requirements (licence, ID, castle safety…)',
     ],
   },
   {
@@ -362,7 +362,7 @@ export async function buildHiregraphProcessGuidePdf(opts?: {
     });
     doc.font('Helvetica').fontSize(7).fillColor(PROCESS_PDF.muted);
     doc.text(
-      `Suppliers list hire gear by category → customers (people) request dates and clear category requirements → gear goes out and returns with condition notes → SupplierAdvisor® earns ${HIRE_SUPPLIER_COMMISSION_PCT}% from the supplier and ${HIRE_CUSTOMER_COMMISSION_PCT}% from the customer on rental value (deposits stay refundable).`,
+      `Core Suppliers (SRM) own gear → catalogue lists items by category → Core Customers (CRM) book dates and clear hire KYC → OUT/RETURN → SupplierAdvisor® earns ${HIRE_SUPPLIER_COMMISSION_PCT}% + ${HIRE_CUSTOMER_COMMISSION_PCT}% on rental value (deposits stay refundable).`,
       g.mx + 10,
       y + 16,
       { width: g.contentW - 20, height: 20 }

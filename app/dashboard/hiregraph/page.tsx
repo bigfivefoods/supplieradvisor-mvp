@@ -46,7 +46,7 @@ const SUPPLY: HubModule[] = [
     icon: Building2,
     code: '01',
     title: 'Suppliers',
-    desc: 'Owners who list gear for hire — contacts, categories, insurance.',
+    desc: 'Core Suppliers (SRM) bridge — gear owners; manage book under Suppliers.',
     accent: 'from-violet-50 to-white border-violet-100',
   },
   {
@@ -54,7 +54,7 @@ const SUPPLY: HubModule[] = [
     icon: ClipboardList,
     code: '02',
     title: 'Categories',
-    desc: 'Plant, vehicles, tools, events… each with different requirements.',
+    desc: 'Plant, vehicles, tools, kids party… each with different requirements.',
     accent: 'from-fuchsia-50 to-white border-fuchsia-100',
   },
   {
@@ -62,7 +62,7 @@ const SUPPLY: HubModule[] = [
     icon: Package,
     code: '03',
     title: 'Catalogue',
-    desc: 'Hire items — rates, deposits, stock, category rules.',
+    desc: 'List items against a core supplier — rates, deposits, stock.',
     accent: 'from-sky-50 to-white border-sky-100',
   },
 ];
@@ -73,7 +73,7 @@ const DEMAND: HubModule[] = [
     icon: UserRound,
     code: '04',
     title: 'Customers',
-    desc: 'People renting (B2C) — ID, address, met requirements.',
+    desc: 'Core Customers (CRM) bridge — renters + hire-only KYC checklist.',
     accent: 'from-cyan-50 to-white border-cyan-100',
   },
   {
@@ -81,7 +81,7 @@ const DEMAND: HubModule[] = [
     icon: CalendarDays,
     code: '05',
     title: 'Bookings',
-    desc: 'Hire requests with dual fee quote and requirement gaps.',
+    desc: 'Book against core customers — dual fee quote + requirement gaps.',
     accent: 'from-indigo-50 to-white border-indigo-100',
   },
   {
@@ -148,7 +148,7 @@ export default function HiregraphHubPage() {
           eyebrow="HireAdvisor® · rental marketplace"
           title="Hire command"
           titleAccent="B2C + suppliers"
-          description={`List gear by category, rent to people, clear requirements, hand out and return. Platform earns ${HIRE_SUPPLIER_COMMISSION_PCT}% from the supplier and ${HIRE_CUSTOMER_COMMISSION_PCT}% from the customer on hire rental value — not a subscription desk.`}
+          description={`Gear owners and renters live in Core Suppliers (SRM) and Core Customers (CRM). HireAdvisor lists catalogue, bookings, hire KYC and handovers only. Platform earns ${HIRE_SUPPLIER_COMMISSION_PCT}% + ${HIRE_CUSTOMER_COMMISSION_PCT}% on hire rental value — not a subscription desk.`}
         />
 
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">

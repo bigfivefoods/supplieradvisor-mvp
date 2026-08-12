@@ -10,9 +10,11 @@ import {
   FITGRAPH_CLIENT_TOKENS_KEY,
   buildMemberPortalPayload,
   classTypeById,
+  evaluateMemberAccess,
   newId,
   parseCompanyIdFromToken,
   readFitgraphFromMetadata,
+  recordMemberCheckIn,
   sessionBookingCount,
   writeFitgraphToMetadata,
   type FitBooking,
@@ -434,6 +436,49 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    /**
+     * Phone check-in — member already on portal (PWA). Optionally verify gym QR
+     * token matches this company's public_token (physical presence).
+     */
+    if (action === 'checkin' || action === 'check_in') {
+      const gymToken = String(
+        body.gym_token || body.public_token || body.scan_token || ''
+      ).trim();
+      if (gymToken) {
+        const expected = store.settings?.public_token || '';
+        if (!expected || gymToken !== expected) {
+          return NextResponse.json(
+            {
+              error:
+                'This QR is not for your gym. Scan the check-in code at reception.',
+            },
+            { status: 400 }
+          );
+        }
+      }
+      const result = recordMemberCheckIn(store, store.clients[ci], {
+        method: gymToken ? 'qr_phone' : 'app',
+        session_id: body.session_id || null,
+        notes: body.notes ? String(body.notes) : undefined,
+      });
+      await saveStore(companyId, meta, result.store);
+      return NextResponse.json({
+        success: true,
+        denied: result.denied,
+        duplicate: result.duplicate,
+        check_in: result.check_in,
+        access: result.access,
+        portal: buildMemberPortalPayload(
+          result.store,
+          result.store.clients[ci]
+        ),
+        message: result.duplicate
+          ? 'Already checked in recently.'
+          : result.access.member_message,
+        owner_alert: result.access.alert,
+      });
+    }
+
     if (action === 'cancel' || action === 'cancel_booking') {
       const bookingId = String(body.booking_id || body.bookingId || '');
       const bi = store.bookings.findIndex(
@@ -472,6 +517,20 @@ export async function POST(request: NextRequest) {
           { error: 'Online booking is disabled by the gym' },
           { status: 403 }
         );
+      }
+
+      // Soft gate: frozen / cancelled / expired membership cannot book
+      {
+        const access = evaluateMemberAccess(store, store.clients[ci]);
+        if (access.level === 'blocked') {
+          return NextResponse.json(
+            {
+              error: access.member_message,
+              access,
+            },
+            { status: 403 }
+          );
+        }
       }
 
       const sessionId = String(body.session_id || body.sessionId || '');

@@ -107,8 +107,8 @@ function hubModules(hasFrontDesk: boolean): HubModule[] {
     code: '08',
     title: 'Check-ins',
     desc: hasFrontDesk
-      ? 'Front-desk and class attendance log.'
-      : 'Coach or portal attendance log (no front desk).',
+      ? 'Phone QR + desk log · paid/unpaid alerts.'
+      : 'Phone QR check-in · membership payment alerts.',
     accent: 'from-fuchsia-50 to-white border-fuchsia-100',
   },
   {

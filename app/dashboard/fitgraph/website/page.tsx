@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Check, Copy, ExternalLink, RefreshCw } from 'lucide-react';
+import { Check, Copy, ExternalLink, QrCode, RefreshCw } from 'lucide-react';
 import { AdvisorOpsPoliciesCard } from '@/components/services/AdvisorOpsPoliciesCard';
 import {
   FitgraphWorkbench,
@@ -11,7 +11,10 @@ import {
 } from '@/components/fitness/FitgraphWorkbench';
 import { FormCard, StatRow, fc } from '@/components/fitness/FitForm';
 import { FitContractDocsPanel } from '@/components/fitness/FitContractDocs';
-import type { FitContractDoc } from '@/lib/fitness/fitgraph';
+import {
+  gymCheckinUrl,
+  type FitContractDoc,
+} from '@/lib/fitness/fitgraph';
 import { AdvisorRoomsCard } from '@/components/services/AdvisorRoomsCard';
 import { PracticeProfilePdfButton } from '@/components/schedule/PracticeProfilePdfButton';
 
@@ -59,11 +62,13 @@ export default function FitgraphWebsitePage() {
     typeof window !== 'undefined' ? window.location.origin : 'https://your-app';
 
   const links = useMemo(() => {
-    if (!token) return { page: '', api: '', iframe: '' };
+    if (!token) return { page: '', api: '', iframe: '', checkin: '', qrImg: '' };
     const page = `${origin}/embed/fitgraph/${encodeURIComponent(token)}`;
     const api = `${origin}/api/public/fitgraph?token=${encodeURIComponent(token)}`;
+    const checkin = gymCheckinUrl(origin, token);
     const iframe = `<iframe src="${page}" title="Class schedule" style="width:100%;min-height:720px;border:0;border-radius:16px" loading="lazy"></iframe>`;
-    return { page, api, iframe };
+    const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(checkin)}`;
+    return { page, api, iframe, checkin, qrImg };
   }, [token, origin]);
 
   const save = async () => {
@@ -107,8 +112,8 @@ export default function FitgraphWebsitePage() {
   return (
     <FitgraphWorkbench
       title="Website"
-      titleAccent="& profile"
-      description="Gym ops model (front desk or coach-led), public bio, PDF contracts, and class calendar embed. Coaches can share classes from their portal."
+      titleAccent="QR · embed · profile"
+      description="Unique gym check-in QR for member phones, ops model, public bio, contracts, and class calendar embed with online booking."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -146,6 +151,81 @@ export default function FitgraphWebsitePage() {
               PDF.
             </p>
           </div>
+
+          {token ? (
+            <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-5 dark:border-violet-500/30 dark:from-violet-950/50 dark:to-slate-950">
+              <div className="flex flex-wrap items-start gap-6">
+                <div className="shrink-0 rounded-2xl border border-violet-100 bg-white p-3 shadow-sm dark:border-violet-500/20">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={links.qrImg}
+                    alt="Gym check-in QR"
+                    width={200}
+                    height={200}
+                    className="h-[200px] w-[200px]"
+                  />
+                </div>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <p className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-violet-700 dark:text-violet-300">
+                    <QrCode className="h-3.5 w-3.5" /> Unique gym check-in QR
+                  </p>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                    Members scan this at the door
+                  </h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
+                    Every gym on GymAdvisor gets a unique QR (your public gym
+                    token). Members open it on their phone, identify themselves,
+                    and check in. Paid / unpaid / frozen membership is logged
+                    for the desk on{' '}
+                    <a
+                      href="/dashboard/fitgraph/checkins"
+                      className="font-bold text-violet-700 underline dark:text-violet-300"
+                    >
+                      Check-ins
+                    </a>
+                    .
+                  </p>
+                  <p className="break-all font-mono text-[11px] text-slate-500">
+                    {links.checkin}
+                  </p>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => void copy('checkin', links.checkin)}
+                      className="inline-flex items-center gap-1 rounded-full bg-violet-700 px-3 py-1.5 text-xs font-bold text-white"
+                    >
+                      {copied === 'checkin' ? (
+                        <Check className="h-3.5 w-3.5" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                      Copy check-in link
+                    </button>
+                    <a
+                      href={links.checkin}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 rounded-full border border-violet-300 bg-white px-3 py-1.5 text-xs font-bold text-violet-900 dark:border-violet-400/40 dark:bg-violet-900/40 dark:text-violet-50"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" /> Open
+                    </a>
+                    <a
+                      href={links.qrImg}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                    >
+                      Download QR image
+                    </a>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Print and post at reception. Rotating the public token below
+                    also rotates this QR — update printed signs after rotate.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <FormCard
             tone="owner"
