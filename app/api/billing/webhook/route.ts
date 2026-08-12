@@ -7,10 +7,8 @@
  * Also accepted:
  *   https://www.supplieradvisor.com/api/billing/webhook
  *
- * Both share the same handler so either dashboard URL works.
+ * Handlers are re-exported; `runtime` must be declared here (Next.js forbids re-exporting route segment config).
  */
-export {
-  POST,
-  GET,
-  runtime,
-} from '@/app/api/paystack/webhook/route';
+export const runtime = 'nodejs';
+
+export { POST, GET } from '@/app/api/paystack/webhook/route';
