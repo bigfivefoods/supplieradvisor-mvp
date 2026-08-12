@@ -132,7 +132,7 @@ export default function ManagementReportPanel({
 
   // Dark KPI tile gradients — deep colour → brighter brand (no flat grey/white)
   const darkKpiGradients = [
-    'dark:border-sky-400/25 dark:bg-gradient-to-br dark:from-[#0b1e33] dark:via-[#0c4a6e] dark:to-[#0891b2]/
+    'dark:border-sky-400/25 dark:bg-gradient-to-br dark:from-[#0b1e33] dark:via-[#0c4a6e] dark:to-[#0891b2]',
     'dark:border-cyan-400/25 dark:bg-gradient-to-br dark:from-[#042f2e] dark:via-[#0e7490] dark:to-[#22d3ee]',
     'dark:border-emerald-400/25 dark:bg-gradient-to-br dark:from-[#052e16] dark:via-[#047857] dark:to-[#34d399]',
     'dark:border-amber-400/25 dark:bg-gradient-to-br dark:from-[#1c1003] dark:via-[#b45309] dark:to-[#fbbf24]',
