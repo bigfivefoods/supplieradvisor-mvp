@@ -20,6 +20,13 @@ const PAGE_W = 841.89;
 const PAGE_H = 595.28;
 const MX = 20;
 const CONTENT_W = PAGE_W - MX * 2;
+/**
+ * Printer non-printable edge is often ~2–5 mm. Keep critical text/chrome
+ * inside a safe inset so headers don’t clip when printing.
+ * ~12 pt ≈ 4.2 mm top; ~10 pt ≈ 3.5 mm bottom.
+ */
+const SAFE_TOP = 12;
+const SAFE_BOTTOM = 10;
 const BRAND = '#00b4d8';
 const BRAND_DEEP = '#0077b6';
 const BRAND_MID = '#0891b2';
@@ -32,7 +39,7 @@ const LINE = '#e2e8f0';
 const SURFACE = '#f8fafc';
 const RISK = '#be123c';
 const OK = '#047857';
-const FOOTER_Y = PAGE_H - 12;
+const FOOTER_Y = PAGE_H - SAFE_BOTTOM - 2;
 
 const PALETTE = [
   '#0077b6',
@@ -481,7 +488,10 @@ export async function buildManagementReportPdf(
     ], 48);
 
     // ── Brand hero — smooth blue → lighter teal ───────────────────────
-    const heroH = 44;
+    // Include SAFE_TOP so brand text sits below the typical printer clip zone.
+    // Background still fills from y=0 (full-bleed look); text starts lower.
+    const heroInnerH = 40;
+    const heroH = SAFE_TOP + heroInnerH;
     fillHGradient(
       pdf,
       0,
@@ -498,8 +508,12 @@ export async function buildManagementReportPdf(
       ],
       120
     );
-    // Subtle top sheen
-    pdf.rect(0, 0, PAGE_W, 10).fillOpacity(0.12).fill('#ffffff').fillOpacity(1);
+    // Subtle top sheen (visual only — may clip on some printers)
+    pdf
+      .rect(0, 0, PAGE_W, SAFE_TOP + 4)
+      .fillOpacity(0.1)
+      .fill('#ffffff')
+      .fillOpacity(1);
     // Soft bottom edge blend into page
     fillHGradient(
       pdf,
@@ -514,38 +528,39 @@ export async function buildManagementReportPdf(
       ],
       64
     );
-    // Decorative glass orbs (right side — over lighter teal)
+    // Decorative glass orbs (right side — over lighter teal), below safe top
     pdf
-      .circle(PAGE_W - 56, 16, 22)
+      .circle(PAGE_W - 56, SAFE_TOP + 10, 22)
       .fillOpacity(0.14)
       .fill('#ffffff')
       .fillOpacity(1);
     pdf
-      .circle(PAGE_W - 22, 32, 14)
+      .circle(PAGE_W - 22, SAFE_TOP + 22, 14)
       .fillOpacity(0.12)
       .fill('#ffffff')
       .fillOpacity(1);
     pdf
-      .circle(PAGE_W - 90, 34, 8)
+      .circle(PAGE_W - 90, SAFE_TOP + 24, 8)
       .fillOpacity(0.1)
       .fill('#ffffff')
       .fillOpacity(1);
 
-    // Brand mark chip
+    // Brand mark chip — inside print-safe band
+    const heroTextY = SAFE_TOP + 4;
     pdf
-      .roundedRect(MX, 10, 3.5, 24, 1.5)
+      .roundedRect(MX, heroTextY + 2, 3.5, 24, 1.5)
       .fillOpacity(0.95)
       .fill('#ffffff')
       .fillOpacity(1);
 
     pdf.font('Helvetica-Bold').fontSize(13.5).fillColor('#ffffff');
-    t(pdf, doc.brand, MX + 10, 8, CONTENT_W * 0.48, 14);
+    t(pdf, doc.brand, MX + 10, heroTextY, CONTENT_W * 0.48, 14);
     pdf.font('Helvetica').fontSize(7).fillColor('#ecfeff');
     t(
       pdf,
       'Insights · management pack · key metrics · charts · one page',
       MX + 10,
-      25,
+      heroTextY + 17,
       CONTENT_W * 0.5,
       10
     );
@@ -555,7 +570,7 @@ export async function buildManagementReportPdf(
       pdf,
       doc.companyName || `Company #${doc.companyId}`,
       MX,
-      9,
+      heroTextY + 1,
       CONTENT_W,
       12,
       'right'
@@ -565,13 +580,13 @@ export async function buildManagementReportPdf(
       pdf,
       `${doc.period.from} → ${doc.period.to}  ·  A4 landscape  ·  ${doc.sliceLabel}`,
       MX,
-      24,
+      heroTextY + 16,
       CONTENT_W,
       10,
       'right'
     );
 
-    let y = heroH + 8;
+    let y = heroH + 6;
 
     // ── Headline card ─────────────────────────────────────────────────
     card(pdf, MX, y, CONTENT_W, 22, { fill: '#ffffff', radius: 5 });
@@ -622,15 +637,15 @@ export async function buildManagementReportPdf(
 
     // ── Charts row ────────────────────────────────────────────────────
     const chartCount = Math.min(2, Math.max(1, charts.length));
-    // Slightly shorter charts when two KPI rows so bottom still fits
-    const chartH = kpis.length > 6 ? 108 : 118;
+    // Slightly shorter charts when two KPI rows / safe margins so bottom still fits
+    const chartH = kpis.length > 6 ? 100 : 110;
     const chartGap = 8;
     const chartW =
       chartCount <= 1 ? CONTENT_W : (CONTENT_W - chartGap) / chartCount;
     charts.slice(0, chartCount).forEach((chart, i) => {
       drawChart(pdf, chart, MX + i * (chartW + chartGap), y, chartW, chartH);
     });
-    y += chartH + 6;
+    y += chartH + 5;
 
     // ── Bottom: table + insight columns ───────────────────────────────
     const bottomH = FOOTER_Y - y - 8;
@@ -728,11 +743,12 @@ export async function buildManagementReportPdf(
       });
     }
 
-    // ── Footer ────────────────────────────────────────────────────────
-    pdf.rect(0, FOOTER_Y - 4, PAGE_W, PAGE_H - (FOOTER_Y - 4)).fill('#ffffff');
+    // ── Footer (above bottom printer clip) ────────────────────────────
+    const footerBandY = FOOTER_Y - 6;
+    pdf.rect(0, footerBandY, PAGE_W, PAGE_H - footerBandY).fill('#ffffff');
     pdf
-      .moveTo(0, FOOTER_Y - 4)
-      .lineTo(PAGE_W, FOOTER_Y - 4)
+      .moveTo(0, footerBandY)
+      .lineTo(PAGE_W, footerBandY)
       .strokeColor(LINE)
       .lineWidth(0.5)
       .stroke();
@@ -741,7 +757,7 @@ export async function buildManagementReportPdf(
       pdf,
       `${doc.brand} · SupplierAdvisor® · Insights pack · Generated ${doc.generatedAt.slice(0, 16).replace('T', ' ')} · Confidential`,
       MX,
-      FOOTER_Y - 1,
+      FOOTER_Y - 3,
       CONTENT_W * 0.72,
       8
     );
@@ -749,7 +765,7 @@ export async function buildManagementReportPdf(
       pdf,
       'Page 1 of 1 · A4 landscape',
       MX,
-      FOOTER_Y - 1,
+      FOOTER_Y - 3,
       CONTENT_W,
       8,
       'right'

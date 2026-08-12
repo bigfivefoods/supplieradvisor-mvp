@@ -88,16 +88,16 @@ function ChartCard({
     (s, i) => s.color || palette[i % palette.length]
   );
 
-  const tickColor = isDark ? '#94a3b8' : '#64748b';
+  const tickColor = isDark ? '#a5f3fc' : '#64748b';
   const gridColor = isDark
-    ? 'rgba(148,163,184,0.12)'
+    ? 'rgba(34,211,238,0.12)'
     : 'rgba(148,163,184,0.2)';
-  const legendColor = isDark ? '#e2e8f0' : '#475569';
-  const donutBorder = isDark ? '#0f172a' : '#ffffff';
+  const legendColor = isDark ? '#ecfeff' : '#475569';
+  const donutBorder = isDark ? '#061825' : '#ffffff';
   const lineFill = isDark
-    ? 'rgba(34,211,238,0.18)'
+    ? 'rgba(34,211,238,0.22)'
     : 'rgba(0,180,216,0.15)';
-  const pointFill = isDark ? '#0f172a' : '#ffffff';
+  const pointFill = isDark ? '#0b2f44' : '#ffffff';
 
   const optsCommon = useMemo(
     () => ({
@@ -192,14 +192,15 @@ function ChartCard({
   );
 
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-900/5 transition hover:shadow-md dark:border-slate-700/70 dark:bg-slate-900 dark:shadow-none dark:ring-cyan-500/10 dark:hover:ring-cyan-400/25 dark:hover:shadow-none">
-      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#0077b6] via-[#00b4d8] to-emerald-500 dark:from-cyan-400 dark:via-teal-400 dark:to-emerald-400" />
+    <div className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-900/5 transition hover:shadow-md dark:border-cyan-400/25 dark:bg-gradient-to-br dark:from-[#061825] dark:via-[#0b3a4f] dark:to-[#0d4f4a] dark:shadow-[0_10px_28px_-10px_rgba(0,0,0,0.5)] dark:ring-0 dark:hover:border-cyan-300/40 dark:hover:shadow-[0_12px_32px_-8px_rgba(34,211,238,0.2)]">
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#0077b6] via-[#00b4d8] to-emerald-500 dark:h-1.5 dark:from-cyan-300 dark:via-teal-300 dark:to-emerald-300" />
+      <div className="pointer-events-none absolute -right-6 -top-8 h-24 w-24 rounded-full bg-cyan-400/0 blur-2xl dark:bg-cyan-300/15" />
       <div className="flex items-center justify-between gap-2 px-4 pt-4 pb-1">
-        <p className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-200">
+        <p className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-white">
           {chart.title}
         </p>
         {chart.unit ? (
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:bg-slate-800 dark:text-cyan-300">
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:border dark:border-cyan-300/30 dark:bg-gradient-to-r dark:from-cyan-500/25 dark:to-teal-400/20 dark:text-cyan-100">
             {chart.unit}
           </span>
         ) : null}

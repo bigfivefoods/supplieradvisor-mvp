@@ -952,6 +952,14 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         group: 'School',
         section: 'Home',
       },
+      // Insights early so schools always see management report (not buried under Kitchen)
+      {
+        name: 'Management report',
+        href: '/dashboard/schools/report',
+        desc: 'A4 landscape PDF · key metrics · kitchen audits · this school',
+        group: 'School',
+        section: 'Insights',
+      },
       {
         name: 'Learners',
         href: '/dashboard/schools/learners',
@@ -1056,13 +1064,6 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         desc: 'CoA · R638 · PIC · self-audit',
         group: 'School',
         section: 'Kitchen',
-      },
-      {
-        name: 'Management report',
-        href: '/dashboard/schools/report',
-        desc: 'A4 landscape PDF · key metrics · kitchen audits',
-        group: 'School',
-        section: 'Insights',
       },
       {
         name: 'Claims',
@@ -1200,8 +1201,21 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         group: 'SP',
         section: 'Trade',
       },
-    
-      { name: 'Messages', href: '/dashboard/messages?from=schools&channel=colleague', desc: 'DBE · school · SP threads', section: 'Govern', rail: false },
+      {
+        name: 'Management report',
+        href: '/dashboard/schools/report',
+        desc: 'A4 landscape PDF · SP workspace metrics',
+        group: 'SP',
+        section: 'Insights',
+      },
+
+      {
+        name: 'Messages',
+        href: '/dashboard/messages?from=schools&channel=colleague',
+        desc: 'DBE · school · SP threads',
+        section: 'Home',
+        rail: false,
+      },
     ],
   },
   {

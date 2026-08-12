@@ -130,19 +130,31 @@ export default function ManagementReportPanel({
 
   if (!companyId) return null;
 
+  // Dark KPI tile gradients — deep colour → brighter brand (no flat grey/white)
+  const darkKpiGradients = [
+    'dark:border-sky-400/25 dark:bg-gradient-to-br dark:from-[#0b1e33] dark:via-[#0c4a6e] dark:to-[#0891b2]/
+    'dark:border-cyan-400/25 dark:bg-gradient-to-br dark:from-[#042f2e] dark:via-[#0e7490] dark:to-[#22d3ee]',
+    'dark:border-emerald-400/25 dark:bg-gradient-to-br dark:from-[#052e16] dark:via-[#047857] dark:to-[#34d399]',
+    'dark:border-amber-400/25 dark:bg-gradient-to-br dark:from-[#1c1003] dark:via-[#b45309] dark:to-[#fbbf24]',
+    'dark:border-violet-400/25 dark:bg-gradient-to-br dark:from-[#1e1033] dark:via-[#6d28d9] dark:to-[#a78bfa]',
+    'dark:border-rose-400/25 dark:bg-gradient-to-br dark:from-[#2a0a14] dark:via-[#be123c] dark:to-[#fb7185]',
+    'dark:border-teal-400/25 dark:bg-gradient-to-br dark:from-[#042f2e] dark:via-[#0f766e] dark:to-[#2dd4bf]',
+    'dark:border-indigo-400/25 dark:bg-gradient-to-br dark:from-[#0f172a] dark:via-[#4338ca] dark:to-[#818cf8]',
+  ];
+
   return (
     <section
       id="management-report"
-      className={`overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-900/5 scroll-mt-24 dark:border-slate-700/80 dark:bg-slate-950 dark:ring-cyan-500/10 dark:shadow-none ${className}`}
+      className={`overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-900/5 scroll-mt-24 dark:border-cyan-500/20 dark:bg-gradient-to-b dark:from-[#061018] dark:via-[#0a1628] dark:to-[#04101a] dark:ring-cyan-400/15 dark:shadow-[0_0_40px_-12px_rgba(34,211,238,0.25)] ${className}`}
       aria-label="Owner management report"
     >
-      {/* Hero — brand band (same in both themes) */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-[#005f8a] via-[#0077b6] to-[#00b4d8] px-4 py-4 text-white sm:px-5 dark:from-[#003d5c] dark:via-[#006a9e] dark:to-[#0d9488]">
-        <div className="pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full bg-white/10 blur-2xl dark:bg-cyan-300/15" />
-        <div className="pointer-events-none absolute bottom-0 right-16 h-20 w-20 rounded-full bg-emerald-400/20 blur-xl dark:bg-teal-300/25" />
+      {/* Hero — brand band */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-[#005f8a] via-[#0077b6] to-[#00b4d8] px-4 py-4 text-white sm:px-5 dark:from-[#022c4a] dark:via-[#0369a1] dark:to-[#0d9488]">
+        <div className="pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full bg-white/10 blur-2xl dark:bg-cyan-300/20" />
+        <div className="pointer-events-none absolute bottom-0 right-16 h-20 w-20 rounded-full bg-emerald-400/20 blur-xl dark:bg-teal-300/30" />
         <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <p className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-white/85 dark:text-cyan-100/90">
+            <p className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-white/85 dark:text-cyan-100">
               <Sparkles className="h-3 w-3" />
               Insights · one-page A4 landscape
             </p>
@@ -155,7 +167,7 @@ export default function ManagementReportPanel({
                 </span>
               ) : null}
             </h2>
-            <p className="mt-1 max-w-xl text-xs text-white/90 sm:text-sm dark:text-sky-100/90">
+            <p className="mt-1 max-w-xl text-xs text-white/90 sm:text-sm dark:text-sky-100/95">
               Slice & dice on screen with live charts, then download a polished
               A4 landscape PDF with the same key metrics.
             </p>
@@ -164,7 +176,7 @@ export default function ManagementReportPanel({
             <button
               type="button"
               onClick={() => void load()}
-              className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3.5 py-2 text-xs font-bold backdrop-blur hover:bg-white/20 dark:border-cyan-300/30 dark:bg-slate-950/30 dark:hover:bg-slate-950/50"
+              className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3.5 py-2 text-xs font-bold backdrop-blur hover:bg-white/20 dark:border-cyan-300/40 dark:bg-gradient-to-r dark:from-cyan-950/40 dark:to-teal-900/30 dark:hover:from-cyan-900/50 dark:hover:to-teal-800/40"
             >
               <RefreshCw className="h-3.5 w-3.5" /> Refresh
             </button>
@@ -172,7 +184,7 @@ export default function ManagementReportPanel({
               type="button"
               disabled={pdfBusy || loading}
               onClick={() => void downloadPdf()}
-              className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-xs font-black text-[#0077b6] shadow-sm hover:bg-sky-50 disabled:opacity-50 dark:bg-cyan-400 dark:text-slate-950 dark:hover:bg-cyan-300 dark:shadow-cyan-500/20"
+              className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-xs font-black text-[#0077b6] shadow-sm hover:bg-sky-50 disabled:opacity-50 dark:border dark:border-cyan-300/50 dark:bg-gradient-to-r dark:from-cyan-400 dark:to-teal-300 dark:text-[#042f2e] dark:hover:from-cyan-300 dark:hover:to-teal-200 dark:shadow-cyan-400/30"
             >
               {pdfBusy ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -192,17 +204,17 @@ export default function ManagementReportPanel({
           </div>
           {dimensions.length ? (
             <div className="flex flex-wrap items-end gap-2">
-              <span className="mb-1 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-cyan-300/80">
+              <span className="mb-1 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-cyan-300">
                 <SlidersHorizontal className="h-3 w-3" /> Slice filters
               </span>
               {dimensions.map((d) => (
                 <label
                   key={d.key}
-                  className="block text-[10px] font-bold text-slate-500 dark:text-slate-300"
+                  className="block text-[10px] font-bold text-slate-500 dark:text-cyan-100/80"
                 >
                   {d.label}
                   <select
-                    className="mt-0.5 block min-w-[8rem] rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:shadow-none"
+                    className="mt-0.5 block min-w-[8rem] rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 shadow-sm dark:border-cyan-500/30 dark:bg-gradient-to-br dark:from-[#0b1e33] dark:to-[#083344] dark:text-cyan-50 dark:shadow-none"
                     value={dims[d.key] || ''}
                     onChange={(e) =>
                       setDims((prev) => ({
@@ -235,8 +247,8 @@ export default function ManagementReportPanel({
               onClick={() => setSlice(s.id)}
               className={`rounded-full border px-3.5 py-1.5 text-[11px] font-bold transition-all ${
                 slice === s.id
-                  ? 'border-[#0077b6] bg-[#0077b6] text-white shadow-sm shadow-sky-200 dark:border-cyan-400 dark:bg-cyan-500 dark:text-slate-950 dark:shadow-cyan-500/30'
-                  : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-sky-300 hover:bg-white dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-cyan-500/50 dark:hover:bg-slate-800'
+                  ? 'border-[#0077b6] bg-[#0077b6] text-white shadow-sm shadow-sky-200 dark:border-cyan-300/60 dark:bg-gradient-to-r dark:from-cyan-500 dark:to-teal-400 dark:text-[#042f2e] dark:shadow-cyan-400/40'
+                  : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-sky-300 hover:bg-white dark:border-cyan-500/25 dark:bg-gradient-to-br dark:from-[#0b1e33]/60 dark:to-[#083344]/50 dark:text-cyan-100 dark:hover:border-cyan-400/50 dark:hover:from-[#0c4a6e]/50 dark:hover:to-[#0e7490]/40'
               }`}
             >
               {s.label}
@@ -246,18 +258,18 @@ export default function ManagementReportPanel({
 
         {loading || !report ? (
           <div className="flex flex-col items-center justify-center gap-2 py-14">
-            <Loader2 className="h-8 w-8 animate-spin text-[#00b4d8] dark:text-cyan-400" />
-            <p className="text-xs font-semibold text-slate-400 dark:text-slate-400">
+            <Loader2 className="h-8 w-8 animate-spin text-[#00b4d8] dark:text-cyan-300" />
+            <p className="text-xs font-semibold text-slate-400 dark:text-cyan-200/70">
               Building Insights pack…
             </p>
           </div>
         ) : (
           <>
-            <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 to-white px-4 py-3 dark:border-slate-700/80 dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-950">
+            <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 to-white px-4 py-3 dark:border-cyan-400/25 dark:bg-gradient-to-br dark:from-[#0b1e33] dark:via-[#0c4a6e]/80 dark:to-[#134e4a]/70">
               <p className="text-sm font-black text-slate-900 sm:text-base dark:text-white">
                 {report.headline}
               </p>
-              <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-cyan-200/70">
+              <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-cyan-100/80">
                 {report.product}
                 {report.filterSummary ? ` · ${report.filterSummary}` : ''} ·{' '}
                 {report.period.from} → {report.period.to}
@@ -266,7 +278,7 @@ export default function ManagementReportPanel({
 
             {/* KPI grid */}
             <div>
-              <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-cyan-300/70">
+              <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-cyan-300">
                 Key metrics
               </p>
               <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
@@ -284,19 +296,20 @@ export default function ManagementReportPanel({
                   return (
                     <div
                       key={k.label}
-                      className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-3 shadow-sm ring-1 ring-slate-900/5 dark:border-slate-700/70 dark:bg-slate-900 dark:shadow-none dark:ring-1 dark:ring-cyan-500/10"
+                      className={`relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-3 shadow-sm ring-1 ring-slate-900/5 dark:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.45)] dark:ring-0 ${darkKpiGradients[i % darkKpiGradients.length]}`}
                     >
                       <div
-                        className={`absolute left-0 top-0 h-full w-1 bg-gradient-to-b ${accents[i % accents.length]}`}
+                        className={`absolute left-0 top-0 h-full w-1 bg-gradient-to-b ${accents[i % accents.length]} dark:w-1.5 dark:opacity-90`}
                       />
-                      <p className="pl-2 text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-400">
+                      <div className="pointer-events-none absolute -right-4 -top-4 h-16 w-16 rounded-full bg-white/10 blur-xl dark:bg-white/15" />
+                      <p className="relative pl-2 text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-white/75">
                         {k.label}
                       </p>
-                      <p className="mt-1 pl-2 text-xl font-black tabular-nums tracking-tight text-slate-900 sm:text-2xl dark:text-white">
+                      <p className="relative mt-1 pl-2 text-xl font-black tabular-nums tracking-tight text-slate-900 sm:text-2xl dark:text-white dark:drop-shadow-sm">
                         {k.value}
                       </p>
                       {k.hint ? (
-                        <p className="mt-0.5 pl-2 text-[10px] font-medium text-slate-400 dark:text-cyan-300/60">
+                        <p className="relative mt-0.5 pl-2 text-[10px] font-medium text-slate-400 dark:text-white/65">
                           {k.hint}
                         </p>
                       ) : null}
@@ -307,16 +320,16 @@ export default function ManagementReportPanel({
             </div>
 
             {/* Charts — always prominent */}
-            <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-3 sm:p-4 dark:border-slate-700/70 dark:bg-slate-900/60">
+            <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-3 sm:p-4 dark:border-cyan-400/25 dark:bg-gradient-to-br dark:from-[#061825] dark:via-[#0b2f44] dark:to-[#0a3d3a]/90">
               <div className="mb-3 flex items-center gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-br from-[#0077b6] to-[#00b4d8] text-white shadow-sm dark:from-cyan-500 dark:to-teal-400 dark:shadow-cyan-500/20">
+                <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-br from-[#0077b6] to-[#00b4d8] text-white shadow-sm dark:from-cyan-400 dark:to-teal-300 dark:text-[#042f2e] dark:shadow-cyan-400/30">
                   <BarChart3 className="h-3.5 w-3.5" />
                 </div>
                 <div>
                   <p className="text-xs font-black text-slate-800 dark:text-white">
                     Visual Insights
                   </p>
-                  <p className="text-[10px] font-medium text-slate-400 dark:text-slate-400">
+                  <p className="text-[10px] font-medium text-slate-400 dark:text-cyan-100/70">
                     Live charts from this period — included on the PDF
                   </p>
                 </div>
@@ -330,40 +343,40 @@ export default function ManagementReportPanel({
                   title: 'Highlights',
                   items: report.highlights,
                   tone:
-                    'border-emerald-200/80 bg-gradient-to-br from-emerald-50 to-white dark:border-emerald-500/30 dark:from-emerald-950/50 dark:to-slate-950',
+                    'border-emerald-200/80 bg-gradient-to-br from-emerald-50 to-white dark:border-emerald-400/30 dark:from-[#052e16] dark:via-[#065f46] dark:to-[#10b981]/70',
                   chip:
-                    'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300',
-                  dot: 'bg-slate-400 dark:bg-emerald-400',
+                    'bg-emerald-100 text-emerald-800 dark:bg-emerald-400/25 dark:text-emerald-100 dark:border dark:border-emerald-300/30',
+                  dot: 'bg-slate-400 dark:bg-emerald-300',
                 },
                 {
                   title: 'Risks / watch',
                   items: report.risks,
                   tone:
-                    'border-rose-200/80 bg-gradient-to-br from-rose-50 to-white dark:border-rose-500/30 dark:from-rose-950/50 dark:to-slate-950',
+                    'border-rose-200/80 bg-gradient-to-br from-rose-50 to-white dark:border-rose-400/30 dark:from-[#2a0a14] dark:via-[#9f1239] dark:to-[#fb7185]/65',
                   chip:
-                    'bg-rose-100 text-rose-800 dark:bg-rose-500/20 dark:text-rose-300',
-                  dot: 'bg-slate-400 dark:bg-rose-400',
+                    'bg-rose-100 text-rose-800 dark:bg-rose-400/25 dark:text-rose-100 dark:border dark:border-rose-300/30',
+                  dot: 'bg-slate-400 dark:bg-rose-300',
                 },
                 {
                   title: 'Owner actions',
                   items: report.actions,
                   tone:
-                    'border-sky-200/80 bg-gradient-to-br from-sky-50 to-white dark:border-cyan-500/30 dark:from-sky-950/50 dark:to-slate-950',
+                    'border-sky-200/80 bg-gradient-to-br from-sky-50 to-white dark:border-cyan-400/30 dark:from-[#0b1e33] dark:via-[#0369a1] dark:to-[#22d3ee]/60',
                   chip:
-                    'bg-sky-100 text-sky-800 dark:bg-cyan-500/20 dark:text-cyan-300',
-                  dot: 'bg-slate-400 dark:bg-cyan-400',
+                    'bg-sky-100 text-sky-800 dark:bg-cyan-400/25 dark:text-cyan-50 dark:border dark:border-cyan-300/30',
+                  dot: 'bg-slate-400 dark:bg-cyan-300',
                 },
               ].map((sec) => (
                 <div
                   key={sec.title}
-                  className={`rounded-2xl border px-3.5 py-3 shadow-sm dark:shadow-none ${sec.tone}`}
+                  className={`rounded-2xl border px-3.5 py-3 shadow-sm dark:shadow-[0_8px_24px_-10px_rgba(0,0,0,0.5)] ${sec.tone}`}
                 >
                   <p
                     className={`mb-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${sec.chip}`}
                   >
                     {sec.title}
                   </p>
-                  <ul className="space-y-1.5 text-xs font-medium text-slate-700 dark:text-slate-200">
+                  <ul className="space-y-1.5 text-xs font-medium text-slate-700 dark:text-white/90">
                     {(sec.items || []).slice(0, 5).map((item, i) => (
                       <li key={i} className="flex gap-2">
                         <span
@@ -380,17 +393,17 @@ export default function ManagementReportPanel({
             {report.tables.map((tbl) => (
               <div
                 key={tbl.title}
-                className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-900/5 dark:border-slate-700/70 dark:bg-slate-900 dark:shadow-none dark:ring-cyan-500/10"
+                className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-900/5 dark:border-cyan-400/25 dark:bg-gradient-to-br dark:from-[#061825] dark:via-[#0b2f44] dark:to-[#0c3d4a] dark:shadow-[0_12px_32px_-12px_rgba(0,0,0,0.55)] dark:ring-0"
               >
-                <div className="flex items-center gap-2 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-3.5 py-2.5 dark:border-slate-700/80 dark:from-slate-900 dark:to-slate-950">
-                  <FileText className="h-3.5 w-3.5 text-[#00b4d8] dark:text-cyan-400" />
+                <div className="flex items-center gap-2 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-3.5 py-2.5 dark:border-cyan-400/20 dark:bg-gradient-to-r dark:from-[#0c4a6e]/80 dark:via-[#0e7490]/50 dark:to-[#134e4a]/60">
+                  <FileText className="h-3.5 w-3.5 text-[#00b4d8] dark:text-cyan-300" />
                   <p className="text-xs font-black text-slate-800 dark:text-white">
                     {tbl.title}
                   </p>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[480px] text-left text-xs">
-                    <thead className="bg-slate-50/80 text-[10px] font-black uppercase tracking-wide text-slate-400 dark:bg-slate-950/80 dark:text-cyan-300/70">
+                    <thead className="bg-slate-50/80 text-[10px] font-black uppercase tracking-wide text-slate-400 dark:bg-gradient-to-r dark:from-[#083344]/90 dark:to-[#0b3a4a]/70 dark:text-cyan-200/80">
                       <tr>
                         {tbl.headers.map((h) => (
                           <th key={h} className="px-3.5 py-2.5">
@@ -403,16 +416,16 @@ export default function ManagementReportPanel({
                       {tbl.rows.map((row, i) => (
                         <tr
                           key={i}
-                          className={`border-t border-slate-100 dark:border-slate-800 ${
+                          className={`border-t border-slate-100 dark:border-cyan-500/10 ${
                             i % 2 === 1
-                              ? 'bg-slate-50/40 dark:bg-slate-950/60'
-                              : 'bg-white dark:bg-slate-900'
+                              ? 'bg-slate-50/40 dark:bg-cyan-950/25'
+                              : 'bg-white dark:bg-transparent'
                           }`}
                         >
                           {row.map((cell, j) => (
                             <td
                               key={j}
-                              className="px-3.5 py-2 font-semibold text-slate-800 dark:text-slate-100"
+                              className="px-3.5 py-2 font-semibold text-slate-800 dark:text-cyan-50"
                             >
                               {cell}
                             </td>

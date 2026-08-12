@@ -929,6 +929,12 @@ function Inner() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-6">
         {[
           {
+            href: '/dashboard/schools/report#management-report',
+            icon: FileText,
+            label: 'Management report',
+            desc: 'Insights · A4 PDF · this school',
+          },
+          {
             href: '/dashboard/schools/kitchen-pack',
             icon: ChefHat,
             label: 'Kitchen pack',
@@ -1019,11 +1025,11 @@ function Inner() {
             sub: 'Lead risks & decisions',
           },
           {
-            href: '/dashboard/schools/report',
+            href: '/dashboard/schools/report#management-report',
             icon: BarChart3,
-            label: 'Analytics',
-            value: 'Open',
-            sub: 'Slice NSNP performance',
+            label: 'Management report',
+            value: 'Insights',
+            sub: 'A4 PDF · this school’s key metrics',
           },
         ].map((t) => (
           <Link
