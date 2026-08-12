@@ -1,6 +1,6 @@
 /**
  * Shared clinician diary portal helpers for Dental / Physio / Medical / Psychiatry.
- * Mirrors FitAdvisor coach portal: token auth, week diary, edit/delete, attendance.
+ * Mirrors GymAdvisor coach portal: token auth, week diary, edit/delete, attendance.
  */
 import { promoteNextWaitlist } from '@/lib/services/advisor-booking';
 

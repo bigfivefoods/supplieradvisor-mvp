@@ -132,7 +132,7 @@ const MODULE_BAND_META: Record<
   industry: {
     title: 'Industry',
     blurb:
-      'Vertical OS modules for agri, extractives, and services — CropAdvisor®, QuarryAdvisor®, FitAdvisor®, HireAdvisor® and clinic Advisors with diaries, waitlists, treatment plans, rooms, marketplace, and in-app care.',
+      'Vertical OS modules for agri, extractives, and services — CropAdvisor®, QuarryAdvisor®, GymAdvisor®, HireAdvisor® and clinic Advisors with diaries, waitlists, treatment plans, rooms, marketplace, and in-app care.',
     accent:
       'text-emerald-800 border-emerald-200 bg-emerald-50/80 dark:text-emerald-300 dark:border-emerald-500/40 dark:bg-emerald-500/10',
     step: '03',
@@ -205,7 +205,7 @@ const MODULE_OPTIONS: Array<{
     iconTone: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300',
     bullets: [
       'CropAdvisor® agri · QuarryAdvisor® aggregates',
-      'FitAdvisor® · rooms · waitlist · marketplace',
+      'GymAdvisor® · rooms · waitlist · marketplace',
       'Clinic Advisors · exclusive diaries · treatment plans',
     ],
     href: '#modules-industry',
@@ -462,8 +462,8 @@ const MODULES = [
     id: 'fitgraph',
     band: 'industry' as ModuleBand,
     code: 'I3',
-    title: 'FitAdvisor®',
-    short: 'FitAdvisor',
+    title: 'GymAdvisor®',
+    short: 'GymAdvisor',
     tagline: 'Gym & fitness services OS',
     body: 'Coaches (People dual-write, contracts), members with invites & family booking, memberships (freeze & packs), rooms on the calendar, waitlists, 24h reminders, outcomes & recalls, in-app messaging by system user ID, staff Today PWA, website embed and marketplace listing — fees stay off-platform; SA bills the gym subscription only.',
     bullets: [
@@ -1101,7 +1101,7 @@ export default function LandingPage() {
               {
                 icon: Stethoscope,
                 t: 'Industry & programme solutions that operate',
-                b: 'CropAdvisor®, QuarryAdvisor®, FitAdvisor®, HireAdvisor® (hire marketplace · 2.5%+2.5% dual commission), clinic Advisors, and SchoolAdvisor® (public-sector NSNP: DBE · school · SP). Most Advisors bill subscription only; HireAdvisor® is primarily transaction-commissioned on hire GMV.',
+                b: 'CropAdvisor®, QuarryAdvisor®, GymAdvisor®, HireAdvisor® (hire marketplace · 2.5%+2.5% dual commission), clinic Advisors, and SchoolAdvisor® (public-sector NSNP: DBE · school · SP). Most Advisors bill subscription only; HireAdvisor® is primarily transaction-commissioned on hire GMV.',
               },
               {
                 icon: Fingerprint,
@@ -1675,7 +1675,7 @@ export default function LandingPage() {
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-neutral-400">
                 Pick your economic sector, then one or more industries. Industry
-                Packs unlock CropAdvisor®, QuarryAdvisor®, FitAdvisor®, HireAdvisor® and clinic
+                Packs unlock CropAdvisor®, QuarryAdvisor®, GymAdvisor®, HireAdvisor® and clinic
                 Advisors. Choose <strong>Public Sector</strong> for SchoolAdvisor®
                 (NSNP / DBE) and government programmes — at +R
                 {INDUSTRY_PACK_MONTHLY_ZAR}/mo each for industry packs.

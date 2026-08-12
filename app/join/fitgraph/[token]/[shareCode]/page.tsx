@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * B2C class join page — book a FitAdvisor class from an invite link
+ * B2C class join page — book a GymAdvisor class from an invite link
  * and add it to Google Calendar / download .ics.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -226,7 +226,7 @@ export default function JoinFitgraphClassPage() {
       <header className="border-b border-violet-100 bg-white/90 backdrop-blur px-4 py-5">
         <div className="max-w-md mx-auto">
           <p className="text-[10px] font-black uppercase tracking-widest text-violet-600">
-            {join.brand} · FitAdvisor
+            {join.brand} · GymAdvisor
           </p>
           <h1 className="text-2xl font-black tracking-tight mt-1">
             {s.class_name}

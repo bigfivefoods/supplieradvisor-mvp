@@ -392,7 +392,7 @@ export default function EmbedFitgraphPage() {
       )}
 
       <footer className="text-center text-[10px] text-slate-400 py-8">
-        Powered by FitAdvisor® · SupplierAdvisor
+        Powered by GymAdvisor® · SupplierAdvisor
       </footer>
     </div>
   );

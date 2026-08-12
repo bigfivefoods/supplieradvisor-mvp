@@ -1,6 +1,6 @@
 /**
  * Email members/patients when coaches or desk send a care message
- * in FitAdvisor / clinic portals (in-app + email).
+ * in GymAdvisor / clinic portals (in-app + email).
  */
 import { getResend, getResendFrom, getAppUrl } from '@/lib/resend';
 import type { ServiceThread } from '@/lib/messaging/service-inbox';

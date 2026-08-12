@@ -743,7 +743,7 @@ export function FitgraphMock() {
       <div className="mb-2 flex items-center justify-between gap-2">
         <div>
           <div className="text-[9px] font-bold uppercase tracking-widest text-violet-700">
-            FitAdvisor® · Gym
+            GymAdvisor® · Gym
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
             Rooms · waitlist · marketplace.
@@ -1031,7 +1031,7 @@ export function NavMock() {
       items: [
         'CropAdvisor®',
         'QuarryAdvisor®',
-        'FitAdvisor®',
+        'GymAdvisor®',
         'PhysioAdvisor®',
         'DentalAdvisor®',
         'PsychiatryAdvisor®',
@@ -1694,7 +1694,7 @@ const MODULE_GALLERIES: Record<string, GalleryScene[]> = {
       list: [
         { left: 'CropAdvisor®', right: 'Agri', tone: 'emerald' },
         { left: 'QuarryAdvisor®', right: 'Extract', tone: 'amber' },
-        { left: 'FitAdvisor®', right: 'Rooms · market', tone: 'violet' },
+        { left: 'GymAdvisor®', right: 'Rooms · market', tone: 'violet' },
         { left: 'PhysioAdvisor®', right: 'Waitlist · plans', tone: 'cyan' },
         { left: 'DentalAdvisor®', right: 'Chairs · queue', tone: 'sky' },
         { left: 'PsychiatryAdvisor®', right: 'Plans · rooms', tone: 'violet' },

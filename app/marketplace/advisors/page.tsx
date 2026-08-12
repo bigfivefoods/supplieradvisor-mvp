@@ -15,7 +15,7 @@ type Listing = {
 };
 
 const MODULE_LABEL: Record<string, string> = {
-  fitgraph: 'FitAdvisor®',
+  fitgraph: 'GymAdvisor®',
   dentalgraph: 'DentalAdvisor®',
   physiograph: 'PhysioAdvisor®',
   medicalgraph: 'MedicalAdvisor®',
@@ -90,7 +90,7 @@ export default function AdvisorMarketplacePage() {
             onChange={(e) => setModule(e.target.value)}
           >
             <option value="">All Advisors</option>
-            <option value="fitgraph">FitAdvisor</option>
+            <option value="fitgraph">GymAdvisor</option>
             <option value="dentalgraph">DentalAdvisor</option>
             <option value="physiograph">PhysioAdvisor</option>
             <option value="medicalgraph">MedicalAdvisor</option>

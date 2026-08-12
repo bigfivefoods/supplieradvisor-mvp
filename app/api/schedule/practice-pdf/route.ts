@@ -46,7 +46,7 @@ type ModuleId =
   | 'psychiatrygraph';
 
 const MODULE_LABEL: Record<ModuleId, string> = {
-  fitgraph: 'FitAdvisor',
+  fitgraph: 'GymAdvisor',
   dentalgraph: 'DentalAdvisor',
   medicalgraph: 'MedicalAdvisor',
   physiograph: 'PhysioAdvisor',

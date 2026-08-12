@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Ops outcomes strip for FitAdvisor / clinic Advisor hubs.
+ * Ops outcomes strip for GymAdvisor / clinic Advisor hubs.
  */
 import type { OutcomesSnapshot } from '@/lib/services/advisor-outcomes';
 

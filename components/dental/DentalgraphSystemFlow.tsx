@@ -5,7 +5,7 @@
  * People → Packs · plans → Diary (rooms) → Waitlist · floor → Messages → Marketplace · reports
  *
  * Expandable on the DentalAdvisor command hub; downloadable A4 PDF
- * (landscape + portrait) — same pattern as FitAdvisor / PhysioAdvisor.
+ * (landscape + portrait) — same pattern as GymAdvisor / PhysioAdvisor.
  * Content kept in sync with lib/dental/dentalgraph-process-guide.ts
  */
 import { useState } from 'react';

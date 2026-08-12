@@ -719,7 +719,7 @@ function ModulesInner() {
       <BusinessHeader
         title="Workspace"
         titleAccent="modules"
-        description={`${tradingName || 'Your company'} — modules you turn on here are what the team can open after login (Control Tower, FitAdvisor, CropAdvisor, QuarryAdvisor, DBE, core hubs). Fine-tune per person under Team. Set sector/packs below, then toggle hubs.`}
+        description={`${tradingName || 'Your company'} — modules you turn on here are what the team can open after login (Control Tower, GymAdvisor, CropAdvisor, QuarryAdvisor, DBE, core hubs). Fine-tune per person under Team. Set sector/packs below, then toggle hubs.`}
         action={
           <div className="flex flex-wrap gap-2">
             <Link

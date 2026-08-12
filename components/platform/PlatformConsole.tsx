@@ -885,7 +885,7 @@ export function ManagementReportView({
               ['Health / DoH', mod?.healthEnabled],
               ['CropAdvisor®', mod?.fieldgraphEnabled],
               ['QuarryAdvisor®', mod?.quarrygraphEnabled],
-              ['FitAdvisor®', mod?.fitgraphEnabled],
+              ['GymAdvisor®', mod?.fitgraphEnabled],
               ['PhysioAdvisor®', mod?.physiographEnabled],
               ['DentalAdvisor®', mod?.dentalgraphEnabled],
             ].map(([label, val]) => (

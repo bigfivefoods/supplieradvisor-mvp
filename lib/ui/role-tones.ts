@@ -106,7 +106,7 @@ const SKY: TonePack = {
 
 /** Process-role packs by semantic key */
 export const ROLE_TONES: Record<string, TonePack> = {
-  // FitAdvisor
+  // GymAdvisor
   owner: VIOLET,
   coach: AMBER,
   member: CYAN,

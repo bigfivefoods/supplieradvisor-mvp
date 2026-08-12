@@ -68,7 +68,7 @@ export default function CancellationRefundPage() {
               It does <strong>not</strong> cover money that never flows through
               SupplierAdvisor, including: gym or clinic member/patient fees;
               goods or services you buy or sell with trading partners; logistics
-              or carrier charges; or any fees you set inside FitAdvisor®, clinic
+              or carrier charges; or any fees you set inside GymAdvisor®, clinic
               Advisors, or other vertical modules. Those arrangements stay
               between you and your customers or suppliers.
             </p>

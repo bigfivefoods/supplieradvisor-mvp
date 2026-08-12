@@ -1,5 +1,5 @@
 /**
- * Mirror service-module care threads (FitAdvisor / clinics) into a member's
+ * Mirror service-module care threads (GymAdvisor / clinics) into a member's
  * in-app company Messages inbox once they are on the SupplierAdvisor system.
  *
  * Delivery priority:

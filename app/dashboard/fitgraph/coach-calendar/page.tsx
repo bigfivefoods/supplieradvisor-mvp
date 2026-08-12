@@ -539,7 +539,7 @@ export default function CoachCalendarPage() {
             <PracticeScheduleCalendar
               title={`Coach diary · ${portal?.coach?.name || 'Coach'}`}
               printBrand={
-                store.settings?.brand_name || 'VUKA Fitness · FitAdvisor'
+                store.settings?.brand_name || 'VUKA Fitness · GymAdvisor'
               }
               pdfExport={{
                 companyId,

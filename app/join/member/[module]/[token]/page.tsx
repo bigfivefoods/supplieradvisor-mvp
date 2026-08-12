@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Accept a FitAdvisor / PhysioAdvisor / DentalAdvisor member or patient invite,
+ * Accept a GymAdvisor / PhysioAdvisor / DentalAdvisor member or patient invite,
  * then open the self-serve portal (classes, appointments, feedback, medical).
  */
 import { useCallback, useEffect, useState } from 'react';

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * FitAdvisor® member portal — registered clients book open classes,
+ * GymAdvisor® member portal — registered clients book open classes,
  * see vacancies, join waitlist when full, manage their bookings.
  */
 import { useCallback, useEffect, useState } from 'react';
@@ -296,7 +296,7 @@ export default function MemberFitgraphPortalPage() {
       >
         <div className="max-w-lg mx-auto">
           <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">
-            Member portal · FitAdvisor®
+            Member portal · GymAdvisor®
           </p>
           <h1 className="text-xl font-black mt-1">{portal.brand}</h1>
           <div className="mt-3 flex items-center gap-3">
@@ -873,7 +873,7 @@ export default function MemberFitgraphPortalPage() {
         )}
 
         <p className="text-center text-[10px] text-slate-400 pb-8">
-          Powered by FitAdvisor® · SupplierAdvisor
+          Powered by GymAdvisor® · SupplierAdvisor
         </p>
       </main>
     </div>

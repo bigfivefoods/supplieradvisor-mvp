@@ -122,7 +122,7 @@ export async function GET(req: NextRequest) {
           store.settings?.brand_name ||
           row.company_name ||
           row.name ||
-          'FitAdvisor',
+          'GymAdvisor',
         staff: { id: coach.id, name: coach.name, role: 'coach' },
         date: day,
         rows: rowsOut,
@@ -374,7 +374,7 @@ export async function POST(req: NextRequest) {
                 date: session.date,
                 start_time: session.start_time,
                 location: session.location,
-                moduleLabel: 'FitAdvisor®',
+                moduleLabel: 'GymAdvisor®',
               });
             }
           }

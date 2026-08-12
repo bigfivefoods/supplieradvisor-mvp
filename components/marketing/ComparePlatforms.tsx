@@ -275,7 +275,7 @@ const SECTIONS: Section[] = [
         sa: 'strong',
       },
       {
-        capability: 'FitAdvisor® · gym & fitness services',
+        capability: 'GymAdvisor® · gym & fitness services',
         hint: 'Coaches (People dual-write), rooms, membership freeze & packs, waitlist, 24h reminders, recalls, in-app messages by system user ID, marketplace listing',
         excel: 'no',
         xero: 'no',
@@ -430,7 +430,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Industry packs opt-in (vertical hubs)',
-        hint: 'Enable CropAdvisor, QuarryAdvisor, FitAdvisor, PhysioAdvisor, DentalAdvisor, PsychiatryAdvisor, MedicalAdvisor only when you need them',
+        hint: 'Enable CropAdvisor, QuarryAdvisor, GymAdvisor, PhysioAdvisor, DentalAdvisor, PsychiatryAdvisor, MedicalAdvisor only when you need them',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
@@ -663,7 +663,7 @@ export default function ComparePlatforms() {
               internal and external in-app messaging
             </strong>
             , ops, finance (budgets &amp; group hierarchy), quality, people,
-            trust, and industry hubs (CropAdvisor®, QuarryAdvisor®, FitAdvisor®
+            trust, and industry hubs (CropAdvisor®, QuarryAdvisor®, GymAdvisor®
             and clinic Advisors with waitlist desks, treatment plans, rooms, and
             marketplace listings) — plus referral earnings when you onboard your
             chain (up to 10% · L1 · L2 · L3).

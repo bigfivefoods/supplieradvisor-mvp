@@ -690,7 +690,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     name: 'Fitness & Gym (Services)',
     shortName: 'Fitness',
     description:
-      'Tertiary / services industry pack for gyms and studios — FitAdvisor®: coaches, email member invites & portal, memberships, class calendar, feedback, bookings, check-ins; plus equipment & nutrition suppliers.',
+      'Tertiary / services industry pack for gyms and studios — GymAdvisor®: coaches, email member invites & portal, memberships, class calendar, feedback, bookings, check-ins; plus equipment & nutrition suppliers.',
     monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
     priority: 1,
     /** Services economy — commercial gyms & wellness (not primary production) */
@@ -699,7 +699,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     modules: [
       {
         id: 'fit_os',
-        name: 'FitAdvisor® gym services OS',
+        name: 'GymAdvisor® gym services OS',
         description:
           'Coaches, member invites & portal, plans, classes, calendar, feedback, bookings and check-ins.',
         unlocks: ['fitgraph', 'customers', 'people'],
@@ -718,7 +718,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       },
     ],
     industryToolsHrefs: [
-      { name: 'FitAdvisor®', href: '/dashboard/fitgraph', desc: 'Gym services OS' },
+      { name: 'GymAdvisor®', href: '/dashboard/fitgraph', desc: 'Gym services OS' },
       { name: 'Coaches', href: '/dashboard/fitgraph/coaches', desc: 'Trainers · portals' },
       { name: 'Clients', href: '/dashboard/fitgraph/clients', desc: 'Members · invites · portal' },
       { name: 'Subscriptions', href: '/dashboard/fitgraph/subscriptions', desc: 'Member plans' },
@@ -1170,7 +1170,7 @@ export function enabledModulesMapFromPacks(
     unlocked.add('sheq');
     unlocked.add('sustainability');
   }
-  // Fitness & gym → FitAdvisor
+  // Fitness & gym → GymAdvisor
   if (packIds.includes('fitness_gym')) {
     unlocked.add('fitgraph');
     unlocked.add('suppliers');

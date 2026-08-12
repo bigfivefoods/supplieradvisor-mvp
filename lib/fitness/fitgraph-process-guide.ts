@@ -1,5 +1,5 @@
 /**
- * FitAdvisor® end-to-end process guide content + PDF.
+ * GymAdvisor® end-to-end process guide content + PDF.
  * People → Plans → Classes → Calendar (rooms) → Floor → Messages → Marketplace · reports
  * Pure pdfkit — works on Vercel serverless.
  *
@@ -296,7 +296,7 @@ export const GUARDRAILS = [
   },
   {
     title: 'Permanent coaches → People',
-    desc: 'Permanent coaches dual-write into People; casuals stay on the FitAdvisor book only.',
+    desc: 'Permanent coaches dual-write into People; casuals stay on the GymAdvisor book only.',
   },
   {
     title: 'Tokenised portals',
@@ -304,7 +304,7 @@ export const GUARDRAILS = [
   },
   {
     title: 'One gym book',
-    desc: 'Coaches, classes, bookings, messages, feedback and website share the same FitAdvisor store.',
+    desc: 'Coaches, classes, bookings, messages, feedback and website share the same GymAdvisor store.',
   },
 ];
 
@@ -429,7 +429,7 @@ function drawFooter(doc: PdfDoc, g: Geo, pageNum: number, total: number) {
       .fontSize(7)
       .fillColor(MUTED)
       .text(
-        `SupplierAdvisor® · FitAdvisor® · ${orientLabel} · Gym services OS`,
+        `SupplierAdvisor® · GymAdvisor® · ${orientLabel} · Gym services OS`,
         g.mx,
         y + 4,
         { width: g.contentW * 0.72, align: 'left' }
@@ -448,7 +448,7 @@ function drawFooter(doc: PdfDoc, g: Geo, pageNum: number, total: number) {
 function drawHero(doc: PdfDoc, g: Geo): number {
   const orientLabel = g.isLandscape ? 'A4 LANDSCAPE · 2 PAGES' : 'A4 PORTRAIT · 2 PAGES';
   return drawProcessGuideHero(doc, g, {
-    eyebrow: 'FitAdvisor® · end-to-end process · ' + orientLabel,
+    eyebrow: 'GymAdvisor® · end-to-end process · ' + orientLabel,
     title: 'Coaches → Plans → Calendar → Floor → Messages → Website',
     subtitle: g.isLandscape ? undefined : 'Tertiary / services fitness OS — people, calendar, plan vs actual, feedback, website & reports.',
     sideNote: g.isLandscape ? 'End-to-end gym services OS on SupplierAdvisor® — schedule, subscriptions, coach portal, website embed.' : undefined,
@@ -701,10 +701,10 @@ export async function buildFitgraphProcessGuidePdf(opts?: {
       margins: { top: 0, bottom: 28, left: g.mx, right: g.mx },
       info: {
         Title:
-          'FitAdvisor® Process Design — Coaches → Calendar → Messages → Website',
+          'GymAdvisor® Process Design — Coaches → Calendar → Messages → Website',
         Author: 'SupplierAdvisor®',
-        Subject: `FitAdvisor gym services end-to-end process (A4 ${orientation})`,
-        Keywords: 'FitAdvisor, gym, coaches, calendar, subscriptions, process guide',
+        Subject: `GymAdvisor gym services end-to-end process (A4 ${orientation})`,
+        Keywords: 'GymAdvisor, gym, coaches, calendar, subscriptions, process guide',
         CreationDate: generated,
       },
     });
@@ -734,7 +734,7 @@ export async function buildFitgraphProcessGuidePdf(opts?: {
 
     doc.addPage({ size: 'A4', layout });
     y = drawProcessGuidePageHeader(doc, g, {
-      eyebrow: 'FitAdvisor® · end-to-end process · continued',
+      eyebrow: 'GymAdvisor® · end-to-end process · continued',
       title: 'Process continued · Floor · Messages · Website · Guardrails',
       landscape: g.isLandscape,
     });
@@ -768,5 +768,5 @@ export function parseFitgraphProcessGuideOrientation(
 export function fitgraphProcessGuideFilename(
   orientation: FitgraphProcessGuideOrientation
 ): string {
-  return `FitAdvisor-Process-Design-A4-${orientation}.pdf`;
+  return `GymAdvisor-Process-Design-A4-${orientation}.pdf`;
 }

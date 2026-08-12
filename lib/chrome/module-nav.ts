@@ -630,12 +630,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
   },
   {
     id: 'fitgraph',
-    name: 'FitAdvisor',
+    name: 'GymAdvisor',
     icon: Dumbbell,
     href: '/dashboard/fitgraph',
     resource: 'operations',
     /**
-     * FitAdvisor® — tertiary / services gym OS
+     * GymAdvisor® — tertiary / services gym OS
      * (coaches, clients, memberships, subscriptions, classes, calendar,
      * website embed, coach portal, bookings, check-ins).
      */

@@ -50,7 +50,7 @@ export type CompanyThread = {
   /** supplier | customer | peer — how we relate to peer */
   peer_relation?: 'supplier' | 'customer' | 'peer' | null;
   /**
-   * Service-module care thread (FitAdvisor / clinic) mirrored into this inbox.
+   * Service-module care thread (GymAdvisor / clinic) mirrored into this inbox.
    * Lets a member see coach messages on their own company dashboard.
    */
   service_module?: string | null;

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Shared injury / ailment editor for FitAdvisor clients and PhysioAdvisor patients.
+ * Shared injury / ailment editor for GymAdvisor clients and PhysioAdvisor patients.
  * Coaches & practitioners keep body region, side, status and modifications current
  * so sessions can be adapted to help recovery.
  */

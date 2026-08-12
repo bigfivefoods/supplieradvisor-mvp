@@ -35,7 +35,7 @@ async function runForCompany(
   const now = new Date().toISOString();
   const app = getAppUrl();
 
-  // —— FitAdvisor ——
+  // —— GymAdvisor ——
   if (meta.fitgraph) {
     modules.push('fitgraph');
     const store = readFitgraphFromMetadata(meta);
@@ -58,7 +58,7 @@ async function runForCompany(
         manageUrl: client.portal_token
           ? `/member/fitgraph/${client.portal_token}`
           : undefined,
-        moduleLabel: 'FitAdvisor®',
+        moduleLabel: 'GymAdvisor®',
       });
       if (result.ok) {
         b.reminded_at = now;

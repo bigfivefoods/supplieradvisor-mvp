@@ -331,7 +331,7 @@ function buildClinicReport(
   };
 }
 
-// ── FitAdvisor ───────────────────────────────────────────────────────────
+// ── GymAdvisor ───────────────────────────────────────────────────────────
 
 async function buildFit(
   meta: Record<string, unknown>,

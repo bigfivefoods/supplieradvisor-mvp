@@ -275,7 +275,7 @@ export async function POST(request: NextRequest) {
             thread: result.thread,
             people: store.clients || [],
             brand: String(gymName),
-            moduleLabel: 'FitAdvisor®',
+            moduleLabel: 'GymAdvisor®',
             portalBasePath: '/member/fitgraph',
           });
           if (mail.emailed > 0) {
@@ -478,7 +478,7 @@ export async function POST(request: NextRequest) {
           from: getResendFrom(),
           replyTo: getResendReplyTo(),
           to: email,
-          subject: `${businessName} invited you to FitAdvisor®`,
+          subject: `${businessName} invited you to GymAdvisor®`,
           html: serviceMemberInviteEmailHtml({
             inviteeName: client.name,
             businessName,
@@ -881,7 +881,7 @@ export async function POST(request: NextRequest) {
               manageUrl: client.portal_token
                 ? `/member/fitgraph/${client.portal_token}`
                 : undefined,
-              moduleLabel: 'FitAdvisor®',
+              moduleLabel: 'GymAdvisor®',
             });
           }
         }
@@ -1078,7 +1078,7 @@ export async function POST(request: NextRequest) {
           manageUrl: client?.portal_token
             ? `/member/fitgraph/${client.portal_token}`
             : undefined,
-          moduleLabel: 'FitAdvisor®',
+          moduleLabel: 'GymAdvisor®',
         });
         if (result.ok) {
           b.reminded_at = now;

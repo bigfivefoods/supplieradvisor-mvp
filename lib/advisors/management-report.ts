@@ -20,7 +20,7 @@ export const ADVISOR_REPORT_META: Record<
   { brand: string; product: string; defaultHref: string }
 > = {
   fitgraph: {
-    brand: 'FitAdvisor®',
+    brand: 'GymAdvisor®',
     product: 'Gym / fitness operations',
     defaultHref: '/dashboard/fitgraph/report',
   },

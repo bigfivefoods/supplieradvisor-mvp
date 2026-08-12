@@ -1,5 +1,5 @@
 /**
- * FitAdvisor client list — downloadable .xlsx export + bulk import template.
+ * GymAdvisor client list — downloadable .xlsx export + bulk import template.
  */
 import type * as XLSXType from 'xlsx';
 import {
@@ -261,7 +261,7 @@ export function buildFitClientsXlsx(
   const coachWs = XLSX.utils.aoa_to_sheet(coachRows);
   XLSX.utils.book_append_sheet(wb, coachWs, 'Coaches');
 
-  const brand = opts?.brandName || store.settings?.brand_name || 'FitAdvisor';
+  const brand = opts?.brandName || store.settings?.brand_name || 'GymAdvisor';
   const help = XLSX.utils.aoa_to_sheet([
     [`${brand} — client list (.xlsx)`],
     [''],

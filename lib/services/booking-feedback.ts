@@ -1,5 +1,5 @@
 /**
- * Post-attendance feedback prompts for FitAdvisor members and
+ * Post-attendance feedback prompts for GymAdvisor members and
  * PhysioAdvisor / DentalAdvisor patients.
  *
  * When a booking is marked attended, a secret feedback_token is issued.

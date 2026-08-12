@@ -9,12 +9,12 @@ import { INDUSTRY_PACK_MONTHLY_ZAR } from '@/lib/product/architecture';
 export const metadata: Metadata = {
   title: 'Industries — supply chain & services OS by sector',
   description:
-    'SupplierAdvisor® for food & beverage, agriculture (CropAdvisor®), quarry (QuarryAdvisor®), manufacturing, distribution, fitness (FitAdvisor® rooms · waitlist · marketplace), physio, dental, mental health and medical practices (exclusive diaries, treatment plans, waitlist desks), public sector, and multi-entity groups.',
+    'SupplierAdvisor® for food & beverage, agriculture (CropAdvisor®), quarry (QuarryAdvisor®), manufacturing, distribution, fitness (GymAdvisor® rooms · waitlist · marketplace), physio, dental, mental health and medical practices (exclusive diaries, treatment plans, waitlist desks), public sector, and multi-entity groups.',
   keywords: [
     'supply chain by industry',
     'CropAdvisor',
     'QuarryAdvisor',
-    'FitAdvisor',
+    'GymAdvisor',
     'PhysioAdvisor',
     'DentalAdvisor',
     'MedicalAdvisor',
@@ -144,7 +144,7 @@ export default function IndustriesIndexPage() {
         />
         <Section
           title="Services · fitness & clinical"
-          blurb="FitAdvisor® gyms and Physio · Dental · Psychiatry · Medical — rooms, waitlist desks, treatment plans, marketplace listings."
+          blurb="GymAdvisor® gyms and Physio · Dental · Psychiatry · Medical — rooms, waitlist desks, treatment plans, marketplace listings."
           items={SERVICES}
         />
         <Section

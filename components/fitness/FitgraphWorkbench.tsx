@@ -88,11 +88,11 @@ export function FitgraphWorkbench({
             href="/dashboard/fitgraph"
             className="inline-flex items-center gap-1 text-xs font-bold text-violet-700 hover:text-violet-900"
           >
-            <ArrowLeft className="w-3.5 h-3.5" /> FitAdvisor
+            <ArrowLeft className="w-3.5 h-3.5" /> GymAdvisor
           </Link>
         </div>
         <RelationshipHeader
-          eyebrow="FitAdvisor®"
+          eyebrow="GymAdvisor®"
           title={title}
           titleAccent={titleAccent}
           description={description}

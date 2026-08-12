@@ -53,7 +53,7 @@ const INDUSTRIES = [
   {
     slug: 'fitness-gyms',
     name: 'Fitness & gyms',
-    desc: 'FitAdvisor® — rooms, waitlist, freeze & packs, in-app messages by system ID, marketplace listing, coach-led or front desk.',
+    desc: 'GymAdvisor® — rooms, waitlist, freeze & packs, in-app messages by system ID, marketplace listing, coach-led or front desk.',
     icon: Dumbbell,
   },
   {

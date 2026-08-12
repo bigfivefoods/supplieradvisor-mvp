@@ -98,5 +98,5 @@ export const HIRE_COMMERCIAL_COPY = {
   depositLine:
     'Refundable deposits / damage bonds are held separately and are not commissionable',
   vsOtherAdvisors:
-    'Unlike FitAdvisor® / clinic Advisors (subscription-led), HireAdvisor® is primarily transaction-commissioned: suppliers list gear; customers rent; SA earns 2.5% + 2.5% on rental value.',
+    'Unlike GymAdvisor® / clinic Advisors (subscription-led), HireAdvisor® is primarily transaction-commissioned: suppliers list gear; customers rent; SA earns 2.5% + 2.5% on rental value.',
 } as const;

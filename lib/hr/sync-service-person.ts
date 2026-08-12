@@ -67,7 +67,7 @@ function splitName(full: string): { first_name: string; last_name: string } {
 function sourceLabel(source: ServicePersonSource): string {
   switch (source) {
     case 'fitgraph_coach':
-      return 'FitAdvisor coach';
+      return 'GymAdvisor coach';
     case 'dentalgraph_staff':
       return 'DentalAdvisor staff';
     case 'physiograph_practitioner':

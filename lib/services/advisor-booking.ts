@@ -1,5 +1,5 @@
 /**
- * Shared booking helpers for FitAdvisor + clinic *Advisor modules.
+ * Shared booking helpers for GymAdvisor + clinic *Advisor modules.
  * Family attendee, waitlist promote, no-show stats, ICS export.
  */
 import type { FamilyMember } from '@/lib/services/family-members';

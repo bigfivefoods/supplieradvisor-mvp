@@ -442,7 +442,7 @@ export default function PractitionersPage() {
     <PhysiographWorkbench
       title="Practitioners"
       titleAccent="allied health"
-      description="Add and edit practitioners: name, contact, skills/disciplines (create your own catalogue), bios, photo, PDF contracts, pay rates, and engagement start/end dates — same principles as FitAdvisor coaches."
+      description="Add and edit practitioners: name, contact, skills/disciplines (create your own catalogue), bios, photo, PDF contracts, pay rates, and engagement start/end dates — same principles as GymAdvisor coaches."
     >
       {loading || !store ? (
         <LoadingBlock />

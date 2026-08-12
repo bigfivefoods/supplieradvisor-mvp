@@ -256,7 +256,7 @@ export function HubModuleGrid({
 }: {
   modules: HubModule[];
   className?: string;
-  /** Dark theme: every card the same charcoal surface (FitAdvisor workbenches). */
+  /** Dark theme: every card the same charcoal surface (GymAdvisor workbenches). */
   uniformDark?: boolean;
 }) {
   return (

@@ -432,7 +432,7 @@ export default function StaffPage() {
     <DentalgraphWorkbench
       title="Staff"
       titleAccent="dentists & team"
-      description="Add and edit staff: name, contact, roles/skills (create your own catalogue), bios, photo, PDF contracts, pay rates, and engagement start/end dates — same principles as FitAdvisor coaches."
+      description="Add and edit staff: name, contact, roles/skills (create your own catalogue), bios, photo, PDF contracts, pay rates, and engagement start/end dates — same principles as GymAdvisor coaches."
     >
       {loading || !store ? (
         <LoadingBlock />

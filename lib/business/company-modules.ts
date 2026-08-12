@@ -41,7 +41,7 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   quarrygraph:
     'QuarryAdvisor® — sites, reserves, production, plant, weighbridge, fleet, QA & permits',
   fitgraph:
-    'FitAdvisor® (tertiary services) — coaches, member invites & portal, memberships, classes, calendar, feedback, messages & check-ins',
+    'GymAdvisor® (tertiary services) — coaches, member invites & portal, memberships, classes, calendar, feedback, messages & check-ins',
   physiograph:
     'PhysioAdvisor® (tertiary services) — practitioners, patient invites & portal, packages, diary, medical chart, scripts, bookings & messages',
   dentalgraph:
@@ -177,7 +177,7 @@ export const MODULE_CATEGORIES: ModuleCategory[] = [
     band: 'industry',
     title: 'Services',
     blurb:
-      'FitAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, MedicalAdvisor® and HireAdvisor® (hire marketplace · dual commission).',
+      'GymAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, MedicalAdvisor® and HireAdvisor® (hire marketplace · dual commission).',
     moduleIds: [
       'fitgraph',
       'physiograph',

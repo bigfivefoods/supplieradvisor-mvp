@@ -5,7 +5,7 @@
  * People → Packs · plans → Diary (rooms) → Waitlist · floor → Messages → Marketplace · reports
  *
  * Expandable on the PsychiatryAdvisor command hub; downloadable A4 PDF
- * (landscape + portrait) — same pattern as FitAdvisor / CropAdvisor.
+ * (landscape + portrait) — same pattern as GymAdvisor / CropAdvisor.
  * Content kept in sync with lib/clinic/psychiatrygraph-process-guide.ts
  */
 import { useState } from 'react';

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Inbox UI for FitAdvisor (gym) and clinic / dental / medical Advisors.
+ * Inbox UI for GymAdvisor (gym) and clinic / dental / medical Advisors.
  * Colleagues, desk ↔ coach/practitioner, coach/practitioner ↔ member/patient.
  */
 import { useEffect, useMemo, useState } from 'react';
@@ -35,7 +35,7 @@ export type MessagingPerson = {
   subtitle?: string;
 };
 
-/** Class / group target for coach → whole class messaging (FitAdvisor) */
+/** Class / group target for coach → whole class messaging (GymAdvisor) */
 export type MessagingGroup = {
   /** Unique picker id (e.g. session:abc or type:xyz) */
   id: string;
@@ -52,7 +52,7 @@ export type MessagingGroup = {
 export type MessagingDirectory = {
   coachesOrPractitioners: MessagingPerson[];
   membersOrPatients: MessagingPerson[];
-  /** Optional class/session groups (FitAdvisor) */
+  /** Optional class/session groups (GymAdvisor) */
   groups?: MessagingGroup[];
 };
 
@@ -163,7 +163,7 @@ export type ServiceMessagingProps = {
   /** Accent classes */
   accent?: 'violet' | 'teal' | 'sky' | 'emerald';
   /**
-   * FitAdvisor: when false, hide desk-first modes and run coach–member messaging
+   * GymAdvisor: when false, hide desk-first modes and run coach–member messaging
    * (no front desk persona on new threads).
    */
   hasFrontDesk?: boolean;

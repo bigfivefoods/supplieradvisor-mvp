@@ -189,10 +189,10 @@ export const INDUSTRIES: IndustryPage[] = [
     name: 'Fitness & gyms',
     headline: 'Coaches · members · classes — one gym OS.',
     subhead:
-      'FitAdvisor® coaches (tenure, rates, People dual-write), member invites & portal (family, waitlist), memberships with freeze & packs, rooms on the calendar, reminders & recalls, in-app class-group messages by system user ID, website embed and marketplace listing — front desk or coach-led. SA bills platform subscription only.',
+      'GymAdvisor® coaches (tenure, rates, People dual-write), member invites & portal (family, waitlist), memberships with freeze & packs, rooms on the calendar, reminders & recalls, in-app class-group messages by system user ID, website embed and marketplace listing — front desk or coach-led. SA bills platform subscription only.',
     cardBlurb:
-      'FitAdvisor® — coaches, rooms, waitlist, in-app messages, marketplace.',
-    pack: 'FitAdvisor®',
+      'GymAdvisor® — coaches, rooms, waitlist, in-app messages, marketplace.',
+    pack: 'GymAdvisor®',
     pains: [
       'Membership spreadsheets and lost class bookings',
       'No single coach tenure / rate / contract trail',
@@ -207,7 +207,7 @@ export const INDUSTRIES: IndustryPage[] = [
       'Website embed + marketplace listing',
     ],
     modules: [
-      'FitAdvisor®',
+      'GymAdvisor®',
       'Coaches · People',
       'Members & invites',
       'Memberships · freeze · packs',
@@ -351,7 +351,7 @@ export const INDUSTRIES: IndustryPage[] = [
     name: 'Hire & rental',
     headline: 'List gear · people rent · 2.5% + 2.5%.',
     subhead:
-      'HireAdvisor® is a hire/rental marketplace: suppliers list plant, vehicles, tools, kids party gear (jumping castles, soft play), events kit and more; customers (people) rent B2C. Categories enforce different requirements — e.g. jumping castles need flat ground, power, adult supervision and age/weight limits. Commercial model is dual commission — 2.5% to the supplier and 2.5% to the customer on rental GMV — not a subscription desk like FitAdvisor® or clinic Advisors. Deposits stay refundable and are never commissionable.',
+      'HireAdvisor® is a hire/rental marketplace: suppliers list plant, vehicles, tools, kids party gear (jumping castles, soft play), events kit and more; customers (people) rent B2C. Categories enforce different requirements — e.g. jumping castles need flat ground, power, adult supervision and age/weight limits. Commercial model is dual commission — 2.5% to the supplier and 2.5% to the customer on rental GMV — not a subscription desk like GymAdvisor® or clinic Advisors. Deposits stay refundable and are never commissionable.',
     cardBlurb:
       'HireAdvisor® — jumping castles, plant, tools; B2C hire; dual 2.5% commission.',
     pack: 'HireAdvisor®',

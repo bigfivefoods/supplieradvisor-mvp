@@ -1,5 +1,5 @@
 /**
- * Booking reminder emails for FitAdvisor + clinic Advisors.
+ * Booking reminder emails for GymAdvisor + clinic Advisors.
  */
 import { getResend, getResendFrom, getAppUrl } from '@/lib/resend';
 

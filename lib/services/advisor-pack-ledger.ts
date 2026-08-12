@@ -1,5 +1,5 @@
 /**
- * Session / care pack ledger for FitAdvisor + clinic Advisors.
+ * Session / care pack ledger for GymAdvisor + clinic Advisors.
  * Issue packs, consume on attendance, expiry warnings.
  *
  * Tracks entitlements only — does not process payment. Packs are sold and

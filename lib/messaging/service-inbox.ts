@@ -1,5 +1,5 @@
 /**
- * Service vertical messaging (FitAdvisor · PhysioAdvisor).
+ * Service vertical messaging (GymAdvisor · PhysioAdvisor).
  * Threads between desk, coaches/practitioners, and members/patients.
  * Stored on the vertical store (fitgraph.threads / physiograph.threads).
  */
@@ -20,9 +20,9 @@ export type MsgChannel =
   | 'desk_patient'
   | 'practitioner_patient'
   | 'practitioner_colleague'
-  /** FitAdvisor: coach/desk → everyone booked on a session */
+  /** GymAdvisor: coach/desk → everyone booked on a session */
   | 'class_session'
-  /** FitAdvisor: coach/desk → members of a class type (roster across recent/upcoming sessions) */
+  /** GymAdvisor: coach/desk → members of a class type (roster across recent/upcoming sessions) */
   | 'class_type';
 
 export type MsgParticipant = {

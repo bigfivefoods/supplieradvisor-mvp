@@ -347,7 +347,7 @@ function Inner() {
     <FitgraphPage>
       <RelationshipHeader
         eyebrow="Tertiary · Services · Fitness & wellness"
-        title="FitAdvisor"
+        title="GymAdvisor"
         titleAccent="®"
         description="Gym services OS: coaches with tenure, rates and contracts; members (incl. .xlsx); plan vs actual; post-class feedback; website embed; slice-and-dice reports."
         action={
@@ -390,13 +390,13 @@ function Inner() {
         <div className="space-y-4 mb-6">
           <AdvisorBillingClarityCard
             brand={store?.settings?.brand_name || 'your gym'}
-            moduleLabel="FitAdvisor®"
+            moduleLabel="GymAdvisor®"
             accentClass="border-amber-200 bg-amber-50/70 dark:border-amber-800 dark:bg-amber-950/30"
           />
           <AdvisorOutcomesPanel
             outcomes={outcomes}
             accent="violet"
-            title="FitAdvisor outcomes (30 days)"
+            title="GymAdvisor outcomes (30 days)"
             onRefresh={() => void load()}
             onSendReminders={() => void sendReminders()}
             remindersBusy={remindersBusy}

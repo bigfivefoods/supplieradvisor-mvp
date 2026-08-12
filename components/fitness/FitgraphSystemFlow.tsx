@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * End-to-end FitAdvisor® process design:
+ * End-to-end GymAdvisor® process design:
  * People → Plans → Classes → Calendar (rooms) → Floor → Messages → Marketplace · reports
  *
- * Expandable on the FitAdvisor command hub; downloadable A4 PDF
+ * Expandable on the GymAdvisor command hub; downloadable A4 PDF
  * (landscape + portrait) — same pattern as NSNP / CropAdvisor.
  * Content kept in sync with lib/fitness/fitgraph-process-guide.ts
  */
@@ -403,7 +403,7 @@ const GUARDRAILS = [
   },
   {
     title: 'Permanent coaches → People',
-    desc: 'Permanent coaches dual-write into People; casuals stay on the FitAdvisor book only.',
+    desc: 'Permanent coaches dual-write into People; casuals stay on the GymAdvisor book only.',
   },
   {
     title: 'Tokenised portals',
@@ -523,7 +523,7 @@ export default function FitgraphSystemFlow({
       className={`rounded-3xl border border-slate-200 bg-white overflow-hidden ${
         compact ? 'mb-4' : 'mb-6'
       }`}
-      aria-label="FitAdvisor full process design"
+      aria-label="GymAdvisor full process design"
       id="fitgraph-system-flow"
     >
       <div className="bg-gradient-to-r from-violet-950 via-violet-800 to-fuchsia-700 px-5 py-4 text-white">

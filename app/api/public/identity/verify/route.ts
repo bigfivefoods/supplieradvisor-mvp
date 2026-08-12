@@ -113,19 +113,19 @@ export async function POST(req: NextRequest) {
     }
     if (role === 'coach' && module !== 'fitgraph') {
       return NextResponse.json(
-        { error: 'Coach verification is only available on FitAdvisor' },
+        { error: 'Coach verification is only available on GymAdvisor' },
         { status: 400 }
       );
     }
     if (role === 'member' && module !== 'fitgraph') {
       return NextResponse.json(
-        { error: 'Member role is only for FitAdvisor' },
+        { error: 'Member role is only for GymAdvisor' },
         { status: 400 }
       );
     }
     if (role === 'patient' && module === 'fitgraph') {
       return NextResponse.json(
-        { error: 'Use role=member for FitAdvisor clients' },
+        { error: 'Use role=member for GymAdvisor clients' },
         { status: 400 }
       );
     }

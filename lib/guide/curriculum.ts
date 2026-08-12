@@ -94,7 +94,7 @@ export const SYSTEM_OVERVIEW = {
     },
     {
       title: 'Flow of goods',
-      body: 'Inventory, operations, manufacturing, distribution, and containers move product with lots and holds. Industry packs add CropAdvisor (agri), QuarryAdvisor (aggregates), FitAdvisor (gyms), PhysioAdvisor (clinics), DentalAdvisor (dental), PsychiatryAdvisor, and MedicalAdvisor (scripts & portals).',
+      body: 'Inventory, operations, manufacturing, distribution, and containers move product with lots and holds. Industry packs add CropAdvisor (agri), QuarryAdvisor (aggregates), GymAdvisor (gyms), PhysioAdvisor (clinics), DentalAdvisor (dental), PsychiatryAdvisor, and MedicalAdvisor (scripts & portals).',
     },
     {
       title: 'Flow of money',
@@ -132,7 +132,7 @@ export const SYSTEM_OVERVIEW = {
     },
     {
       name: 'Services verticals',
-      body: 'FitAdvisor · PhysioAdvisor · DentalAdvisor · PsychiatryAdvisor · MedicalAdvisor — invites, portals, diary, scripts, bookings, messages',
+      body: 'GymAdvisor · PhysioAdvisor · DentalAdvisor · PsychiatryAdvisor · MedicalAdvisor — invites, portals, diary, scripts, bookings, messages',
       tone: 'violet',
     },
     {
@@ -203,7 +203,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         summary: 'Make the company findable, pick modules, staff the workspace.',
         steps: [
           'Company → Profile — trading name, industry, contacts (completeness ≥ 60% auto-ticks)',
-          'Company → Modules — enable only what you run (CropAdvisor, QuarryAdvisor, FitAdvisor, PhysioAdvisor, DentalAdvisor, trade, ops…); Guide mirrors this list',
+          'Company → Modules — enable only what you run (CropAdvisor, QuarryAdvisor, GymAdvisor, PhysioAdvisor, DentalAdvisor, trade, ops…); Guide mirrors this list',
           'Company → Team — invite at least one colleague',
           'Return to Dashboard — golden path shows Auto badges when detected',
         ],
@@ -1337,7 +1337,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
   {
     slug: 'fitgraph',
     moduleId: 'fitgraph',
-    title: 'FitAdvisor®',
+    title: 'GymAdvisor®',
     tagline: 'Coaches → rooms → waitlist → marketplace',
     purpose:
       'Tertiary gym / studio OS: coaches (permanent dual-write to People), members (invites, family, POPIA-aware desk), memberships with freeze & packs, class types, calendar with rooms and concurrent-coach option, bookings/waitlist, 24h reminders, outcomes/recalls, staff Today PWA, in-app messages by system user ID, website embed + marketplace listing. Process design PDF on the hub. SA bills platform subscription only — not member fees.',
@@ -1410,7 +1410,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           'Share session publicly or book a guest',
           'Mark roster attended after class',
         ],
-        tip: 'Download Landscape/Portrait process design PDF from the FitAdvisor hub.',
+        tip: 'Download Landscape/Portrait process design PDF from the GymAdvisor hub.',
       },
       {
         name: 'Marketplace & messaging',
@@ -2152,7 +2152,7 @@ export function buildGuideNavSteps(
     containers: 'Containers',
     fieldgraph: 'CropAdvisor',
     quarrygraph: 'QuarryAdvisor',
-    fitgraph: 'FitAdvisor',
+    fitgraph: 'GymAdvisor',
     physiograph: 'PhysioAdvisor',
     dentalgraph: 'DentalAdvisor',
     psychiatrygraph: 'PsychiatryAdvisor',

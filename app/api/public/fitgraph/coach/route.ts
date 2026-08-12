@@ -313,7 +313,7 @@ export async function POST(request: NextRequest) {
               thread: result.thread,
               people: store.clients || [],
               brand: String(gymName),
-              moduleLabel: 'FitAdvisor®',
+              moduleLabel: 'GymAdvisor®',
               portalBasePath: '/member/fitgraph',
             });
             if (mailResult.errors.length) {

@@ -1,5 +1,5 @@
 /**
- * Public FitAdvisor calendar + booking (website embed).
+ * Public GymAdvisor calendar + booking (website embed).
  * GET  ?token=  — public calendar payload (no auth)
  * POST { token, action: 'book', session_id, name, email?, phone? }
  */

@@ -1,6 +1,6 @@
 /**
  * Service-module member/patient invites.
- * FitAdvisor clients · PhysioAdvisor / DentalAdvisor patients can be emailed a join
+ * GymAdvisor clients · PhysioAdvisor / DentalAdvisor patients can be emailed a join
  * link to open their portal (classes, appointments, feedback, medical share).
  */
 import { getAppUrl } from '@/lib/resend';
@@ -44,7 +44,7 @@ const MODULE_SHORT: Record<ServiceMemberModule, string> = {
 };
 
 const MODULE_LABEL: Record<ServiceMemberModule, string> = {
-  fitgraph: 'FitAdvisor® gym membership',
+  fitgraph: 'GymAdvisor® gym membership',
   physiograph: 'PhysioAdvisor® clinic patient portal',
   dentalgraph: 'DentalAdvisor® practice patient portal',
 };

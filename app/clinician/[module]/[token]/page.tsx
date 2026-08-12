@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Clinician diary portal — parity with FitAdvisor coach portal.
+ * Clinician diary portal — parity with GymAdvisor coach portal.
  * /clinician/{dentalgraph|physiograph|medicalgraph|psychiatrygraph}/{token}
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';

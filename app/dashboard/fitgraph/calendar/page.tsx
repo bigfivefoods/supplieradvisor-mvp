@@ -586,7 +586,7 @@ export default function CalendarPage() {
           <PracticeScheduleCalendar
             title="Class schedule"
             printBrand={
-              store.settings?.brand_name || 'FitAdvisor · SupplierAdvisor'
+              store.settings?.brand_name || 'GymAdvisor · SupplierAdvisor'
             }
             pdfExport={{
               companyId: companyId || '',
@@ -874,7 +874,7 @@ export default function CalendarPage() {
             {form.date && form.start_time ? (
               <a
                 className="sm:col-span-2 text-xs font-bold text-violet-700 underline"
-                href={`/api/public/advisor/ics?module=fitgraph&date=${encodeURIComponent(form.date)}&start=${encodeURIComponent(form.start_time)}&title=${encodeURIComponent('FitAdvisor class')}&duration=45&location=${encodeURIComponent(form.location || '')}`}
+                href={`/api/public/advisor/ics?module=fitgraph&date=${encodeURIComponent(form.date)}&start=${encodeURIComponent(form.start_time)}&title=${encodeURIComponent('GymAdvisor class')}&duration=45&location=${encodeURIComponent(form.location || '')}`}
               >
                 Download .ics (add to calendar)
               </a>

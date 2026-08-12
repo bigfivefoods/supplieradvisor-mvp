@@ -1,5 +1,5 @@
 /**
- * FitAdvisor® — tertiary / services gym OS (Fitness & wellness industry).
+ * GymAdvisor® — tertiary / services gym OS (Fitness & wellness industry).
  * Coaches, clients/members, memberships, class types, calendar sessions,
  * bookings, check-ins, PT packs. Stored on profiles.metadata.fitgraph.
  */
@@ -1777,7 +1777,7 @@ export function buildSessionIcs(opts: {
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//SupplierAdvisor//FitAdvisor//EN',
+    'PRODID:-//SupplierAdvisor//GymAdvisor//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',
