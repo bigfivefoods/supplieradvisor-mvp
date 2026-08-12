@@ -256,6 +256,31 @@ function buildClinicReport(
     headline: `${ADVISOR_REPORT_META[advisor].brand} clinic pulse`,
     kpis,
     tables,
+    charts: [
+      {
+        id: 'clinic_activity',
+        title: 'Clinic activity',
+        type: 'bar',
+        series: [
+          { label: 'Appts', value: appts.length, color: '#0077b6' },
+          { label: 'Attended', value: attended, color: '#059669' },
+          { label: 'No-shows', value: noShow, color: '#e11d48' },
+          { label: 'Patients', value: activePatients, color: '#7c3aed' },
+        ],
+      },
+      {
+        id: 'top_services',
+        title: 'Top services by appts',
+        type: 'horizontal_bar',
+        series: svcRows.slice(0, 6).map((r, i) => ({
+          label: String(r[0]),
+          value: Number(r[1]) || 0,
+          color: ['#0077b6', '#00b4d8', '#059669', '#d97706', '#7c3aed', '#0d9488'][
+            i % 6
+          ],
+        })),
+      },
+    ],
     highlights: [
       `${appts.length} appointments in period`,
       showUp != null ? `${showUp}% show-up (attended / decided)` : 'No attendance marks yet',
@@ -413,6 +438,41 @@ async function buildFit(
       kpi('Member feedback', o.member_feedback),
     ],
     tables,
+    charts: [
+      {
+        id: 'attendance_mix',
+        title: 'Attendance mix',
+        type: 'bar',
+        series: [
+          { label: 'Attended', value: o.attended, color: '#059669' },
+          { label: 'No-shows', value: o.no_show, color: '#e11d48' },
+          { label: 'Waitlist', value: o.waitlist, color: '#d97706' },
+          { label: 'Check-ins', value: o.check_ins_in_range, color: '#0077b6' },
+        ],
+      },
+      {
+        id: 'top_coaches',
+        title: 'Top coaches by sessions',
+        type: 'horizontal_bar',
+        series: report.coaches.slice(0, 6).map((r, i) => ({
+          label: r.name,
+          value: r.sessions,
+          color: ['#0077b6', '#00b4d8', '#059669', '#7c3aed', '#d97706', '#0d9488'][
+            i % 6
+          ],
+        })),
+      },
+      {
+        id: 'daily_trend',
+        title: 'Daily attended seats',
+        type: 'line',
+        series: report.daily.slice(-12).map((d) => ({
+          label: d.date.slice(5),
+          value: d.attended,
+          color: '#0077b6',
+        })),
+      },
+    ],
     highlights: [
       `${o.sessions} sessions · ${o.attended} attended seats`,
       o.fill_pct != null ? `Fill ${o.fill_pct}% of capacity` : 'Capacity not set on all classes',
@@ -566,6 +626,32 @@ async function buildField(
       ...kpiEntries.map(([k, v]) => kpi(k, v ?? '—')),
     ].slice(0, 8),
     tables,
+    charts: [
+      {
+        id: 'by_crop',
+        title: 'Estimate tonnes by crop',
+        type: 'bar',
+        series: bundle.byCrop.slice(0, 6).map((r, i) => ({
+          label: r.crop,
+          value: r.estimate_t || r.actual_t || 0,
+          color: ['#059669', '#0077b6', '#00b4d8', '#d97706', '#7c3aed', '#0d9488'][
+            i % 6
+          ],
+        })),
+      },
+      {
+        id: 'fleet',
+        title: 'Fleet hours by vehicle',
+        type: 'horizontal_bar',
+        series: bundle.fleetByVehicle.slice(0, 6).map((r, i) => ({
+          label: r.vehicle,
+          value: r.hours || 0,
+          color: ['#0077b6', '#00b4d8', '#059669', '#d97706', '#7c3aed', '#0d9488'][
+            i % 6
+          ],
+        })),
+      },
+    ],
     highlights: [
       `${fields} active fields in scope`,
       'Slice tabs: yield · fleet · labour · harvest',
@@ -701,6 +787,30 @@ async function buildQuarry(
     headline: 'Quarry owner pack — production, fleet & compliance',
     kpis: allKpis,
     tables,
+    charts: [
+      {
+        id: 'quarry_ops',
+        title: 'Operations snapshot',
+        type: 'bar',
+        series: [
+          { label: 'Quarries', value: quarries.length, color: '#0077b6' },
+          { label: 'Sites', value: (store.sites || []).length, color: '#00b4d8' },
+          { label: 'Vehicles', value: (store.vehicles || []).length, color: '#059669' },
+          { label: 'Dispatches', value: dispatches.length, color: '#d97706' },
+          { label: 'Permits', value: (store.permits || []).length, color: '#7c3aed' },
+        ],
+      },
+      {
+        id: 'dispatch_mix',
+        title: 'Dispatch volume',
+        type: 'donut',
+        series: dispatches.slice(0, 5).map((d, i) => ({
+          label: String(d.customer || d.ticket_no || `Ticket ${i + 1}`).slice(0, 14),
+          value: Number(d.net_tonnes) || 1,
+          color: ['#0077b6', '#00b4d8', '#059669', '#d97706', '#7c3aed'][i % 5],
+        })),
+      },
+    ],
     highlights: [
       `${quarries.length} quarry(ies) in scope`,
       `${dispatches.length} dispatch tickets in period window`,
@@ -991,6 +1101,38 @@ async function buildSchools(
       ...monthlyKpis.slice(0, 4),
     ].slice(0, 8),
     tables,
+    charts: [
+      {
+        id: 'feeding',
+        title: 'Meals planned vs served',
+        type: 'bar',
+        series: [
+          { label: 'Served', value: served, color: '#059669' },
+          { label: 'Planned', value: planned, color: '#0077b6' },
+          { label: 'Feed days', value: feed.length, color: '#00b4d8' },
+          { label: 'Stock short', value: stockShort, color: '#d97706' },
+        ],
+      },
+      {
+        id: 'kitchen_audits',
+        title: 'Monthly R638 audit scores',
+        type: 'line',
+        series: monthlyRows
+          .slice()
+          .reverse()
+          .map((r) => {
+            const scoreStr = String(r[3] ?? '').replace('%', '');
+            const score = Number(scoreStr);
+            return {
+              label: String(r[0]).slice(5),
+              value: Number.isFinite(score) ? score : 0,
+              color: '#0077b6',
+            };
+          })
+          .filter((p) => p.value > 0)
+          .slice(-10),
+      },
+    ],
     highlights: [
       `${served} meals served across ${feed.length} feed days`,
       kitchenLabel,

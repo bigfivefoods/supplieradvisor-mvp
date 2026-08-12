@@ -23,6 +23,7 @@ import {
   type ManagementReportDoc,
   managementReportApiUrl,
 } from '@/lib/advisors/management-report';
+import ManagementReportCharts from '@/components/advisors/ManagementReportCharts';
 
 type DimOption = { key: string; label: string; options: Array<{ id: string; label: string }> };
 
@@ -245,6 +246,8 @@ export default function ManagementReportPanel({
                 </div>
               ))}
             </div>
+
+            <ManagementReportCharts report={report} />
 
             <div className="grid sm:grid-cols-3 gap-2">
               {[

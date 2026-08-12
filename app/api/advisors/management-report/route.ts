@@ -12,6 +12,7 @@ import {
   type AdvisorReportId,
   type ManagementReportFilters,
   defaultPeriod,
+  ensureManagementCharts,
   managementReportPdfFilename,
 } from '@/lib/advisors/management-report';
 import { buildAdvisorManagementReport } from '@/lib/advisors/management-report-build';
@@ -104,7 +105,7 @@ export async function GET(request: NextRequest) {
         `Company #${companyId}`
     );
 
-    const doc = await buildAdvisorManagementReport({
+    const built = await buildAdvisorManagementReport({
       advisor,
       companyId,
       companyName,
@@ -113,6 +114,10 @@ export async function GET(request: NextRequest) {
       profileMeta: meta,
       profileName: companyName,
     });
+    const doc = {
+      ...built,
+      charts: ensureManagementCharts(built),
+    };
 
     if (format === 'pdf') {
       const buf = await buildManagementReportPdf(doc);
