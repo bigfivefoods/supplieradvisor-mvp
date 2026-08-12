@@ -326,7 +326,6 @@ const PHASES: Phase[] = [
     ],
   },
   {
-  {
     id: 'close',
     title: '7 · Verify, match, pay, reward',
     subtitle: 'Match · SLA · CoA gates · PEU · claims · prizes',
