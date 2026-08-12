@@ -150,20 +150,18 @@ export default function GoldenPathStrip() {
 
   return (
     <section
-      className={`mb-4 rounded-2xl border px-4 py-3.5 shadow-sm ${
-        stuck > 0
-          ? 'border-amber-200 bg-amber-50 dark:border-amber-400/40 dark:bg-gradient-to-br dark:from-[#451a03] dark:via-[#b45309] dark:to-[#fbbf24]'
-          : 'border-neutral-200 bg-sky-50 dark:border-cyan-400/35 dark:bg-gradient-to-br dark:from-[#061825] dark:via-[#0b3a4f] dark:to-[#0e7490]'
+      className={`mb-4 rounded-2xl border bg-white px-4 py-3.5 shadow-sm ${
+        stuck > 0 ? 'border-amber-200' : 'border-neutral-200'
       }`}
       aria-label="Trade golden path"
     >
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-white">
-          <Route className="h-3.5 w-3.5 text-[#00b4d8] dark:text-cyan-200" />
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+          <Route className="w-3.5 h-3.5 text-[#00b4d8]" />
           Golden path · open POs {s.open_pos}
           {stuck > 0 && (
-            <span className="ml-1 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 normal-case tracking-normal text-amber-800 dark:border-amber-200/40 dark:bg-amber-950/50 dark:text-amber-50">
-              <AlertTriangle className="h-3 w-3" />
+            <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-amber-800 normal-case tracking-normal">
+              <AlertTriangle className="w-3 h-3" />
               {stuck} stuck
             </span>
           )}
@@ -191,21 +189,19 @@ export default function GoldenPathStrip() {
             <Link
               key={c.label}
               href={c.href}
-              className={`min-w-0 touch-manipulation rounded-xl border px-2.5 py-2 transition-colors hover:border-[#00b4d8]/40 ${
+              className={`rounded-xl border px-2.5 py-2 transition-colors hover:border-[#00b4d8]/40 touch-manipulation min-w-0 ${
                 c.hot
-                  ? 'border-amber-300 bg-amber-50 dark:border-amber-300/40 dark:bg-gradient-to-br dark:from-amber-950 dark:via-amber-700 dark:to-amber-400'
-                  : 'border-neutral-100 bg-slate-50 dark:border-cyan-300/30 dark:bg-gradient-to-br dark:from-[#0b1e33] dark:via-[#0c4a6e] dark:to-[#0891b2]'
+                  ? 'border-amber-300 bg-amber-50'
+                  : 'border-neutral-100 bg-slate-50'
               }`}
             >
-              <p className="flex items-center gap-1 text-[10px] font-semibold leading-tight text-neutral-500 dark:text-white/85">
-                <Icon className="h-3 w-3 shrink-0" />
+              <p className="text-[10px] font-semibold text-neutral-500 leading-tight flex items-center gap-1">
+                <Icon className="w-3 h-3 shrink-0" />
                 {c.label}
               </p>
               <p
                 className={`text-lg font-black tabular-nums ${
-                  c.hot
-                    ? 'text-amber-900 dark:text-white'
-                    : 'text-slate-900 dark:text-white'
+                  c.hot ? 'text-amber-900' : 'text-slate-900'
                 }`}
               >
                 {c.value}
@@ -220,7 +216,7 @@ export default function GoldenPathStrip() {
         {GOLDEN_STAGES.map((st) => (
           <span
             key={st.key}
-            className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:bg-cyan-500/25 dark:text-cyan-50"
+            className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500"
           >
             {st.short}
           </span>
