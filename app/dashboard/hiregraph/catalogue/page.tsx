@@ -13,14 +13,14 @@ import {
   StatRow,
   fieldClass,
 } from '@/components/hire/SimpleEntityForm';
-import { HIRE_CATEGORIES, ITEM_STATUSES } from '@/lib/hire/hiregraph';
+import { HIRE_CATEGORIES, ITEM_STATUSES, getHireCategory } from '@/lib/hire/hiregraph';
 
 export default function HireCataloguePage() {
   const { store, loading, saving, post, summary } = useHiregraph();
   const [form, setForm] = useState({
     code: '',
     title: '',
-    category_id: 'tools_equipment',
+    category_id: 'kids_party',
     supplier_id: '',
     rate_zar: '',
     rate_unit: 'day',
@@ -30,6 +30,8 @@ export default function HireCataloguePage() {
     status: 'listed',
     description: '',
   });
+
+  const selectedCat = getHireCategory(form.category_id);
 
   const add = async () => {
     if (!form.code.trim() || !form.title.trim()) {
@@ -133,6 +135,21 @@ export default function HireCataloguePage() {
                   ))}
                 </select>
               </label>
+              {selectedCat?.examples?.length ? (
+                <div className="sm:col-span-2 rounded-xl border border-violet-100 bg-violet-50/60 px-3 py-2 text-[11px] text-violet-950 dark:border-violet-500/25 dark:bg-violet-950/40 dark:text-violet-50">
+                  <span className="font-black">
+                    {selectedCat.short} examples:{' '}
+                  </span>
+                  {selectedCat.examples.join(' · ')}
+                  {selectedCat.id === 'kids_party' ? (
+                    <span className="mt-1 block font-semibold text-violet-800 dark:text-violet-200">
+                      Jumping castles need flat ground, 220V power, adult
+                      supervision and age/weight limits — applied
+                      automatically on booking.
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
               <label className="text-xs font-bold">
                 Supplier
                 <select

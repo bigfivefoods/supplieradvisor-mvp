@@ -61,6 +61,15 @@ export default function HireCategoriesPage() {
                 <p className="text-[12px] text-slate-600 dark:text-violet-50/75">
                   {cat.description}
                 </p>
+                {cat.examples?.length ? (
+                  <p className="mt-2 text-[11px] leading-snug text-slate-500 dark:text-violet-100/65">
+                    <span className="font-bold text-slate-600 dark:text-violet-100/80">
+                      Examples:{' '}
+                    </span>
+                    {cat.examples.slice(0, 6).join(' · ')}
+                    {cat.examples.length > 6 ? ' · …' : ''}
+                  </p>
+                ) : null}
                 <p className="mt-2 text-[10px] font-bold uppercase text-slate-400 dark:text-violet-200/50">
                   Default unit · {cat.unit}
                   {cat.defaultDepositPct != null

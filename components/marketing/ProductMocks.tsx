@@ -799,9 +799,9 @@ export function HiregraphMock() {
       </div>
       <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#151c26]">
         {[
+          { left: 'Jumping castle · kids party', right: 'Paid' },
           { left: 'TLB · plant · 3 days', right: 'Awaiting licence' },
-          { left: 'Party tent · weekend', right: 'Paid' },
-          { left: 'Generator 50kVA', right: 'Out' },
+          { left: 'Soft play set · birthday', right: 'Out' },
         ].map((row) => (
           <div
             key={row.left}

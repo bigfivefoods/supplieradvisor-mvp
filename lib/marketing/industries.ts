@@ -351,17 +351,19 @@ export const INDUSTRIES: IndustryPage[] = [
     name: 'Hire & rental',
     headline: 'List gear · people rent · 2.5% + 2.5%.',
     subhead:
-      'HireAdvisor® is a hire/rental marketplace: suppliers list plant, vehicles, tools, events gear and more; customers (people) rent B2C. Categories enforce different requirements (licence, deposit, insurance, site access). Commercial model is dual commission — 2.5% to the supplier and 2.5% to the customer on rental GMV — not a subscription desk like FitAdvisor® or clinic Advisors. Deposits stay refundable and are never commissionable.',
+      'HireAdvisor® is a hire/rental marketplace: suppliers list plant, vehicles, tools, kids party gear (jumping castles, soft play), events kit and more; customers (people) rent B2C. Categories enforce different requirements — e.g. jumping castles need flat ground, power, adult supervision and age/weight limits. Commercial model is dual commission — 2.5% to the supplier and 2.5% to the customer on rental GMV — not a subscription desk like FitAdvisor® or clinic Advisors. Deposits stay refundable and are never commissionable.',
     cardBlurb:
-      'HireAdvisor® — suppliers, catalogue, B2C rentals, dual 2.5% commission.',
+      'HireAdvisor® — jumping castles, plant, tools; B2C hire; dual 2.5% commission.',
     pack: 'HireAdvisor®',
     pains: [
       'WhatsApp hire books and lost deposits',
+      'No safety rules for kids party gear (castles, soft play)',
       'No category rules for licence / insurance / site access',
       'Supplier and renter fees not transparent',
       'Handover condition notes nowhere near the booking',
     ],
     wins: [
+      'Kids party category (jumping castles · soft play · slides)',
       'Category stacks (plant · vehicles · tools · events…)',
       'B2C bookings with dual fee quote before OUT',
       '2.5% supplier + 2.5% customer on rental GMV',
@@ -369,6 +371,7 @@ export const INDUSTRIES: IndustryPage[] = [
     ],
     modules: [
       'HireAdvisor®',
+      'Kids party (jumping castles)',
       'Suppliers',
       'Categories',
       'Catalogue',

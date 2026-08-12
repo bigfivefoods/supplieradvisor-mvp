@@ -164,7 +164,8 @@ export default function HiregraphSystemFlow({
             <p className="mt-1.5 max-w-3xl text-sm leading-snug text-white/90">
               {HIRE_COMMERCIAL_COPY.vsOtherAdvisors} Categories (plant, vehicles,
               tools, events…) each enforce different hire requirements before
-              gear goes out.
+              gear goes out — including kids party (jumping castles, soft
+              play).
             </p>
           </button>
           <div className="flex shrink-0 flex-wrap items-center gap-2">

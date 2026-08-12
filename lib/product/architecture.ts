@@ -894,7 +894,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     name: 'Hire & Rental Marketplace',
     shortName: 'Hire',
     description:
-      'HireAdvisor® — suppliers list gear for hire; people rent (B2C). Categories (plant, vehicles, tools, events…) enforce different requirements. Commercial model is dual commission: 2.5% supplier + 2.5% customer on rental GMV (not subscription-led like other Advisors). Pack unlocks the desk; take-rate is on completed hires.',
+      'HireAdvisor® — suppliers list gear for hire (plant, vehicles, tools, kids party / jumping castles, events…); people rent B2C. Categories enforce different requirements. Commercial model is dual commission: 2.5% supplier + 2.5% customer on rental GMV (not subscription-led like other Advisors). Pack unlocks the desk; take-rate is on completed hires.',
     monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
     priority: 1,
     recommendSectors: ['tertiary', 'secondary', 'primary'],

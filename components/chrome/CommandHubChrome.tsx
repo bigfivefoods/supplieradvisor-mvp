@@ -36,25 +36,34 @@ export type TelemetryAccent =
   | 'violet'
   | 'sky';
 
+/** Light pastel + dark deep→bright gradients (never pale grey in dark). */
 const ACCENTS: Record<TelemetryAccent, string> = {
-  cyan: 'from-cyan-50 to-white border-cyan-100',
-  emerald: 'from-emerald-50 to-white border-emerald-100',
-  amber: 'from-amber-50 to-white border-amber-100',
-  rose: 'from-rose-50 to-white border-rose-100',
-  slate: 'from-slate-50 to-white border-slate-200',
-  violet: 'from-violet-50 to-white border-violet-100',
-  sky: 'from-sky-50 to-white border-sky-100',
+  cyan: 'from-cyan-50 to-white border-cyan-100 dark:from-[#042f2e] dark:via-[#0e7490] dark:to-[#22d3ee] dark:border-cyan-400/35',
+  emerald:
+    'from-emerald-50 to-white border-emerald-100 dark:from-[#022c22] dark:via-[#047857] dark:to-[#34d399] dark:border-emerald-400/35',
+  amber:
+    'from-amber-50 to-white border-amber-100 dark:from-[#451a03] dark:via-[#b45309] dark:to-[#fbbf24] dark:border-amber-400/35',
+  rose: 'from-rose-50 to-white border-rose-100 dark:from-[#4c0519] dark:via-[#be123c] dark:to-[#fb7185] dark:border-rose-400/35',
+  slate:
+    'from-slate-50 to-white border-slate-200 dark:from-[#0b1e33] dark:via-[#0c4a6e] dark:to-[#0891b2] dark:border-cyan-400/30',
+  violet:
+    'from-violet-50 to-white border-violet-100 dark:from-[#2e1065] dark:via-[#6d28d9] dark:to-[#a78bfa] dark:border-violet-400/35',
+  sky: 'from-sky-50 to-white border-sky-100 dark:from-[#0c4a6e] dark:via-[#0284c7] dark:to-[#38bdf8] dark:border-sky-400/35',
 };
 
 const DEFAULT_MODULE_ACCENTS = [
-  'from-violet-50 to-white border-violet-100',
-  'from-sky-50 to-white border-sky-100',
-  'from-cyan-50 to-white border-cyan-100',
-  'from-emerald-50 to-white border-emerald-100',
-  'from-amber-50 to-white border-amber-100',
-  'from-rose-50 to-white border-rose-100',
-  'from-slate-50 to-white border-slate-200',
+  'from-violet-50 to-white border-violet-100 dark:from-[#2e1065] dark:via-[#6d28d9] dark:to-[#a78bfa] dark:border-violet-400/35',
+  'from-sky-50 to-white border-sky-100 dark:from-[#0c4a6e] dark:via-[#0284c7] dark:to-[#38bdf8] dark:border-sky-400/35',
+  'from-cyan-50 to-white border-cyan-100 dark:from-[#042f2e] dark:via-[#0e7490] dark:to-[#22d3ee] dark:border-cyan-400/35',
+  'from-emerald-50 to-white border-emerald-100 dark:from-[#022c22] dark:via-[#047857] dark:to-[#34d399] dark:border-emerald-400/35',
+  'from-amber-50 to-white border-amber-100 dark:from-[#451a03] dark:via-[#b45309] dark:to-[#fbbf24] dark:border-amber-400/35',
+  'from-rose-50 to-white border-rose-100 dark:from-[#4c0519] dark:via-[#be123c] dark:to-[#fb7185] dark:border-rose-400/35',
+  'from-slate-50 to-white border-slate-200 dark:from-[#0b1e33] dark:via-[#0c4a6e] dark:to-[#0891b2] dark:border-cyan-400/30',
 ] as const;
+
+/** Uniform dark workbench cards: brand blue gradient (not flat charcoal) */
+const UNIFORM_DARK_MODULE =
+  'from-slate-50 to-white border-slate-200 dark:from-[#061825] dark:via-[#0b3a4f] dark:to-[#0e7490] dark:border-cyan-400/30';
 
 export function TelemetryCard({
   label,
@@ -73,25 +82,28 @@ export function TelemetryCard({
 }) {
   const inner = (
     <div
-      className={`sa-metric-card rounded-2xl border bg-gradient-to-br ${ACCENTS[accent]} px-3 py-3 sm:px-4 sm:py-3.5 shadow-sm h-full min-w-0 ${
-        href ? 'hover:border-[#00b4d8]/50 hover:shadow-md transition-all' : ''
+      className={`sa-metric-card h-full min-w-0 rounded-2xl border bg-gradient-to-br px-3 py-3 shadow-sm sm:px-4 sm:py-3.5 ${ACCENTS[accent]} ${
+        href ? 'transition-all hover:border-[#00b4d8]/50 hover:shadow-md' : ''
       }`}
     >
-      <div className="flex items-start justify-between gap-2 mb-1 min-w-0">
-        <div className="sa-metric-label min-w-0 flex-1">
+      <div className="mb-1 flex min-w-0 items-start justify-between gap-2">
+        <div className="sa-metric-label min-w-0 flex-1 dark:text-white/75">
           {label}
         </div>
         {Icon && (
-          <div className="w-7 h-7 shrink-0 rounded-lg bg-white/80 border border-white flex items-center justify-center text-[#00b4d8]">
-            <Icon className="w-3.5 h-3.5" />
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white bg-white/80 text-[#00b4d8] dark:border-cyan-300/40 dark:bg-cyan-500/30 dark:text-cyan-100">
+            <Icon className="h-3.5 w-3.5" />
           </div>
         )}
       </div>
-      <div className="sa-metric-value text-slate-900" title={String(value)}>
+      <div
+        className="sa-metric-value text-slate-900 dark:text-white"
+        title={String(value)}
+      >
         {value}
       </div>
       {sub && (
-        <div className="text-[10px] sm:text-[11px] text-neutral-500 mt-0.5 font-medium line-clamp-2 leading-snug">
+        <div className="mt-0.5 line-clamp-2 text-[10px] font-medium leading-snug text-neutral-500 dark:text-white/75 sm:text-[11px]">
           {sub}
         </div>
       )}
@@ -115,35 +127,39 @@ export function HubHero({
   stats?: HubHeroStat[];
 }) {
   return (
-    <section className="relative overflow-hidden rounded-[2rem] border border-cyan-100 bg-gradient-to-br from-white via-sky-50/90 to-cyan-50 p-6 sm:p-8 mb-8 shadow-sm">
+    <section className="relative mb-8 overflow-hidden rounded-[2rem] border border-cyan-100 bg-gradient-to-br from-white via-sky-50/90 to-cyan-50 p-6 shadow-sm dark:border-cyan-400/30 dark:from-[#061825] dark:via-[#0b3a4f] dark:to-[#0e7490] sm:p-8">
       <div
-        className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-[#00b4d8]/10 blur-3xl"
+        className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-[#00b4d8]/10 blur-3xl dark:bg-cyan-400/20"
         aria-hidden
       />
       <div
-        className="pointer-events-none absolute left-1/4 bottom-0 h-32 w-32 rounded-full bg-violet-200/20 blur-3xl"
+        className="pointer-events-none absolute bottom-0 left-1/4 h-32 w-32 rounded-full bg-violet-200/20 blur-3xl dark:bg-teal-300/15"
         aria-hidden
       />
-      <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+      <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="max-w-xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200/80 bg-white/90 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#0077b6] mb-4 shadow-sm">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-200/80 bg-white/90 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#0077b6] shadow-sm dark:border-cyan-300/40 dark:bg-cyan-500/25 dark:text-cyan-50">
             <span className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
             </span>
             {pill}
           </div>
-          <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 mb-2">
+          <h2 className="mb-2 text-2xl font-black tracking-tight text-slate-900 dark:text-white sm:text-3xl">
             {title}
             {titleAccent ? (
-              <span className="block text-[#00b4d8]">{titleAccent}</span>
+              <span className="block text-[#00b4d8] dark:text-cyan-200">
+                {titleAccent}
+              </span>
             ) : null}
           </h2>
-          <p className="text-sm text-slate-600 leading-relaxed">{description}</p>
+          <p className="text-sm leading-relaxed text-slate-600 dark:text-cyan-50/85">
+            {description}
+          </p>
         </div>
         {stats && stats.length > 0 && (
           <div
-            className={`grid gap-2 sm:gap-3 w-full min-w-0 lg:min-w-[240px] lg:max-w-md ${
+            className={`grid w-full min-w-0 gap-2 sm:gap-3 lg:min-w-[240px] lg:max-w-md ${
               stats.length >= 3
                 ? 'grid-cols-2 sm:grid-cols-3'
                 : stats.length === 2
@@ -154,9 +170,9 @@ export function HubHero({
             {stats.map((s) => (
               <div
                 key={s.label}
-                className="sa-metric-card rounded-2xl bg-white border border-cyan-100 px-2.5 sm:px-3 py-2.5 sm:py-3 text-center shadow-sm min-w-0"
+                className="sa-metric-card min-w-0 rounded-2xl border border-cyan-100 bg-white px-2.5 py-2.5 text-center shadow-sm dark:border-cyan-300/30 dark:bg-gradient-to-br dark:from-[#0b1e33] dark:to-[#0e7490] sm:px-3 sm:py-3"
               >
-                <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-neutral-400 line-clamp-2">
+                <div className="line-clamp-2 text-[9px] font-bold uppercase tracking-wider text-neutral-400 dark:text-cyan-100/70 sm:text-[10px]">
                   {s.label}
                 </div>
                 <div
@@ -175,10 +191,6 @@ export function HubHero({
   );
 }
 
-/** Same charcoal surface for every workbench card in dark mode */
-const UNIFORM_DARK_MODULE =
-  'from-slate-50 to-white border-slate-200 dark:from-neutral-950 dark:via-neutral-950 dark:to-neutral-950 dark:border-neutral-800 dark:bg-neutral-950';
-
 export function HubModuleCard({
   module: m,
   accent,
@@ -186,7 +198,7 @@ export function HubModuleCard({
 }: {
   module: HubModule;
   accent?: string;
-  /** When true, all cards share one dark surface (no pastel tints). */
+  /** When true, all cards share one brand-blue gradient surface in dark. */
   uniformDark?: boolean;
 }) {
   const Icon = m.icon;
@@ -196,36 +208,26 @@ export function HubModuleCard({
   return (
     <Link
       href={m.href}
-      className={`sa-metric-card group rounded-3xl border bg-gradient-to-br ${gradient} p-4 sm:p-6 shadow-sm hover:shadow-md hover:border-[#00b4d8]/40 transition-all min-w-0 ${
-        uniformDark
-          ? 'dark:!bg-[var(--sa-surface)] dark:!bg-none dark:!border-[var(--sa-border)]'
-          : ''
-      }`}
+      className={`sa-metric-card group min-w-0 rounded-3xl border bg-gradient-to-br p-4 shadow-sm transition-all hover:border-[#00b4d8]/40 hover:shadow-md sm:p-6 ${gradient}`}
     >
-      <div className="flex items-start justify-between gap-3 mb-4 min-w-0">
-        <div
-          className={`w-11 h-11 shrink-0 rounded-2xl border flex items-center justify-center shadow-sm text-[#0077b6] ${
-            uniformDark
-              ? 'bg-white border-cyan-50 dark:bg-neutral-900 dark:border-neutral-700 dark:text-[#00b4d8]'
-              : 'bg-white border-cyan-50'
-          }`}
-        >
-          <Icon className="w-5 h-5" />
+      <div className="mb-4 flex min-w-0 items-start justify-between gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-50 bg-white text-[#0077b6] shadow-sm dark:border-cyan-300/40 dark:bg-gradient-to-br dark:from-cyan-600 dark:to-teal-400 dark:text-slate-950">
+          <Icon className="h-5 w-5" />
         </div>
-        <div className="text-right min-w-0 max-w-[55%]">
-          <div className="text-[10px] font-black tracking-widest text-neutral-400 font-mono">
+        <div className="min-w-0 max-w-[55%] text-right">
+          <div className="font-mono text-[10px] font-black tracking-widest text-neutral-400 dark:text-white/70">
             {m.code}
           </div>
           {m.metric !== undefined && (
             <>
               <div
-                className="sa-metric-value-sm text-slate-800 mt-0.5"
+                className="sa-metric-value-sm mt-0.5 text-slate-800 dark:text-white"
                 title={String(m.metric)}
               >
                 {m.metric}
               </div>
               {m.metricLabel && (
-                <div className="text-[9px] font-bold uppercase text-neutral-400">
+                <div className="text-[9px] font-bold uppercase text-neutral-400 dark:text-white/65">
                   {m.metricLabel}
                 </div>
               )}
@@ -233,13 +235,15 @@ export function HubModuleCard({
           )}
         </div>
       </div>
-      <h3 className="text-base sm:text-lg font-black text-slate-800 mb-1.5 group-hover:text-[#0077b6] transition-colors">
+      <h3 className="mb-1.5 text-base font-black text-slate-800 transition-colors group-hover:text-[#0077b6] dark:text-white dark:group-hover:text-cyan-100 sm:text-lg">
         {m.title}
       </h3>
-      <p className="text-sm text-neutral-500 leading-relaxed mb-3 line-clamp-3">{m.desc}</p>
-      <span className="inline-flex items-center gap-1 text-xs font-bold text-[#00b4d8]">
+      <p className="mb-3 line-clamp-3 text-sm leading-relaxed text-neutral-500 dark:text-white/80">
+        {m.desc}
+      </p>
+      <span className="inline-flex items-center gap-1 text-xs font-bold text-[#00b4d8] dark:text-cyan-100">
         Open{' '}
-        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+        <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
       </span>
     </Link>
   );

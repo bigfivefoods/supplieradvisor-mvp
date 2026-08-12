@@ -62,8 +62,8 @@ const ROLES = [
   {
     title: 'Supplier (lister)',
     does: [
-      'List hire items by category',
-      'Set day/hour rates & deposits',
+      'List hire items by category (incl. kids party)',
+      'Jumping castles, plant, tools, events…',
       'Approve bookings & hand over gear',
       'Pays 2.5% platform commission on rental',
     ],

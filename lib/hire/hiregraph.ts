@@ -39,13 +39,22 @@ export type HireRequirementKey =
   | 'refundable_deposit'
   | 'delivery_address'
   | 'collection_vehicle'
-  | 'supervisor_on_site';
+  | 'supervisor_on_site'
+  /** Kids party / jumping castle safety stack */
+  | 'adult_supervision'
+  | 'flat_level_ground'
+  | 'power_access_220v'
+  | 'soft_landing_area'
+  | 'weather_safe_site'
+  | 'max_child_age_weight';
 
 export type HireCategoryDef = {
   id: string;
   name: string;
   short: string;
   description: string;
+  /** Example catalogue items for suppliers */
+  examples?: string[];
   /** Default deposit as % of rental (hint only) */
   defaultDepositPct?: number;
   /** Min hire unit */
@@ -65,13 +74,19 @@ export const HIRE_REQUIREMENT_LABELS: Record<HireRequirementKey, string> = {
   operator_certificate: 'Operator / ticket certificate',
   safety_induction: 'Site safety induction',
   site_access_permit: 'Site access permit',
-  age_18_plus: 'Age 18+',
+  age_18_plus: 'Age 18+ (hirer / responsible adult)',
   age_21_plus: 'Age 21+',
   credit_card_hold: 'Credit card authorisation hold',
   refundable_deposit: 'Refundable damage deposit',
   delivery_address: 'Delivery / site address',
   collection_vehicle: 'Suitable collection vehicle',
   supervisor_on_site: 'Competent supervisor on site',
+  adult_supervision: 'Adult supervision while in use',
+  flat_level_ground: 'Flat, level ground for setup',
+  power_access_220v: '220V power access (blower / lights)',
+  soft_landing_area: 'Clear soft-landing / safety perimeter',
+  weather_safe_site: 'Weather-safe site (wind / rain rules)',
+  max_child_age_weight: 'Age / weight limits for children observed',
 };
 
 /** Built-in hire categories — different compliance / KYC stacks */
@@ -165,10 +180,56 @@ export const HIRE_CATEGORIES: readonly HireCategoryDef[] = [
     ],
   },
   {
+    id: 'kids_party',
+    name: 'Kids party & play',
+    short: 'Kids party',
+    description:
+      'Jumping castles, bounce houses, soft play, slides, ball pits, candy floss / popcorn machines and kids party packages for birthdays and school fairs.',
+    examples: [
+      'Jumping castle / bounce house',
+      'Combo castle with slide',
+      'Soft play set',
+      'Ball pit',
+      'Kids slide',
+      'Candy floss machine',
+      'Popcorn machine',
+      'Face-paint / party package',
+      'Obstacle course (kids)',
+      'Water slide (kids)',
+    ],
+    defaultDepositPct: 20,
+    unit: 'day',
+    needsDelivery: true,
+    highValue: true,
+    requirements: [
+      'id_document',
+      'age_18_plus',
+      'proof_of_address',
+      'delivery_address',
+      'flat_level_ground',
+      'power_access_220v',
+      'soft_landing_area',
+      'adult_supervision',
+      'max_child_age_weight',
+      'weather_safe_site',
+      'refundable_deposit',
+      'credit_card_hold',
+      'public_liability_insurance',
+    ],
+  },
+  {
     id: 'party_events',
     name: 'Party & events',
     short: 'Events',
-    description: 'Tents, tables, chairs, PA, lighting for private or corporate events.',
+    description:
+      'Tents, marquees, tables, chairs, PA, lighting and décor for private or corporate events. For jumping castles and kids play gear use Kids party & play.',
+    examples: [
+      'Marquee / gazebo',
+      'Tables & chairs',
+      'PA / speakers',
+      'Lighting & décor',
+      'Stage / dance floor',
+    ],
     defaultDepositPct: 15,
     unit: 'weekend',
     needsDelivery: true,

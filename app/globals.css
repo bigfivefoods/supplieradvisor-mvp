@@ -261,6 +261,7 @@ html.dark {
  *    (no flat light-grey or white slabs — harsh on black UI)
  *    Inputs that also set dark:bg-neutral-950 keep a solid field via higher specificity below.
  */
+/* Default / white cards → deep blue → bright cyan (not flat grey) */
 html.dark .bg-white,
 html.dark .bg-white\/95,
 html.dark .bg-white\/90,
@@ -274,14 +275,15 @@ html.dark .bg-white\/20,
 html.dark .bg-white\/10 {
   background-color: transparent !important;
   background-image: linear-gradient(
-    155deg,
-    #1c2430 0%,
-    #0e1218 48%,
-    #080c10 100%
+    145deg,
+    #061825 0%,
+    #0b3a4f 48%,
+    #0e7490 100%
   ) !important;
-  color: #f5f5f5;
+  color: #f0fdfa;
 }
 
+/* Neutral greys → deep slate → brand cyan highlight */
 html.dark .bg-\[\#f8fafc\],
 html.dark .bg-\[\#fafafa\],
 html.dark .bg-\[\#f8f7f5\],
@@ -314,12 +316,12 @@ html.dark .bg-zinc-50\/50,
 html.dark .bg-zinc-100 {
   background-color: transparent !important;
   background-image: linear-gradient(
-    155deg,
-    #182028 0%,
-    #0c1016 50%,
-    #070a0e 100%
+    145deg,
+    #0b1e33 0%,
+    #0c3a4f 50%,
+    #0891b2 100%
   ) !important;
-  color: #f5f5f5;
+  color: #ecfeff;
 }
 
 html.dark .bg-slate-100,
@@ -340,11 +342,12 @@ html.dark .hover\:bg-white\/80:hover,
 html.dark .hover\:bg-white\/90:hover {
   background-color: transparent !important;
   background-image: linear-gradient(
-    155deg,
-    #222a34 0%,
-    #12161c 55%,
-    #0a0e12 100%
+    145deg,
+    #0c2540 0%,
+    #0e4a5c 52%,
+    #06b6d4 100%
   ) !important;
+  color: #ecfeff;
 }
 
 html.dark .bg-slate-200\/80,
@@ -357,11 +360,33 @@ html.dark .bg-zinc-200,
 html.dark .bg-stone-200 {
   background-color: transparent !important;
   background-image: linear-gradient(
-    155deg,
-    #2a3340 0%,
-    #1a2028 55%,
-    #101418 100%
+    145deg,
+    #0e2a40 0%,
+    #155e75 55%,
+    #22d3ee 100%
   ) !important;
+  color: #ecfeff;
+}
+
+/* Flat dark greys used as cards → bright brand gradient (not pale slabs) */
+html.dark .bg-slate-900,
+html.dark .bg-slate-950,
+html.dark .bg-neutral-900,
+html.dark .bg-neutral-950,
+html.dark .bg-zinc-900,
+html.dark .bg-zinc-950,
+html.dark .dark\:bg-slate-900,
+html.dark .dark\:bg-slate-950,
+html.dark .dark\:bg-neutral-900,
+html.dark .dark\:bg-neutral-950 {
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    145deg,
+    #061825 0%,
+    #0b2f44 48%,
+    #0e7490 100%
+  ) !important;
+  color: #f0fdfa;
 }
 
 /* Form fields: solid dark (not gradient) so inputs stay crisp */
@@ -371,14 +396,25 @@ html.dark textarea.bg-white,
 html.dark input[class*='bg-white'],
 html.dark select[class*='bg-white'],
 html.dark textarea[class*='bg-white'],
-html.dark .dark\:bg-neutral-950,
-html.dark [class*='dark:bg-neutral-950'] {
+html.dark input.bg-slate-50,
+html.dark select.bg-slate-50,
+html.dark textarea.bg-slate-50,
+html.dark input[class*='bg-slate'],
+html.dark select[class*='bg-slate'],
+html.dark textarea[class*='bg-slate'],
+html.dark input[class*='bg-neutral'],
+html.dark select[class*='bg-neutral'],
+html.dark textarea[class*='bg-neutral'],
+html.dark .dark\:bg-neutral-950:is(input, select, textarea),
+html.dark input.dark\:bg-neutral-950,
+html.dark select.dark\:bg-neutral-950,
+html.dark textarea.dark\:bg-neutral-950 {
   background-color: #0a0a0a !important;
   background-image: none !important;
   color: #f5f5f5 !important;
 }
 
-/* Soft pastel fills → dark *tinted gradients* with light type */
+/* Soft pastel fills → deep → bright colour gradients + light type */
 html.dark .bg-sky-50,
 html.dark .bg-sky-50\/30,
 html.dark .bg-sky-50\/40,
@@ -390,6 +426,7 @@ html.dark .bg-sky-50\/90,
 html.dark .bg-cyan-50,
 html.dark .bg-cyan-50\/40,
 html.dark .bg-cyan-50\/50,
+html.dark .bg-cyan-50\/70,
 html.dark .bg-cyan-50\/80,
 html.dark .bg-sky-100,
 html.dark .bg-sky-100\/40,
@@ -398,145 +435,156 @@ html.dark .bg-sky-100\/80,
 html.dark .bg-sky-100\/90 {
   background-color: transparent !important;
   background-image: linear-gradient(
-    155deg,
-    #0c2a38 0%,
-    #061820 48%,
-    #02080c 100%
+    145deg,
+    #042f2e 0%,
+    #0e7490 48%,
+    #22d3ee 100%
   ) !important;
-  color: #f5f5f5;
+  color: #ecfeff;
 }
 
 html.dark .bg-emerald-50,
 html.dark .bg-emerald-50\/40,
 html.dark .bg-emerald-50\/50,
 html.dark .bg-emerald-50\/60,
+html.dark .bg-emerald-50\/70,
 html.dark .bg-emerald-50\/80,
 html.dark .bg-emerald-100,
 html.dark .bg-emerald-100\/50 {
   background-color: transparent !important;
   background-image: linear-gradient(
-    155deg,
-    #0f2e22 0%,
-    #0a1a14 48%,
-    #040c08 100%
+    145deg,
+    #022c22 0%,
+    #047857 48%,
+    #34d399 100%
   ) !important;
-  color: #f5f5f5;
+  color: #ecfdf5;
 }
 
 html.dark .bg-amber-50,
 html.dark .bg-amber-50\/40,
 html.dark .bg-amber-50\/50,
 html.dark .bg-amber-50\/60,
+html.dark .bg-amber-50\/70,
 html.dark .bg-amber-50\/80,
 html.dark .bg-amber-100,
 html.dark .bg-amber-100\/50 {
   background-color: transparent !important;
   background-image: linear-gradient(
-    155deg,
-    #2e220c 0%,
-    #1a1408 48%,
-    #0c0804 100%
+    145deg,
+    #451a03 0%,
+    #b45309 48%,
+    #fbbf24 100%
   ) !important;
-  color: #f5f5f5;
+  color: #fffbeb;
 }
 
 html.dark .bg-rose-50,
 html.dark .bg-rose-50\/40,
 html.dark .bg-rose-50\/50,
 html.dark .bg-rose-50\/60,
+html.dark .bg-rose-50\/70,
 html.dark .bg-rose-50\/80,
 html.dark .bg-rose-100 {
   background-color: transparent !important;
   background-image: linear-gradient(
-    155deg,
-    #2e1018 0%,
-    #1a0a10 48%,
-    #0c0408 100%
+    145deg,
+    #4c0519 0%,
+    #be123c 48%,
+    #fb7185 100%
   ) !important;
-  color: #f5f5f5;
+  color: #fff1f2;
 }
 
 html.dark .bg-violet-50,
 html.dark .bg-violet-50\/40,
 html.dark .bg-violet-50\/50,
+html.dark .bg-violet-50\/60,
+html.dark .bg-violet-50\/70,
 html.dark .bg-violet-50\/80,
 html.dark .bg-violet-100 {
   background-color: transparent !important;
   background-image: linear-gradient(
-    155deg,
-    #221038 0%,
-    #140c22 48%,
-    #080410 100%
+    145deg,
+    #2e1065 0%,
+    #6d28d9 48%,
+    #a78bfa 100%
   ) !important;
-  color: #f5f5f5;
+  color: #f5f3ff;
 }
 
-html.dark .bg-fuchsia-50 {
+html.dark .bg-fuchsia-50,
+html.dark .bg-fuchsia-50\/50,
+html.dark .bg-fuchsia-100 {
   background-color: transparent !important;
   background-image: linear-gradient(
-    155deg,
-    #2a1030 0%,
-    #180c1c 50%,
-    #0a040c 100%
+    145deg,
+    #4a044e 0%,
+    #a21caf 50%,
+    #e879f9 100%
   ) !important;
-  color: #f5f5f5;
+  color: #fdf4ff;
 }
 
-html.dark .bg-orange-50 {
+html.dark .bg-orange-50,
+html.dark .bg-orange-50\/50,
+html.dark .bg-orange-100 {
   background-color: transparent !important;
   background-image: linear-gradient(
-    155deg,
-    #2e1a0c 0%,
-    #1a1008 50%,
-    #0c0804 100%
+    145deg,
+    #431407 0%,
+    #c2410c 50%,
+    #fb923c 100%
   ) !important;
-  color: #f5f5f5;
+  color: #fff7ed;
 }
 
-html.dark .bg-teal-50 {
+html.dark .bg-teal-50,
+html.dark .bg-teal-50\/50,
+html.dark .bg-teal-100 {
   background-color: transparent !important;
   background-image: linear-gradient(
-    155deg,
-    #0c2a28 0%,
-    #081a18 50%,
-    #040c0c 100%
+    145deg,
+    #042f2e 0%,
+    #0f766e 50%,
+    #2dd4bf 100%
   ) !important;
-  color: #f5f5f5;
+  color: #f0fdfa;
 }
 
-/* Solid role darks used with dark:!bg-*-950 → soft gradient overlay when not already gradient */
+/* Solid role darks → bright gradient when not already gradient */
 html.dark [class*='!bg-emerald-950']:not([class*='bg-gradient']),
 html.dark [class*='bg-emerald-950']:not([class*='bg-gradient']) {
   background-color: transparent !important;
   background-image: linear-gradient(
-    155deg,
-    #0f2e22 0%,
-    #0a1a14 48%,
-    #040c08 100%
+    145deg,
+    #022c22 0%,
+    #047857 48%,
+    #34d399 100%
   ) !important;
-  color: #f5f5f5;
+  color: #ecfdf5;
 }
 html.dark [class*='!bg-amber-950']:not([class*='bg-gradient']),
 html.dark [class*='bg-amber-950']:not([class*='bg-gradient']) {
   background-color: transparent !important;
   background-image: linear-gradient(
-    155deg,
-    #2e220c 0%,
-    #1a1408 48%,
-    #0c0804 100%
+    145deg,
+    #451a03 0%,
+    #b45309 48%,
+    #fbbf24 100%
   ) !important;
-  color: #f5f5f5;
+  color: #fffbeb;
 }
 html.dark [class*='!bg-violet-950']:not([class*='bg-gradient']),
 html.dark [class*='bg-violet-950']:not([class*='bg-gradient']) {
   background-color: transparent !important;
   background-image: linear-gradient(
-    155deg,
-    #221038 0%,
-    #140c22 48%,
-    #080410 100%
+    145deg,
+    #2e1065 0%,
+    #6d28d9 48%,
+    #a78bfa 100%
   ) !important;
-  color: #f5f5f5;
+  color: #f5f3ff;
 }
 html.dark [class*='!bg-cyan-950']:not([class*='bg-gradient']),
 html.dark [class*='bg-cyan-950']:not([class*='bg-gradient']),
@@ -544,12 +592,23 @@ html.dark [class*='!bg-sky-950']:not([class*='bg-gradient']),
 html.dark [class*='bg-sky-950']:not([class*='bg-gradient']) {
   background-color: transparent !important;
   background-image: linear-gradient(
-    155deg,
-    #0c2a38 0%,
-    #061820 48%,
-    #02080c 100%
+    145deg,
+    #042f2e 0%,
+    #0e7490 48%,
+    #22d3ee 100%
   ) !important;
-  color: #f5f5f5;
+  color: #ecfeff;
+}
+html.dark [class*='!bg-rose-950']:not([class*='bg-gradient']),
+html.dark [class*='bg-rose-950']:not([class*='bg-gradient']) {
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    145deg,
+    #4c0519 0%,
+    #be123c 48%,
+    #fb7185 100%
+  ) !important;
+  color: #fff1f2;
 }
 
 /*
@@ -558,20 +617,20 @@ html.dark [class*='bg-sky-950']:not([class*='bg-gradient']) {
  *    (not flat charcoal slabs).
  */
 html.dark .from-white {
-  --tw-gradient-from: #1c2430 var(--tw-gradient-from-position) !important;
-  --tw-gradient-to: rgb(8 12 16 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-from: #061825 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(14 116 144 / 0) var(--tw-gradient-to-position) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 html.dark .via-white {
-  --tw-gradient-to: rgb(8 12 16 / 0) var(--tw-gradient-to-position) !important;
-  --tw-gradient-stops: var(--tw-gradient-from), #121820 var(--tw-gradient-via-position),
+  --tw-gradient-to: rgb(14 116 144 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), #0b3a4f var(--tw-gradient-via-position),
     var(--tw-gradient-to) !important;
 }
 html.dark .from-slate-50,
 html.dark .from-slate-50\/90,
 html.dark .from-neutral-50 {
-  --tw-gradient-from: #1a222c var(--tw-gradient-from-position) !important;
-  --tw-gradient-to: rgb(8 12 16 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-from: #0b1e33 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(8 145 178 / 0) var(--tw-gradient-to-position) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
@@ -581,24 +640,36 @@ html.dark .from-sky-50\/80,
 html.dark .from-sky-100,
 html.dark .from-cyan-50,
 html.dark .from-cyan-50\/80 {
-  --tw-gradient-from: #0c2a38 var(--tw-gradient-from-position) !important;
-  --tw-gradient-to: rgb(2 8 12 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-from: #042f2e var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(34 211 238 / 0) var(--tw-gradient-to-position) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
 html.dark .from-emerald-50,
 html.dark .from-emerald-50\/50,
 html.dark .from-emerald-100 {
-  --tw-gradient-from: #0f2e22 var(--tw-gradient-from-position) !important;
-  --tw-gradient-to: rgb(4 12 8 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-from: #022c22 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(52 211 153 / 0) var(--tw-gradient-to-position) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
 html.dark .from-amber-50,
-html.dark .from-amber-50\/50,
+html.dark .from-amber-50\/50 {
+  --tw-gradient-from: #451a03 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(251 191 36 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
 html.dark .from-violet-50 {
-  --tw-gradient-from: #2a1c10 var(--tw-gradient-from-position) !important;
-  --tw-gradient-to: rgb(8 4 2 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-from: #2e1065 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(167 139 250 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+html.dark .from-rose-50,
+html.dark .from-rose-100 {
+  --tw-gradient-from: #4c0519 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(251 113 133 / 0) var(--tw-gradient-to-position) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
@@ -609,14 +680,14 @@ html.dark .via-sky-50\/60,
 html.dark .via-sky-50\/70,
 html.dark .via-sky-50\/80,
 html.dark .via-sky-50\/90 {
-  --tw-gradient-to: rgb(2 8 12 / 0) var(--tw-gradient-to-position) !important;
-  --tw-gradient-stops: var(--tw-gradient-from), #0a1c28 var(--tw-gradient-via-position),
+  --tw-gradient-to: rgb(34 211 238 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), #0e7490 var(--tw-gradient-via-position),
     var(--tw-gradient-to) !important;
 }
 
 html.dark .to-slate-50,
 html.dark .to-neutral-50 {
-  --tw-gradient-to: #080c10 var(--tw-gradient-to-position) !important;
+  --tw-gradient-to: #0891b2 var(--tw-gradient-to-position) !important;
 }
 
 html.dark .to-sky-50,
@@ -631,16 +702,31 @@ html.dark .to-cyan-50,
 html.dark .to-cyan-50\/40,
 html.dark .to-cyan-50\/60,
 html.dark .to-cyan-50\/90 {
-  --tw-gradient-to: #02080c var(--tw-gradient-to-position) !important;
+  --tw-gradient-to: #22d3ee var(--tw-gradient-to-position) !important;
 }
 
 html.dark .to-emerald-50,
 html.dark .to-emerald-50\/50 {
-  --tw-gradient-to: #040c08 var(--tw-gradient-to-position) !important;
+  --tw-gradient-to: #34d399 var(--tw-gradient-to-position) !important;
+}
+
+html.dark .to-amber-50,
+html.dark .to-amber-100 {
+  --tw-gradient-to: #fbbf24 var(--tw-gradient-to-position) !important;
+}
+
+html.dark .to-violet-50,
+html.dark .to-violet-100 {
+  --tw-gradient-to: #a78bfa var(--tw-gradient-to-position) !important;
+}
+
+html.dark .to-rose-50,
+html.dark .to-rose-100 {
+  --tw-gradient-to: #fb7185 var(--tw-gradient-to-position) !important;
 }
 
 html.dark .to-white {
-  --tw-gradient-to: #080c10 var(--tw-gradient-to-position) !important;
+  --tw-gradient-to: #22d3ee var(--tw-gradient-to-position) !important;
 }
 
 /*
