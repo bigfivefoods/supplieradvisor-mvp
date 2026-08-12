@@ -409,7 +409,53 @@ export async function GET(request: NextRequest) {
           : 'Auto-applied on this load if missing — refresh if still open',
         weight: 10,
       },
+      {
+        id: 'kitchen_safety',
+        label: 'Kitchen CoA / R638 food safety',
+        done: false, // set below after load
+        required: true,
+        href: '/dashboard/schools/kitchen-safety',
+        hint: 'Valid CoA + PIC + recent R638 self-audit',
+        weight: 15,
+      },
     ];
+
+    // Kitchen food safety (R638 / Certificate of Acceptability)
+    let kitchenRisk: {
+      band: string;
+      coa_status: string;
+      label: string;
+      reasons: string[];
+    } | null = null;
+    try {
+      const {
+        readKitchenPassport,
+        evaluateKitchenRisk,
+      } = await import('@/lib/schools/kitchen-safety');
+      const smeta =
+        school.metadata && typeof school.metadata === 'object'
+          ? (school.metadata as Record<string, unknown>)
+          : {};
+      const pass = readKitchenPassport(smeta);
+      const risk = evaluateKitchenRisk(pass);
+      kitchenRisk = {
+        band: risk.band,
+        coa_status: risk.coa_status,
+        label: risk.label,
+        reasons: risk.reasons,
+      };
+      const ks = checks.find((c) => c.id === 'kitchen_safety');
+      if (ks) {
+        ks.done =
+          risk.band === 'green' ||
+          (risk.coa_status === 'valid' && risk.band !== 'red');
+        ks.hint =
+          risk.reasons[0] ||
+          `${risk.coa_status} · ${risk.band}`;
+      }
+    } catch {
+      /* soft */
+    }
 
     const totalW = checks.reduce((n, c) => n + c.weight, 0);
     const doneW = checks
@@ -560,6 +606,7 @@ export async function GET(request: NextRequest) {
       },
       readiness,
       packaging: packagingSnapshot,
+      kitchen_safety: kitchenRisk,
       role: 'school' as const,
     });
   } catch (e: unknown) {

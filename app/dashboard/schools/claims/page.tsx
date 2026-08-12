@@ -1,7 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Download, FileText, Loader2, RefreshCw } from 'lucide-react';
+import {
+  AlertTriangle,
+  Download,
+  FileText,
+  Loader2,
+  RefreshCw,
+  ShieldAlert,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { formatMoney } from '@/lib/accounting/types';
@@ -71,6 +78,15 @@ function Inner() {
     gaps?: number;
     clean?: boolean;
     funding_path_ready?: boolean;
+  } | null;
+  const kitchenSafety = (pack?.kitchen_safety || null) as {
+    band?: string;
+    coa_status?: string;
+    label?: string;
+    reasons?: string[];
+    claim_soft_block?: boolean;
+    claim_hard_block?: boolean;
+    advisory?: string | null;
   } | null;
   const oneClickReady = Boolean(pack?.one_click_ready);
 
@@ -329,15 +345,56 @@ function Inner() {
             </p>
           ) : null}
 
+          {/* Kitchen food safety (CoA / R638) soft/hard gate */}
+          {kitchenSafety ? (
+            <div
+              className={`rounded-2xl border px-4 py-3 mb-4 flex items-start gap-3 ${
+                kitchenSafety.claim_hard_block
+                  ? 'border-rose-300 bg-rose-50 text-rose-950'
+                  : kitchenSafety.claim_soft_block
+                    ? 'border-amber-300 bg-amber-50 text-amber-950'
+                    : kitchenSafety.band === 'green'
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-950'
+                      : 'border-slate-200 bg-slate-50 text-slate-800'
+              }`}
+            >
+              {kitchenSafety.claim_hard_block ||
+              kitchenSafety.band === 'red' ? (
+                <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" />
+              ) : (
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-black">
+                  {kitchenSafety.label || 'Kitchen food safety'}
+                </p>
+                <p className="text-xs mt-0.5 opacity-90">
+                  {kitchenSafety.claim_hard_block
+                    ? 'Hard gate: agency policy blocks claim submit until CoA/R638 is remediated.'
+                    : kitchenSafety.advisory ||
+                      (kitchenSafety.reasons || []).slice(0, 2).join(' · ') ||
+                      'CoA and R638 kitchen passport looks acceptable for this period.'}
+                </p>
+                <Link
+                  href="/dashboard/schools/kitchen-safety"
+                  className="mt-1 inline-block text-xs font-bold underline"
+                >
+                  Open kitchen safety passport →
+                </Link>
+              </div>
+            </div>
+          ) : null}
+
           <div className="rounded-2xl border border-violet-100 bg-violet-50/60 px-4 py-4 mb-4 space-y-3">
             <p className="text-sm font-bold text-slate-900">
               School declaration (required)
             </p>
             <p className="text-xs text-slate-600">
-              I confirm meals served, learner present counts, and kitchen
-              receipts for this period are true and complete. The claim will be
-              emailed to the Department of Basic Education and cannot be paid
-              until a DBE officer approves it with their official email.
+              I confirm meals served, learner present counts, kitchen receipts,
+              and that the kitchen holds a valid Certificate of Acceptability
+              (R638) where required. The claim will be emailed to the Department
+              of Basic Education and cannot be paid until a DBE officer approves
+              it with their official email.
             </p>
             <label className="flex items-start gap-2 text-sm cursor-pointer">
               <input

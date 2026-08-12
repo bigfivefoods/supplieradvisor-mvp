@@ -73,6 +73,12 @@ function Inner() {
     desc: string;
   } | null>(null);
   const [prizeScore, setPrizeScore] = useState<number | null>(null);
+  const [kitchenSafety, setKitchenSafety] = useState<{
+    band?: string;
+    label?: string;
+    reasons?: string[];
+    coa_status?: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -96,6 +102,7 @@ function Inner() {
         setAgencyNext(ready.nextAction || null);
         setSchool(null);
         setReadiness(null);
+        setKitchenSafety(null);
         setIspSummary(null);
       } else if (ready.role === 'isp') {
         setRole('isp');
@@ -103,11 +110,13 @@ function Inner() {
         setIspNext(ready.nextAction || null);
         setSchool(null);
         setReadiness(null);
+        setKitchenSafety(null);
         setAgencySummary(null);
       } else {
         setRole('school');
         setSchool(ready.school || null);
         setReadiness(ready.readiness || null);
+        setKitchenSafety(ready.kitchen_safety || null);
         setIspSummary(null);
       }
       if (prizeRes.ok && prize.score) {
@@ -457,6 +466,11 @@ function Inner() {
               desc: 'Brand compliance across the network',
             },
             {
+              href: '/dashboard/schools/kitchen-safety',
+              label: 'Kitchen safety register',
+              desc: 'Valid CoA % · R638 risk · soft/hard claim gate',
+            },
+            {
               href: '/dashboard/schools/prizes',
               label: 'Fair prizes',
               desc: 'Honest scores — menu & feeding completeness',
@@ -570,12 +584,55 @@ function Inner() {
           Claims (SLA-gated)
         </Link>
         <Link
+          href="/dashboard/schools/kitchen-safety"
+          className="btn-secondary !py-1.5 !px-3 text-xs"
+        >
+          Kitchen CoA / R638
+        </Link>
+        <Link
           href="/dashboard/schools/surveys"
           className="btn-secondary !py-1.5 !px-3 text-xs"
         >
           Parent / learner surveys
         </Link>
       </div>
+
+      {/* Kitchen food safety badge (CoA / R638) */}
+      {kitchenSafety ? (
+        <Link
+          href="/dashboard/schools/kitchen-safety"
+          className={`mb-4 flex items-start gap-3 rounded-3xl border px-4 py-3 ${
+            kitchenSafety.band === 'green'
+              ? 'border-emerald-300 bg-emerald-50'
+              : kitchenSafety.band === 'red'
+                ? 'border-rose-300 bg-rose-50'
+                : 'border-amber-300 bg-amber-50'
+          }`}
+        >
+          {kitchenSafety.band === 'green' ? (
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
+          ) : (
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+          )}
+          <div>
+            <p className="text-sm font-black">
+              {kitchenSafety.label || 'Kitchen food safety'}
+            </p>
+            <p className="text-xs opacity-80">
+              {(kitchenSafety.reasons || []).slice(0, 2).join(' · ') ||
+                'Open kitchen safety passport (CoA · R638)'}
+            </p>
+          </div>
+        </Link>
+      ) : (
+        <Link
+          href="/dashboard/schools/kitchen-safety"
+          className="mb-4 flex items-center gap-2 rounded-3xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm font-bold text-violet-950"
+        >
+          <AlertTriangle className="h-4 w-4" />
+          Set kitchen CoA / R638 food safety passport →
+        </Link>
+      )}
 
       {/* Priority 1 — Today board */}
       <SchoolTodayBoard companyId={companyId} />

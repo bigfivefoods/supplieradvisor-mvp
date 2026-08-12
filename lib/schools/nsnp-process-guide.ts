@@ -59,7 +59,8 @@ export const ROLE_CARDS = [
       'Check kitchen stock against DBE menu',
       'Raise PO to SP when short',
       'Receive stock (GRN) into kitchen',
-      'Serve meals on feed days · claim',
+      'Serve meals on feed days · R638 micro-log · claim',
+      'Keep CoA (R638) kitchen passport current',
       'Message SPs on order and delivery threads',
     ],
     doesNot: [
@@ -202,10 +203,16 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '5b',
         title: 'Serve meals',
         who: 'School',
-        desc: 'Log serve-day against the DBE feeding calendar.',
+        desc: 'Log serve-day against the DBE feeding calendar + R638 micro-log.',
       },
       {
         n: '5c',
+        title: 'Kitchen safety (CoA / R638)',
+        who: 'School',
+        desc: 'Valid Certificate of Acceptability, PIC, monthly self-audit; PEU verifies on field visits.',
+      },
+      {
+        n: '5d',
         title: 'Children fed',
         who: 'All',
         desc: 'Outcome: learners eat the authorised menu that day.',
@@ -245,13 +252,13 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '7a',
         title: 'PEU monitoring',
         who: 'PEU',
-        desc: 'Field visits and NSNP monitoring scores.',
+        desc: 'Field visits, NSNP scores, and kitchen CoA / R638 verification.',
       },
       {
         n: '7b',
         title: 'School claim pack',
         who: 'School',
-        desc: 'Submit claim with evidence after feeding.',
+        desc: 'Submit claim with evidence after feeding (SLA + kitchen safety gates).',
       },
       {
         n: '7c',
@@ -263,7 +270,7 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '7d',
         title: 'Prizes & preferred SPs',
         who: 'DBE',
-        desc: 'Reward school compliance and on-catalogue SPs.',
+        desc: 'Reward school compliance and on-catalogue SPs (CoA-compliant kitchens only).',
       },
     ],
   },
@@ -277,6 +284,10 @@ export const COMPLIANCE_GATES = [
   {
     title: 'Active school ↔ SP link',
     desc: 'Schools only order from approved, linked service providers.',
+  },
+  {
+    title: 'Kitchen CoA / R638',
+    desc: 'Valid Certificate of Acceptability + PIC + recent self-audit. Soft claim gate by default; agency can enforce hard block. Non-compliant kitchens blocked from prizes.',
   },
   {
     title: 'Menu + calendar drive demand',

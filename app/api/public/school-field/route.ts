@@ -299,6 +299,80 @@ export async function POST(req: NextRequest) {
           created_at: now,
         });
       }
+
+      // Write kitchen CoA verification onto school passport
+      if (action === 'complete' || body.kitchen_status) {
+        try {
+          const kStatus = String(
+            body.kitchen_status ||
+              (checklist.filter((c: { done?: boolean }) => c.done).length >= 4
+                ? 'verified'
+                : 'conditional')
+          );
+          const verifyStatus =
+            kStatus === 'noncompliant'
+              ? 'noncompliant'
+              : kStatus === 'conditional'
+                ? 'conditional'
+                : 'verified';
+          const { data: schoolRow } = await supabase
+            .from('school_profiles')
+            .select('id, metadata, profile_id')
+            .eq('id', resolved.schoolProfileId)
+            .maybeSingle();
+          if (schoolRow) {
+            const {
+              readKitchenPassport,
+              mergePassport,
+              writeKitchenToSchoolMeta,
+              readSelfAudits,
+            } = await import('@/lib/schools/kitchen-safety');
+            const meta =
+              schoolRow.metadata && typeof schoolRow.metadata === 'object'
+                ? { ...(schoolRow.metadata as Record<string, unknown>) }
+                : {};
+            let pass = readKitchenPassport(meta);
+            pass = mergePassport(pass, {
+              peu_verify_status: verifyStatus,
+              peu_verify_at: date,
+              peu_verify_notes: notes || null,
+              coa_number:
+                body.coa_number != null
+                  ? String(body.coa_number)
+                  : pass.coa_number,
+            });
+            const nextMeta = writeKitchenToSchoolMeta(
+              meta,
+              pass,
+              readSelfAudits(meta)
+            );
+            await supabase
+              .from('school_profiles')
+              .update({ metadata: nextMeta, updated_at: now })
+              .eq('id', resolved.schoolProfileId);
+            if (verifyStatus === 'noncompliant') {
+              try {
+                await supabase.from('school_compliance_events').insert({
+                  school_profile_id: resolved.schoolProfileId,
+                  profile_id: schoolRow.profile_id || resolved.companyId,
+                  kind: 'kitchen_peu',
+                  title: 'PEU kitchen verification non-compliant',
+                  status: 'open',
+                  severity: 'critical',
+                  event_date: date,
+                  body: notes || 'Field PEU non-compliant kitchen (R638/CoA).',
+                  metadata: { source: 'field_pwa' },
+                });
+              } catch {
+                /* soft */
+              }
+            }
+          }
+        } catch {
+          /* soft */
+        }
+      }
+
       return NextResponse.json({
         success: true,
         message: action === 'complete' ? 'Visit completed' : 'Visit saved',

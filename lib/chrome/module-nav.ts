@@ -837,6 +837,13 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Insights',
       },
       {
+        name: 'Kitchen safety',
+        href: '/dashboard/schools/kitchen-safety',
+        desc: 'CoA register · R638 risk · claim gate',
+        group: 'DBE',
+        section: 'Insights',
+      },
+      {
         name: 'Catalogue',
         href: '/dashboard/schools/approved-list',
         desc: 'Approved foods list',
@@ -1032,6 +1039,13 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         name: 'Serve day',
         href: '/dashboard/schools/serve-day',
         desc: 'Meals today · attendance scale',
+        group: 'School',
+        section: 'Kitchen',
+      },
+      {
+        name: 'Kitchen safety',
+        href: '/dashboard/schools/kitchen-safety',
+        desc: 'CoA · R638 · PIC · self-audit',
         group: 'School',
         section: 'Kitchen',
       },

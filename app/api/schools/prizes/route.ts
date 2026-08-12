@@ -301,6 +301,36 @@ export async function GET(request: NextRequest) {
       dataQualityPct,
     });
 
+    // Kitchen food safety (R638 / CoA) — non-compliant kitchens blocked from prizes
+    let kitchenSafety: {
+      band: string;
+      label: string;
+      prizes_blocked: boolean;
+      reasons: string[];
+    } | null = null;
+    try {
+      const {
+        readKitchenPassport,
+        evaluateKitchenRisk,
+      } = await import('@/lib/schools/kitchen-safety');
+      const smeta =
+        school.metadata && typeof school.metadata === 'object'
+          ? (school.metadata as Record<string, unknown>)
+          : {};
+      const risk = evaluateKitchenRisk(readKitchenPassport(smeta));
+      kitchenSafety = {
+        band: risk.band,
+        label: risk.label,
+        prizes_blocked: risk.prizes_blocked,
+        reasons: risk.reasons,
+      };
+      if (risk.prizes_blocked) {
+        breakdown.total = 0;
+      }
+    } catch {
+      /* soft */
+    }
+
     // Persist snapshot
     await supabase.from('nsnp_prize_scores').upsert(
       {
@@ -455,7 +485,9 @@ export async function GET(request: NextRequest) {
         ...breakdown,
         rank: myRank,
         bands,
+        prizes_blocked: kitchenSafety?.prizes_blocked === true,
       },
+      kitchen_safety: kitchenSafety,
       leaderboard,
       bands,
       certificates: certs,

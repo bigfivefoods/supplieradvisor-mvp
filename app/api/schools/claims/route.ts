@@ -224,6 +224,49 @@ export async function GET(request: NextRequest) {
       /* soft */
     }
 
+    // Kitchen food safety (CoA / R638) — soft by default; hard if agency policy
+    let kitchenGate: {
+      band: string;
+      coa_status: string;
+      label: string;
+      reasons: string[];
+      claim_soft_block: boolean;
+      claim_hard_block: boolean;
+    } | null = null;
+    try {
+      const {
+        readKitchenPassport,
+        evaluateKitchenRisk,
+        readKitchenPolicy,
+      } = await import('@/lib/schools/kitchen-safety');
+      const smeta =
+        school.metadata && typeof school.metadata === 'object'
+          ? (school.metadata as Record<string, unknown>)
+          : {};
+      let policy;
+      if (agencyLink) {
+        const { data: ag } = await supabase
+          .from('nsnp_agency_profiles')
+          .select('metadata')
+          .eq('profile_id', catalogue.agencyProfileId || 0)
+          .maybeSingle();
+        if (ag?.metadata && typeof ag.metadata === 'object') {
+          policy = readKitchenPolicy(ag.metadata as Record<string, unknown>);
+        }
+      }
+      const risk = evaluateKitchenRisk(readKitchenPassport(smeta), { policy });
+      kitchenGate = {
+        band: risk.band,
+        coa_status: risk.coa_status,
+        label: risk.label,
+        reasons: risk.reasons,
+        claim_soft_block: risk.claim_soft_block,
+        claim_hard_block: risk.claim_hard_block,
+      };
+    } catch {
+      /* soft */
+    }
+
     const approvedBlocked = Boolean(approvedIncentive.block_reason);
     const submitBlock =
       periodLocked
@@ -240,7 +283,9 @@ export async function GET(request: NextRequest) {
                   ? `Approved foods ${approvedBrandPct}% — need ≥${CLAIM_APPROVED_MIN_PCT}% for full claim submit (order only from department list)`
                   : slaGate?.blocked
                     ? slaGate.reason
-                    : null;
+                    : kitchenGate?.claim_hard_block
+                      ? `Kitchen food safety hard gate: ${kitchenGate.reasons[0] || kitchenGate.label}`
+                      : null;
 
     // Priority 3 — three-way match cleanliness for one-click claim
     let matchSummary: {
@@ -340,7 +385,8 @@ export async function GET(request: NextRequest) {
       !agencyClaimsLocked &&
       approvedBrandPct >= CLAIM_APPROVED_MIN_PCT &&
       !approvedBlocked &&
-      !slaGate?.blocked;
+      !slaGate?.blocked &&
+      !kitchenGate?.claim_hard_block;
 
     const matchBlocks =
       matchSummary &&
@@ -375,6 +421,15 @@ export async function GET(request: NextRequest) {
             worst_otifef_pct: slaGate.worst_otifef_pct,
             isps: slaGate.isps,
             min_otifef_pct: 60,
+          }
+        : null,
+      kitchen_safety: kitchenGate
+        ? {
+            ...kitchenGate,
+            advisory:
+              kitchenGate.claim_soft_block && !kitchenGate.claim_hard_block
+                ? 'Kitchen food safety at risk — DBE can still review; remediate CoA/R638 before hard gate policy.'
+                : null,
           }
         : null,
       claim_amount: approvedIncentive.claim_amount,

@@ -61,6 +61,10 @@ function Inner() {
   const [autoIssue, setAutoIssue] = useState(true);
   const [draftBanner, setDraftBanner] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
+  const [fridgeOk, setFridgeOk] = useState(true);
+  const [handwashOk, setHandwashOk] = useState(true);
+  const [illnessFree, setIllnessFree] = useState(true);
+  const [cleanedOk, setCleanedOk] = useState(true);
 
   const draftId = String(data?.date || serveDate || 'today');
 
@@ -221,6 +225,24 @@ function Inner() {
       const issued = (json.stock_issues || []).filter(
         (x: { status?: string }) => x.status === 'issued'
       ).length;
+      // Daily kitchen food-safety micro-log (R638 continuous evidence)
+      try {
+        await fetch('/api/schools/kitchen-safety', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            action: 'daily_log',
+            date: data?.date || serveDate,
+            fridge_temp_ok: fridgeOk,
+            handwash_ok: handwashOk,
+            illness_free: illnessFree,
+            cleaned_ok: cleanedOk,
+          }),
+        });
+      } catch {
+        /* soft */
+      }
       toast.success(
         issued > 0
           ? `Serve day complete · ${issued} stock line(s) issued`
@@ -265,7 +287,7 @@ function Inner() {
       <SchoolsHeader
         title="Serve day"
         titleAccent={serveDate === todayIso ? 'Today' : serveDate}
-        description="One screen for kitchen managers: pick the day → menu → attendance → meals served → waste. Defaults to the day you logged in."
+        description="One screen for kitchen managers: pick the day → menu → attendance → meals served → waste → food-safety micro-log (R638). Defaults to the day you logged in."
         action={
           <button
             type="button"
@@ -484,6 +506,42 @@ function Inner() {
                 Kitchen →
               </Link>
             </p>
+
+            <div className="rounded-2xl border border-violet-200 bg-violet-50/50 px-3 py-3 space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-wider text-violet-800">
+                Kitchen food safety micro-log (R638)
+              </p>
+              <p className="text-[11px] text-slate-600">
+                Daily evidence for CoA premises — cold chain, hand wash, illness
+                exclusion, pre-service cleaning.
+              </p>
+              {(
+                [
+                  [fridgeOk, setFridgeOk, 'Cold storage / fridge OK'],
+                  [handwashOk, setHandwashOk, 'Hand wash usable'],
+                  [illnessFree, setIllnessFree, 'No illness among handlers'],
+                  [cleanedOk, setCleanedOk, 'Area cleaned before service'],
+                ] as const
+              ).map(([val, setVal, label], i) => (
+                <label
+                  key={i}
+                  className="flex items-center gap-2 text-xs font-bold text-slate-800"
+                >
+                  <input
+                    type="checkbox"
+                    checked={val}
+                    onChange={(e) => setVal(e.target.checked)}
+                  />
+                  {label}
+                </label>
+              ))}
+              <Link
+                href="/dashboard/schools/kitchen-safety"
+                className="text-[11px] font-bold text-violet-800 underline"
+              >
+                Full CoA / R638 passport →
+              </Link>
+            </div>
 
             <label className="flex items-start gap-2 text-sm cursor-pointer">
               <input

@@ -70,10 +70,15 @@ export default function FieldPeuVisitPage() {
     );
   };
 
+  const [kitchenStatus, setKitchenStatus] = useState<
+    'verified' | 'conditional' | 'noncompliant'
+  >('verified');
+  const [coaNumber, setCoaNumber] = useState('');
+
   const save = async (complete: boolean) => {
     setBusy(true);
     setMsg(null);
-    const payload = { checklist, notes };
+    const payload = { checklist, notes, kitchenStatus, coaNumber };
     try {
       if (!isBrowserOnline()) {
         saveOfflineDraft('peu-visit', companyId || token, date, payload, 'PEU');
@@ -90,6 +95,8 @@ export default function FieldPeuVisitPage() {
           date,
           checklist,
           notes,
+          kitchen_status: kitchenStatus,
+          coa_number: coaNumber || undefined,
         }),
       });
       const data = await res.json();
@@ -166,6 +173,36 @@ export default function FieldPeuVisitPage() {
             </li>
           ))}
         </ul>
+        <div className="rounded-2xl border border-violet-500/40 bg-violet-500/10 p-3 space-y-2">
+          <p className="text-[10px] font-black uppercase tracking-wider text-violet-200">
+            Kitchen CoA / R638 verification
+          </p>
+          <label className="block text-xs font-bold text-white/70">
+            Outcome
+            <select
+              className="mt-1 w-full rounded-xl border border-white/15 bg-slate-900 px-3 py-2 text-sm"
+              value={kitchenStatus}
+              onChange={(e) =>
+                setKitchenStatus(
+                  e.target.value as 'verified' | 'conditional' | 'noncompliant'
+                )
+              }
+            >
+              <option value="verified">Verified compliant</option>
+              <option value="conditional">Conditional</option>
+              <option value="noncompliant">Non-compliant</option>
+            </select>
+          </label>
+          <label className="block text-xs font-bold text-white/70">
+            CoA number on wall (optional)
+            <input
+              className="mt-1 w-full rounded-xl border border-white/15 bg-slate-900 px-3 py-2 text-sm"
+              value={coaNumber}
+              onChange={(e) => setCoaNumber(e.target.value)}
+              placeholder="As displayed in kitchen"
+            />
+          </label>
+        </div>
         <label className="block text-xs font-bold text-white/60">
           Notes
           <textarea

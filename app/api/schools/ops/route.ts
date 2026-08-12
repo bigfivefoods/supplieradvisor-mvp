@@ -781,6 +781,58 @@ async function exceptionsView(
     });
   }
 
+  // Kitchen food safety (CoA / R638) across active schools
+  try {
+    const {
+      readKitchenPassport,
+      evaluateKitchenRisk,
+    } = await import('@/lib/schools/kitchen-safety');
+    const activeIds = links
+      .filter((x) => x.status === 'active')
+      .map((l) => Number(l.school_profile_id))
+      .filter(Boolean)
+      .slice(0, 200);
+    for (let i = 0; i < activeIds.length; i += 80) {
+      const slice = activeIds.slice(i, i + 80);
+      const { data: schools } = await supabase
+        .from('school_profiles')
+        .select('id, school_name, metadata')
+        .in('id', slice)
+        .limit(100);
+      for (const s of schools || []) {
+        const meta =
+          s.metadata && typeof s.metadata === 'object'
+            ? (s.metadata as Record<string, unknown>)
+            : {};
+        const risk = evaluateKitchenRisk(readKitchenPassport(meta));
+        if (risk.band === 'red' || risk.coa_status === 'none' || risk.coa_status === 'expired') {
+          const peuNon =
+            risk.reasons.some((r) => r.toLowerCase().includes('peu'));
+          exceptions.push({
+            kind:
+              risk.coa_status === 'none'
+                ? 'kitchen_coa_missing'
+                : risk.coa_status === 'expired'
+                  ? 'kitchen_coa_expired'
+                  : peuNon
+                    ? 'kitchen_peu_noncompliant'
+                    : 'kitchen_r638_red',
+            severity:
+              risk.coa_status === 'none' || risk.band === 'red'
+                ? 'critical'
+                : 'high',
+            title: `${s.school_name || 'School'}: ${risk.label}`,
+            school_profile_id: s.id,
+            reasons: risk.reasons.slice(0, 3),
+            href: '/dashboard/schools/kitchen-safety',
+          });
+        }
+      }
+    }
+  } catch {
+    /* soft */
+  }
+
   // SP probation / compliance risk (network)
   try {
     const { data: isps } = await supabase
@@ -2033,15 +2085,53 @@ async function auditPack(
     hash += String(raw.length);
   }
 
+  // Kitchen food safety (R638 / CoA) for auditors
+  let kitchen_safety: Record<string, unknown> | null = null;
+  try {
+    const {
+      readKitchenPassport,
+      evaluateKitchenRisk,
+      readSelfAudits,
+    } = await import('@/lib/schools/kitchen-safety');
+    const smeta =
+      school.metadata && typeof school.metadata === 'object'
+        ? (school.metadata as Record<string, unknown>)
+        : {};
+    const passport = readKitchenPassport(smeta);
+    const risk = evaluateKitchenRisk(passport);
+    kitchen_safety = {
+      passport,
+      risk,
+      recent_self_audits: readSelfAudits(smeta).slice(0, 3),
+      note:
+        'Regulation R638 / Certificate of Acceptability — school kitchen legal food-handling status.',
+    };
+    (pack as Record<string, unknown>).kitchen_safety = kitchen_safety;
+  } catch {
+    /* soft */
+  }
+
+  // Re-hash including kitchen safety
+  try {
+    const { createHash } = await import('crypto');
+    hash = 'sha256:';
+    hash += createHash('sha256')
+      .update(JSON.stringify(pack))
+      .digest('hex');
+  } catch {
+    /* keep prior hash */
+  }
+
   return {
     success: true,
     pack,
+    kitchen_safety,
     content_hash: hash,
     export: {
       filename: `NSNP_Audit_${school.emis_number || schoolId}_${from}_${to}.json`,
       mime: 'application/json',
     },
-    tip: 'Download JSON for auditors. Includes PO, DN, POD files, GRN, feed days, three-way match and funding simulation.',
+    tip: 'Download JSON for auditors. Includes PO, DN, POD, GRN, feed days, kitchen CoA/R638 safety, three-way match and funding simulation.',
   };
 }
 

@@ -201,6 +201,15 @@ export const PROCESS_STEPS: ProcessStep[] = [
     daily: true,
   },
   {
+    id: 'kitchen_safety',
+    stage: 'quality',
+    label: 'Kitchen safety (CoA / R638)',
+    href: '/dashboard/schools/kitchen-safety',
+    desc: 'Certificate of Acceptability · PIC · monthly self-audit · PEU verify',
+    school: true,
+    agency: true,
+  },
+  {
     id: 'compliance',
     stage: 'quality',
     label: 'Compliance',
