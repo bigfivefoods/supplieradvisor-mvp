@@ -336,10 +336,10 @@ export default function CalendarPage() {
       const row = store.sessions.find((s) => s.id === id);
       if (!row) continue;
       const isAnchor = id === prev.id;
-      const next = applySeriesPatch(row as never, patch, {
+      const next = applySeriesPatch(row, patch, {
         isAnchor,
         newDate: isAnchor ? form.date : undefined,
-      }) as typeof row;
+      });
       await post({
         entity: 'sessions',
         action: 'upsert',

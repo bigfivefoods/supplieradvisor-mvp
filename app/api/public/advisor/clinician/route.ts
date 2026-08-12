@@ -417,7 +417,7 @@ export async function POST(req: NextRequest) {
         const isAnchor = id === appt.id;
         Object.assign(
           row,
-          applySeriesPatch(row as never, patch, {
+          applySeriesPatch(row, patch, {
             isAnchor,
             newDate: isAnchor ? newDate : undefined,
           })

@@ -365,7 +365,7 @@ export default function CalendarPage() {
           const row = store?.appointments.find((a) => a.id === id);
           if (!row) continue;
           const isAnchor = id === prev.id;
-          const next = applySeriesPatch(row as never, patch, {
+          const next = applySeriesPatch(row, patch, {
             isAnchor,
             newDate: isAnchor ? form.date : undefined,
           });
