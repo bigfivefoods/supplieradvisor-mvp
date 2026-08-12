@@ -78,8 +78,9 @@ export const MANAGEMENT_HERO_STOPS: Array<{ t: number; color: string }> = [
 ];
 
 /**
- * Horizontal multi-stop gradient.
- * Prefers pdfkit linearGradient (smooth); falls back to thin strips.
+ * Horizontal multi-stop gradient via thin vertical strips.
+ * Same algorithm as lib/advisors/management-report-pdf.ts so process PDFs
+ * match management report headers exactly (no website styling).
  */
 export function fillHGradient(
   doc: ProcessGuidePdfDoc,
@@ -93,27 +94,10 @@ export function fillHGradient(
   const sorted = [...stops].sort((a, b) => a.t - b.t);
   if (sorted.length < 2 || w <= 0 || h <= 0) return;
 
-  // Reset any prior opacity so gradient is fully opaque (same as solid fills)
   try {
     doc.fillOpacity(1);
   } catch {
     /* soft */
-  }
-
-  // Native linear gradient — exact smooth blue→teal like management report intent
-  try {
-    // pdfkit: linearGradient(x1, y1, x2, y2)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const grad = (doc as any).linearGradient(x, y, x + w, y);
-    if (grad && typeof grad.stop === 'function') {
-      for (const s of sorted) {
-        grad.stop(s.t, s.color);
-      }
-      doc.rect(x, y, w, h).fill(grad);
-      return;
-    }
-  } catch {
-    /* fall through to strips */
   }
 
   const stripW = w / steps;
@@ -131,8 +115,8 @@ export function fillHGradient(
     const span = Math.max(1e-6, c1.t - c0.t);
     const local = (t - c0.t) / span;
     const color = mixRgb(hexToRgb(c0.color), hexToRgb(c1.color), local);
-    // slight overlap avoids hairline gaps between strips
-    doc.rect(x + i * stripW, y, stripW + 0.65, h).fill(color);
+    // slight overlap avoids hairline gaps between strips (management report)
+    doc.rect(x + i * stripW, y, stripW + 0.6, h).fill(color);
   }
 }
 

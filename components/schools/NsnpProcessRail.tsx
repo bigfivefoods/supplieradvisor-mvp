@@ -79,14 +79,14 @@ export default function NsnpProcessRail({
 
   return (
     <div
-      className={`rounded-3xl border border-slate-200 bg-white dark:border-cyan-500/25 dark:bg-gradient-to-br dark:from-[#061825] dark:via-[#0b2f44] dark:to-[#0a3d3a] dark:shadow-[0_10px_28px_-12px_rgba(0,0,0,0.55)] ${compact ? 'p-3' : 'p-4'}`}
+      className={`rounded-3xl border border-slate-200 bg-white ${compact ? 'p-3' : 'p-4'}`}
     >
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 mb-3">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-[#0077b6] dark:text-cyan-300">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-[#0077b6]">
             {role === 'agency' ? 'DBE operating process' : 'NSNP golden path'}
           </p>
-          <p className="text-sm font-black text-slate-900 dark:text-white">
+          <p className="text-sm font-black text-slate-900">
             {role === 'agency'
               ? 'Approve · Catalogue · CoA register · Claims'
               : 'Setup → Kitchen safety → Feed → Fund'}
@@ -94,10 +94,10 @@ export default function NsnpProcessRail({
         </div>
         {typeof score === 'number' ? (
           <div className="text-right">
-            <p className="text-2xl font-black tabular-nums text-slate-900 dark:text-cyan-100">
+            <p className="text-2xl font-black tabular-nums text-slate-900">
               {score}%
             </p>
-            <p className="text-[10px] font-bold uppercase text-slate-400 dark:text-cyan-200/60">
+            <p className="text-[10px] font-bold uppercase text-slate-400">
               Ready
             </p>
           </div>
@@ -113,19 +113,19 @@ export default function NsnpProcessRail({
           return (
             <div
               key={st.id}
-              className={`min-w-[4.5rem] shrink-0 rounded-2xl border px-2.5 py-2 ${
+              className={`shrink-0 rounded-2xl border px-2.5 py-2 min-w-[4.5rem] ${
                 complete
-                  ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-300/35 dark:bg-gradient-to-br dark:from-emerald-950 dark:via-emerald-800 dark:to-emerald-500/60'
+                  ? 'border-emerald-200 bg-emerald-50'
                   : partial
-                    ? 'border-sky-200 bg-sky-50 dark:border-cyan-300/35 dark:bg-gradient-to-br dark:from-sky-950 dark:via-cyan-800 dark:to-cyan-400/50'
-                    : 'border-slate-100 bg-slate-50 dark:border-cyan-500/15 dark:bg-gradient-to-br dark:from-[#0b1e33]/90 dark:to-[#0c3a4f]/50'
+                    ? 'border-sky-200 bg-sky-50'
+                    : 'border-slate-100 bg-slate-50'
               }`}
               title={st.label}
             >
-              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-white/55">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
                 {i + 1}
               </p>
-              <p className="text-[11px] font-bold leading-tight text-slate-800 dark:text-white">
+              <p className="text-[11px] font-bold text-slate-800 leading-tight">
                 {st.short.replace(/^\d+ · /, '')}
               </p>
             </div>
@@ -139,22 +139,22 @@ export default function NsnpProcessRail({
             <li key={c.id}>
               <Link
                 href={c.href}
-                className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-cyan-950/40"
+                className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-slate-50 text-sm"
               >
                 {c.done ? (
-                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 ) : (
                   <Circle
-                    className={`h-4 w-4 shrink-0 ${c.required ? 'text-amber-500 dark:text-amber-300' : 'text-slate-300 dark:text-cyan-700'}`}
+                    className={`w-4 h-4 shrink-0 ${c.required ? 'text-amber-500' : 'text-slate-300'}`}
                   />
                 )}
                 <span
-                  className={`flex-1 ${c.done ? 'text-slate-500 dark:text-cyan-100/55' : 'font-semibold text-slate-800 dark:text-white'}`}
+                  className={`flex-1 ${c.done ? 'text-slate-500' : 'font-semibold text-slate-800'}`}
                 >
                   {c.label}
                 </span>
                 {!c.done ? (
-                  <ChevronRight className="h-3.5 w-3.5 text-slate-300 dark:text-cyan-300/50" />
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
                 ) : null}
               </Link>
             </li>
