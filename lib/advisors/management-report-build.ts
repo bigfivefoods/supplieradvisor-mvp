@@ -123,19 +123,31 @@ function buildClinicReport(
   }
 
   const bookings = store.bookings || [];
-  const attended = bookings.filter((b) => {
-    if (b.status !== 'attended') return false;
-    const a = appts.find((x) => x.id === b.appointment_id);
-    return Boolean(a);
-  }).length;
-  const noShow = bookings.filter((b) => {
-    if (b.status !== 'no_show') return false;
-    const a = appts.find((x) => x.id === b.appointment_id);
-    return Boolean(a);
-  }).length;
+  const periodBookingIds = new Set(appts.map((a) => a.id));
+  const periodBookings = bookings.filter((b) =>
+    periodBookingIds.has(b.appointment_id)
+  );
+  const attended = periodBookings.filter((b) => b.status === 'attended').length;
+  const noShow = periodBookings.filter((b) => b.status === 'no_show').length;
+  const booked = periodBookings.filter((b) =>
+    ['booked', 'confirmed', 'pending'].includes(String(b.status || '').toLowerCase())
+  ).length;
+  const cancelledAppts = (store.appointments || []).filter(
+    (a) =>
+      a.date >= filters.from &&
+      a.date <= filters.to &&
+      String(a.status || '').toLowerCase() === 'cancelled'
+  ).length;
   const activePatients = store.patients.filter(
     (p) => p.active !== false && (p.status === 'active' || p.status === 'new' || !p.status)
   ).length;
+  const newPatients = store.patients.filter((p) => {
+    const st = String(p.status || '').toLowerCase();
+    return st === 'new' || st === 'lead';
+  }).length;
+  const utilSeats = appts.reduce((n, a) => n + Number(a.booked || 0), 0);
+  const teamActive = people.filter((p) => p.active !== false).length;
+  const servicesActive = store.services.filter((s) => s.active !== false).length;
 
   const byPrac = new Map<string, number>();
   for (const a of appts) {
@@ -177,10 +189,12 @@ function buildClinicReport(
     });
 
   const kpis: ManagementKpi[] = [
-    kpi('Appts in period', appts.length),
+    kpi('Appts in period', appts.length, 'Non-cancelled diary slots'),
     kpi('Active patients', activePatients),
-    kpi('Team', people.filter((p) => p.active !== false).length),
-    kpi('Services', store.services.filter((s) => s.active !== false).length),
+    kpi('Patients on book', store.patients.length, newPatients ? `${newPatients} new/lead` : undefined),
+    kpi('Team active', teamActive),
+    kpi('Services live', servicesActive),
+    kpi('Booked seats', booked || utilSeats),
     kpi('Attended', attended),
     kpi('No-shows', noShow),
     kpi(
@@ -189,7 +203,9 @@ function buildClinicReport(
         ? `${Math.round((attended / (attended + noShow)) * 100)}%`
         : '—'
     ),
-    kpi('Patients on book', store.patients.length),
+    kpi('Cancelled appts', cancelledAppts),
+    kpi('Practitioners with load', byPrac.size),
+    kpi('Top service mix', svcRows.length ? String(svcRows[0]?.[0] || '—') : '—'),
   ];
 
   let tables: ManagementTable[] = [];
@@ -265,6 +281,7 @@ function buildClinicReport(
           { label: 'Appts', value: appts.length, color: '#0077b6' },
           { label: 'Attended', value: attended, color: '#059669' },
           { label: 'No-shows', value: noShow, color: '#e11d48' },
+          { label: 'Cancelled', value: cancelledAppts, color: '#d97706' },
           { label: 'Patients', value: activePatients, color: '#7c3aed' },
         ],
       },
@@ -280,20 +297,36 @@ function buildClinicReport(
           ],
         })),
       },
+      {
+        id: 'prac_load',
+        title: 'Practitioner load',
+        type: 'donut',
+        series: pracRows.slice(0, 5).map((r, i) => ({
+          label: String(r[0]).slice(0, 14),
+          value: Number(r[1]) || 0,
+          color: ['#0077b6', '#00b4d8', '#059669', '#d97706', '#7c3aed'][i % 5],
+        })),
+      },
     ],
     highlights: [
-      `${appts.length} appointments in period`,
+      `${appts.length} appointments in period · ${teamActive} active clinicians`,
       showUp != null ? `${showUp}% show-up (attended / decided)` : 'No attendance marks yet',
-      `${activePatients} active patients on the book`,
+      `${activePatients} active patients on the book · ${store.patients.length} total`,
+      servicesActive ? `${servicesActive} live services on the menu` : 'No services configured',
     ],
     risks: [
       noShow > 0 ? `${noShow} no-shows — follow up or double-book carefully` : 'No-shows under control',
+      cancelledAppts > 0
+        ? `${cancelledAppts} cancelled slots in period`
+        : 'Cancellations low',
       appts.length === 0 ? 'No diary activity in this period' : 'Diary active',
+      teamActive === 0 ? 'No active practitioners on roster' : 'Team roster populated',
     ],
     actions: [
       'Review practitioner load balance',
       'Chase outstanding feedback / recalls',
       'Confirm website booking slots match capacity',
+      noShow > 0 ? 'SMS / call no-shows for rebook' : 'Maintain confirmation cadence',
     ],
   };
 }
@@ -427,7 +460,7 @@ async function buildFit(
       kpi('Sessions', o.sessions),
       kpi('Completed', o.completed),
       kpi('Attended seats', o.attended),
-      kpi('Fill %', o.fill_pct ?? '—'),
+      kpi('Fill %', o.fill_pct ?? '—', 'Capacity utilisation'),
       kpi('Show-up %', o.show_up_pct ?? '—'),
       kpi('No-shows', o.no_show),
       kpi('Waitlist', o.waitlist),
@@ -436,7 +469,7 @@ async function buildFit(
       kpi('Coaches teaching', o.coaches_teaching),
       kpi('Class types run', o.class_types_run),
       kpi('Member feedback', o.member_feedback),
-    ],
+    ].slice(0, 12),
     tables,
     charts: [
       {
@@ -601,7 +634,32 @@ async function buildField(
   }
 
   const fields = store.fields?.filter((f) => f.active !== false).length || 0;
-  const kpiEntries = Object.entries(bundle.kpis).slice(0, 4);
+  const ha = bundle.byField.reduce((n, r) => n + Number(r.hectares || 0), 0);
+  const estT = bundle.byCrop.reduce((n, r) => n + Number(r.estimate_t || 0), 0);
+  const actT = bundle.byCrop.reduce((n, r) => n + Number(r.actual_t || 0), 0);
+  const fleetHours = bundle.fleetByVehicle.reduce(
+    (n, r) => n + Number(r.hours || 0),
+    0
+  );
+  const fleetCost = bundle.fleetByVehicle.reduce(
+    (n, r) => n + Number(r.cost_zar || 0),
+    0
+  );
+  const labourCost = bundle.labourByGang.reduce(
+    (n, r) => n + Number(r.cost || 0),
+    0
+  );
+  const labourHours = bundle.labourByGang.reduce(
+    (n, r) => n + Number(r.hours || 0),
+    0
+  );
+  const harvestOpen = (store.harvest_plan || []).filter((h) => {
+    const st = String(
+      (h as { status?: string }).status || ''
+    ).toLowerCase();
+    return !['done', 'complete', 'cancelled'].includes(st);
+  }).length;
+  const kpiEntries = Object.entries(bundle.kpis || {}).slice(0, 6);
   return {
     ...baseDoc(
       'fieldgraph',
@@ -617,14 +675,25 @@ async function buildField(
       farm ? `Farm: ${farm}` : '',
       season ? `Season: ${season}` : '',
     ]),
-    headline: 'Farm owner pack — yield, fleet & labour',
+    headline: 'Farm owner pack — yield, fleet, labour & harvest',
     kpis: [
       kpi('Fields', fields),
+      kpi('Hectares', Math.round(ha * 10) / 10),
+      kpi('Est tonnes', Math.round(estT * 10) / 10),
+      kpi('Actual tonnes', Math.round(actT * 10) / 10),
+      kpi(
+        'Yield capture %',
+        estT > 0 ? `${Math.round((actT / estT) * 1000) / 10}%` : '—'
+      ),
+      kpi('Crops in scope', bundle.byCrop.length),
+      kpi('Fleet hours', Math.round(fleetHours * 10) / 10),
+      kpi('Fleet cost R', Math.round(fleetCost)),
+      kpi('Labour hours', Math.round(labourHours * 10) / 10),
+      kpi('Labour cost R', Math.round(labourCost)),
+      kpi('Harvest open', harvestOpen),
       kpi('Estimates', store.estimates?.length || 0),
-      kpi('Harvest lines', store.harvest_plan?.length || 0),
-      kpi('Fleet logs', store.fleet_logs?.length || 0),
-      ...kpiEntries.map(([k, v]) => kpi(k, v ?? '—')),
-    ].slice(0, 8),
+      ...kpiEntries.map(([k, v]) => kpi(String(k), (v as string | number) ?? '—')),
+    ].slice(0, 12),
     tables,
     charts: [
       {
@@ -651,18 +720,36 @@ async function buildField(
           ],
         })),
       },
+      {
+        id: 'labour',
+        title: 'Labour cost by gang',
+        type: 'donut',
+        series: bundle.labourByGang.slice(0, 5).map((r, i) => ({
+          label: String(r.gang).slice(0, 14),
+          value: Number(r.cost) || 0,
+          color: ['#0077b6', '#00b4d8', '#059669', '#d97706', '#7c3aed'][i % 5],
+        })),
+      },
     ],
     highlights: [
-      `${fields} active fields in scope`,
-      'Slice tabs: yield · fleet · labour · harvest',
+      `${fields} active fields · ${Math.round(ha)} ha in scope`,
+      `Yield: ${Math.round(actT)} t actual vs ${Math.round(estT)} t estimate`,
+      `Fleet ${Math.round(fleetHours)} h · Labour R${Math.round(labourCost).toLocaleString('en-ZA')}`,
     ],
     risks: [
       fields === 0 ? 'No fields on the master list' : 'Field master populated',
+      estT > 0 && actT / estT < 0.7
+        ? 'Actual yield lagging estimate — investigate fields'
+        : 'Yield tracking on plan',
+      harvestOpen > 0
+        ? `${harvestOpen} harvest line(s) still open`
+        : 'Harvest plan clear',
     ],
     actions: [
       'Close yield actuals vs estimates',
       'Review high R/km vehicles',
       'Align harvest sequence with mill board',
+      'Balance labour gangs vs remaining cut',
     ],
   };
 }
@@ -704,19 +791,38 @@ async function buildQuarry(
     return dt >= filters.from && dt <= filters.to;
   });
 
+  const dispatchTonnes = dispatches.reduce(
+    (n, d) => n + Number(d.net_tonnes || 0),
+    0
+  );
+  const permitsExpiring = Number(summary.permitsExpiring || 0);
+  const productionLogs = (store as { production?: unknown[] }).production?.length
+    || (store as { production_logs?: unknown[] }).production_logs?.length
+    || 0;
+  const reserves = (store as { reserves?: unknown[] }).reserves?.length || 0;
+  const plantStock = (store as { plant_stock?: unknown[]; stock?: unknown[] })
+    .plant_stock?.length
+    || (store as { stock?: unknown[] }).stock?.length
+    || 0;
   const extra = Object.entries(summary || {})
     .filter(([, v]) => typeof v === 'number' || typeof v === 'string')
-    .slice(0, 4)
+    .slice(0, 6)
     .map(([k, v]) => kpi(k, v as string | number));
   const allKpis = [
     kpi('Quarries', quarries.length),
     kpi('Sites', (store.sites || []).length),
     kpi('Products', (store.products || []).length),
     kpi('Vehicles', (store.vehicles || []).length),
-    kpi('Dispatches', dispatches.length),
+    kpi('Dispatches', dispatches.length, 'In period window'),
+    kpi('Dispatch tonnes', Math.round(dispatchTonnes * 10) / 10),
     kpi('Permits', (store.permits || []).length),
+    kpi('Permits expiring', permitsExpiring),
+    kpi('Reserves rows', reserves || '—'),
+    kpi('Production logs', productionLogs || '—'),
+    kpi('Plant stock lines', plantStock || '—'),
+    kpi('Labour crews', (store as { labour?: unknown[] }).labour?.length || (store as { crews?: unknown[] }).crews?.length || '—'),
     ...extra,
-  ].slice(0, 8);
+  ].slice(0, 12);
 
   let tables: ManagementTable[] = [
     {
@@ -784,7 +890,7 @@ async function buildQuarry(
         ? `Quarry: ${quarries[0]?.name || quarryId}`
         : 'All quarries',
     ]),
-    headline: 'Quarry owner pack — production, fleet & compliance',
+    headline: 'Quarry owner pack — production, fleet, dispatch & compliance',
     kpis: allKpis,
     tables,
     charts: [
@@ -798,11 +904,16 @@ async function buildQuarry(
           { label: 'Vehicles', value: (store.vehicles || []).length, color: '#059669' },
           { label: 'Dispatches', value: dispatches.length, color: '#d97706' },
           { label: 'Permits', value: (store.permits || []).length, color: '#7c3aed' },
+          {
+            label: 'Tonnes',
+            value: Math.round(dispatchTonnes) || 0,
+            color: '#0d9488',
+          },
         ],
       },
       {
         id: 'dispatch_mix',
-        title: 'Dispatch volume',
+        title: 'Dispatch volume (tonnes)',
         type: 'donut',
         series: dispatches.slice(0, 5).map((d, i) => ({
           label: String(d.customer || d.ticket_no || `Ticket ${i + 1}`).slice(0, 14),
@@ -810,20 +921,37 @@ async function buildQuarry(
           color: ['#0077b6', '#00b4d8', '#059669', '#d97706', '#7c3aed'][i % 5],
         })),
       },
+      {
+        id: 'quarry_sites',
+        title: 'Quarries in scope',
+        type: 'horizontal_bar',
+        series: quarries.slice(0, 6).map((q, i) => ({
+          label: String(q.code || q.name || `Q${i + 1}`).slice(0, 14),
+          value: 1,
+          color: ['#0077b6', '#00b4d8', '#059669', '#d97706', '#7c3aed', '#0d9488'][
+            i % 6
+          ],
+        })),
+      },
     ],
     highlights: [
-      `${quarries.length} quarry(ies) in scope`,
-      `${dispatches.length} dispatch tickets in period window`,
+      `${quarries.length} quarry(ies) · ${(store.sites || []).length} site(s)`,
+      `${dispatches.length} dispatch tickets · ${Math.round(dispatchTonnes)} t in period`,
+      `${(store.vehicles || []).length} vehicles · ${(store.products || []).length} product grades`,
     ],
     risks: [
       (store.permits || []).length === 0
         ? 'No permits on register — add rights / WUL / EMP'
-        : `${summary.permitsExpiring || 0} permit(s) expiring soon`,
+        : `${permitsExpiring} permit(s) expiring soon`,
+      dispatches.length === 0
+        ? 'No dispatches in period — check weighbridge tickets'
+        : 'Dispatch activity present',
     ],
     actions: [
       'Review cost per tonne by quarry',
       'Chase expiring permits',
       'Balance plant stock vs dispatch',
+      'Close production vs reserve survey gaps',
     ],
   };
 }
@@ -1712,8 +1840,15 @@ async function buildHealth(
     }
   }
 
-  const active = facilities.filter(
-    (f) => String(f.status || f.link_status || '') !== 'pending'
+  const active = facilities.filter((f) => {
+    const st = String(f.status || f.link_status || '').toLowerCase();
+    return st !== 'pending' && st !== 'suspended' && st !== 'rejected';
+  });
+  const pending = facilities.filter(
+    (f) => String(f.status || f.link_status || '').toLowerCase() === 'pending'
+  );
+  const suspended = facilities.filter(
+    (f) => String(f.status || f.link_status || '').toLowerCase() === 'suspended'
   );
   const slice = filters.slice || 'overview';
   const slices = [
@@ -1723,28 +1858,51 @@ async function buildHealth(
   ];
 
   const byDistrict = new Map<string, number>();
+  const byType = new Map<string, number>();
+  let patientsProxy = 0;
   for (const f of facilities) {
     const fac = (f.facility || f) as Record<string, unknown>;
     const d = String(fac.district || f.district || '—');
     byDistrict.set(d, (byDistrict.get(d) || 0) + 1);
+    const typ = String(
+      fac.facility_type || fac.type || fac.member_type || 'facility'
+    );
+    byType.set(typ, (byType.get(typ) || 0) + 1);
+    patientsProxy += Number(
+      fac.learner_count_enrolled ||
+        fac.patient_count ||
+        fac.bed_count ||
+        0
+    );
   }
 
   return {
     ...baseDoc(
       'health',
       companyId,
-      String(agency?.name || companyName),
+      String(agency?.name || agency?.agency_name || companyName),
       filters,
       slice,
       slices.find((s) => s.id === slice)?.label || 'Overview',
       slices
     ),
-    filterSummary: filterLine([`Period ${filters.from} → ${filters.to}`]),
-    headline: 'Health programme owner pack — facilities & coverage',
+    filterSummary: filterLine([
+      'DoH programme network',
+      `Period ${filters.from} → ${filters.to}`,
+    ]),
+    headline: 'Health programme owner pack — facilities, coverage & network',
     kpis: [
       kpi('Facilities', facilities.length),
       kpi('Active links', active.length),
+      kpi('Pending joins', pending.length),
+      kpi('Suspended', suspended.length),
       kpi('Districts', byDistrict.size),
+      kpi('Facility types', byType.size),
+      kpi(
+        'Patients / beds proxy',
+        patientsProxy || '—',
+        'From facility enrol fields when present'
+      ),
       kpi('Agency profile', agency ? 'Yes' : 'No'),
     ],
     tables: [
@@ -1758,27 +1916,73 @@ async function buildHealth(
       },
       {
         title: 'Facilities',
-        headers: ['Name', 'Status', 'District'],
+        headers: ['Name', 'Status', 'District', 'Type'],
         rows: facilities.slice(0, 8).map((f) => {
           const fac = (f.facility || f) as Record<string, unknown>;
           return [
             String(fac.name || fac.facility_name || '—'),
             String(f.link_status || f.status || '—'),
-            String(fac.district || '—'),
+            String(fac.district || f.district || '—'),
+            String(fac.facility_type || fac.type || '—'),
           ];
         }),
       },
+      {
+        title: 'By facility type',
+        headers: ['Type', 'Count'],
+        rows: [...byType.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([t, n]) => [t, n]),
+      },
     ],
-    highlights: [`${facilities.length} facilities on the programme book`],
+    charts: [
+      {
+        id: 'health_network',
+        title: 'Programme network',
+        type: 'bar',
+        series: [
+          { label: 'Facilities', value: facilities.length, color: '#0077b6' },
+          { label: 'Active', value: active.length, color: '#059669' },
+          { label: 'Pending', value: pending.length, color: '#d97706' },
+          { label: 'Districts', value: byDistrict.size, color: '#7c3aed' },
+        ],
+      },
+      {
+        id: 'by_district',
+        title: 'Facilities by district',
+        type: 'horizontal_bar',
+        series: [...byDistrict.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 6)
+          .map(([d, n], i) => ({
+            label: d.slice(0, 16),
+            value: n,
+            color: ['#0077b6', '#00b4d8', '#059669', '#d97706', '#7c3aed', '#0d9488'][
+              i % 6
+            ],
+          })),
+      },
+    ],
+    highlights: [
+      `${facilities.length} facilities on the programme book · ${active.length} active`,
+      `${byDistrict.size} district(s) · ${byType.size} facility type(s)`,
+      pending.length
+        ? `${pending.length} join(s) awaiting approval`
+        : 'No pending facility joins',
+    ],
     risks: [
       facilities.length === 0
         ? 'No facilities linked — use join / facilities desk'
         : 'Network has facilities',
+      pending.length > 5
+        ? 'Large pending queue — prioritise approvals'
+        : 'Pending queue manageable',
     ],
     actions: [
       'Approve pending facility joins',
       'Review district coverage gaps',
       'Align approved nutrition catalogue',
+      'Drive facilities to keep enrol / bed counts current',
     ],
   };
 }
@@ -1799,71 +2003,84 @@ export async function buildAdvisorManagementReport(opts: {
     opts.companyName || opts.profileName || `Company #${companyId}`;
   const meta = opts.profileMeta || {};
 
-  if (advisor === 'fitgraph') {
-    return buildFit(meta, companyId, companyName, filters);
-  }
-  if (advisor === 'fieldgraph') {
-    return buildField(meta, companyId, companyName, filters);
-  }
-  if (advisor === 'quarrygraph') {
-    return buildQuarry(meta, companyId, companyName, filters);
-  }
-  if (advisor === 'schools') {
-    return buildSchools(supabase, companyId, companyName, filters);
-  }
-  if (advisor === 'health') {
-    return buildHealth(supabase, companyId, companyName, filters);
-  }
+  let core: ManagementReportDoc;
 
-  // Clinic family
-  if (advisor === 'physiograph') {
+  if (advisor === 'fitgraph') {
+    core = await buildFit(meta, companyId, companyName, filters);
+  } else if (advisor === 'fieldgraph') {
+    core = await buildField(meta, companyId, companyName, filters);
+  } else if (advisor === 'quarrygraph') {
+    core = await buildQuarry(meta, companyId, companyName, filters);
+  } else if (advisor === 'schools') {
+    core = await buildSchools(supabase, companyId, companyName, filters);
+  } else if (advisor === 'health') {
+    core = await buildHealth(supabase, companyId, companyName, filters);
+  } else if (advisor === 'physiograph') {
     const { readPhysiographFromMetadata } = await import(
       '@/lib/clinic/physiograph'
     );
-    return buildClinicReport(
+    core = buildClinicReport(
       advisor,
       readPhysiographFromMetadata(meta) as ClinicLikeStore,
       companyId,
       companyName,
       filters
     );
-  }
-  if (advisor === 'dentalgraph') {
+  } else if (advisor === 'dentalgraph') {
     const { readDentalgraphFromMetadata } = await import(
       '@/lib/dental/dentalgraph'
     );
-    return buildClinicReport(
+    core = buildClinicReport(
       advisor,
       readDentalgraphFromMetadata(meta) as ClinicLikeStore,
       companyId,
       companyName,
       filters
     );
-  }
-  if (advisor === 'medicalgraph') {
+  } else if (advisor === 'medicalgraph') {
     const { readMedicalgraphFromMetadata } = await import(
       '@/lib/clinic/medicalgraph'
     );
-    return buildClinicReport(
+    core = buildClinicReport(
       advisor,
       readMedicalgraphFromMetadata(meta) as ClinicLikeStore,
       companyId,
       companyName,
       filters
     );
-  }
-  if (advisor === 'psychiatrygraph') {
+  } else if (advisor === 'psychiatrygraph') {
     const { readPsychiatrygraphFromMetadata } = await import(
       '@/lib/clinic/psychiatrygraph'
     );
-    return buildClinicReport(
+    core = buildClinicReport(
       advisor,
       readPsychiatrygraphFromMetadata(meta) as ClinicLikeStore,
       companyId,
       companyName,
       filters
     );
+  } else {
+    throw new Error(`Unknown advisor: ${advisor}`);
   }
 
-  throw new Error(`Unknown advisor: ${advisor}`);
+  // Enrich every Advisor pack with company commercial + network metrics
+  try {
+    const {
+      loadCompanyManagementMetrics,
+      mergeCompanyMetricsIntoReport,
+    } = await import('@/lib/advisors/company-management-metrics');
+    const company = await loadCompanyManagementMetrics(
+      supabase,
+      companyId,
+      { from: filters.from, to: filters.to },
+      meta
+    );
+    return mergeCompanyMetricsIntoReport(
+      core,
+      company,
+      filters.slice || core.slice || 'overview'
+    );
+  } catch {
+    return core;
+  }
 }

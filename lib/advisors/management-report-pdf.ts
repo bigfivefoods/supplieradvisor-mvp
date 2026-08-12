@@ -23,6 +23,9 @@ const CONTENT_W = PAGE_W - MX * 2;
 const BRAND = '#00b4d8';
 const BRAND_DEEP = '#0077b6';
 const BRAND_MID = '#0891b2';
+/** Lighter teal end of the hero gradient */
+const BRAND_TEAL = '#5eead4';
+const BRAND_TEAL_MID = '#2dd4bf';
 const INK = '#0f172a';
 const MUTED = '#64748b';
 const LINE = '#e2e8f0';
@@ -43,6 +46,68 @@ const PALETTE = [
 ];
 
 type PdfDoc = InstanceType<typeof PDFDocument>;
+type Rgb = { r: number; g: number; b: number };
+
+function hexToRgb(hex: string): Rgb {
+  const h = hex.replace('#', '').trim();
+  const full =
+    h.length === 3
+      ? h
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : h;
+  const n = parseInt(full, 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+function mixRgb(a: Rgb, b: Rgb, t: number): string {
+  const u = Math.max(0, Math.min(1, t));
+  const r = Math.round(a.r + (b.r - a.r) * u);
+  const g = Math.round(a.g + (b.g - a.g) * u);
+  const bl = Math.round(a.b + (b.b - a.b) * u);
+  return (
+    '#' +
+    [r, g, bl]
+      .map((v) => v.toString(16).padStart(2, '0'))
+      .join('')
+  );
+}
+
+/**
+ * Horizontal multi-stop gradient (pdfkit has no native gradients).
+ * Smooth left→right blend via thin vertical strips.
+ */
+function fillHGradient(
+  pdf: PdfDoc,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  stops: Array<{ t: number; color: string }>,
+  steps = 96
+) {
+  const sorted = [...stops].sort((a, b) => a.t - b.t);
+  if (sorted.length < 2 || w <= 0 || h <= 0) return;
+  const stripW = w / steps;
+  for (let i = 0; i < steps; i++) {
+    const t = (i + 0.5) / steps;
+    let c0 = sorted[0];
+    let c1 = sorted[sorted.length - 1];
+    for (let s = 0; s < sorted.length - 1; s++) {
+      if (t >= sorted[s].t && t <= sorted[s + 1].t) {
+        c0 = sorted[s];
+        c1 = sorted[s + 1];
+        break;
+      }
+    }
+    const span = Math.max(1e-6, c1.t - c0.t);
+    const local = (t - c0.t) / span;
+    const color = mixRgb(hexToRgb(c0.color), hexToRgb(c1.color), local);
+    // slight overlap avoids hairline gaps between strips
+    pdf.rect(x + i * stripW, y, stripW + 0.6, h).fill(color);
+  }
+}
 
 function str(v: string | number | null | undefined) {
   if (v == null) return '—';
@@ -408,29 +473,80 @@ export async function buildManagementReportPdf(
 
     const charts = ensureManagementCharts(doc);
 
-    // Soft page wash
-    pdf.rect(0, 0, PAGE_W, PAGE_H).fill('#f1f5f9');
+    // Soft page wash (cool slate → whisper of teal)
+    fillHGradient(pdf, 0, 0, PAGE_W, PAGE_H, [
+      { t: 0, color: '#f0f9ff' },
+      { t: 0.55, color: '#f1f5f9' },
+      { t: 1, color: '#f0fdfa' },
+    ], 48);
 
-    // ── Brand hero ────────────────────────────────────────────────────
-    const heroH = 40;
-    pdf.rect(0, 0, PAGE_W, heroH).fill(BRAND_DEEP);
-    // gradient-like mid band
-    pdf.rect(0, 0, PAGE_W * 0.55, heroH).fill(BRAND_MID);
-    pdf.rect(0, 0, PAGE_W * 0.28, heroH).fill(BRAND_DEEP);
-    pdf.rect(0, heroH - 3, PAGE_W, 3).fill(BRAND);
-    // decorative dots
-    pdf.circle(PAGE_W - 48, 12, 18).fillOpacity(0.08).fill('#ffffff').fillOpacity(1);
-    pdf.circle(PAGE_W - 28, 28, 10).fillOpacity(0.1).fill('#ffffff').fillOpacity(1);
+    // ── Brand hero — smooth blue → lighter teal ───────────────────────
+    const heroH = 44;
+    fillHGradient(
+      pdf,
+      0,
+      0,
+      PAGE_W,
+      heroH,
+      [
+        { t: 0, color: '#005f8a' }, // deep ocean blue (left)
+        { t: 0.22, color: BRAND_DEEP }, // #0077b6
+        { t: 0.48, color: BRAND_MID }, // #0891b2
+        { t: 0.72, color: BRAND }, // #00b4d8
+        { t: 0.9, color: BRAND_TEAL_MID }, // #2dd4bf
+        { t: 1, color: BRAND_TEAL }, // #5eead4 (light teal right)
+      ],
+      120
+    );
+    // Subtle top sheen
+    pdf.rect(0, 0, PAGE_W, 10).fillOpacity(0.12).fill('#ffffff').fillOpacity(1);
+    // Soft bottom edge blend into page
+    fillHGradient(
+      pdf,
+      0,
+      heroH - 3.5,
+      PAGE_W,
+      3.5,
+      [
+        { t: 0, color: '#67e8f9' },
+        { t: 0.5, color: '#5eead4' },
+        { t: 1, color: '#99f6e4' },
+      ],
+      64
+    );
+    // Decorative glass orbs (right side — over lighter teal)
+    pdf
+      .circle(PAGE_W - 56, 16, 22)
+      .fillOpacity(0.14)
+      .fill('#ffffff')
+      .fillOpacity(1);
+    pdf
+      .circle(PAGE_W - 22, 32, 14)
+      .fillOpacity(0.12)
+      .fill('#ffffff')
+      .fillOpacity(1);
+    pdf
+      .circle(PAGE_W - 90, 34, 8)
+      .fillOpacity(0.1)
+      .fill('#ffffff')
+      .fillOpacity(1);
 
-    pdf.font('Helvetica-Bold').fontSize(13).fillColor('#ffffff');
-    t(pdf, doc.brand, MX, 7, CONTENT_W * 0.5, 14);
-    pdf.font('Helvetica').fontSize(7).fillColor('#e0f2fe');
+    // Brand mark chip
+    pdf
+      .roundedRect(MX, 10, 3.5, 24, 1.5)
+      .fillOpacity(0.95)
+      .fill('#ffffff')
+      .fillOpacity(1);
+
+    pdf.font('Helvetica-Bold').fontSize(13.5).fillColor('#ffffff');
+    t(pdf, doc.brand, MX + 10, 8, CONTENT_W * 0.48, 14);
+    pdf.font('Helvetica').fontSize(7).fillColor('#ecfeff');
     t(
       pdf,
       'Insights · management pack · key metrics · charts · one page',
-      MX,
-      23,
-      CONTENT_W * 0.55,
+      MX + 10,
+      25,
+      CONTENT_W * 0.5,
       10
     );
 
@@ -439,17 +555,17 @@ export async function buildManagementReportPdf(
       pdf,
       doc.companyName || `Company #${doc.companyId}`,
       MX,
-      7,
+      9,
       CONTENT_W,
       12,
       'right'
     );
-    pdf.font('Helvetica').fontSize(6.5).fillColor('#bae6fd');
+    pdf.font('Helvetica').fontSize(6.5).fillColor('#f0fdfa');
     t(
       pdf,
       `${doc.period.from} → ${doc.period.to}  ·  A4 landscape  ·  ${doc.sliceLabel}`,
       MX,
-      22,
+      24,
       CONTENT_W,
       10,
       'right'
@@ -475,41 +591,46 @@ export async function buildManagementReportPdf(
     }
     y += 28;
 
-    // ── KPI tiles ─────────────────────────────────────────────────────
-    const kpis = doc.kpis.slice(0, 8);
-    const cols = Math.min(8, Math.max(4, kpis.length || 4));
-    const gap = 5;
+    // ── KPI tiles (up to 12 in 2 rows of 6) ───────────────────────────
+    const kpis = doc.kpis.slice(0, 12);
+    const cols = 6;
+    const gap = 4;
     const tileW = (CONTENT_W - gap * (cols - 1)) / cols;
-    const tileH = 34;
+    const tileH = kpis.length > 6 ? 28 : 32;
+    const rows = Math.ceil(Math.max(1, kpis.length) / cols);
     kpis.forEach((k, i) => {
-      const x = MX + i * (tileW + gap);
+      const row = Math.floor(i / cols);
+      const col = i % cols;
+      const x = MX + col * (tileW + gap);
+      const ty = y + row * (tileH + gap);
       const accent = PALETTE[i % PALETTE.length];
-      card(pdf, x, y, tileW, tileH, {
+      card(pdf, x, ty, tileW, tileH, {
         fill: '#ffffff',
         accent,
-        radius: 5,
+        radius: 4,
       });
-      pdf.font('Helvetica').fontSize(5).fillColor(MUTED);
-      t(pdf, k.label.toUpperCase(), x + 8, y + 5, tileW - 12, 7);
-      pdf.font('Helvetica-Bold').fontSize(11).fillColor(INK);
-      t(pdf, str(k.value), x + 8, y + 14, tileW - 12, 14);
-      if (k.hint) {
-        pdf.font('Helvetica').fontSize(4.5).fillColor(MUTED);
-        t(pdf, k.hint.slice(0, 28), x + 8, y + 26, tileW - 12, 6);
+      pdf.font('Helvetica').fontSize(4.5).fillColor(MUTED);
+      t(pdf, k.label.toUpperCase(), x + 7, ty + 3, tileW - 10, 7);
+      pdf.font('Helvetica-Bold').fontSize(kpis.length > 6 ? 9 : 10.5).fillColor(INK);
+      t(pdf, str(k.value), x + 7, ty + 11, tileW - 10, 12);
+      if (k.hint && tileH >= 30) {
+        pdf.font('Helvetica').fontSize(4).fillColor(MUTED);
+        t(pdf, k.hint.slice(0, 24), x + 7, ty + 22, tileW - 10, 6);
       }
     });
-    y += tileH + 8;
+    y += rows * (tileH + gap) + 4;
 
     // ── Charts row ────────────────────────────────────────────────────
     const chartCount = Math.min(2, Math.max(1, charts.length));
-    const chartH = 124;
+    // Slightly shorter charts when two KPI rows so bottom still fits
+    const chartH = kpis.length > 6 ? 108 : 118;
     const chartGap = 8;
     const chartW =
       chartCount <= 1 ? CONTENT_W : (CONTENT_W - chartGap) / chartCount;
     charts.slice(0, chartCount).forEach((chart, i) => {
       drawChart(pdf, chart, MX + i * (chartW + chartGap), y, chartW, chartH);
     });
-    y += chartH + 8;
+    y += chartH + 6;
 
     // ── Bottom: table + insight columns ───────────────────────────────
     const bottomH = FOOTER_Y - y - 8;
