@@ -45,15 +45,17 @@ Register **both** `www.supplieradvisor.com` and `supplieradvisor.com` if you tak
    python3 -c "import json; print(json.load(open('public/.well-known/apple-developer-merchantid-domain-association'))['createdOn'])"
    ```
 
-   The file Paystack currently distributes embeds signing cert
-   `ecc-smp-broker-sign_UC4-PROD` with **notAfter May 16 2024**. After that date Apple
-   rejects domain registration even when the URL is perfect.
+   Decode the signing cert dates from `signature` (UTCTime in the PKCS#7). The
+   broker cert in Paystack’s association payload has historically used
+   **notAfter 2024-05-16** (`ecc-smp-broker-sign_UC4-PROD`). After that date Apple
+   can reject domain registration even when the URL is perfect.
 
-3. **Action:** contact **Paystack Support** and ask for a **renewed Apple Pay domain
-   association file** (new `signature` / non-expired broker cert). When they send a
-   new download (hex or JSON), replace:
+3. **Action:** If verify still fails after a successful curl, contact **Paystack
+   Support** for a **renewed** association file (non-expired broker cert). When
+   they send hex or JSON, replace:
 
    - `lib/billing/apple-pay-domain-association.ts`
    - `public/.well-known/apple-developer-merchantid-domain-association`
 
-4. Redeploy, re-test curl, then click **Verify Domain** again in Paystack.
+   Then redeploy, re-test curl, then **Verify Domain** again in Paystack
+   (register **both** apex and `www` if either host takes payments).
