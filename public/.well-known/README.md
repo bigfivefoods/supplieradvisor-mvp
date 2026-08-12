@@ -25,37 +25,68 @@ No trailing slash. No file extension. Content-Type: **application/text**.
 | Edge route | `app/.well-known/.../route.ts` + `app/api/public/apple-pay-domain` |
 | Vercel rewrites | both paths (with/without trailing slash) → API route (HTTP 200) |
 
-## Test before clicking Verify
+## Live check (hosting) — as of last verify
 
 ```bash
 curl -sS -D- -o /tmp/ap.txt \
   https://www.supplieradvisor.com/.well-known/apple-developer-merchantid-domain-association | head -20
-# Expect: HTTP/2 200, content-type: application/text, body starts with {"pspId":
 ```
 
-Register **both** `www.supplieradvisor.com` and `supplieradvisor.com` if you take payments on either host.
+Expected:
 
-## If Paystack says "Could not verify domain / Domain could not be registered on Apple Pay"
+- `HTTP/2 200` (not 301/302/404)
+- `content-type: application/text`
+- Body starts with `{"pspId":`
+- Body length **4559** (current clean PKCS#7 payload)
 
-1. **Hosting is fine** when curl returns HTTP 200 + `application/text` + body starts with `{"pspId":`.
-2. **Check the signature cert inside the file** (Paystack platform cert, same for all merchants):
+**Our hosting matches this.** The failure is not a missing file.
 
-   ```bash
-   # extract signature hex → DER → cert validity
-   python3 -c "import json; print(json.load(open('public/.well-known/apple-developer-merchantid-domain-association'))['createdOn'])"
-   ```
+## Why Paystack still says “Domain could not be registered on Apple Pay”
 
-   Decode the signing cert dates from `signature` (UTCTime in the PKCS#7). The
-   broker cert in Paystack’s association payload has historically used
-   **notAfter 2024-05-16** (`ecc-smp-broker-sign_UC4-PROD`). After that date Apple
-   can reject domain registration even when the URL is perfect.
+Apple does not only fetch the URL — it validates the **cryptographic signature**
+inside the JSON (`signature` field = PKCS#7 / CMS).
 
-3. **Action:** If verify still fails after a successful curl, contact **Paystack
-   Support** for a **renewed** association file (non-expired broker cert). When
-   they send hex or JSON, replace:
+The payload Paystack distributes embeds Apple broker cert:
 
-   - `lib/billing/apple-pay-domain-association.ts`
-   - `public/.well-known/apple-developer-merchantid-domain-association`
+```
+CN = ecc-smp-broker-sign_UC4-PROD
+notBefore = May 18 2019 GMT
+notAfter  = May 16 2024 GMT   ← EXPIRED
+```
 
-   Then redeploy, re-test curl, then **Verify Domain** again in Paystack
-   (register **both** apex and `www` if either host takes payments).
+After that date Apple rejects domain registration even when the URL is perfect.
+A hand-edited / re-typed hex blob can also corrupt the signature (odd-length hex,
+broken OCSP URI) and make things worse — only install the exact file Paystack
+gives you.
+
+### What you must ask Paystack Support
+
+Send them something like:
+
+> Our domain association file is publicly available:
+>
+> `https://www.supplieradvisor.com/.well-known/apple-developer-merchantid-domain-association`
+>
+> curl: HTTP 200, Content-Type: application/text, body starts with `{"pspId":...}`.
+>
+> Apple still returns: “Domain could not be registered on Apple Pay.”
+>
+> The signature embeds `ecc-smp-broker-sign_UC4-PROD` with **notAfter 2024-05-16**
+> (expired). Please provide a **renewed** Apple Pay domain association file /
+> re-enable domain registration for `www.supplieradvisor.com` and
+> `supplieradvisor.com` with a non-expired broker certificate.
+
+When they send a new download (file, hex, or JSON), replace:
+
+1. `lib/billing/apple-pay-domain-association.ts`
+2. `public/.well-known/apple-developer-merchantid-domain-association`
+
+Redeploy → re-curl → **Verify Domain** again in Paystack (register **both** apex
+and `www` if either host takes payments).
+
+### Do not
+
+- Pretty-print / re-encode the JSON (breaks the signature)
+- Add a trailing newline unless the download has one
+- Serve as `application/json` (Paystack requires **`application/text`**)
+- Host only on apex or only on `www` if you charge on both hosts
