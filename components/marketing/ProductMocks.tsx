@@ -774,6 +774,46 @@ export function FitgraphMock() {
   );
 }
 
+/** Government / public sector — SchoolAdvisor® NSNP programme */
+export function SchoolsMock() {
+  return (
+    <Frame title="dashboard/schools">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[9px] font-bold uppercase tracking-widest text-violet-700">
+            SchoolAdvisor® · NSNP
+          </div>
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
+            DBE · school · SP · learners.
+          </div>
+        </div>
+        <span className="rounded-full border border-violet-200 bg-violet-800 px-2 py-0.5 text-[9px] font-black uppercase text-white">
+          Public sector
+        </span>
+      </div>
+      <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
+        <Telemetry label="Schools" value="1.2k" tone="violet" />
+        <Telemetry label="Meals" value="48k" tone="emerald" />
+        <Telemetry label="SPs" value="86" tone="amber" />
+        <Telemetry label="Claims" value="12" tone="sky" />
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+        {['Catalogue', 'Kitchen', 'Serve day'].map((t) => (
+          <div
+            key={t}
+            className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] text-center shadow-sm sm:p-3"
+          >
+            <div className="text-[11px] font-bold text-slate-800 sm:text-xs dark:text-white">
+              {t}
+            </div>
+            <div className="mt-2 h-8 rounded-lg bg-gradient-to-br from-violet-50 to-emerald-50" />
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
 /** Industry — physio / allied health clinic OS */
 export function PhysiographMock() {
   return (
@@ -926,7 +966,7 @@ export function MedicalgraphMock() {
   );
 }
 
-/** App navigation — Core · Sector · Industry modules */
+/** App navigation — Core · Sector · Industry · Government modules */
 export function NavMock() {
   const bands = [
     {
@@ -951,6 +991,11 @@ export function NavMock() {
         'PsychiatryAdvisor®',
         'MedicalAdvisor®',
       ],
+    },
+    {
+      label: 'Government',
+      tone: 'text-violet-700',
+      items: ['SchoolAdvisor®', 'Health (DoH)'],
     },
   ];
   return (
@@ -1547,6 +1592,38 @@ const MODULE_GALLERIES: Record<string, GalleryScene[]> = {
       tiles: ['Rooms', 'Waitlist', 'Messages', 'Market'],
     },
   ],
+  schools: [
+    {
+      eyebrow: 'Govern',
+      title: 'DBE · catalogue · PEU',
+      wash: 'violet',
+      kind: 'list',
+      list: [
+        { left: 'Approved brands', right: 'Live', tone: 'emerald' },
+        { left: 'Pending schools', right: '23', tone: 'amber' },
+        { left: 'Claims review', right: '12', tone: 'sky' },
+      ],
+      caption: 'SchoolAdvisor® · public sector only',
+    },
+    {
+      eyebrow: 'School kitchen',
+      title: 'Stock · order · serve',
+      wash: 'emerald',
+      kind: 'ring',
+      metrics: [
+        { label: 'Learners', value: '840' },
+        { label: 'Meals today', value: '812' },
+      ],
+      caption: 'Approved list · SP POs · serve day',
+    },
+    {
+      eyebrow: 'SP supply',
+      title: 'PO → deliver → POD',
+      wash: 'amber',
+      kind: 'tiles',
+      tiles: ['Orders', 'Deliveries', 'POD', 'Claims'],
+    },
+  ],
   nav: [
     {
       eyebrow: 'Core OS',
@@ -1576,6 +1653,7 @@ const MODULE_GALLERIES: Record<string, GalleryScene[]> = {
         { left: 'DentalAdvisor®', right: 'Chairs · queue', tone: 'sky' },
         { left: 'PsychiatryAdvisor®', right: 'Plans · rooms', tone: 'violet' },
         { left: 'MedicalAdvisor®', right: 'Rooms · Rx', tone: 'emerald' },
+        { left: 'SchoolAdvisor®', right: 'NSNP · public', tone: 'violet' },
       ],
     },
   ],

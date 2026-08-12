@@ -62,6 +62,7 @@ export default function AdvisorMarketplacePage() {
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
             Book gyms, dental, physio and more that run on SupplierAdvisor®.
+            Public-sector schools use SchoolAdvisor® (NSNP) under Government packaging.
           </p>
         </div>
 

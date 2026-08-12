@@ -46,6 +46,7 @@ import {
   PanelLeft,
   BrainCircuit,
   Hospital,
+  School,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import LandingNav from '@/components/marketing/LandingNav';
@@ -81,6 +82,7 @@ import {
   DentalgraphMock,
   PsychiatrygraphMock,
   MedicalgraphMock,
+  SchoolsMock,
   NavMock,
   ModuleGallery,
   ProductMockShell,
@@ -101,7 +103,7 @@ import {
   REFERRAL_TOTAL_CAP_PCT,
 } from '@/lib/billing/supply-chain-referral';
 
-type ModuleBand = 'core' | 'sector' | 'industry' | 'nav';
+type ModuleBand = 'core' | 'sector' | 'industry' | 'government' | 'nav';
 
 const MODULE_BAND_META: Record<
   Exclude<ModuleBand, 'nav'>,
@@ -133,6 +135,15 @@ const MODULE_BAND_META: Record<
       'text-emerald-800 border-emerald-200 bg-emerald-50/80 dark:text-emerald-300 dark:border-emerald-500/40 dark:bg-emerald-500/10',
     step: '03',
     price: `+R${INDUSTRY_PACK_MONTHLY_ZAR}/mo each`,
+  },
+  government: {
+    title: 'Government',
+    blurb:
+      'Public-sector programmes only — SchoolAdvisor® (DBE / NSNP: department · school kitchen · SP) and Health (DoH facilities). National → Provincial → Municipal → Local packaging, not private company modules.',
+    accent:
+      'text-violet-800 border-violet-200 bg-violet-50/80 dark:text-violet-300 dark:border-violet-500/40 dark:bg-violet-500/10',
+    step: '04',
+    price: 'Specialist setup',
   },
 };
 
@@ -213,8 +224,8 @@ const MODULE_OPTIONS: Array<{
       'National · Provincial · Municipal · Local',
     ],
     href: '#modules-government',
-    cta: 'Talk about government',
-    specialist: true,
+    cta: 'Explore SchoolAdvisor®',
+    specialist: false,
   },
   {
     id: 'bespoke',
@@ -525,6 +536,22 @@ const MODULES = [
     Mock: MedicalgraphMock,
     icon: Hospital,
   },
+  {
+    id: 'schools',
+    band: 'government' as ModuleBand,
+    code: 'G1',
+    title: 'SchoolAdvisor®',
+    short: 'SchoolAdvisor',
+    tagline: 'Public sector · NSNP programme OS',
+    body: 'SchoolAdvisor® runs only on the government / public-sector pathway: DBE & PEU govern catalogue, menus and compliance; schools run kitchen, learners, approved brands and serve day; SPs deliver against school POs. Not a private industry pack — National → Provincial → Municipal → Local packaging with role-filtered hubs.',
+    bullets: [
+      'DBE / PEU: catalogue · menus · PEU visits · claims',
+      'School kitchen: stock · orders · serve day · prizes',
+      'SP supply: PO → deliver → POD · SLA',
+    ],
+    Mock: SchoolsMock,
+    icon: School,
+  },
 ] as const;
 
 const MODULE_SECTION_BANDS: Array<{
@@ -547,6 +574,12 @@ const MODULE_SECTION_BANDS: Array<{
     title: 'Industry',
     blurb:
       'Vertical depth — CropAdvisor®, QuarryAdvisor®, and service Advisors (Fit · Physio · Dental · Psychiatry · Medical) with diaries, waitlist desks, treatment plans, rooms, portals, marketplace listings, and in-app care messages — not brochure modules.',
+  },
+  {
+    id: 'government',
+    title: 'Government',
+    blurb:
+      'Public programmes — SchoolAdvisor® (DBE · school kitchen · SP · NSNP) and Health (DoH). Always Public Sector packaging: National → Provincial → Municipal → Local. Specialist-led setup for agencies; self-serve local school kitchens.',
   },
 ];
 
@@ -774,7 +807,7 @@ export default function LandingPage() {
                   aria-hidden
                 />
 
-                {/* Band navigation: Core · Sector · Industry · All */}
+                {/* Band navigation: Core · Sector · Industry · Government · All */}
                 <div className="relative mb-2 flex flex-wrap items-center gap-1 sm:mb-2.5 sm:gap-1.5">
                   {(
                     [
@@ -782,6 +815,7 @@ export default function LandingPage() {
                       { id: 'core' as const, label: 'Core OS' },
                       { id: 'sector' as const, label: 'Sector' },
                       { id: 'industry' as const, label: 'Industry' },
+                      { id: 'government' as const, label: 'Government' },
                     ] as const
                   ).map((b) => (
                     <button
@@ -1048,8 +1082,8 @@ export default function LandingPage() {
               },
               {
                 icon: Stethoscope,
-                t: 'Industry solutions that operate',
-                b: 'CropAdvisor®, QuarryAdvisor®, FitAdvisor® and clinic Advisors — exclusive diaries & rooms, waitlist desks, treatment-plan book next, POPIA-aware patients, marketplace listings, and in-app messages by system user ID. SA bills platform subscription only; practice fees stay yours.',
+                t: 'Industry & programme solutions that operate',
+                b: 'CropAdvisor®, QuarryAdvisor®, FitAdvisor®, clinic Advisors, and SchoolAdvisor® (public-sector NSNP: DBE · school · SP) — exclusive diaries & rooms, waitlist desks, treatment plans, kitchens, catalogue, and marketplace. SA bills platform subscription only; practice and programme fees stay yours.',
               },
               {
                 icon: Fingerprint,
@@ -1277,7 +1311,7 @@ export default function LandingPage() {
                         ? Landmark
                         : Puzzle;
               const bandMods =
-                opt.specialist || opt.id === 'government' || opt.id === 'bespoke'
+                opt.specialist || opt.id === 'bespoke'
                   ? []
                   : MODULES.filter((m) => m.band === opt.id);
               const checkTone =
@@ -1444,7 +1478,13 @@ export default function LandingPage() {
                             ))}
                           </ul>
                           <Link
-                            href="/onboarding?type=business"
+                            href={
+                              mod.band === 'government'
+                                ? mod.id === 'schools'
+                                  ? '/onboarding?type=school'
+                                  : '/onboarding?type=government'
+                                : '/onboarding?type=business'
+                            }
                             className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-[#0077b6] transition-colors hover:text-[#00b4d8] dark:text-[#00b4d8]"
                           >
                             Join to use {mod.short}
@@ -1618,25 +1658,31 @@ export default function LandingPage() {
               <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-neutral-400">
                 Pick your economic sector, then one or more industries. Industry
                 Packs unlock CropAdvisor®, QuarryAdvisor®, FitAdvisor® and clinic
-                Advisors — waitlist desks, treatment plans, rooms, portals,
-                marketplace listings, and in-app care — at +R
-                {INDUSTRY_PACK_MONTHLY_ZAR}/mo each.
+                Advisors. Choose <strong>Public Sector</strong> for SchoolAdvisor®
+                (NSNP / DBE) and government programmes — at +R
+                {INDUSTRY_PACK_MONTHLY_ZAR}/mo each for industry packs.
               </p>
               <div className="mt-4 flex flex-wrap gap-1.5">
                 {OS_SECTORS.map((s) => (
                   <span
                     key={s.id}
-                    className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-200"
+                    className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
+                      s.id === 'public_sector'
+                        ? 'border-violet-300 bg-violet-50 text-violet-900 dark:border-violet-600 dark:bg-violet-950 dark:text-violet-100'
+                        : 'border-slate-200 bg-slate-50 text-slate-700 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-200'
+                    }`}
                   >
                     {s.label}
+                    {s.id === 'public_sector' ? ' · SchoolAdvisor®' : ''}
                   </span>
                 ))}
               </div>
               <ul className="mt-4 space-y-2 text-sm text-slate-700 dark:text-neutral-300">
                 {[
-                  'Primary · Secondary · Tertiary · Quaternary',
+                  'Primary · Secondary · Tertiary · Quaternary · Public Sector',
                   'Multi-industry companies supported',
-                  'Packs: agri, food mfg, logistics, ESG & more',
+                  'Packs: agri, fitness, clinics, ESG & public procurement',
+                  'SchoolAdvisor® only via Public Sector (government process)',
                 ].map((line) => (
                   <li key={line} className="flex gap-2">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#00b4d8]" />
@@ -1664,20 +1710,20 @@ export default function LandingPage() {
                 Government &amp; bespoke design
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                National, provincial, municipal, and local programme workspaces
-                (e.g. DBE / NSNP schools, DoH facilities) and fully custom process
-                design for complex groups — not pure self-serve.
+                National, provincial, municipal, and local programme workspaces —
+                SchoolAdvisor® (DBE / PEU, school kitchens, NSNP SPs) and DoH
+                facilities — plus fully custom process design for complex groups.
               </p>
               <div className="mt-4 space-y-3">
                 <div className="rounded-2xl border border-violet-100 bg-white/90 px-3.5 py-3">
                   <div className="flex items-center gap-2 text-sm font-black text-slate-900">
-                    <Landmark className="h-4 w-4 text-violet-700" />
-                    Government programmes
+                    <School className="h-4 w-4 text-violet-700" />
+                    SchoolAdvisor® &amp; government programmes
                   </div>
                   <p className="mt-1 text-[12px] leading-relaxed text-slate-600">
-                    Public Sector packaging: National → Provincial → Municipal →
-                    Local. Policy, multi-entity, and programme roles configured
-                    with a specialist.
+                    Public Sector packaging only: National → Provincial → Municipal →
+                    Local. SchoolAdvisor® kitchen, catalogue, PEU and SP roles —
+                    never private-company packaging.
                   </p>
                 </div>
                 <div className="rounded-2xl border border-amber-100 bg-amber-50/50 px-3.5 py-3">
@@ -1855,7 +1901,7 @@ export default function LandingPage() {
               your path. Same trusted network underneath.
             </p>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {[
               {
                 icon: Factory,
@@ -1872,16 +1918,23 @@ export default function LandingPage() {
                 cta: 'Join as consumer',
               },
               {
-                icon: BookOpen,
+                icon: Landmark,
                 t: 'Government',
-                b: 'Transparent procurement and decision tools for public sector impact.',
+                b: 'Public-sector programmes — SchoolAdvisor® (NSNP / DBE), DoH facilities, transparent procurement.',
                 href: '/onboarding?type=government',
                 cta: 'Register entity',
               },
               {
+                icon: School,
+                t: 'SchoolAdvisor®',
+                b: 'School kitchens, learners, approved brands, SPs and serve day — always on the government process.',
+                href: '/onboarding?type=school',
+                cta: 'Register school',
+              },
+              {
                 icon: Users2,
-                t: 'SchoolAdvisor® & associations',
-                b: 'Shared metrics, accountable spend, and collective network power.',
+                t: 'Associations',
+                b: 'Shared metrics, accountable spend, and collective network power for industry bodies.',
                 href: '/onboarding?type=association',
                 cta: 'Register group',
               },
@@ -1918,7 +1971,7 @@ export default function LandingPage() {
               {
                 icon: Heart,
                 t: 'A better world together',
-                b: 'Business, government, schools, and consumers on one verified network.',
+                b: 'Business, government, SchoolAdvisor® schools, and consumers on one verified network.',
               },
             ].map((h) => (
               <div

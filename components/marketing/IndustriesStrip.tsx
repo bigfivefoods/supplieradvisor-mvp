@@ -15,6 +15,7 @@ import {
   BrainCircuit,
   Hospital,
   Mountain,
+  School,
 } from 'lucide-react';
 
 /** Prefer /industries/[slug] so home strip matches the industries hub */
@@ -82,8 +83,14 @@ const INDUSTRIES = [
   {
     slug: 'public-sector',
     name: 'Public sector (B2G)',
-    desc: 'Transparent procurement trails, verification, NSNP / Health programmes, and audit-ready packs.',
+    desc: 'SchoolAdvisor® (NSNP / DBE · public sector), Health (DoH), transparent procurement, and audit-ready packs.',
     icon: Landmark,
+  },
+  {
+    slug: 'public-sector',
+    name: 'SchoolAdvisor®',
+    desc: 'School kitchens, learners, approved brands, SPs and serve day — government process only.',
+    icon: School,
   },
   {
     slug: 'multi-entity',
@@ -108,10 +115,10 @@ export default function IndustriesStrip() {
             One OS. Sector-ready depth.
           </h2>
           <p className="mt-4 text-base text-slate-600 sm:text-lg">
-            Same platform fabric — Core OS plus vertical Industry Advisors for
-            agri, extractives, gyms, and clinics: exclusive diaries & rooms,
-            waitlist desks, treatment-plan book next, portals, marketplace
-            listings, and in-app care messages — SA bills the company
+            Same platform fabric — Core OS, Industry Advisors (agri, extractives,
+            gyms, clinics), and government programmes like SchoolAdvisor®
+            (NSNP · public sector): exclusive diaries & rooms, kitchens,
+            waitlist desks, portals, and marketplace — SA bills the company
             subscription, not patient fees.
           </p>
         </div>
