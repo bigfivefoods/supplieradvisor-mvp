@@ -644,11 +644,10 @@ export async function POST(req: NextRequest) {
 
       let feedbackPath: string | null = null;
       if (nextStatus === 'attended') {
-        const prompted = issueFeedbackPrompt(booking as never, now);
-        (booking as { feedback_token?: string }).feedback_token =
-          prompted.feedback_token || undefined;
-        (booking as { feedback_requested_at?: string }).feedback_requested_at =
-          prompted.feedback_requested_at || undefined;
+        const prompted = issueFeedbackPrompt(booking, now);
+        booking.feedback_token = prompted.feedback_token ?? null;
+        booking.feedback_requested_at =
+          prompted.feedback_requested_at ?? null;
         if (prompted.feedback_token) {
           feedbackPath = buildPublicFeedbackPath(
             mod,

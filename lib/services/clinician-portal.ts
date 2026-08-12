@@ -106,6 +106,10 @@ export type ClinicianBooking = {
   family_member_id?: string | null;
   family_member_name?: string | null;
   waitlist_offered_at?: string | null;
+  feedback_token?: string | null;
+  feedback_requested_at?: string | null;
+  feedback_submitted_at?: string | null;
+  feedback_id?: string | null;
 };
 
 export type ClinicianStoreLike = {
