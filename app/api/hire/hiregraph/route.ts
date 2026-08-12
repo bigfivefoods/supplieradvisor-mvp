@@ -74,11 +74,9 @@ export async function GET(req: NextRequest) {
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    const access = await requireCompanyAccess(
-      req,
-      companyId,
-      legacyPrivyFrom(req)
-    );
+    const access = await requireCompanyAccess(req, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(req),
+    });
     if (!access.ok) {
       return NextResponse.json({ error: access.error }, { status: access.status });
     }
@@ -112,11 +110,9 @@ export async function POST(req: NextRequest) {
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    const access = await requireCompanyAccess(
-      req,
-      companyId,
-      legacyPrivyFrom(req)
-    );
+    const access = await requireCompanyAccess(req, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(req, body),
+    });
     if (!access.ok) {
       return NextResponse.json({ error: access.error }, { status: access.status });
     }
