@@ -77,31 +77,28 @@ export async function GET(request: NextRequest) {
     };
 
     const supabase = getSupabaseServer();
-    let prof: Record<string, unknown> | null = null;
-    for (const select of [
-      'id, trading_name, legal_name, metadata',
-      'id, name, metadata',
-      'id, metadata',
-    ]) {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select(select)
-        .eq('id', companyId)
-        .maybeSingle();
-      if (!error && data) {
-        prof = data as Record<string, unknown>;
-        break;
-      }
-    }
+    const { data: profRow } = await supabase
+      .from('profiles')
+      .select('id, trading_name, legal_name, metadata')
+      .eq('id', companyId)
+      .maybeSingle();
+    const prof = (profRow ?? null) as {
+      id?: number;
+      trading_name?: string | null;
+      legal_name?: string | null;
+      metadata?: unknown;
+    } | null;
 
     const meta =
       prof?.metadata && typeof prof.metadata === 'object'
-        ? (prof.metadata as Record<string, unknown>)
+        ? ({ ...(prof.metadata as Record<string, unknown>) } as Record<
+            string,
+            unknown
+          >)
         : {};
     const companyName = String(
       prof?.trading_name ||
         prof?.legal_name ||
-        prof?.name ||
         `Company #${companyId}`
     );
 
