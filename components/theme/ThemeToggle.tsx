@@ -95,7 +95,7 @@ export default function ThemeToggle({
 
   const appearanceRow = (
     <div
-      className="inline-flex items-center gap-0.5 rounded-2xl border border-sky-200/70 bg-sky-50/80 p-0.5 dark:border-sky-200/60 dark:bg-gradient-to-r dark:from-white dark:via-sky-50 dark:to-cyan-50"
+      className="inline-flex items-center gap-0.5 rounded-full border border-slate-200 bg-slate-50/90 p-0.5 dark:border-neutral-700 dark:bg-black/80"
       role="group"
       aria-label="Colour theme"
     >
@@ -173,7 +173,7 @@ export default function ThemeToggle({
         title="Theme & branding"
         aria-expanded={open}
         aria-haspopup="true"
-        className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-sky-200/80 bg-white/90 text-slate-600 shadow-sm transition-all hover:border-sky-300 hover:text-sky-700 dark:border-sky-200 dark:bg-white dark:text-sky-800"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-all hover:border-[var(--sa-brand)]/50 hover:text-[var(--sa-brand-deep)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
       >
         {resolved === 'dark' ? (
           <Moon className="h-4 w-4" />

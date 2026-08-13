@@ -115,7 +115,7 @@ export function HubHero({
   stats?: HubHeroStat[];
 }) {
   return (
-    <section className="relative overflow-hidden rounded-[2rem] border border-cyan-100 bg-gradient-to-br from-white via-sky-50/90 to-cyan-50 p-6 sm:p-8 mb-8 shadow-sm">
+    <section className="relative mb-8 overflow-hidden rounded-2xl border border-sky-100/70 bg-gradient-to-br from-sky-50/35 via-white to-cyan-50/25 p-6 shadow-sm sm:rounded-2xl sm:p-8 dark:border-sky-200/50 dark:from-sky-50 dark:via-white dark:to-cyan-50">
       <div
         className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-[#00b4d8]/10 blur-3xl"
         aria-hidden

@@ -674,6 +674,7 @@ export default function DashboardCommandCenter() {
   return (
     <RelationshipPage>
       <RelationshipHeader
+        band
         eyebrow="Command center"
         title={greeting() + ','}
         titleAccent={name}

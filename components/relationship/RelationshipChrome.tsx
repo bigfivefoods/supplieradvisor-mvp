@@ -140,6 +140,7 @@ export function RelationshipHeader({
   backHref,
   backLabel,
   nav,
+  band = false,
 }: {
   eyebrow?: string;
   title: string;
@@ -150,9 +151,17 @@ export function RelationshipHeader({
   backHref?: string;
   backLabel?: string;
   nav?: React.ReactNode;
+  /** Soft sky wash + rounded corners (Command Center greeting) */
+  band?: boolean;
 }) {
   return (
-    <div className="mb-5 sm:mb-6 md:mb-8 min-w-0">
+    <div
+      className={
+        band
+          ? 'mb-5 min-w-0 rounded-2xl border border-sky-100/70 bg-gradient-to-br from-sky-50/40 via-white to-cyan-50/30 px-4 py-4 shadow-sm sm:mb-6 sm:px-6 sm:py-5 md:mb-8 dark:border-sky-200/50 dark:from-sky-50 dark:via-white dark:to-cyan-50'
+          : 'mb-5 sm:mb-6 md:mb-8 min-w-0'
+      }
+    >
       {nav}
       {backHref && (
         <Link
