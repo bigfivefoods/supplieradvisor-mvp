@@ -46,7 +46,7 @@ export default function SecurityStrip() {
   return (
     <section
       id="security"
-      className="scroll-mt-20 border-t border-slate-200 bg-[#0f172a] py-16 sm:py-20 text-white"
+      className="sa-anchor border-t border-slate-200 bg-[#0f172a] py-16 sm:py-20 text-white"
     >
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
         <div className="mx-auto mb-10 max-w-2xl text-center">

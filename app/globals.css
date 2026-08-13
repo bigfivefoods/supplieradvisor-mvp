@@ -41,6 +41,16 @@
   --sa-warn-soft: #fffbeb;
   --sa-danger-soft: #fff1f2;
   --sa-sky-soft: #f0f9ff;
+
+  /* Fixed marketing header (inner bar). Offset includes notch safe-area. */
+  --sa-nav-h: 3.5rem;
+  --sa-nav-offset: calc(var(--sa-nav-h) + env(safe-area-inset-top, 0px));
+}
+
+@media (min-width: 640px) {
+  :root {
+    --sa-nav-h: 4.25rem;
+  }
 }
 
 /* Advisor product skins (HireAdvisor, GymAdvisor, …) set --sa-brand via JS.
@@ -1241,7 +1251,29 @@ html.dark [data-sonner-toaster] [data-sonner-toast] {
 }
 
 /* Bottom tab bars / sticky footers on phones with home indicator */
+/* Landing / marketing: one scroll offset for every hash target */
+html.sa-smooth-scroll {
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  html.sa-smooth-scroll {
+    scroll-behavior: auto;
+  }
+}
+
 @layer utilities {
+  .sa-anchor {
+    scroll-margin-top: var(--sa-nav-offset);
+  }
+  .min-h-below-nav {
+    min-height: calc(100svh - var(--sa-nav-offset));
+  }
+  .h-nav-offset {
+    height: var(--sa-nav-offset);
+  }
+  .top-nav-offset {
+    top: var(--sa-nav-offset);
+  }
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom, 0);
   }

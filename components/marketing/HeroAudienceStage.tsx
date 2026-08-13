@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
@@ -12,8 +12,7 @@ const SCENES = [
     code: 'B2B',
     title: 'Business to business',
     body: 'Manufacturers, distributors and brands run the full OS — network, buy and sell, inventory, make, ship, finance, SHEQ and quality — with counterparties you can score and prove.',
-    short:
-      'Run the full OS with counterparties you can score and prove.',
+    short: 'Run the full OS with counterparties you can score and prove.',
     points: [
       'Verified company graph and OTIFEF ratings',
       'POs, invoices and lot holds on the same books',
@@ -22,7 +21,6 @@ const SCENES = [
     cta: { href: '/onboarding?lane=b2b', label: 'Register your company' },
     src: '/marketing/hero-b2b.jpg',
     alt: 'Warehouse operations beside a glass control room',
-    /** Keep the aisle and operators in frame */
     imageClass: 'object-[28%_center] sm:object-[32%_center] lg:object-left',
   },
   {
@@ -30,8 +28,7 @@ const SCENES = [
     code: 'B2G',
     title: 'Business to government',
     body: 'Public entities and their suppliers need transparent procurement, accountable spend and audit-ready trails — not email chains and disconnected spreadsheets.',
-    short:
-      'Transparent procurement and audit-ready trails for public trade.',
+    short: 'Transparent procurement and audit-ready trails for public trade.',
     points: [
       'Transparent supplier discovery and handshakes',
       'Documented trade and performance scores',
@@ -47,8 +44,7 @@ const SCENES = [
     code: 'B2C',
     title: 'Business to consumer',
     body: 'One free personal wallet. Link any gym, clinic, hire desk or shop on this platform and manage that account — book, buy, records and push alerts. No company required.',
-    short:
-      'A free personal wallet for gym, clinic and hire — no company needed.',
+    short: 'A free personal wallet for gym, clinic and hire — no company needed.',
     points: [
       'Free SA Member app on your phone',
       'Book, check in and see shared medical notes',
@@ -57,10 +53,183 @@ const SCENES = [
     cta: { href: '/me', label: 'Create free SA Member account' },
     src: '/marketing/hero-b2c.jpg',
     alt: 'Member using SA Member on their phone',
-    /** Keep the woman and her phone visible; copy sits on the right / bottom */
     imageClass: 'object-[22%_18%] sm:object-[20%_22%] lg:object-[18%_center]',
   },
 ] as const;
+
+function ShotWindow({
+  path,
+  className,
+  children,
+}: {
+  path: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={`overflow-hidden rounded-xl border border-white/20 bg-white shadow-[0_18px_40px_-12px_rgba(0,0,0,0.55)] ${className ?? ''}`}
+    >
+      <div className="flex items-center gap-1.5 border-b border-slate-100 bg-slate-50 px-2.5 py-1.5">
+        <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        <span className="ml-1 min-w-0 truncate font-mono text-[8px] font-medium text-slate-500">
+          {path}
+        </span>
+      </div>
+      <div className="bg-gradient-to-br from-slate-50 via-white to-sky-50/50 p-2.5">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+      <div className="text-[7px] font-black uppercase tracking-wider text-slate-400">
+        {label}
+      </div>
+      <div className="text-[13px] font-black tabular-nums tracking-tight text-slate-900">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function HeroProductShots({ sceneId }: { sceneId: (typeof SCENES)[number]['id'] }) {
+  return (
+    <div className="relative h-[168px] w-full lg:h-[188px]">
+      {sceneId === 'b2c' ? (
+        <>
+          <ShotWindow
+            path="app.supplieradvisor.com/me"
+            className="absolute bottom-0 left-0 w-[68%] -rotate-2"
+          >
+            <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
+              SA Member
+            </div>
+            <div className="mt-0.5 text-[12px] font-black text-slate-900">Your wallet</div>
+            <div className="mt-2 grid grid-cols-3 gap-1.5">
+              <Metric label="Gym" value="Tue 06:00" />
+              <Metric label="Hire" value="Out" />
+              <Metric label="Clinic" value="Thu" />
+            </div>
+            <div className="mt-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-semibold text-slate-600">
+              Next: VUKA spin · check in on the phone
+            </div>
+          </ShotWindow>
+          <div className="absolute bottom-1 right-3 w-[88px] rotate-3 overflow-hidden rounded-[1.15rem] border-[3px] border-slate-800 bg-slate-900 p-1 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.55)] lg:w-[96px]">
+            <div className="overflow-hidden rounded-[0.85rem] bg-white">
+              <div className="bg-[#00b4d8] px-2 py-2 text-white">
+                <div className="text-[7px] font-black uppercase tracking-widest text-cyan-100">
+                  Member
+                </div>
+                <div className="text-[11px] font-black leading-tight">Shop · book</div>
+              </div>
+              <div className="space-y-1 p-1.5">
+                {['Spin · 06:00', 'Physio slot', 'Hire drill'].map((row) => (
+                  <div
+                    key={row}
+                    className="rounded-md bg-slate-50 px-1.5 py-1 text-[8px] font-bold text-slate-700"
+                  >
+                    {row}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      ) : sceneId === 'b2g' ? (
+        <>
+          <ShotWindow
+            path="app.supplieradvisor.com/network"
+            className="absolute bottom-0 left-0 w-[70%] -rotate-2"
+          >
+            <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
+              Network
+            </div>
+            <div className="mt-0.5 text-[12px] font-black text-slate-900">
+              Public procurement
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-1.5">
+              <Metric label="Open" value="14" />
+              <Metric label="Awarded" value="6" />
+              <Metric label="Audit" value="Ready" />
+            </div>
+          </ShotWindow>
+          <ShotWindow
+            path="app.supplieradvisor.com/sheq"
+            className="absolute bottom-3 right-0 w-[62%] rotate-2"
+          >
+            <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
+              SHEQ · proof
+            </div>
+            <div className="mt-2 space-y-1">
+              {[
+                { n: 'NCR-041', s: 'Closed' },
+                { n: 'CAPA pack', s: 'Export' },
+                { n: 'Lot hold', s: 'Clear' },
+              ].map((r) => (
+                <div
+                  key={r.n}
+                  className="flex items-center justify-between rounded-md bg-white px-2 py-1 text-[10px] ring-1 ring-slate-100"
+                >
+                  <span className="font-semibold text-slate-700">{r.n}</span>
+                  <span className="font-black text-emerald-600">{r.s}</span>
+                </div>
+              ))}
+            </div>
+          </ShotWindow>
+        </>
+      ) : (
+        <>
+          <ShotWindow
+            path="app.supplieradvisor.com/operations"
+            className="absolute bottom-0 left-0 w-[70%] -rotate-2"
+          >
+            <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
+              Operations
+            </div>
+            <div className="mt-0.5 text-[12px] font-black text-slate-900">
+              One chain. Live.
+            </div>
+            <div className="mt-2 grid grid-cols-4 gap-1">
+              <Metric label="POs" value="12" />
+              <Metric label="In" value="4" />
+              <Metric label="WIP" value="7" />
+              <Metric label="Ship" value="9" />
+            </div>
+          </ShotWindow>
+          <ShotWindow
+            path="app.supplieradvisor.com/suppliers"
+            className="absolute bottom-3 right-0 w-[62%] rotate-2"
+          >
+            <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
+              Suppliers
+            </div>
+            <div className="mt-2 space-y-1">
+              {[
+                { n: 'Cape Harvest', s: '99%' },
+                { n: 'Atlas Logistics', s: '97%' },
+                { n: 'Kalahari Inputs', s: '96%' },
+              ].map((r) => (
+                <div
+                  key={r.n}
+                  className="flex items-center justify-between rounded-md bg-white px-2 py-1 text-[10px] ring-1 ring-slate-100"
+                >
+                  <span className="truncate font-semibold text-slate-700">{r.n}</span>
+                  <span className="font-black tabular-nums text-[#00b4d8]">{r.s}</span>
+                </div>
+              ))}
+            </div>
+          </ShotWindow>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function HeroAudienceStage() {
   const [i, setI] = useState(0);
@@ -98,37 +267,58 @@ export default function HeroAudienceStage() {
         </div>
       ))}
 
-      {/* Mobile: lift the bottom only. Desktop: shade the right so copy sits off the people. */}
+      {/* Mobile: fade up so type reads and the person stays in the top of the frame. */}
       <div
-        className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/35 to-transparent lg:bg-gradient-to-l lg:from-slate-950/80 lg:via-slate-950/25 lg:to-transparent"
+        className="pointer-events-none absolute inset-0 lg:hidden"
+        style={{
+          background:
+            'linear-gradient(to top, rgba(2,6,23,0.88) 0%, rgba(2,6,23,0.55) 28%, rgba(2,6,23,0.16) 52%, transparent 74%)',
+        }}
+        aria-hidden
+      />
+      {/* Desktop: fade from the right into the photo so people stay visible. */}
+      <div
+        className="pointer-events-none absolute inset-0 hidden lg:block"
+        style={{
+          background:
+            'linear-gradient(to left, rgba(2,6,23,0.90) 0%, rgba(2,6,23,0.70) 22%, rgba(2,6,23,0.28) 44%, rgba(2,6,23,0.06) 62%, transparent 78%)',
+        }}
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-36 bg-gradient-to-t from-slate-950/40 to-transparent lg:block"
         aria-hidden
       />
 
-      <div
-        className="relative z-[1] mx-auto flex min-h-[100svh] w-full max-w-screen-2xl flex-col justify-end px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(5.5rem,env(safe-area-inset-top))] sm:px-6 lg:justify-center lg:px-10"
-      >
-        <div className="ml-auto w-full max-w-md rounded-2xl bg-slate-950/55 p-4 ring-1 ring-white/10 backdrop-blur-md sm:max-w-lg sm:p-6 lg:max-w-xl lg:rounded-[1.75rem] lg:bg-slate-950/70 lg:p-8 lg:backdrop-blur-xl">
-          <h1 className="text-[1.65rem] font-black leading-[1.05] tracking-[-0.045em] text-white sm:text-4xl md:text-5xl lg:text-6xl">
-            The world&apos;s most trusted
-            <span className="mt-1 block text-[#67e8f9] sm:mt-1.5">
-              supplier advice — and OS.
-            </span>
-          </h1>
+      <div className="relative z-[1] mx-auto flex min-h-[100svh] w-full max-w-screen-2xl">
+        {/* Product shots sit on the photo, not in the text column */}
+        <div className="pointer-events-none absolute bottom-6 left-4 hidden w-[min(32rem,46%)] lg:block lg:bottom-8 lg:left-10">
+          <HeroProductShots sceneId={scene.id} />
+        </div>
 
-          <div className="mt-3 border-t border-white/15 pt-3 sm:mt-4 sm:pt-4">
-            <p className="font-mono text-[10px] font-bold tracking-[0.28em] text-cyan-200 sm:text-[11px]">
+        {/* Right-hand copy — big type, no glass card */}
+        <div className="relative ml-auto flex w-full max-w-xl flex-col justify-end px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[calc(var(--sa-nav-offset)+0.75rem)] sm:px-6 sm:pb-8 lg:max-w-[34rem] lg:justify-center lg:px-10 lg:pb-10 xl:max-w-[38rem]">
+          <div className="w-full">
+            <h1 className="text-[1.9rem] font-black leading-[1.04] tracking-[-0.048em] text-white [text-shadow:0_2px_28px_rgba(0,0,0,0.45)] sm:text-5xl lg:text-[3.35rem] xl:text-7xl">
+              The world&apos;s most trusted
+              <span className="mt-1 block text-[#67e8f9] sm:mt-1.5">
+                supplier advice — and OS.
+              </span>
+            </h1>
+
+            <p className="mt-3 font-mono text-[10px] font-bold tracking-[0.28em] text-cyan-200 sm:mt-5 sm:text-[11px]">
               {scene.code}
             </p>
-            <h2 className="mt-1 text-base font-black tracking-tight text-white sm:text-xl">
+            <h2 className="mt-1 text-lg font-black tracking-tight text-white sm:text-2xl lg:text-[1.65rem]">
               {scene.title}
             </h2>
-            <p className="mt-1.5 text-[13px] leading-relaxed text-slate-100 sm:hidden">
+            <p className="mt-2 max-w-md text-[14px] leading-relaxed text-slate-100 sm:hidden">
               {scene.short}
             </p>
-            <p className="mt-2 hidden text-[15px] leading-relaxed text-slate-100 sm:block sm:text-base">
+            <p className="mt-2 hidden max-w-lg text-[15px] leading-relaxed text-slate-100 sm:block sm:text-base lg:text-[17px]">
               {scene.body}
             </p>
-            <ul className="mt-3 hidden space-y-1.5 lg:block">
+            <ul className="mt-3 hidden space-y-1.5 xl:block">
               {scene.points.map((pt) => (
                 <li key={pt} className="text-sm font-medium text-slate-200">
                   <span className="mr-2 text-cyan-300">—</span>
@@ -136,68 +326,68 @@ export default function HeroAudienceStage() {
                 </li>
               ))}
             </ul>
-          </div>
 
-          <div className="mt-4 flex flex-col gap-2 sm:mt-5 sm:flex-row sm:flex-wrap sm:items-center">
-            <Link
-              href={scene.cta.href}
-              className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-950/40 transition-all hover:bg-[#0099b8] active:scale-[0.99] sm:min-h-12 sm:px-6 sm:text-[15px]"
-            >
-              {scene.cta.label}
-              <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" />
-            </Link>
-            {scene.id === 'b2c' ? (
+            <div className="mt-5 flex flex-col gap-2 sm:mt-6 sm:flex-row sm:flex-wrap sm:items-center">
               <Link
-                href="/onboarding?type=business"
-                className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/25 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/18 sm:min-h-12 sm:px-6 sm:text-[15px]"
+                href={scene.cta.href}
+                className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-950/40 transition-all hover:bg-[#0099b8] active:scale-[0.99] sm:min-h-12 sm:px-6 sm:text-[15px]"
               >
-                I run a business
+                {scene.cta.label}
+                <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" />
               </Link>
-            ) : (
-              <Link
-                href="/demo"
-                className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/25 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/18 sm:min-h-12 sm:px-6 sm:text-[15px]"
-              >
-                Book a demo
-              </Link>
-            )}
-          </div>
+              {scene.id === 'b2c' ? (
+                <Link
+                  href="/onboarding?type=business"
+                  className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/30 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-[2px] hover:bg-white/18 sm:min-h-12 sm:px-6 sm:text-[15px]"
+                >
+                  I run a business
+                </Link>
+              ) : (
+                <Link
+                  href="/demo"
+                  className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/30 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-[2px] hover:bg-white/18 sm:min-h-12 sm:px-6 sm:text-[15px]"
+                >
+                  Book a demo
+                </Link>
+              )}
+            </div>
 
-          <p className="mt-3 hidden text-xs leading-relaxed text-slate-300 sm:block sm:text-sm">
-            Not Excel. Not accounting-only. Not a multi-year ERP project.{' '}
-            <a
-              href="#compare"
-              className="font-semibold text-cyan-200 underline decoration-cyan-200/40 underline-offset-4 hover:text-white"
-            >
-              See how we compare
-            </a>
-            {scene.id !== 'b2c' ? (
-              <>
-                {' · '}
-                {COMPANY_TRIAL_DAYS}-day free trial
-              </>
-            ) : (
-              ' · Members never pay us'
-            )}
-          </p>
-
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            {SCENES.map((s, idx) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setI(idx)}
-                className={`min-h-9 rounded-full px-3.5 py-1.5 text-[11px] font-bold tracking-wide transition-all ${
-                  idx === i
-                    ? 'bg-white text-slate-900'
-                    : 'bg-white/10 text-white ring-1 ring-white/20 hover:bg-white/20'
-                }`}
-                aria-pressed={idx === i}
-                aria-label={`Show ${s.title}`}
+            <p className="mt-3 hidden text-xs leading-relaxed text-slate-300 sm:block sm:text-sm">
+              Not Excel. Not accounting-only. Not a multi-year ERP project.{' '}
+              <a
+                href="#compare"
+                className="font-semibold text-cyan-200 underline decoration-cyan-200/40 underline-offset-4 hover:text-white"
               >
-                {s.code}
-              </button>
-            ))}
+                See how we compare
+              </a>
+              {scene.id !== 'b2c' ? (
+                <>
+                  {' · '}
+                  {COMPANY_TRIAL_DAYS}-day free trial
+                </>
+              ) : (
+                ' · Members never pay us'
+              )}
+            </p>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              {SCENES.map((s, idx) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setI(idx)}
+                  className={`min-h-9 rounded-full px-3.5 py-1.5 text-[11px] font-bold tracking-wide transition-all ${
+                    idx === i
+                      ? 'bg-white text-slate-900'
+                      : 'bg-white/10 text-white ring-1 ring-white/20 hover:bg-white/20'
+                  }`}
+                  aria-pressed={idx === i}
+                  aria-label={`Show ${s.title}`}
+                >
+                  {s.code}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>

@@ -15,8 +15,8 @@ import ThemeToggle from '@/components/theme/ThemeToggle';
 import { useTheme } from '@/components/theme/ThemeProvider';
 
 /**
- * Primary story: Why → Product → How you buy → Price → See it.
- * Section links use /#id so they work from /industries, /demo, etc.
+ * Links follow the landing story top-to-bottom so the bar never jumps back up.
+ * Section hrefs use /#id so they work from /industries, /demo, etc.
  */
 type NavLink = {
   id: string;
@@ -30,17 +30,10 @@ type NavLink = {
 
 const LINKS: NavLink[] = [
   {
-    id: 'why',
-    label: 'Why SA',
-    section: 'why-join',
-    href: '/#why-join',
-    group: 'product',
-  },
-  {
     id: 'product',
     label: 'Product',
-    section: 'modules',
-    href: '/#modules',
+    section: 'video',
+    href: '/#video',
     group: 'product',
   },
   {
@@ -48,6 +41,20 @@ const LINKS: NavLink[] = [
     label: 'SA Member',
     section: 'member-app',
     href: '/#member-app',
+    group: 'product',
+  },
+  {
+    id: 'why',
+    label: 'Why SA',
+    section: 'why-join',
+    href: '/#why-join',
+    group: 'product',
+  },
+  {
+    id: 'modules',
+    label: 'Modules',
+    section: 'modules',
+    href: '/#modules',
     group: 'product',
   },
   {
@@ -80,22 +87,47 @@ const LINKS: NavLink[] = [
   { id: 'demo', label: 'Demo', href: '/demo', group: 'try' },
 ];
 
+/** Document order — scroll-spy walks this list top → bottom. */
 const SPY_SECTIONS = [
+  'video',
+  'member-app',
   'why-join',
   'modules',
-  'member-app',
   'packaging',
   'pricing',
   'roi',
 ] as const;
+
+function prefersReducedMotion() {
+  return (
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+}
+
+function navOffsetPx() {
+  const header = document.querySelector<HTMLElement>('[data-landing-nav]');
+  if (header) return header.getBoundingClientRect().height;
+  return 68;
+}
+
+function scrollToSection(id: string, behavior?: ScrollBehavior) {
+  const motion = behavior ?? (prefersReducedMotion() ? 'auto' : 'smooth');
+  if (id === 'platform') {
+    window.scrollTo({ top: 0, behavior: motion });
+    return true;
+  }
+  const el = document.getElementById(id);
+  if (!el) return false;
+  el.scrollIntoView({ behavior: motion, block: 'start' });
+  return true;
+}
 
 const GROUP_LABELS: Record<NavLink['group'], string> = {
   product: 'Product',
   pricing: 'Pricing',
   try: 'Try it',
 };
-
-const NAV_OFFSET = 72;
 
 function linkClass(active: boolean) {
   return [
@@ -115,14 +147,6 @@ function mobileLinkClass(active: boolean) {
   ].join(' ');
 }
 
-function scrollToSection(id: string) {
-  const el = document.getElementById(id);
-  if (!el) return false;
-  const y = el.getBoundingClientRect().top + window.scrollY - NAV_OFFSET;
-  window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
-  return true;
-}
-
 export default function LandingNav() {
   const { user, ready } = usePrivy();
   const router = useRouter();
@@ -135,6 +159,20 @@ export default function LandingNav() {
   const onHome = pathname === '/';
 
   useEffect(() => {
+    document.documentElement.classList.add('sa-smooth-scroll');
+    return () => document.documentElement.classList.remove('sa-smooth-scroll');
+  }, []);
+
+  useEffect(() => {
+    if (!onHome) return;
+    const prev = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
+    return () => {
+      window.history.scrollRestoration = prev;
+    };
+  }, [onHome]);
+
+  useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -142,16 +180,15 @@ export default function LandingNav() {
   }, []);
 
   /** After navigation to /#section (from industries, demo, etc.) */
-  const scrollToHashIfPresent = useCallback(() => {
+  const scrollToHashIfPresent = useCallback((behavior: ScrollBehavior = 'auto') => {
     if (typeof window === 'undefined') return;
     if (window.location.pathname !== '/') return;
     const hash = window.location.hash.replace(/^#/, '');
     if (!hash) return;
-    // Retry: home content may still be mounting
     let tries = 0;
     const tick = () => {
       tries += 1;
-      if (scrollToSection(hash)) {
+      if (scrollToSection(hash, behavior)) {
         setActiveSection(hash);
         return;
       }
@@ -161,16 +198,16 @@ export default function LandingNav() {
   }, []);
 
   useEffect(() => {
-    scrollToHashIfPresent();
+    scrollToHashIfPresent('auto');
   }, [pathname, scrollToHashIfPresent]);
 
   useEffect(() => {
-    const onHash = () => scrollToHashIfPresent();
+    const onHash = () => scrollToHashIfPresent('smooth');
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, [scrollToHashIfPresent]);
 
-  /** Scroll-spy on home only */
+  /** Scroll-spy on home only — same offset as hash scroll */
   useEffect(() => {
     if (!onHome) {
       setActiveSection(null);
@@ -181,15 +218,15 @@ export default function LandingNav() {
     );
     if (!nodes.length) return;
 
-    const OFFSET = 96;
     const update = () => {
+      const offset = navOffsetPx() + 2;
       let current: string | null = null;
       for (const el of nodes) {
-        if (el.getBoundingClientRect().top - OFFSET <= 0) {
+        if (el.getBoundingClientRect().top - offset <= 0) {
           current = el.id;
         }
       }
-      if (window.scrollY < 120) current = null;
+      if (window.scrollY < offset) current = null;
       setActiveSection(current);
     };
 
@@ -238,12 +275,23 @@ export default function LandingNav() {
       e.preventDefault();
       scrollToSection(section);
       setActiveSection(section);
-      // Keep URL in sync without full reload
       window.history.replaceState(null, '', `/#${section}`);
       return;
     }
     e.preventDefault();
     window.location.assign(`/#${section}`);
+  };
+
+  const handleLogoClick = (e: MouseEvent) => {
+    setOpen(false);
+    if (!onHome) return;
+    e.preventDefault();
+    window.scrollTo({
+      top: 0,
+      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+    });
+    setActiveSection(null);
+    window.history.replaceState(null, '', '/');
   };
 
   const goLogin = () => {
@@ -288,6 +336,7 @@ export default function LandingNav() {
   return (
     <>
       <header
+        data-landing-nav
         className="fixed top-0 left-0 right-0 z-[200] w-full border-b border-slate-200/80 bg-white/95 pt-safe dark:border-neutral-800 dark:bg-black/95"
         style={{
           backgroundColor:
@@ -308,11 +357,11 @@ export default function LandingNav() {
               : 'none',
         }}
       >
-        <div className="mx-auto flex h-14 sm:h-[4.25rem] max-w-screen-2xl items-center justify-between gap-2 sm:gap-3 px-3 sm:px-6 lg:px-10">
+        <div className="mx-auto flex h-[var(--sa-nav-h)] max-w-screen-2xl items-center justify-between gap-2 sm:gap-3 px-3 sm:px-6 lg:px-10">
           <Link
             href="/"
             className="relative z-[210] flex shrink-0 items-center gap-2 sm:gap-2.5"
-            onClick={() => setOpen(false)}
+            onClick={handleLogoClick}
           >
             <Image
               src="/sa-logo.png"
@@ -329,7 +378,7 @@ export default function LandingNav() {
           </Link>
 
           <nav
-            className="hidden items-center gap-0.5 lg:flex min-w-0"
+            className="hidden min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] lg:flex [&::-webkit-scrollbar]:hidden"
             aria-label="Primary"
           >
             {LINKS.map((l) => renderLink(l, false))}
@@ -429,7 +478,7 @@ export default function LandingNav() {
             tabIndex={0}
             aria-label="Close menu"
           />
-          <div className="absolute left-0 right-0 top-14 sm:top-[4.25rem] max-h-[min(80vh,calc(100dvh-4rem))] overflow-y-auto border-b border-slate-200 bg-white shadow-xl pb-safe dark:border-neutral-800 dark:bg-neutral-950">
+          <div className="absolute left-0 right-0 top-nav-offset max-h-[min(80vh,calc(100dvh-var(--sa-nav-offset)))] overflow-y-auto border-b border-slate-200 bg-white shadow-xl pb-safe dark:border-neutral-800 dark:bg-neutral-950">
             <div className="mx-auto flex max-w-screen-2xl flex-col gap-4 px-4 py-4 sm:px-6">
               {(['product', 'pricing', 'try'] as const).map((group) => {
                 const items = LINKS.filter((l) => l.group === group);
@@ -475,7 +524,7 @@ export default function LandingNav() {
         </div>
       )}
 
-      <div className="h-14 sm:h-[4.25rem]" aria-hidden />
+      {!onHome && <div className="h-nav-offset" aria-hidden />}
     </>
   );
 }

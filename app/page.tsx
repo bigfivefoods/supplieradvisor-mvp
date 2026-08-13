@@ -743,7 +743,7 @@ export default function LandingPage() {
       {/* ═══════════ B2B · B2G · B2C ═══════════ */}
       <section
         id="markets"
-        className="flex min-h-svh flex-col justify-center scroll-mt-20 border-t border-slate-200 bg-white px-4 py-16 sm:px-6 sm:py-20 lg:px-10"
+        className="flex min-h-below-nav flex-col justify-center sa-anchor border-t border-slate-200 bg-white px-4 py-16 sm:px-6 sm:py-20 lg:px-10"
       >
         <div className="mx-auto w-full max-w-screen-2xl">
           <div className="mx-auto mb-8 max-w-3xl text-center sm:mb-10">
@@ -837,7 +837,7 @@ export default function LandingPage() {
       {/* ═══════════ SA MEMBER APP ═══════════ */}
       <section
         id="member-app"
-        className="flex min-h-svh flex-col justify-center scroll-mt-20 border-t border-slate-200 bg-[#f8fafc] px-4 py-16 sm:px-6 sm:py-20 lg:px-10"
+        className="flex min-h-below-nav flex-col justify-center sa-anchor border-t border-slate-200 bg-[#f8fafc] px-4 py-16 sm:px-6 sm:py-20 lg:px-10"
       >
         <div className="mx-auto w-full max-w-screen-2xl">
           <div className="mx-auto mb-6 max-w-3xl text-center sm:mb-8">
@@ -932,7 +932,7 @@ export default function LandingPage() {
       {/* ═══════════ WHY JOIN ═══════════ */}
       <section
         id="why-join"
-        className="flex min-h-svh flex-col justify-center scroll-mt-20 border-t border-slate-200 bg-white px-4 py-16 sm:px-6 sm:py-20 lg:px-10"
+        className="flex min-h-below-nav flex-col justify-center sa-anchor border-t border-slate-200 bg-white px-4 py-16 sm:px-6 sm:py-20 lg:px-10"
       >
         <div className="mx-auto w-full max-w-screen-2xl">
           <div className="mx-auto mb-6 max-w-3xl text-center sm:mb-8">
@@ -1053,7 +1053,7 @@ export default function LandingPage() {
       <RoiCalculator />
 
       {/* ═══════════ SYSTEMS GRID ═══════════ */}
-      <section id="systems" className="relative border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28">
+      <section id="systems" className="relative sa-anchor border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28">
         <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
           <div className="mx-auto mb-14 max-w-3xl text-center">
             <SectionLabel>Full stack</SectionLabel>
@@ -1138,7 +1138,7 @@ export default function LandingPage() {
       {/* ═══════════ MODULES — Core · Sector · Industry · Bespoke ═══════════ */}
       <section
         id="modules"
-        className="scroll-mt-20 border-t border-slate-200 bg-white py-20 dark:border-neutral-800 dark:bg-black sm:py-28"
+        className="sa-anchor border-t border-slate-200 bg-white py-20 dark:border-neutral-800 dark:bg-black sm:py-28"
       >
         <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
           <div className="mx-auto mb-12 max-w-3xl text-center sm:mb-16">
@@ -1227,7 +1227,7 @@ export default function LandingPage() {
                         : undefined
                   }
                   className={`flex flex-col rounded-[1.75rem] border p-5 sm:p-6 ${opt.tone} ${
-                    opt.specialist ? 'scroll-mt-24' : ''
+                    opt.specialist ? 'sa-anchor' : ''
                   }`}
                 >
                   <div
@@ -1311,7 +1311,7 @@ export default function LandingPage() {
                 <div
                   key={band.id}
                   id={`modules-${band.id}`}
-                  className="scroll-mt-24"
+                  className="sa-anchor"
                 >
                   <div className="mb-10 flex flex-col gap-3 border-b border-slate-100 pb-6 dark:border-neutral-800 sm:mb-12 sm:flex-row sm:items-end sm:justify-between">
                     <div>
@@ -1337,9 +1337,9 @@ export default function LandingPage() {
                       <div
                         key={mod.id}
                         id={`module-${mod.id}`}
-                        className="grid scroll-mt-24 items-start gap-8 lg:grid-cols-12 lg:gap-10 xl:gap-12"
+                        className="grid sa-anchor items-start gap-8 lg:grid-cols-12 lg:gap-10 xl:gap-12"
                       >
-                        <div className="lg:col-span-4 lg:sticky lg:top-28">
+                        <div className="lg:col-span-4 lg:sticky lg:top-[calc(var(--sa-nav-offset)+1rem)]">
                           <div className="mb-4 flex items-center gap-3">
                             <span className="font-mono text-[11px] font-bold tracking-[0.2em] text-slate-400">
                               {mod.code}
@@ -1422,7 +1422,7 @@ export default function LandingPage() {
       {/* ═══════════ CORE OS · SECTOR · INDUSTRY · GOVERNMENT · BESPOKE ═══════════ */}
       <section
         id="packaging"
-        className="scroll-mt-20 border-t border-slate-200 bg-white py-20 dark:border-neutral-800 dark:bg-black sm:py-28"
+        className="sa-anchor border-t border-slate-200 bg-white py-20 dark:border-neutral-800 dark:bg-black sm:py-28"
       >
         <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
           <div className="mx-auto mb-12 max-w-3xl text-center sm:mb-16">
@@ -1661,7 +1661,7 @@ export default function LandingPage() {
       </section>
 
       {/* ═══════════ TRUST ═══════════ */}
-      <section id="trust" className="border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28">
+      <section id="trust" className="sa-anchor border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28">
         <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
           <div className="mx-auto mb-14 max-w-3xl text-center">
             <SectionLabel>Trust layer</SectionLabel>
@@ -1778,7 +1778,7 @@ export default function LandingPage() {
       <HomePricing />
 
       {/* ═══════════ AUDIENCES ═══════════ */}
-      <section id="audiences" className="border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28">
+      <section id="audiences" className="sa-anchor border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28">
         <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
           <div className="mb-12 text-center">
             <SectionLabel>Get started</SectionLabel>

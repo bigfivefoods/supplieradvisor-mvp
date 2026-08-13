@@ -7,7 +7,7 @@ export default function SuperCubeStory() {
   return (
     <section
       id="super-cube"
-      className="scroll-mt-20 border-t border-slate-200 bg-gradient-to-b from-white via-violet-50/40 to-white py-20 sm:py-28"
+      className="sa-anchor border-t border-slate-200 bg-gradient-to-b from-white via-violet-50/40 to-white py-20 sm:py-28"
     >
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
         <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-14">

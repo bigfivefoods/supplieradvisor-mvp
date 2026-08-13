@@ -91,7 +91,7 @@ export default function HomePricing() {
   );
 
   return (
-    <div id="pricing" className="scroll-mt-20 border-t border-slate-200 bg-[#f8fafc] text-slate-900">
+    <div id="pricing" className="sa-anchor border-t border-slate-200 bg-[#f8fafc] text-slate-900">
       {/* Pricing intro */}
         <section className="relative overflow-hidden">
           <div
@@ -156,7 +156,7 @@ export default function HomePricing() {
         {/* Pricing tiers */}
         <section
           id="tiers"
-          className="scroll-mt-20 mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10 pb-16 sm:pb-20"
+          className="sa-anchor mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10 pb-16 sm:pb-20"
         >
           <div className="text-center mb-10">
             <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
@@ -391,7 +391,7 @@ export default function HomePricing() {
         {/* Supply-chain referral programme */}
         <section
           id="referral"
-          className="scroll-mt-20 border-y border-slate-200/80 bg-gradient-to-b from-emerald-50/40 via-white to-white"
+          className="sa-anchor border-y border-slate-200/80 bg-gradient-to-b from-emerald-50/40 via-white to-white"
         >
           <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10 py-14 sm:py-16">
             <div className="text-center max-w-2xl mx-auto mb-10">

@@ -11,7 +11,7 @@ export default function ProductVideo() {
   return (
     <section
       id="video"
-      className="relative flex min-h-svh flex-col justify-center scroll-mt-20 border-t border-slate-200 bg-[#0b1220] px-4 py-16 sm:px-6 sm:py-20 lg:px-10"
+      className="relative flex min-h-below-nav flex-col justify-center sa-anchor border-t border-slate-200 bg-[#0b1220] px-4 py-16 sm:px-6 sm:py-20 lg:px-10"
     >
       <div
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_0%,rgba(0,180,216,0.18),transparent_55%)]"

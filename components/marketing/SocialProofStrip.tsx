@@ -25,7 +25,7 @@ export default function SocialProofStrip() {
   return (
     <section
       id="proof"
-      className="scroll-mt-20 border-t border-slate-200 bg-white py-14 dark:border-neutral-800 dark:bg-black sm:py-16"
+      className="sa-anchor border-t border-slate-200 bg-white py-14 dark:border-neutral-800 dark:bg-black sm:py-16"
     >
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
         <p className="mb-6 text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400 dark:text-neutral-500">

@@ -104,7 +104,7 @@ export default function IndustriesStrip() {
   return (
     <section
       id="industries"
-      className="scroll-mt-20 border-t border-slate-200 bg-white py-20 sm:py-24"
+      className="sa-anchor border-t border-slate-200 bg-white py-20 sm:py-24"
     >
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
         <div className="mx-auto mb-12 max-w-3xl text-center">
