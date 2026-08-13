@@ -337,7 +337,7 @@ function upsertClinicPatient<T extends ClinicPerson>(
       active: true,
       created_at: now,
       updated_at: now,
-    } as T;
+    } as unknown as T;
     patients = [...patients, person];
   }
   if (!person.portal_token) person.portal_token = opts.issueToken();
