@@ -3,7 +3,14 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
+import {
+  ArrowRight,
+  Home,
+  QrCode,
+  Store,
+  UserRound,
+  WalletCards,
+} from 'lucide-react';
 import { COMPANY_TRIAL_DAYS } from '@/lib/billing/company-subscription';
 
 const SCENES = [
@@ -94,11 +101,93 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function HeroProductShots({ sceneId }: { sceneId: (typeof SCENES)[number]['id'] }) {
+function MemberPhone() {
   return (
-    <div className="grid h-[208px] w-full grid-cols-2 gap-3 xl:h-[228px] xl:gap-3.5">
-      {sceneId === 'b2c' ? (
-        <>
+    <div
+      className="relative h-full w-[118px] shrink-0 xl:w-[128px]"
+      aria-label="SA Member on a phone"
+    >
+      <div className="flex h-full flex-col rounded-[1.35rem] bg-zinc-900 p-[5px] shadow-[0_18px_40px_-12px_rgba(0,0,0,0.55)] ring-1 ring-white/25">
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.05rem] bg-[#f8fafc]">
+          <div
+            className="pointer-events-none absolute left-1/2 top-1.5 z-10 h-3 w-10 -translate-x-1/2 rounded-full bg-zinc-900"
+            aria-hidden
+          />
+          <div className="bg-gradient-to-br from-[#0077b6] via-[#0284c7] to-[#0c4a6e] px-2 pb-2 pt-5 text-white">
+            <div className="flex items-center gap-1">
+              <Image
+                src="/sa-logo.png"
+                alt=""
+                width={28}
+                height={12}
+                className="sa-logo h-2.5 w-auto object-contain"
+              />
+              <p className="text-[7px] font-black uppercase tracking-[0.16em] text-white/75">
+                SA Member
+              </p>
+            </div>
+            <p className="mt-0.5 text-[12px] font-black leading-tight tracking-tight">
+              Home
+            </p>
+            <p className="text-[8px] text-white/85">Book · check in · shop</p>
+          </div>
+          <div className="min-h-0 flex-1 space-y-1.5 overflow-hidden px-1.5 py-1.5">
+            <div className="grid grid-cols-2 gap-1">
+              {[
+                { t: 'Gym', d: 'Tue 06:00' },
+                { t: 'Clinic', d: 'Thu 14:00' },
+                { t: 'Hire', d: 'Out today' },
+                { t: 'Shop', d: '12 near you' },
+              ].map((tile) => (
+                <div
+                  key={tile.t}
+                  className="rounded-md bg-white px-1.5 py-1 shadow-sm ring-1 ring-slate-100"
+                >
+                  <div className="text-[7px] font-black uppercase tracking-wide text-[#00b4d8]">
+                    {tile.t}
+                  </div>
+                  <div className="text-[9px] font-black leading-tight text-slate-900">
+                    {tile.d}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-md bg-white px-1.5 py-1.5 shadow-sm ring-1 ring-slate-100">
+              <div className="text-[7px] font-black uppercase tracking-wide text-slate-400">
+                Next
+              </div>
+              <div className="text-[9px] font-black leading-tight text-slate-900">
+                VUKA spin · check in
+              </div>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-end justify-around border-t border-slate-200 bg-white px-0.5 pb-2 pt-1">
+            {(
+              [
+                { Icon: Home, on: true },
+                { Icon: Store, on: false },
+                { Icon: WalletCards, on: false },
+                { Icon: QrCode, on: false },
+                { Icon: UserRound, on: false },
+              ] as const
+            ).map(({ Icon, on }, idx) => (
+              <Icon
+                key={idx}
+                className={`h-2.5 w-2.5 ${on ? 'text-[#0077b6]' : 'text-slate-400'}`}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HeroProductShots({ sceneId }: { sceneId: (typeof SCENES)[number]['id'] }) {
+  if (sceneId === 'b2c') {
+    return (
+      <div className="flex h-[248px] w-full items-stretch gap-3 xl:h-[272px] xl:gap-3.5">
+        <div className="min-w-0 flex-1">
           <ShotWindow path="app.supplieradvisor.com/me">
             <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
               SA Member
@@ -113,24 +202,15 @@ function HeroProductShots({ sceneId }: { sceneId: (typeof SCENES)[number]['id'] 
               Next: VUKA spin · check in on the phone
             </div>
           </ShotWindow>
-          <ShotWindow path="app.supplieradvisor.com/me/shop">
-            <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
-              Shop · book
-            </div>
-            <div className="mt-0.5 text-[13px] font-black text-slate-900">On your phone</div>
-            <div className="mt-2.5 space-y-1.5">
-              {['Spin · 06:00', 'Physio slot', 'Hire drill'].map((row) => (
-                <div
-                  key={row}
-                  className="rounded-md bg-white px-2 py-1.5 text-[11px] font-bold text-slate-700 ring-1 ring-slate-100"
-                >
-                  {row}
-                </div>
-              ))}
-            </div>
-          </ShotWindow>
-        </>
-      ) : sceneId === 'b2g' ? (
+        </div>
+        <MemberPhone />
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid h-[208px] w-full grid-cols-2 gap-3 xl:h-[228px] xl:gap-3.5">
+      {sceneId === 'b2g' ? (
         <>
           <ShotWindow path="app.supplieradvisor.com/network">
             <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
@@ -263,13 +343,13 @@ export default function HeroAudienceStage() {
         aria-hidden
       />
       <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-52 bg-gradient-to-t from-slate-950/40 to-transparent lg:block"
+        className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-64 bg-gradient-to-t from-slate-950/40 to-transparent lg:block"
         aria-hidden
       />
 
       <div className="relative z-[1] mx-auto flex min-h-[100svh] w-full max-w-screen-2xl">
         {/* Product shots sit on the photo, not in the text column */}
-        <div className="pointer-events-none absolute bottom-6 left-4 hidden w-[min(42rem,54%)] lg:block lg:bottom-8 lg:left-10 xl:w-[min(46rem,56%)]">
+        <div className="pointer-events-none absolute bottom-6 left-4 hidden w-[min(44rem,56%)] lg:block lg:bottom-8 lg:left-10 xl:w-[min(48rem,58%)]">
           <HeroProductShots sceneId={scene.id} />
         </div>
 
