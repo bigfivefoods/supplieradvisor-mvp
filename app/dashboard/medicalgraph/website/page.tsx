@@ -11,6 +11,7 @@ import { FormCard, StatRow, fc } from '@/components/clinic/MedicalForm';
 import { AdvisorOpsPoliciesCard } from '@/components/services/AdvisorOpsPoliciesCard';
 import { AdvisorRoomsCard } from '@/components/services/AdvisorRoomsCard';
 import { PracticeProfilePdfButton } from '@/components/schedule/PracticeProfilePdfButton';
+import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
 
 export default function WebsitePage() {
   const { companyId, store, loading, saving, post, summary } =
@@ -79,6 +80,12 @@ export default function WebsitePage() {
                 value: form.allow_public_booking ? 'On' : 'Off',
               },
             ]}
+          />
+          <AdvisorMemberAppInvite
+            kind="medical"
+            companyId={companyId}
+            brand={form.brand_name || store.settings?.brand_name}
+            audience="patients"
           />
           <div className="flex flex-wrap items-center gap-2">
             <PracticeProfilePdfButton

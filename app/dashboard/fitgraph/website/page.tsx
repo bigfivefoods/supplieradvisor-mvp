@@ -17,6 +17,7 @@ import {
 } from '@/lib/fitness/fitgraph';
 import { AdvisorRoomsCard } from '@/components/services/AdvisorRoomsCard';
 import { PracticeProfilePdfButton } from '@/components/schedule/PracticeProfilePdfButton';
+import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
 
 export default function FitgraphWebsitePage() {
   const { companyId, store, loading, saving, post, summary } = useFitgraph();
@@ -151,6 +152,13 @@ export default function FitgraphWebsitePage() {
               PDF.
             </p>
           </div>
+
+          <AdvisorMemberAppInvite
+            kind="gym"
+            companyId={companyId}
+            brand={form.brand_name || store.settings?.brand_name}
+            audience="members"
+          />
 
           {token ? (
             <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-5 dark:border-violet-500/30 dark:from-violet-950/50 dark:to-slate-950">

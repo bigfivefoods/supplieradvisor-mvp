@@ -21,6 +21,7 @@ import {
   hireCustomerPortalPath,
   type HireRequirementKey,
 } from '@/lib/hire/hiregraph';
+import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
 
 const COMMON_REQ: HireRequirementKey[] = [
   'id_document',
@@ -40,7 +41,7 @@ const COMMON_REQ: HireRequirementKey[] = [
  * Hire-only KYC + B2C portal tokens live here.
  */
 export default function HireCustomersPage() {
-  const { store, coreCustomers, loading, saving, post, summary } =
+  const { companyId, store, coreCustomers, loading, saving, post, summary } =
     useHiregraph();
   const [selectedId, setSelectedId] = useState<number | ''>('');
   const [reqs, setReqs] = useState<HireRequirementKey[]>([]);
@@ -144,6 +145,12 @@ export default function HireCustomersPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
+          <AdvisorMemberAppInvite
+            kind="hire"
+            companyId={companyId}
+            brand={brandForm.brand_name || store.settings?.brand_name}
+            audience="customers"
+          />
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-cyan-200 bg-cyan-50/70 px-4 py-3 dark:border-cyan-500/30 dark:bg-cyan-950/40">
             <p className="text-sm text-cyan-950 dark:text-cyan-50">
               <strong>Source of truth:</strong> Customers module. Portal =

@@ -19,6 +19,8 @@ import { kindLabel } from '@/lib/b2c/link-token';
 import { discoverAndAttachMemberships } from '@/lib/b2c/discover-memberships';
 import { buildB2cActivity } from '@/lib/b2c/activity';
 import { loadBusinessWorkspaceSummary } from '@/lib/b2c/workspace';
+import { buildHireJourneys } from '@/lib/b2c/hire-journeys';
+import { verificationView } from '@/lib/b2c/identity';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -81,6 +83,15 @@ export async function GET(request: NextRequest) {
 
     const docs = activity.filter((a) => a.tone === 'docs' || a.tone === 'alert');
 
+    let journeys: Awaited<ReturnType<typeof buildHireJourneys>> = [];
+    try {
+      journeys = await buildHireJourneys(memberships);
+    } catch {
+      journeys = [];
+    }
+
+    const verification = verificationView(profile);
+
     let business = { has_business: false, business_count: 0 };
     try {
       business = await loadBusinessWorkspaceSummary(userId);
@@ -104,7 +115,11 @@ export async function GET(request: NextRequest) {
       profile: {
         ...profile,
         memberships,
+        city: profile.city || null,
+        id_number: profile.id_number || null,
       },
+      verification,
+      journeys,
       activity,
       stats: {
         memberships: memberships.length,
@@ -114,6 +129,10 @@ export async function GET(request: NextRequest) {
           ['physio', 'dental', 'medical', 'psychiatry'].includes(m.kind)
         ).length,
         needs_attention: docs.length,
+        open_hires: journeys.filter((j) => j.open).length,
+        verified: verification.is_verified,
+        profile_score: verification.completeness.score,
+        profile_max: verification.completeness.max,
       },
     });
   } catch (e: unknown) {
@@ -163,6 +182,10 @@ export async function POST(request: NextRequest) {
       profile.full_name = String(body.full_name || body.name || '').trim() || null;
     }
     if (body.phone != null) profile.phone = String(body.phone).trim() || null;
+    if (body.city != null) profile.city = String(body.city).trim() || null;
+    if (body.id_number != null) {
+      profile.id_number = String(body.id_number).replace(/\s/g, '') || null;
+    }
     if (body.photo_url != null) {
       profile.photo_url = String(body.photo_url).trim() || null;
     }

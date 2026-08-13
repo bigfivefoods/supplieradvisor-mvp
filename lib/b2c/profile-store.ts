@@ -25,17 +25,20 @@ function rowToProfile(row: Record<string, unknown>): B2cProfile {
   const memberships = Array.isArray(row.memberships)
     ? (row.memberships as B2cMembership[])
     : [];
+  const metadata =
+    row.metadata && typeof row.metadata === 'object'
+      ? (row.metadata as Record<string, unknown>)
+      : {};
   return {
     user_id: String(row.user_id),
     email: row.email ? String(row.email) : null,
     full_name: row.full_name ? String(row.full_name) : null,
     phone: row.phone ? String(row.phone) : null,
     photo_url: row.photo_url ? String(row.photo_url) : null,
+    city: metadata.city ? String(metadata.city) : null,
+    id_number: metadata.id_number ? String(metadata.id_number) : null,
     memberships: memberships.filter((m) => m && m.active !== false),
-    metadata:
-      row.metadata && typeof row.metadata === 'object'
-        ? (row.metadata as Record<string, unknown>)
-        : {},
+    metadata,
     created_at: row.created_at ? String(row.created_at) : undefined,
     updated_at: row.updated_at ? String(row.updated_at) : undefined,
   };
@@ -111,7 +114,11 @@ export async function saveB2cProfile(profile: B2cProfile): Promise<void> {
     phone: profile.phone || null,
     photo_url: profile.photo_url || null,
     memberships: profile.memberships || [],
-    metadata: profile.metadata || {},
+    metadata: {
+      ...(profile.metadata || {}),
+      ...(profile.city != null ? { city: profile.city } : {}),
+      ...(profile.id_number != null ? { id_number: profile.id_number } : {}),
+    },
     updated_at: now,
     created_at: profile.created_at || now,
   };

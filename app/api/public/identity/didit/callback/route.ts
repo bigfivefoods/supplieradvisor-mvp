@@ -15,6 +15,12 @@ import {
   type ServiceIdentityRole,
 } from '@/lib/identity/person-verification';
 import { resolveIdentityPerson } from '@/lib/identity/service-person-store';
+import { getCanonicalUserId } from '@/lib/auth/identity';
+import {
+  applyIdentityToProfile,
+  identityFromProfile,
+} from '@/lib/b2c/identity';
+import { loadB2cProfile, saveB2cProfile } from '@/lib/b2c/profile-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -45,12 +51,53 @@ export async function GET(req: NextRequest) {
   const token = String(url.searchParams.get('token') || '');
   const statusHint = String(url.searchParams.get('status') || '');
 
-  const back = token
-    ? `${portalPath(module, role, token)}?tab=profile&identity=1`
-    : '/';
+  const walletUser = String(url.searchParams.get('user') || '');
+  const isWallet = module === ('b2c' as ServiceIdentityModule) || Boolean(walletUser);
+
+  const back = isWallet
+    ? '/me?tab=account&identity=1'
+    : token
+      ? `${portalPath(module, role, token)}?tab=profile&identity=1`
+      : '/';
 
   try {
-    if (sessionId && module && role && token) {
+    if (isWallet && sessionId && walletUser) {
+      const userId = getCanonicalUserId(walletUser);
+      if (userId) {
+        const profile = await loadB2cProfile(userId);
+        if (profile) {
+          const decision = await retrieveDiditDecision(sessionId);
+          if (decision.ok) {
+            const mapped = mapDiditStatus(decision.status || statusHint);
+            let status = mapped.identityStatus;
+            if (
+              status === 'verified' &&
+              decision.fullName &&
+              !softNameMatch(profile.full_name, decision.fullName)
+            ) {
+              status = 'mismatch';
+            }
+            const next = {
+              ...identityFromProfile(profile),
+              status,
+              provider: 'didit' as const,
+              verified_at:
+                status === 'verified' ? new Date().toISOString() : null,
+              reference: sessionId,
+              verified_name: decision.fullName || null,
+              verified_dob: decision.dob || null,
+              status_text: mapped.statusText,
+              last_checked_at: new Date().toISOString(),
+              didit_session_id: sessionId,
+            };
+            if (status === 'verified' && decision.fullName && !profile.full_name) {
+              profile.full_name = decision.fullName;
+            }
+            await saveB2cProfile(applyIdentityToProfile(profile, next));
+          }
+        }
+      }
+    } else if (sessionId && module && role && token) {
       const resolved = await resolveIdentityPerson({ module, role, token });
       if (resolved) {
         const decision = await retrieveDiditDecision(sessionId);

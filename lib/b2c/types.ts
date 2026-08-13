@@ -54,6 +54,8 @@ export type B2cProfile = {
   full_name?: string | null;
   phone?: string | null;
   photo_url?: string | null;
+  city?: string | null;
+  id_number?: string | null;
   memberships: B2cMembership[];
   metadata?: Record<string, unknown>;
   created_at?: string;

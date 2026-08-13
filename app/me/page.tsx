@@ -42,6 +42,9 @@ import {
   type B2cTab,
 } from '@/components/b2c/B2cAppChrome';
 import { B2cShopPeek, B2cShopTab } from '@/components/b2c/B2cShopTab';
+import { B2cHireJourneyList } from '@/components/b2c/B2cHireJourney';
+import { B2cIdentityCard } from '@/components/b2c/B2cIdentityCard';
+import type { B2cHireJourney } from '@/lib/b2c/hire-journeys';
 import { toast } from 'sonner';
 import EnablePushButton from '@/components/pwa/EnablePushButton';
 
@@ -64,6 +67,8 @@ type Profile = {
   email?: string | null;
   full_name?: string | null;
   phone?: string | null;
+  city?: string | null;
+  id_number?: string | null;
   memberships: Membership[];
 };
 
@@ -120,6 +125,18 @@ function MeAppInner() {
   const [installHint, setInstallHint] = useState(false);
   const [hasBusiness, setHasBusiness] = useState(false);
   const [businessCount, setBusinessCount] = useState(0);
+  const [city, setCity] = useState('');
+  const [idNumber, setIdNumber] = useState('');
+  const [journeys, setJourneys] = useState<B2cHireJourney[]>([]);
+  const [verification, setVerification] = useState<{
+    status?: string;
+    is_verified?: boolean;
+    verified_name?: string | null;
+    completeness?: { score: number; max: number; missing: string[] };
+  } | null>(null);
+  const joinBrand = search?.get('brand') || '';
+  const joinKind = search?.get('kind') || '';
+  const isJoin = search?.get('join') === '1' || Boolean(joinBrand);
 
   // Deep links: ?tab=shop|checkin|memberships|account  ?link=
   useEffect(() => {
@@ -177,6 +194,10 @@ function MeAppInner() {
       setBusinessCount(
         Number(data.business_count || data.workspace?.business_count || 0)
       );
+      setCity(data.profile?.city || '');
+      setIdNumber(data.profile?.id_number || '');
+      setJourneys(Array.isArray(data.journeys) ? data.journeys : []);
+      setVerification(data.verification || null);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Could not load account');
     } finally {
@@ -256,6 +277,8 @@ function MeAppInner() {
           full_name: name,
           phone,
           email,
+          city,
+          id_number: idNumber,
           privyUserId: getCanonicalUserId(user?.id),
         }),
       });
@@ -331,9 +354,9 @@ function MeAppInner() {
               SA Member
             </h1>
             <p className="mt-3 text-base text-sky-50/95">
-              One personal app: shop what is for sale or hire, book gym and
-              clinic brands, check in, and keep every membership on this wallet.
-              If you also run a company, that workspace stays separate.
+              {isJoin && joinBrand
+                ? `${joinBrand} invited you to create a free SA Member profile on your phone.`
+                : 'One personal app: shop what is for sale or hire, book gym and clinic brands, check in, and keep every membership on this wallet. If you also run a company, that workspace stays separate.'}
             </p>
 
             <div className="mt-8 space-y-2">
@@ -357,6 +380,11 @@ function MeAppInner() {
                   icon: Store,
                   t: 'Shop sale & hire',
                   d: 'See what brands are selling or hiring out',
+                },
+                {
+                  icon: User,
+                  t: 'Your profile',
+                  d: 'Create it yourself and verify your ID',
                 },
               ].map(({ icon: Icon, t, d }) => (
                 <div
@@ -425,8 +453,10 @@ function MeAppInner() {
       sub: 'Door QR · portal links',
     },
     account: {
-      title: 'Account',
-      sub: profile?.email || email || undefined,
+      title: 'Your profile',
+      sub: verification?.is_verified
+        ? 'Verified member'
+        : profile?.email || email || undefined,
     },
   };
 
@@ -457,6 +487,51 @@ function MeAppInner() {
       {/* ── HOME ─────────────────────────────────────────────── */}
       {tab === 'home' && (
         <div className="space-y-4">
+          {isJoin && joinBrand ? (
+            <div className="rounded-2xl border border-sky-200 bg-white p-3 text-sm shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-wide text-[#0077b6]">
+                Brand invite
+              </p>
+              <p className="font-black text-slate-900">{joinBrand}</p>
+              <p className="text-[11px] text-slate-500">
+                Create your profile and verify yourself. If this brand already
+                has your email or phone, it will appear under Brands
+                {joinKind ? ` (${joinKind})` : ''}.
+              </p>
+            </div>
+          ) : null}
+
+          {verification &&
+          verification.completeness &&
+          verification.completeness.score < verification.completeness.max ? (
+            <button
+              type="button"
+              onClick={() => goTab('account')}
+              className="flex w-full items-center gap-3 rounded-2xl border border-sky-200 bg-white p-3 text-left shadow-sm"
+            >
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-100 text-[#0077b6]">
+                <User className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-black text-slate-900">
+                  Finish your profile
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  {verification.completeness.score}/{verification.completeness.max}{' '}
+                  complete
+                  {verification.completeness.missing.length
+                    ? ` · add ${verification.completeness.missing.join(', ')}`
+                    : ''}
+                </p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-slate-400" />
+            </button>
+          ) : null}
+
+          {journeys.length > 0 ? (
+            <B2cHireJourneyList journeys={journeys} />
+          ) : null}
+
           {hasBusiness ? (
             <Link
               href="/dashboard/select-company"
@@ -930,8 +1005,13 @@ function MeAppInner() {
           </div>
 
           <div className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-[#0077b6] text-lg font-black text-white">
+            <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-[#0077b6] text-xl font-black text-white">
               {(displayName[0] || 'U').toUpperCase()}
+              {verification?.is_verified ? (
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white ring-2 ring-white">
+                  ✓
+                </span>
+              ) : null}
             </div>
             <div className="min-w-0">
               <p className="truncate font-black text-slate-900">
@@ -940,8 +1020,24 @@ function MeAppInner() {
               <p className="truncate text-xs text-slate-500">
                 {email || 'No email yet'}
               </p>
+              <p className="mt-1 text-[11px] font-semibold text-[#0077b6]">
+                {verification?.is_verified
+                  ? 'Identity verified'
+                  : verification?.completeness
+                    ? `${verification.completeness.score}/${verification.completeness.max} profile complete`
+                    : 'Create your personal profile'}
+              </p>
             </div>
           </div>
+
+          <B2cIdentityCard
+            initial={verification}
+            idNumber={idNumber}
+            onIdNumberChange={setIdNumber}
+            onChange={(v) =>
+              setVerification((prev) => ({ ...(prev || {}), ...v }))
+            }
+          />
 
           {hasBusiness ? (
             <Link
@@ -1017,6 +1113,14 @@ function MeAppInner() {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 inputMode="tel"
+              />
+            </label>
+            <label className="mt-2 block text-[11px] font-bold text-slate-600">
+              City
+              <input
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
               />
             </label>
             <button
