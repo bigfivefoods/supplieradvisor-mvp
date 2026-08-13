@@ -61,6 +61,14 @@ export type MarketplaceListing = {
   is_own?: boolean;
 };
 
+export function isHireListing(
+  listing: Pick<MarketplaceListing, 'product_type' | 'metadata'>
+): boolean {
+  const meta = listing.metadata;
+  if (meta && typeof meta === 'object' && meta.channel === 'hire') return true;
+  return String(listing.product_type || '').toLowerCase() === 'hire';
+}
+
 export const SETTLEMENT_STATUSES = [
   'none',
   'pending',

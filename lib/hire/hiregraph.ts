@@ -398,6 +398,10 @@ export type HireItem = {
   location?: string;
   photo_url?: string;
   notes?: string;
+  /** Core inventory product this hire SKU is drawn from */
+  inventory_product_id?: number | null;
+  /** marketplace_listings.id when published for hire */
+  marketplace_listing_id?: number | null;
   active?: boolean;
   created_at: string;
   updated_at: string;
@@ -1220,6 +1224,9 @@ export function summariseHiregraph(
     customerPortalCount: Object.values(store.customer_portals || {}).filter(
       (p) => p?.active !== false && p?.portal_token
     ).length,
+    inventoryProductIds: store.items
+      .map((i) => Number(i.inventory_product_id))
+      .filter((n) => Number.isFinite(n) && n > 0),
   };
 }
 

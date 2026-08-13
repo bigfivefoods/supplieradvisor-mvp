@@ -61,7 +61,7 @@ const SUPPLY: HubModule[] = [
     icon: Package,
     code: '03',
     title: 'Catalogue',
-    desc: 'List items against a core supplier — rates, deposits, stock.',
+    desc: 'Hire out inventory or list gear against a supplier — rates, deposits, marketplace.',
     accent: 'from-sky-50 to-white border-sky-100',
   },
 ];

@@ -91,7 +91,7 @@ async function loadSale(q: string, limit: number): Promise<B2cMarketItem[]> {
   const { data, error } = await supabase
     .from('marketplace_listings')
     .select(
-      'id, title, description, category, unit_price, currency, uom, primary_image_url, seller_profile_id, visibility, status, published_at'
+      'id, title, description, category, unit_price, currency, uom, primary_image_url, seller_profile_id, visibility, status, published_at, product_type, metadata'
     )
     .eq('status', 'active')
     .or('visibility.eq.public,visibility.eq.open,visibility.is.null')
@@ -102,7 +102,13 @@ async function loadSale(q: string, limit: number): Promise<B2cMarketItem[]> {
 
   let rows = (data || []).filter((r) => {
     const v = String(r.visibility || 'public').toLowerCase();
-    return v === 'public' || v === 'open' || v === '';
+    if (!(v === 'public' || v === 'open' || v === '')) return false;
+    const meta =
+      r.metadata && typeof r.metadata === 'object'
+        ? (r.metadata as Record<string, unknown>)
+        : {};
+    if (meta.channel === 'hire' || r.product_type === 'hire') return false;
+    return true;
   });
   if (q) {
     rows = rows.filter((l) =>
@@ -199,11 +205,9 @@ async function loadHireAndAdvisors(opts: {
     if (opts.wantHire && meta.hiregraph && hire.length < opts.limit) {
       const store = readHiregraphFromMetadata(meta);
       const pub = store.settings;
-      const listed =
-        pub?.allow_portal_booking !== false &&
-        Boolean(pub?.brand_name || pub?.public_bio || pub?.contact_email);
+      const listed = pub?.allow_portal_booking !== false;
       const brand = pub?.brand_name || companyName;
-      if (listed) {
+      if (listed && (store.items || []).length) {
       for (const item of store.items || []) {
         if (item.active === false) continue;
         const st = String(item.status || 'available').toLowerCase();

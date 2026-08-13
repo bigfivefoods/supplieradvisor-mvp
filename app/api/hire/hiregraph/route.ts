@@ -37,6 +37,7 @@ import {
   hireCustomerInviteEmailText,
 } from '@/lib/b2c/hire-invite-email';
 import { getAppUrl, getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
+import { listInventoryProductForHire } from '@/lib/hire/list-from-inventory';
 
 export const runtime = 'nodejs';
 
@@ -50,14 +51,22 @@ async function loadStore(companyId: number) {
   const supabase = getSupabaseServer();
   const { data: prof } = await supabase
     .from('profiles')
-    .select('metadata')
+    .select('metadata, trading_name, legal_name')
     .eq('id', companyId)
     .maybeSingle();
   const meta =
     prof?.metadata && typeof prof.metadata === 'object'
       ? { ...(prof.metadata as Record<string, unknown>) }
       : {};
-  return { meta, store: readHiregraphFromMetadata(meta), supabase };
+  const companyName = String(
+    prof?.trading_name || prof?.legal_name || `Company #${companyId}`
+  );
+  return {
+    meta,
+    store: readHiregraphFromMetadata(meta),
+    supabase,
+    companyName,
+  };
 }
 
 async function loadCoreBooks(companyId: number) {
@@ -215,9 +224,88 @@ export async function POST(req: NextRequest) {
     }
 
     const action = String(body.action || 'upsert');
-    const { meta, store } = await loadStore(companyId);
+    const { meta, store, companyName } = await loadStore(companyId);
     const { coreSuppliers, coreCustomers } = await loadCoreBooks(companyId);
     let next: HiregraphStore = store;
+
+    if (action === 'list_from_inventory') {
+      const productId = Number(body.productId || body.inventory_product_id);
+      if (!Number.isFinite(productId) || productId <= 0) {
+        return NextResponse.json(
+          { error: 'productId required' },
+          { status: 400 }
+        );
+      }
+      const categoryId = String(body.category_id || body.categoryId || '').trim();
+      if (!categoryId) {
+        return NextResponse.json(
+          { error: 'category_id required' },
+          { status: 400 }
+        );
+      }
+      let supplierName = String(body.supplier_name || '').trim() || companyName;
+      const srmId = Number(body.srm_supplier_id);
+      if (Number.isFinite(srmId) && srmId > 0) {
+        const s = coreSuppliers.find((x) => x.id === srmId);
+        if (!s) {
+          return NextResponse.json(
+            { error: `Supplier #${srmId} not found in Core Suppliers` },
+            { status: 400 }
+          );
+        }
+        supplierName = s.name;
+      }
+      if (!next.settings?.brand_name) {
+        next = {
+          ...next,
+          settings: {
+            ...(next.settings || {}),
+            brand_name: companyName,
+            allow_portal_booking: true,
+          },
+        };
+      }
+      const listed = await listInventoryProductForHire(next, {
+        companyId,
+        productId,
+        categoryId,
+        rateZar: Number(body.rate_zar) || 0,
+        rateUnit: body.rate_unit ? String(body.rate_unit) : undefined,
+        depositZar:
+          body.deposit_zar === '' || body.deposit_zar == null
+            ? null
+            : Number(body.deposit_zar),
+        qtyAvailable:
+          body.qty_available == null || body.qty_available === ''
+            ? null
+            : Number(body.qty_available),
+        location: body.location ? String(body.location) : null,
+        srmSupplierId:
+          Number.isFinite(srmId) && srmId > 0 ? srmId : null,
+        supplierName,
+        description: body.description ? String(body.description) : null,
+      });
+      next = listed.store;
+      await saveStore(companyId, meta, next);
+      denormaliseNames(next, coreSuppliers, coreCustomers);
+      return NextResponse.json({
+        success: true,
+        store: next,
+        coreSuppliers,
+        coreCustomers,
+        itemId: listed.itemId,
+        listingId: listed.listingId,
+        listingWarning: listed.listingWarning || null,
+        summary: summariseHiregraph(next, {
+          coreSupplierCount: coreSuppliers.length,
+          coreCustomerCount: coreCustomers.length,
+        }),
+        message: listed.listingId
+          ? 'Inventory item listed for hire on the marketplace'
+          : 'Added to HireAdvisor catalogue' +
+            (listed.listingWarning ? ` (${listed.listingWarning})` : ''),
+      });
+    }
 
     // Update hire KYC for a core CRM customer
     if (action === 'set_kyc') {
@@ -458,27 +546,32 @@ export async function POST(req: NextRequest) {
       // Resolve names from core books (parties are never stored locally)
       if (entity === 'items') {
         const sid = Number(rest.srm_supplier_id || rest.supplier_id);
-        if (!Number.isFinite(sid) || sid <= 0) {
+        const fromInventory = Number(rest.inventory_product_id) > 0;
+        if (Number.isFinite(sid) && sid > 0) {
+          const s = coreSuppliers.find((x) => x.id === sid);
+          if (!s) {
+            return NextResponse.json(
+              {
+                error: `Supplier #${sid} not found in this company's Core Suppliers book`,
+              },
+              { status: 400 }
+            );
+          }
+          rest.srm_supplier_id = sid;
+          rest.supplier_name = s.name;
+          delete rest.supplier_id;
+        } else if (fromInventory) {
+          rest.srm_supplier_id = null;
+          rest.supplier_name = rest.supplier_name || companyName;
+        } else {
           return NextResponse.json(
             {
               error:
-                'srm_supplier_id required — list items against Core Suppliers (SRM)',
+                'srm_supplier_id required — list items against Core Suppliers (SRM), or hire out an inventory product',
             },
             { status: 400 }
           );
         }
-        const s = coreSuppliers.find((x) => x.id === sid);
-        if (!s) {
-          return NextResponse.json(
-            {
-              error: `Supplier #${sid} not found in this company's Core Suppliers book`,
-            },
-            { status: 400 }
-          );
-        }
-        rest.srm_supplier_id = sid;
-        rest.supplier_name = s.name;
-        delete rest.supplier_id;
       }
       if (entity === 'bookings') {
         const cid = Number(rest.crm_customer_id || rest.customer_id);

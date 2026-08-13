@@ -21,6 +21,7 @@ import { getCanonicalUserId } from '@/lib/auth/identity';
 import {
   formatMoney,
   visibilityLabel,
+  isHireListing,
   type MarketplaceListing,
 } from '@/lib/marketplace/types';
 import {
@@ -178,6 +179,12 @@ function BrowseInner() {
               className="btn-primary !py-2.5 !px-5 text-sm"
             >
               <Store className="w-4 h-4" /> Sell from inventory
+            </Link>
+            <Link
+              href="/dashboard/hiregraph/catalogue"
+              className="btn-secondary !py-2.5 !px-5 text-sm"
+            >
+              Hire from inventory
             </Link>
             <Link
               href="/dashboard/connections/discover"
@@ -539,7 +546,7 @@ function ListingCard({
           <Package className="w-10 h-10 text-[#00b4d8]/40" />
         )}
         <span className="absolute top-2 left-2 text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-white/95 border border-neutral-100 text-neutral-600">
-          {visibilityLabel(l.visibility)}
+          {isHireListing(l) ? 'For hire' : visibilityLabel(l.visibility)}
         </span>
         {l.is_own && (
           <span className="absolute top-2 right-2 text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-[#00b4d8] text-white">
