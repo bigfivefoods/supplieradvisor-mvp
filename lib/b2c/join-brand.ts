@@ -299,57 +299,36 @@ async function joinGym(opts: {
   };
 }
 
-async function joinClinic(opts: {
-  company: CompanyRow;
-  profile: Awaited<ReturnType<typeof ensureB2cProfile>>;
-  userId: string;
-  email: string | null;
-  phone: string | null;
-  displayName: string;
-  kind: 'physio' | 'dental' | 'medical' | 'psychiatry';
-}) {
-  const pack =
-    opts.kind === 'physio'
-      ? {
-          path: 'physiograph',
-          store: readPhysiographFromMetadata(opts.company.meta),
-          write: writePhysiographToMetadata,
-          issue: issuePhysioToken,
-          newId: newPhysioId,
-        }
-      : opts.kind === 'dental'
-        ? {
-            path: 'dentalgraph',
-            store: readDentalgraphFromMetadata(opts.company.meta),
-            write: writeDentalgraphToMetadata,
-            issue: issueDentalPatientPortalToken,
-            newId: newDentalId,
-          }
-        : opts.kind === 'medical'
-          ? {
-              path: 'medicalgraph',
-              store: readMedicalgraphFromMetadata(opts.company.meta),
-              write: writeMedicalgraphToMetadata,
-              issue: issueMedicalToken,
-              newId: newMedicalId,
-            }
-          : {
-              path: 'psychiatrygraph',
-              store: readPsychiatrygraphFromMetadata(opts.company.meta),
-              write: writePsychiatrygraphToMetadata,
-              issue: issuePsychiatryToken,
-              newId: newPsychiatryId,
-            };
+type ClinicPerson = {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  portal_token?: string | null;
+  platform_user_id?: string | null;
+  active?: boolean;
+};
 
-  let patient = (pack.store.patients || []).find(
+function upsertClinicPatient<T extends ClinicPerson>(
+  patients: T[],
+  opts: {
+    userId: string;
+    email: string | null;
+    phone: string | null;
+    displayName: string;
+    newId: () => string;
+    issueToken: () => string;
+  }
+): { patients: T[]; person: T } {
+  const now = new Date().toISOString();
+  let person = patients.find(
     (p) =>
       p.active !== false &&
       personMatch(p, opts.email, opts.phone, opts.userId)
   );
-  const now = new Date().toISOString();
-  if (!patient) {
-    const created = {
-      id: pack.newId('pat'),
+  if (!person) {
+    person = {
+      id: opts.newId(),
       code: `P${Date.now().toString(36).slice(-5).toUpperCase()}`,
       name: opts.displayName,
       email: opts.email || undefined,
@@ -358,35 +337,42 @@ async function joinClinic(opts: {
       active: true,
       created_at: now,
       updated_at: now,
-    };
-    patient = created as (typeof pack.store.patients)[number];
-    pack.store.patients = [...(pack.store.patients || []), patient];
+    } as T;
+    patients = [...patients, person];
   }
-  if (!patient.portal_token) {
-    patient.portal_token = pack.issue(opts.company.id);
-  }
-  linkPlatformUserId(patient, opts.userId);
-  if (opts.email && !patient.email) patient.email = opts.email;
-  if (opts.phone && !patient.phone) patient.phone = opts.phone;
-  const pi = pack.store.patients.findIndex((p) => p.id === patient!.id);
-  if (pi >= 0) pack.store.patients[pi] = patient;
-  await saveMeta(opts.company.id, pack.write(opts.company.meta, pack.store));
+  if (!person.portal_token) person.portal_token = opts.issueToken();
+  linkPlatformUserId(person, opts.userId);
+  if (opts.email && !person.email) person.email = opts.email;
+  if (opts.phone && !person.phone) person.phone = opts.phone;
+  const pi = patients.findIndex((p) => p.id === person!.id);
+  if (pi >= 0) patients[pi] = person;
+  return { patients, person };
+}
 
-  const brand =
-    (pack.store.settings as { brand_name?: string } | undefined)?.brand_name ||
-    opts.company.name;
+async function finishClinicJoin(opts: {
+  company: CompanyRow;
+  profile: Awaited<ReturnType<typeof ensureB2cProfile>>;
+  kind: 'physio' | 'dental' | 'medical' | 'psychiatry';
+  path: string;
+  brand: string;
+  person: ClinicPerson;
+  email: string | null;
+  phone: string | null;
+}) {
+  const token = opts.person.portal_token;
+  if (!token) throw new Error('Could not issue a patient portal');
   const caps: B2cCapability[] = ['book', 'track', 'messages', 'review', 'kyc'];
   const membership = {
     kind: opts.kind,
     company_id: opts.company.id,
     company_name: opts.company.name,
-    brand,
-    portal_token: patient.portal_token,
-    portal_path: `/member/${pack.path}/${encodeURIComponent(patient.portal_token!)}`,
+    brand: opts.brand,
+    portal_token: token,
+    portal_path: `/member/${opts.path}/${encodeURIComponent(token)}`,
     checkin_path: null,
-    ref_id: patient.id,
-    ref_label: patient.name,
-    email: patient.email || opts.email,
+    ref_id: opts.person.id,
+    ref_label: opts.person.name,
+    email: opts.person.email || opts.email,
     capabilities: caps,
     active: true,
   };
@@ -396,23 +382,135 @@ async function joinClinic(opts: {
     kind: opts.kind,
     companyId: opts.company.id,
     companyName: opts.company.name,
-    brand,
-    refId: patient.id,
-    refLabel: patient.name,
-    email: patient.email || opts.email,
-    phone: patient.phone || opts.phone,
-    portalToken: patient.portal_token,
+    brand: opts.brand,
+    refId: opts.person.id,
+    refLabel: opts.person.name,
+    email: opts.person.email || opts.email,
+    phone: opts.person.phone || opts.phone,
+    portalToken: token,
     portalPath: membership.portal_path,
     capabilities: caps,
   });
   return {
-    membership: next.memberships.find(
-      (m) => m.company_id === opts.company.id && m.kind === opts.kind
-    ) || next.memberships[0],
+    membership:
+      next.memberships.find(
+        (m) => m.company_id === opts.company.id && m.kind === opts.kind
+      ) || next.memberships[0],
     already: false,
-    brand,
+    brand: opts.brand,
     profile: next,
   };
+}
+
+async function joinClinic(opts: {
+  company: CompanyRow;
+  profile: Awaited<ReturnType<typeof ensureB2cProfile>>;
+  userId: string;
+  email: string | null;
+  phone: string | null;
+  displayName: string;
+  kind: 'physio' | 'dental' | 'medical' | 'psychiatry';
+}) {
+  const shared = {
+    userId: opts.userId,
+    email: opts.email,
+    phone: opts.phone,
+    displayName: opts.displayName,
+  };
+
+  if (opts.kind === 'physio') {
+    const store = readPhysiographFromMetadata(opts.company.meta);
+    const { patients, person } = upsertClinicPatient(store.patients || [], {
+      ...shared,
+      newId: () => newPhysioId('pat'),
+      issueToken: () => issuePhysioToken(opts.company.id),
+    });
+    store.patients = patients;
+    await saveMeta(
+      opts.company.id,
+      writePhysiographToMetadata(opts.company.meta, store)
+    );
+    return finishClinicJoin({
+      company: opts.company,
+      profile: opts.profile,
+      kind: 'physio',
+      path: 'physiograph',
+      brand: store.settings?.brand_name || opts.company.name,
+      person,
+      email: opts.email,
+      phone: opts.phone,
+    });
+  }
+
+  if (opts.kind === 'dental') {
+    const store = readDentalgraphFromMetadata(opts.company.meta);
+    const { patients, person } = upsertClinicPatient(store.patients || [], {
+      ...shared,
+      newId: () => newDentalId('pat'),
+      issueToken: () => issueDentalPatientPortalToken(opts.company.id),
+    });
+    store.patients = patients;
+    await saveMeta(
+      opts.company.id,
+      writeDentalgraphToMetadata(opts.company.meta, store)
+    );
+    return finishClinicJoin({
+      company: opts.company,
+      profile: opts.profile,
+      kind: 'dental',
+      path: 'dentalgraph',
+      brand: store.settings?.brand_name || opts.company.name,
+      person,
+      email: opts.email,
+      phone: opts.phone,
+    });
+  }
+
+  if (opts.kind === 'medical') {
+    const store = readMedicalgraphFromMetadata(opts.company.meta);
+    const { patients, person } = upsertClinicPatient(store.patients || [], {
+      ...shared,
+      newId: () => newMedicalId('pat'),
+      issueToken: () => issueMedicalToken(opts.company.id),
+    });
+    store.patients = patients;
+    await saveMeta(
+      opts.company.id,
+      writeMedicalgraphToMetadata(opts.company.meta, store)
+    );
+    return finishClinicJoin({
+      company: opts.company,
+      profile: opts.profile,
+      kind: 'medical',
+      path: 'medicalgraph',
+      brand: store.settings?.brand_name || opts.company.name,
+      person,
+      email: opts.email,
+      phone: opts.phone,
+    });
+  }
+
+  const store = readPsychiatrygraphFromMetadata(opts.company.meta);
+  const { patients, person } = upsertClinicPatient(store.patients || [], {
+    ...shared,
+    newId: () => newPsychiatryId('pat'),
+    issueToken: () => issuePsychiatryToken(opts.company.id),
+  });
+  store.patients = patients;
+  await saveMeta(
+    opts.company.id,
+    writePsychiatrygraphToMetadata(opts.company.meta, store)
+  );
+  return finishClinicJoin({
+    company: opts.company,
+    profile: opts.profile,
+    kind: 'psychiatry',
+    path: 'psychiatrygraph',
+    brand: store.settings?.brand_name || opts.company.name,
+    person,
+    email: opts.email,
+    phone: opts.phone,
+  });
 }
 
 async function joinHire(opts: {
