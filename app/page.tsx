@@ -1050,8 +1050,6 @@ export default function LandingPage() {
 
       <ReplaceStackDiagram />
 
-      <RoiCalculator />
-
       {/* ═══════════ SYSTEMS GRID ═══════════ */}
       <section id="systems" className="relative sa-anchor border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28">
         <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
@@ -1770,12 +1768,14 @@ export default function LandingPage() {
 
       <SecurityStrip />
 
-      <IndustriesStrip />
-
       <SuperCubeStory />
 
       {/* ═══════════ PRICING + REFERRAL (same site) ═══════════ */}
       <HomePricing />
+
+      <RoiCalculator />
+
+      <IndustriesStrip />
 
       {/* ═══════════ AUDIENCES ═══════════ */}
       <section id="audiences" className="sa-anchor border-t border-slate-200 bg-[#f8fafc] py-20 sm:py-28">

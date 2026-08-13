@@ -81,8 +81,9 @@ const LINKS: NavLink[] = [
   {
     id: 'industries',
     label: 'Industries',
-    href: '/industries',
-    group: 'product',
+    section: 'industries',
+    href: '/#industries',
+    group: 'pricing',
   },
   { id: 'demo', label: 'Demo', href: '/demo', group: 'try' },
 ];
@@ -96,6 +97,7 @@ const SPY_SECTIONS = [
   'packaging',
   'pricing',
   'roi',
+  'industries',
 ] as const;
 
 function prefersReducedMotion() {
