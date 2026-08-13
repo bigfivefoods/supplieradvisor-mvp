@@ -79,7 +79,7 @@ function AppShellInner({
     <div className="flex min-h-[100dvh] bg-sa-bg w-full max-w-[100vw] overflow-x-clip">
       {!hideChrome && (
         <aside
-          className={`hidden md:flex flex-col flex-shrink-0 border-r border-sa-border bg-sa-surface sticky top-0 h-[100dvh] overflow-hidden z-20 transition-[width] duration-200 ease-out ${asideWidth}`}
+          className={`hidden md:flex flex-col flex-shrink-0 bg-sa-surface sticky top-0 h-[100dvh] overflow-hidden z-20 transition-[width] duration-200 ease-out ${asideWidth}`}
         >
           <Sidebar />
         </aside>
@@ -117,8 +117,8 @@ function AppShellInner({
             aria-label="Close menu"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          <div className="absolute left-0 top-0 bottom-0 w-[min(18rem,88vw)] bg-sa-surface shadow-2xl flex flex-col z-10 pointer-events-auto pt-safe pb-safe border-r border-sa-border">
-            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-sa-border shrink-0">
+          <div className="absolute left-0 top-0 bottom-0 w-[min(18rem,88vw)] bg-sa-surface shadow-2xl flex flex-col z-10 pointer-events-auto pt-safe pb-safe">
+            <div className="flex items-center justify-between gap-2 px-4 py-3 shrink-0">
               <Link
                 href={skin.homeHref}
                 onClick={() => setIsMobileMenuOpen(false)}

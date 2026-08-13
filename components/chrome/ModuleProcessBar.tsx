@@ -105,7 +105,7 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
   };
 
   return (
-    <div className="border-b border-neutral-200/90 bg-white/95 backdrop-blur-md shadow-sm dark:border-neutral-800 dark:bg-neutral-950/90">
+    <div className="bg-white/95 backdrop-blur-md dark:bg-neutral-950/90">
       <div className="px-2 sm:px-4 md:px-6 lg:px-8 xl:px-10 max-w-screen-2xl 2xl:max-w-[90rem] mx-auto">
         <div className="flex items-center gap-1 sm:gap-2 md:gap-3 min-h-[48px] sm:min-h-[52px] py-1.5">
           {onOpenMobileMenu && (
@@ -209,10 +209,7 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
                         );
                       })}
                       {segIdx < segments.length - 1 ? (
-                        <span
-                          className="mx-1 h-5 w-px bg-neutral-200 shrink-0 hidden md:block"
-                          aria-hidden
-                        />
+                        <span className="mx-1 hidden md:block w-1 shrink-0" aria-hidden />
                       ) : null}
                     </div>
                   ))}
@@ -230,7 +227,7 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
             )}
           </div>
 
-          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0 pl-1 sm:pl-2 border-l border-neutral-200 dark:border-slate-700">
+          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0 pl-1 sm:pl-2">
             <button
               type="button"
               onClick={openSam}

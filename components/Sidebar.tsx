@@ -303,7 +303,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
   if (isCollapsed) {
     return (
       <div className="flex h-full flex-col bg-white">
-        <div className="flex flex-col items-center border-b border-neutral-100 p-3">
+        <div className="flex flex-col items-center p-3">
           <Link href={skin.homeHref || homePath || '/dashboard'} title={skin.name} className="block">
             <Image
               src="/sa-logo.png"
@@ -351,9 +351,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     <div className="flex h-full flex-col bg-white">
       {/* Brand + switch company under logo/wordmark; mobile drawer has no toggle */}
       <div
-        className={`border-b border-neutral-100 ${
-          forceExpanded ? 'p-4' : 'p-5'
-        }`}
+        className={forceExpanded ? 'p-4' : 'p-5'}
       >
         {!forceExpanded && (
           <Link
@@ -448,7 +446,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
               </div>
 
               {mod.sub.length > 0 && isExpanded && (
-                <div className="ml-5 mt-0.5 space-y-0.5 border-l border-neutral-100 pl-2">
+                <div className="ml-5 mt-0.5 space-y-0.5 pl-2">
                   {(() => {
                     // Prefer fine-grained `section` headers (e.g. Govern · Reports).
                     // Fall back to role `group` only when multiple groups remain
