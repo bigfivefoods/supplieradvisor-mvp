@@ -15,6 +15,7 @@ import { indexBrandPerson } from '@/lib/b2c/directory';
 import type { B2cCapability, B2cMembership, B2cMembershipKind } from '@/lib/b2c/types';
 import {
   detectCompanyModules,
+  hasConsumerDesk,
   hasMetaModule,
   walletModulesForCompany,
 } from '@/lib/b2c/company-modules';
@@ -165,9 +166,12 @@ export async function acceptBrandJoin(opts: {
   const workspace = await loadBusinessWorkspaceSummary(opts.userId).catch(
     () => null
   );
-  if (workspace && isOperatorCompany(workspace, company.id)) {
+  const theyOperate = Boolean(
+    workspace && isOperatorCompany(workspace, company.id)
+  );
+  if (theyOperate && !hasConsumerDesk(company.meta)) {
     throw new Error(
-      `${company.name} is a company you operate. Open it from Switch to business — the wallet is only for brands you use as a customer.`
+      `${company.name} is a company you operate. Open it from Switch to business. Link it here only if you also use it as a member (gym, clinic or hire).`
     );
   }
   let profile = await ensureB2cProfile(opts.userId, {
@@ -196,7 +200,7 @@ export async function acceptBrandJoin(opts: {
     ...ctx,
     profile,
     brand,
-    card: true,
+    card: !theyOperate,
   });
   profile = account.profile;
 

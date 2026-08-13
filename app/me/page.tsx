@@ -54,6 +54,8 @@ import type { B2cHireJourney } from '@/lib/b2c/hire-journeys';
 import { toast } from 'sonner';
 import EnablePushButton from '@/components/pwa/EnablePushButton';
 import { B2cLinkBusiness } from '@/components/b2c/B2cLinkBusiness';
+import { setSelectedCompanyId } from '@/lib/containers/company';
+import { defaultHomePathForRole } from '@/lib/business/permissions';
 import {
   groupWalletAccounts,
   primaryPortal,
@@ -290,7 +292,7 @@ function MeAppInner() {
   const memberships = useMemo(
     () =>
       (profile?.memberships || []).filter(
-        (m) => m && !ownedCompanyIds.has(m.company_id)
+        (m) => m && !(ownedCompanyIds.has(m.company_id) && m.kind === 'account')
       ),
     [profile, ownedCompanyIds]
   );
@@ -438,6 +440,18 @@ function MeAppInner() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const openOwnedWorkspace = (companyId: number, brand: string) => {
+    const role = businesses.find((b) => b.id === companyId)?.role;
+    setSelectedCompanyId(companyId, { name: brand });
+    try {
+      localStorage.setItem('saWorkspace', 'business');
+      window.dispatchEvent(new Event('sa:company-changed'));
+    } catch {
+      /* private mode */
+    }
+    router.push(defaultHomePathForRole(role));
   };
 
   const unlinkCompany = async (companyId: number, brand: string) => {
@@ -662,7 +676,7 @@ function MeAppInner() {
               </p>
               <p className="mt-1 text-[12px] text-slate-500">
                 {joinOwned
-                  ? 'This is a company you already operate. Open it from Switch to business — the wallet is only for brands you use as a customer.'
+                  ? `You operate ${joinPreviewBrand || joinBrand || 'this business'}. Link it here as a member if you also train, book or hire there — desk work stays under the building icon.`
                   : `Accept to add this business to your personal wallet. Then you can manage this account — book, shop, subscriptions and records they share with you.${
                       joinModules.length
                         ? ` This link includes ${moduleLabels(joinModules)}.`
@@ -670,14 +684,6 @@ function MeAppInner() {
                     }`}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {joinOwned ? (
-                  <Link
-                    href="/dashboard/select-company"
-                    className="rounded-2xl bg-[#0077b6] px-4 py-2.5 text-sm font-black text-white"
-                  >
-                    Open workspace
-                  </Link>
-                ) : (
                 <button
                   type="button"
                   disabled={joinBusy || !joinCompany}
@@ -686,11 +692,20 @@ function MeAppInner() {
                 >
                   {joinBusy
                     ? 'Linking…'
-                    : joinAlready
-                      ? `Refresh ${joinPreviewBrand || joinBrand || 'this account'}`
-                      : `Accept & link ${joinPreviewBrand || joinBrand || 'this business'}`}
+                    : joinOwned
+                      ? `Link as member`
+                      : joinAlready
+                        ? `Refresh ${joinPreviewBrand || joinBrand || 'this account'}`
+                        : `Accept & link ${joinPreviewBrand || joinBrand || 'this business'}`}
                 </button>
-                )}
+                {joinOwned ? (
+                  <Link
+                    href="/dashboard/select-company"
+                    className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700"
+                  >
+                    Open workspace
+                  </Link>
+                ) : null}
                 <button
                   type="button"
                   disabled={joinBusy}
@@ -991,9 +1006,9 @@ function MeAppInner() {
       {tab === 'memberships' && (
         <div className="space-y-3">
           <p className="rounded-2xl bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-            Your wallet is for brands you use as a customer — gym, clinic,
-            hire, shop. Companies you run are under the building icon, not
-            here.
+            Your wallet is the member side — book, check in, records. You can
+            train at a gym you also run. Operating that company is the
+            building icon.
           </p>
           <B2cLinkBusiness
             linkedCompanyIds={linkedCompanyIds}
@@ -1019,6 +1034,7 @@ function MeAppInner() {
                 const gym = a.cards.find((c) => c.kind === 'gym');
                 const hire = a.cards.find((c) => c.kind === 'hire');
                 const bookCard = clinic || gym || hire;
+                const theyOperate = ownedCompanyIds.has(a.company_id);
                 return (
                   <li
                     key={a.company_id}
@@ -1037,6 +1053,7 @@ function MeAppInner() {
                           </p>
                           <p className="text-[11px] text-white/85">
                             {moduleLabels(a.kinds)}
+                            {theyOperate ? ' · you also run this' : ''}
                           </p>
                         </div>
                       </div>
@@ -1048,12 +1065,22 @@ function MeAppInner() {
                       >
                         Open <ExternalLink className="h-3.5 w-3.5" />
                       </Link>
-                      <Link
-                        href={shopHref(a.company_id)}
-                        className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-black text-slate-800"
-                      >
-                        <Store className="h-3.5 w-3.5" /> Shop
-                      </Link>
+                      {theyOperate ? (
+                        <button
+                          type="button"
+                          onClick={() => openOwnedWorkspace(a.company_id, a.brand)}
+                          className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-black text-slate-800"
+                        >
+                          Workspace
+                        </button>
+                      ) : (
+                        <Link
+                          href={shopHref(a.company_id)}
+                          className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-black text-slate-800"
+                        >
+                          <Store className="h-3.5 w-3.5" /> Shop
+                        </Link>
+                      )}
                       {bookCard ? (
                         <Link
                           href={membershipBookHref(bookCard)}

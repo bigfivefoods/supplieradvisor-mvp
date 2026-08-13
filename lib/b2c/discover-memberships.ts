@@ -57,14 +57,14 @@ export async function discoverAndAttachMemberships(
     email?: string | null;
     phone?: string | null;
     platformUserId: string;
-    /** Companies this person operates — never attach those to the wallet. */
+    /** Companies this person operates — skip generic CRM account cards. */
     skipCompanyIds?: number[];
   }
 ): Promise<{ profile: B2cProfile; attached: number }> {
   const email = opts.email?.trim().toLowerCase() || profile.email || null;
   const phone = opts.phone || profile.phone || null;
   if (!email && !phone) return { profile, attached: 0 };
-  const skip = new Set(
+  const operated = new Set(
     (opts.skipCompanyIds || []).filter((id) => Number.isFinite(id) && id > 0)
   );
 
@@ -125,13 +125,14 @@ export async function discoverAndAttachMemberships(
   let next = profile;
 
   for (const companyId of companyIds) {
-    if (skip.has(companyId)) continue;
     const company = await loadCompany(companyId);
     if (!company) continue;
+    const theyOperate = operated.has(companyId);
 
-    // CRM customer → wallet account at this company (shop / subscriptions).
+    // CRM customer → wallet account. Skip if they operate this company
+    // (owner email matching CRM is not "I shop here").
     const companyCrm = crmRows.filter((r) => Number(r.profile_id) === companyId);
-    for (const crm of companyCrm) {
+    if (!theyOperate) for (const crm of companyCrm) {
       const before = next.memberships.length;
       next = upsertMembership(next, {
         kind: 'account',
@@ -152,11 +153,13 @@ export async function discoverAndAttachMemberships(
       if (next.memberships.length > before) attached += 1;
     }
 
-    // Hire — only if this company actually runs HireAdvisor
+    // Hire — only if this company actually runs HireAdvisor.
+    // Owner email on CRM is not "I hire from my own desk".
     const hasHire = hasMetaModule(company.meta, 'hiregraph');
-    let hireStore = hasHire ? readHiregraphFromMetadata(company.meta) : null;
+    let hireStore =
+      hasHire && !theyOperate ? readHiregraphFromMetadata(company.meta) : null;
     let hireDirty = false;
-    if (hasHire && hireStore) {
+    if (hasHire && hireStore && !theyOperate) {
       for (const crm of companyCrm) {
         if (!personMatch(crm, email, phone) && email) {
           // already selected by query
@@ -340,7 +343,7 @@ export async function discoverAndAttachMemberships(
         m.active !== false
     );
     if (already || !entry.portal_path) continue;
-    if (skip.has(entry.company_id)) continue;
+    if (operated.has(entry.company_id) && entry.kind === 'account') continue;
     next = upsertMembership(next, membershipFromDirectory(entry));
     attached += 1;
   }

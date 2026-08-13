@@ -18,6 +18,7 @@ type BrandHit = {
   modules_label?: string;
   already: boolean;
   owned?: boolean;
+  can_member?: boolean;
 };
 
 export function B2cLinkBusiness({
@@ -78,7 +79,7 @@ export function B2cLinkBusiness({
   };
 
   const link = async (hit: BrandHit) => {
-    if (hit.owned) {
+    if (hit.owned && !hit.can_member) {
       openWorkspace(hit);
       return;
     }
@@ -116,8 +117,9 @@ export function B2cLinkBusiness({
         <h2 className="text-sm font-black">Find a business</h2>
       </div>
       <p className="mt-1 text-xs text-slate-500">
-        Search brands you use as a customer — gym, clinic, hire desk or shop.
-        Companies you operate stay under the building icon, not in this wallet.
+        Search brands you use as a customer. If you also run the gym or clinic,
+        you can still link as a member — desk work stays under the building
+        icon.
       </p>
       <div className="relative mt-3">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -152,24 +154,37 @@ export function B2cLinkBusiness({
                       .join(' · ')}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  disabled={linking === hit.company_id}
-                  onClick={() => void link(hit)}
-                  className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-black disabled:opacity-50 ${
-                    hit.owned || already
-                      ? 'border border-slate-200 bg-white text-slate-700'
-                      : 'bg-[#0077b6] text-white'
-                  }`}
-                >
-                  {linking === hit.company_id
-                    ? 'Linking…'
-                    : hit.owned
-                      ? 'Open workspace'
-                      : already
-                        ? 'Sync'
-                        : 'Link'}
-                </button>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  {hit.owned ? (
+                    <button
+                      type="button"
+                      onClick={() => openWorkspace(hit)}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-700"
+                    >
+                      Workspace
+                    </button>
+                  ) : null}
+                  {!(hit.owned && !hit.can_member) ? (
+                    <button
+                      type="button"
+                      disabled={linking === hit.company_id}
+                      onClick={() => void link(hit)}
+                      className={`rounded-full px-3 py-1.5 text-[11px] font-black disabled:opacity-50 ${
+                        already
+                          ? 'border border-slate-200 bg-white text-slate-700'
+                          : 'bg-[#0077b6] text-white'
+                      }`}
+                    >
+                      {linking === hit.company_id
+                        ? 'Linking…'
+                        : already
+                          ? 'Sync'
+                          : hit.owned
+                            ? 'Link as member'
+                            : 'Link'}
+                    </button>
+                  ) : null}
+                </div>
               </li>
             );
           })}

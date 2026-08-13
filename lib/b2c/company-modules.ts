@@ -39,6 +39,28 @@ export function walletModulesForCompany(
   return advisor.length ? (['account', ...advisor] as B2cMembershipKind[]) : ['account'];
 }
 
+/** Desks you can use as a customer even if you also operate the company. */
+export const CONSUMER_MEMBERSHIP_KINDS: B2cMembershipKind[] = [
+  'gym',
+  'hire',
+  'physio',
+  'dental',
+  'medical',
+  'psychiatry',
+];
+
+export function isConsumerMembershipKind(
+  kind: B2cMembershipKind | string | null | undefined
+): boolean {
+  return CONSUMER_MEMBERSHIP_KINDS.includes(kind as B2cMembershipKind);
+}
+
+export function hasConsumerDesk(
+  meta: Record<string, unknown> | null | undefined
+): boolean {
+  return detectCompanyModules(meta).some((k) => isConsumerMembershipKind(k));
+}
+
 export function moduleLabels(kinds: Array<B2cMembershipKind | string>): string {
   const labels: Record<string, string> = {
     account: 'Account',

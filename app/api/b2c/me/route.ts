@@ -84,23 +84,37 @@ export async function GET(request: NextRequest) {
       /* discover is best-effort */
     }
 
-    // Companies you operate belong in Switch to business, not the wallet
+    // Operator CRM "account" cards are not memberships. Keep gym / clinic /
+    // hire if they also use that desk as a customer.
     const ownedSet = new Set(ownedIds);
-    const hadOwned = (profile.memberships || []).some(
-      (m) => m.active !== false && ownedSet.has(m.company_id)
+    const hadOwnerAccount = (profile.memberships || []).some(
+      (m) =>
+        m.active !== false &&
+        ownedSet.has(m.company_id) &&
+        m.kind === 'account'
     );
-    if (hadOwned) {
-      for (const id of ownedIds) {
-        profile = removeMembershipsForCompany(profile, id);
-      }
+    if (hadOwnerAccount) {
+      profile = {
+        ...profile,
+        memberships: (profile.memberships || []).map((m) =>
+          ownedSet.has(m.company_id) && m.kind === 'account'
+            ? { ...m, active: false }
+            : m
+        ),
+      };
       await saveB2cProfile(profile);
     }
 
     const memberships = (profile.memberships || [])
-      .filter((m) => m.active !== false && !ownedSet.has(m.company_id))
+      .filter(
+        (m) =>
+          m.active !== false &&
+          !(ownedSet.has(m.company_id) && m.kind === 'account')
+      )
       .map((m) => ({
         ...m,
         kind_label: kindLabel(m.kind),
+        you_operate: ownedSet.has(m.company_id),
       }));
 
     let activity: Awaited<ReturnType<typeof buildB2cActivity>> = [];
