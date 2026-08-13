@@ -59,18 +59,14 @@ const SCENES = [
 
 function ShotWindow({
   path,
-  className,
   children,
 }: {
   path: string;
-  className?: string;
   children: ReactNode;
 }) {
   return (
-    <div
-      className={`overflow-hidden rounded-xl border border-white/20 bg-white shadow-[0_18px_40px_-12px_rgba(0,0,0,0.55)] ${className ?? ''}`}
-    >
-      <div className="flex items-center gap-1.5 border-b border-slate-100 bg-slate-50 px-2.5 py-1.5">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-white/20 bg-white shadow-[0_18px_40px_-12px_rgba(0,0,0,0.55)]">
+      <div className="flex shrink-0 items-center gap-1.5 border-b border-slate-100 bg-slate-50 px-2.5 py-1.5">
         <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
         <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
@@ -78,7 +74,7 @@ function ShotWindow({
           {path}
         </span>
       </div>
-      <div className="bg-gradient-to-br from-slate-50 via-white to-sky-50/50 p-2.5">
+      <div className="min-h-0 flex-1 bg-gradient-to-br from-slate-50 via-white to-sky-50/50 p-3">
         {children}
       </div>
     </div>
@@ -100,73 +96,60 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function HeroProductShots({ sceneId }: { sceneId: (typeof SCENES)[number]['id'] }) {
   return (
-    <div className="relative h-[168px] w-full lg:h-[188px]">
+    <div className="grid h-[208px] w-full grid-cols-2 gap-3 xl:h-[228px] xl:gap-3.5">
       {sceneId === 'b2c' ? (
         <>
-          <ShotWindow
-            path="app.supplieradvisor.com/me"
-            className="absolute bottom-0 left-0 w-[68%] -rotate-2"
-          >
+          <ShotWindow path="app.supplieradvisor.com/me">
             <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
               SA Member
             </div>
-            <div className="mt-0.5 text-[12px] font-black text-slate-900">Your wallet</div>
-            <div className="mt-2 grid grid-cols-3 gap-1.5">
+            <div className="mt-0.5 text-[13px] font-black text-slate-900">Your wallet</div>
+            <div className="mt-2.5 grid grid-cols-3 gap-1.5">
               <Metric label="Gym" value="Tue 06:00" />
               <Metric label="Hire" value="Out" />
               <Metric label="Clinic" value="Thu" />
             </div>
-            <div className="mt-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-semibold text-slate-600">
+            <div className="mt-2.5 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-semibold text-slate-600">
               Next: VUKA spin · check in on the phone
             </div>
           </ShotWindow>
-          <div className="absolute bottom-1 right-3 w-[88px] rotate-3 overflow-hidden rounded-[1.15rem] border-[3px] border-slate-800 bg-slate-900 p-1 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.55)] lg:w-[96px]">
-            <div className="overflow-hidden rounded-[0.85rem] bg-white">
-              <div className="bg-[#00b4d8] px-2 py-2 text-white">
-                <div className="text-[7px] font-black uppercase tracking-widest text-cyan-100">
-                  Member
-                </div>
-                <div className="text-[11px] font-black leading-tight">Shop · book</div>
-              </div>
-              <div className="space-y-1 p-1.5">
-                {['Spin · 06:00', 'Physio slot', 'Hire drill'].map((row) => (
-                  <div
-                    key={row}
-                    className="rounded-md bg-slate-50 px-1.5 py-1 text-[8px] font-bold text-slate-700"
-                  >
-                    {row}
-                  </div>
-                ))}
-              </div>
+          <ShotWindow path="app.supplieradvisor.com/me/shop">
+            <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
+              Shop · book
             </div>
-          </div>
+            <div className="mt-0.5 text-[13px] font-black text-slate-900">On your phone</div>
+            <div className="mt-2.5 space-y-1.5">
+              {['Spin · 06:00', 'Physio slot', 'Hire drill'].map((row) => (
+                <div
+                  key={row}
+                  className="rounded-md bg-white px-2 py-1.5 text-[11px] font-bold text-slate-700 ring-1 ring-slate-100"
+                >
+                  {row}
+                </div>
+              ))}
+            </div>
+          </ShotWindow>
         </>
       ) : sceneId === 'b2g' ? (
         <>
-          <ShotWindow
-            path="app.supplieradvisor.com/network"
-            className="absolute bottom-0 left-0 w-[70%] -rotate-2"
-          >
+          <ShotWindow path="app.supplieradvisor.com/network">
             <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
               Network
             </div>
-            <div className="mt-0.5 text-[12px] font-black text-slate-900">
+            <div className="mt-0.5 text-[13px] font-black text-slate-900">
               Public procurement
             </div>
-            <div className="mt-2 grid grid-cols-3 gap-1.5">
+            <div className="mt-2.5 grid grid-cols-3 gap-1.5">
               <Metric label="Open" value="14" />
               <Metric label="Awarded" value="6" />
               <Metric label="Audit" value="Ready" />
             </div>
           </ShotWindow>
-          <ShotWindow
-            path="app.supplieradvisor.com/sheq"
-            className="absolute bottom-3 right-0 w-[62%] rotate-2"
-          >
+          <ShotWindow path="app.supplieradvisor.com/sheq">
             <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
               SHEQ · proof
             </div>
-            <div className="mt-2 space-y-1">
+            <div className="mt-2.5 space-y-1.5">
               {[
                 { n: 'NCR-041', s: 'Closed' },
                 { n: 'CAPA pack', s: 'Export' },
@@ -174,7 +157,7 @@ function HeroProductShots({ sceneId }: { sceneId: (typeof SCENES)[number]['id'] 
               ].map((r) => (
                 <div
                   key={r.n}
-                  className="flex items-center justify-between rounded-md bg-white px-2 py-1 text-[10px] ring-1 ring-slate-100"
+                  className="flex items-center justify-between rounded-md bg-white px-2 py-1.5 text-[11px] ring-1 ring-slate-100"
                 >
                   <span className="font-semibold text-slate-700">{r.n}</span>
                   <span className="font-black text-emerald-600">{r.s}</span>
@@ -185,31 +168,25 @@ function HeroProductShots({ sceneId }: { sceneId: (typeof SCENES)[number]['id'] 
         </>
       ) : (
         <>
-          <ShotWindow
-            path="app.supplieradvisor.com/operations"
-            className="absolute bottom-0 left-0 w-[70%] -rotate-2"
-          >
+          <ShotWindow path="app.supplieradvisor.com/operations">
             <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
               Operations
             </div>
-            <div className="mt-0.5 text-[12px] font-black text-slate-900">
+            <div className="mt-0.5 text-[13px] font-black text-slate-900">
               One chain. Live.
             </div>
-            <div className="mt-2 grid grid-cols-4 gap-1">
+            <div className="mt-2.5 grid grid-cols-4 gap-1.5">
               <Metric label="POs" value="12" />
               <Metric label="In" value="4" />
               <Metric label="WIP" value="7" />
               <Metric label="Ship" value="9" />
             </div>
           </ShotWindow>
-          <ShotWindow
-            path="app.supplieradvisor.com/suppliers"
-            className="absolute bottom-3 right-0 w-[62%] rotate-2"
-          >
+          <ShotWindow path="app.supplieradvisor.com/suppliers">
             <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
               Suppliers
             </div>
-            <div className="mt-2 space-y-1">
+            <div className="mt-2.5 space-y-1.5">
               {[
                 { n: 'Cape Harvest', s: '99%' },
                 { n: 'Atlas Logistics', s: '97%' },
@@ -217,7 +194,7 @@ function HeroProductShots({ sceneId }: { sceneId: (typeof SCENES)[number]['id'] 
               ].map((r) => (
                 <div
                   key={r.n}
-                  className="flex items-center justify-between rounded-md bg-white px-2 py-1 text-[10px] ring-1 ring-slate-100"
+                  className="flex items-center justify-between rounded-md bg-white px-2 py-1.5 text-[11px] ring-1 ring-slate-100"
                 >
                   <span className="truncate font-semibold text-slate-700">{r.n}</span>
                   <span className="font-black tabular-nums text-[#00b4d8]">{r.s}</span>
@@ -286,13 +263,13 @@ export default function HeroAudienceStage() {
         aria-hidden
       />
       <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-36 bg-gradient-to-t from-slate-950/40 to-transparent lg:block"
+        className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-52 bg-gradient-to-t from-slate-950/40 to-transparent lg:block"
         aria-hidden
       />
 
       <div className="relative z-[1] mx-auto flex min-h-[100svh] w-full max-w-screen-2xl">
         {/* Product shots sit on the photo, not in the text column */}
-        <div className="pointer-events-none absolute bottom-6 left-4 hidden w-[min(32rem,46%)] lg:block lg:bottom-8 lg:left-10">
+        <div className="pointer-events-none absolute bottom-6 left-4 hidden w-[min(42rem,54%)] lg:block lg:bottom-8 lg:left-10 xl:w-[min(46rem,56%)]">
           <HeroProductShots sceneId={scene.id} />
         </div>
 
