@@ -228,6 +228,8 @@ async function joinGym(opts: {
       membership_status: 'active',
       start_date: now.slice(0, 10),
       active: true,
+      created_at: now,
+      updated_at: now,
     };
     store.clients = [...(store.clients || []), client];
   }
@@ -240,6 +242,8 @@ async function joinGym(opts: {
   if (!client.name) client.name = opts.displayName;
   client.invite_status = 'accepted';
   client.invite_accepted_at = now;
+  client.updated_at = now;
+  if (!client.created_at) client.created_at = now;
   const ci = store.clients.findIndex((c) => c.id === client!.id);
   if (ci >= 0) store.clients[ci] = client;
   const meta = writeFitgraphToMetadata(opts.company.meta, store);
@@ -352,6 +356,8 @@ async function joinClinic(opts: {
       phone: opts.phone || undefined,
       status: 'active',
       active: true,
+      created_at: now,
+      updated_at: now,
     };
     patient = created as (typeof pack.store.patients)[number];
     pack.store.patients = [...(pack.store.patients || []), patient];
