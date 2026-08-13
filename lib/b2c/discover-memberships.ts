@@ -57,11 +57,16 @@ export async function discoverAndAttachMemberships(
     email?: string | null;
     phone?: string | null;
     platformUserId: string;
+    /** Companies this person operates — never attach those to the wallet. */
+    skipCompanyIds?: number[];
   }
 ): Promise<{ profile: B2cProfile; attached: number }> {
   const email = opts.email?.trim().toLowerCase() || profile.email || null;
   const phone = opts.phone || profile.phone || null;
   if (!email && !phone) return { profile, attached: 0 };
+  const skip = new Set(
+    (opts.skipCompanyIds || []).filter((id) => Number.isFinite(id) && id > 0)
+  );
 
   const supabase = getSupabaseServer();
   let crmRows: Array<{
@@ -120,6 +125,7 @@ export async function discoverAndAttachMemberships(
   let next = profile;
 
   for (const companyId of companyIds) {
+    if (skip.has(companyId)) continue;
     const company = await loadCompany(companyId);
     if (!company) continue;
 
@@ -334,6 +340,7 @@ export async function discoverAndAttachMemberships(
         m.active !== false
     );
     if (already || !entry.portal_path) continue;
+    if (skip.has(entry.company_id)) continue;
     next = upsertMembership(next, membershipFromDirectory(entry));
     attached += 1;
   }

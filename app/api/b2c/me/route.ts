@@ -19,7 +19,10 @@ import {
 import { kindLabel } from '@/lib/b2c/link-token';
 import { discoverAndAttachMemberships } from '@/lib/b2c/discover-memberships';
 import { buildB2cActivity } from '@/lib/b2c/activity';
-import { loadBusinessWorkspaceSummary } from '@/lib/b2c/workspace';
+import {
+  loadBusinessWorkspaceSummary,
+  operatorCompanyIds,
+} from '@/lib/b2c/workspace';
 import { buildHireJourneys } from '@/lib/b2c/hire-journeys';
 import { verificationView } from '@/lib/b2c/identity';
 
@@ -53,12 +56,25 @@ export async function GET(request: NextRequest) {
     if (qPhone && !profile.phone) profile.phone = qPhone;
     if (qName && !profile.full_name) profile.full_name = qName;
 
+    let business = {
+      has_business: false,
+      business_count: 0,
+      businesses: [] as Array<{ id: number; name: string; role?: string | null }>,
+    };
+    try {
+      business = await loadBusinessWorkspaceSummary(userId);
+    } catch {
+      /* operator check is optional */
+    }
+    const ownedIds = operatorCompanyIds(business);
+
     // Auto-attach hire/gym/clinic books that already have this email or phone
     try {
       const found = await discoverAndAttachMemberships(profile, {
         email: profile.email || qEmail,
         phone: profile.phone || qPhone,
         platformUserId: userId,
+        skipCompanyIds: ownedIds,
       });
       if (found.attached > 0) {
         profile = found.profile;
@@ -68,8 +84,20 @@ export async function GET(request: NextRequest) {
       /* discover is best-effort */
     }
 
+    // Companies you operate belong in Switch to business, not the wallet
+    const ownedSet = new Set(ownedIds);
+    const hadOwned = (profile.memberships || []).some(
+      (m) => m.active !== false && ownedSet.has(m.company_id)
+    );
+    if (hadOwned) {
+      for (const id of ownedIds) {
+        profile = removeMembershipsForCompany(profile, id);
+      }
+      await saveB2cProfile(profile);
+    }
+
     const memberships = (profile.memberships || [])
-      .filter((m) => m.active !== false)
+      .filter((m) => m.active !== false && !ownedSet.has(m.company_id))
       .map((m) => ({
         ...m,
         kind_label: kindLabel(m.kind),
@@ -92,17 +120,6 @@ export async function GET(request: NextRequest) {
     }
 
     const verification = verificationView(profile);
-
-    let business = {
-      has_business: false,
-      business_count: 0,
-      businesses: [] as Array<{ id: number; name: string; role?: string | null }>,
-    };
-    try {
-      business = await loadBusinessWorkspaceSummary(userId);
-    } catch {
-      /* operator check is optional */
-    }
 
     return NextResponse.json({
       success: true,

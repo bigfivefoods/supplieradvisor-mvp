@@ -10,6 +10,10 @@ import {
   walletModulesForCompany,
   moduleLabels,
 } from '@/lib/b2c/company-modules';
+import {
+  loadBusinessWorkspaceSummary,
+  operatorCompanyIds,
+} from '@/lib/b2c/workspace';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -65,6 +69,10 @@ export async function GET(request: NextRequest) {
         .filter((m) => m.active !== false)
         .map((m) => m.company_id)
     );
+    const workspace = await loadBusinessWorkspaceSummary(userId).catch(
+      () => null
+    );
+    const owned = new Set(operatorCompanyIds(workspace || undefined));
 
     const brands = rows
       .map((row) => {
@@ -82,8 +90,11 @@ export async function GET(request: NextRequest) {
           city: row.city ? String(row.city) : null,
           industry: row.industry ? String(row.industry) : null,
           modules,
-          modules_label: moduleLabels(modules),
+          modules_label: owned.has(id)
+            ? 'Your company'
+            : moduleLabels(modules),
           already: linked.has(id),
+          owned: owned.has(id),
         };
       })
       .filter(Boolean);

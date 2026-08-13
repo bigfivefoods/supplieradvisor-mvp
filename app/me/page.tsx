@@ -179,6 +179,7 @@ function MeAppInner() {
   const [joinPreviewBrand, setJoinPreviewBrand] = useState(joinBrand);
   const [joinModules, setJoinModules] = useState<string[]>([]);
   const [joinAlready, setJoinAlready] = useState(false);
+  const [joinOwned, setJoinOwned] = useState(false);
 
   // Deep links: ?tab=shop|checkin|memberships|account  ?link=
   useEffect(() => {
@@ -274,6 +275,7 @@ function MeAppInner() {
         setJoinPreviewBrand(String(data.brand));
         if (Array.isArray(data.modules)) setJoinModules(data.modules.map(String));
         setJoinAlready(Boolean(data.already));
+        setJoinOwned(Boolean(data.you_operate));
       })
       .catch(() => {});
     return () => {
@@ -281,9 +283,16 @@ function MeAppInner() {
     };
   }, [isJoin, joinCompany, joinKind]);
 
+  const ownedCompanyIds = useMemo(
+    () => new Set(businesses.map((b) => b.id)),
+    [businesses]
+  );
   const memberships = useMemo(
-    () => (profile?.memberships || []).filter((m) => m),
-    [profile]
+    () =>
+      (profile?.memberships || []).filter(
+        (m) => m && !ownedCompanyIds.has(m.company_id)
+      ),
+    [profile, ownedCompanyIds]
   );
   const accounts = useMemo(
     () => groupWalletAccounts(memberships),
@@ -652,14 +661,23 @@ function MeAppInner() {
                 {joinPreviewBrand || joinBrand || 'This brand'}
               </p>
               <p className="mt-1 text-[12px] text-slate-500">
-                Accept to add this business to your personal wallet. Then you
-                can manage this account — book, shop, subscriptions and
-                records they share with you.
-                {joinModules.length
-                  ? ` This link includes ${moduleLabels(joinModules)}.`
-                  : ''}
+                {joinOwned
+                  ? 'This is a company you already operate. Open it from Switch to business — the wallet is only for brands you use as a customer.'
+                  : `Accept to add this business to your personal wallet. Then you can manage this account — book, shop, subscriptions and records they share with you.${
+                      joinModules.length
+                        ? ` This link includes ${moduleLabels(joinModules)}.`
+                        : ''
+                    }`}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
+                {joinOwned ? (
+                  <Link
+                    href="/dashboard/select-company"
+                    className="rounded-2xl bg-[#0077b6] px-4 py-2.5 text-sm font-black text-white"
+                  >
+                    Open workspace
+                  </Link>
+                ) : (
                 <button
                   type="button"
                   disabled={joinBusy || !joinCompany}
@@ -672,6 +690,7 @@ function MeAppInner() {
                       ? `Refresh ${joinPreviewBrand || joinBrand || 'this account'}`
                       : `Accept & link ${joinPreviewBrand || joinBrand || 'this business'}`}
                 </button>
+                )}
                 <button
                   type="button"
                   disabled={joinBusy}
@@ -972,9 +991,9 @@ function MeAppInner() {
       {tab === 'memberships' && (
         <div className="space-y-3">
           <p className="rounded-2xl bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-            This is your wallet. Each business is one account. Bookings,
-            medical notes and hire stay with that company — they only share
-            this login.
+            Your wallet is for brands you use as a customer — gym, clinic,
+            hire, shop. Companies you run are under the building icon, not
+            here.
           </p>
           <B2cLinkBusiness
             linkedCompanyIds={linkedCompanyIds}

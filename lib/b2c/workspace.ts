@@ -90,3 +90,18 @@ export async function loadBusinessWorkspaceSummary(
     return EMPTY;
   }
 }
+
+export function operatorCompanyIds(
+  summary: BusinessWorkspaceSummary | null | undefined
+): number[] {
+  return (summary?.businesses || [])
+    .map((b) => Number(b.id))
+    .filter((id) => Number.isFinite(id) && id > 0);
+}
+
+export function isOperatorCompany(
+  summary: BusinessWorkspaceSummary | null | undefined,
+  companyId: number
+): boolean {
+  return operatorCompanyIds(summary).includes(Number(companyId));
+}

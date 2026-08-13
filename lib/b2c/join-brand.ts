@@ -25,6 +25,10 @@ import {
   type WalletCompany,
 } from '@/lib/b2c/load-company';
 import {
+  isOperatorCompany,
+  loadBusinessWorkspaceSummary,
+} from '@/lib/b2c/workspace';
+import {
   gymCheckinPath,
   issueClientPortalToken,
   newId as newFitId,
@@ -157,6 +161,14 @@ export async function acceptBrandJoin(opts: {
   const company = await loadCompany(opts.companyId);
   if (!company) {
     throw new Error('That brand could not be found');
+  }
+  const workspace = await loadBusinessWorkspaceSummary(opts.userId).catch(
+    () => null
+  );
+  if (workspace && isOperatorCompany(workspace, company.id)) {
+    throw new Error(
+      `${company.name} is a company you operate. Open it from Switch to business — the wallet is only for brands you use as a customer.`
+    );
   }
   let profile = await ensureB2cProfile(opts.userId, {
     email: opts.email,

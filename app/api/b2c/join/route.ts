@@ -7,6 +7,10 @@ import { requireVerifiedUser, legacyPrivyFrom } from '@/lib/auth/api-auth';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { acceptBrandJoin, previewBrandJoin } from '@/lib/b2c/join-brand';
 import { loadB2cProfile } from '@/lib/b2c/profile-store';
+import {
+  isOperatorCompany,
+  loadBusinessWorkspaceSummary,
+} from '@/lib/b2c/workspace';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,6 +27,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Brand not found' }, { status: 404 });
     }
     let already = false;
+    let you_operate = false;
     try {
       const auth = await requireVerifiedUser(request, {
         legacyPrivyUserId: legacyPrivyFrom(request),
@@ -36,12 +41,19 @@ export async function GET(request: NextRequest) {
               (m) => m.active !== false && m.company_id === companyId
             )
           );
+          const workspace = await loadBusinessWorkspaceSummary(userId);
+          you_operate = isOperatorCompany(workspace, companyId);
         }
       }
     } catch {
       /* preview is public */
     }
-    return NextResponse.json({ success: true, ...preview, already });
+    return NextResponse.json({
+      success: true,
+      ...preview,
+      already,
+      you_operate,
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Preview failed' },
