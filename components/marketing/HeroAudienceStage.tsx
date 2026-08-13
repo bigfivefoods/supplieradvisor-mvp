@@ -93,10 +93,10 @@ export default function HeroAudienceStage() {
       />
 
       <div className="relative z-[1] mx-auto flex min-h-svh w-full max-w-screen-2xl items-end px-4 pb-8 pt-24 sm:px-6 sm:pb-12 lg:items-center lg:px-10 lg:pb-16 lg:pt-24">
-        <div className="w-full max-w-xl rounded-[1.75rem] bg-slate-950/78 p-6 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.65)] ring-1 ring-white/15 backdrop-blur-xl sm:p-8 lg:p-9">
-          <h1 className="text-[2.1rem] font-black leading-[1.06] tracking-[-0.04em] text-white sm:text-4xl md:text-5xl lg:text-[2.85rem]">
+        <div className="w-full max-w-3xl rounded-[1.75rem] bg-slate-950/78 p-6 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.65)] ring-1 ring-white/15 backdrop-blur-xl sm:p-8 lg:p-10">
+          <h1 className="text-4xl font-black leading-[1.02] tracking-[-0.05em] text-white sm:text-5xl md:text-6xl lg:text-7xl">
             The world&apos;s most trusted
-            <span className="mt-1.5 block text-[#67e8f9]">
+            <span className="mt-2 block text-[#67e8f9]">
               supplier advice — and OS.
             </span>
           </h1>
@@ -105,7 +105,7 @@ export default function HeroAudienceStage() {
             <p className="font-mono text-[11px] font-bold tracking-[0.28em] text-cyan-200">
               {scene.code}
             </p>
-            <h2 className="mt-1.5 text-xl font-black tracking-tight text-white sm:text-2xl">
+            <h2 className="mt-1.5 text-lg font-black tracking-tight text-white sm:text-xl">
               {scene.title}
             </h2>
             <p className="mt-2.5 text-[15px] leading-relaxed text-slate-100 sm:text-base">
