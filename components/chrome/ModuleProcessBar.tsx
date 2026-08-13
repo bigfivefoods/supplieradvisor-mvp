@@ -105,7 +105,8 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
   };
 
   return (
-    <div className="border-b border-neutral-200/90 bg-white/95 backdrop-blur-md shadow-sm">
+    <div className="px-2 pt-1.5 sm:px-3 md:px-4">
+      <div className="rounded-2xl border border-sky-200/70 bg-gradient-to-r from-sky-50 via-cyan-50/90 to-white shadow-sm backdrop-blur-md dark:border-sky-200/40 dark:from-sky-100 dark:via-white dark:to-cyan-100">
       <div className="px-2 sm:px-4 md:px-6 lg:px-8 xl:px-10 max-w-screen-2xl 2xl:max-w-[90rem] mx-auto">
         <div className="flex items-center gap-1 sm:gap-2 md:gap-3 min-h-[48px] sm:min-h-[52px] py-1.5">
           {onOpenMobileMenu && (
@@ -180,17 +181,17 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
                                   ? `${seg.group}: ${step.name}`
                                   : step.name)
                               }
-                              className={`inline-flex items-center gap-1 sm:gap-1.5 rounded-full border px-2 sm:px-2.5 py-1.5 min-h-[36px] sm:min-h-[40px] text-[10px] sm:text-[11px] font-semibold transition-all whitespace-nowrap touch-manipulation ${
+                              className={`inline-flex items-center gap-1 sm:gap-1.5 rounded-2xl border px-2 sm:px-2.5 py-1.5 min-h-[36px] sm:min-h-[40px] text-[10px] sm:text-[11px] font-semibold transition-all whitespace-nowrap touch-manipulation ${
                                 active
-                                  ? 'border-[#00b4d8] bg-[#00b4d8] text-white shadow-sm'
-                                  : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/40 hover:text-[#0077b6]'
+                                  ? 'border-sky-300 bg-sky-400/90 text-white shadow-sm dark:border-sky-200 dark:bg-gradient-to-r dark:from-sky-300 dark:via-cyan-200 dark:to-white dark:text-sky-950'
+                                  : 'border-sky-100 bg-white/80 text-neutral-600 hover:border-sky-300/60 hover:text-[#0077b6] dark:border-sky-200/50 dark:bg-white/70 dark:text-slate-700'
                               }`}
                             >
                               <span
-                                className={`flex h-4 w-4 items-center justify-center rounded text-[9px] font-black shrink-0 ${
+                                className={`flex h-4 w-4 items-center justify-center rounded-md text-[9px] font-black shrink-0 ${
                                   active
-                                    ? 'bg-white/20 text-white'
-                                    : 'bg-[#00b4d8]/10 text-[#00b4d8]'
+                                    ? 'bg-white/25 text-white dark:bg-sky-600/15 dark:text-sky-800'
+                                    : 'bg-sky-100 text-sky-500'
                                 }`}
                               >
                                 {hasGroups ? i + 1 : globalIndex + 1}
@@ -230,33 +231,34 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
             )}
           </div>
 
-          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0 pl-1 sm:pl-2 border-l border-neutral-200 dark:border-slate-700">
+          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0 pl-1 sm:pl-2 border-l border-sky-200/60 dark:border-sky-200/50">
             <button
               type="button"
               onClick={openSam}
-              className="relative p-2 sm:p-2.5 min-h-[40px] min-w-[40px] rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/50 dark:hover:bg-sky-900/40 text-sky-700 dark:text-sky-300 inline-flex items-center justify-center touch-manipulation"
+              className="relative p-2 sm:p-2.5 min-h-[40px] min-w-[40px] rounded-2xl bg-sky-100/80 hover:bg-sky-200/70 text-sky-700 inline-flex items-center justify-center touch-manipulation dark:bg-white/70 dark:hover:bg-white dark:text-sky-800"
               aria-label="Ask SAM — Grok assistant"
               title="Ask SAM (Grok)"
             >
               <Bot className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 flex h-1.5 w-1.5 rounded-full bg-emerald-400 ring-1 ring-white dark:ring-slate-900" />
+              <span className="absolute top-1.5 right-1.5 flex h-1.5 w-1.5 rounded-full bg-emerald-400 ring-1 ring-white" />
             </button>
             <button
               type="button"
               onClick={openPalette}
-              className="p-2 sm:p-2.5 min-h-[40px] min-w-[40px] rounded-xl hover:bg-neutral-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 inline-flex items-center justify-center touch-manipulation"
+              className="p-2 sm:p-2.5 min-h-[40px] min-w-[40px] rounded-2xl hover:bg-sky-100/80 text-slate-600 inline-flex items-center justify-center touch-manipulation dark:hover:bg-white/80 dark:text-slate-700"
               aria-label="Open command palette"
               title="Search (⌘K)"
             >
               <Search className="w-4 h-4" />
             </button>
-            <ThemeToggle className="!h-9 !w-9 !rounded-xl" />
-            <span className="hidden xl:inline text-[10px] font-black uppercase tracking-[0.12em] text-neutral-400">
+            <ThemeToggle className="!h-9 !w-9 !rounded-2xl" />
+            <span className="hidden xl:inline text-[10px] font-black uppercase tracking-[0.12em] text-neutral-400 dark:text-slate-500">
               Actions
             </span>
             <NotificationBell />
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -201,13 +201,49 @@ export function enabledAdvisorSkins(opts: {
   enabledModules?: Record<string, boolean> | null;
   packIds?: string[] | null;
 }): AdvisorSkin[] {
+  return subscribedAdvisorSkins(opts);
+}
+
+/**
+ * Advisor skins this company is actually subscribed to.
+ * Packs win. If no packs, only modules that are on while at least one
+ * Advisor is off (owner customised). Default “all modules on” does not
+ * count as every Advisor subscription.
+ */
+export function subscribedAdvisorSkins(opts: {
+  enabledModules?: Record<string, boolean> | null;
+  packIds?: string[] | null;
+}): AdvisorSkin[] {
   const mods = opts.enabledModules || {};
   const packs = new Set((opts.packIds || []).map(String));
-  return ADVISOR_SKINS.filter((s) => {
-    const byModule = s.moduleIds.some((id) => mods[id] === true);
-    const byPack = s.packIds.some((id) => packs.has(id));
-    return byModule || byPack;
-  });
+
+  const fromPacks = ADVISOR_SKINS.filter((s) =>
+    s.packIds.some((id) => packs.has(id))
+  );
+  if (fromPacks.length > 0) return fromPacks;
+
+  const fromModules = ADVISOR_SKINS.filter((s) =>
+    s.moduleIds.some((id) => mods[id] === true)
+  );
+  const anyAdvisorOff = ADVISOR_SKINS.some((s) =>
+    s.moduleIds.every((id) => mods[id] === false)
+  );
+  if (anyAdvisorOff && fromModules.length > 0) return fromModules;
+
+  return [];
+}
+
+export function isBrandModeAllowed(
+  mode: BrandMode | null | undefined,
+  opts: {
+    enabledModules?: Record<string, boolean> | null;
+    packIds?: string[] | null;
+  }
+): boolean {
+  if (!mode || mode === 'core' || mode === 'module' || mode === 'supplier') {
+    return true;
+  }
+  return subscribedAdvisorSkins(opts).some((s) => s.id === mode);
 }
 
 /** User chrome branding preference (independent of light/dark). */
@@ -266,7 +302,18 @@ export function resolveAdvisorSkin(opts: {
   }
 
   if (mode !== 'module') {
-    return skinById(mode) || SUPPLIER_SKIN;
+    const locked = skinById(mode);
+    if (
+      locked &&
+      locked.id !== 'supplier' &&
+      isBrandModeAllowed(mode, {
+        enabledModules: opts.enabledModules,
+        packIds: opts.packIds,
+      })
+    ) {
+      return locked;
+    }
+    // Stored lock is for an unsubscribed Advisor — fall back to follow-module
   }
 
   const fromPath = skinForPath(opts.pathname);

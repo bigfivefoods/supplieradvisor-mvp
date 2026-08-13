@@ -85,10 +85,16 @@ export default function JoinServiceMemberPage() {
       setDone(true);
       const portalLink = String(data.portal_link || '');
       const portalToken = String(data.portal_token || '');
+      const appLink = String(data.member_app_link || '');
       const mod = String(data.module || moduleParam || 'fitgraph');
-      if (portalLink) {
+      const dest =
+        appLink ||
+        (portalToken ? `/me?link=${encodeURIComponent(portalToken)}` : '') ||
+        portalLink;
+      if (dest) {
         window.setTimeout(() => {
-          window.location.href = portalLink;
+          if (dest.startsWith('http')) window.location.href = dest;
+          else router.push(dest);
         }, 900);
       } else if (portalToken) {
         window.setTimeout(() => {

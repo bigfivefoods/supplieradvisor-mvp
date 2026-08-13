@@ -192,8 +192,8 @@ function SettingsInner() {
             <div>
               <p className="text-sm font-bold text-slate-900">Module branding</p>
               <p className="mt-1 text-xs text-slate-500 max-w-xl">
-                Follow the Advisor you are in, stay on SupplierAdvisor, or lock
-                HireAdvisor / GymAdvisor / clinic skins as the chrome theme.
+                Stay on SupplierAdvisor, follow the Advisor you are in, or lock
+                a theme for an Advisor pack this company has subscribed to.
               </p>
               <div className="mt-3">
                 <ThemeToggle variant="full" />

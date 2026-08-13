@@ -5,10 +5,11 @@ import { Moon, Sun, Monitor, Palette, Check } from 'lucide-react';
 import { useTheme } from '@/components/theme/ThemeProvider';
 import type { ThemeMode } from '@/lib/theme/theme';
 import {
-  ADVISOR_SKINS,
   SUPPLIER_SKIN,
+  subscribedAdvisorSkins,
   type BrandMode,
 } from '@/lib/brand/advisor-skins';
+import { useCompanyRole } from '@/lib/business/useCompanyRole';
 
 type Props = {
   /** compact = icon popover; segmented = appearance only; full = both sections */
@@ -22,27 +23,25 @@ const APPEARANCE: Array<{ id: ThemeMode; label: string; Icon: typeof Sun }> = [
   { id: 'system', label: 'System', Icon: Monitor },
 ];
 
-const BRAND_OPTIONS: Array<{ id: BrandMode; label: string; hint: string; swatch: string }> =
-  [
-    {
-      id: 'core',
-      label: 'SupplierAdvisor',
-      hint: 'Always Core OS branding',
-      swatch: SUPPLIER_SKIN.brand,
-    },
-    {
-      id: 'module',
-      label: 'Follow module',
-      hint: 'Match the Advisor you are in',
-      swatch: 'linear-gradient(135deg,#0891b2,#7c3aed,#16a34a)',
-    },
-    ...ADVISOR_SKINS.map((s) => ({
-      id: s.id as BrandMode,
-      label: s.name,
-      hint: s.tagline,
-      swatch: s.brand,
-    })),
-  ];
+const CORE_BRAND_OPTIONS: Array<{
+  id: BrandMode;
+  label: string;
+  hint: string;
+  swatch: string;
+}> = [
+  {
+    id: 'core',
+    label: 'SupplierAdvisor',
+    hint: 'Always Core OS branding',
+    swatch: SUPPLIER_SKIN.brand,
+  },
+  {
+    id: 'module',
+    label: 'Follow module',
+    hint: 'Match a subscribed Advisor you are in',
+    swatch: 'linear-gradient(135deg,#0891b2,#7c3aed,#16a34a)',
+  },
+];
 
 /**
  * Theme + Advisor brand picker.
@@ -54,8 +53,29 @@ export default function ThemeToggle({
   className = '',
 }: Props) {
   const { mode, resolved, setMode, brandMode, setBrandMode } = useTheme();
+  const { enabledModules, packaging } = useCompanyRole();
+  const subscribed = subscribedAdvisorSkins({
+    enabledModules,
+    packIds: packaging?.packIds || null,
+  });
+  const brandOptions = [
+    ...CORE_BRAND_OPTIONS,
+    ...subscribed.map((s) => ({
+      id: s.id as BrandMode,
+      label: s.name,
+      hint: `Subscribed · ${s.tagline}`,
+      swatch: s.brand,
+    })),
+  ];
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+
+  // Drop a locked skin if the company no longer subscribes to that Advisor
+  useEffect(() => {
+    if (!brandMode || brandMode === 'core' || brandMode === 'module') return;
+    if (subscribed.some((s) => s.id === brandMode)) return;
+    setBrandMode('module');
+  }, [brandMode, subscribed, setBrandMode]);
 
   useEffect(() => {
     if (!open) return;
@@ -75,7 +95,7 @@ export default function ThemeToggle({
 
   const appearanceRow = (
     <div
-      className="inline-flex items-center gap-0.5 rounded-full border border-slate-200 bg-slate-50/90 p-0.5 dark:border-neutral-700 dark:bg-black/80"
+      className="inline-flex items-center gap-0.5 rounded-2xl border border-sky-200/70 bg-sky-50/80 p-0.5 dark:border-sky-200/60 dark:bg-gradient-to-r dark:from-white dark:via-sky-50 dark:to-cyan-50"
       role="group"
       aria-label="Colour theme"
     >
@@ -104,7 +124,7 @@ export default function ThemeToggle({
 
   const brandList = (
     <ul className="space-y-0.5">
-      {BRAND_OPTIONS.map((opt) => {
+      {brandOptions.map((opt) => {
         const active = brandMode === opt.id;
         return (
           <li key={opt.id}>
@@ -153,7 +173,7 @@ export default function ThemeToggle({
         title="Theme & branding"
         aria-expanded={open}
         aria-haspopup="true"
-        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-all hover:border-[var(--sa-brand)]/50 hover:text-[var(--sa-brand-deep)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-sky-200/80 bg-white/90 text-slate-600 shadow-sm transition-all hover:border-sky-300 hover:text-sky-700 dark:border-sky-200 dark:bg-white dark:text-sky-800"
       >
         {resolved === 'dark' ? (
           <Moon className="h-4 w-4" />
@@ -170,6 +190,11 @@ export default function ThemeToggle({
           <p className="mb-1.5 mt-3 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">
             <Palette className="h-3 w-3" /> Module branding
           </p>
+          {subscribed.length === 0 ? (
+            <p className="mb-2 text-[11px] text-slate-500 dark:text-neutral-400">
+              Lock a product theme after you subscribe to an Advisor pack.
+            </p>
+          ) : null}
           <div className="max-h-64 overflow-y-auto pr-0.5">{brandList}</div>
         </div>
       ) : null}

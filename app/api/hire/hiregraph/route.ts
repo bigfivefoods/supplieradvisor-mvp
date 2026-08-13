@@ -9,6 +9,7 @@ import {
   HIRE_REQUIREMENT_LABELS,
   deleteEntity,
   hireCustomerPortalPath,
+  hireCustomerPortalUrl,
   issueCustomerPortal,
   readHiregraphFromMetadata,
   summariseHiregraph,
@@ -26,6 +27,16 @@ import {
   HIRE_PLATFORM_COMMISSION_PCT,
   HIRE_SUPPLIER_COMMISSION_PCT,
 } from '@/lib/hire/commercial';
+import {
+  hireInviteWhatsAppText,
+  memberAppLink,
+  whatsappShareUrl,
+} from '@/lib/b2c/member-app';
+import {
+  hireCustomerInviteEmailHtml,
+  hireCustomerInviteEmailText,
+} from '@/lib/b2c/hire-invite-email';
+import { getAppUrl, getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 
 export const runtime = 'nodejs';
 
@@ -297,19 +308,74 @@ export async function POST(req: NextRequest) {
       await saveStore(companyId, meta, next);
       denormaliseNames(next, coreSuppliers, coreCustomers);
       const path = hireCustomerPortalPath(issued.portal.portal_token);
+      const origin = getAppUrl();
+      const appLink = memberAppLink(issued.portal.portal_token);
+      const portalLink = hireCustomerPortalUrl(origin, issued.portal.portal_token);
+      const brand =
+        next.settings?.brand_name || customer.name || 'Hire marketplace';
+      const wa = whatsappShareUrl(
+        hireInviteWhatsAppText({
+          customerName: customer.name,
+          brand,
+          appLink,
+        })
+      );
+
+      let emailWarning: string | undefined;
+      const sendEmail = body.send_email !== false && Boolean(customer.email);
+      if (sendEmail && customer.email) {
+        try {
+          const resend = getResend();
+          const { error: emailError } = await resend.emails.send({
+            from: getResendFrom(),
+            replyTo: getResendReplyTo(),
+            to: customer.email,
+            subject: `${brand} — open SA Member to hire gear`,
+            html: hireCustomerInviteEmailHtml({
+              customerName: customer.name,
+              brand,
+              appLink,
+              portalLink,
+            }),
+            text: hireCustomerInviteEmailText({
+              customerName: customer.name,
+              brand,
+              appLink,
+              portalLink,
+            }),
+          });
+          if (emailError) {
+            emailWarning = `Portal issued but email failed: ${emailError.message}`;
+          }
+        } catch (e: unknown) {
+          emailWarning =
+            e instanceof Error
+              ? `Portal issued but email failed: ${e.message}`
+              : 'Portal issued but email failed';
+        }
+      }
+
       return NextResponse.json({
         success: true,
         store: next,
         portal: issued.portal,
         portal_token: issued.portal.portal_token,
         portal_path: path,
+        member_app_link: appLink,
+        whatsapp_link: wa,
         coreSuppliers,
         coreCustomers,
         summary: summariseHiregraph(next, {
           coreSupplierCount: coreSuppliers.length,
           coreCustomerCount: coreCustomers.length,
         }),
-        message: `Portal issued for ${customer.name}`,
+        email_sent: sendEmail && !emailWarning,
+        warning: emailWarning,
+        message: emailWarning
+          ? emailWarning
+          : sendEmail
+            ? `Portal issued and invite emailed to ${customer.email}`
+            : `Portal issued for ${customer.name}`,
       });
     }
 

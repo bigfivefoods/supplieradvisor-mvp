@@ -40,6 +40,7 @@ import {
   type B2cTab,
 } from '@/components/b2c/B2cAppChrome';
 import { toast } from 'sonner';
+import EnablePushButton from '@/components/pwa/EnablePushButton';
 
 type Membership = {
   id: string;
@@ -61,6 +62,17 @@ type Profile = {
   full_name?: string | null;
   phone?: string | null;
   memberships: Membership[];
+};
+
+type ActivityItem = {
+  id: string;
+  kind: string;
+  tone: string;
+  title: string;
+  subtitle: string;
+  href: string;
+  when?: string | null;
+  badge?: string | null;
 };
 
 function kindIcon(kind: string) {
@@ -95,6 +107,7 @@ function MeAppInner() {
   const { ready, authenticated, user, login, logout } = usePrivy();
   const [tab, setTab] = useState<B2cTab>('home');
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [linkToken, setLinkToken] = useState('');
   const [busy, setBusy] = useState(false);
@@ -138,10 +151,17 @@ function MeAppInner() {
     }
     setLoading(true);
     try {
-      const res = await fetch('/api/b2c/me', { cache: 'no-store' });
+      const q = new URLSearchParams();
+      const em = extractEmailFromPrivyUser(user);
+      if (em) q.set('email', em);
+      const res = await fetch(
+        `/api/b2c/me${q.toString() ? `?${q}` : ''}`,
+        { cache: 'no-store' }
+      );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Load failed');
       setProfile(data.profile);
+      setActivity(Array.isArray(data.activity) ? data.activity : []);
       setName(data.profile?.full_name || '');
       setPhone(data.profile?.phone || '');
       setEmail(
@@ -465,6 +485,46 @@ function MeAppInner() {
             </button>
           </div>
 
+          {activity.length > 0 ? (
+            <section>
+              <h2 className="mb-2 text-sm font-black text-slate-900">
+                Up next
+              </h2>
+              <ul className="space-y-2">
+                {activity.slice(0, 8).map((a) => (
+                  <li key={a.id}>
+                    <Link
+                      href={a.href}
+                      className={`flex items-center gap-3 rounded-2xl border bg-white p-3 shadow-sm active:scale-[0.99] ${
+                        a.tone === 'alert' || a.tone === 'docs'
+                          ? 'border-amber-300'
+                          : 'border-slate-200'
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-black text-slate-900">
+                          {a.title}
+                        </p>
+                        <p className="truncate text-[11px] text-slate-500">
+                          {a.subtitle}
+                          {a.when
+                            ? ` · ${String(a.when).slice(0, 10)}`
+                            : ''}
+                        </p>
+                      </div>
+                      {a.badge ? (
+                        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
+                          {a.badge}
+                        </span>
+                      ) : null}
+                      <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
           <section>
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-sm font-black text-slate-900">Quick actions</h2>
@@ -785,6 +845,16 @@ function MeAppInner() {
               </p>
             </div>
           </div>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="text-sm font-black text-slate-900">Notifications</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Get reminded about hires, classes and check-in.
+            </p>
+            <div className="mt-3">
+              <EnablePushButton />
+            </div>
+          </section>
 
           <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="text-sm font-black text-slate-900">Profile</h2>

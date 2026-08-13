@@ -1,0 +1,274 @@
+/**
+ * Attach Advisor memberships when the logged-in person's email/phone
+ * matches Core CRM, gym clients or clinic patients.
+ */
+import { getSupabaseServer } from '@/lib/supabase/server-client';
+import {
+  emailsMatch,
+  phonesMatch,
+} from '@/lib/b2c/member-app';
+import {
+  hireCustomerPortalPath,
+  issueCustomerPortal,
+  readHiregraphFromMetadata,
+  writeHiregraphToMetadata,
+} from '@/lib/hire/hiregraph';
+import {
+  gymCheckinPath,
+  readFitgraphFromMetadata,
+  writeFitgraphToMetadata,
+} from '@/lib/fitness/fitgraph';
+import { readPhysiographFromMetadata } from '@/lib/clinic/physiograph';
+import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
+import { readMedicalgraphFromMetadata } from '@/lib/clinic/medicalgraph';
+import { readPsychiatrygraphFromMetadata } from '@/lib/clinic/psychiatrygraph';
+import { linkPlatformUserId } from '@/lib/messaging/link-platform-user';
+import type { B2cMembership, B2cProfile } from '@/lib/b2c/types';
+import { upsertMembership } from '@/lib/b2c/profile-store';
+
+type CompanyRow = {
+  id: number;
+  name: string;
+  meta: Record<string, unknown>;
+};
+
+async function loadCompany(companyId: number): Promise<CompanyRow | null> {
+  const supabase = getSupabaseServer();
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, trading_name, legal_name, company_name, name, metadata')
+    .eq('id', companyId)
+    .maybeSingle();
+  if (!data) return null;
+  const meta =
+    data.metadata && typeof data.metadata === 'object'
+      ? { ...(data.metadata as Record<string, unknown>) }
+      : {};
+  return {
+    id: Number(data.id),
+    name: String(
+      data.trading_name ||
+        data.legal_name ||
+        data.company_name ||
+        data.name ||
+        `Company #${data.id}`
+    ),
+    meta,
+  };
+}
+
+async function saveMeta(companyId: number, meta: Record<string, unknown>) {
+  const supabase = getSupabaseServer();
+  await supabase
+    .from('profiles')
+    .update({ metadata: meta, updated_at: new Date().toISOString() })
+    .eq('id', companyId);
+}
+
+function personMatch(
+  person: { email?: string | null; phone?: string | null },
+  email: string | null,
+  phone: string | null
+) {
+  return emailsMatch(person.email, email) || phonesMatch(person.phone, phone);
+}
+
+export async function discoverAndAttachMemberships(
+  profile: B2cProfile,
+  opts: {
+    email?: string | null;
+    phone?: string | null;
+    platformUserId: string;
+  }
+): Promise<{ profile: B2cProfile; attached: number }> {
+  const email = opts.email?.trim().toLowerCase() || profile.email || null;
+  const phone = opts.phone || profile.phone || null;
+  if (!email && !phone) return { profile, attached: 0 };
+
+  const supabase = getSupabaseServer();
+  let crmRows: Array<{
+    id: number;
+    profile_id: number;
+    trading_name?: string | null;
+    legal_name?: string | null;
+    contact_name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  }> = [];
+
+  if (email) {
+    const { data } = await supabase
+      .from('customers')
+      .select(
+        'id, profile_id, trading_name, legal_name, contact_name, email, phone'
+      )
+      .ilike('email', email)
+      .limit(40);
+    crmRows = (data || []) as typeof crmRows;
+  }
+
+  if (phone && phonesMatch(phone, phone)) {
+    const digits = String(phone).replace(/\D/g, '');
+    const tail = digits.slice(-9);
+    if (tail.length >= 7) {
+      const { data } = await supabase
+        .from('customers')
+        .select(
+          'id, profile_id, trading_name, legal_name, contact_name, email, phone'
+        )
+        .ilike('phone', `%${tail}`)
+        .limit(40);
+      for (const row of data || []) {
+        if (!crmRows.some((r) => r.id === row.id)) {
+          crmRows.push(row as (typeof crmRows)[number]);
+        }
+      }
+    }
+  }
+
+  const companyIds = new Set<number>();
+  for (const row of crmRows) {
+    if (row.profile_id) companyIds.add(Number(row.profile_id));
+  }
+
+  let attached = 0;
+  let next = profile;
+
+  for (const companyId of companyIds) {
+    const company = await loadCompany(companyId);
+    if (!company) continue;
+
+    // Hire — CRM customer on this company
+    const hireCrm = crmRows.filter((r) => Number(r.profile_id) === companyId);
+    let hireStore = readHiregraphFromMetadata(company.meta);
+    let hireDirty = false;
+    for (const crm of hireCrm) {
+      if (!personMatch(crm, email, phone) && email) {
+        // already selected by query
+      }
+      let portal = hireStore.customer_portals?.[String(crm.id)];
+      if (!portal?.portal_token || portal.active === false) {
+        const issued = issueCustomerPortal(hireStore, Number(crm.id), {
+          companyId,
+          invite_email: crm.email || email,
+        });
+        hireStore = issued.store;
+        portal = issued.portal;
+        hireDirty = true;
+      }
+      const brand = hireStore.settings?.brand_name || company.name;
+      const before = next.memberships.length;
+      next = upsertMembership(next, {
+        kind: 'hire',
+        company_id: companyId,
+        company_name: company.name,
+        brand,
+        portal_token: portal.portal_token,
+        portal_path: hireCustomerPortalPath(portal.portal_token),
+        checkin_path: null,
+        ref_id: String(crm.id),
+        ref_label: String(
+          crm.trading_name || crm.legal_name || crm.contact_name || crm.email
+        ),
+        email: crm.email || email,
+        capabilities: ['order', 'book', 'track', 'kyc', 'review'],
+        active: true,
+      });
+      if (next.memberships.length > before || true) {
+        attached += 1;
+      }
+    }
+    if (hireDirty) {
+      company.meta = writeHiregraphToMetadata(company.meta, hireStore);
+    }
+
+    // Gym
+    const fit = readFitgraphFromMetadata(company.meta);
+    const client = (fit.clients || []).find(
+      (c) => c.active !== false && personMatch(c, email, phone)
+    );
+    if (client?.portal_token) {
+      linkPlatformUserId(client, opts.platformUserId);
+      const ci = fit.clients.findIndex((c) => c.id === client.id);
+      if (ci >= 0) fit.clients[ci] = client;
+      company.meta = writeFitgraphToMetadata(company.meta, fit);
+      next = upsertMembership(next, {
+        kind: 'gym',
+        company_id: companyId,
+        company_name: company.name,
+        brand: fit.settings?.brand_name || company.name,
+        portal_token: client.portal_token,
+        portal_path: `/member/fitgraph/${encodeURIComponent(client.portal_token)}`,
+        checkin_path: fit.settings?.public_token
+          ? gymCheckinPath(fit.settings.public_token)
+          : null,
+        ref_id: client.id,
+        ref_label: client.name,
+        email: client.email || email,
+        capabilities: ['book', 'checkin', 'messages', 'review', 'track'],
+        active: true,
+      });
+      attached += 1;
+    }
+
+    // Clinics
+    const clinics: Array<{
+      kind: 'physio' | 'dental' | 'medical' | 'psychiatry';
+      path: string;
+      patients: Array<{
+        id: string;
+        name: string;
+        email?: string;
+        phone?: string;
+        portal_token?: string | null;
+        active?: boolean;
+      }>;
+    }> = [
+      {
+        kind: 'physio',
+        path: 'physiograph',
+        patients: readPhysiographFromMetadata(company.meta).patients || [],
+      },
+      {
+        kind: 'dental',
+        path: 'dentalgraph',
+        patients: readDentalgraphFromMetadata(company.meta).patients || [],
+      },
+      {
+        kind: 'medical',
+        path: 'medicalgraph',
+        patients: readMedicalgraphFromMetadata(company.meta).patients || [],
+      },
+      {
+        kind: 'psychiatry',
+        path: 'psychiatrygraph',
+        patients: readPsychiatrygraphFromMetadata(company.meta).patients || [],
+      },
+    ];
+    for (const clinic of clinics) {
+      const p = clinic.patients.find(
+        (x) => x.active !== false && personMatch(x, email, phone) && x.portal_token
+      );
+      if (!p?.portal_token) continue;
+      next = upsertMembership(next, {
+        kind: clinic.kind,
+        company_id: companyId,
+        company_name: company.name,
+        brand: company.name,
+        portal_token: p.portal_token,
+        portal_path: `/member/${clinic.path}/${encodeURIComponent(p.portal_token)}`,
+        checkin_path: null,
+        ref_id: p.id,
+        ref_label: p.name,
+        email: p.email || email,
+        capabilities: ['book', 'track', 'messages', 'review', 'kyc'],
+        active: true,
+      });
+      attached += 1;
+    }
+
+    await saveMeta(companyId, company.meta);
+  }
+
+  return { profile: next, attached };
+}

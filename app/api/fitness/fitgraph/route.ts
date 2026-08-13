@@ -470,6 +470,10 @@ export async function POST(request: NextRequest) {
         'Your gym';
       const invitedBy = String(body.invitedBy || body.invited_by || 'Your gym team');
       const inviteLink = buildServiceMemberInviteLink('fitgraph', inviteToken);
+      const { memberAppLink } = await import('@/lib/b2c/member-app');
+      const appLink = client.portal_token
+        ? memberAppLink(client.portal_token)
+        : memberAppLink(inviteToken);
 
       let emailWarning: string | undefined;
       try {
@@ -485,6 +489,7 @@ export async function POST(request: NextRequest) {
             invitedBy,
             inviteLink,
             module: 'fitgraph',
+            memberAppLink: appLink,
           }),
           text: serviceMemberInviteEmailText({
             inviteeName: client.name,
@@ -492,6 +497,7 @@ export async function POST(request: NextRequest) {
             invitedBy,
             inviteLink,
             module: 'fitgraph',
+            memberAppLink: appLink,
           }),
         });
         if (emailError) {
@@ -511,6 +517,7 @@ export async function POST(request: NextRequest) {
         analysis: analysis(store),
         invite_token: inviteToken,
         invite_link: inviteLink,
+        member_app_link: appLink,
         portal_token: client.portal_token,
         portal_link: buildServiceMemberPortalLink(
           'fitgraph',

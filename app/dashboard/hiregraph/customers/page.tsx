@@ -101,28 +101,20 @@ export default function HireCustomersPage() {
     const data = await post({
       action: 'issue_portal',
       crm_customer_id: crmId,
+      send_email: true,
     });
-    const path =
-      (data.portal_path as string) ||
-      (data.portal_token
-        ? hireCustomerPortalPath(String(data.portal_token))
-        : '');
-    if (path && typeof window !== 'undefined') {
-      const url = `${window.location.origin}${path}`;
-      // Also offer member-hub deep link that logs in then links
-      const hubUrl = `${window.location.origin}/me?link=${encodeURIComponent(
-        String(data.portal_token || path)
-      )}`;
-      try {
-        await navigator.clipboard.writeText(url);
-        toast.success(
-          'Portal issued — link copied. Customer can also log in at /me and paste it.'
-        );
-      } catch {
-        toast.success(`Portal: ${url} · Hub: ${hubUrl}`);
-      }
-    } else {
-      toast.success('Portal issued');
+    const appLink = String(data.member_app_link || '');
+    const wa = String(data.whatsapp_link || '');
+    const copy = appLink || `${window.location.origin}${data.portal_path || ''}`;
+    try {
+      if (copy) await navigator.clipboard.writeText(copy);
+    } catch {
+      /* ignore */
+    }
+    if (data.warning) toast.warning(String(data.warning));
+    else toast.success(String(data.message || 'SA Member invite ready'));
+    if (wa) {
+      window.open(wa, '_blank', 'noopener,noreferrer');
     }
   };
 

@@ -382,12 +382,14 @@ export async function POST(request: NextRequest) {
       resolved.module,
       portalToken!
     );
+    const { memberAppLink } = await import('@/lib/b2c/member-app');
 
     return NextResponse.json({
       success: true,
       message: 'Invitation accepted',
       portal_token: portalToken,
       portal_link: portalLink,
+      member_app_link: memberAppLink(portalToken!),
       module: resolved.module,
       business_name: resolved.businessName,
     });

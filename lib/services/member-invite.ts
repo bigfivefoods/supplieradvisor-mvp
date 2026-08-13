@@ -153,6 +153,7 @@ export function serviceMemberInviteEmailHtml(params: {
   invitedBy: string;
   inviteLink: string;
   module: ServiceMemberModule;
+  memberAppLink?: string | null;
 }): string {
   const inviteeName = params.inviteeName
     ? escapeHtml(String(params.inviteeName))
@@ -189,6 +190,11 @@ export function serviceMemberInviteEmailHtml(params: {
         Once you accept, you can ${benefits}.
       </p>
       <div style="text-align:center;margin:24px 0 20px;">
+        ${
+          params.memberAppLink
+            ? `<a href="${escapeHtml(params.memberAppLink)}" style="background:#0077b6;color:#fff;padding:16px 40px;border-radius:9999px;text-decoration:none;font-weight:700;font-size:16px;display:inline-block;margin-bottom:10px;">Open SA Member app →</a><br/>`
+            : ''
+        }
         <a href="${inviteLinkAttr}" style="background:#00b4d8;color:#fff;padding:16px 40px;border-radius:9999px;text-decoration:none;font-weight:700;font-size:16px;display:inline-block;">
           Accept invitation →
         </a>
@@ -219,6 +225,7 @@ export function serviceMemberInviteEmailText(params: {
   invitedBy: string;
   inviteLink: string;
   module: ServiceMemberModule;
+  memberAppLink?: string | null;
 }): string {
   const name = params.inviteeName ? String(params.inviteeName).trim() : '';
   const link = String(params.inviteLink || '').trim();
@@ -229,6 +236,10 @@ export function serviceMemberInviteEmailText(params: {
     '',
     `${params.invitedBy} at ${params.businessName} invited you as a ${role} on ${product}.`,
     '',
+    params.memberAppLink
+      ? `Open SA Member: ${params.memberAppLink}`
+      : '',
+    params.memberAppLink ? '' : '',
     'Accept your invitation (expires in 14 days):',
     link,
     '',

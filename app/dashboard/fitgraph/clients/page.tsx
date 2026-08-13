@@ -196,9 +196,9 @@ export default function ClientsPage() {
       });
       const tok = data?.portal_token as string | undefined;
       if (tok && typeof window !== 'undefined') {
-        const url = `${window.location.origin}/member/fitgraph/${encodeURIComponent(tok)}`;
+        const url = `${window.location.origin}/me?link=${encodeURIComponent(tok)}`;
         await navigator.clipboard.writeText(url);
-        toast.success('Member portal link copied — share so they can book open classes');
+        toast.success('SA Member app link copied — they log in and the gym is added');
       } else {
         toast.success('Member portal issued');
       }
@@ -219,7 +219,9 @@ export default function ClientsPage() {
         clientId: c.id,
         email: c.email,
       });
-      const link = data?.invite_link as string | undefined;
+      const link = String(
+        data?.member_app_link || data?.invite_link || ''
+      );
       if (link && typeof window !== 'undefined') {
         try {
           await navigator.clipboard.writeText(link);

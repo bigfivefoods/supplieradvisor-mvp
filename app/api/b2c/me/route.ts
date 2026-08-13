@@ -16,6 +16,8 @@ import {
   saveB2cProfile,
 } from '@/lib/b2c/profile-store';
 import { kindLabel } from '@/lib/b2c/link-token';
+import { discoverAndAttachMemberships } from '@/lib/b2c/discover-memberships';
+import { buildB2cActivity } from '@/lib/b2c/activity';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,9 +33,35 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    let profile = await loadB2cProfile(userId);
-    if (!profile) {
-      profile = await ensureB2cProfile(userId);
+    const qEmail = request.nextUrl.searchParams.get('email');
+    const qPhone = request.nextUrl.searchParams.get('phone');
+    const qName = request.nextUrl.searchParams.get('name');
+
+    let profile =
+      (await loadB2cProfile(userId)) ||
+      (await ensureB2cProfile(userId, {
+        email: qEmail,
+        phone: qPhone,
+        full_name: qName,
+      }));
+
+    if (qEmail && !profile.email) profile.email = qEmail;
+    if (qPhone && !profile.phone) profile.phone = qPhone;
+    if (qName && !profile.full_name) profile.full_name = qName;
+
+    // Auto-attach hire/gym/clinic books that already have this email or phone
+    try {
+      const found = await discoverAndAttachMemberships(profile, {
+        email: profile.email || qEmail,
+        phone: profile.phone || qPhone,
+        platformUserId: userId,
+      });
+      if (found.attached > 0) {
+        profile = found.profile;
+        await saveB2cProfile(profile);
+      }
+    } catch {
+      /* discover is best-effort */
     }
 
     const memberships = (profile.memberships || [])
@@ -43,16 +71,30 @@ export async function GET(request: NextRequest) {
         kind_label: kindLabel(m.kind),
       }));
 
+    let activity: Awaited<ReturnType<typeof buildB2cActivity>> = [];
+    try {
+      activity = await buildB2cActivity(memberships);
+    } catch {
+      activity = [];
+    }
+
+    const docs = activity.filter((a) => a.tone === 'docs' || a.tone === 'alert');
+
     return NextResponse.json({
       success: true,
       profile: {
         ...profile,
         memberships,
       },
+      activity,
       stats: {
         memberships: memberships.length,
         hire: memberships.filter((m) => m.kind === 'hire').length,
         gym: memberships.filter((m) => m.kind === 'gym').length,
+        clinic: memberships.filter((m) =>
+          ['physio', 'dental', 'medical', 'psychiatry'].includes(m.kind)
+        ).length,
+        needs_attention: docs.length,
       },
     });
   } catch (e: unknown) {
