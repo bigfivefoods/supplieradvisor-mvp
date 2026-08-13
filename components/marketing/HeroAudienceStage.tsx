@@ -88,39 +88,32 @@ export default function HeroAudienceStage() {
       ))}
 
       <div
-        className="pointer-events-none absolute inset-0 bg-gradient-to-r from-slate-950/88 via-slate-950/55 to-slate-950/20"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/75 via-transparent to-slate-950/35"
+        className="pointer-events-none absolute inset-0 bg-slate-950/25"
         aria-hidden
       />
 
-      <div className="relative z-[1] mx-auto flex min-h-svh w-full max-w-screen-2xl flex-col justify-end px-4 pb-10 pt-28 sm:px-6 sm:pb-14 lg:justify-center lg:px-10 lg:pb-16 lg:pt-28">
-        <div className="max-w-2xl">
-          <h1 className="text-[2.35rem] font-black leading-[1.04] tracking-[-0.045em] text-white sm:text-5xl md:text-6xl lg:text-[3.15rem] xl:text-[3.5rem]">
+      <div className="relative z-[1] mx-auto flex min-h-svh w-full max-w-screen-2xl items-end px-4 pb-8 pt-24 sm:px-6 sm:pb-12 lg:items-center lg:px-10 lg:pb-16 lg:pt-24">
+        <div className="w-full max-w-xl rounded-[1.75rem] bg-slate-950/78 p-6 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.65)] ring-1 ring-white/15 backdrop-blur-xl sm:p-8 lg:p-9">
+          <h1 className="text-[2.1rem] font-black leading-[1.06] tracking-[-0.04em] text-white sm:text-4xl md:text-5xl lg:text-[2.85rem]">
             The world&apos;s most trusted
-            <span className="mt-1.5 block bg-gradient-to-r from-[#7dd3fc] via-[#22d3ee] to-[#00b4d8] bg-clip-text text-transparent">
+            <span className="mt-1.5 block text-[#67e8f9]">
               supplier advice — and OS.
             </span>
           </h1>
 
-          <div className="mt-6 min-h-[13.5rem] sm:min-h-[12.5rem]">
+          <div className="mt-5 border-t border-white/15 pt-5">
             <p className="font-mono text-[11px] font-bold tracking-[0.28em] text-cyan-200">
               {scene.code}
             </p>
-            <h2 className="mt-1.5 text-2xl font-black tracking-tight text-white sm:text-3xl">
+            <h2 className="mt-1.5 text-xl font-black tracking-tight text-white sm:text-2xl">
               {scene.title}
             </h2>
-            <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-white/85 sm:text-base">
+            <p className="mt-2.5 text-[15px] leading-relaxed text-slate-100 sm:text-base">
               {scene.body}
             </p>
-            <ul className="mt-4 hidden space-y-1.5 sm:block">
+            <ul className="mt-3.5 hidden space-y-1.5 sm:block">
               {scene.points.map((pt) => (
-                <li
-                  key={pt}
-                  className="text-sm font-medium text-white/75"
-                >
+                <li key={pt} className="text-sm font-medium text-slate-200">
                   <span className="mr-2 text-cyan-300">—</span>
                   {pt}
                 </li>
@@ -128,7 +121,7 @@ export default function HeroAudienceStage() {
             </ul>
           </div>
 
-          <div className="mt-7 flex flex-col items-stretch gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="mt-6 flex flex-col items-stretch gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
             <Link
               href={scene.cta.href}
               className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3.5 text-[15px] font-semibold text-white shadow-lg shadow-cyan-950/40 transition-all hover:bg-[#0099b8] active:scale-[0.99] sm:px-7"
@@ -139,21 +132,21 @@ export default function HeroAudienceStage() {
             {scene.id === 'b2c' ? (
               <Link
                 href="/onboarding?type=business"
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-white/30 bg-white/10 px-6 py-3.5 text-[15px] font-semibold text-white backdrop-blur-sm hover:bg-white/20"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-white/25 bg-white/10 px-6 py-3.5 text-[15px] font-semibold text-white hover:bg-white/18"
               >
                 I run a business
               </Link>
             ) : (
               <Link
                 href="/demo"
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-white/30 bg-white/10 px-6 py-3.5 text-[15px] font-semibold text-white backdrop-blur-sm hover:bg-white/20"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-white/25 bg-white/10 px-6 py-3.5 text-[15px] font-semibold text-white hover:bg-white/18"
               >
                 Book a demo
               </Link>
             )}
           </div>
 
-          <p className="mt-5 text-xs leading-relaxed text-white/65 sm:text-sm">
+          <p className="mt-4 text-xs leading-relaxed text-slate-300 sm:text-sm">
             Not Excel. Not accounting-only. Not a multi-year ERP project.{' '}
             <a
               href="#compare"
@@ -170,25 +163,25 @@ export default function HeroAudienceStage() {
               ' · Members never pay us'
             )}
           </p>
-        </div>
 
-        <div className="mt-8 flex items-center gap-2">
-          {SCENES.map((s, idx) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => setI(idx)}
-              className={`rounded-full px-3.5 py-1.5 text-[11px] font-bold tracking-wide backdrop-blur-sm transition-all ${
-                idx === i
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'bg-white/15 text-white ring-1 ring-white/25 hover:bg-white/25'
-              }`}
-              aria-pressed={idx === i}
-              aria-label={`Show ${s.title}`}
-            >
-              {s.code}
-            </button>
-          ))}
+          <div className="mt-6 flex items-center gap-2">
+            {SCENES.map((s, idx) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setI(idx)}
+                className={`rounded-full px-3.5 py-1.5 text-[11px] font-bold tracking-wide transition-all ${
+                  idx === i
+                    ? 'bg-white text-slate-900'
+                    : 'bg-white/10 text-white ring-1 ring-white/20 hover:bg-white/20'
+                }`}
+                aria-pressed={idx === i}
+                aria-label={`Show ${s.title}`}
+              >
+                {s.code}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </section>
