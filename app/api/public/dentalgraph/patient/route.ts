@@ -18,6 +18,7 @@ import {
   type DentalPatient,
   type DentalgraphStore,
 } from '@/lib/dental/dentalgraph';
+import { notifyPatientBookingPush } from '@/lib/b2c/member-push';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -511,6 +512,18 @@ export async function POST(request: NextRequest) {
       }
 
       await saveStore(companyId, meta, store);
+      const bookedSvc = store.services.find((s) => s.id === appt.service_id);
+      await notifyPatientBookingPush({
+        platformUserId: patient.platform_user_id,
+        brand: store.settings?.brand_name,
+        title: bookedSvc?.name || 'Appointment',
+        date: appt.date,
+        start_time: appt.start_time,
+        status: row.status,
+        portalPath: patient.portal_token
+          ? `/member/dentalgraph/${patient.portal_token}?tab=mine`
+          : '/me',
+      });
       return NextResponse.json({
         success: true,
         booking: {

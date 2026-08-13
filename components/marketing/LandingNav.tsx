@@ -44,6 +44,13 @@ const LINKS: NavLink[] = [
     group: 'product',
   },
   {
+    id: 'member',
+    label: 'SA Member',
+    section: 'member-app',
+    href: '/#member-app',
+    group: 'product',
+  },
+  {
     id: 'how',
     label: 'How it fits',
     section: 'packaging',
@@ -76,6 +83,7 @@ const LINKS: NavLink[] = [
 const SPY_SECTIONS = [
   'why-join',
   'modules',
+  'member-app',
   'packaging',
   'pricing',
   'roi',
@@ -344,7 +352,7 @@ export default function LandingNav() {
               Log in
             </button>
             <Link
-              href="/onboarding?type=business"
+              href="/join"
               className="inline-flex items-center gap-1.5 rounded-full bg-[#00b4d8] px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0099b8] lg:px-5 lg:py-2.5 min-h-[40px]"
             >
               Start free trial
@@ -369,7 +377,7 @@ export default function LandingNav() {
               Log in
             </button>
             <Link
-              href="/onboarding?type=business"
+              href="/join"
               className="inline-flex items-center gap-1 rounded-full bg-[#00b4d8] px-3 py-2 text-xs font-semibold text-white min-h-[40px]"
             >
               Free trial
@@ -378,7 +386,7 @@ export default function LandingNav() {
 
           <div className="flex items-center gap-1.5 lg:hidden shrink-0">
             <Link
-              href="/onboarding?type=business"
+              href="/join"
               className="md:hidden inline-flex items-center rounded-full bg-[#00b4d8] px-2.5 py-2 text-[11px] font-bold text-white min-h-[40px]"
             >
               Free trial
@@ -447,7 +455,7 @@ export default function LandingNav() {
                   Log in
                 </button>
                 <Link
-                  href="/onboarding?type=business"
+                  href="/join"
                   onClick={() => setOpen(false)}
                   className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-[#00b4d8] py-3.5 text-center font-semibold text-white touch-manipulation"
                 >

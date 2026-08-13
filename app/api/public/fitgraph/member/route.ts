@@ -21,6 +21,7 @@ import {
   type FitClient,
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
+import { notifyPatientBookingPush } from '@/lib/b2c/member-push';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -609,6 +610,17 @@ export async function POST(request: NextRequest) {
       };
       store.bookings.push(row);
       await saveStore(companyId, meta, store);
+      await notifyPatientBookingPush({
+        platformUserId: client.platform_user_id,
+        brand: store.settings?.brand_name,
+        title: ct?.name || 'Class',
+        date: session.date,
+        start_time: session.start_time,
+        status: row.status,
+        portalPath: client.portal_token
+          ? `/member/fitgraph/${client.portal_token}`
+          : '/me',
+      });
 
       return NextResponse.json({
         success: true,

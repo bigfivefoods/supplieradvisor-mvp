@@ -92,7 +92,11 @@ export async function GET(request: NextRequest) {
 
     const verification = verificationView(profile);
 
-    let business = { has_business: false, business_count: 0 };
+    let business = {
+      has_business: false,
+      business_count: 0,
+      businesses: [] as Array<{ id: number; name: string; role?: string | null }>,
+    };
     try {
       business = await loadBusinessWorkspaceSummary(userId);
     } catch {
@@ -112,6 +116,7 @@ export async function GET(request: NextRequest) {
       },
       has_business: business.has_business,
       business_count: business.business_count,
+      businesses: business.businesses,
       profile: {
         ...profile,
         memberships,

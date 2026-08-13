@@ -1516,3 +1516,61 @@ html.dark .leaflet-control-attribution {
   background: rgb(0 0 0 / 0.85) !important;
   color: #a3a3a3 !important;
 }
+
+/* SA Member PWA — remap light-only cards when html.dark is on */
+html.dark .b2c-app .bg-white {
+  background-color: var(--sa-surface) !important;
+}
+html.dark .b2c-app .bg-white\/80 {
+  background-color: color-mix(in srgb, var(--sa-surface) 82%, transparent) !important;
+}
+html.dark .b2c-app .from-white {
+  --tw-gradient-from: var(--sa-surface) !important;
+}
+html.dark .b2c-app .to-white {
+  --tw-gradient-to: var(--sa-surface) !important;
+}
+html.dark .b2c-app .bg-slate-50,
+html.dark .b2c-app .bg-slate-50\/60 {
+  background-color: var(--sa-surface-2) !important;
+}
+html.dark .b2c-app .bg-slate-100 {
+  background-color: #1a1a1a !important;
+}
+html.dark .b2c-app .text-slate-900,
+html.dark .b2c-app .text-slate-800 {
+  color: var(--sa-text) !important;
+}
+html.dark .b2c-app .text-slate-700 {
+  color: var(--sa-text-secondary) !important;
+}
+html.dark .b2c-app .text-slate-600,
+html.dark .b2c-app .text-slate-500 {
+  color: var(--sa-muted) !important;
+}
+html.dark .b2c-app .text-slate-400 {
+  color: var(--sa-faint) !important;
+}
+html.dark .b2c-app .border-slate-200,
+html.dark .b2c-app .border-slate-200\/80,
+html.dark .b2c-app .border-slate-300 {
+  border-color: var(--sa-border) !important;
+}
+html.dark .b2c-app .border-dashed {
+  border-color: var(--sa-border-strong) !important;
+}
+html.dark .b2c-app .bg-sky-50,
+html.dark .b2c-app .bg-sky-50\/60,
+html.dark .b2c-app .bg-emerald-50,
+html.dark .b2c-app .from-emerald-50,
+html.dark .b2c-app .bg-amber-50,
+html.dark .b2c-app .bg-cyan-50 {
+  background-color: var(--sa-sky-soft) !important;
+}
+html.dark .b2c-app input,
+html.dark .b2c-app select,
+html.dark .b2c-app textarea {
+  background-color: var(--sa-input-bg);
+  color: var(--sa-text);
+  border-color: var(--sa-border);
+}

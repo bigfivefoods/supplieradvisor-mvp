@@ -53,6 +53,9 @@ export async function POST(request: NextRequest) {
       claim,
       // Core OS packaging
       os_entity_type,
+      legal_form,
+      join_lane,
+      requires_approval,
       os_sector,
       os_industry,
       os_industries,
@@ -445,9 +448,44 @@ export async function POST(request: NextRequest) {
       console.warn('entity provision soft-fail', e);
     }
 
+    const wantApproval =
+      requires_approval === true ||
+      String(join_lane || '').toLowerCase() === 'b2g';
+    if (wantApproval) {
+      setupStatus = 'pending_approval';
+      homePath = '/dashboard/my-business/billing?setup=pending_approval';
+      try {
+        const { data: existingMeta } = await supabase
+          .from('profiles')
+          .select('metadata')
+          .eq('id', profile.id)
+          .maybeSingle();
+        const prev =
+          existingMeta?.metadata && typeof existingMeta.metadata === 'object'
+            ? (existingMeta.metadata as Record<string, unknown>)
+            : {};
+        await supabase
+          .from('profiles')
+          .update({
+            metadata: {
+              ...prev,
+              setup_status: 'pending_approval',
+              join_lane: 'b2g',
+              legal_form: legal_form ? String(legal_form) : null,
+              approval_required: true,
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', profile.id);
+      } catch {
+        /* soft */
+      }
+    }
+
     // Specialist contact lead for provincial / national
     if (
       setupStatus === 'contact_required' ||
+      setupStatus === 'pending_approval' ||
       entityKind.id === 'provincial_government' ||
       entityKind.id === 'national_government'
     ) {
@@ -511,9 +549,11 @@ export async function POST(request: NextRequest) {
         modules: moduleIds,
       },
       message:
-        setupStatus === 'contact_required'
-          ? 'Thanks — a specialist will contact you to complete setup.'
-          : lifetimePlan
+        setupStatus === 'pending_approval'
+          ? 'Request received — a SupplierAdvisor admin must approve this government workspace.'
+          : setupStatus === 'contact_required'
+            ? 'Thanks — a specialist will contact you to complete setup.'
+            : lifetimePlan
             ? 'Organisation registered with complimentary lifetime access.'
             : 'Organisation registered successfully.',
       trial: lifetimePlan

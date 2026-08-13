@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { B2cInstallPrompt } from '@/components/b2c/B2cInstallPrompt';
 
 export const metadata: Metadata = {
   title: {
@@ -6,7 +7,7 @@ export const metadata: Metadata = {
     template: '%s · SA Member',
   },
   description:
-    'SA Member — create your free profile, verify your ID, follow hire journeys, shop sale and hire, and check in.',
+    'SA Member — create your free profile, verify your ID, book Advisor appointments, see shared medical records, get push alerts, shop sale and hire, and check in.',
   applicationName: 'SA Member',
   appleWebApp: {
     capable: true,
@@ -44,5 +45,10 @@ export default function MeAppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return children;
+  return (
+    <>
+      {children}
+      <B2cInstallPrompt />
+    </>
+  );
 }

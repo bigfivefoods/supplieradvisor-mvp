@@ -11,8 +11,8 @@ const PERSONAL_TYPES = new Set(['consumer', 'b2c', 'member', 'personal']);
  * /onboarding
  * - ?invite=TOKEN&kind=business|customer|team → claim invitation (Privy)
  * - ?type=consumer|b2c|member|personal → personal SA Member wallet (no company)
- * - ?type=...      → self-serve multi-step business registration (Privy)
- * - default        → self-serve wizard
+ * - ?lane=b2b|b2g or ?type=... → company / government registration (Privy)
+ * - default        → B2B self-serve wizard
  */
 export default function OnboardingContent() {
   const router = useRouter();

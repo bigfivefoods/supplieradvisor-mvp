@@ -30,7 +30,6 @@ import {
   Store,
   User,
   WalletCards,
-  Building2,
 } from 'lucide-react';
 import {
   extractEmailFromPrivyUser,
@@ -41,9 +40,16 @@ import {
   B2cInstallChip,
   type B2cTab,
 } from '@/components/b2c/B2cAppChrome';
-import { B2cShopPeek, B2cShopTab } from '@/components/b2c/B2cShopTab';
+import { B2cShopTab } from '@/components/b2c/B2cShopTab';
 import { B2cHireJourneyList } from '@/components/b2c/B2cHireJourney';
 import { B2cIdentityCard } from '@/components/b2c/B2cIdentityCard';
+import { B2cCarePanel } from '@/components/b2c/B2cCarePanel';
+import { B2cPhotoField } from '@/components/b2c/B2cPhotoField';
+import { B2cThemeToggle } from '@/components/b2c/B2cThemeToggle';
+import {
+  B2cWorkspaceSwitch,
+  type B2cBusinessCard,
+} from '@/components/b2c/B2cWorkspaceSwitch';
 import type { B2cHireJourney } from '@/lib/b2c/hire-journeys';
 import { toast } from 'sonner';
 import EnablePushButton from '@/components/pwa/EnablePushButton';
@@ -67,6 +73,7 @@ type Profile = {
   email?: string | null;
   full_name?: string | null;
   phone?: string | null;
+  photo_url?: string | null;
   city?: string | null;
   id_number?: string | null;
   memberships: Membership[];
@@ -109,6 +116,21 @@ function kindActionLabel(kind: string) {
   return 'Book';
 }
 
+function isClinicKind(kind: string) {
+  return ['physio', 'dental', 'medical', 'psychiatry'].includes(kind);
+}
+
+function membershipBookHref(m: Membership) {
+  if (isClinicKind(m.kind)) {
+    return `${m.portal_path}${m.portal_path.includes('?') ? '&' : '?'}tab=open`;
+  }
+  return m.portal_path;
+}
+
+function membershipRecordsHref(m: Membership) {
+  return `${m.portal_path}${m.portal_path.includes('?') ? '&' : '?'}tab=care`;
+}
+
 function MeAppInner() {
   const router = useRouter();
   const search = useSearchParams();
@@ -124,7 +146,8 @@ function MeAppInner() {
   const [email, setEmail] = useState('');
   const [installHint, setInstallHint] = useState(false);
   const [hasBusiness, setHasBusiness] = useState(false);
-  const [businessCount, setBusinessCount] = useState(0);
+  const [businesses, setBusinesses] = useState<B2cBusinessCard[]>([]);
+  const [photoUrl, setPhotoUrl] = useState('');
   const [city, setCity] = useState('');
   const [idNumber, setIdNumber] = useState('');
   const [journeys, setJourneys] = useState<B2cHireJourney[]>([]);
@@ -191,9 +214,14 @@ function MeAppInner() {
         data.profile?.email || extractEmailFromPrivyUser(user) || ''
       );
       setHasBusiness(Boolean(data.has_business || data.workspace?.has_business));
-      setBusinessCount(
-        Number(data.business_count || data.workspace?.business_count || 0)
+      setBusinesses(
+        Array.isArray(data.businesses)
+          ? data.businesses
+          : Array.isArray(data.workspace?.businesses)
+            ? data.workspace.businesses
+            : []
       );
+      setPhotoUrl(data.profile?.photo_url || '');
       setCity(data.profile?.city || '');
       setIdNumber(data.profile?.id_number || '');
       setJourneys(Array.isArray(data.journeys) ? data.journeys : []);
@@ -279,6 +307,7 @@ function MeAppInner() {
           email,
           city,
           id_number: idNumber,
+          photo_url: photoUrl,
           privyUserId: getCanonicalUserId(user?.id),
         }),
       });
@@ -333,7 +362,13 @@ function MeAppInner() {
   // ── Login wall (app store style) ─────────────────────────────────
   if (!authenticated) {
     return (
-      <div className="flex min-h-[100dvh] flex-col bg-gradient-to-b from-[#0c4a6e] via-[#0077b6] to-[#38bdf8]">
+      <div className="flex min-h-[100dvh] flex-col bg-gradient-to-b from-[#0c4a6e] via-[#0077b6] to-[#38bdf8] dark:from-black dark:via-[#082f49] dark:to-[#0c4a6e]">
+        <div
+          className="absolute right-4 z-10"
+          style={{ top: 'max(0.75rem, env(safe-area-inset-top))' }}
+        >
+          <B2cThemeToggle compact />
+        </div>
         <div
           className="flex flex-1 flex-col justify-end px-5 pb-8 pt-16 text-white"
           style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}
@@ -356,7 +391,7 @@ function MeAppInner() {
             <p className="mt-3 text-base text-sky-50/95">
               {isJoin && joinBrand
                 ? `${joinBrand} invited you to create a free SA Member profile on your phone.`
-                : 'One personal app: shop what is for sale or hire, book gym and clinic brands, check in, and keep every membership on this wallet. If you also run a company, that workspace stays separate.'}
+                : 'One personal app: shop what is for sale or hire, book gym and clinic brands, check in, and keep every membership on this wallet. If you also run a company, switch to it after you sign in — same login.'}
             </p>
 
             <div className="mt-8 space-y-2">
@@ -374,7 +409,7 @@ function MeAppInner() {
                 {
                   icon: Stethoscope,
                   t: 'Clinic Advisors',
-                  d: 'Physio, dental, medical, psychiatry bookings',
+                  d: 'Book, medical records, and push alerts',
                 },
                 {
                   icon: Store,
@@ -417,13 +452,14 @@ function MeAppInner() {
               have an account? Same button signs you in
             </p>
             <p className="mt-4 text-center text-[11px] text-sky-100/70">
-              Also run a company?{' '}
-              <Link href="/join" className="font-bold underline">
-                Register a business
+              Same login opens any company you operate. After sign-in, tap
+              the building icon or Account → Switch to business.{' '}
+              <Link href="/dashboard/select-company" className="font-bold underline">
+                Workspaces
               </Link>
               {' · '}
-              <Link href="/login" className="font-bold underline">
-                Company login
+              <Link href="/join" className="font-bold underline">
+                Register a business
               </Link>
             </p>
           </div>
@@ -468,6 +504,12 @@ function MeAppInner() {
       headerSubtitle={headerForTab[tab].sub}
       headerRight={
         <div className="flex items-center gap-2">
+          <B2cThemeToggle compact />
+          <B2cWorkspaceSwitch
+            hasBusiness={hasBusiness}
+            businesses={businesses}
+            variant="header"
+          />
           {installHint ? <B2cInstallChip /> : null}
           <button
             type="button"
@@ -533,26 +575,10 @@ function MeAppInner() {
           ) : null}
 
           {hasBusiness ? (
-            <Link
-              href="/dashboard/select-company"
-              className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm"
-            >
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white">
-                <Building2 className="h-5 w-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-black text-slate-900">
-                  You also run a business
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  {businessCount === 1
-                    ? 'Open your company workspace'
-                    : `Open one of ${businessCount} companies`}{' '}
-                  — it will not mix into this personal wallet
-                </p>
-              </div>
-              <ChevronRight className="h-4 w-4 text-slate-400" />
-            </Link>
+            <B2cWorkspaceSwitch
+              hasBusiness={hasBusiness}
+              businesses={businesses}
+            />
           ) : null}
 
           {installHint ? (
@@ -617,6 +643,8 @@ function MeAppInner() {
             </button>
           </div>
 
+          <B2cCarePanel />
+
           {activity.length > 0 ? (
             <section>
               <h2 className="mb-2 text-sm font-black text-slate-900">
@@ -656,8 +684,6 @@ function MeAppInner() {
               </ul>
             </section>
           ) : null}
-
-          <B2cShopPeek onOpen={() => goTab('shop')} />
 
           <section>
             <div className="mb-2 flex items-center justify-between">
@@ -750,6 +776,37 @@ function MeAppInner() {
                 </span>
               </button>
             </div>
+          </section>
+
+          <section>
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-black text-slate-900">Shop</h2>
+              <button
+                type="button"
+                onClick={() => goTab('shop')}
+                className="text-[11px] font-bold text-[#0077b6]"
+              >
+                Open shop
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => goTab('shop')}
+              className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm active:scale-[0.99]"
+            >
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                <Store className="h-5 w-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-black text-slate-900">
+                  Browse sale, hire and bookings
+                </span>
+                <span className="block text-[11px] text-slate-500">
+                  Listings stay in Shop — not mixed into this home feed
+                </span>
+              </span>
+              <ChevronRight className="h-4 w-4 text-slate-400" />
+            </button>
           </section>
 
           <section>
@@ -887,12 +944,20 @@ function MeAppInner() {
                         Open <ExternalLink className="h-3.5 w-3.5" />
                       </Link>
                       <Link
-                        href={m.portal_path}
+                        href={membershipBookHref(m)}
                         className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-black text-slate-800"
                       >
                         <CalendarDays className="h-3.5 w-3.5" />{' '}
                         {kindActionLabel(m.kind)}
                       </Link>
+                      {isClinicKind(m.kind) ? (
+                        <Link
+                          href={membershipRecordsHref(m)}
+                          className="inline-flex items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-black text-emerald-900"
+                        >
+                          <HeartPulse className="h-3.5 w-3.5" /> Records
+                        </Link>
+                      ) : null}
                       {m.checkin_path ? (
                         <Link
                           href={`${m.checkin_path}${
@@ -1004,16 +1069,29 @@ function MeAppInner() {
             prices — SupplierAdvisor® never bills this personal wallet.
           </div>
 
-          <div className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-[#0077b6] text-xl font-black text-white">
-              {(displayName[0] || 'U').toUpperCase()}
-              {verification?.is_verified ? (
-                <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white ring-2 ring-white">
-                  ✓
-                </span>
-              ) : null}
-            </div>
-            <div className="min-w-0">
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <B2cPhotoField
+              value={photoUrl}
+              initials={displayName}
+              onChange={(url) => {
+                setPhotoUrl(url);
+                setProfile((prev) =>
+                  prev ? { ...prev, photo_url: url || null } : prev
+                );
+                if (!url) {
+                  void fetch('/api/b2c/me', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      action: 'update_profile',
+                      photo_url: '',
+                      privyUserId: getCanonicalUserId(user?.id),
+                    }),
+                  });
+                }
+              }}
+            />
+            <div className="mt-3 min-w-0">
               <p className="truncate font-black text-slate-900">
                 {displayName}
               </p>
@@ -1039,51 +1117,21 @@ function MeAppInner() {
             }
           />
 
-          {hasBusiness ? (
-            <Link
-              href="/dashboard/select-company"
-              className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
-            >
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white">
-                <Building2 className="h-5 w-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-black text-slate-900">
-                  Open my business
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  {businessCount === 1
-                    ? '1 company workspace'
-                    : `${businessCount} company workspaces`}{' '}
-                  · operator books stay off this profile
-                </p>
-              </div>
-              <ChevronRight className="h-4 w-4 text-slate-400" />
-            </Link>
-          ) : (
-            <Link
-              href="/join"
-              className="flex items-center gap-3 rounded-3xl border border-dashed border-slate-300 bg-white p-4"
-            >
-              <Building2 className="h-5 w-5 text-slate-400" />
-              <span>
-                <span className="block text-sm font-black text-slate-900">
-                  Also run a company?
-                </span>
-                <span className="block text-[11px] text-slate-500">
-                  Register a business — this personal wallet stays yours
-                </span>
-              </span>
-            </Link>
-          )}
+          <B2cWorkspaceSwitch
+            hasBusiness={hasBusiness}
+            businesses={businesses}
+          />
+
+          <B2cThemeToggle />
 
           <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="text-sm font-black text-slate-900">Notifications</h2>
             <p className="mt-1 text-xs text-slate-500">
-              Get reminded about hires, classes and check-in.
+              Appointments, medical updates, gym classes and hire status — on
+              this phone, no company workspace required.
             </p>
             <div className="mt-3">
-              <EnablePushButton />
+              <EnablePushButton mode="member" />
             </div>
           </section>
 
@@ -1166,10 +1214,10 @@ function MeAppInner() {
           </button>
 
           <p className="text-center text-[10px] text-slate-400">
-            Same login for personal and business. Company operators pick a
-            workspace at{' '}
+            Same login. Switch to a company from Account, the building icon
+            in the header, or{' '}
             <Link href="/dashboard/select-company" className="font-bold underline">
-              select company
+              all workspaces
             </Link>
             .
           </p>

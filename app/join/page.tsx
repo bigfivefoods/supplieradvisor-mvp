@@ -5,42 +5,59 @@ import Image from 'next/image';
 import {
   ArrowRight,
   Building2,
-  Factory,
-  GraduationCap,
-  HeartPulse,
-  Hospital,
   Landmark,
-  Leaf,
+  ShieldCheck,
   Smartphone,
-  Truck,
-  Users2,
 } from 'lucide-react';
-import { entityGroups } from '@/lib/entities/entity-kinds';
 
-const ICONS: Record<string, typeof Building2> = {
-  business: Building2,
-  supplier: Factory,
-  government_education: Landmark,
-  government_health: HeartPulse,
-  school: GraduationCap,
-  hospital: Hospital,
-  nsnp_isp: Truck,
-  association: Users2,
-  consumer_org: Leaf,
-  consumer: Smartphone,
-};
+const LANES = [
+  {
+    id: 'b2c',
+    code: 'B2C',
+    href: '/me',
+    icon: Smartphone,
+    kicker: 'Free · personal',
+    title: 'Member account',
+    body: 'SA Member on your phone — gym, clinic, hire and shop. No company, no card. Same login can still open a business later.',
+    cta: 'Create free member account',
+    tone: 'from-sky-50 to-white border-sky-200 ring-sky-100',
+    iconTone: 'from-[#00b4d8] to-[#0077b6]',
+  },
+  {
+    id: 'b2b',
+    code: 'B2B',
+    href: '/onboarding?lane=b2b',
+    icon: Building2,
+    kicker: 'Company workspace',
+    title: 'Business',
+    body: 'Register a company. Next you choose the organisation type — private, public, NPO and so on — then sector, industry and role.',
+    cta: 'Continue as a business',
+    tone: 'from-white to-slate-50 border-slate-200',
+    iconTone: 'from-slate-800 to-slate-950',
+  },
+  {
+    id: 'b2g',
+    code: 'B2G',
+    href: '/onboarding?lane=b2g',
+    icon: Landmark,
+    kicker: 'Platform approval required',
+    title: 'Government',
+    body: 'National, provincial or municipal offices. Your request is held until a SupplierAdvisor admin activates the workspace.',
+    cta: 'Request government access',
+    tone: 'from-violet-50 to-white border-violet-200',
+    iconTone: 'from-violet-700 to-violet-950',
+  },
+] as const;
 
 /**
- * /join — choose organisation kind before Privy onboarding.
- * Lanes: B2B businesses → B2C consumer marketplace → B2G government last.
+ * /join — why are you joining us?
+ * Only three first choices: B2C member · B2B business · B2G government.
  */
 export default function JoinPage() {
-  const groups = entityGroups();
-
   return (
     <div className="min-h-screen bg-[#f8fafc]">
-      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-        <div className="flex items-center justify-between mb-10">
+      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+        <div className="mb-10 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
             <Image
               src="/sa-logo.png"
@@ -49,7 +66,7 @@ export default function JoinPage() {
               height={44}
               className="h-9 w-auto object-contain"
             />
-            <span className="font-black text-xl tracking-[-1px] text-slate-900">
+            <span className="text-xl font-black tracking-[-1px] text-slate-900">
               SupplierAdvisor®
             </span>
           </Link>
@@ -61,134 +78,71 @@ export default function JoinPage() {
           </Link>
         </div>
 
-        <div className="mb-10">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0077b6] mb-2">
+        <div className="mb-8">
+          <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-[#0077b6]">
             Join SupplierAdvisor
           </p>
-          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 mb-3">
-            Who are you joining as?
+          <h1 className="mb-3 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
+            Why are you joining us?
           </h1>
-          <p className="text-slate-600 max-w-2xl leading-relaxed">
-            <strong className="text-slate-900">Person (B2C)</strong>
-            {' '}— free SA Member wallet ·{' '}
-            <strong className="text-slate-900">Business (B2B)</strong>
-            {' '}or{' '}
-            <strong className="text-slate-900">government (B2G)</strong>
-            {' '}— company workspace. Same login can do both; they stay separate.
+          <p className="max-w-2xl leading-relaxed text-slate-600">
+            Choose one path. A member wallet and a company workspace can share
+            the same login later — they stay separate.
           </p>
         </div>
 
-        <Link
-          href="/me"
-          className="group mb-10 flex items-start gap-4 rounded-[1.75rem] border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-5 shadow-sm ring-1 ring-sky-100 transition-all hover:border-[#00b4d8] hover:shadow-md sm:p-6"
-        >
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#00b4d8] to-[#0077b6] text-white shadow">
-            <Smartphone className="h-6 w-6" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0077b6]">
-              Free · personal
-            </p>
-            <h2 className="mt-0.5 text-lg font-black tracking-tight text-slate-900 sm:text-xl">
-              Create a B2C SA Member account
-            </h2>
-            <p className="mt-1 text-sm leading-relaxed text-slate-600">
-              Email or Google — no company, no trial, no card. Your gym, dentist and
-              hire brands become cards on one personal wallet. If you also run a
-              business, register it later with this same login.
-            </p>
-            <p className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[#0077b6]">
-              Create free account
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-            </p>
-          </div>
-        </Link>
-
-        <div className="space-y-10">
-          {groups.map((group) => (
-            <section key={group.id}>
-              <h2
-                className={`text-sm font-black mb-1 ${
-                  group.lane === 'b2b'
-                    ? 'text-[#0077b6]'
-                    : group.lane === 'b2c'
-                      ? 'text-fuchsia-700'
-                      : 'text-slate-500'
-                }`}
+        <div className="space-y-3">
+          {LANES.map((lane) => {
+            const Icon = lane.icon;
+            return (
+              <Link
+                key={lane.id}
+                href={lane.href}
+                className={`group flex items-start gap-4 rounded-[1.75rem] border bg-gradient-to-br p-5 shadow-sm ring-1 transition-all hover:border-[#00b4d8] hover:shadow-md sm:p-6 ${lane.tone}`}
               >
-                {group.title}
-                {group.lane === 'b2b' ? (
-                  <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-sky-800 bg-sky-100 px-2 py-0.5 rounded-full">
-                    Company workspace
-                  </span>
-                ) : null}
-                {group.lane === 'b2c' ? (
-                  <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-fuchsia-800 bg-fuchsia-100 px-2 py-0.5 rounded-full">
-                    Personal wallet
-                  </span>
-                ) : null}
-              </h2>
-              <p className="text-xs text-slate-500 mb-4">{group.blurb}</p>
-              <div className="grid sm:grid-cols-2 gap-3">
-                {group.entities.map((ent) => {
-                  const Icon = ICONS[ent.id] || Building2;
-                  const isCompany = ent.id === 'business';
-                  const isPersonal = ent.id === 'consumer';
-                  return (
-                    <Link
-                      key={ent.id}
-                      href={
-                        isPersonal
-                          ? '/me'
-                          : `/onboarding?type=${encodeURIComponent(ent.business_type)}`
-                      }
-                      className={`group rounded-3xl border bg-white p-5 hover:border-[#00b4d8] hover:shadow-md transition-all ${
-                        isCompany
-                          ? 'border-sky-200 ring-1 ring-sky-100'
-                          : 'border-slate-200'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div
-                          className={`w-11 h-11 rounded-2xl border flex items-center justify-center shrink-0 ${ent.badgeClass}`}
-                        >
-                          <Icon className="w-5 h-5" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-black text-slate-900 text-sm">
-                              {ent.label}
-                            </p>
-                            <span
-                              className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-md border ${ent.badgeClass}`}
-                            >
-                              {ent.badge}
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                            {ent.description}
-                          </p>
-                          <p className="text-[11px] font-bold text-[#0077b6] mt-2 inline-flex items-center gap-1">
-                            Continue
-                            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                          </p>
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
+                <div
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow ${lane.iconTone}`}
+                >
+                  <Icon className="h-6 w-6" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0077b6]">
+                      {lane.kicker}
+                    </p>
+                    <span className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-black uppercase text-slate-600">
+                      {lane.code}
+                    </span>
+                  </div>
+                  <h2 className="mt-0.5 text-lg font-black tracking-tight text-slate-900 sm:text-xl">
+                    {lane.title}
+                  </h2>
+                  <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                    {lane.body}
+                  </p>
+                  <p className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[#0077b6]">
+                    {lane.cta}
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                  </p>
+                </div>
+              </Link>
+            );
+          })}
         </div>
 
-        <p className="mt-12 text-center text-xs text-slate-400">
+        <p className="mt-6 flex items-start gap-2 rounded-2xl border border-violet-100 bg-violet-50/70 px-4 py-3 text-xs text-violet-950">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+          Government (B2G) is not self-serve. Submit the request; platform
+          admin must approve before the workspace opens.
+        </p>
+
+        <p className="mt-10 text-center text-xs text-slate-400">
           Already have an account?{' '}
           <Link href="/login" className="font-bold text-[#0077b6] underline">
             Sign in
           </Link>
-          {' '}
-          — same login opens SA Member and any companies you operate.
+          {' — '}
+          same login opens SA Member and any companies you operate.
         </p>
       </div>
     </div>

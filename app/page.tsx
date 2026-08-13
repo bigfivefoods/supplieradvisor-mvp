@@ -48,6 +48,10 @@ import {
   Hospital,
   School,
   BriefcaseBusiness,
+  QrCode,
+  Smartphone,
+  BadgeCheck,
+  Bell,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import LandingNav from '@/components/marketing/LandingNav';
@@ -1005,7 +1009,7 @@ export default function LandingPage() {
                   'POs, quotes, orders, invoices on the same books',
                   'Lot holds that stop the ship when QA fails',
                 ],
-                href: '/onboarding?type=business',
+                href: '/onboarding?lane=b2b',
                 cta: 'Register your company',
                 icon: Factory,
               },
@@ -1018,8 +1022,8 @@ export default function LandingPage() {
                   'Documented trade and performance scores',
                   'SHEQ, NCR/CAPA, and export packs for scrutiny',
                 ],
-                href: '/onboarding?type=government',
-                cta: 'Register public entity',
+                href: '/onboarding?lane=b2g',
+                cta: 'Request government access',
                 icon: Landmark,
               },
               {
@@ -1027,9 +1031,9 @@ export default function LandingPage() {
                 title: 'Business to consumer',
                 body: 'Create a free personal SA Member account — the same login for gym, dentist, hire and clinic brands. No company. If you also run a business, that workspace stays separate.',
                 points: [
-                  'Free email / Google signup — wallet is you, not a company',
-                  'Independent cards per brand (gym ≠ dentist ≠ hire)',
-                  'Invite link or matching email/phone attaches memberships',
+                  'Free PWA — install on your phone, no company, no card',
+                  'Book Advisor appointments and see shared medical records',
+                  'Push alerts, hire golden path, shop, gym check-in — one wallet',
                 ],
                 href: '/me',
                 cta: 'Create free SA Member account',
@@ -1066,6 +1070,101 @@ export default function LandingPage() {
                 </Link>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════ SA MEMBER APP ═══════════ */}
+      <section
+        id="member-app"
+        className="scroll-mt-20 border-t border-slate-200 bg-[#f8fafc] py-16 sm:py-24"
+      >
+        <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
+          <div className="mx-auto mb-12 max-w-3xl text-center">
+            <SectionLabel>SA Member</SectionLabel>
+            <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
+              The free customer app
+              <span className="mt-2 block text-[#00b4d8]">for every Advisor brand.</span>
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-slate-600 sm:text-lg">
+              Gyms, clinics and hire desks print a QR or send a WhatsApp link.
+              People install SA Member, create a profile, verify themselves, and
+              follow their hire or booking path — book appointments, see shared
+              medical information, and get push alerts — at no cost to the member.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {[
+              {
+                icon: Smartphone,
+                t: 'Install as an app',
+                b: 'Add to the home screen. Full-screen PWA for shop, brands, check-in and your profile.',
+              },
+              {
+                icon: BadgeCheck,
+                t: 'Create & verify yourself',
+                b: 'Name, email, phone, city. SA ID via VerifyNow or passport via Didit. Hire desks see the badge.',
+              },
+              {
+                icon: BriefcaseBusiness,
+                t: 'Hire golden path',
+                b: 'Request → docs → approved → pay → out → return → done. Next action, deposit, and documents on the phone.',
+              },
+              {
+                icon: ShoppingCart,
+                t: 'Shop sale & hire',
+                b: 'Browse what brands are selling or hiring out, and listed gyms and clinics — in the same app.',
+              },
+              {
+                icon: QrCode,
+                t: 'Desk QR & WhatsApp',
+                b: 'Every Advisor business can generate a poster QR or send a link so customers download the app and sign up.',
+              },
+              {
+                icon: Stethoscope,
+                t: 'Book your Advisor',
+                b: 'Medical, dental, physio, psychiatry and gym — open diary slots on your phone. Same path the desk uses.',
+              },
+              {
+                icon: Heart,
+                t: 'Your medical information',
+                b: 'Allergies, scripts, medical aid and care notes your practice shares — on the phone, not only at reception.',
+              },
+              {
+                icon: Bell,
+                t: 'Push notifications',
+                b: 'Appointment reminders, waitlist offers and hire updates on the device — even when the app is closed.',
+              },
+              {
+                icon: Fingerprint,
+                t: 'Free for members',
+                b: 'No subscription, no platform take-rate. Brands charge their own gym, clinic or hire prices. You pay them — not us.',
+              },
+            ].map((f) => (
+              <div
+                key={f.t}
+                className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm"
+              >
+                <f.icon className="h-6 w-6 text-[#00b4d8]" />
+                <h3 className="mt-4 text-lg font-black text-slate-900">{f.t}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">{f.b}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-10 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+            <Link
+              href="/me"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-sm font-bold text-white shadow-lg shadow-cyan-500/20 hover:bg-[#0099b8]"
+            >
+              Create free SA Member account
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/join"
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-3.5 text-sm font-bold text-slate-800 hover:border-[#00b4d8]"
+            >
+              I run a gym, clinic or hire desk
+            </Link>
           </div>
         </div>
       </section>
@@ -1922,50 +2021,36 @@ export default function LandingPage() {
           <div className="mb-12 text-center">
             <SectionLabel>Get started</SectionLabel>
             <h2 className="text-3xl font-black tracking-tight text-slate-900 sm:text-5xl">
-              Join as business, government,
-              <span className="mt-1 block text-[#00b4d8]">consumer, or association.</span>
+              Why are you joining us?
+              <span className="mt-1 block text-[#00b4d8]">Member, business, or government.</span>
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-slate-600">
-              B2B operators, B2G entities, B2C participants, and collective groups — pick
-              your path. Same trusted network underneath.
+              Three paths only. B2C is a free personal wallet. B2B then picks
+              private, public or NPO. B2G waits for platform admin approval.
             </p>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[
               {
-                icon: Factory,
-                t: 'Business',
-                b: 'Manufacturers, distributors, traders — full ops OS with verified network.',
-                href: '/onboarding?type=business',
-                cta: 'Register business',
-              },
-              {
                 icon: Leaf,
-                t: 'Consumers',
-                b: 'Free SA Member wallet — book the gym, see the dentist, hire gear. Same login if you later register a company.',
+                t: 'B2C · Member account',
+                b: 'Free SA Member app — book clinics, medical records, push alerts, hire, shop, gym check-in. Same login if you later register a company.',
                 href: '/me',
                 cta: 'Create free account',
               },
               {
+                icon: Factory,
+                t: 'B2B · Business',
+                b: 'Company workspace. Next you choose organisation type — private, public, NPO or association — then sector, industry and role.',
+                href: '/onboarding?lane=b2b',
+                cta: 'Register business',
+              },
+              {
                 icon: Landmark,
-                t: 'Government',
-                b: 'Public-sector programmes — SchoolAdvisor® (NSNP / DBE), DoH facilities, transparent procurement.',
-                href: '/onboarding?type=government',
-                cta: 'Register entity',
-              },
-              {
-                icon: School,
-                t: 'SchoolAdvisor®',
-                b: 'School kitchens, learners, approved brands, SPs and serve day — always on the government process.',
-                href: '/onboarding?type=school',
-                cta: 'Register school',
-              },
-              {
-                icon: Users2,
-                t: 'Associations',
-                b: 'Shared metrics, accountable spend, and collective network power for industry bodies.',
-                href: '/onboarding?type=association',
-                cta: 'Register group',
+                t: 'B2G · Government',
+                b: 'National, provincial or municipal offices. Not self-serve — a SupplierAdvisor admin must approve before the workspace opens.',
+                href: '/onboarding?lane=b2g',
+                cta: 'Request access',
               },
             ].map((a) => (
               <div

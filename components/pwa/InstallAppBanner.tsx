@@ -64,6 +64,8 @@ export default function InstallAppBanner() {
     }
 
     const onOpen = () => {
+      // SA Member owns its own first-open sheet — do not leave /me
+      if (window.location.pathname.startsWith('/me')) return;
       try {
         localStorage.removeItem(DISMISS_KEY);
       } catch {

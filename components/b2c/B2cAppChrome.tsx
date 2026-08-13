@@ -38,7 +38,7 @@ export function B2cAppHeader({
 }) {
   return (
     <header
-      className="sticky top-0 z-30 border-b border-white/10 bg-gradient-to-br from-[#0077b6] via-[#0284c7] to-[#0c4a6e] text-white"
+      className="sticky top-0 z-30 border-b border-white/10 bg-gradient-to-br from-[#0077b6] via-[#0284c7] to-[#0c4a6e] text-white dark:from-[#082f49] dark:via-[#0c4a6e] dark:to-black"
       style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
     >
       <div className="mx-auto flex max-w-lg items-center justify-between gap-3 px-4 pb-3 pt-1">
@@ -133,7 +133,7 @@ export function B2cAppShell({
   badge?: Partial<Record<B2cTab, number>>;
 }) {
   return (
-    <div className="min-h-[100dvh] overscroll-none bg-[#f0f9ff] text-slate-900 dark:bg-slate-950 dark:text-white">
+    <div className="b2c-app min-h-[100dvh] overscroll-none bg-[#f0f9ff] text-slate-900 dark:bg-black dark:text-neutral-50">
       <B2cAppHeader
         title={headerTitle}
         subtitle={headerSubtitle}

@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { assertCronSecret } from '@/lib/auth/api-auth';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { needsReminder, sendBookingReminderEmail } from '@/lib/services/advisor-reminders';
+import { notifyBookingReminderPush } from '@/lib/b2c/member-push';
 import { packExpiryWarnings, fitPtPackToLedger } from '@/lib/services/advisor-pack-ledger';
 import { appendAdvisorEvent } from '@/lib/services/advisor-events';
 import { getResend, getResendFrom, getAppUrl } from '@/lib/resend';
@@ -45,22 +46,39 @@ async function runForCompany(
       if (!session || session.status === 'cancelled') continue;
       if (!needsReminder(b, session.date, session.start_time, 24)) continue;
       const client = store.clients.find((c) => c.id === b.client_id);
-      if (!client?.email) continue;
+      if (!client || (!client.email && !client.platform_user_id)) continue;
       const ct = store.class_types.find((t) => t.id === session.class_type_id);
-      const result = await sendBookingReminderEmail({
-        to: client.email,
-        personName: b.family_member_name || client.name || 'Member',
-        brand: store.settings?.brand_name || 'Gym',
-        eventTitle: ct?.name || 'Class',
-        date: session.date,
-        start_time: session.start_time,
-        location: session.location,
-        manageUrl: client.portal_token
-          ? `/member/fitgraph/${client.portal_token}`
-          : undefined,
-        moduleLabel: 'GymAdvisor®',
-      });
-      if (result.ok) {
+      const manageUrl = client.portal_token
+        ? `/member/fitgraph/${client.portal_token}`
+        : undefined;
+      let emailed = false;
+      if (client.email) {
+        const result = await sendBookingReminderEmail({
+          to: client.email,
+          personName: b.family_member_name || client.name || 'Member',
+          brand: store.settings?.brand_name || 'Gym',
+          eventTitle: ct?.name || 'Class',
+          date: session.date,
+          start_time: session.start_time,
+          location: session.location,
+          manageUrl,
+          moduleLabel: 'GymAdvisor®',
+        });
+        emailed = result.ok;
+      }
+      const pushed = client.platform_user_id
+        ? (
+            await notifyBookingReminderPush({
+              platformUserId: client.platform_user_id,
+              brand: store.settings?.brand_name || 'Gym',
+              title: ct?.name || 'Class',
+              date: session.date,
+              start_time: session.start_time,
+              portalPath: manageUrl,
+            })
+          ).sent
+        : 0;
+      if (emailed || pushed > 0) {
         b.reminded_at = now;
         b.reminder_count = (Number(b.reminder_count) || 0) + 1;
         reminders++;
@@ -114,22 +132,39 @@ async function runForCompany(
       if (!appt || appt.status === 'cancelled') continue;
       if (!needsReminder(b, appt.date, appt.start_time, 24)) continue;
       const patient = store.patients.find((p) => p.id === b.patient_id);
-      if (!patient?.email) continue;
+      if (!patient || (!patient.email && !patient.platform_user_id)) continue;
       const svc = store.services.find((s) => s.id === appt.service_id);
-      const result = await sendBookingReminderEmail({
-        to: patient.email,
-        personName: b.family_member_name || patient.name || 'Patient',
-        brand: store.settings?.brand_name || 'Practice',
-        eventTitle: svc?.name || 'Appointment',
-        date: appt.date,
-        start_time: appt.start_time,
-        location: appt.location,
-        manageUrl: patient.portal_token
-          ? `/member/dentalgraph/${patient.portal_token}`
-          : undefined,
-        moduleLabel: 'DentalAdvisor®',
-      });
-      if (result.ok) {
+      const manageUrl = patient.portal_token
+        ? `/member/dentalgraph/${patient.portal_token}`
+        : undefined;
+      let emailed = false;
+      if (patient.email) {
+        const result = await sendBookingReminderEmail({
+          to: patient.email,
+          personName: b.family_member_name || patient.name || 'Patient',
+          brand: store.settings?.brand_name || 'Practice',
+          eventTitle: svc?.name || 'Appointment',
+          date: appt.date,
+          start_time: appt.start_time,
+          location: appt.location,
+          manageUrl,
+          moduleLabel: 'DentalAdvisor®',
+        });
+        emailed = result.ok;
+      }
+      const pushed = patient.platform_user_id
+        ? (
+            await notifyBookingReminderPush({
+              platformUserId: patient.platform_user_id,
+              brand: store.settings?.brand_name || 'Practice',
+              title: svc?.name || 'Appointment',
+              date: appt.date,
+              start_time: appt.start_time,
+              portalPath: manageUrl,
+            })
+          ).sent
+        : 0;
+      if (emailed || pushed > 0) {
         b.reminded_at = now;
         b.reminder_count = (Number(b.reminder_count) || 0) + 1;
         reminders++;
@@ -174,6 +209,7 @@ async function runForCompany(
         name: string;
         email?: string;
         portal_token?: string | null;
+        platform_user_id?: string | null;
       }>;
       services?: Array<{ id: string; name: string }>;
       settings?: { brand_name?: string };
@@ -190,22 +226,39 @@ async function runForCompany(
       if (!appt || appt.status === 'cancelled') continue;
       if (!needsReminder(b, appt.date, appt.start_time, 24)) continue;
       const patient = (store.patients || []).find((p) => p.id === b.patient_id);
-      if (!patient?.email) continue;
+      if (!patient || (!patient.email && !patient.platform_user_id)) continue;
       const svc = (store.services || []).find((s) => s.id === appt.service_id);
-      const result = await sendBookingReminderEmail({
-        to: patient.email,
-        personName: b.family_member_name || patient.name || 'Patient',
-        brand: store.settings?.brand_name || 'Practice',
-        eventTitle: svc?.name || 'Appointment',
-        date: appt.date,
-        start_time: appt.start_time,
-        location: appt.location,
-        manageUrl: patient.portal_token
-          ? `/member/${key}/${patient.portal_token}`
-          : undefined,
-        moduleLabel: label,
-      });
-      if (result.ok) {
+      const manageUrl = patient.portal_token
+        ? `/member/${key}/${patient.portal_token}`
+        : undefined;
+      let emailed = false;
+      if (patient.email) {
+        const result = await sendBookingReminderEmail({
+          to: patient.email,
+          personName: b.family_member_name || patient.name || 'Patient',
+          brand: store.settings?.brand_name || 'Practice',
+          eventTitle: svc?.name || 'Appointment',
+          date: appt.date,
+          start_time: appt.start_time,
+          location: appt.location,
+          manageUrl,
+          moduleLabel: label,
+        });
+        emailed = result.ok;
+      }
+      const pushed = patient.platform_user_id
+        ? (
+            await notifyBookingReminderPush({
+              platformUserId: patient.platform_user_id,
+              brand: store.settings?.brand_name || 'Practice',
+              title: svc?.name || 'Appointment',
+              date: appt.date,
+              start_time: appt.start_time,
+              portalPath: manageUrl,
+            })
+          ).sent
+        : 0;
+      if (emailed || pushed > 0) {
         b.reminded_at = now;
         b.reminder_count = (Number(b.reminder_count) || 0) + 1;
         reminders++;

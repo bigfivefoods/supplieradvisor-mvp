@@ -2,13 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
   requireCompanyAccess,
+  requireVerifiedUser,
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
+import { getCanonicalUserId } from '@/lib/auth/identity';
 import { isWebPushConfigured } from '@/lib/push/web-push';
 
 /**
- * POST { companyId, privyUserId, subscription: PushSubscriptionJSON, topics? }
- * DELETE { companyId, privyUserId, endpoint }
+ * POST { mode?: 'company'|'member', companyId?, privyUserId, subscription, topics? }
+ * DELETE { mode?, companyId?, privyUserId, endpoint }
+ *
+ * Member mode is for SA Member (no selected company). profile_id stays null
+ * unless the same endpoint already belongs to a company subscription — then
+ * topics are merged so dual-life users keep PO + care alerts on one device.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -23,6 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    const mode = body.mode === 'member' ? 'member' : 'company';
     const companyId = Number(body.companyId);
     const privyUserId = String(body.privyUserId || '').trim();
     const sub = body.subscription as
@@ -32,17 +39,28 @@ export async function POST(request: NextRequest) {
         }
       | null;
 
-    if (!Number.isFinite(companyId) || companyId <= 0) {
-      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
-    }
     if (!privyUserId) {
       return NextResponse.json({ error: 'privyUserId required' }, { status: 400 });
     }
 
-    const gate = await requireCompanyAccess(request, companyId, {
-      legacyPrivyUserId: legacyPrivyFrom(request, body),
-    });
-    if (!gate.ok) return gate.response;
+    if (mode === 'company') {
+      if (!Number.isFinite(companyId) || companyId <= 0) {
+        return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+      }
+      const gate = await requireCompanyAccess(request, companyId, {
+        legacyPrivyUserId: legacyPrivyFrom(request, body),
+      });
+      if (!gate.ok) return gate.response;
+    } else {
+      const auth = await requireVerifiedUser(request, {
+        legacyPrivyUserId: legacyPrivyFrom(request, body),
+      });
+      if (!auth.ok) return auth.response;
+      const uid = getCanonicalUserId(auth.userId);
+      if (!uid) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+    }
 
     const endpoint = String(sub?.endpoint || '').trim();
     const p256dh = String(sub?.keys?.p256dh || '').trim();
@@ -54,14 +72,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const topics = Array.isArray(body.topics)
+    const incomingTopics = Array.isArray(body.topics)
       ? body.topics.map((t: unknown) => String(t)).filter(Boolean)
-      : ['po', 'deals'];
+      : mode === 'member'
+        ? ['care', 'bookings', 'hire']
+        : ['po', 'deals'];
 
     const supabase = getSupabaseServer();
     const now = new Date().toISOString();
+
+    const existing = await supabase
+      .from('push_subscriptions')
+      .select('id, profile_id, topics')
+      .eq('endpoint', endpoint)
+      .maybeSingle();
+
+    const prevTopics = Array.isArray(existing.data?.topics)
+      ? (existing.data.topics as string[])
+      : [];
+    const topics = Array.from(new Set([...prevTopics, ...incomingTopics]));
+    const keepProfile =
+      existing.data?.profile_id != null
+        ? Number(existing.data.profile_id)
+        : mode === 'company'
+          ? companyId
+          : null;
+
     const row = {
-      profile_id: companyId,
+      profile_id: keepProfile,
       privy_user_id: privyUserId,
       endpoint,
       p256dh,
@@ -77,17 +115,16 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from('push_subscriptions')
       .upsert(row, { onConflict: 'endpoint' })
-      .select('id, endpoint, topics')
+      .select('id, endpoint, topics, profile_id')
       .maybeSingle();
 
     if (error) {
-      // Fallback insert if unique conflict name differs
       if (/unique|duplicate/i.test(error.message)) {
         const upd = await supabase
           .from('push_subscriptions')
           .update(row)
           .eq('endpoint', endpoint)
-          .select('id, endpoint, topics')
+          .select('id, endpoint, topics, profile_id')
           .maybeSingle();
         if (upd.error) {
           return NextResponse.json(
@@ -121,28 +158,39 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
+    const mode = body.mode === 'member' ? 'member' : 'company';
     const companyId = Number(body.companyId);
     const privyUserId = String(body.privyUserId || '').trim();
     const endpoint = String(body.endpoint || '').trim();
 
-    if (!Number.isFinite(companyId) || !privyUserId) {
-      return NextResponse.json(
-        { error: 'companyId and privyUserId required' },
-        { status: 400 }
-      );
+    if (!privyUserId) {
+      return NextResponse.json({ error: 'privyUserId required' }, { status: 400 });
     }
 
-    const gate = await requireCompanyAccess(request, companyId, {
-      legacyPrivyUserId: legacyPrivyFrom(request, body),
-    });
-    if (!gate.ok) return gate.response;
+    if (mode === 'company') {
+      if (!Number.isFinite(companyId)) {
+        return NextResponse.json(
+          { error: 'companyId and privyUserId required' },
+          { status: 400 }
+        );
+      }
+      const gate = await requireCompanyAccess(request, companyId, {
+        legacyPrivyUserId: legacyPrivyFrom(request, body),
+      });
+      if (!gate.ok) return gate.response;
+    } else {
+      const auth = await requireVerifiedUser(request, {
+        legacyPrivyUserId: legacyPrivyFrom(request, body),
+      });
+      if (!auth.ok) return auth.response;
+    }
 
     const supabase = getSupabaseServer();
     let q = supabase
       .from('push_subscriptions')
       .delete()
-      .eq('privy_user_id', privyUserId)
-      .eq('profile_id', companyId);
+      .eq('privy_user_id', privyUserId);
+    if (mode === 'company') q = q.eq('profile_id', companyId);
     if (endpoint) q = q.eq('endpoint', endpoint);
     const { error } = await q;
     if (error) {

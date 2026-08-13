@@ -17,18 +17,23 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 }
 
 /**
- * Opt-in Web Push for PO accepted + deal stage alerts.
+ * Opt-in Web Push.
+ * company — PO accepted + deal stages (needs selected company).
+ * member — bookings, care records, hire (SA Member, no company).
  */
 export default function EnablePushButton({
   className = '',
   compact = false,
+  mode = 'company',
 }: {
   className?: string;
   compact?: boolean;
+  mode?: 'company' | 'member';
 }) {
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
   const companyId = getSelectedCompanyId();
+  const isMember = mode === 'member';
   const [supported, setSupported] = useState(false);
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [enabled, setEnabled] = useState(false);
@@ -62,7 +67,11 @@ export default function EnablePushButton({
   }, []);
 
   const enable = useCallback(async () => {
-    if (!companyId || !privyUserId) {
+    if (!privyUserId) {
+      toast.error('Sign in first');
+      return;
+    }
+    if (!isMember && !companyId) {
       toast.error('Select a company and sign in first');
       return;
     }
@@ -80,7 +89,9 @@ export default function EnablePushButton({
       const perm = await Notification.requestPermission();
       if (perm !== 'granted') {
         toast.message('Notifications blocked', {
-          description: 'Enable notifications in browser settings to get PO & deal alerts.',
+          description: isMember
+            ? 'Enable notifications in browser settings for bookings and care alerts.'
+            : 'Enable notifications in browser settings to get PO & deal alerts.',
         });
         return;
       }
@@ -103,26 +114,32 @@ export default function EnablePushButton({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          companyId,
+          mode: isMember ? 'member' : 'company',
+          companyId: isMember ? undefined : companyId,
           privyUserId,
           subscription: sub.toJSON(),
-          topics: ['po', 'deals'],
+          topics: isMember ? ['care', 'bookings', 'hire'] : ['po', 'deals'],
           userAgent: navigator.userAgent,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Subscribe failed');
       setEnabled(true);
-      toast.success('Alerts on — PO accepts & deal stages');
+      toast.success(
+        isMember
+          ? 'Alerts on — bookings, records & hires'
+          : 'Alerts on — PO accepts & deal stages'
+      );
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Could not enable alerts');
     } finally {
       setBusy(false);
     }
-  }, [companyId, privyUserId]);
+  }, [companyId, privyUserId, isMember]);
 
   const disable = useCallback(async () => {
-    if (!companyId || !privyUserId) return;
+    if (!privyUserId) return;
+    if (!isMember && !companyId) return;
     setBusy(true);
     try {
       const reg = await navigator.serviceWorker.ready;
@@ -132,7 +149,12 @@ export default function EnablePushButton({
       await fetch('/api/push/subscribe', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId, privyUserId, endpoint }),
+        body: JSON.stringify({
+          mode: isMember ? 'member' : 'company',
+          companyId: isMember ? undefined : companyId,
+          privyUserId,
+          endpoint,
+        }),
       });
       setEnabled(false);
       toast.message('Push alerts off on this device');
@@ -141,7 +163,7 @@ export default function EnablePushButton({
     } finally {
       setBusy(false);
     }
-  }, [companyId, privyUserId]);
+  }, [companyId, privyUserId, isMember]);
 
   if (!supported) return null;
   if (configured === false) {
@@ -158,7 +180,7 @@ export default function EnablePushButton({
     return (
       <button
         type="button"
-        disabled={busy || !companyId}
+        disabled={busy || (!isMember && !companyId)}
         onClick={() => void (enabled ? disable() : enable())}
         className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold touch-manipulation ${
           enabled
@@ -189,12 +211,14 @@ export default function EnablePushButton({
           Push alerts
         </div>
         <p className="text-xs text-slate-600 mt-0.5">
-          Get notified when a supplier accepts your PO or a deal stage changes.
+          {isMember
+            ? 'Get notified about appointments, waitlist offers, medical updates and hires.'
+            : 'Get notified when a supplier accepts your PO or a deal stage changes.'}
         </p>
       </div>
       <button
         type="button"
-        disabled={busy || !companyId}
+        disabled={busy || (!isMember && !companyId)}
         onClick={() => void (enabled ? disable() : enable())}
         className={`rounded-full px-4 py-2 text-xs font-bold touch-manipulation ${
           enabled

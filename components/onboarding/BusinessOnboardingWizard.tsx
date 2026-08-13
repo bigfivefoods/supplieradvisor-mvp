@@ -40,13 +40,86 @@ import {
   sectorLabel,
 } from '@/lib/product/business-catalogue';
 
-const STEPS = [
+const B2B_STEPS = [
   'Account',
+  'Org type',
   'Sector',
   'Industry',
   'Business type',
   'Details',
   'Review',
+] as const;
+
+const B2G_STEPS = ['Account', 'Government', 'Details', 'Review'] as const;
+
+const B2B_ORG_TYPES = [
+  {
+    id: 'private',
+    label: 'Private company',
+    description:
+      'Pty Ltd, close corporation, partnership or sole trader. Most businesses start here.',
+    entityTypeId: 'private_company',
+    businessType: 'business',
+  },
+  {
+    id: 'public',
+    label: 'Public company',
+    description: 'Listed or public company (Ltd) trading on the network.',
+    entityTypeId: 'private_company',
+    businessType: 'business',
+  },
+  {
+    id: 'npo',
+    label: 'NPO / NPC',
+    description: 'Non-profit, NPC, NGO or foundation.',
+    entityTypeId: 'private_company',
+    businessType: 'consumer_org',
+  },
+  {
+    id: 'association',
+    label: 'Association / co-op',
+    description: 'Industry body, co-operative or member group.',
+    entityTypeId: 'private_company',
+    businessType: 'association',
+  },
+] as const;
+
+const B2G_ORG_TYPES = [
+  {
+    id: 'national',
+    label: 'National department',
+    description: 'National government department or agency.',
+    entityTypeId: 'national',
+    businessType: 'national_government',
+  },
+  {
+    id: 'provincial',
+    label: 'Provincial department',
+    description: 'Provincial department, including most PEU offices.',
+    entityTypeId: 'provincial',
+    businessType: 'provincial_government',
+  },
+  {
+    id: 'municipal',
+    label: 'Municipal / local government',
+    description: 'Municipality, metro or local government office.',
+    entityTypeId: 'municipal',
+    businessType: 'municipal_government',
+  },
+  {
+    id: 'government_education',
+    label: 'Department of Education (DBE / PEU)',
+    description: 'Education programme office — catalogue, schools, claims.',
+    entityTypeId: 'provincial',
+    businessType: 'government_education',
+  },
+  {
+    id: 'government_health',
+    label: 'Department of Health',
+    description: 'Health programme office — facilities and approved suppliers.',
+    entityTypeId: 'provincial',
+    businessType: 'government_health',
+  },
 ] as const;
 
 type FormState = {
@@ -55,6 +128,8 @@ type FormState = {
   os_industries: string[];
   os_business_types: string[];
   os_entity_type: string;
+  legal_form: string;
+  join_lane: 'b2b' | 'b2g';
   industry_packs: string[];
   industry_modules: string[];
   business_type: string;
@@ -92,6 +167,14 @@ export default function BusinessOnboardingWizard() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const typeParam = searchParams.get('type') || 'business';
+  const laneParam = String(searchParams.get('lane') || '').toLowerCase();
+  const isGovType =
+    /government|gov|dbe|peu|national|provincial|municipal|doh/.test(
+      typeParam.toLowerCase()
+    );
+  const joinLane: 'b2b' | 'b2g' =
+    laneParam === 'b2g' || isGovType ? 'b2g' : 'b2b';
+  const STEPS = joinLane === 'b2g' ? B2G_STEPS : B2B_STEPS;
   const claimId = Number(searchParams.get('claim') || 0) || null;
   const claimName = searchParams.get('name') || '';
   const prefillEmail = searchParams.get('email') || '';
@@ -101,6 +184,7 @@ export default function BusinessOnboardingWizard() {
   const initialIndustry = mapTypeParamToIndustry(typeParam);
 
   const [step, setStep] = useState(0);
+  const current = STEPS[step] || 'Account';
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [doneProfileId, setDoneProfileId] = useState<number | null>(null);
@@ -114,12 +198,14 @@ export default function BusinessOnboardingWizard() {
     os_sector: initialSector,
     os_industries: initialIndustry ? [initialIndustry] : [],
     os_business_types: [],
-    os_entity_type: 'private_company',
+    os_entity_type: joinLane === 'b2g' ? 'national' : 'private_company',
+    legal_form: '',
+    join_lane: joinLane,
     industry_packs: initialIndustry
       ? [...(getIndustry(initialIndustry)?.packIds || [])]
       : [],
     industry_modules: [],
-    business_type: 'business',
+    business_type: joinLane === 'b2g' ? 'national_government' : 'business',
     trading_name: claimName || '',
     legal_name: claimName || '',
     registration_number: '',
@@ -170,11 +256,13 @@ export default function BusinessOnboardingWizard() {
   const progress = ((step + 1) / STEPS.length) * 100;
 
   const canNext = useMemo(() => {
-    if (step === 0) return authenticated;
-    if (step === 1) return Boolean(form.os_sector);
-    if (step === 2) return form.os_industries.length > 0;
-    if (step === 3) return form.os_business_types.length > 0;
-    if (step === 4) {
+    if (current === 'Account') return authenticated;
+    if (current === 'Org type') return Boolean(form.legal_form);
+    if (current === 'Government') return Boolean(form.legal_form);
+    if (current === 'Sector') return Boolean(form.os_sector);
+    if (current === 'Industry') return form.os_industries.length > 0;
+    if (current === 'Business type') return form.os_business_types.length > 0;
+    if (current === 'Details') {
       return (
         form.trading_name.trim().length >= 2 &&
         form.contact_name.trim().length >= 2 &&
@@ -182,10 +270,25 @@ export default function BusinessOnboardingWizard() {
       );
     }
     return true;
-  }, [step, authenticated, form]);
+  }, [current, authenticated, form]);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const selectOrgType = (
+    row:
+      | (typeof B2B_ORG_TYPES)[number]
+      | (typeof B2G_ORG_TYPES)[number]
+  ) => {
+    setForm((prev) => ({
+      ...prev,
+      legal_form: row.id,
+      os_entity_type: row.entityTypeId,
+      business_type: row.businessType,
+      os_sector:
+        form.join_lane === 'b2g' ? 'public_sector' : prev.os_sector,
+    }));
   };
 
   const selectSector = (sectorId: OsSectorId) => {
@@ -262,11 +365,11 @@ export default function BusinessOnboardingWizard() {
   };
 
   const goNext = () => {
-    if (step === 0 && !authenticated) {
+    if (current === 'Account' && !authenticated) {
       login();
       return;
     }
-    if (step === 0) ensureAuthPrefill();
+    if (current === 'Account') ensureAuthPrefill();
     if (step < STEPS.length - 1) setStep((s) => s + 1);
   };
 
@@ -286,6 +389,7 @@ export default function BusinessOnboardingWizard() {
     }
 
     const entity = getOsEntityType(form.os_entity_type);
+    const requiresApproval = form.join_lane === 'b2g';
     let bt = null as ReturnType<typeof getBusinessType>;
     for (const iid of form.os_industries) {
       for (const btid of form.os_business_types) {
@@ -340,6 +444,9 @@ export default function BusinessOnboardingWizard() {
           referralCode: referralCode || undefined,
           claimProfileId: claimId || undefined,
           os_entity_type: form.os_entity_type,
+          legal_form: form.legal_form,
+          join_lane: form.join_lane,
+          requires_approval: requiresApproval,
           os_sector: form.os_sector,
           os_industry: form.os_industries[0] || null,
           os_industries: form.os_industries,
@@ -377,6 +484,8 @@ export default function BusinessOnboardingWizard() {
       );
       setDoneContactRequired(
         data.setupStatus === 'contact_required' ||
+          data.setupStatus === 'pending_approval' ||
+          requiresApproval ||
           entity?.setupPath === 'contact_required'
       );
 
@@ -395,11 +504,13 @@ export default function BusinessOnboardingWizard() {
 
       setDone(true);
       toast.success(
-        data.setupStatus === 'contact_required'
-          ? 'A specialist will contact you to complete setup'
-          : data.claimed
-            ? 'Listing claimed — workspace ready!'
-            : 'Workspace ready!'
+        data.setupStatus === 'pending_approval' || requiresApproval
+          ? 'Request sent — platform admin must approve government access'
+          : data.setupStatus === 'contact_required'
+            ? 'A specialist will contact you to complete setup'
+            : data.claimed
+              ? 'Listing claimed — workspace ready!'
+              : 'Workspace ready!'
       );
 
       const partner = (searchParams.get('partner') || '').toLowerCase().trim();
@@ -469,11 +580,17 @@ export default function BusinessOnboardingWizard() {
         <div className="text-center max-w-md">
           <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto mb-6" />
           <h1 className="text-4xl font-black tracking-[-2px] text-[#00b4d8] mb-3">
-            {doneContactRequired ? 'Request received' : 'Welcome aboard'}
+            {doneContactRequired
+              ? joinLane === 'b2g'
+                ? 'Awaiting approval'
+                : 'Request received'
+              : 'Welcome aboard'}
           </h1>
           <p className="text-lg text-neutral-600 mb-4">
             {doneContactRequired
-              ? 'A specialist will contact you to complete provincial / national setup. Redirecting…'
+              ? joinLane === 'b2g'
+                ? 'A SupplierAdvisor admin must approve this government workspace before it opens. Redirecting…'
+                : 'A specialist will contact you to complete provincial / national setup. Redirecting…'
               : doneLifetime
                 ? 'Founding seat ready. Redirecting…'
                 : 'Your Core OS workspace is ready. Redirecting…'}
@@ -532,35 +649,66 @@ export default function BusinessOnboardingWizard() {
             <ol className="flex flex-wrap items-center gap-1.5 text-sm">
               <TrailChip
                 n={1}
-                label="Sector"
-                value={sectorDef?.label}
-                active={step === 1}
-                done={Boolean(form.os_sector) && step > 1}
-              />
-              <span className="text-slate-300 font-bold">→</span>
-              <TrailChip
-                n={2}
-                label="Industry"
+                label={joinLane === 'b2g' ? 'Government' : 'Org type'}
                 value={
-                  industryDefs.length
-                    ? industryDefs.map((i) => i.label).join(' · ')
-                    : null
+                  (joinLane === 'b2g'
+                    ? B2G_ORG_TYPES
+                    : B2B_ORG_TYPES
+                  ).find((o) => o.id === form.legal_form)?.label ||
+                  form.legal_form ||
+                  null
                 }
-                active={step === 2}
-                done={form.os_industries.length > 0 && step > 2}
+                active={current === 'Org type' || current === 'Government'}
+                done={Boolean(form.legal_form) && step > 1}
               />
-              <span className="text-slate-300 font-bold">→</span>
-              <TrailChip
-                n={3}
-                label="Business type"
-                value={
-                  form.os_business_types.length
-                    ? `${form.os_business_types.length} selected`
-                    : null
-                }
-                active={step === 3}
-                done={form.os_business_types.length > 0 && step > 3}
-              />
+              {joinLane === 'b2b' ? (
+                <>
+                  <span className="text-slate-300 font-bold">→</span>
+                  <TrailChip
+                    n={2}
+                    label="Sector"
+                    value={sectorDef?.label}
+                    active={current === 'Sector'}
+                    done={Boolean(form.os_sector) && current !== 'Sector' && current !== 'Org type'}
+                  />
+                  <span className="text-slate-300 font-bold">→</span>
+                  <TrailChip
+                    n={3}
+                    label="Industry"
+                    value={
+                      industryDefs.length
+                        ? industryDefs.map((i) => i.label).join(' · ')
+                        : null
+                    }
+                    active={current === 'Industry'}
+                    done={
+                      form.os_industries.length > 0 &&
+                      current !== 'Industry' &&
+                      current !== 'Sector' &&
+                      current !== 'Org type'
+                    }
+                  />
+                  <span className="text-slate-300 font-bold">→</span>
+                  <TrailChip
+                    n={4}
+                    label="Business type"
+                    value={
+                      form.os_business_types.length
+                        ? `${form.os_business_types.length} selected`
+                        : null
+                    }
+                    active={current === 'Business type'}
+                    done={
+                      form.os_business_types.length > 0 &&
+                      (current === 'Details' || current === 'Review')
+                    }
+                  />
+                </>
+              ) : (
+                <span className="text-[11px] font-semibold text-violet-800">
+                  · Admin approval required
+                </span>
+              )}
             </ol>
             {form.industry_packs.length > 0 ? (
               <p className="text-[11px] text-slate-600 mt-2">
@@ -580,17 +728,19 @@ export default function BusinessOnboardingWizard() {
           </div>
         ) : null}
 
-        {/* Step 0 — Account */}
-        {step === 0 ? (
+        {/* Account */}
+        {current === 'Account' ? (
           <section className="space-y-6">
             <div>
               <h1 className="text-3xl font-black text-slate-900 tracking-tight">
-                Join SupplierAdvisor
+                {joinLane === 'b2g'
+                  ? 'Request government access'
+                  : 'Register a business'}
               </h1>
               <p className="text-slate-600 mt-2 text-sm leading-relaxed">
-                You&apos;ll choose <strong>Sector → Industry → Business type</strong>,
-                then company details. Core OS from R{CORE_OS_MONTHLY_ZAR}/mo ·
-                Industry Packs +R{INDUSTRY_PACK_MONTHLY_ZAR}/mo · 30-day trial.
+                {joinLane === 'b2g'
+                  ? 'Government workspaces need SupplierAdvisor admin approval. Sign in, name the office, and submit. You will not get a live desk until a platform admin activates it.'
+                  : `Next you choose organisation type (private, public, NPO), then sector → industry → business type. Core OS from R${CORE_OS_MONTHLY_ZAR}/mo · Industry Packs +R${INDUSTRY_PACK_MONTHLY_ZAR}/mo · 30-day trial.`}
               </p>
             </div>
             {authenticated ? (
@@ -600,7 +750,7 @@ export default function BusinessOnboardingWizard() {
                 {user?.email?.address || extractEmailFromPrivyUser(user)
                   ? ` as ${user?.email?.address || extractEmailFromPrivyUser(user)}`
                   : ''}
-                . Continue to choose your sector.
+                . Continue to the next step.
               </div>
             ) : (
               <button
@@ -616,29 +766,119 @@ export default function BusinessOnboardingWizard() {
                 <Building2 className="w-4 h-4 text-[#00b4d8]" />
                 Setup path
               </p>
-              <ol className="list-decimal list-inside space-y-1">
-                <li>
-                  <strong>Sector</strong> — Primary, Secondary, Tertiary,
-                  Quaternary, or Public Sector
-                </li>
-                <li>
-                  <strong>Industry</strong> — e.g. Food manufacturing, Logistics,
-                  National government
-                </li>
-                <li>
-                  <strong>Business type</strong> — exhaustive role within that
-                  industry (manufacturer, school kitchen, DoE, etc.)
-                </li>
-                <li>
-                  <strong>Company details</strong> — trading name and contacts
-                </li>
-              </ol>
+              {joinLane === 'b2g' ? (
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>
+                    <strong>Government type</strong> — national, provincial,
+                    municipal, education or health
+                  </li>
+                  <li>
+                    <strong>Office details</strong> — official name and contacts
+                  </li>
+                  <li>
+                    <strong>Platform approval</strong> — an admin activates the
+                    workspace
+                  </li>
+                </ol>
+              ) : (
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>
+                    <strong>Organisation type</strong> — private, public, NPO or
+                    association
+                  </li>
+                  <li>
+                    <strong>Sector</strong> — Primary, Secondary, Tertiary or
+                    Quaternary
+                  </li>
+                  <li>
+                    <strong>Industry</strong> — e.g. Food manufacturing, Logistics
+                  </li>
+                  <li>
+                    <strong>Business type</strong> — role within that industry
+                  </li>
+                  <li>
+                    <strong>Company details</strong> — trading name and contacts
+                  </li>
+                </ol>
+              )}
             </div>
           </section>
         ) : null}
 
-        {/* Step 1 — Sector */}
-        {step === 1 ? (
+        {current === 'Org type' ? (
+          <section className="space-y-4">
+            <h1 className="text-2xl font-black text-slate-900">
+              What type of organisation?
+            </h1>
+            <p className="text-sm text-slate-600">
+              Private, public, NPO or association. This is the legal form —
+              you pick sector and industry next.
+            </p>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {B2B_ORG_TYPES.map((row) => {
+                const on = form.legal_form === row.id;
+                return (
+                  <button
+                    key={row.id}
+                    type="button"
+                    onClick={() => selectOrgType(row)}
+                    className={`text-left rounded-2xl border-2 p-4 transition ${
+                      on
+                        ? 'border-[#00b4d8] bg-sky-50 shadow-sm ring-2 ring-[#00b4d8]/20'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <p className="font-black text-base text-slate-900">
+                      {row.label}
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                      {row.description}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        {current === 'Government' ? (
+          <section className="space-y-4">
+            <h1 className="text-2xl font-black text-slate-900">
+              Which government office?
+            </h1>
+            <p className="text-sm text-slate-600">
+              This workspace stays closed until a SupplierAdvisor platform
+              admin approves it.
+            </p>
+            <div className="space-y-2">
+              {B2G_ORG_TYPES.map((row) => {
+                const on = form.legal_form === row.id;
+                return (
+                  <button
+                    key={row.id}
+                    type="button"
+                    onClick={() => selectOrgType(row)}
+                    className={`w-full text-left rounded-2xl border-2 p-4 transition ${
+                      on
+                        ? 'border-violet-500 bg-violet-50 shadow-sm ring-2 ring-violet-200'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <p className="font-black text-sm text-slate-900">
+                      {row.label}
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                      {row.description}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        {/* Sector */}
+        {current === 'Sector' ? (
           <section className="space-y-4">
             <h1 className="text-2xl font-black text-slate-900">
               Which sector are you in?
@@ -648,7 +888,7 @@ export default function BusinessOnboardingWizard() {
               You will only see packs and tools for this sector.
             </p>
             <div className="grid sm:grid-cols-2 gap-3">
-              {OS_SECTORS.map((s) => {
+              {OS_SECTORS.filter((s) => s.id !== 'public_sector').map((s) => {
                 const on = form.os_sector === s.id;
                 return (
                   <button
@@ -682,8 +922,8 @@ export default function BusinessOnboardingWizard() {
           </section>
         ) : null}
 
-        {/* Step 2 — Industries (multi) */}
-        {step === 2 ? (
+        {/* Industries (multi) */}
+        {current === 'Industry' ? (
           <section className="space-y-4">
             <h1 className="text-2xl font-black text-slate-900">
               Which industries?
@@ -754,8 +994,8 @@ export default function BusinessOnboardingWizard() {
           </section>
         ) : null}
 
-        {/* Step 3 — Business type(s) multi */}
-        {step === 3 ? (
+        {/* Business type(s) multi */}
+        {current === 'Business type' ? (
           <section className="space-y-4">
             <h1 className="text-2xl font-black text-slate-900">
               Business type(s)
@@ -815,18 +1055,31 @@ export default function BusinessOnboardingWizard() {
         ) : null}
 
         {/* Step 4 — Details */}
-        {step === 4 ? (
+        {current === 'Details' ? (
           <section className="space-y-4">
             <h1 className="text-2xl font-black text-slate-900">
-              Company details
+              {joinLane === 'b2g' ? 'Office details' : 'Company details'}
             </h1>
             <p className="text-sm text-slate-600">
-              Registering as{' '}
-              <strong>{businessTypeDef?.label || '—'}</strong> in{' '}
-              <strong>
-                {industryDefs.map((i) => i.label).join(' · ') || '—'}
-              </strong>{' '}
-              ({sectorLabel(form.os_sector)}).
+              {joinLane === 'b2g' ? (
+                <>
+                  Requesting access as{' '}
+                  <strong>
+                    {B2G_ORG_TYPES.find((o) => o.id === form.legal_form)
+                      ?.label || 'government'}
+                  </strong>
+                  . An admin must approve before this workspace opens.
+                </>
+              ) : (
+                <>
+                  Registering as{' '}
+                  <strong>{businessTypeDef?.label || '—'}</strong> in{' '}
+                  <strong>
+                    {industryDefs.map((i) => i.label).join(' · ') || '—'}
+                  </strong>{' '}
+                  ({sectorLabel(form.os_sector)}).
+                </>
+              )}
             </p>
             <div className="grid sm:grid-cols-2 gap-3">
               <label className="text-xs sm:col-span-2">
@@ -907,13 +1160,23 @@ export default function BusinessOnboardingWizard() {
           </section>
         ) : null}
 
-        {/* Step 5 — Review */}
-        {step === 5 ? (
+        {/* Review */}
+        {current === 'Review' ? (
           <section className="space-y-4">
             <h1 className="text-2xl font-black text-slate-900">
               Review & confirm
             </h1>
             <div className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3 text-sm">
+              <Row
+                label={joinLane === 'b2g' ? 'Government' : 'Organisation'}
+                value={
+                  (joinLane === 'b2g' ? B2G_ORG_TYPES : B2B_ORG_TYPES).find(
+                    (o) => o.id === form.legal_form
+                  )?.label || form.legal_form
+                }
+              />
+              {joinLane === 'b2b' ? (
+                <>
               <Row label="Sector" value={sectorDef?.label || form.os_sector} />
               <Row
                 label="Industries"
@@ -934,6 +1197,8 @@ export default function BusinessOnboardingWizard() {
                 label="Entity class"
                 value={entityDef?.label || form.os_entity_type}
               />
+                </>
+              ) : null}
               <Row
                 label="Industry packs"
                 value={
@@ -958,12 +1223,17 @@ export default function BusinessOnboardingWizard() {
                   <span className="text-xs font-bold text-slate-400">/mo</span>
                 </span>
               </div>
-              {contactRequired ? (
+              {joinLane === 'b2g' || contactRequired ? (
                 <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-950">
                   <Layers className="w-4 h-4 inline mr-1" />
-                  <strong>Specialist setup:</strong> Provincial and National
-                  government complete selection here; a SupplierAdvisor
-                  specialist will contact you to finish activation.
+                  <strong>
+                    {joinLane === 'b2g'
+                      ? 'Platform approval required:'
+                      : 'Specialist setup:'}
+                  </strong>{' '}
+                  {joinLane === 'b2g'
+                    ? 'A SupplierAdvisor admin must activate this government workspace. You will not get a live desk until then.'
+                    : 'Provincial and National government complete selection here; a SupplierAdvisor specialist will contact you to finish activation.'}
                 </div>
               ) : (
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-950">
@@ -982,7 +1252,7 @@ export default function BusinessOnboardingWizard() {
           <button
             type="button"
             onClick={goBack}
-            disabled={step === 0}
+            disabled={current === 'Account'}
             className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1 disabled:opacity-30"
           >
             <ArrowLeft className="w-4 h-4" /> Back

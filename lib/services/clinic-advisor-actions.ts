@@ -14,6 +14,10 @@ import {
   sendWaitlistOfferEmail,
 } from '@/lib/services/advisor-reminders';
 import {
+  notifyBookingReminderPush,
+  notifyLinkedMember,
+} from '@/lib/b2c/member-push';
+import {
   computeOutcomes,
   recallCandidates,
   type OutcomesSnapshot,
@@ -51,6 +55,7 @@ export type ClinicPatientRow = {
   email?: string;
   active?: boolean;
   portal_token?: string | null;
+  platform_user_id?: string | null;
   family?: FamilyMember[];
   no_show_count?: number;
   last_no_show_at?: string | null;
@@ -102,25 +107,43 @@ export async function clinicSendReminders(
     }
     const patient = store.patients.find((p) => p.id === b.patient_id);
     const email = patient?.email;
-    if (!email) {
+    const uid = patient?.platform_user_id;
+    if (!email && !uid) {
       skipped++;
       continue;
     }
     const svc = store.services.find((s) => s.id === appt.service_id);
-    const result = await sendBookingReminderEmail({
-      to: email,
-      personName: b.family_member_name || patient?.name || 'Patient',
-      brand: store.settings?.brand_name || cfg.brandFallback,
-      eventTitle: svc?.name || 'Appointment',
-      date: appt.date,
-      start_time: appt.start_time,
-      location: appt.location,
-      manageUrl: patient?.portal_token
-        ? `/member/${cfg.portalPath}/${patient.portal_token}`
-        : undefined,
-      moduleLabel: cfg.moduleLabel,
-    });
-    if (result.ok) {
+    const manageUrl = patient?.portal_token
+      ? `/member/${cfg.portalPath}/${patient.portal_token}`
+      : undefined;
+    let emailed = false;
+    if (email) {
+      const result = await sendBookingReminderEmail({
+        to: email,
+        personName: b.family_member_name || patient?.name || 'Patient',
+        brand: store.settings?.brand_name || cfg.brandFallback,
+        eventTitle: svc?.name || 'Appointment',
+        date: appt.date,
+        start_time: appt.start_time,
+        location: appt.location,
+        manageUrl,
+        moduleLabel: cfg.moduleLabel,
+      });
+      emailed = result.ok;
+    }
+    const pushed = uid
+      ? (
+          await notifyBookingReminderPush({
+            platformUserId: uid,
+            brand: store.settings?.brand_name || cfg.brandFallback,
+            title: svc?.name || 'Appointment',
+            date: appt.date,
+            start_time: appt.start_time,
+            portalPath: manageUrl,
+          })
+        ).sent
+      : 0;
+    if (emailed || pushed > 0) {
       b.reminded_at = now;
       b.reminder_count = (Number(b.reminder_count) || 0) + 1;
       sent++;
@@ -253,23 +276,38 @@ export async function notifyPromotedWaitlist(
   cfg: ClinicModuleConfig
 ): Promise<void> {
   const patient = store.patients.find((p) => p.id === promoted.patient_id);
-  const email = patient?.email;
-  if (!email) return;
   const appt = store.appointments.find((a) => a.id === promoted.appointment_id);
   if (!appt) return;
   const svc = store.services.find((s) => s.id === appt.service_id);
-  await sendWaitlistOfferEmail({
-    to: email,
-    personName: promoted.family_member_name || patient?.name || 'Patient',
-    brand: store.settings?.brand_name || cfg.brandFallback,
-    eventTitle: svc?.name || 'Appointment',
-    date: appt.date,
-    start_time: appt.start_time,
-    location: appt.location,
-    manageUrl: patient?.portal_token
-      ? `/member/${cfg.portalPath}/${patient.portal_token}`
-      : undefined,
-    moduleLabel: cfg.moduleLabel,
+  const manageUrl = patient?.portal_token
+    ? `/member/${cfg.portalPath}/${patient.portal_token}`
+    : undefined;
+  if (patient?.email) {
+    await sendWaitlistOfferEmail({
+      to: patient.email,
+      personName: promoted.family_member_name || patient?.name || 'Patient',
+      brand: store.settings?.brand_name || cfg.brandFallback,
+      eventTitle: svc?.name || 'Appointment',
+      date: appt.date,
+      start_time: appt.start_time,
+      location: appt.location,
+      manageUrl,
+      moduleLabel: cfg.moduleLabel,
+    });
+  }
+  await notifyLinkedMember({
+    platformUserId: patient?.platform_user_id,
+    title: 'Spot available',
+    body: [
+      store.settings?.brand_name || cfg.brandFallback,
+      svc?.name || 'Appointment',
+      `${appt.date} ${appt.start_time}`,
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    url: manageUrl || '/me',
+    tag: `waitlist-${promoted.id}`,
+    topic: 'bookings',
   });
 }
 

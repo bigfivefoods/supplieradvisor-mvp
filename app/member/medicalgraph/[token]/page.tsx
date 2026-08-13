@@ -10,6 +10,7 @@ import {
   Check,
   Loader2,
   MapPin,
+  HeartPulse,
   Stethoscope,
   User,
   X,
@@ -75,6 +76,7 @@ type Portal = {
   open_slots: Slot[];
   waitlist_queue?: Array<{ id: string; position: number }>;
   can_book_other_clinicians?: boolean;
+  medical_share?: Record<string, unknown> | null;
   my_bookings: Array<{
     waitlist_offered_at?: string | null;
     waitlist_accepted_at?: string | null;
@@ -96,7 +98,9 @@ export default function MemberMedicalgraphPortalPage() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [tab, setTab] = useState<'open' | 'mine' | 'messages' | 'profile'>('open');
+  const [tab, setTab] = useState<
+    'open' | 'mine' | 'care' | 'messages' | 'profile'
+  >('open');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -135,6 +139,19 @@ export default function MemberMedicalgraphPortalPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get('tab');
+    if (
+      raw === 'open' ||
+      raw === 'mine' ||
+      raw === 'care' ||
+      raw === 'messages' ||
+      raw === 'profile'
+    ) {
+      setTab(raw);
+    }
+  }, []);
 
   const post = async (body: Record<string, unknown>) => {
     const res = await fetch('/api/public/medicalgraph/patient', {
@@ -313,8 +330,9 @@ export default function MemberMedicalgraphPortalPage() {
         <div className="flex gap-1 rounded-2xl bg-white border border-slate-200 p-1">
           {(
             [
-              ['open', 'Open diary'],
+              ['open', 'Book'],
               ['mine', 'My bookings'],
+              ['care', 'My records'],
               ['messages', 'Messages'],
               ['profile', 'My profile'],
             ] as const
@@ -454,6 +472,50 @@ export default function MemberMedicalgraphPortalPage() {
                 </div>
               ))
             )}
+          </div>
+        )}
+
+        {tab === 'care' && (
+          <div className="rounded-2xl border border-emerald-200 bg-white p-4 space-y-3">
+            <div className="flex items-center gap-2 text-emerald-800">
+              <HeartPulse className="w-4 h-4" />
+              <h2 className="text-sm font-black">Your medical information</h2>
+            </div>
+            {portal.medical_share &&
+            Object.keys(portal.medical_share).length > 0 ? (
+              <dl className="space-y-2 text-sm">
+                {Object.entries(portal.medical_share).map(([k, v]) => {
+                  if (v == null || v === '') return null;
+                  const label = k.replace(/_/g, ' ');
+                  const value =
+                    typeof v === 'object' && !Array.isArray(v)
+                      ? Object.entries(v as Record<string, unknown>)
+                          .filter(([, x]) => x != null && x !== '')
+                          .map(([a, b]) => `${a.replace(/_/g, ' ')}: ${b}`)
+                          .join(' · ')
+                      : Array.isArray(v)
+                        ? v.join(', ')
+                        : String(v);
+                  if (!value) return null;
+                  return (
+                    <div key={k}>
+                      <dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                        {label}
+                      </dt>
+                      <dd className="text-slate-800 mt-0.5">{value}</dd>
+                    </div>
+                  );
+                })}
+              </dl>
+            ) : (
+              <p className="text-sm text-slate-500">
+                Your practice has not shared a care summary yet. Ask the desk
+                if you expected allergies, scripts or medical aid here.
+              </p>
+            )}
+            <p className="text-[11px] text-slate-400">
+              Summary only — full charts stay with your clinicians.
+            </p>
           </div>
         )}
 

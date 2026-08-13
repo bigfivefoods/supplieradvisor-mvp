@@ -139,6 +139,19 @@ export default function MemberPhysiographPortalPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get('tab');
+    if (
+      raw === 'open' ||
+      raw === 'mine' ||
+      raw === 'care' ||
+      raw === 'messages' ||
+      raw === 'profile'
+    ) {
+      setTab(raw);
+    }
+  }, []);
+
   const post = async (body: Record<string, unknown>) => {
     const res = await fetch('/api/public/physiograph/patient', {
       method: 'POST',

@@ -10,6 +10,7 @@ import {
   portalMessagesUnread,
   portalThreadsForPerson,
 } from '@/lib/services/clinic-portal-messaging';
+import { buildPatientMedicalShare } from '@/lib/clinic/medical-share';
 
 export const PSYCHIATRYGRAPH_MODULE_ID = 'psychiatrygraph' as const;
 export const PSYCHIATRYGRAPH_META_KEY = 'psychiatrygraph';
@@ -301,6 +302,7 @@ export type PsychiatryPatient = {
   clinical?: PsychiatryClinicalProfile;
   /** Full medical chart: aid, documents, claims */
   medical?: import('@/lib/clinic/patient-medical').PatientMedicalRecord;
+  share_medical?: boolean;
   /**
    * Household / family (kids, dependents) — parent email often on the primary patient.
    */
@@ -697,6 +699,11 @@ export function buildPatientPortalPayload(
         }));
     })(),
     vacancies: open_slots.filter((s) => !s.full && !s.my_status),
+    medical_share: buildPatientMedicalShare(patient),
+    shares: {
+      schedule: true,
+      medical: patient.share_medical !== false,
+    },
     my_bookings,
     open_count: open_slots.filter((s) => !s.full).length,
     full_count: open_slots.filter((s) => s.full && !s.my_status).length,

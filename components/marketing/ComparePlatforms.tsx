@@ -276,7 +276,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'GymAdvisor® · gym & fitness services',
-        hint: 'Coaches (People dual-write), rooms, membership freeze & packs, waitlist, 24h reminders, recalls, in-app messages by system user ID, marketplace listing',
+        hint: 'Coaches, rooms, packs, waitlist, phone check-in QR, SA Member app QR for signup, in-app messages, marketplace',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -284,7 +284,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'PhysioAdvisor® · physio & allied health',
-        hint: 'Exclusive clinician diaries + rooms, waitlist desk, treatment-plan book next, POPIA, chart/scripts, marketplace',
+        hint: 'Exclusive diaries + rooms, waitlist, treatment plans, POPIA, chart, SA Member app QR, marketplace',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -292,7 +292,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'DentalAdvisor® · dental practice OS',
-        hint: 'Multi-chair practice diary (no double-book per clinician), waitlist desk, treatment plans, chart/scripts, marketplace',
+        hint: 'Multi-chair diary, waitlist, treatment plans, chart, SA Member app QR for patients, marketplace',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -300,7 +300,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'PsychiatryAdvisor® · mental health OS',
-        hint: 'Exclusive diaries + rooms, waitlist, treatment plans, chart/scripts, portal, marketplace',
+        hint: 'Exclusive diaries + rooms, waitlist, treatment plans, portal, SA Member app QR, marketplace',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -308,7 +308,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'MedicalAdvisor® · GP & medical practice OS',
-        hint: 'Multi-room exclusive diaries, waitlist desk, treatment plans, Rx on visits, portal, marketplace',
+        hint: 'Multi-room diaries, waitlist, treatment plans, Rx, portal, SA Member app QR, marketplace',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -339,6 +339,14 @@ const SECTIONS: Section[] = [
         sa: 'strong',
       },
       {
+        capability: 'HireAdvisor® · hire / rental marketplace',
+        hint: 'List gear, B2C rent on SA Member, category KYC, golden path, 2.5% on the listing business — members pay no platform fee',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
+        sa: 'strong',
+      },
+      {
         capability: 'Advisor marketplace listing',
         hint: 'Opt-in public directory on /marketplace/advisors (city + blurb)',
         excel: 'no',
@@ -363,8 +371,8 @@ const SECTIONS: Section[] = [
         sa: 'strong',
       },
       {
-        capability: 'Platform subscription only (no SA patient fees)',
-        hint: 'SA bills the company for the OS; gyms/clinics collect member/patient fees outside the platform',
+        capability: 'Platform subscription only (members free)',
+        hint: 'SA bills the operating company. Members, patients and hire customers use SA Member at R0 — no platform take-rate',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -376,6 +384,83 @@ const SECTIONS: Section[] = [
         excel: 'no',
         xero: 'no',
         erp: 'partial',
+        sa: 'strong',
+      },
+    ],
+  },
+  {
+    title: 'SA Member · B2C customer app',
+    rows: [
+      {
+        capability: 'Free personal PWA (SA Member)',
+        hint: 'Install on the phone — one login for gym, dentist, hire, clinic. Not a company workspace',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'Self-serve profile + ID verify',
+        hint: 'Customers create their own profile; SA ID via VerifyNow or passport via Didit',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'Hire golden path on the phone',
+        hint: 'Request → docs → approved → pay → out → return → done, with next action and deposit',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'In-app shop · sale, hire, Advisors',
+        hint: 'Browse public listings and listed gyms/clinics from the same member app',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'Advisor desk QR / WhatsApp invite',
+        hint: 'Gym, clinic and hire desks print a QR or send a link so people download the app and sign up',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'Book Advisor appointments',
+        hint: 'Medical, dental, physio, psychiatry and gym diaries — members book from SA Member',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'Shared medical summary on the phone',
+        hint: 'Allergies, scripts, medical aid and care notes the practice shares — full charts stay at the desk',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'Push alerts for bookings & care',
+        hint: 'Reminders, waitlist offers and hire status without a company workspace',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'Dual-life identity',
+        hint: 'Same login can run a B2B/B2G company and keep a personal wallet — they never mix',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
         sa: 'strong',
       },
     ],
@@ -820,18 +905,32 @@ export default function ComparePlatforms() {
 
           <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 bg-slate-50/60 px-4 py-4 dark:border-neutral-800 dark:bg-neutral-900/60 sm:px-6">
             <Legend />
-            <Link
-              href="/onboarding?type=business"
-              className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#0099b8]"
-            >
-              Start free trial <ArrowRight className="h-4 w-4" />
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/me"
+                className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white px-5 py-2.5 text-sm font-bold text-[#0077b6] hover:border-[#00b4d8]"
+              >
+                Free SA Member
+              </Link>
+              <Link
+                href="/onboarding?type=business"
+                className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#0099b8]"
+              >
+                Start free trial <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
           </div>
         </div>
 
         {/* Mobile legend + CTA */}
         <div className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-neutral-800 dark:bg-neutral-950 lg:hidden">
           <Legend />
+          <Link
+            href="/me"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-sky-200 bg-white px-5 py-3 text-sm font-bold text-[#0077b6]"
+          >
+            Create free SA Member account
+          </Link>
           <Link
             href="/onboarding?type=business"
             className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#0099b8]"

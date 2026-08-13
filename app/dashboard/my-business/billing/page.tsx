@@ -80,6 +80,8 @@ function BillingInner() {
   const payFocus = searchParams?.get('pay') === '1';
   const setupContactRequired =
     searchParams?.get('setup') === 'contact_required';
+  const setupPendingApproval =
+    searchParams?.get('setup') === 'pending_approval';
   const plansRef = useRef<HTMLDivElement>(null);
 
   const [loading, setLoading] = useState(true);
@@ -673,6 +675,21 @@ function BillingInner() {
         foundingRemaining={founding?.remaining}
         settleProof={settleProof}
       />
+
+      {setupPendingApproval ? (
+        <div className="mb-6 rounded-2xl border border-violet-300 bg-violet-50 px-4 py-4 flex gap-3">
+          <AlertTriangle className="w-5 h-5 text-violet-700 shrink-0 mt-0.5" />
+          <div className="text-sm text-violet-950 space-y-1">
+            <p className="font-black">Awaiting platform approval</p>
+            <p className="text-xs text-violet-900/90 leading-relaxed">
+              Government workspaces are not self-serve. A SupplierAdvisor
+              admin must activate this office before the desk opens. You can
+              review billing and profile, but programme tools stay closed
+              until approval.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       {setupContactRequired ? (
         <div className="mb-6 rounded-2xl border border-violet-300 bg-violet-50 px-4 py-4 flex gap-3">
