@@ -976,17 +976,15 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <SocialProofStrip />
-
       <ProductVideo />
 
       {/* ═══════════ B2B · B2G · B2C ═══════════ */}
       <section
         id="markets"
-        className="scroll-mt-20 border-t border-slate-200 bg-white py-16 sm:py-24"
+        className="flex min-h-svh flex-col justify-center scroll-mt-20 border-t border-slate-200 bg-white px-4 py-16 sm:px-6 sm:py-20 lg:px-10"
       >
-        <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
-          <div className="mx-auto mb-12 max-w-3xl text-center">
+        <div className="mx-auto w-full max-w-screen-2xl">
+          <div className="mx-auto mb-8 max-w-3xl text-center sm:mb-10">
             <SectionLabel>Who the network serves</SectionLabel>
             <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
               B2B. B2G. B2C.
@@ -1029,11 +1027,11 @@ export default function LandingPage() {
               {
                 code: 'B2C',
                 title: 'Business to consumer',
-                body: 'Create a free personal SA Member account — the same login for gym, dentist, hire and clinic brands. No company. If you also run a business, that workspace stays separate.',
+                body: 'One free personal wallet. Link any business on this platform to manage that account — shop, subscriptions, bookings and medical records. No company. If you also run a business, that workspace stays separate.',
                 points: [
                   'Free PWA — install on your phone, no company, no card',
-                  'Book Advisor appointments and see shared medical records',
-                  'Push alerts, hire golden path, shop, gym check-in — one wallet',
+                  'Link any gym, clinic, hire desk or shop to this wallet',
+                  'Book, buy, records and push alerts — same login',
                 ],
                 href: '/me',
                 cta: 'Create free SA Member account',
@@ -1042,7 +1040,7 @@ export default function LandingPage() {
             ].map((m) => (
               <div
                 key={m.code}
-                className="group flex flex-col rounded-[1.75rem] border border-slate-200 bg-gradient-to-b from-white to-sky-50/40 p-7 sm:p-8 shadow-sm transition-all hover:border-[#00b4d8]/45 hover:shadow-lg hover:shadow-sky-100/80"
+                className="group flex min-h-[22rem] flex-col rounded-[1.75rem] border border-slate-200 bg-gradient-to-b from-white to-sky-50/40 p-7 sm:p-8 shadow-sm transition-all hover:border-[#00b4d8]/45 hover:shadow-lg hover:shadow-sky-100/80 lg:min-h-[28rem]"
               >
                 <div className="flex items-center justify-between gap-3">
                   <span className="font-mono text-xs font-black tracking-[0.2em] text-[#00b4d8]">
@@ -1077,23 +1075,23 @@ export default function LandingPage() {
       {/* ═══════════ SA MEMBER APP ═══════════ */}
       <section
         id="member-app"
-        className="scroll-mt-20 border-t border-slate-200 bg-[#f8fafc] py-16 sm:py-24"
+        className="flex min-h-svh flex-col justify-center scroll-mt-20 border-t border-slate-200 bg-[#f8fafc] px-4 py-16 sm:px-6 sm:py-20 lg:px-10"
       >
-        <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
-          <div className="mx-auto mb-12 max-w-3xl text-center">
+        <div className="mx-auto w-full max-w-screen-2xl">
+          <div className="mx-auto mb-6 max-w-3xl text-center sm:mb-8">
             <SectionLabel>SA Member</SectionLabel>
             <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
-              The free customer app
-              <span className="mt-2 block text-[#00b4d8]">for every Advisor brand.</span>
+              Your personal wallet
+              <span className="mt-2 block text-[#00b4d8]">for every business on this platform.</span>
             </h2>
-            <p className="mt-4 text-base leading-relaxed text-slate-600 sm:text-lg">
-              Gyms, clinics and hire desks print a QR or send a WhatsApp link.
-              People install SA Member, create a profile, verify themselves, and
-              follow their hire or booking path — book appointments, see shared
-              medical information, and get push alerts — at no cost to the member.
+            <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">
+              Create one free SA Member profile. Link it to any gym, clinic,
+              hire desk or shop on SupplierAdvisor — then manage that account:
+              book, buy, subscriptions, medical records and push alerts. Desks
+              can still print a QR or send WhatsApp. You never pay us.
             </p>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {[
               {
                 icon: Smartphone,
@@ -1117,8 +1115,8 @@ export default function LandingPage() {
               },
               {
                 icon: QrCode,
-                t: 'Desk QR & WhatsApp',
-                b: 'Every Advisor business can generate a poster QR or send a link so customers download the app and sign up.',
+                t: 'Link any business',
+                b: 'Search a company in the app, scan a desk QR, or tap Add to wallet on their public page. One profile, many accounts.',
               },
               {
                 icon: Stethoscope,
@@ -1143,15 +1141,15 @@ export default function LandingPage() {
             ].map((f) => (
               <div
                 key={f.t}
-                className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm"
+                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
               >
-                <f.icon className="h-6 w-6 text-[#00b4d8]" />
-                <h3 className="mt-4 text-lg font-black text-slate-900">{f.t}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-slate-600">{f.b}</p>
+                <f.icon className="h-5 w-5 text-[#00b4d8]" />
+                <h3 className="mt-3 text-base font-black text-slate-900">{f.t}</h3>
+                <p className="mt-1.5 text-[13px] leading-relaxed text-slate-600">{f.b}</p>
               </div>
             ))}
           </div>
-          <div className="mt-10 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+          <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
             <Link
               href="/me"
               className="inline-flex items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-sm font-bold text-white shadow-lg shadow-cyan-500/20 hover:bg-[#0099b8]"
@@ -1172,21 +1170,21 @@ export default function LandingPage() {
       {/* ═══════════ WHY JOIN ═══════════ */}
       <section
         id="why-join"
-        className="scroll-mt-20 border-t border-slate-200 bg-[#f8fafc] py-16 sm:py-24"
+        className="flex min-h-svh flex-col justify-center scroll-mt-20 border-t border-slate-200 bg-white px-4 py-16 sm:px-6 sm:py-20 lg:px-10"
       >
-        <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
-          <div className="mx-auto mb-12 max-w-3xl text-center">
+        <div className="mx-auto w-full max-w-screen-2xl">
+          <div className="mx-auto mb-6 max-w-3xl text-center sm:mb-8">
             <SectionLabel>Why join</SectionLabel>
             <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
               Compelling reasons to run
               <span className="mt-2 block text-[#00b4d8]">on SupplierAdvisor®</span>
             </h2>
-            <p className="mt-4 text-base leading-relaxed text-slate-600 sm:text-lg">
+            <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">
               Not another dashboard. The operating system for people who measure trust —
               and refuse to separate commerce from quality, safety, and proof.
             </p>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
               {
                 icon: ShieldCheck,
@@ -1256,17 +1254,17 @@ export default function LandingPage() {
             ].map((r) => (
               <div
                 key={r.t}
-                className="rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-sm transition-all hover:border-[#00b4d8]/40 hover:shadow-md sm:p-7"
+                className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-4 shadow-sm transition-all hover:border-[#00b4d8]/40 hover:shadow-md sm:p-5"
               >
-                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 text-[#00b4d8]">
-                  <r.icon className="h-5 w-5" />
+                <div className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 text-[#00b4d8]">
+                  <r.icon className="h-4 w-4" />
                 </div>
-                <h3 className="text-lg font-black text-slate-900">{r.t}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-slate-600">{r.b}</p>
+                <h3 className="text-sm font-black text-slate-900 sm:text-base">{r.t}</h3>
+                <p className="mt-1.5 text-[12px] leading-relaxed text-slate-600 sm:text-[13px]">{r.b}</p>
               </div>
             ))}
           </div>
-          <div className="mt-12 flex flex-wrap items-center justify-center gap-3">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/onboarding?type=business"
               className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-sm font-bold text-white shadow-md shadow-cyan-200/50 hover:bg-[#0099b8]"
@@ -1285,6 +1283,8 @@ export default function LandingPage() {
 
       {/* ═══════════ COMPARE vs Excel / Xero / ERP ═══════════ */}
       <ComparePlatforms />
+
+      <SocialProofStrip />
 
       <ReplaceStackDiagram />
 
@@ -2034,7 +2034,7 @@ export default function LandingPage() {
               {
                 icon: Leaf,
                 t: 'B2C · Member account',
-                b: 'Free SA Member app — book clinics, medical records, push alerts, hire, shop, gym check-in. Same login if you later register a company.',
+                b: 'Free personal wallet. Link any business on this platform to shop, book, see records and manage subscriptions. Same login if you later register a company.',
                 href: '/me',
                 cta: 'Create free account',
               },

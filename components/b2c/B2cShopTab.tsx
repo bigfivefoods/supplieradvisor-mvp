@@ -148,8 +148,9 @@ export function B2cShopTab({
   return (
     <div className="space-y-3">
       <p className="text-[11px] leading-relaxed text-slate-600">
-        Browse what brands are selling or hiring out — and book listed gyms and
-        clinics. Free to use. Your linked brands open in their portal.
+        Browse what businesses are selling or hiring out — and book listed
+        gyms and clinics. Free to use. Linked businesses in your wallet open
+        in their portal.
       </p>
 
       <div className="relative">

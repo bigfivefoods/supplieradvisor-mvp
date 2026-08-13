@@ -172,7 +172,7 @@ async function loadHireAndAdvisors(opts: {
   const { data: rows } = await supabase
     .from('profiles')
     .select(
-      'id, trading_name, legal_name, company_name, name, city, verification_status, is_discoverable, metadata'
+      'id, trading_name, legal_name, city, verification_status, is_discoverable, metadata'
     )
     .order('updated_at', { ascending: false })
     .limit(180);
@@ -190,8 +190,6 @@ async function loadHireAndAdvisors(opts: {
     const companyName = String(
       row.trading_name ||
         row.legal_name ||
-        row.company_name ||
-        row.name ||
         `Company #${companyId}`
     );
     const city = row.city ? String(row.city) : null;

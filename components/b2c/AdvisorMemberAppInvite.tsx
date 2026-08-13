@@ -99,14 +99,14 @@ export function AdvisorMemberAppInvite({
             <Smartphone className="h-3.5 w-3.5" /> SA Member · {KIND_LABEL[kind] || kind}
           </p>
           <h3 className="text-lg font-black text-slate-900 dark:text-white">
-            {kind === 'customer' || kind === 'supplier'
-              ? `Invite ${AUDIENCE_LABEL[audience] || 'partners'} to the platform`
-              : `Invite ${AUDIENCE_LABEL[audience] || 'people'} to the app`}
+            {kind === 'supplier'
+              ? 'Invite suppliers to the platform'
+              : `Invite ${AUDIENCE_LABEL[audience] || 'people'} to SA Member`}
           </h3>
           <p className="text-sm text-slate-600 dark:text-slate-300">
-            {kind === 'customer' || kind === 'supplier'
-              ? `Print this QR or send the link. They register a company on SupplierAdvisor and can connect with you as a ${audience === 'suppliers' ? 'supplier' : 'customer'}.`
-              : `Print this QR or send the link. They open SA Member on their phone, create a free profile (email or Google), and can verify themselves. If you already have their email or phone, their ${audience === 'patients' ? 'patient' : audience === 'customers' ? 'hire' : 'member'} record attaches automatically.`}
+            {kind === 'supplier'
+              ? 'Print this QR or send the link. They register a company on SupplierAdvisor and can connect with you as a supplier.'
+              : `Print this QR or send the link. They open SA Member, create a free personal wallet, and tap Accept to link this business. Then they manage this account — book, shop, subscriptions and records — from their phone.`}
           </p>
           <p className="break-all font-mono text-[11px] text-slate-500">{appLink}</p>
           <div className="flex flex-wrap gap-2 pt-1">

@@ -528,6 +528,12 @@ export default async function PublicCompanyPage({
           ) : null}
 
           <div className="mt-8 flex flex-wrap gap-3 items-center">
+            <Link
+              href={`/me?join=1&company=${c.id}&brand=${encodeURIComponent(name)}&kind=customer`}
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
+            >
+              Add to SA Member wallet
+            </Link>
             <PublicConnectButton peerId={c.id} peerName={name} />
             <Link
               href={`/login?next=${encodeURIComponent(

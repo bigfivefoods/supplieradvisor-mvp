@@ -1,6 +1,7 @@
 /**
- * Accept a desk / poster QR invite and become a member of that brand.
- * Scan → sign in → Accept → gym client / clinic patient / hire customer + SA Member card.
+ * Link a personal SA Member wallet to any company on the platform.
+ * Always creates a CRM customer (the account). Advisor desks the
+ * company actually runs are attached as extra cards (gym, hire, clinic).
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { emailsMatch, phonesMatch } from '@/lib/b2c/member-app';
@@ -12,6 +13,17 @@ import {
 } from '@/lib/b2c/profile-store';
 import { indexBrandPerson } from '@/lib/b2c/directory';
 import type { B2cCapability, B2cMembership, B2cMembershipKind } from '@/lib/b2c/types';
+import {
+  detectCompanyModules,
+  hasMetaModule,
+  walletModulesForCompany,
+} from '@/lib/b2c/company-modules';
+import { shopHref } from '@/lib/b2c/wallet-accounts';
+import {
+  loadWalletCompany,
+  saveWalletCompanyMeta,
+  type WalletCompany,
+} from '@/lib/b2c/load-company';
 import {
   gymCheckinPath,
   issueClientPortalToken,
@@ -52,44 +64,10 @@ import {
 
 export type JoinKind = B2cMembershipKind;
 
-type CompanyRow = {
-  id: number;
-  name: string;
-  meta: Record<string, unknown>;
-};
+type CompanyRow = WalletCompany;
 
-async function loadCompany(companyId: number): Promise<CompanyRow | null> {
-  const supabase = getSupabaseServer();
-  const { data } = await supabase
-    .from('profiles')
-    .select('id, trading_name, legal_name, company_name, name, metadata')
-    .eq('id', companyId)
-    .maybeSingle();
-  if (!data) return null;
-  const meta =
-    data.metadata && typeof data.metadata === 'object'
-      ? { ...(data.metadata as Record<string, unknown>) }
-      : {};
-  return {
-    id: Number(data.id),
-    name: String(
-      data.trading_name ||
-        data.legal_name ||
-        data.company_name ||
-        data.name ||
-        `Company #${data.id}`
-    ),
-    meta,
-  };
-}
-
-async function saveMeta(companyId: number, meta: Record<string, unknown>) {
-  const supabase = getSupabaseServer();
-  await supabase
-    .from('profiles')
-    .update({ metadata: meta, updated_at: new Date().toISOString() })
-    .eq('id', companyId);
-}
+const loadCompany = loadWalletCompany;
+const saveMeta = saveWalletCompanyMeta;
 
 function personMatch(
   person: { email?: string | null; phone?: string | null; platform_user_id?: string | null },
@@ -101,6 +79,45 @@ function personMatch(
   return emailsMatch(person.email, email) || phonesMatch(person.phone, phone);
 }
 
+function brandFromCompany(company: CompanyRow, hint?: string | null): string {
+  const kind = String(hint || '').toLowerCase();
+  if (kind === 'gym' || hasMetaModule(company.meta, 'fitgraph')) {
+    return (
+      readFitgraphFromMetadata(company.meta).settings?.brand_name || company.name
+    );
+  }
+  if (kind === 'hire' || hasMetaModule(company.meta, 'hiregraph')) {
+    return (
+      readHiregraphFromMetadata(company.meta).settings?.brand_name || company.name
+    );
+  }
+  if (kind === 'physio' || hasMetaModule(company.meta, 'physiograph')) {
+    return (
+      readPhysiographFromMetadata(company.meta).settings?.brand_name ||
+      company.name
+    );
+  }
+  if (kind === 'dental' || hasMetaModule(company.meta, 'dentalgraph')) {
+    return (
+      readDentalgraphFromMetadata(company.meta).settings?.brand_name ||
+      company.name
+    );
+  }
+  if (kind === 'medical' || hasMetaModule(company.meta, 'medicalgraph')) {
+    return (
+      readMedicalgraphFromMetadata(company.meta).settings?.brand_name ||
+      company.name
+    );
+  }
+  if (kind === 'psychiatry' || hasMetaModule(company.meta, 'psychiatrygraph')) {
+    return (
+      readPsychiatrygraphFromMetadata(company.meta).settings?.brand_name ||
+      company.name
+    );
+  }
+  return company.name;
+}
+
 export async function previewBrandJoin(opts: {
   companyId: number;
   kind?: string | null;
@@ -109,34 +126,17 @@ export async function previewBrandJoin(opts: {
   company_name: string;
   brand: string;
   kind: string;
+  modules: B2cMembershipKind[];
 } | null> {
   const company = await loadCompany(opts.companyId);
   if (!company) return null;
-  const kind = String(opts.kind || 'gym').toLowerCase();
-  let brand = company.name;
-  if (kind === 'gym') {
-    brand = readFitgraphFromMetadata(company.meta).settings?.brand_name || brand;
-  } else if (kind === 'hire') {
-    brand = readHiregraphFromMetadata(company.meta).settings?.brand_name || brand;
-  } else if (kind === 'physio') {
-    brand =
-      readPhysiographFromMetadata(company.meta).settings?.brand_name || brand;
-  } else if (kind === 'dental') {
-    brand =
-      readDentalgraphFromMetadata(company.meta).settings?.brand_name || brand;
-  } else if (kind === 'medical') {
-    brand =
-      readMedicalgraphFromMetadata(company.meta).settings?.brand_name || brand;
-  } else if (kind === 'psychiatry') {
-    brand =
-      readPsychiatrygraphFromMetadata(company.meta).settings?.brand_name ||
-      brand;
-  }
+  const modules = walletModulesForCompany(company.meta);
   return {
     company_id: company.id,
     company_name: company.name,
-    brand,
-    kind,
+    brand: brandFromCompany(company, opts.kind),
+    kind: String(opts.kind || modules.find((k) => k !== 'account') || 'account').toLowerCase(),
+    modules,
   };
 }
 
@@ -151,14 +151,14 @@ export async function acceptBrandJoin(opts: {
   membership: B2cMembership;
   already: boolean;
   brand: string;
+  modules: B2cMembershipKind[];
   profile: Awaited<ReturnType<typeof ensureB2cProfile>>;
 }> {
   const company = await loadCompany(opts.companyId);
   if (!company) {
     throw new Error('That brand could not be found');
   }
-  const kind = String(opts.kind || 'gym').toLowerCase();
-  const profile = await ensureB2cProfile(opts.userId, {
+  let profile = await ensureB2cProfile(opts.userId, {
     email: opts.email,
     full_name: opts.full_name,
     phone: opts.phone,
@@ -167,40 +167,147 @@ export async function acceptBrandJoin(opts: {
   const phone = opts.phone || profile.phone || null;
   const displayName =
     opts.full_name || profile.full_name || email?.split('@')[0] || 'Member';
-
-  const existing = (profile.memberships || []).find(
-    (m) =>
-      m.active !== false &&
-      m.company_id === company.id &&
-      (m.kind === kind || (!opts.kind && m.kind === 'gym'))
+  const brand = brandFromCompany(company, opts.kind);
+  const had = (profile.memberships || []).filter(
+    (m) => m.active !== false && m.company_id === company.id
   );
-  if (existing) {
-    return {
-      membership: existing,
-      already: true,
-      brand: existing.brand || company.name,
-      profile,
-    };
+  const ctx = {
+    company,
+    userId: opts.userId,
+    email,
+    phone,
+    displayName,
+  };
+
+  const modules = detectCompanyModules(company.meta);
+  const account = await ensureAccountLink({
+    ...ctx,
+    profile,
+    brand,
+    card: true,
+  });
+  profile = account.profile;
+
+  if (modules.includes('gym')) {
+    const r = await joinGym({ ...ctx, profile });
+    profile = r.profile;
+  }
+  if (modules.includes('hire')) {
+    const r = await joinHire({ ...ctx, profile });
+    profile = r.profile;
+  }
+  for (const clinic of ['physio', 'dental', 'medical', 'psychiatry'] as const) {
+    if (!modules.includes(clinic)) continue;
+    const r = await joinClinic({ ...ctx, profile, kind: clinic });
+    profile = r.profile;
   }
 
-  if (kind === 'gym') {
-    return joinGym({ company, profile, userId: opts.userId, email, phone, displayName });
+  const linked = (profile.memberships || []).filter(
+    (m) => m.active !== false && m.company_id === company.id
+  );
+  const preferredKind = String(opts.kind || '').toLowerCase();
+  const membership =
+    linked.find((m) => m.kind === preferredKind) ||
+    linked.find((m) => m.kind === 'gym') ||
+    linked.find((m) => m.kind !== 'account') ||
+    linked[0];
+  if (!membership) {
+    throw new Error('Could not link your wallet to this business');
   }
-  if (kind === 'hire') {
-    return joinHire({ company, profile, userId: opts.userId, email, phone, displayName });
+  return {
+    membership,
+    already: had.length > 0 && linked.length <= had.length,
+    brand,
+    modules: linked.map((m) => m.kind),
+    profile,
+  };
+}
+
+async function ensureAccountLink(opts: {
+  company: CompanyRow;
+  profile: Awaited<ReturnType<typeof ensureB2cProfile>>;
+  userId: string;
+  email: string | null;
+  phone: string | null;
+  displayName: string;
+  brand: string;
+  /** Always true for the wallet model — the account is the company link. */
+  card: boolean;
+}) {
+  const supabase = getSupabaseServer();
+  let crmId: number | null = null;
+  if (opts.email) {
+    const { data } = await supabase
+      .from('customers')
+      .select('id')
+      .eq('profile_id', opts.company.id)
+      .ilike('email', opts.email)
+      .maybeSingle();
+    if (data?.id) crmId = Number(data.id);
   }
-  if (['physio', 'dental', 'medical', 'psychiatry'].includes(kind)) {
-    return joinClinic({
-      company,
-      profile,
-      userId: opts.userId,
-      email,
-      phone,
-      displayName,
-      kind: kind as 'physio' | 'dental' | 'medical' | 'psychiatry',
-    });
+  if (!crmId) {
+    const payload = {
+      profile_id: opts.company.id,
+      trading_name: opts.displayName,
+      contact_name: opts.displayName,
+      email: opts.email,
+      phone: opts.phone,
+      status: 'active',
+      customer_type: 'consumer',
+      source: 'sa_member_wallet',
+      updated_at: new Date().toISOString(),
+    };
+    const ins = await supabase.from('customers').insert(payload).select('id').single();
+    if (ins.error) {
+      const retry = await supabase
+        .from('customers')
+        .insert({
+          profile_id: opts.company.id,
+          trading_name: opts.displayName,
+          email: opts.email,
+          status: 'active',
+        })
+        .select('id')
+        .single();
+      if (retry.data?.id) crmId = Number(retry.data.id);
+    } else if (ins.data?.id) {
+      crmId = Number(ins.data.id);
+    }
   }
-  throw new Error('This invite is not a gym, clinic or hire brand');
+
+  if (!opts.card) return { profile: opts.profile };
+
+  const caps: B2cCapability[] = ['order', 'review', 'track'];
+  const portalPath = shopHref(opts.company.id);
+  const membership = {
+    kind: 'account' as const,
+    company_id: opts.company.id,
+    company_name: opts.company.name,
+    brand: opts.brand,
+    portal_token: null,
+    portal_path: portalPath,
+    checkin_path: null,
+    ref_id: crmId ? String(crmId) : `acct_${opts.company.id}`,
+    ref_label: opts.displayName,
+    email: opts.email,
+    capabilities: caps,
+    active: true,
+  };
+  const next = upsertMembership(opts.profile, membership);
+  await saveB2cProfile(next);
+  void indexBrandPerson({
+    kind: 'account',
+    companyId: opts.company.id,
+    companyName: opts.company.name,
+    brand: opts.brand,
+    refId: membership.ref_id,
+    refLabel: opts.displayName,
+    email: opts.email,
+    phone: opts.phone,
+    portalPath,
+    capabilities: caps,
+  });
+  return { profile: next };
 }
 
 async function joinGym(opts: {

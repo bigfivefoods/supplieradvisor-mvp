@@ -186,3 +186,15 @@ export function removeMembership(
     ),
   };
 }
+
+export function removeMembershipsForCompany(
+  profile: B2cProfile,
+  companyId: number
+): B2cProfile {
+  return {
+    ...profile,
+    memberships: (profile.memberships || []).map((m) =>
+      m.company_id === companyId ? { ...m, active: false } : m
+    ),
+  };
+}

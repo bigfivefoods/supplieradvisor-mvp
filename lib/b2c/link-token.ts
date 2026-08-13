@@ -45,6 +45,10 @@ import type {
   B2cMembershipKind,
 } from '@/lib/b2c/types';
 import { indexBrandPerson } from '@/lib/b2c/directory';
+import {
+  loadWalletCompany,
+  saveWalletCompanyMeta,
+} from '@/lib/b2c/load-company';
 
 export type LinkTokenResult =
   | {
@@ -54,40 +58,8 @@ export type LinkTokenResult =
     }
   | { ok: false; error: string };
 
-async function loadCompany(companyId: number): Promise<{
-  id: number;
-  name: string;
-  meta: Record<string, unknown>;
-} | null> {
-  const supabase = getSupabaseServer();
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('id, trading_name, legal_name, company_name, name, metadata')
-    .eq('id', companyId)
-    .maybeSingle();
-  if (!prof) return null;
-  const meta =
-    prof.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
-      : {};
-  const name = String(
-    prof.trading_name ||
-      prof.legal_name ||
-      prof.company_name ||
-      prof.name ||
-      `Company #${companyId}`
-  );
-  return { id: Number(prof.id), name, meta };
-}
-
-async function saveMeta(companyId: number, meta: Record<string, unknown>) {
-  const supabase = getSupabaseServer();
-  const { error } = await supabase
-    .from('profiles')
-    .update({ metadata: meta, updated_at: new Date().toISOString() })
-    .eq('id', companyId);
-  if (error) throw new Error(error.message);
-}
+const loadCompany = loadWalletCompany;
+const saveMeta = saveWalletCompanyMeta;
 
 function extractTokenFromUrl(raw: string): string {
   let token = String(raw || '').trim();
@@ -501,6 +473,8 @@ export function kindLabel(kind: B2cMembershipKind | string): string {
       return 'Medical';
     case 'psychiatry':
       return 'Psychiatry';
+    case 'account':
+      return 'Account';
     default:
       return 'Membership';
   }

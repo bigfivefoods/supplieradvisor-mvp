@@ -22,7 +22,7 @@ const TABS: Array<{
 }> = [
   { id: 'home', label: 'Home', icon: Home },
   { id: 'shop', label: 'Shop', icon: Store },
-  { id: 'memberships', label: 'Brands', icon: WalletCards },
+  { id: 'memberships', label: 'Wallet', icon: WalletCards },
   { id: 'checkin', label: 'Check-in', icon: QrCode },
   { id: 'account', label: 'Account', icon: UserRound },
 ];

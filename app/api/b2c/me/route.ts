@@ -13,6 +13,7 @@ import {
   ensureB2cProfile,
   loadB2cProfile,
   removeMembership,
+  removeMembershipsForCompany,
   saveB2cProfile,
 } from '@/lib/b2c/profile-store';
 import { kindLabel } from '@/lib/b2c/link-token';
@@ -177,7 +178,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         profile,
-        message: 'Membership unlinked',
+        message: 'Removed from your wallet',
+      });
+    }
+
+    if (action === 'unlink_company') {
+      const companyId = Number(body.company_id || body.company);
+      if (!Number.isFinite(companyId) || companyId <= 0) {
+        return NextResponse.json(
+          { error: 'company_id required' },
+          { status: 400 }
+        );
+      }
+      profile = removeMembershipsForCompany(profile, companyId);
+      await saveB2cProfile(profile);
+      return NextResponse.json({
+        success: true,
+        profile,
+        message: 'Business removed from your wallet',
       });
     }
 

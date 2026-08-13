@@ -2,7 +2,7 @@
 
 /**
  * SA Member App — B2C personal app (PWA).
- * Bottom tabs: Home · Shop · Brands · Check-in · Account
+ * Bottom tabs: Home · Shop · Wallet · Check-in · Account
  * PWA — hire / sale marketplace, gym book/check-in, reviews.
  */
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
@@ -53,6 +53,13 @@ import {
 import type { B2cHireJourney } from '@/lib/b2c/hire-journeys';
 import { toast } from 'sonner';
 import EnablePushButton from '@/components/pwa/EnablePushButton';
+import { B2cLinkBusiness } from '@/components/b2c/B2cLinkBusiness';
+import {
+  groupWalletAccounts,
+  primaryPortal,
+  shopHref,
+} from '@/lib/b2c/wallet-accounts';
+import { moduleLabels } from '@/lib/b2c/company-modules';
 
 type Membership = {
   id: string;
@@ -92,6 +99,7 @@ type ActivityItem = {
 
 function kindIcon(kind: string) {
   if (kind === 'hire') return Package;
+  if (kind === 'account') return Store;
   if (kind === 'gym') return Dumbbell;
   if (kind === 'physio') return HeartPulse;
   if (kind === 'dental') return Sparkles;
@@ -102,6 +110,7 @@ function kindIcon(kind: string) {
 
 function kindTone(kind: string) {
   if (kind === 'hire') return 'from-cyan-500 to-sky-700 border-cyan-200';
+  if (kind === 'account') return 'from-emerald-500 to-teal-700 border-emerald-200';
   if (kind === 'gym') return 'from-violet-500 to-purple-800 border-violet-200';
   if (kind === 'physio') return 'from-teal-500 to-emerald-800 border-teal-200';
   if (kind === 'dental') return 'from-sky-400 to-blue-800 border-sky-200';
@@ -112,6 +121,7 @@ function kindTone(kind: string) {
 
 function kindActionLabel(kind: string) {
   if (kind === 'hire') return 'Order';
+  if (kind === 'account') return 'Shop';
   if (kind === 'gym') return 'Book class';
   return 'Book';
 }
@@ -167,6 +177,8 @@ function MeAppInner() {
   const [joinBusy, setJoinBusy] = useState(false);
   const [joinDone, setJoinDone] = useState(false);
   const [joinPreviewBrand, setJoinPreviewBrand] = useState(joinBrand);
+  const [joinModules, setJoinModules] = useState<string[]>([]);
+  const [joinAlready, setJoinAlready] = useState(false);
 
   // Deep links: ?tab=shop|checkin|memberships|account  ?link=
   useEffect(() => {
@@ -260,7 +272,8 @@ function MeAppInner() {
       .then((data) => {
         if (cancelled || !data?.brand) return;
         setJoinPreviewBrand(String(data.brand));
-        if (data.already) setJoinDone(true);
+        if (Array.isArray(data.modules)) setJoinModules(data.modules.map(String));
+        setJoinAlready(Boolean(data.already));
       })
       .catch(() => {});
     return () => {
@@ -271,6 +284,14 @@ function MeAppInner() {
   const memberships = useMemo(
     () => (profile?.memberships || []).filter((m) => m),
     [profile]
+  );
+  const accounts = useMemo(
+    () => groupWalletAccounts(memberships),
+    [memberships]
+  );
+  const linkedCompanyIds = useMemo(
+    () => accounts.map((a) => a.company_id),
+    [accounts]
   );
   const hireCount = memberships.filter((m) => m.kind === 'hire').length;
   const gymCount = memberships.filter((m) => m.kind === 'gym').length;
@@ -338,6 +359,7 @@ function MeAppInner() {
       }
       setJoinDone(true);
       setJoinPreviewBrand(data.brand || joinBrand);
+      if (Array.isArray(data.modules)) setJoinModules(data.modules.map(String));
       toast.success(data.message || `Joined ${data.brand || joinBrand}`);
       setTab('memberships');
       clearJoinParams();
@@ -409,16 +431,16 @@ function MeAppInner() {
     }
   };
 
-  const unlink = async (id: string) => {
-    if (!confirm('Remove this brand from your app?')) return;
+  const unlinkCompany = async (companyId: number, brand: string) => {
+    if (!confirm(`Remove ${brand} from your wallet?`)) return;
     setBusy(true);
     try {
       const res = await fetch('/api/b2c/me', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'unlink',
-          membership_id: id,
+          action: 'unlink_company',
+          company_id: companyId,
           privyUserId: getCanonicalUserId(user?.id),
         }),
       });
@@ -477,8 +499,8 @@ function MeAppInner() {
             </h1>
             <p className="mt-3 text-base text-sky-50/95">
               {isJoin && (joinBrand || joinPreviewBrand)
-                ? `${joinBrand || joinPreviewBrand} invited you. Sign in, then tap Accept & join.`
-                : 'One personal app: shop what is for sale or hire, book gym and clinic brands, check in, and keep every membership on this wallet. If you also run a company, switch to it after you sign in — same login.'}
+                ? `${joinBrand || joinPreviewBrand} invited you to link your SA Member wallet. Sign in, then tap Accept.`
+                : 'One personal wallet: link any business on this platform to manage that account — book, shop, subscriptions, records and hire. If you also run a company, switch to it after you sign in — same login.'}
             </p>
 
             <div className="mt-8 space-y-2">
@@ -502,6 +524,11 @@ function MeAppInner() {
                   icon: Store,
                   t: 'Shop sale & hire',
                   d: 'See what brands are selling or hiring out',
+                },
+                {
+                  icon: WalletCards,
+                  t: 'Your wallet',
+                  d: 'Link any business — shop, book, records, subscriptions',
                 },
                 {
                   icon: User,
@@ -568,8 +595,8 @@ function MeAppInner() {
       sub: 'For sale · hire · book',
     },
     memberships: {
-      title: 'Your brands',
-      sub: `${memberships.length} linked`,
+      title: 'Your wallet',
+      sub: `${accounts.length} ${accounts.length === 1 ? 'business' : 'businesses'}`,
     },
     checkin: {
       title: 'Check-in & link',
@@ -609,7 +636,7 @@ function MeAppInner() {
         </div>
       }
       badge={{
-        memberships: memberships.length || undefined,
+        memberships: accounts.length || undefined,
         checkin: checkinReady || undefined,
       }}
     >
@@ -619,20 +646,18 @@ function MeAppInner() {
           {isJoin && !joinDone ? (
             <div className="rounded-3xl border border-sky-200 bg-white p-4 shadow-sm">
               <p className="text-[10px] font-black uppercase tracking-wide text-[#0077b6]">
-                Invite
+                Link to your wallet
               </p>
               <p className="mt-0.5 text-lg font-black text-slate-900">
                 {joinPreviewBrand || joinBrand || 'This brand'}
               </p>
               <p className="mt-1 text-[12px] text-slate-500">
-                {joinKind === 'gym'
-                  ? 'Join as a member — book classes and check in at the door.'
-                  : joinKind === 'hire'
-                    ? 'Join as a hire customer — request gear and track orders.'
-                    : joinKind
-                      ? 'Join as a patient — book and see shared care notes.'
-                      : 'Join this brand on SA Member.'}{' '}
-                Same login stays yours.
+                Accept to add this business to your personal wallet. Then you
+                can manage this account — book, shop, subscriptions and
+                records they share with you.
+                {joinModules.length
+                  ? ` This link includes ${moduleLabels(joinModules)}.`
+                  : ''}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
@@ -641,7 +666,11 @@ function MeAppInner() {
                   onClick={() => void acceptJoin()}
                   className="rounded-2xl bg-[#0077b6] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50"
                 >
-                  {joinBusy ? 'Joining…' : `Accept & join ${joinPreviewBrand || joinBrand || 'brand'}`}
+                  {joinBusy
+                    ? 'Linking…'
+                    : joinAlready
+                      ? `Refresh ${joinPreviewBrand || joinBrand || 'this account'}`
+                      : `Accept & link ${joinPreviewBrand || joinBrand || 'this business'}`}
                 </button>
                 <button
                   type="button"
@@ -658,67 +687,6 @@ function MeAppInner() {
                 </p>
               ) : null}
             </div>
-          ) : null}
-
-          {verification &&
-          verification.completeness &&
-          verification.completeness.score < verification.completeness.max ? (
-            <button
-              type="button"
-              onClick={() => goTab('account')}
-              className="flex w-full items-center gap-3 rounded-2xl border border-sky-200 bg-white p-3 text-left shadow-sm"
-            >
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-100 text-[#0077b6]">
-                <User className="h-5 w-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-black text-slate-900">
-                  Finish your profile
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  {verification.completeness.score}/{verification.completeness.max}{' '}
-                  complete
-                  {verification.completeness.missing.length
-                    ? ` · add ${verification.completeness.missing.join(', ')}`
-                    : ''}
-                </p>
-              </div>
-              <ChevronRight className="h-4 w-4 text-slate-400" />
-            </button>
-          ) : null}
-
-          {journeys.length > 0 ? (
-            <B2cHireJourneyList journeys={journeys} />
-          ) : null}
-
-          {hasBusiness ? (
-            <B2cWorkspaceSwitch
-              hasBusiness={hasBusiness}
-              businesses={businesses}
-            />
-          ) : null}
-
-          {installHint ? (
-            <button
-              type="button"
-              onClick={() =>
-                window.dispatchEvent(new Event('sa-open-install'))
-              }
-              className="flex w-full items-center gap-3 rounded-2xl border border-sky-200 bg-white p-3 text-left shadow-sm"
-            >
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-100 text-[#0077b6]">
-                <Download className="h-5 w-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-black text-slate-900">
-                  Install SA Member
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  Add to home screen for a full-screen app experience
-                </p>
-              </div>
-              <ChevronRight className="h-4 w-4 text-slate-400" />
-            </button>
           ) : null}
 
           <div className="grid grid-cols-4 gap-2">
@@ -759,48 +727,6 @@ function MeAppInner() {
               <p className="text-[9px] font-bold opacity-90">Check-in</p>
             </button>
           </div>
-
-          <B2cCarePanel />
-
-          {activity.length > 0 ? (
-            <section>
-              <h2 className="mb-2 text-sm font-black text-slate-900">
-                Up next
-              </h2>
-              <ul className="space-y-2">
-                {activity.slice(0, 8).map((a) => (
-                  <li key={a.id}>
-                    <Link
-                      href={a.href}
-                      className={`flex items-center gap-3 rounded-2xl border bg-white p-3 shadow-sm active:scale-[0.99] ${
-                        a.tone === 'alert' || a.tone === 'docs'
-                          ? 'border-amber-300'
-                          : 'border-slate-200'
-                      }`}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-black text-slate-900">
-                          {a.title}
-                        </p>
-                        <p className="truncate text-[11px] text-slate-500">
-                          {a.subtitle}
-                          {a.when
-                            ? ` · ${String(a.when).slice(0, 10)}`
-                            : ''}
-                        </p>
-                      </div>
-                      {a.badge ? (
-                        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
-                          {a.badge}
-                        </span>
-                      ) : null}
-                      <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
 
           <section>
             <div className="mb-2 flex items-center justify-between">
@@ -843,7 +769,7 @@ function MeAppInner() {
               </button>
               <button
                 type="button"
-                onClick={() => setTab('checkin')}
+                onClick={() => setTab('memberships')}
                 className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm active:scale-[0.98]"
               >
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700">
@@ -851,10 +777,10 @@ function MeAppInner() {
                 </span>
                 <span>
                   <span className="block text-xs font-black text-slate-900">
-                    Link brand
+                    Link a business
                   </span>
                   <span className="block text-[10px] text-slate-500">
-                    Paste portal link
+                    Search or scan QR
                   </span>
                 </span>
               </button>
@@ -926,72 +852,108 @@ function MeAppInner() {
             </button>
           </section>
 
-          <section>
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm font-black text-slate-900">
-                Recent brands
+          {journeys.length > 0 ? (
+            <B2cHireJourneyList journeys={journeys} />
+          ) : null}
+
+          <B2cCarePanel />
+
+          {activity.length > 0 ? (
+            <section>
+              <h2 className="mb-2 text-sm font-black text-slate-900">
+                Up next
               </h2>
-              {memberships.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setTab('memberships')}
-                  className="text-[11px] font-bold text-[#0077b6]"
-                >
-                  See all
-                </button>
-              ) : null}
-            </div>
-            {memberships.length === 0 ? (
-              <div className="rounded-3xl border border-dashed border-slate-300 bg-white/80 px-5 py-10 text-center">
-                <WalletCards className="mx-auto h-10 w-10 text-slate-300" />
-                <p className="mt-3 text-sm font-black text-slate-800">
-                  No brands yet
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Your dentist on DentalAdvisor and your gym on GymAdvisor
-                  stay as separate brand cards. Get a portal link from either,
-                  or sign in with the same email they have on file.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setTab('checkin')}
-                  className="mt-4 rounded-full bg-[#0077b6] px-5 py-2.5 text-xs font-black text-white"
-                >
-                  Link a brand
-                </button>
-              </div>
-            ) : (
               <ul className="space-y-2">
-                {memberships.slice(0, 4).map((m) => {
-                  const Icon = kindIcon(m.kind);
-                  return (
-                    <li key={m.id}>
-                      <Link
-                        href={m.portal_path}
-                        className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm active:scale-[0.99]"
-                      >
-                        <span
-                          className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow ${kindTone(m.kind)}`}
-                        >
-                          <Icon className="h-5 w-5" />
+                {activity.slice(0, 8).map((a) => (
+                  <li key={a.id}>
+                    <Link
+                      href={a.href}
+                      className={`flex items-center gap-3 rounded-2xl border bg-white p-3 shadow-sm active:scale-[0.99] ${
+                        a.tone === 'alert' || a.tone === 'docs'
+                          ? 'border-amber-300'
+                          : 'border-slate-200'
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-black text-slate-900">
+                          {a.title}
+                        </p>
+                        <p className="truncate text-[11px] text-slate-500">
+                          {a.subtitle}
+                          {a.when
+                            ? ` · ${String(a.when).slice(0, 10)}`
+                            : ''}
+                        </p>
+                      </div>
+                      {a.badge ? (
+                        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
+                          {a.badge}
                         </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-black text-slate-900">
-                            {m.brand || m.company_name}
-                          </p>
-                          <p className="text-[11px] text-slate-500">
-                            {m.kind_label || m.kind}
-                            {m.ref_label ? ` · ${m.ref_label}` : ''}
-                          </p>
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-slate-400" />
-                      </Link>
-                    </li>
-                  );
-                })}
+                      ) : null}
+                      <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                    </Link>
+                  </li>
+                ))}
               </ul>
-            )}
-          </section>
+            </section>
+          ) : null}
+
+          {verification &&
+          verification.completeness &&
+          verification.completeness.score < verification.completeness.max ? (
+            <button
+              type="button"
+              onClick={() => goTab('account')}
+              className="flex w-full items-center gap-3 rounded-2xl border border-sky-200 bg-white p-3 text-left shadow-sm"
+            >
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-100 text-[#0077b6]">
+                <User className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-black text-slate-900">
+                  Finish your profile
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  {verification.completeness.score}/{verification.completeness.max}{' '}
+                  complete
+                  {verification.completeness.missing.length
+                    ? ` · add ${verification.completeness.missing.join(', ')}`
+                    : ''}
+                </p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-slate-400" />
+            </button>
+          ) : null}
+
+          {hasBusiness ? (
+            <B2cWorkspaceSwitch
+              hasBusiness={hasBusiness}
+              businesses={businesses}
+            />
+          ) : null}
+
+          {installHint ? (
+            <button
+              type="button"
+              onClick={() =>
+                window.dispatchEvent(new Event('sa-open-install'))
+              }
+              className="flex w-full items-center gap-3 rounded-2xl border border-sky-200 bg-white p-3 text-left shadow-sm"
+            >
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-100 text-[#0077b6]">
+                <Download className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-black text-slate-900">
+                  Install SA Member
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Add to home screen for a full-screen app experience
+                </p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-slate-400" />
+            </button>
+          ) : null}
         </div>
       )}
 
@@ -1010,33 +972,41 @@ function MeAppInner() {
       {tab === 'memberships' && (
         <div className="space-y-3">
           <p className="rounded-2xl bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-            Each brand is its own card. Your dentist and your gym do not share
-            bookings, payments or medical notes — they only share this login.
+            This is your wallet. Each business is one account. Bookings,
+            medical notes and hire stay with that company — they only share
+            this login.
           </p>
-          {memberships.length === 0 ? (
+          <B2cLinkBusiness
+            linkedCompanyIds={linkedCompanyIds}
+            onLinked={() => void load()}
+          />
+          {accounts.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-5 py-12 text-center">
               <p className="text-sm font-black text-slate-800">
-                Link your first brand
+                Link your first business
               </p>
-              <button
-                type="button"
-                onClick={() => setTab('checkin')}
-                className="mt-4 rounded-full bg-[#0077b6] px-5 py-2.5 text-xs font-black text-white"
-              >
-                Add portal link
-              </button>
+              <p className="mt-1 text-xs text-slate-500">
+                Search above, or scan a desk QR / paste a portal link on
+                Check-in.
+              </p>
             </div>
           ) : (
             <ul className="space-y-3">
-              {memberships.map((m) => {
-                const Icon = kindIcon(m.kind);
+              {accounts.map((a) => {
+                const lead =
+                  a.cards.find((c) => c.kind !== 'account') || a.cards[0];
+                const Icon = kindIcon(lead?.kind || 'account');
+                const clinic = a.cards.find((c) => isClinicKind(c.kind));
+                const gym = a.cards.find((c) => c.kind === 'gym');
+                const hire = a.cards.find((c) => c.kind === 'hire');
+                const bookCard = clinic || gym || hire;
                 return (
                   <li
-                    key={m.id}
+                    key={a.company_id}
                     className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
                   >
                     <div
-                      className={`bg-gradient-to-r px-4 py-3 text-white ${kindTone(m.kind)}`}
+                      className={`bg-gradient-to-r px-4 py-3 text-white ${kindTone(lead?.kind || 'account')}`}
                     >
                       <div className="flex items-center gap-3">
                         <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/20">
@@ -1044,42 +1014,49 @@ function MeAppInner() {
                         </span>
                         <div className="min-w-0">
                           <p className="truncate text-base font-black">
-                            {m.brand || m.company_name}
+                            {a.brand}
                           </p>
                           <p className="text-[11px] text-white/85">
-                            {m.kind_label || m.kind}
-                            {m.ref_label ? ` · ${m.ref_label}` : ''}
+                            {moduleLabels(a.kinds)}
                           </p>
                         </div>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2 p-3">
                       <Link
-                        href={m.portal_path}
+                        href={primaryPortal(a)}
                         className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl bg-[#0077b6] px-3 py-2.5 text-xs font-black text-white min-w-[7rem]"
                       >
                         Open <ExternalLink className="h-3.5 w-3.5" />
                       </Link>
                       <Link
-                        href={membershipBookHref(m)}
+                        href={shopHref(a.company_id)}
                         className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-black text-slate-800"
                       >
-                        <CalendarDays className="h-3.5 w-3.5" />{' '}
-                        {kindActionLabel(m.kind)}
+                        <Store className="h-3.5 w-3.5" /> Shop
                       </Link>
-                      {isClinicKind(m.kind) ? (
+                      {bookCard ? (
                         <Link
-                          href={membershipRecordsHref(m)}
+                          href={membershipBookHref(bookCard)}
+                          className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-black text-slate-800"
+                        >
+                          <CalendarDays className="h-3.5 w-3.5" />{' '}
+                          {kindActionLabel(bookCard.kind)}
+                        </Link>
+                      ) : null}
+                      {clinic ? (
+                        <Link
+                          href={membershipRecordsHref(clinic)}
                           className="inline-flex items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-black text-emerald-900"
                         >
                           <HeartPulse className="h-3.5 w-3.5" /> Records
                         </Link>
                       ) : null}
-                      {m.checkin_path ? (
+                      {gym?.checkin_path ? (
                         <Link
-                          href={`${m.checkin_path}${
-                            m.portal_token
-                              ? `?member=${encodeURIComponent(m.portal_token)}`
+                          href={`${gym.checkin_path}${
+                            gym.portal_token
+                              ? `?member=${encodeURIComponent(gym.portal_token)}`
                               : ''
                           }`}
                           className="inline-flex items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-black text-emerald-900"
@@ -1088,14 +1065,14 @@ function MeAppInner() {
                         </Link>
                       ) : null}
                       <Link
-                        href={`/r/${m.company_id}`}
+                        href={`/r/${a.company_id}`}
                         className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-black text-amber-950"
                       >
                         <Star className="h-3.5 w-3.5" /> Review
                       </Link>
                       <button
                         type="button"
-                        onClick={() => void unlink(m.id)}
+                        onClick={() => void unlinkCompany(a.company_id, a.brand)}
                         className="ml-auto text-[10px] font-bold text-slate-400"
                       >
                         Remove
@@ -1151,14 +1128,20 @@ function MeAppInner() {
             )}
           </section>
 
+          <B2cLinkBusiness
+            linkedCompanyIds={linkedCompanyIds}
+            onLinked={() => void load()}
+          />
+
           <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-center gap-2 text-slate-900">
               <Link2 className="h-5 w-5 text-[#0077b6]" />
               <h2 className="text-sm font-black">Link a portal</h2>
             </div>
             <p className="mt-1 text-xs text-slate-500">
-              Paste any Advisor portal link from your invite email / WhatsApp
-              — Hire, Gym, Physio, Dental, Medical or Psychiatry.
+              Prefer search on Wallet. Or paste an Advisor portal link from
+              email / WhatsApp — Hire, Gym, Physio, Dental, Medical or
+              Psychiatry.
             </p>
             <input
               className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-mono"

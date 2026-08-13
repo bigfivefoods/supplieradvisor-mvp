@@ -376,15 +376,15 @@ export default function GymCheckinPage() {
         <div className="rounded-2xl border border-dashed border-violet-200 bg-white/80 p-4 text-center">
           <Smartphone className="mx-auto h-5 w-5 text-violet-600" />
           <p className="mt-2 text-xs text-slate-600">
-            Not a member yet? Join {gym?.brand || 'this gym'} on SA Member, then
-            check in here.
+            Not a member yet? Link {gym?.brand || 'this gym'} to your SA Member
+            wallet, then check in here.
           </p>
           {gymCompanyId ? (
             <Link
               href={`/me?join=1&kind=gym&company=${gymCompanyId}&brand=${encodeURIComponent(gym?.brand || 'Gym')}`}
               className="mt-3 inline-block rounded-xl bg-violet-600 px-4 py-2 text-xs font-black text-white"
             >
-              Accept & join {gym?.brand || 'gym'}
+              Accept & link {gym?.brand || 'gym'}
             </Link>
           ) : null}
           {gym?.allow_public_booking && gym?.public_token ? (

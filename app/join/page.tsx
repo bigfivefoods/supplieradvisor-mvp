@@ -18,7 +18,7 @@ const LANES = [
     icon: Smartphone,
     kicker: 'Free · personal',
     title: 'Member account',
-    body: 'SA Member on your phone — gym, clinic, hire and shop. No company, no card. Same login can still open a business later.',
+    body: 'One personal wallet. Link any business on this platform to shop, book, see records and manage that account. No company, no card. Same login can still open a business later.',
     cta: 'Create free member account',
     tone: 'from-sky-50 to-white border-sky-200 ring-sky-100',
     iconTone: 'from-[#00b4d8] to-[#0077b6]',

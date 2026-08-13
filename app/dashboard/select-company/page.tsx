@@ -756,7 +756,7 @@ export default function SelectCompanyPage() {
             },
             {
               title: 'Independent brands',
-              body: 'A gym on GymAdvisor and a dentist on DentalAdvisor are separate cards on the same personal profile.',
+              body: 'Each business you link is one wallet account. A gym and a dentist at different companies stay separate — they only share this login.',
             },
           ]}
         />

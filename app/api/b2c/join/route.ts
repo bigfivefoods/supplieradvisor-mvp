@@ -33,10 +33,7 @@ export async function GET(request: NextRequest) {
           const profile = await loadB2cProfile(userId);
           already = Boolean(
             (profile?.memberships || []).some(
-              (m) =>
-                m.active !== false &&
-                m.company_id === companyId &&
-                (!kind || m.kind === kind)
+              (m) => m.active !== false && m.company_id === companyId
             )
           );
         }
@@ -81,10 +78,11 @@ export async function POST(request: NextRequest) {
       already: result.already,
       brand: result.brand,
       membership: result.membership,
+      modules: result.modules,
       profile: result.profile,
       message: result.already
-        ? `You already belong to ${result.brand}`
-        : `You joined ${result.brand}`,
+        ? `Your wallet is already linked to ${result.brand}`
+        : `Your wallet is linked to ${result.brand}`,
     });
   } catch (e: unknown) {
     return NextResponse.json(

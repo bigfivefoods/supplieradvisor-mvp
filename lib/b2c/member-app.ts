@@ -21,7 +21,7 @@ export type MemberAppJoinKind =
   | 'supplier';
 
 export function isPlatformJoinKind(kind?: string | null): boolean {
-  return kind === 'customer' || kind === 'supplier';
+  return kind === 'supplier';
 }
 
 /** Brand poster / desk QR — SA Member (B2C) or company join (B2B customer/supplier). */
@@ -75,12 +75,12 @@ export function memberAppJoinWhatsAppText(opts: {
     return `${opts.brand} invited you to join SupplierAdvisor as a supplier — register your company to trade on the network.\n\nOpen: ${opts.appLink}`;
   }
   if (opts.kind === 'customer') {
-    return `${opts.brand} invited you to join SupplierAdvisor — register your company to buy and stay connected.\n\nOpen: ${opts.appLink}`;
+    return `${opts.brand} invited you to SA Member — your personal wallet for this account. Shop, book, manage subscriptions and stay connected.\n\nOpen: ${opts.appLink}`;
   }
   if (opts.kind === 'hire') {
-    return `${opts.brand} — get the free SA Member app to hire, track bookings and complete docs.\n\nOpen: ${opts.appLink}`;
+    return `${opts.brand} — get the free SA Member app and link this hire desk to your wallet.\n\nOpen: ${opts.appLink}`;
   }
-  return `${opts.brand} — get the free SA Member app to create your profile, book and stay in touch.\n\nOpen: ${opts.appLink}`;
+  return `${opts.brand} — get the free SA Member app, create your profile, and link this business to your wallet.\n\nOpen: ${opts.appLink}`;
 }
 
 export function whatsappShareUrl(text: string): string {

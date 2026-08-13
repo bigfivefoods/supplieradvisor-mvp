@@ -1,9 +1,12 @@
 /**
- * B2C consumer identity — one login (Privy) for hire, gym, clinic, reviews.
+ * B2C consumer identity — one personal wallet (Privy user_id).
  *
  * Dual-life:
- *   - Personal wallet is this profile (user_id). Never keyed by selectedCompanyId.
- *   - Each Advisor brand is its own membership card (dentist ≠ gym ≠ hire).
+ *   - This profile is the person's wallet. They link it to any business on
+ *     the platform to manage that account: book, shop, subscriptions,
+ *     medical records, hire. Never keyed by selectedCompanyId.
+ *   - Each linked business is one wallet account. Advisor desks at that
+ *     company (dentist, gym, hire) hang off the same account.
  *   - Operating a B2B/B2G company lives on business_users and is switched
  *     separately via /dashboard/select-company.
  */
@@ -15,6 +18,7 @@ export type B2cMembershipKind =
   | 'dental'
   | 'medical'
   | 'psychiatry'
+  | 'account'
   | 'other';
 
 export type B2cCapability =

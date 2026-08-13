@@ -393,7 +393,7 @@ const SECTIONS: Section[] = [
     rows: [
       {
         capability: 'Free personal PWA (SA Member)',
-        hint: 'Install on the phone — one login for gym, dentist, hire, clinic. Not a company workspace',
+        hint: 'Install on the phone — one personal wallet you link to any business on the platform. Not a company workspace',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -424,8 +424,8 @@ const SECTIONS: Section[] = [
         sa: 'strong',
       },
       {
-        capability: 'Advisor desk QR / WhatsApp invite',
-        hint: 'Gym, clinic and hire desks print a QR or send a link so people download the app and sign up',
+        capability: 'Link any business to the wallet',
+        hint: 'Search a company, scan a desk QR, or tap Add to wallet on their public page — then shop, book and manage that account',
         excel: 'no',
         xero: 'no',
         erp: 'no',
