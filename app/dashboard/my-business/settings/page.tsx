@@ -179,15 +179,26 @@ function SettingsInner() {
 
       <div className="grid lg:grid-cols-2 gap-4 sm:gap-5 max-w-5xl">
         <Panel title="Appearance" className="lg:col-span-2">
-          <div className="p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="p-5 space-y-5">
             <div>
               <p className="text-sm font-bold text-slate-900">Colour theme</p>
               <p className="mt-1 text-xs text-slate-500 max-w-md">
-                Light is the classic SupplierAdvisor look. Dark is black with grey, white,
-                and SupplierAdvisor blues — saved on this device.
+                Light, dark, or match this device. Saved on this browser.
               </p>
+              <div className="mt-3">
+                <ThemeToggle variant="segmented" />
+              </div>
             </div>
-            <ThemeToggle variant="segmented" />
+            <div>
+              <p className="text-sm font-bold text-slate-900">Module branding</p>
+              <p className="mt-1 text-xs text-slate-500 max-w-xl">
+                Follow the Advisor you are in, stay on SupplierAdvisor, or lock
+                HireAdvisor / GymAdvisor / clinic skins as the chrome theme.
+              </p>
+              <div className="mt-3">
+                <ThemeToggle variant="full" />
+              </div>
+            </div>
           </div>
         </Panel>
 

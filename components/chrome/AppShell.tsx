@@ -16,6 +16,11 @@ import { usePathname } from 'next/navigation';
 import SamMessenger from '@/components/sam/SamMessenger';
 import SubscriptionAccessBanner from '@/components/billing/SubscriptionAccessBanner';
 import CommandPalette from '@/components/chrome/CommandPalette';
+import {
+  AdvisorSkinApplier,
+  AdvisorWordmark,
+} from '@/components/brand/AdvisorSkinApplier';
+import { useAdvisorSkin } from '@/lib/brand/useAdvisorSkin';
 
 export default function AppShell({
   children,
@@ -26,6 +31,7 @@ export default function AppShell({
 }) {
   return (
     <SidebarProvider>
+      {!hideChrome && <AdvisorSkinApplier />}
       <AppShellInner hideChrome={hideChrome}>{children}</AppShellInner>
       {!hideChrome && <CommandPalette />}
       <SamMessenger />
@@ -43,6 +49,7 @@ function AppShellInner({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const { collapsed } = useSidebarChrome();
+  const skin = useAdvisorSkin();
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -113,10 +120,10 @@ function AppShellInner({
           <div className="absolute left-0 top-0 bottom-0 w-[min(18rem,88vw)] bg-sa-surface shadow-2xl flex flex-col z-10 pointer-events-auto pt-safe pb-safe border-r border-sa-border">
             <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-sa-border shrink-0">
               <Link
-                href="/dashboard"
+                href={skin.homeHref}
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="flex items-center gap-2.5 min-w-0"
-                aria-label="SupplierAdvisor home"
+                aria-label={`${skin.name} home`}
               >
                 <Image
                   src="/sa-logo.png"
@@ -126,10 +133,7 @@ function AppShellInner({
                   className="sa-logo h-7 w-auto object-contain shrink-0"
                   priority
                 />
-                <span className="sa-wordmark font-black text-base tracking-[-0.5px]">
-                  SupplierAdvisor
-                  <span className="sa-wordmark-mark">®</span>
-                </span>
+                <AdvisorWordmark className="sa-wordmark font-black text-base tracking-[-0.5px]" />
               </Link>
               <button
                 type="button"

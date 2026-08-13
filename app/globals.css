@@ -43,6 +43,15 @@
   --sa-sky-soft: #f0f9ff;
 }
 
+/* Advisor product skins (HireAdvisor, GymAdvisor, …) set --sa-brand via JS.
+   html[data-advisor] lets us tune chrome without rewriting every component. */
+html[data-advisor]:not([data-advisor='supplier']) .sa-wordmark {
+  color: var(--sa-brand-deep);
+}
+html.dark[data-advisor]:not([data-advisor='supplier']) .sa-wordmark {
+  color: var(--sa-brand);
+}
+
 html.dark {
   color-scheme: dark;
 

@@ -15,6 +15,8 @@ import { useProgrammeRole } from '@/lib/schools/useProgrammeRole';
 import { stepVisibleForRole } from '@/lib/schools/programme-role';
 import { useHealthProgrammeRole } from '@/lib/health/useProgrammeRole';
 import { healthStepVisibleForRole } from '@/lib/health/programme-role';
+import { AdvisorWordmark } from '@/components/brand/AdvisorSkinApplier';
+import { useAdvisorSkin } from '@/lib/brand/useAdvisorSkin';
 
 type Props = {
   /** Mobile sidebar open — when set, menu control sits on this same rail */
@@ -36,6 +38,7 @@ const GROUP_PILL: Record<string, string> = {
  */
 export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
   const pathname = usePathname() || '';
+  const skin = useAdvisorSkin();
   const life = lifecycleForPath(pathname);
   const programme = useProgrammeRole();
   const healthProgramme = useHealthProgrammeRole();
@@ -117,9 +120,9 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
           )}
 
           <Link
-            href="/dashboard"
+            href={skin.homeHref}
             className="md:hidden flex items-center gap-1.5 sm:gap-2 shrink-0"
-            aria-label="SupplierAdvisor home"
+            aria-label={`${skin.name} home`}
           >
             <Image
               src="/sa-logo.png"
@@ -129,10 +132,7 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
               className="sa-logo h-6 w-auto object-contain shrink-0"
               priority
             />
-            <span className="sa-wordmark hidden min-[360px]:inline font-black text-xs sm:text-sm tracking-[-0.5px]">
-              SupplierAdvisor
-              <span className="sa-wordmark-mark">®</span>
-            </span>
+            <AdvisorWordmark className="sa-wordmark hidden min-[360px]:inline font-black text-xs sm:text-sm tracking-[-0.5px]" />
           </Link>
 
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
