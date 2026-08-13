@@ -58,10 +58,25 @@ function LoginForm() {
           router.replace(next);
           return;
         }
+        // Explicit B2C member hub
+        if (next.startsWith('/me') || next.startsWith('/hire/') || next.startsWith('/member/')) {
+          router.replace(next || '/me');
+          return;
+        }
         // Business users (or dual role) → company select / requested next
+        // Pure B2C (no business membership) → consumer hub
+        if (!data.isBusinessUser && !data.isContractor) {
+          router.replace(next || '/me');
+          return;
+        }
         router.replace(next || '/dashboard/select-company');
       } catch {
-        router.replace(next || '/dashboard/select-company');
+        // Prefer B2C hub when next is consumer-ish; otherwise company select
+        if (next.startsWith('/me') || next.startsWith('/hire') || next.startsWith('/member')) {
+          router.replace(next);
+        } else {
+          router.replace(next || '/dashboard/select-company');
+        }
       }
     }, 300);
 

@@ -462,6 +462,38 @@ export type HireHandover = {
   updated_at: string;
 };
 
+/**
+ * B2C customer portal record — one per Core CRM customer.
+ * Parties stay in CRM; this only holds portal access + preferences.
+ */
+export type HireCustomerPortal = {
+  crm_customer_id: number;
+  portal_token: string;
+  issued_at: string;
+  last_seen_at?: string | null;
+  invite_email?: string | null;
+  invite_sent_at?: string | null;
+  /** Portal-side contact overrides (desk still owns CRM book) */
+  preferred_phone?: string | null;
+  preferred_email?: string | null;
+  delivery_default?: string | null;
+  notes?: string | null;
+  active?: boolean;
+};
+
+/** Marketplace brand / portal settings for the hire company */
+export type HirePublicSettings = {
+  brand_name?: string;
+  public_bio?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  city?: string;
+  /** Allow customers to request hire from portal (default true) */
+  allow_portal_booking?: boolean;
+  primary_color?: string;
+  timezone?: string;
+};
+
 export type HiregraphStore = {
   /** v3: core SRM/CRM linked; no local supplier/customer books */
   version: 3;
@@ -471,6 +503,11 @@ export type HiregraphStore = {
    * Core CRM remains source of party identity; this is hire-only checklist state.
    */
   customer_kyc: Record<string, HireRequirementKey[]>;
+  /**
+   * B2C portal access keyed by CRM `customers.id`.
+   */
+  customer_portals: Record<string, HireCustomerPortal>;
+  settings?: HirePublicSettings;
   items: HireItem[];
   bookings: HireBooking[];
   handovers: HireHandover[];
@@ -481,9 +518,19 @@ export function emptyHiregraphStore(): HiregraphStore {
     version: 3,
     model: 'rental_marketplace',
     customer_kyc: {},
+    customer_portals: {},
+    settings: defaultHirePublicSettings(),
     items: [],
     bookings: [],
     handovers: [],
+  };
+}
+
+export function defaultHirePublicSettings(): HirePublicSettings {
+  return {
+    allow_portal_booking: true,
+    primary_color: '#0891b2',
+    timezone: 'Africa/Johannesburg',
   };
 }
 
@@ -508,20 +555,43 @@ export function readHiregraphFromMetadata(
     s.customer_kyc && typeof s.customer_kyc === 'object' && !Array.isArray(s.customer_kyc)
       ? (s.customer_kyc as Record<string, HireRequirementKey[]>)
       : {};
+  const customer_portals =
+    s.customer_portals &&
+    typeof s.customer_portals === 'object' &&
+    !Array.isArray(s.customer_portals)
+      ? (s.customer_portals as Record<string, HireCustomerPortal>)
+      : {};
+  const settings: HirePublicSettings = {
+    ...defaultHirePublicSettings(),
+    ...(s.settings && typeof s.settings === 'object' && !Array.isArray(s.settings)
+      ? (s.settings as HirePublicSettings)
+      : {}),
+  };
   return {
     version: 3,
     model: 'rental_marketplace',
     customer_kyc,
+    customer_portals,
+    settings,
     items: Array.isArray(s.items) ? (s.items as HireItem[]) : [],
     bookings: Array.isArray(s.bookings) ? (s.bookings as HireBooking[]) : [],
     handovers: Array.isArray(s.handovers) ? (s.handovers as HireHandover[]) : [],
   };
 }
 
+/** Root metadata index: portal_token → CRM customer id (fast public resolve) */
+export const HIREGRAPH_CUSTOMER_TOKENS_KEY = 'hiregraph_customer_tokens';
+
 export function writeHiregraphToMetadata(
   meta: Record<string, unknown>,
   store: HiregraphStore
 ): Record<string, unknown> {
+  const customerTokens: Record<string, number> = {};
+  for (const p of Object.values(store.customer_portals || {})) {
+    if (p?.portal_token && p.active !== false && p.crm_customer_id) {
+      customerTokens[String(p.portal_token)] = Number(p.crm_customer_id);
+    }
+  }
   return {
     ...meta,
     [HIREGRAPH_META_KEY]: {
@@ -529,6 +599,8 @@ export function writeHiregraphToMetadata(
       model: 'rental_marketplace',
       links_core_books: true,
       customer_kyc: store.customer_kyc || {},
+      customer_portals: store.customer_portals || {},
+      settings: store.settings || defaultHirePublicSettings(),
       items: store.items,
       bookings: store.bookings,
       handovers: store.handovers,
@@ -537,6 +609,400 @@ export function writeHiregraphToMetadata(
         customer_commission_pct: HIRE_CUSTOMER_COMMISSION_PCT,
       },
     },
+    [HIREGRAPH_CUSTOMER_TOKENS_KEY]: customerTokens,
+  };
+}
+
+/** Issue B2C portal token (embeds company id for fast resolve). */
+export function issueHireCustomerPortalToken(companyId: number): string {
+  return `hire_cust_${companyId}_${Date.now().toString(36)}_${Math.random()
+    .toString(36)
+    .slice(2, 12)}`;
+}
+
+export function parseCompanyIdFromHireCustomerToken(
+  token: string
+): number | null {
+  const m = /^hire_cust_(\d+)_/.exec(String(token || '').trim());
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+export function hireCustomerPortalPath(portalToken: string): string {
+  return `/hire/${encodeURIComponent(portalToken)}`;
+}
+
+export function hireCustomerPortalUrl(
+  origin: string,
+  portalToken: string
+): string {
+  return `${origin.replace(/\/$/, '')}${hireCustomerPortalPath(portalToken)}`;
+}
+
+/** Issue or re-issue portal access for a Core CRM customer. */
+export function issueCustomerPortal(
+  store: HiregraphStore,
+  crmCustomerId: number,
+  opts?: { invite_email?: string | null; companyId: number }
+): { store: HiregraphStore; portal: HireCustomerPortal } {
+  const key = String(crmCustomerId);
+  const now = new Date().toISOString();
+  const companyId = opts?.companyId ?? 0;
+  const prev = store.customer_portals?.[key];
+  const portal: HireCustomerPortal = {
+    crm_customer_id: crmCustomerId,
+    portal_token: issueHireCustomerPortalToken(companyId || crmCustomerId),
+    issued_at: now,
+    last_seen_at: prev?.last_seen_at || null,
+    invite_email: opts?.invite_email ?? prev?.invite_email ?? null,
+    invite_sent_at: opts?.invite_email ? now : prev?.invite_sent_at || null,
+    preferred_phone: prev?.preferred_phone || null,
+    preferred_email: prev?.preferred_email || null,
+    delivery_default: prev?.delivery_default || null,
+    notes: prev?.notes || null,
+    active: true,
+  };
+  return {
+    store: {
+      ...store,
+      customer_portals: {
+        ...(store.customer_portals || {}),
+        [key]: portal,
+      },
+    },
+    portal,
+  };
+}
+
+export function findPortalByToken(
+  store: HiregraphStore,
+  token: string
+): HireCustomerPortal | null {
+  const clean = String(token || '').trim();
+  if (!clean) return null;
+  for (const p of Object.values(store.customer_portals || {})) {
+    if (p?.portal_token === clean && p.active !== false) return p;
+  }
+  return null;
+}
+
+export function bookingStatusLabel(status: string | null | undefined): string {
+  const s = String(status || 'requested');
+  const map: Record<string, string> = {
+    draft: 'Draft',
+    requested: 'Requested',
+    awaiting_requirements: 'Needs documents',
+    approved: 'Approved',
+    paid: 'Paid',
+    out: 'Out on hire',
+    returned: 'Returned',
+    completed: 'Completed',
+    cancelled: 'Cancelled',
+    disputed: 'Disputed',
+  };
+  return map[s] || s;
+}
+
+const STATUS_STEPS = [
+  'requested',
+  'awaiting_requirements',
+  'approved',
+  'paid',
+  'out',
+  'returned',
+  'completed',
+] as const;
+
+export function bookingStatusTimeline(
+  status: string | null | undefined
+): Array<{ id: string; label: string; done: boolean; current: boolean }> {
+  const cur = String(status || 'requested');
+  if (cur === 'cancelled' || cur === 'disputed') {
+    return [
+      ...STATUS_STEPS.map((step) => ({
+        id: step as string,
+        label: bookingStatusLabel(step),
+        done: false,
+        current: false,
+      })),
+      {
+        id: cur,
+        label: bookingStatusLabel(cur),
+        done: true,
+        current: true,
+      },
+    ];
+  }
+  const idx = STATUS_STEPS.indexOf(cur as (typeof STATUS_STEPS)[number]);
+  const activeIdx = idx >= 0 ? idx : 0;
+  return STATUS_STEPS.map((step, i) => ({
+    id: step as string,
+    label: bookingStatusLabel(step),
+    done: i < activeIdx,
+    current: i === activeIdx,
+  }));
+}
+
+/**
+ * Customer portal payload — catalogue, my bookings, KYC, handovers, quotes.
+ * Safe for public token auth (no other customers' PII).
+ */
+export function buildHireCustomerPortalPayload(
+  store: HiregraphStore,
+  portal: HireCustomerPortal,
+  customer: HireCorePartyRef,
+  opts?: { companyName?: string | null }
+) {
+  const crmId = portal.crm_customer_id;
+  const kyc = store.customer_kyc?.[String(crmId)] || [];
+  const kycSet = new Set(kyc);
+  const settings = {
+    ...defaultHirePublicSettings(),
+    ...(store.settings || {}),
+  };
+  const brand =
+    settings.brand_name ||
+    opts?.companyName ||
+    'Hire marketplace';
+
+  const catalogue = (store.items || [])
+    .filter(
+      (i) =>
+        i.active !== false &&
+        (i.status === 'listed' || i.status === 'hired_out' || !i.status)
+    )
+    .map((item) => {
+      const reqs = itemRequirements(item);
+      const pending = reqs.filter((r) => !kycSet.has(r));
+      const cat = getHireCategory(item.category_id);
+      return {
+        id: item.id,
+        code: item.code,
+        title: item.title,
+        description: item.description || '',
+        category_id: item.category_id,
+        category_name: item.category_name || cat?.name || item.category_id,
+        category_short: cat?.short || '',
+        rate_zar: Number(item.rate_zar) || 0,
+        rate_unit: item.rate_unit || cat?.unit || 'day',
+        deposit_zar: item.deposit_zar != null ? Number(item.deposit_zar) : null,
+        default_deposit_pct: cat?.defaultDepositPct ?? null,
+        qty_available: item.qty_available ?? null,
+        location: item.location || '',
+        photo_url: item.photo_url || null,
+        supplier_name: item.supplier_name || '',
+        status: item.status || 'listed',
+        needs_delivery: Boolean(cat?.needsDelivery),
+        high_value: Boolean(cat?.highValue),
+        requirements: reqs.map((r) => ({
+          key: r,
+          label: HIRE_REQUIREMENT_LABELS[r] || r,
+          met: kycSet.has(r),
+        })),
+        requirements_pending: pending,
+        requirements_ready: pending.length === 0,
+        examples: cat?.examples || [],
+      };
+    })
+    .sort((a, b) => a.title.localeCompare(b.title));
+
+  const my_bookings = (store.bookings || [])
+    .filter((b) => Number(b.crm_customer_id || b.customer_id) === crmId)
+    .map((b) => {
+      const item = store.items.find((i) => i.id === b.item_id);
+      const handovers = (store.handovers || [])
+        .filter((h) => h.booking_id === b.id)
+        .map((h) => ({
+          id: h.id,
+          type: h.type,
+          at: h.at || h.created_at,
+          condition_notes: h.condition_notes || '',
+          signed_by: h.signed_by || '',
+          damage_zar: h.damage_zar ?? null,
+          deposit_released: Boolean(h.deposit_released),
+        }))
+        .sort((a, b2) => String(b2.at).localeCompare(String(a.at)));
+      const pending = (b.requirements_pending || []) as HireRequirementKey[];
+      return {
+        id: b.id,
+        code: b.code,
+        item_id: b.item_id,
+        item_title: b.item_title || item?.title || b.item_id,
+        category_id: b.category_id || item?.category_id,
+        supplier_name: b.supplier_name || item?.supplier_name || '',
+        status: b.status || 'requested',
+        status_label: bookingStatusLabel(b.status),
+        timeline: bookingStatusTimeline(b.status),
+        start_date: b.start_date || null,
+        end_date: b.end_date || null,
+        units: b.units ?? null,
+        qty: b.qty ?? null,
+        rate_zar: b.rate_zar ?? null,
+        rental_zar: b.rental_zar ?? null,
+        deposit_zar: b.deposit_zar ?? null,
+        customer_commission_pct: b.customer_commission_pct ?? HIRE_CUSTOMER_COMMISSION_PCT,
+        customer_commission_zar: b.customer_commission_zar ?? null,
+        customer_pays_zar: b.customer_pays_zar ?? null,
+        delivery_address: b.delivery_address || '',
+        notes: b.notes || '',
+        requirements_pending: pending.map((r) => ({
+          key: r,
+          label: HIRE_REQUIREMENT_LABELS[r] || r,
+        })),
+        requirements_met: ((b.requirements_met || []) as HireRequirementKey[]).map(
+          (r) => ({
+            key: r,
+            label: HIRE_REQUIREMENT_LABELS[r] || r,
+          })
+        ),
+        handovers,
+        created_at: b.created_at,
+        can_cancel: ['requested', 'awaiting_requirements', 'approved'].includes(
+          String(b.status || '')
+        ),
+      };
+    })
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+
+  const open = my_bookings.filter((b) =>
+    ['requested', 'awaiting_requirements', 'approved', 'paid', 'out'].includes(
+      String(b.status)
+    )
+  );
+  const needsDocs = my_bookings.filter(
+    (b) =>
+      b.status === 'awaiting_requirements' || b.requirements_pending.length > 0
+  );
+
+  const categories = HIRE_CATEGORIES.map((c) => ({
+    id: c.id,
+    name: c.name,
+    short: c.short,
+    description: c.description,
+    unit: c.unit,
+    item_count: catalogue.filter((i) => i.category_id === c.id).length,
+  })).filter((c) => c.item_count > 0);
+
+  const allReqKeys = [
+    ...new Set(catalogue.flatMap((i) => i.requirements.map((r) => r.key))),
+  ] as HireRequirementKey[];
+
+  return {
+    brand,
+    bio: settings.public_bio || '',
+    contact_email: settings.contact_email || customer.email || null,
+    contact_phone: settings.contact_phone || customer.phone || null,
+    city: settings.city || customer.city || null,
+    primary_color: settings.primary_color || '#0891b2',
+    timezone: settings.timezone || 'Africa/Johannesburg',
+    allow_booking: settings.allow_portal_booking !== false,
+    commercial: {
+      customer_commission_pct: HIRE_CUSTOMER_COMMISSION_PCT,
+      supplier_commission_pct: HIRE_SUPPLIER_COMMISSION_PCT,
+      note: `You pay rental + ${HIRE_CUSTOMER_COMMISSION_PCT}% platform fee + refundable deposit. Deposits are not commissionable.`,
+    },
+    customer: {
+      id: customer.id,
+      name: customer.name,
+      email: portal.preferred_email || customer.email || null,
+      phone: portal.preferred_phone || customer.phone || null,
+      city: customer.city || null,
+      delivery_default: portal.delivery_default || null,
+      crm_id: crmId,
+    },
+    kyc: {
+      met: kyc.map((r) => ({
+        key: r,
+        label: HIRE_REQUIREMENT_LABELS[r] || r,
+      })),
+      available: allReqKeys.map((r) => ({
+        key: r,
+        label: HIRE_REQUIREMENT_LABELS[r] || r,
+        met: kycSet.has(r),
+      })),
+      common: (
+        [
+          'id_document',
+          'proof_of_address',
+          'drivers_licence',
+          'age_18_plus',
+          'age_21_plus',
+          'credit_card_hold',
+          'adult_supervision',
+          'flat_level_ground',
+          'power_access_220v',
+          'delivery_address',
+        ] as HireRequirementKey[]
+      ).map((r) => ({
+        key: r,
+        label: HIRE_REQUIREMENT_LABELS[r] || r,
+        met: kycSet.has(r),
+      })),
+    },
+    categories,
+    catalogue,
+    catalogue_count: catalogue.length,
+    my_bookings,
+    open_bookings: open,
+    needs_docs_count: needsDocs.length,
+    open_count: open.length,
+    stats: {
+      catalogue: catalogue.length,
+      my_hires: my_bookings.length,
+      open: open.length,
+      needs_docs: needsDocs.length,
+      kyc_met: kyc.length,
+    },
+  };
+}
+
+/** Quote a hire without persisting — for portal live preview */
+export function quoteHireBooking(
+  store: HiregraphStore,
+  opts: {
+    item_id: string;
+    units?: number;
+    qty?: number;
+    crm_customer_id?: number;
+  }
+) {
+  const item = store.items.find((i) => i.id === opts.item_id);
+  if (!item) return null;
+  const units = Math.max(1, Number(opts.units) || 1);
+  const qty = Math.max(1, Number(opts.qty) || 1);
+  const rate = Number(item.rate_zar) || 0;
+  const rental = rate * units * qty;
+  const cat = getHireCategory(item.category_id);
+  const deposit =
+    Number(item.deposit_zar) ||
+    (cat?.defaultDepositPct
+      ? Math.round((rental * cat.defaultDepositPct) / 100)
+      : 0);
+  const fees = computeHireCommissions({ rentalZar: rental, depositZar: deposit });
+  const reqs = itemRequirements(item);
+  const kycKey =
+    opts.crm_customer_id != null ? String(opts.crm_customer_id) : '';
+  const met = new Set(kycKey ? store.customer_kyc[kycKey] || [] : []);
+  const pending = reqs.filter((r) => !met.has(r));
+  return {
+    item_id: item.id,
+    item_title: item.title,
+    rate_zar: rate,
+    rate_unit: item.rate_unit || cat?.unit || 'day',
+    units,
+    qty,
+    fees,
+    requirements: reqs.map((r) => ({
+      key: r,
+      label: HIRE_REQUIREMENT_LABELS[r] || r,
+      met: met.has(r),
+    })),
+    pending: pending.map((r) => ({
+      key: r,
+      label: HIRE_REQUIREMENT_LABELS[r] || r,
+    })),
+    ready: pending.length === 0,
   };
 }
 
@@ -749,6 +1215,9 @@ export function summariseHiregraph(
     categoryCounts: byCategory,
     handoverCount: store.handovers.length,
     linksCoreBooks: true,
+    customerPortalCount: Object.values(store.customer_portals || {}).filter(
+      (p) => p?.active !== false && p?.portal_token
+    ).length,
   };
 }
 

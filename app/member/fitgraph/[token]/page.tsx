@@ -25,6 +25,7 @@ import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify
 import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
 import { VerifiedBadge } from '@/components/services/VerifiedBadge';
 import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
+import { B2cAutoLinkBanner } from '@/components/b2c/B2cAutoLinkBanner';
 
 const MEMBER_TOKEN_KEY = 'sa_fitgraph_member_token';
 
@@ -415,6 +416,7 @@ export default function MemberFitgraphPortalPage() {
 
       <main className="max-w-lg mx-auto px-4 py-5 space-y-4">
         <PopiaConsentNotice brand={portal.brand} />
+        <B2cAutoLinkBanner token={token} tone="violet" />
         {(msg || error) && (
           <div
             className={`rounded-xl border px-3 py-2 text-sm ${

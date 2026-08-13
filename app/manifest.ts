@@ -8,7 +8,8 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'SupplierAdvisor',
     short_name: 'SupplierAdvisor',
-    description: 'Supply-chain operating system for verified B2B trade.',
+    description:
+      'Verified B2B OS plus SA Member for hire, gym check-in and personal bookings.',
     start_url: '/',
     scope: '/',
     id: '/',
@@ -34,6 +35,21 @@ export default function manifest(): MetadataRoute.Manifest {
         sizes: '512x512',
         type: 'image/png',
         purpose: 'maskable',
+      },
+    ],
+    shortcuts: [
+      {
+        name: 'SA Member',
+        short_name: 'Member',
+        description: 'Hire, gym, check-in — personal app',
+        url: '/me',
+        icons: [{ src: '/sa-icon-192.png', sizes: '192x192' }],
+      },
+      {
+        name: 'Member check-in',
+        short_name: 'Check-in',
+        url: '/me?tab=checkin',
+        icons: [{ src: '/sa-icon-192.png', sizes: '192x192' }],
       },
     ],
   };

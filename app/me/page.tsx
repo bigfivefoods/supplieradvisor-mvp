@@ -1,0 +1,884 @@
+'use client';
+
+/**
+ * SA Member App — B2C personal app (PWA).
+ * Bottom tabs: Home · Brands · Check-in · Account
+ * One login → hire order/track · gym book/check-in · reviews.
+ */
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { usePrivy } from '@privy-io/react-auth';
+import {
+  ArrowRight,
+  Brain,
+  CalendarDays,
+  CheckCircle2,
+  ChevronRight,
+  Download,
+  Dumbbell,
+  ExternalLink,
+  HeartPulse,
+  Link2,
+  Loader2,
+  LogOut,
+  Package,
+  QrCode,
+  Sparkles,
+  Stethoscope,
+  Star,
+  User,
+  WalletCards,
+} from 'lucide-react';
+import {
+  extractEmailFromPrivyUser,
+  getCanonicalUserId,
+} from '@/lib/auth/identity';
+import {
+  B2cAppShell,
+  B2cInstallChip,
+  type B2cTab,
+} from '@/components/b2c/B2cAppChrome';
+import { toast } from 'sonner';
+
+type Membership = {
+  id: string;
+  kind: string;
+  kind_label?: string;
+  company_id: number;
+  company_name: string;
+  brand?: string | null;
+  portal_path: string;
+  portal_token?: string | null;
+  checkin_path?: string | null;
+  ref_label?: string | null;
+  capabilities: string[];
+};
+
+type Profile = {
+  user_id: string;
+  email?: string | null;
+  full_name?: string | null;
+  phone?: string | null;
+  memberships: Membership[];
+};
+
+function kindIcon(kind: string) {
+  if (kind === 'hire') return Package;
+  if (kind === 'gym') return Dumbbell;
+  if (kind === 'physio') return HeartPulse;
+  if (kind === 'dental') return Sparkles;
+  if (kind === 'medical') return Stethoscope;
+  if (kind === 'psychiatry') return Brain;
+  return WalletCards;
+}
+
+function kindTone(kind: string) {
+  if (kind === 'hire') return 'from-cyan-500 to-sky-700 border-cyan-200';
+  if (kind === 'gym') return 'from-violet-500 to-purple-800 border-violet-200';
+  if (kind === 'physio') return 'from-teal-500 to-emerald-800 border-teal-200';
+  if (kind === 'dental') return 'from-sky-400 to-blue-800 border-sky-200';
+  if (kind === 'medical') return 'from-indigo-500 to-slate-800 border-indigo-200';
+  if (kind === 'psychiatry') return 'from-rose-500 to-fuchsia-900 border-rose-200';
+  return 'from-slate-500 to-slate-700 border-slate-200';
+}
+
+function kindActionLabel(kind: string) {
+  if (kind === 'hire') return 'Order';
+  if (kind === 'gym') return 'Book class';
+  return 'Book';
+}
+
+function MeAppInner() {
+  const router = useRouter();
+  const search = useSearchParams();
+  const { ready, authenticated, user, login, logout } = usePrivy();
+  const [tab, setTab] = useState<B2cTab>('home');
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [linkToken, setLinkToken] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [installHint, setInstallHint] = useState(false);
+
+  // Deep links: ?tab=checkin|memberships|account  ?link=
+  useEffect(() => {
+    const t = search?.get('tab');
+    if (
+      t === 'home' ||
+      t === 'memberships' ||
+      t === 'checkin' ||
+      t === 'account'
+    ) {
+      setTab(t);
+    }
+    const link = search?.get('link') || search?.get('token') || '';
+    if (link) {
+      setLinkToken(link);
+      setTab('checkin');
+    }
+  }, [search]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const standalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      Boolean(
+        (window.navigator as Navigator & { standalone?: boolean }).standalone
+      );
+    setInstallHint(!standalone);
+  }, []);
+
+  const load = useCallback(async () => {
+    if (!authenticated) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/b2c/me', { cache: 'no-store' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Load failed');
+      setProfile(data.profile);
+      setName(data.profile?.full_name || '');
+      setPhone(data.profile?.phone || '');
+      setEmail(
+        data.profile?.email || extractEmailFromPrivyUser(user) || ''
+      );
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Could not load account');
+    } finally {
+      setLoading(false);
+    }
+  }, [authenticated, user]);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (!authenticated) {
+      setLoading(false);
+      return;
+    }
+    void load();
+  }, [ready, authenticated, load]);
+
+  const memberships = useMemo(
+    () => (profile?.memberships || []).filter((m) => m),
+    [profile]
+  );
+  const hireCount = memberships.filter((m) => m.kind === 'hire').length;
+  const gymCount = memberships.filter((m) => m.kind === 'gym').length;
+  const clinicCount = memberships.filter((m) =>
+    ['physio', 'dental', 'medical', 'psychiatry'].includes(m.kind)
+  ).length;
+  const checkinReady = memberships.filter((m) => m.checkin_path).length;
+
+  const doLink = async (tokenOverride?: string) => {
+    const token = (tokenOverride || linkToken).trim();
+    if (!token) {
+      toast.error('Paste a portal link first');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch('/api/b2c/link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          email: email || extractEmailFromPrivyUser(user),
+          full_name: name || undefined,
+          phone: phone || undefined,
+          privyUserId: getCanonicalUserId(user?.id),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Link failed');
+      toast.success(data.message || 'Linked');
+      setLinkToken('');
+      setProfile(data.profile);
+      setTab('memberships');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Link failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveProfile = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch('/api/b2c/me', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_profile',
+          full_name: name,
+          phone,
+          email,
+          privyUserId: getCanonicalUserId(user?.id),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Save failed');
+      setProfile(data.profile);
+      toast.success('Saved');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const unlink = async (id: string) => {
+    if (!confirm('Remove this brand from your app?')) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/b2c/me', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'unlink',
+          membership_id: id,
+          privyUserId: getCanonicalUserId(user?.id),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unlink failed');
+      setProfile(data.profile);
+      toast.success('Removed');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Unlink failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ── Loading ──────────────────────────────────────────────────────
+  if (!ready || (authenticated && loading)) {
+    return (
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#0c4a6e] text-white">
+        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-white/15 shadow-lg">
+          <Sparkles className="h-8 w-8" />
+        </div>
+        <p className="text-sm font-black tracking-wide">SA Member</p>
+        <Loader2 className="mt-4 h-6 w-6 animate-spin text-sky-200" />
+      </div>
+    );
+  }
+
+  // ── Login wall (app store style) ─────────────────────────────────
+  if (!authenticated) {
+    return (
+      <div className="flex min-h-[100dvh] flex-col bg-gradient-to-b from-[#0c4a6e] via-[#0077b6] to-[#38bdf8]">
+        <div
+          className="flex flex-1 flex-col justify-end px-5 pb-8 pt-16 text-white"
+          style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}
+        >
+          <div className="mx-auto w-full max-w-md">
+            <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-white shadow-2xl shadow-sky-900/40">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/sa-icon-192.png"
+                alt=""
+                className="h-14 w-14 rounded-2xl"
+              />
+            </div>
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-sky-100">
+              Personal app
+            </p>
+            <h1 className="mt-2 text-4xl font-black leading-[1.05] tracking-tight">
+              SA Member
+            </h1>
+            <p className="mt-3 text-base text-sky-50/95">
+              Hire gear, gym classes, physio, dental, medical and psychiatry
+              — one personal app for every Advisor brand you use.
+            </p>
+
+            <div className="mt-8 space-y-2">
+              {[
+                {
+                  icon: Package,
+                  t: 'Hire & track',
+                  d: 'Request gear, complete docs, follow status',
+                },
+                {
+                  icon: Dumbbell,
+                  t: 'Gym & check-in',
+                  d: 'Book classes and scan the gym QR',
+                },
+                {
+                  icon: Stethoscope,
+                  t: 'Clinic Advisors',
+                  d: 'Physio, dental, medical, psychiatry bookings',
+                },
+              ].map(({ icon: Icon, t, d }) => (
+                <div
+                  key={t}
+                  className="flex items-center gap-3 rounded-2xl bg-white/12 px-3 py-3 backdrop-blur"
+                >
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-black">{t}</p>
+                    <p className="text-[11px] text-sky-100/90">{d}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                void login({ loginMethods: ['email', 'google', 'apple'] })
+              }
+              className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-4 text-base font-black text-[#0077b6] shadow-xl"
+            >
+              Continue
+              <ArrowRight className="h-5 w-5" />
+            </button>
+            <p className="mt-3 text-center text-[11px] text-sky-100/80">
+              Free · email or Google · works offline as an installed app
+            </p>
+            <p className="mt-4 text-center text-[11px] text-sky-100/70">
+              Business operator?{' '}
+              <Link href="/login" className="font-bold underline">
+                Company login
+              </Link>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const displayName =
+    profile?.full_name || name || user?.email?.address?.split('@')[0] || 'You';
+
+  const headerForTab: Record<B2cTab, { title: string; sub?: string }> = {
+    home: {
+      title: `Hi, ${displayName.split(' ')[0]}`,
+      sub: 'Your member app',
+    },
+    memberships: {
+      title: 'Your brands',
+      sub: `${memberships.length} linked`,
+    },
+    checkin: {
+      title: 'Check-in & link',
+      sub: 'Door QR · portal links',
+    },
+    account: {
+      title: 'Account',
+      sub: profile?.email || email || undefined,
+    },
+  };
+
+  return (
+    <B2cAppShell
+      tab={tab}
+      onTab={setTab}
+      headerTitle={headerForTab[tab].title}
+      headerSubtitle={headerForTab[tab].sub}
+      headerRight={
+        <div className="flex items-center gap-2">
+          {installHint ? <B2cInstallChip /> : null}
+          <button
+            type="button"
+            onClick={() => void logout().then(() => router.refresh())}
+            className="rounded-full bg-white/15 p-2"
+            aria-label="Log out"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+      }
+      badge={{
+        memberships: memberships.length || undefined,
+        checkin: checkinReady || undefined,
+      }}
+    >
+      {/* ── HOME ─────────────────────────────────────────────── */}
+      {tab === 'home' && (
+        <div className="space-y-4">
+          {installHint ? (
+            <button
+              type="button"
+              onClick={() =>
+                window.dispatchEvent(new Event('sa-open-install'))
+              }
+              className="flex w-full items-center gap-3 rounded-2xl border border-sky-200 bg-white p-3 text-left shadow-sm"
+            >
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-100 text-[#0077b6]">
+                <Download className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-black text-slate-900">
+                  Install SA Member
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Add to home screen for a full-screen app experience
+                </p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-slate-400" />
+            </button>
+          ) : null}
+
+          <div className="grid grid-cols-4 gap-2">
+            <button
+              type="button"
+              onClick={() => setTab('memberships')}
+              className="rounded-2xl bg-gradient-to-br from-cyan-500 to-sky-700 p-2.5 text-left text-white shadow-md"
+            >
+              <Package className="h-4 w-4 opacity-90" />
+              <p className="mt-1.5 text-xl font-black">{hireCount}</p>
+              <p className="text-[9px] font-bold opacity-90">Hire</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('memberships')}
+              className="rounded-2xl bg-gradient-to-br from-violet-500 to-purple-800 p-2.5 text-left text-white shadow-md"
+            >
+              <Dumbbell className="h-4 w-4 opacity-90" />
+              <p className="mt-1.5 text-xl font-black">{gymCount}</p>
+              <p className="text-[9px] font-bold opacity-90">Gym</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('memberships')}
+              className="rounded-2xl bg-gradient-to-br from-teal-500 to-indigo-800 p-2.5 text-left text-white shadow-md"
+            >
+              <Stethoscope className="h-4 w-4 opacity-90" />
+              <p className="mt-1.5 text-xl font-black">{clinicCount}</p>
+              <p className="text-[9px] font-bold opacity-90">Clinic</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('checkin')}
+              className="rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-800 p-2.5 text-left text-white shadow-md"
+            >
+              <QrCode className="h-4 w-4 opacity-90" />
+              <p className="mt-1.5 text-xl font-black">{checkinReady}</p>
+              <p className="text-[9px] font-bold opacity-90">Check-in</p>
+            </button>
+          </div>
+
+          <section>
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-black text-slate-900">Quick actions</h2>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setTab('checkin')}
+                className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm active:scale-[0.98]"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                  <QrCode className="h-5 w-5" />
+                </span>
+                <span>
+                  <span className="block text-xs font-black text-slate-900">
+                    Check in
+                  </span>
+                  <span className="block text-[10px] text-slate-500">
+                    At the gym door
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab('checkin')}
+                className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm active:scale-[0.98]"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700">
+                  <Link2 className="h-5 w-5" />
+                </span>
+                <span>
+                  <span className="block text-xs font-black text-slate-900">
+                    Link brand
+                  </span>
+                  <span className="block text-[10px] text-slate-500">
+                    Paste portal link
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab('memberships')}
+                className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm active:scale-[0.98]"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
+                  <CalendarDays className="h-5 w-5" />
+                </span>
+                <span>
+                  <span className="block text-xs font-black text-slate-900">
+                    Order / book
+                  </span>
+                  <span className="block text-[10px] text-slate-500">
+                    Open a brand portal
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab('account')}
+                className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm active:scale-[0.98]"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                  <User className="h-5 w-5" />
+                </span>
+                <span>
+                  <span className="block text-xs font-black text-slate-900">
+                    Profile
+                  </span>
+                  <span className="block text-[10px] text-slate-500">
+                    Name · phone · email
+                  </span>
+                </span>
+              </button>
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-black text-slate-900">
+                Recent brands
+              </h2>
+              {memberships.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setTab('memberships')}
+                  className="text-[11px] font-bold text-[#0077b6]"
+                >
+                  See all
+                </button>
+              ) : null}
+            </div>
+            {memberships.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-slate-300 bg-white/80 px-5 py-10 text-center">
+                <WalletCards className="mx-auto h-10 w-10 text-slate-300" />
+                <p className="mt-3 text-sm font-black text-slate-800">
+                  No brands yet
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Get a portal link from your hire company or gym, then add it
+                  here.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setTab('checkin')}
+                  className="mt-4 rounded-full bg-[#0077b6] px-5 py-2.5 text-xs font-black text-white"
+                >
+                  Link a brand
+                </button>
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {memberships.slice(0, 4).map((m) => {
+                  const Icon = kindIcon(m.kind);
+                  return (
+                    <li key={m.id}>
+                      <Link
+                        href={m.portal_path}
+                        className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm active:scale-[0.99]"
+                      >
+                        <span
+                          className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow ${kindTone(m.kind)}`}
+                        >
+                          <Icon className="h-5 w-5" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-black text-slate-900">
+                            {m.brand || m.company_name}
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            {m.kind_label || m.kind}
+                            {m.ref_label ? ` · ${m.ref_label}` : ''}
+                          </p>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-slate-400" />
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        </div>
+      )}
+
+      {/* ── BRANDS / MEMBERSHIPS ─────────────────────────────── */}
+      {tab === 'memberships' && (
+        <div className="space-y-3">
+          {memberships.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-5 py-12 text-center">
+              <p className="text-sm font-black text-slate-800">
+                Link your first brand
+              </p>
+              <button
+                type="button"
+                onClick={() => setTab('checkin')}
+                className="mt-4 rounded-full bg-[#0077b6] px-5 py-2.5 text-xs font-black text-white"
+              >
+                Add portal link
+              </button>
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {memberships.map((m) => {
+                const Icon = kindIcon(m.kind);
+                return (
+                  <li
+                    key={m.id}
+                    className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+                  >
+                    <div
+                      className={`bg-gradient-to-r px-4 py-3 text-white ${kindTone(m.kind)}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/20">
+                          <Icon className="h-5 w-5" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-base font-black">
+                            {m.brand || m.company_name}
+                          </p>
+                          <p className="text-[11px] text-white/85">
+                            {m.kind_label || m.kind}
+                            {m.ref_label ? ` · ${m.ref_label}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 p-3">
+                      <Link
+                        href={m.portal_path}
+                        className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl bg-[#0077b6] px-3 py-2.5 text-xs font-black text-white min-w-[7rem]"
+                      >
+                        Open <ExternalLink className="h-3.5 w-3.5" />
+                      </Link>
+                      <Link
+                        href={m.portal_path}
+                        className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-black text-slate-800"
+                      >
+                        <CalendarDays className="h-3.5 w-3.5" />{' '}
+                        {kindActionLabel(m.kind)}
+                      </Link>
+                      {m.checkin_path ? (
+                        <Link
+                          href={`${m.checkin_path}${
+                            m.portal_token
+                              ? `?member=${encodeURIComponent(m.portal_token)}`
+                              : ''
+                          }`}
+                          className="inline-flex items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-black text-emerald-900"
+                        >
+                          <QrCode className="h-3.5 w-3.5" /> Check in
+                        </Link>
+                      ) : null}
+                      <Link
+                        href={`/r/${m.company_id}`}
+                        className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-black text-amber-950"
+                      >
+                        <Star className="h-3.5 w-3.5" /> Review
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => void unlink(m.id)}
+                        className="ml-auto text-[10px] font-bold text-slate-400"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* ── CHECK-IN + LINK ──────────────────────────────────── */}
+      {tab === 'checkin' && (
+        <div className="space-y-4">
+          <section className="rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-emerald-900">
+              <QrCode className="h-5 w-5" />
+              <h2 className="text-sm font-black">Gym door check-in</h2>
+            </div>
+            <p className="mt-1 text-xs text-emerald-900/80">
+              At reception, open your gym below or scan the gym QR with your
+              camera.
+            </p>
+            {memberships.filter((m) => m.checkin_path).length === 0 ? (
+              <p className="mt-3 rounded-xl bg-white/80 px-3 py-2 text-xs text-slate-600">
+                Link a gym membership first — check-in appears here
+                automatically.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {memberships
+                  .filter((m) => m.checkin_path)
+                  .map((m) => (
+                    <li key={m.id}>
+                      <Link
+                        href={`${m.checkin_path}${
+                          m.portal_token
+                            ? `?member=${encodeURIComponent(m.portal_token)}`
+                            : ''
+                        }`}
+                        className="flex items-center justify-between rounded-2xl bg-emerald-600 px-4 py-3.5 text-sm font-black text-white shadow active:scale-[0.99]"
+                      >
+                        <span className="truncate">
+                          Check in · {m.brand || m.company_name}
+                        </span>
+                        <CheckCircle2 className="h-5 w-5 shrink-0" />
+                      </Link>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-slate-900">
+              <Link2 className="h-5 w-5 text-[#0077b6]" />
+              <h2 className="text-sm font-black">Link a portal</h2>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              Paste any Advisor portal link from your invite email / WhatsApp
+              — Hire, Gym, Physio, Dental, Medical or Psychiatry.
+            </p>
+            <input
+              className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-mono"
+              placeholder="https://…/member/physiograph/… or /hire/…"
+              value={linkToken}
+              onChange={(e) => setLinkToken(e.target.value)}
+            />
+            <button
+              type="button"
+              disabled={busy || !linkToken.trim()}
+              onClick={() => void doLink()}
+              className="mt-2 w-full rounded-2xl bg-[#0077b6] py-3.5 text-sm font-black text-white disabled:opacity-50 active:scale-[0.99]"
+            >
+              {busy ? 'Linking…' : 'Add to my app'}
+            </button>
+          </section>
+        </div>
+      )}
+
+      {/* ── ACCOUNT ──────────────────────────────────────────── */}
+      {tab === 'account' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-[#0077b6] text-lg font-black text-white">
+              {(displayName[0] || 'U').toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate font-black text-slate-900">
+                {displayName}
+              </p>
+              <p className="truncate text-xs text-slate-500">
+                {email || 'No email yet'}
+              </p>
+            </div>
+          </div>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="text-sm font-black text-slate-900">Profile</h2>
+            <label className="mt-3 block text-[11px] font-bold text-slate-600">
+              Full name
+              <input
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </label>
+            <label className="mt-2 block text-[11px] font-bold text-slate-600">
+              Email
+              <input
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                type="email"
+              />
+            </label>
+            <label className="mt-2 block text-[11px] font-bold text-slate-600">
+              Phone
+              <input
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                inputMode="tel"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void saveProfile()}
+              className="mt-4 w-full rounded-2xl bg-slate-900 py-3 text-sm font-black text-white disabled:opacity-50"
+            >
+              Save changes
+            </button>
+          </section>
+
+          {installHint ? (
+            <button
+              type="button"
+              onClick={() =>
+                window.dispatchEvent(new Event('sa-open-install'))
+              }
+              className="flex w-full items-center gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-3 text-left"
+            >
+              <Download className="h-5 w-5 text-[#0077b6]" />
+              <span>
+                <span className="block text-sm font-black text-slate-900">
+                  Install SA Member
+                </span>
+                <span className="block text-[11px] text-slate-500">
+                  Full-screen app on your home screen
+                </span>
+              </span>
+            </button>
+          ) : (
+            <p className="flex items-center gap-2 rounded-2xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">
+              <CheckCircle2 className="h-4 w-4" /> Running as installed app
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={() => void logout().then(() => router.refresh())}
+            className="w-full rounded-2xl border border-rose-200 py-3 text-sm font-bold text-rose-700"
+          >
+            Log out
+          </button>
+
+          <p className="text-center text-[10px] text-slate-400">
+            Company operators use{' '}
+            <Link href="/login" className="font-bold underline">
+              business login
+            </Link>
+            .
+          </p>
+        </div>
+      )}
+    </B2cAppShell>
+  );
+}
+
+export default function MeMemberAppPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[100dvh] items-center justify-center bg-[#0c4a6e]">
+          <Loader2 className="h-8 w-8 animate-spin text-white" />
+        </div>
+      }
+    >
+      <MeAppInner />
+    </Suspense>
+  );
+}

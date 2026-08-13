@@ -767,7 +767,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Suppliers', href: '/dashboard/hiregraph/suppliers', desc: 'Core SRM bridge · gear owners', section: 'Supply' },
       { name: 'Categories', href: '/dashboard/hiregraph/categories', desc: 'Requirement stacks', section: 'Supply' },
       { name: 'Catalogue', href: '/dashboard/hiregraph/catalogue', desc: 'Items linked to core suppliers', section: 'Supply' },
-      { name: 'Customers', href: '/dashboard/hiregraph/customers', desc: 'Core CRM bridge · hire KYC', section: 'Demand' },
+      { name: 'Customers', href: '/dashboard/hiregraph/customers', desc: 'B2C portal · CRM · hire KYC', section: 'Demand' },
       { name: 'Bookings', href: '/dashboard/hiregraph/bookings', desc: 'Core customer · dual fee quote', section: 'Demand' },
       { name: 'Handover', href: '/dashboard/hiregraph/handover', desc: 'Out · return · condition', section: 'Ops' },
       { name: 'Settlements', href: '/dashboard/hiregraph/settlements', desc: '2.5% + 2.5% ledger', section: 'Money' },

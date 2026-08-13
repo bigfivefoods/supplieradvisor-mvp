@@ -8,6 +8,8 @@ import {
   HIRE_CATEGORIES,
   HIRE_REQUIREMENT_LABELS,
   deleteEntity,
+  hireCustomerPortalPath,
+  issueCustomerPortal,
   readHiregraphFromMetadata,
   summariseHiregraph,
   upsertEntity,
@@ -15,6 +17,7 @@ import {
   type HireCorePartyRef,
   type HireEntity,
   type HiregraphStore,
+  type HirePublicSettings,
   type HireRequirementKey,
 } from '@/lib/hire/hiregraph';
 import {
@@ -235,6 +238,116 @@ export async function POST(req: NextRequest) {
           coreSupplierCount: coreSuppliers.length,
           coreCustomerCount: coreCustomers.length,
         }),
+      });
+    }
+
+    // B2C portal brand settings
+    if (action === 'update_settings') {
+      const patch =
+        body.settings && typeof body.settings === 'object'
+          ? (body.settings as HirePublicSettings)
+          : {};
+      next = {
+        ...store,
+        settings: {
+          ...(store.settings || {}),
+          ...patch,
+        },
+      };
+      await saveStore(companyId, meta, next);
+      denormaliseNames(next, coreSuppliers, coreCustomers);
+      return NextResponse.json({
+        success: true,
+        store: next,
+        coreSuppliers,
+        coreCustomers,
+        summary: summariseHiregraph(next, {
+          coreSupplierCount: coreSuppliers.length,
+          coreCustomerCount: coreCustomers.length,
+        }),
+      });
+    }
+
+    // Issue / re-issue B2C customer portal link
+    if (action === 'issue_portal' || action === 'issue_customer_portal') {
+      const crmId = Number(body.crm_customer_id || body.customer_id);
+      if (!Number.isFinite(crmId) || crmId <= 0) {
+        return NextResponse.json(
+          { error: 'crm_customer_id required' },
+          { status: 400 }
+        );
+      }
+      const customer = coreCustomers.find((c) => c.id === crmId);
+      if (!customer) {
+        return NextResponse.json(
+          {
+            error: `Customer #${crmId} not in Core Customers — add them under Customers first`,
+          },
+          { status: 400 }
+        );
+      }
+      const issued = issueCustomerPortal(store, crmId, {
+        companyId,
+        invite_email:
+          body.invite_email != null
+            ? String(body.invite_email)
+            : customer.email || null,
+      });
+      next = issued.store;
+      await saveStore(companyId, meta, next);
+      denormaliseNames(next, coreSuppliers, coreCustomers);
+      const path = hireCustomerPortalPath(issued.portal.portal_token);
+      return NextResponse.json({
+        success: true,
+        store: next,
+        portal: issued.portal,
+        portal_token: issued.portal.portal_token,
+        portal_path: path,
+        coreSuppliers,
+        coreCustomers,
+        summary: summariseHiregraph(next, {
+          coreSupplierCount: coreSuppliers.length,
+          coreCustomerCount: coreCustomers.length,
+        }),
+        message: `Portal issued for ${customer.name}`,
+      });
+    }
+
+    if (action === 'revoke_portal' || action === 'revoke_customer_portal') {
+      const crmId = Number(body.crm_customer_id || body.customer_id);
+      if (!Number.isFinite(crmId) || crmId <= 0) {
+        return NextResponse.json(
+          { error: 'crm_customer_id required' },
+          { status: 400 }
+        );
+      }
+      const key = String(crmId);
+      const prev = store.customer_portals?.[key];
+      if (!prev) {
+        return NextResponse.json(
+          { error: 'No portal for this customer' },
+          { status: 404 }
+        );
+      }
+      next = {
+        ...store,
+        customer_portals: {
+          ...(store.customer_portals || {}),
+          [key]: { ...prev, active: false, portal_token: '' },
+        },
+      };
+      await saveStore(companyId, meta, next);
+      denormaliseNames(next, coreSuppliers, coreCustomers);
+      return NextResponse.json({
+        success: true,
+        store: next,
+        coreSuppliers,
+        coreCustomers,
+        summary: summariseHiregraph(next, {
+          coreSupplierCount: coreSuppliers.length,
+          coreCustomerCount: coreCustomers.length,
+        }),
+        message: 'Portal revoked',
       });
     }
 

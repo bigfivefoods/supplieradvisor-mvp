@@ -73,7 +73,7 @@ const DEMAND: HubModule[] = [
     icon: UserRound,
     code: '04',
     title: 'Customers',
-    desc: 'Core Customers (CRM) bridge — renters + hire-only KYC checklist.',
+    desc: 'Core CRM + B2C portal links — browse, book, KYC, track on phone.',
     accent: 'from-cyan-50 to-white border-cyan-100',
   },
   {
@@ -148,7 +148,7 @@ export default function HiregraphHubPage() {
           eyebrow="HireAdvisor® · rental marketplace"
           title="Hire command"
           titleAccent="B2C + suppliers"
-          description={`Gear owners and renters live in Core Suppliers (SRM) and Core Customers (CRM). HireAdvisor lists catalogue, bookings, hire KYC and handovers only. Platform earns ${HIRE_SUPPLIER_COMMISSION_PCT}% + ${HIRE_CUSTOMER_COMMISSION_PCT}% on hire rental value — not a subscription desk.`}
+          description={`Gear owners and renters live in Core Suppliers (SRM) and Core Customers (CRM). Issue B2C portals so customers browse, request, complete docs and track hires on their phones. Platform earns ${HIRE_SUPPLIER_COMMISSION_PCT}% + ${HIRE_CUSTOMER_COMMISSION_PCT}% on hire rental value.`}
         />
 
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">

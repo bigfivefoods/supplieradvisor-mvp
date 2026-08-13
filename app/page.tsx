@@ -1020,8 +1020,8 @@ export default function LandingPage() {
                   'Container outlets that feed communities',
                   'Consumers who join verified brands',
                 ],
-                href: '/onboarding?type=consumer',
-                cta: 'Join as consumer',
+                href: '/me',
+                cta: 'Member login',
                 icon: Users2,
               },
             ].map((m) => (
@@ -1932,8 +1932,8 @@ export default function LandingPage() {
                 icon: Leaf,
                 t: 'Consumers',
                 b: 'Scan passports, support ethical brands, shop with real provenance.',
-                href: '/onboarding?type=consumer',
-                cta: 'Join as consumer',
+                href: '/me',
+                cta: 'Member login',
               },
               {
                 icon: Landmark,

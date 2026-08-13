@@ -1,0 +1,46 @@
+{
+  "name": "SA Member",
+  "short_name": "Member",
+  "description": "Your hire bookings, gym classes, check-in and reviews — one personal app.",
+  "start_url": "/me?source=pwa",
+  "scope": "/",
+  "id": "/me",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0c4a6e",
+  "theme_color": "#0077b6",
+  "lang": "en",
+  "categories": ["lifestyle", "business", "fitness"],
+  "icons": [
+    {
+      "src": "/sa-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/sa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/sa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Home",
+      "url": "/me",
+      "description": "Member home"
+    },
+    {
+      "name": "Check in",
+      "url": "/me?tab=checkin",
+      "description": "Gym door check-in"
+    }
+  ]
+}

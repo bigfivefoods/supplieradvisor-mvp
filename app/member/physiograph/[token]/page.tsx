@@ -22,6 +22,7 @@ import { VerifiedBadge } from '@/components/services/VerifiedBadge';
 import { PortalMessagesPanel } from '@/components/services/PortalMessagesPanel';
 import { PortalWaitlistReschedule } from '@/components/services/PortalWaitlistReschedule';
 import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
+import { B2cAutoLinkBanner } from '@/components/b2c/B2cAutoLinkBanner';
 
 type Slot = {
   id: string;
@@ -299,6 +300,7 @@ export default function MemberPhysiographPortalPage() {
 
       <main className="max-w-lg mx-auto px-4 py-5 space-y-4">
         <PopiaConsentNotice brand={portal.brand} />
+        <B2cAutoLinkBanner token={token} tone="teal" />
         {(msg || error) && (
           <div
             className={`rounded-xl border px-3 py-2 text-sm ${
