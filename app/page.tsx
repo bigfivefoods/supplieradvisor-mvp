@@ -53,10 +53,10 @@ import {
   BadgeCheck,
   Bell,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import LandingNav from '@/components/marketing/LandingNav';
 import HomePricing from '@/components/marketing/HomePricing';
-import FoundingCounterStrip from '@/components/marketing/FoundingCounterStrip';
+import HeroAudienceStage from '@/components/marketing/HeroAudienceStage';
 import ComparePlatforms from '@/components/marketing/ComparePlatforms';
 import SocialProofStrip from '@/components/marketing/SocialProofStrip';
 import ProductVideo from '@/components/marketing/ProductVideo';
@@ -96,14 +96,13 @@ import {
 import {
   COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
   COMPANY_TRIAL_DAYS,
-  formatZar,
 } from '@/lib/billing/company-subscription';
 import {
   CORE_OS_MONTHLY_ZAR,
   INDUSTRY_PACK_MONTHLY_ZAR,
   OS_SECTORS,
 } from '@/lib/product/architecture';
-import { FOUNDING_FREE_COMPANY_LIMIT } from '@/lib/billing/lifetime';
+
 import {
   REFERRAL_LEVEL_RATES_PCT,
   REFERRAL_TOTAL_CAP_PCT,
@@ -720,31 +719,18 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 export default function LandingPage() {
   const [activeModule, setActiveModule] = useState(0);
-  const [heroBand, setHeroBand] = useState<'all' | Exclude<ModuleBand, 'nav'>>('all');
 
-  const heroModules = useMemo(() => {
-    if (heroBand === 'all') return MODULES;
-    return MODULES.filter((m) => m.band === heroBand || m.band === 'nav');
-  }, [heroBand]);
-
-  useEffect(() => {
-    setActiveModule(0);
-  }, [heroBand]);
+  const heroModules = MODULES;
 
   useEffect(() => {
     const t = setInterval(() => {
       setActiveModule((i) => (i + 1) % heroModules.length);
-    }, 6500);
+    }, 8000);
     return () => clearInterval(t);
   }, [heroModules.length]);
 
   const featured = heroModules[activeModule] ?? MODULES[0];
   const FeaturedMock = featured.Mock;
-  const bandLabel =
-    featured.band === 'nav'
-      ? 'Navigation'
-      : MODULE_BAND_META[featured.band as Exclude<ModuleBand, 'nav'>]?.title ||
-        featured.band;
 
   return (
     <div className="relative z-0 min-h-dvh bg-sa-bg text-sa-text antialiased selection:bg-cyan-100 dark:selection:bg-cyan-500/30">
@@ -753,7 +739,7 @@ export default function LandingPage() {
       {/* ═══════════ HERO ═══════════ */}
       <section
         id="platform"
-        className="relative flex flex-col justify-center overflow-x-clip pt-20 sm:pt-[5.25rem] lg:min-h-[calc(100svh-0.5rem)]"
+        className="relative flex min-h-svh flex-col justify-center overflow-x-clip pt-20 sm:pt-[5.25rem]"
       >
         {/* Light / dark washes */}
         <div
@@ -790,7 +776,7 @@ export default function LandingPage() {
                 <strong className="font-semibold text-slate-900 dark:text-white">B2B</strong>,{' '}
                 <strong className="font-semibold text-slate-900 dark:text-white">B2G</strong>, and{' '}
                 <strong className="font-semibold text-slate-900 dark:text-white">B2C</strong> on one
-                verified network — watch the key modules rotate live.
+                verified network.
               </p>
 
               <div className="mt-6 flex flex-col items-stretch gap-2.5 sm:mx-auto sm:max-w-md sm:flex-row sm:items-center lg:mx-0 lg:max-w-none lg:flex-col xl:flex-row">
@@ -832,146 +818,9 @@ export default function LandingPage() {
               </p>
             </div>
 
-            {/* ── Images (2/3) — compact hero mocks that fit the viewport ── */}
             <div className="min-w-0 lg:col-span-8">
-              <div className="relative">
-                <div
-                  className="pointer-events-none absolute -inset-2 rounded-[2rem] bg-gradient-to-tr from-cyan-200/40 via-transparent to-violet-200/30 blur-2xl sm:-inset-3 dark:from-cyan-500/15 dark:to-[#00b4d8]/10"
-                  aria-hidden
-                />
-
-                {/* Band navigation: Core · Sector · Industry · Government · All */}
-                <div className="relative mb-2 flex flex-wrap items-center gap-1 sm:mb-2.5 sm:gap-1.5">
-                  {(
-                    [
-                      { id: 'all' as const, label: 'All modules' },
-                      { id: 'core' as const, label: 'Core OS' },
-                      { id: 'sector' as const, label: 'Sector' },
-                      { id: 'industry' as const, label: 'Industry' },
-                      { id: 'government' as const, label: 'Government' },
-                    ] as const
-                  ).map((b) => (
-                    <button
-                      key={b.id}
-                      type="button"
-                      onClick={() => setHeroBand(b.id)}
-                      className={`rounded-full border px-2.5 py-1 text-[10px] font-bold transition-all touch-manipulation sm:px-3 sm:py-1.5 sm:text-[11px] ${
-                        heroBand === b.id
-                          ? 'border-[#00b4d8] bg-[#00b4d8] text-white shadow-sm'
-                          : 'border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-[#0077b6] dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-300'
-                      }`}
-                      aria-pressed={heroBand === b.id}
-                    >
-                      {b.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Module chrome — compact */}
-                <div className="relative mb-2 flex min-h-[3.25rem] flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2 shadow-sm sm:mb-2.5 sm:min-h-[3.5rem] sm:rounded-2xl sm:px-4 dark:border-neutral-800 dark:bg-neutral-950/95">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <featured.icon className="h-4 w-4 shrink-0 text-[#00b4d8] sm:h-5 sm:w-5" />
-                    <div className="min-w-0">
-                      <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400 sm:text-[10px]">
-                        {bandLabel} · {featured.code} /{' '}
-                        {String(heroModules.length).padStart(2, '0')}
-                      </div>
-                      <div className="truncate text-xs font-black text-slate-900 sm:text-sm dark:text-white">
-                        {featured.title}
-                        <span className="ml-1.5 font-semibold text-[#00b4d8] sm:ml-2">
-                          {featured.tagline}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-800 sm:px-2.5 sm:py-1 sm:text-[10px] dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    </span>
-                    Live
-                  </span>
-                </div>
-
-                {/* Three scene cards — hide on phone (stacked height blows the hero) */}
-                <div className="mb-2 hidden w-full sm:mb-2.5 sm:block">
-                  <ModuleGallery moduleId={featured.id} variant="hero" />
-                </div>
-
-                {/* Main product frame — hero-sized, fixed HxW */}
-                <div className="relative w-full overflow-hidden rounded-[1.25rem] border border-slate-200/90 bg-white shadow-xl shadow-slate-200/70 sm:rounded-[1.5rem] dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-black/50">
-                  <ProductMockShell variant="hero">
-                    <FeaturedMock />
-                  </ProductMockShell>
-                </div>
-
-                {/* Module picker */}
-                <div className="mt-2 -mx-1 flex gap-1 overflow-x-auto px-1 pb-0.5 scrollbar-thin sm:mt-2.5 sm:gap-1.5 sm:flex-wrap sm:justify-center lg:justify-start">
-                  {heroModules.map((m, i) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => setActiveModule(i)}
-                      className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-bold transition-all touch-manipulation sm:gap-1.5 sm:px-2.5 sm:py-1.5 sm:text-xs ${
-                        i === activeModule
-                          ? 'border-[#00b4d8] bg-[#00b4d8] text-white shadow-sm shadow-cyan-200/60'
-                          : 'border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-[#0077b6] dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-300'
-                      }`}
-                      aria-pressed={i === activeModule}
-                      aria-label={`Show ${m.title} module`}
-                    >
-                      <m.icon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                      {m.short}
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-1.5 text-center text-[10px] text-slate-400 sm:text-[11px] lg:text-left">
-                  Auto-rotates · Core, Sector &amp; Industry · fixed size
-                </p>
-              </div>
+              <HeroAudienceStage />
             </div>
-          </div>
-
-          {/* Accurate commercial strip under hero (not competing with headline) */}
-          <div className="mt-8 flex flex-col items-center gap-3 border-t border-slate-200/80 pt-6 sm:mt-10 sm:pt-8 dark:border-neutral-800">
-            <p className="text-center text-sm text-slate-500">
-              Core OS from {formatZar(COMPANY_SUBSCRIPTION_MONTHLY_ZAR)}/mo ·
-              Industry Packs +{formatZar(INDUSTRY_PACK_MONTHLY_ZAR)}/mo each ·
-              Paystack &amp; Apple Pay · {COMPANY_TRIAL_DAYS}-day free trial ·
-              first {FOUNDING_FREE_COMPANY_LIMIT} companies free for life ·{' '}
-              <a
-                href="#pricing"
-                className="font-semibold text-[#0077b6] underline decoration-sky-200 underline-offset-4 hover:text-[#00b4d8]"
-              >
-                Pricing
-              </a>
-            </p>
-            <FoundingCounterStrip />
-          </div>
-
-          {/* Proof bar */}
-          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:mt-10">
-            {[
-              { k: '14+', l: 'operating systems' },
-              { k: 'B2B·G·C', l: 'one verified fabric' },
-              { k: `${COMPANY_TRIAL_DAYS}d`, l: 'free full trial' },
-              {
-                k: 'R' + COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
-                l: 'Core OS / mo',
-              },
-            ].map((s) => (
-              <div
-                key={s.l}
-                className="rounded-2xl border border-slate-200/90 bg-white/80 px-3 py-3 text-center shadow-sm backdrop-blur-sm sm:px-4"
-              >
-                <div className="text-lg font-black tracking-tight text-slate-900 sm:text-xl">
-                  {s.k}
-                </div>
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 sm:text-[11px]">
-                  {s.l}
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </section>
@@ -1234,7 +1083,7 @@ export default function LandingPage() {
               {
                 icon: CreditCard,
                 t: 'Simple ZAR economics',
-                b: `${COMPANY_TRIAL_DAYS}-day free trial, then from R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo — or save up to 30% prepaid. First ${FOUNDING_FREE_COMPANY_LIMIT} companies free for life.`,
+                b: `${COMPANY_TRIAL_DAYS}-day free trial, then from R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo — or save up to 30% prepaid.`,
               },
               {
                 icon: Container,
@@ -2122,8 +1971,7 @@ export default function LandingPage() {
           </h2>
           <p className="mx-auto mt-5 max-w-2xl text-base text-slate-600 sm:text-lg">
             B2B · B2G · B2C on one verified OS. Join operators who treat verification,
-            ratings, lots, and SHEQ as live controls. {COMPANY_TRIAL_DAYS} days free. First{' '}
-            {FOUNDING_FREE_COMPANY_LIMIT} free for life.
+            ratings, lots, and SHEQ as live controls. {COMPANY_TRIAL_DAYS} days free.
           </p>
           <div className="mt-10 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
             <Link
