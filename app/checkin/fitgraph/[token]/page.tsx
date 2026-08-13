@@ -56,6 +56,7 @@ export default function GymCheckinPage() {
   const { token } = useParams() as { token: string };
   const search = useSearchParams();
   const [gym, setGym] = useState<GymInfo | null>(null);
+  const [gymCompanyId, setGymCompanyId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -92,6 +93,9 @@ export default function GymCheckinPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Gym not found');
       setGym(data.gym);
+      setGymCompanyId(
+        Number.isFinite(Number(data.companyId)) ? Number(data.companyId) : null
+      );
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load gym');
     } finally {
@@ -372,13 +376,21 @@ export default function GymCheckinPage() {
         <div className="rounded-2xl border border-dashed border-violet-200 bg-white/80 p-4 text-center">
           <Smartphone className="mx-auto h-5 w-5 text-violet-600" />
           <p className="mt-2 text-xs text-slate-600">
-            Book classes online from your member portal (PWA). Ask reception for
-            your invite link if you do not have one yet.
+            Not a member yet? Join {gym?.brand || 'this gym'} on SA Member, then
+            check in here.
           </p>
+          {gymCompanyId ? (
+            <Link
+              href={`/me?join=1&kind=gym&company=${gymCompanyId}&brand=${encodeURIComponent(gym?.brand || 'Gym')}`}
+              className="mt-3 inline-block rounded-xl bg-violet-600 px-4 py-2 text-xs font-black text-white"
+            >
+              Accept & join {gym?.brand || 'gym'}
+            </Link>
+          ) : null}
           {gym?.allow_public_booking && gym?.public_token ? (
             <Link
               href={`/embed/fitgraph/${encodeURIComponent(gym.public_token)}`}
-              className="mt-3 inline-block text-xs font-bold text-violet-700 underline"
+              className="mt-3 ml-2 inline-block text-xs font-bold text-violet-700 underline"
             >
               View class schedule
             </Link>

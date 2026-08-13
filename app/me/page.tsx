@@ -159,7 +159,14 @@ function MeAppInner() {
   } | null>(null);
   const joinBrand = search?.get('brand') || '';
   const joinKind = search?.get('kind') || '';
-  const isJoin = search?.get('join') === '1' || Boolean(joinBrand);
+  const joinCompany = Number(search?.get('company') || 0);
+  const isJoin =
+    search?.get('join') === '1' ||
+    Boolean(joinBrand) ||
+    (Number.isFinite(joinCompany) && joinCompany > 0);
+  const [joinBusy, setJoinBusy] = useState(false);
+  const [joinDone, setJoinDone] = useState(false);
+  const [joinPreviewBrand, setJoinPreviewBrand] = useState(joinBrand);
 
   // Deep links: ?tab=shop|checkin|memberships|account  ?link=
   useEffect(() => {
@@ -242,6 +249,25 @@ function MeAppInner() {
     void load();
   }, [ready, authenticated, load]);
 
+  useEffect(() => {
+    if (!isJoin || !joinCompany || joinCompany <= 0) return;
+    let cancelled = false;
+    void fetch(
+      `/api/b2c/join?company=${joinCompany}&kind=${encodeURIComponent(joinKind || '')}`,
+      { cache: 'no-store' }
+    )
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled || !data?.brand) return;
+        setJoinPreviewBrand(String(data.brand));
+        if (data.already) setJoinDone(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isJoin, joinCompany, joinKind]);
+
   const memberships = useMemo(
     () => (profile?.memberships || []).filter((m) => m),
     [profile]
@@ -260,6 +286,67 @@ function MeAppInner() {
     else params.set('tab', t);
     const qs = params.toString();
     router.replace(qs ? `/me?${qs}` : '/me', { scroll: false });
+  };
+
+  const clearJoinParams = () => {
+    const params = new URLSearchParams(search?.toString() || '');
+    params.delete('join');
+    params.delete('brand');
+    params.delete('kind');
+    params.delete('company');
+    const qs = params.toString();
+    router.replace(qs ? `/me?${qs}` : '/me', { scroll: false });
+  };
+
+  const acceptJoin = async () => {
+    if (!joinCompany || joinCompany <= 0) {
+      toast.error('This invite is missing the brand. Ask the desk to reprint the QR.');
+      return;
+    }
+    setJoinBusy(true);
+    try {
+      const res = await fetch('/api/b2c/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          company: joinCompany,
+          kind: joinKind || undefined,
+          email: email || extractEmailFromPrivyUser(user),
+          full_name: name || undefined,
+          phone: phone || undefined,
+          privyUserId: getCanonicalUserId(user?.id),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not join');
+      if (data.membership && data.profile) {
+        setProfile(data.profile);
+      } else if (data.membership) {
+        setProfile((prev) =>
+          prev
+            ? {
+                ...prev,
+                memberships: [
+                  data.membership,
+                  ...(prev.memberships || []).filter(
+                    (m) => m.id !== data.membership.id
+                  ),
+                ],
+              }
+            : prev
+        );
+      }
+      setJoinDone(true);
+      setJoinPreviewBrand(data.brand || joinBrand);
+      toast.success(data.message || `Joined ${data.brand || joinBrand}`);
+      setTab('memberships');
+      clearJoinParams();
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Could not join');
+    } finally {
+      setJoinBusy(false);
+    }
   };
 
   const doLink = async (tokenOverride?: string) => {
@@ -389,8 +476,8 @@ function MeAppInner() {
               SA Member
             </h1>
             <p className="mt-3 text-base text-sky-50/95">
-              {isJoin && joinBrand
-                ? `${joinBrand} invited you to create a free SA Member profile on your phone.`
+              {isJoin && (joinBrand || joinPreviewBrand)
+                ? `${joinBrand || joinPreviewBrand} invited you. Sign in, then tap Accept & join.`
                 : 'One personal app: shop what is for sale or hire, book gym and clinic brands, check in, and keep every membership on this wallet. If you also run a company, switch to it after you sign in — same login.'}
             </p>
 
@@ -529,17 +616,47 @@ function MeAppInner() {
       {/* ── HOME ─────────────────────────────────────────────── */}
       {tab === 'home' && (
         <div className="space-y-4">
-          {isJoin && joinBrand ? (
-            <div className="rounded-2xl border border-sky-200 bg-white p-3 text-sm shadow-sm">
+          {isJoin && !joinDone ? (
+            <div className="rounded-3xl border border-sky-200 bg-white p-4 shadow-sm">
               <p className="text-[10px] font-black uppercase tracking-wide text-[#0077b6]">
-                Brand invite
+                Invite
               </p>
-              <p className="font-black text-slate-900">{joinBrand}</p>
-              <p className="text-[11px] text-slate-500">
-                Create your profile and verify yourself. If this brand already
-                has your email or phone, it will appear under Brands
-                {joinKind ? ` (${joinKind})` : ''}.
+              <p className="mt-0.5 text-lg font-black text-slate-900">
+                {joinPreviewBrand || joinBrand || 'This brand'}
               </p>
+              <p className="mt-1 text-[12px] text-slate-500">
+                {joinKind === 'gym'
+                  ? 'Join as a member — book classes and check in at the door.'
+                  : joinKind === 'hire'
+                    ? 'Join as a hire customer — request gear and track orders.'
+                    : joinKind
+                      ? 'Join as a patient — book and see shared care notes.'
+                      : 'Join this brand on SA Member.'}{' '}
+                Same login stays yours.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={joinBusy || !joinCompany}
+                  onClick={() => void acceptJoin()}
+                  className="rounded-2xl bg-[#0077b6] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50"
+                >
+                  {joinBusy ? 'Joining…' : `Accept & join ${joinPreviewBrand || joinBrand || 'brand'}`}
+                </button>
+                <button
+                  type="button"
+                  disabled={joinBusy}
+                  onClick={clearJoinParams}
+                  className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600"
+                >
+                  Not now
+                </button>
+              </div>
+              {!joinCompany ? (
+                <p className="mt-2 text-[11px] text-amber-700">
+                  This QR is missing the company. Ask the desk to reprint it.
+                </p>
+              ) : null}
             </div>
           ) : null}
 
