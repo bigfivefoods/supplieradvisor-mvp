@@ -78,7 +78,8 @@ async function probeHosted(domain: string) {
       status: res.status,
       contentType: res.headers.get('content-type'),
       bytes: text.length,
-      startsOk: text.startsWith('{"pspId"'),
+      startsOk:
+        text.startsWith('{"pspId"') || text.startsWith('{"version"'),
       matchesLocal:
         text === APPLE_PAY_DOMAIN_ASSOCIATION_BODY ||
         text.trim() === APPLE_PAY_DOMAIN_ASSOCIATION_BODY.trim(),
@@ -186,7 +187,7 @@ export async function GET(request: NextRequest) {
       'status' in h &&
       h.status === 200 &&
       String(h.contentType || '').includes('application/text') &&
-      h.bytes === 4559
+      h.bytes === APPLE_PAY_DOMAIN_ASSOCIATION_BODY.length
   );
 
   return NextResponse.json({
