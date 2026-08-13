@@ -2129,18 +2129,18 @@ async function buildHire(
     filterSummary: filterLine([
       `${filters.from} → ${filters.to}`,
       `Slice: ${slice}`,
-      `${HIRE_SUPPLIER_COMMISSION_PCT}%+${HIRE_CUSTOMER_COMMISSION_PCT}% model`,
+      `${HIRE_SUPPLIER_COMMISSION_PCT}% on the business · members free`,
     ]),
     headline:
       summary.openBookings > 0 || summary.gmvZar > 0
-        ? `${summary.openBookings} open hires · R${Number(summary.gmvZar || 0).toLocaleString('en-ZA')} GMV · R${Number(summary.platformFeesZar || 0).toLocaleString('en-ZA')} platform (${HIRE_SUPPLIER_COMMISSION_PCT}%+${HIRE_CUSTOMER_COMMISSION_PCT}%)`
-        : 'HireAdvisor® marketplace — list gear, take B2C bookings, earn dual commission on GMV',
+        ? `${summary.openBookings} open hires · R${Number(summary.gmvZar || 0).toLocaleString('en-ZA')} GMV · R${Number(summary.platformFeesZar || 0).toLocaleString('en-ZA')} platform (${HIRE_SUPPLIER_COMMISSION_PCT}% · members free)`
+        : 'HireAdvisor® marketplace — list gear, take free B2C bookings, earn 2.5% on the listing business',
     kpis,
     tables,
     highlights: [
       `${summary.supplierCount} hire suppliers · ${summary.customerCount} B2C renters`,
       `${summary.listedItems} listed items across categories`,
-      `Dual commission: ${HIRE_SUPPLIER_COMMISSION_PCT}% supplier + ${HIRE_CUSTOMER_COMMISSION_PCT}% customer (deposits not commissionable)`,
+      `Take-rate: ${HIRE_SUPPLIER_COMMISSION_PCT}% on the listing business · members free (deposits not commissionable)`,
     ],
     risks: [
       summary.openBookings > 0 && summary.outNow === 0
@@ -2157,7 +2157,7 @@ async function buildHire(
     actions: [
       'Clear outstanding category requirements on open bookings',
       'Record OUT / RETURN handovers with condition notes',
-      'Complete returned bookings so dual commission posts to GMV',
+      'Complete returned bookings so supplier commission posts to GMV',
     ],
   };
 }

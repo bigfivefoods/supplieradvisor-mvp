@@ -6,12 +6,13 @@ export const metadata: Metadata = {
     template: '%s · SA Member',
   },
   description:
-    'Your personal member app — hire gear, book gym classes, check in, and review brands.',
+    'SA Member — shop what is for sale or hire, book Advisors, check in, and keep every brand on one personal app.',
   applicationName: 'SA Member',
   appleWebApp: {
     capable: true,
     title: 'SA Member',
     statusBarStyle: 'black-translucent',
+    startupImage: ['/sa-icon-512.png'],
   },
   other: {
     'mobile-web-app-capable': 'yes',

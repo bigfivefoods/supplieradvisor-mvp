@@ -33,6 +33,7 @@ import {
   renameCoachSpecialty,
   getCoachSpecialtyOptions,
   writeFitgraphToMetadata,
+  gymCheckinPath,
   type FitBooking,
   type FitCheckIn,
   type FitClassType,
@@ -399,6 +400,23 @@ export async function POST(request: NextRequest) {
       }
       client.portal_token = issueClientPortalToken(companyId);
       await saveStore(companyId, meta, store);
+      void import('@/lib/b2c/directory').then(({ indexBrandPerson }) =>
+        indexBrandPerson({
+          kind: 'gym',
+          companyId,
+          companyName: store.settings?.brand_name,
+          brand: store.settings?.brand_name,
+          refId: client.id,
+          refLabel: client.name,
+          email: client.email,
+          phone: client.phone,
+          portalToken: client.portal_token,
+          portalPath: `/member/fitgraph/${encodeURIComponent(client.portal_token)}`,
+          checkinPath: store.settings?.public_token
+            ? gymCheckinPath(store.settings.public_token)
+            : null,
+        })
+      );
       return NextResponse.json({
         success: true,
         store,
@@ -510,6 +528,23 @@ export async function POST(request: NextRequest) {
       }
 
       await saveStore(companyId, meta, store);
+      void import('@/lib/b2c/directory').then(({ indexBrandPerson }) =>
+        indexBrandPerson({
+          kind: 'gym',
+          companyId,
+          companyName: businessName,
+          brand: businessName,
+          refId: client.id,
+          refLabel: client.name,
+          email,
+          phone: client.phone,
+          portalToken: client.portal_token,
+          portalPath: `/member/fitgraph/${encodeURIComponent(client.portal_token!)}`,
+          checkinPath: store.settings?.public_token
+            ? gymCheckinPath(store.settings.public_token)
+            : null,
+        })
+      );
       return NextResponse.json({
         success: true,
         store,

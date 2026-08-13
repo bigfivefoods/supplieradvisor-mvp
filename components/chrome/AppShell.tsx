@@ -145,7 +145,7 @@ function AppShellInner({
               </button>
             </div>
             <div
-              className="flex-1 overflow-y-auto min-h-0 overscroll-contain"
+              className="flex-1 overflow-y-auto min-h-0 overscroll-contain scrollbar-none"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               <Sidebar forceExpanded />

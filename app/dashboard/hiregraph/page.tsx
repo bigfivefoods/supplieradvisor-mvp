@@ -2,7 +2,7 @@
 
 /**
  * HireAdvisor® — hire / rental marketplace command (B2C + suppliers).
- * Commercial: 2.5% supplier + 2.5% customer on hire GMV.
+ * Commercial: 2.5% on the listing business. Members / renters pay no platform fee.
  */
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -34,7 +34,6 @@ import {
   type HubModule,
 } from '@/components/chrome/CommandHubChrome';
 import {
-  HIRE_CUSTOMER_COMMISSION_PCT,
   HIRE_SUPPLIER_COMMISSION_PCT,
 } from '@/lib/hire/commercial';
 
@@ -100,7 +99,7 @@ const MONEY: HubModule[] = [
     icon: Percent,
     code: '07',
     title: 'Settlements',
-    desc: `${HIRE_SUPPLIER_COMMISSION_PCT}% supplier + ${HIRE_CUSTOMER_COMMISSION_PCT}% customer on rental GMV.`,
+    desc: `${HIRE_SUPPLIER_COMMISSION_PCT}% on the listing business. Members pay no platform fee.`,
     accent: 'from-emerald-50 to-white border-emerald-100',
   },
   {
@@ -148,7 +147,7 @@ export default function HiregraphHubPage() {
           eyebrow="HireAdvisor® · rental marketplace"
           title="Hire command"
           titleAccent="B2C + suppliers"
-          description={`Gear owners and renters live in Core Suppliers (SRM) and Core Customers (CRM). Issue B2C portals so customers browse, request, complete docs and track hires on their phones. Platform earns ${HIRE_SUPPLIER_COMMISSION_PCT}% + ${HIRE_CUSTOMER_COMMISSION_PCT}% on hire rental value.`}
+          description={`Gear owners and renters live in Core Suppliers (SRM) and Core Customers (CRM). Issue B2C portals so customers browse, request, complete docs and track hires on their phones — free for the member. Platform earns ${HIRE_SUPPLIER_COMMISSION_PCT}% from the listing business on hire rental value.`}
         />
 
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -187,7 +186,7 @@ export default function HiregraphHubPage() {
             <TelemetryCard
               label="Platform fees"
               value={`R${Number(summary?.platformFeesZar || 0).toLocaleString('en-ZA')}`}
-              sub={`${HIRE_SUPPLIER_COMMISSION_PCT}% + ${HIRE_CUSTOMER_COMMISSION_PCT}%`}
+              sub={`${HIRE_SUPPLIER_COMMISSION_PCT}% · members free`}
             />
           </HubTelemetryGrid>
         )}

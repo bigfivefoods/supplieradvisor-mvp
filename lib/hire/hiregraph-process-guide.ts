@@ -1,6 +1,6 @@
 /**
  * HireAdvisor® end-to-end process guide PDF — rental marketplace.
- * Supplier list → customer rent → requirements → out → return → 2.5%+2.5%.
+ * Supplier list → customer rent (free) → requirements → out → return → 2.5% on the business.
  * Pure pdfkit — do not import from client.
  */
 import PDFDocument from 'pdfkit';
@@ -55,7 +55,7 @@ const CHAIN = [
   { label: 'Customer', sub: 'Person rents' },
   { label: 'Requirements', sub: 'ID · licence · deposit' },
   { label: 'Handover', sub: 'Out · return' },
-  { label: 'Settle', sub: '2.5% + 2.5%' },
+  { label: 'Settle', sub: '2.5% · members free' },
 ] as const;
 
 const ROLES = [
@@ -77,7 +77,7 @@ const ROLES = [
     does: [
       'Browse catalogue & request hire',
       'Complete category requirements',
-      'Pay rental + 2.5% + deposit',
+      'Pay rental + deposit (no platform fee)',
       'Return gear in agreed condition',
     ],
     doesNot: [
@@ -120,7 +120,7 @@ const PHASES = [
   {
     title: '3 · Approve · pay · hand out',
     steps: [
-      'Supplier approves; customer pays rental + 2.5% + deposit',
+      'Supplier approves; customer pays rental + refundable deposit (no platform fee)',
       'Supplier commission 2.5% reserved on rental value',
       'Handover OUT with condition notes / photos',
     ],
@@ -129,7 +129,7 @@ const PHASES = [
     title: '4 · Return · settle · release deposit',
     steps: [
       'Handover RETURN; damage against deposit if any',
-      'Booking completed; platform records 2.5% + 2.5%',
+      'Booking completed; platform records 2.5% on the listing business',
       'Refundable deposit released (not commissionable)',
     ],
   },
@@ -141,12 +141,12 @@ function drawHero(doc: PdfDoc, g: Geo): number {
     : 'A4 PORTRAIT · 2 PAGES';
   return drawProcessGuideHero(doc, g, {
     eyebrow: `HireAdvisor® · rental marketplace · ${orientLabel}`,
-    title: 'Supplier lists → Customer rents → 2.5% + 2.5%',
+    title: 'Supplier lists → Customer rents free → 2.5% on the business',
     subtitle: g.isLandscape
       ? undefined
-      : `Dual-sided commission marketplace — not a subscription desk. Categories enforce different hire requirements.`,
+      : `Members rent free on SA Member. The listing business pays ${HIRE_SUPPLIER_COMMISSION_PCT}%. Categories enforce different hire requirements.`,
     sideNote: g.isLandscape
-      ? `Commercial model: supplier ${HIRE_SUPPLIER_COMMISSION_PCT}% + customer ${HIRE_CUSTOMER_COMMISSION_PCT}% = ${HIRE_PLATFORM_COMMISSION_PCT}% on hire rental GMV. Deposits are not commissionable.`
+      ? `Commercial model: ${HIRE_SUPPLIER_COMMISSION_PCT}% on the listing business. Members pay no platform fee. Deposits are not commissionable.`
       : undefined,
     landscape: g.isLandscape,
   });
@@ -203,7 +203,7 @@ function drawCommercial(doc: PdfDoc, g: Geo, y: number): number {
   });
   doc.font('Helvetica-Bold').fontSize(8).fillColor(PROCESS_PDF.ink);
   doc.text(
-    `Supplier ${HIRE_SUPPLIER_COMMISSION_PCT}%  +  Customer ${HIRE_CUSTOMER_COMMISSION_PCT}%  =  ${HIRE_PLATFORM_COMMISSION_PCT}% platform on rental value`,
+    `Supplier ${HIRE_SUPPLIER_COMMISSION_PCT}% on the listing business · Customer ${HIRE_CUSTOMER_COMMISSION_PCT}% (members free)`,
     g.mx + 10,
     y + 8,
     { width: g.contentW - 20 }
@@ -306,7 +306,7 @@ export async function buildHiregraphProcessGuidePdf(opts?: {
       margins: { top: 0, bottom: 28, left: g.mx, right: g.mx },
       info: {
         Title:
-          'HireAdvisor® Process Design — Supplier list → Customer rent → dual commission',
+          'HireAdvisor® Process Design — Supplier list → Customer rent free → 2.5% on the business',
         Author: 'SupplierAdvisor®',
         Subject: `HireAdvisor rental marketplace end-to-end (A4 ${orientation})`,
         Keywords:
@@ -338,7 +338,7 @@ export async function buildHiregraphProcessGuidePdf(opts?: {
     doc.addPage({ size: 'A4', layout });
     y = drawProcessGuidePageHeader(doc, g, {
       eyebrow: 'HireAdvisor® · rental marketplace · continued',
-      title: 'Pay · hand out · return · settle dual commission',
+      title: 'Pay rental · hand out · return · settle supplier commission',
       landscape: g.isLandscape,
     });
     drawProcessPageWash(doc, g, Math.max(0, y - 8));
@@ -362,7 +362,7 @@ export async function buildHiregraphProcessGuidePdf(opts?: {
     });
     doc.font('Helvetica').fontSize(7).fillColor(PROCESS_PDF.muted);
     doc.text(
-      `Core Suppliers (SRM) own gear → catalogue lists items by category → Core Customers (CRM) book dates and clear hire KYC → OUT/RETURN → SupplierAdvisor® earns ${HIRE_SUPPLIER_COMMISSION_PCT}% + ${HIRE_CUSTOMER_COMMISSION_PCT}% on rental value (deposits stay refundable).`,
+      `Core Suppliers (SRM) own gear → catalogue lists items by category → Core Customers (CRM) book dates and clear hire KYC on a free SA Member wallet → OUT/RETURN → listing business pays ${HIRE_SUPPLIER_COMMISSION_PCT}% (deposits stay refundable).`,
       g.mx + 10,
       y + 16,
       { width: g.contentW - 20, height: 20 }
@@ -372,7 +372,7 @@ export async function buildHiregraphProcessGuidePdf(opts?: {
     for (let i = 0; i < range.count; i++) {
       doc.switchToPage(range.start + i);
       drawProcessFooter(doc, g, {
-        productLine: `SupplierAdvisor® · HireAdvisor® · ${HIRE_SUPPLIER_COMMISSION_PCT}%+${HIRE_CUSTOMER_COMMISSION_PCT}% commission`,
+        productLine: `SupplierAdvisor® · HireAdvisor® · ${HIRE_SUPPLIER_COMMISSION_PCT}% on the business · members free`,
         pageNum: i + 1,
         total: range.count,
       });

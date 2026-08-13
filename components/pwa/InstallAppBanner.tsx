@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Download, Smartphone, X } from 'lucide-react';
 
 const DISMISS_KEY = 'sa_pwa_install_dismissed_at';
@@ -38,6 +39,7 @@ function isDismissed(): boolean {
  * Native Chrome prompt is used when available; otherwise send users to /add-to-home.html
  */
 export default function InstallAppBanner() {
+  const pathname = usePathname() || '';
   const [chip, setChip] = useState(false);
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [busy, setBusy] = useState(false);
@@ -110,6 +112,8 @@ export default function InstallAppBanner() {
     }
   }, [deferred]);
 
+  // SA Member has its own install chrome — avoid a second floating bar
+  if (pathname.startsWith('/me')) return null;
   if (!chip || (typeof window !== 'undefined' && isStandalone())) return null;
 
   return (

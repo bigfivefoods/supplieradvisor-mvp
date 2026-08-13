@@ -320,6 +320,21 @@ export async function POST(req: NextRequest) {
           appLink,
         })
       );
+      void import('@/lib/b2c/directory').then(({ indexBrandPerson }) =>
+        indexBrandPerson({
+          kind: 'hire',
+          companyId,
+          companyName: brand,
+          brand,
+          refId: String(crmId),
+          refLabel: customer.name,
+          email: issued.portal.invite_email || customer.email,
+          phone: customer.phone,
+          portalToken: issued.portal.portal_token,
+          portalPath: path,
+          capabilities: ['order', 'book', 'track', 'kyc', 'review'],
+        })
+      );
 
       let emailWarning: string | undefined;
       const sendEmail = body.send_email !== false && Boolean(customer.email);

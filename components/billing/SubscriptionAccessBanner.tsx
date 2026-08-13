@@ -20,6 +20,10 @@ const ALWAYS_ALLOW = [
 
 function isAllowedPath(pathname: string | null): boolean {
   if (!pathname) return true;
+  if (pathname === '/me' || pathname.startsWith('/me/')) return true;
+  if (pathname.startsWith('/hire/') || pathname.startsWith('/member/')) {
+    return true;
+  }
   return ALWAYS_ALLOW.some(
     (p) => pathname === p || pathname.startsWith(p + '/')
   );

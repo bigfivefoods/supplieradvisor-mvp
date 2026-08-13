@@ -774,7 +774,7 @@ export function FitgraphMock() {
   );
 }
 
-/** Industry — hire / rental marketplace (dual 2.5% commission) */
+/** Industry — hire / rental marketplace (members free · 2.5% on the business) */
 export function HiregraphMock() {
   return (
     <Frame title="dashboard/hiregraph">
@@ -784,7 +784,7 @@ export function HiregraphMock() {
             HireAdvisor® · Marketplace
           </div>
           <div className="text-sm sm:text-base font-black tracking-tight text-slate-900 dark:text-white">
-            List · rent · 2.5% + 2.5%.
+            List · rent free · 2.5% on the business.
           </div>
         </div>
         <span className="rounded-full border border-emerald-200 bg-emerald-600 px-2 py-0.5 text-[9px] font-black uppercase text-white">
@@ -795,7 +795,7 @@ export function HiregraphMock() {
         <Telemetry label="Listed" value="126" tone="violet" />
         <Telemetry label="Open" value="18" tone="sky" />
         <Telemetry label="Supp 2.5%" value="R42k" tone="cyan" />
-        <Telemetry label="Cust 2.5%" value="R42k" tone="emerald" />
+        <Telemetry label="Members" value="Free" tone="emerald" />
       </div>
       <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#151c26]">
         {[

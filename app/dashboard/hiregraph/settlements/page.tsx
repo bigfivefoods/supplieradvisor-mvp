@@ -8,8 +8,6 @@ import {
 import { DataTable, StatRow } from '@/components/hire/SimpleEntityForm';
 import {
   HIRE_COMMERCIAL_COPY,
-  HIRE_CUSTOMER_COMMISSION_PCT,
-  HIRE_PLATFORM_COMMISSION_PCT,
   HIRE_SUPPLIER_COMMISSION_PCT,
 } from '@/lib/hire/commercial';
 
@@ -27,7 +25,7 @@ export default function HireSettlementsPage() {
   return (
     <HiregraphWorkbench
       title="Settlements"
-      titleAccent="dual commission ledger"
+      titleAccent="supplier commission · members free"
       description={HIRE_COMMERCIAL_COPY.vsOtherAdvisors}
     >
       {loading || !store ? (
@@ -39,9 +37,8 @@ export default function HireSettlementsPage() {
               Commercial model
             </p>
             <p className="mt-1 text-lg font-black text-slate-900 dark:text-white">
-              {HIRE_SUPPLIER_COMMISSION_PCT}% supplier +{' '}
-              {HIRE_CUSTOMER_COMMISSION_PCT}% customer ={' '}
-              {HIRE_PLATFORM_COMMISSION_PCT}% platform
+              {HIRE_SUPPLIER_COMMISSION_PCT}% on the listing business · members
+              free
             </p>
             <p className="mt-1 text-sm text-slate-600 dark:text-emerald-50/80">
               {HIRE_COMMERCIAL_COPY.depositLine}.
@@ -60,7 +57,7 @@ export default function HireSettlementsPage() {
                 value: `R${Number(summary?.supplierCommissionZar || 0).toLocaleString('en-ZA')}`,
               },
               {
-                label: `Customer ${HIRE_CUSTOMER_COMMISSION_PCT}%`,
+                label: 'Customer (free)',
                 value: `R${Number(summary?.customerCommissionZar || 0).toLocaleString('en-ZA')}`,
               },
               {

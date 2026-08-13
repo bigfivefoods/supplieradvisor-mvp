@@ -16,6 +16,7 @@ import {
   Users,
   LayoutDashboard,
   MapPin,
+  Smartphone,
 } from 'lucide-react';
 import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
 import { defaultHomePathForRole } from '@/lib/business/permissions';
@@ -60,6 +61,13 @@ export default function SelectCompanyPage() {
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
   const [restoreBusy, setRestoreBusy] = useState<string | null>(null);
   const [backfillBusy, setBackfillBusy] = useState(false);
+  const [personal, setPersonal] = useState<{
+    name?: string | null;
+    memberships: number;
+    gym: number;
+    clinic: number;
+    hire: number;
+  } | null>(null);
 
   const loadCompanies = useCallback(async () => {
     if (!ready) return;
@@ -104,6 +112,25 @@ export default function SelectCompanyPage() {
     }
 
     try {
+      const mePromise = fetch(
+        `/api/b2c/me${email ? `?email=${encodeURIComponent(email)}` : ''}`,
+        { cache: 'no-store' }
+      )
+        .then((r) => r.json())
+        .then((data) => {
+          if (!data?.success) return;
+          setPersonal({
+            name: data.profile?.full_name || null,
+            memberships: Number(data.stats?.memberships || 0),
+            gym: Number(data.stats?.gym || 0),
+            clinic: Number(data.stats?.clinic || 0),
+            hire: Number(data.stats?.hire || 0),
+          });
+        })
+        .catch(() => {
+          /* personal wallet is optional on this screen */
+        });
+
       const res = await fetch('/api/me/companies', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -122,6 +149,7 @@ export default function SelectCompanyPage() {
         setError(data.error || 'Could not load your companies.');
         setCompanies([]);
         setDeletedCompanies([]);
+        await mePromise;
         return;
       }
 
@@ -146,6 +174,7 @@ export default function SelectCompanyPage() {
       });
       setCompanies(list);
       setDeletedCompanies(data.deletedCompanies || []);
+      await mePromise;
     } catch (err) {
       console.error('Error loading companies:', err);
       setError('Network error while loading companies. Check your connection and try again.');
@@ -218,7 +247,22 @@ export default function SelectCompanyPage() {
       role === 'sales_contractor'
         ? defaultHomePathForRole(role)
         : homePath || defaultHomePathForRole(role);
+    try {
+      localStorage.setItem('saWorkspace', 'business');
+    } catch {
+      /* private mode */
+    }
     router.push(path);
+  };
+
+  const handleOpenPersonal = () => {
+    try {
+      localStorage.setItem('saWorkspace', 'personal');
+      // Do not touch selectedCompanyId — operator context stays put.
+    } catch {
+      /* private mode */
+    }
+    router.push('/me');
   };
 
   /** Derive continent from country on every owned company (discover search quality) */
@@ -353,11 +397,11 @@ export default function SelectCompanyPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">
               <h1 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl md:text-5xl md:tracking-[-1.5px]">
-                Select a <span className="text-[#00b4d8]">company</span>
+                Select a <span className="text-[#00b4d8]">workspace</span>
               </h1>
               <p className="mt-2 text-sm text-neutral-600 sm:text-base">
-                Choose which company workspace to command — every module is company-scoped and
-                membership-checked.
+                Same login, two lives: your personal SA Member wallet (gym, dentist, hire)
+                stays separate from every company you operate.
               </p>
               {sessionEmail && (
                 <p className="mt-2 text-sm text-neutral-500">
@@ -393,9 +437,9 @@ export default function SelectCompanyPage() {
         </div>
 
         <HubHero
-          pill="Live workspaces · multi-company safe"
-          title="One login. Many companies."
-          description="Pick a workspace to open the command center — network, trade, inventory, manufacturing, distribution, and books for that company only."
+          pill="Dual-life · personal wallet + companies"
+          title="One login. Personal life and companies."
+          description="Open SA Member for gym, dentist and hire brands. Open a company to run B2B or B2G — those books never mix into your personal profile."
           stats={[
             {
               label: 'Companies',
@@ -403,9 +447,9 @@ export default function SelectCompanyPage() {
               valueClass: 'text-[#00b4d8]',
             },
             {
-              label: 'Verified',
-              value: loading ? '—' : verifiedCount,
-              valueClass: 'text-emerald-600',
+              label: 'Personal brands',
+              value: personal ? personal.memberships : '—',
+              valueClass: 'text-sky-600',
             },
             {
               label: 'Roles',
@@ -445,6 +489,53 @@ export default function SelectCompanyPage() {
             icon={LayoutDashboard}
           />
         </HubTelemetryGrid>
+
+        <div className="mb-6">
+          <p className="mb-3 text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400">
+            Personal
+          </p>
+          <button
+            type="button"
+            onClick={handleOpenPersonal}
+            className="group flex w-full items-stretch gap-4 rounded-3xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-5 text-left shadow-sm transition-all hover:border-[#00b4d8]/60 hover:shadow-md active:scale-[0.99] dark:border-sky-900/50 dark:from-sky-950/40 dark:to-neutral-950 sm:p-6"
+          >
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#00b4d8] to-[#0077b6] text-white shadow">
+              <Smartphone className="h-6 w-6" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0077b6]">
+                SA Member
+              </p>
+              <h3 className="mt-0.5 text-lg font-black tracking-tight text-slate-900 dark:text-white sm:text-xl">
+                {personal?.name
+                  ? `${personal.name.split(' ')[0]}'s personal wallet`
+                  : 'Your personal wallet'}
+              </h3>
+              <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+                GymAdvisor, DentalAdvisor, HireAdvisor and clinic brands you use as a
+                customer — not mixed with any company you operate.
+              </p>
+              <p className="mt-2 text-xs font-semibold text-slate-500">
+                {personal
+                  ? `${personal.memberships} brand${personal.memberships === 1 ? '' : 's'}${
+                      personal.gym || personal.clinic || personal.hire
+                        ? ` · ${[
+                            personal.gym ? `${personal.gym} gym` : null,
+                            personal.clinic ? `${personal.clinic} clinic` : null,
+                            personal.hire ? `${personal.hire} hire` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}`
+                        : ''
+                    }`
+                  : 'Open to link or review your brands'}
+              </p>
+            </div>
+            <span className="hidden shrink-0 items-center gap-1 self-center text-xs font-bold text-[#00b4d8] sm:inline-flex">
+              Open app <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+            </span>
+          </button>
+        </div>
 
         {error && (
           <div className="mb-6 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -493,7 +584,7 @@ export default function SelectCompanyPage() {
         ) : (
           <>
             <p className="mb-3 text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400">
-              Your organisations
+              Companies you operate
             </p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {companies.map((company) => {
@@ -656,16 +747,16 @@ export default function SelectCompanyPage() {
         <HubPrinciples
           items={[
             {
+              title: 'Personal stays personal',
+              body: 'Your SA Member wallet is you — dentist, gym, hire customer. It is never keyed off the company you last operated.',
+            },
+            {
               title: 'Company-scoped always',
-              body: 'Every module, API, and document is membership-checked against the company you select here.',
+              body: 'Every operator module, API, and document is membership-checked against the company you select here.',
             },
             {
-              title: 'Switch without confusion',
-              body: 'Multi-company operators pick a workspace once — the sticky process rail and dashboard follow that context.',
-            },
-            {
-              title: 'Roles with least privilege',
-              body: 'Owners, admins, operators, and sales contractors land in the right home for their permissions.',
+              title: 'Independent brands',
+              body: 'A gym on GymAdvisor and a dentist on DentalAdvisor are separate cards on the same personal profile.',
             },
           ]}
         />

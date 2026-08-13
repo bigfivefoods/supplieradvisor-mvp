@@ -18,6 +18,7 @@ import {
 import { kindLabel } from '@/lib/b2c/link-token';
 import { discoverAndAttachMemberships } from '@/lib/b2c/discover-memberships';
 import { buildB2cActivity } from '@/lib/b2c/activity';
+import { loadBusinessWorkspaceSummary } from '@/lib/b2c/workspace';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -80,8 +81,26 @@ export async function GET(request: NextRequest) {
 
     const docs = activity.filter((a) => a.tone === 'docs' || a.tone === 'alert');
 
+    let business = { has_business: false, business_count: 0 };
+    try {
+      business = await loadBusinessWorkspaceSummary(userId);
+    } catch {
+      /* operator check is optional */
+    }
+
     return NextResponse.json({
       success: true,
+      identity: {
+        kind: 'personal',
+        company_id: null,
+        note: 'Personal wallet is never bound to a selected company workspace',
+      },
+      workspace: {
+        kind: 'personal',
+        ...business,
+      },
+      has_business: business.has_business,
+      business_count: business.business_count,
       profile: {
         ...profile,
         memberships,

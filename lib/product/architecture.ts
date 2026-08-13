@@ -894,7 +894,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     name: 'Hire & Rental Marketplace',
     shortName: 'Hire',
     description:
-      'HireAdvisor® — suppliers list gear for hire (plant, vehicles, tools, kids party / jumping castles, events…); people rent B2C. Categories enforce different requirements. Commercial model is dual commission: 2.5% supplier + 2.5% customer on rental GMV (not subscription-led like other Advisors). Pack unlocks the desk; take-rate is on completed hires.',
+      'HireAdvisor® — suppliers list gear for hire (plant, vehicles, tools, kids party / jumping castles, events…); people rent B2C on SA Member for free. Categories enforce different requirements. The listing business pays 2.5% on rental GMV. Members pay rental + deposit only.',
     monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
     priority: 1,
     recommendSectors: ['tertiary', 'secondary', 'primary'],
@@ -904,7 +904,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
         id: 'hire_os',
         name: 'HireAdvisor® marketplace OS',
         description:
-          'Suppliers, catalogue, categories, B2C customers, bookings, handover, dual commission ledger.',
+          'Suppliers, catalogue, categories, free B2C customers, bookings, handover, supplier commission ledger.',
         unlocks: ['hiregraph', 'customers', 'suppliers'],
       },
       {
@@ -927,7 +927,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       { name: 'Catalogue', href: '/dashboard/hiregraph/catalogue', desc: 'Items · rates' },
       { name: 'Customers', href: '/dashboard/hiregraph/customers', desc: 'People renting' },
       { name: 'Bookings', href: '/dashboard/hiregraph/bookings', desc: 'Dual fee quotes' },
-      { name: 'Settlements', href: '/dashboard/hiregraph/settlements', desc: '2.5% + 2.5%' },
+      { name: 'Settlements', href: '/dashboard/hiregraph/settlements', desc: '2.5% on the business · members free' },
       { name: 'Handover', href: '/dashboard/hiregraph/handover', desc: 'Out · return' },
     ],
   },
@@ -1200,7 +1200,7 @@ export function enabledModulesMapFromPacks(
     unlocked.add('people');
     unlocked.add('quality');
   }
-  // Hire & rental marketplace → HireAdvisor (dual commission product)
+  // Hire & rental marketplace → HireAdvisor (supplier take-rate · B2C free)
   if (packIds.includes('staffing_hire')) {
     unlocked.add('hiregraph');
     unlocked.add('suppliers');

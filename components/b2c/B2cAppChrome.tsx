@@ -8,11 +8,12 @@ import {
   Home,
   Link2,
   QrCode,
+  Store,
   UserRound,
   WalletCards,
 } from 'lucide-react';
 
-export type B2cTab = 'home' | 'memberships' | 'checkin' | 'account';
+export type B2cTab = 'home' | 'shop' | 'memberships' | 'checkin' | 'account';
 
 const TABS: Array<{
   id: B2cTab;
@@ -20,6 +21,7 @@ const TABS: Array<{
   icon: typeof Home;
 }> = [
   { id: 'home', label: 'Home', icon: Home },
+  { id: 'shop', label: 'Shop', icon: Store },
   { id: 'memberships', label: 'Brands', icon: WalletCards },
   { id: 'checkin', label: 'Check-in', icon: QrCode },
   { id: 'account', label: 'Account', icon: UserRound },
@@ -131,7 +133,7 @@ export function B2cAppShell({
   badge?: Partial<Record<B2cTab, number>>;
 }) {
   return (
-    <div className="min-h-[100dvh] bg-[#f0f9ff] text-slate-900 dark:bg-slate-950 dark:text-white">
+    <div className="min-h-[100dvh] overscroll-none bg-[#f0f9ff] text-slate-900 dark:bg-slate-950 dark:text-white">
       <B2cAppHeader
         title={headerTitle}
         subtitle={headerSubtitle}

@@ -900,7 +900,9 @@ export function buildHireCustomerPortalPayload(
     commercial: {
       customer_commission_pct: HIRE_CUSTOMER_COMMISSION_PCT,
       supplier_commission_pct: HIRE_SUPPLIER_COMMISSION_PCT,
-      note: `You pay rental + ${HIRE_CUSTOMER_COMMISSION_PCT}% platform fee + refundable deposit. Deposits are not commissionable.`,
+      note: HIRE_CUSTOMER_COMMISSION_PCT
+        ? `You pay rental + ${HIRE_CUSTOMER_COMMISSION_PCT}% platform fee + refundable deposit. Deposits are not commissionable.`
+        : 'You pay the hire rental and any refundable deposit. No platform fee — SA Member is free.',
     },
     customer: {
       id: customer.id,

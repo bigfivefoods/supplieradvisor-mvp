@@ -44,6 +44,7 @@ import type {
   B2cMembership,
   B2cMembershipKind,
 } from '@/lib/b2c/types';
+import { indexBrandPerson } from '@/lib/b2c/directory';
 
 export type LinkTokenResult =
   | {
@@ -119,6 +120,7 @@ type PersonLike = {
   id: string;
   name: string;
   email?: string;
+  phone?: string;
   portal_token?: string | null;
   active?: boolean;
   platform_user_id?: string | null;
@@ -164,23 +166,38 @@ async function linkClinicPatient(opts: {
   const nextMeta = opts.write(opts.meta, opts.store);
   await saveMeta(opts.companyIdNum, nextMeta);
 
+  const membership = {
+    kind: opts.kind,
+    company_id: opts.companyIdNum,
+    company_name: opts.companyName,
+    brand: opts.brand,
+    portal_token: opts.token,
+    portal_path: `/member/${opts.path}/${encodeURIComponent(opts.token)}`,
+    checkin_path: null,
+    ref_id: patient.id,
+    ref_label: patient.name,
+    email: patient.email || null,
+    capabilities: CLINIC_CAPS,
+    active: true,
+  };
+  void indexBrandPerson({
+    kind: opts.kind,
+    companyId: opts.companyIdNum,
+    companyName: opts.companyName,
+    brand: opts.brand,
+    refId: patient.id,
+    refLabel: patient.name,
+    email: patient.email || null,
+    phone: patient.phone || null,
+    portalToken: opts.token,
+    portalPath: membership.portal_path,
+    capabilities: CLINIC_CAPS,
+  });
+
   return {
     ok: true,
     brand: opts.brand,
-    membership: {
-      kind: opts.kind,
-      company_id: opts.companyIdNum,
-      company_name: opts.companyName,
-      brand: opts.brand,
-      portal_token: opts.token,
-      portal_path: `/member/${opts.path}/${encodeURIComponent(opts.token)}`,
-      checkin_path: null,
-      ref_id: patient.id,
-      ref_label: patient.name,
-      email: patient.email || null,
-      capabilities: CLINIC_CAPS,
-      active: true,
-    },
+    membership,
   };
 }
 
@@ -255,23 +272,37 @@ export async function resolveAndLinkPortalToken(
     nextMeta.hiregraph_b2c_users = b2cIndex;
     await saveMeta(companyId, nextMeta);
 
+    const membership = {
+      kind: 'hire' as const,
+      company_id: companyId,
+      company_name: company.name,
+      brand,
+      portal_token: token,
+      portal_path: hireCustomerPortalPath(token),
+      checkin_path: null,
+      ref_id: String(portal.crm_customer_id),
+      ref_label: customerName,
+      email: portal.preferred_email || cust?.email || null,
+      capabilities: ['order', 'book', 'track', 'kyc', 'review'] as B2cCapability[],
+      active: true,
+    };
+    void indexBrandPerson({
+      kind: 'hire',
+      companyId,
+      companyName: company.name,
+      brand,
+      refId: String(portal.crm_customer_id),
+      refLabel: customerName,
+      email: portal.preferred_email || cust?.email || null,
+      portalToken: token,
+      portalPath: membership.portal_path,
+      capabilities: ['order', 'book', 'track', 'kyc', 'review'],
+    });
+
     return {
       ok: true,
       brand,
-      membership: {
-        kind: 'hire',
-        company_id: companyId,
-        company_name: company.name,
-        brand,
-        portal_token: token,
-        portal_path: hireCustomerPortalPath(token),
-        checkin_path: null,
-        ref_id: String(portal.crm_customer_id),
-        ref_label: customerName,
-        email: portal.preferred_email || cust?.email || null,
-        capabilities: ['order', 'book', 'track', 'kyc', 'review'],
-        active: true,
-      },
+      membership,
     };
   }
 
@@ -403,25 +434,40 @@ export async function resolveAndLinkPortalToken(
       await saveMeta(companyId, writeFitgraphToMetadata(company.meta, store));
 
       const brand = store.settings?.brand_name || company.name;
+      const membership = {
+        kind: 'gym' as const,
+        company_id: companyId,
+        company_name: company.name,
+        brand,
+        portal_token: token,
+        portal_path: `/member/fitgraph/${encodeURIComponent(token)}`,
+        checkin_path: store.settings?.public_token
+          ? gymCheckinPath(store.settings.public_token)
+          : null,
+        ref_id: client.id,
+        ref_label: client.name,
+        email: client.email || null,
+        capabilities: ['book', 'checkin', 'messages', 'review', 'track'] as B2cCapability[],
+        active: true,
+      };
+      void indexBrandPerson({
+        kind: 'gym',
+        companyId,
+        companyName: company.name,
+        brand,
+        refId: client.id,
+        refLabel: client.name,
+        email: client.email || null,
+        phone: client.phone || null,
+        portalToken: token,
+        portalPath: membership.portal_path,
+        checkinPath: membership.checkin_path,
+        capabilities: ['book', 'checkin', 'messages', 'review', 'track'],
+      });
       return {
         ok: true,
         brand,
-        membership: {
-          kind: 'gym',
-          company_id: companyId,
-          company_name: company.name,
-          brand,
-          portal_token: token,
-          portal_path: `/member/fitgraph/${encodeURIComponent(token)}`,
-          checkin_path: store.settings?.public_token
-            ? gymCheckinPath(store.settings.public_token)
-            : null,
-          ref_id: client.id,
-          ref_label: client.name,
-          email: client.email || null,
-          capabilities: ['book', 'checkin', 'messages', 'review', 'track'],
-          active: true,
-        },
+        membership,
       };
     }
   }

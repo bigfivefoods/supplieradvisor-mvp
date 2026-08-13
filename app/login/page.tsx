@@ -140,12 +140,14 @@ function LoginForm() {
           </span>
         </Link>
         <h1 className="text-3xl sm:text-4xl font-black tracking-[-2px] text-[#00b4d8] mb-2">
-          Welcome back
+          {next.startsWith('/me') ? 'SA Member' : 'Welcome back'}
         </h1>
         <p className="text-neutral-600 text-sm sm:text-base px-2">
           {isContractorFlow
             ? 'Independent contractor operator portal'
-            : 'Business workspace or contractor operator portal'}
+            : next.startsWith('/me')
+              ? 'Create a free personal account, or sign in if you already have one'
+              : 'Company workspace, or SA Member if you are a customer'}
         </p>
       </div>
 
@@ -179,7 +181,7 @@ function LoginForm() {
           </li>
           <li className="flex gap-3 items-start">
             <ShieldCheck className="w-4 h-4 text-[#00b4d8] mt-0.5 flex-shrink-0" />
-            Business users select a company workspace
+            Same login can run a company and still keep a personal SA Member wallet
           </li>
         </ul>
 
@@ -199,13 +201,20 @@ function LoginForm() {
         </button>
 
         <p className="text-center text-xs sm:text-sm text-neutral-500 leading-relaxed">
-          Contractors: use the email from your invitation. Business teams: use your company login.
+          Contractors: use the email from your invitation. Customers and members: the same login
+          opens SA Member. Running a company does not replace your personal wallet.
         </p>
 
         <p className="text-center text-sm text-neutral-500">
+          New customer or member?{' '}
+          <Link href="/me" className="text-[#00b4d8] font-medium hover:underline">
+            Create a free SA Member account
+          </Link>
+        </p>
+        <p className="text-center text-sm text-neutral-500">
           New business?{' '}
           <Link href="/join" className="text-[#00b4d8] font-medium hover:underline">
-            Start onboarding
+            Choose company or government
           </Link>
         </p>
       </div>

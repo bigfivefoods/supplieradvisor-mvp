@@ -41,7 +41,7 @@ export default function manifest(): MetadataRoute.Manifest {
       {
         name: 'SA Member',
         short_name: 'Member',
-        description: 'Hire, gym, check-in — personal app',
+        description: 'Shop, hire, gym, check-in — personal app',
         url: '/me',
         icons: [{ src: '/sa-icon-192.png', sizes: '192x192' }],
       },

@@ -1,16 +1,18 @@
 {
   "name": "SA Member",
   "short_name": "Member",
-  "description": "Your hire bookings, gym classes, check-in and reviews — one personal app.",
+  "description": "Personal wallet: shop sale and hire, book Advisors, check in, and review brands.",
   "start_url": "/me?source=pwa",
   "scope": "/",
   "id": "/me",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "portrait-primary",
   "background_color": "#0c4a6e",
   "theme_color": "#0077b6",
   "lang": "en",
-  "categories": ["lifestyle", "business", "fitness"],
+  "prefer_related_applications": false,
+  "categories": ["shopping", "lifestyle", "fitness"],
   "icons": [
     {
       "src": "/sa-icon-192.png",
@@ -33,14 +35,21 @@
   ],
   "shortcuts": [
     {
-      "name": "Home",
-      "url": "/me",
-      "description": "Member home"
+      "name": "Shop",
+      "short_name": "Shop",
+      "url": "/me?tab=shop",
+      "description": "For sale, hire and Advisors"
     },
     {
       "name": "Check in",
+      "short_name": "Check-in",
       "url": "/me?tab=checkin",
       "description": "Gym door check-in"
+    },
+    {
+      "name": "Brands",
+      "url": "/me?tab=memberships",
+      "description": "Your linked brands"
     }
   ]
 }

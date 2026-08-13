@@ -240,8 +240,14 @@ export default function LandingNav() {
 
   const goLogin = () => {
     setOpen(false);
-    if (ready && user) router.push('/dashboard/select-company');
-    else router.push('/login?next=/dashboard/select-company');
+    // Let /login route: personal → /me, operator → select-company
+    router.push('/login');
+  };
+
+  const goMember = () => {
+    setOpen(false);
+    if (ready && user) router.push('/me');
+    else router.push('/me');
   };
 
   const isActive = (l: NavLink) =>
@@ -325,6 +331,13 @@ export default function LandingNav() {
             <ThemeToggle />
             <button
               type="button"
+              onClick={goMember}
+              className="rounded-full px-3 py-2 text-sm font-semibold text-slate-600 transition-all hover:text-[#0077b6] lg:px-3.5 lg:py-2.5 min-h-[40px] dark:text-slate-300 dark:hover:text-cyan-300"
+            >
+              SA Member
+            </button>
+            <button
+              type="button"
               onClick={goLogin}
               className="rounded-full border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition-all hover:border-[#00b4d8] hover:text-[#0077b6] lg:px-5 lg:py-2.5 min-h-[40px] dark:border-slate-700 dark:text-slate-200"
             >
@@ -341,6 +354,13 @@ export default function LandingNav() {
 
           <div className="hidden md:flex lg:hidden items-center gap-1.5 shrink-0">
             <ThemeToggle />
+            <button
+              type="button"
+              onClick={goMember}
+              className="rounded-full px-2.5 py-2 text-xs font-semibold text-slate-600 min-h-[40px] dark:text-slate-300"
+            >
+              SA Member
+            </button>
             <button
               type="button"
               onClick={goLogin}
@@ -435,6 +455,13 @@ export default function LandingNav() {
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
+              <Link
+                href="/me"
+                onClick={() => setOpen(false)}
+                className="inline-flex items-center justify-center rounded-2xl border border-sky-200 bg-sky-50 py-3.5 text-center font-semibold text-[#0077b6] touch-manipulation dark:border-sky-900 dark:bg-sky-950/40 dark:text-cyan-300"
+              >
+                Create free SA Member account
+              </Link>
             </div>
           </div>
         </div>

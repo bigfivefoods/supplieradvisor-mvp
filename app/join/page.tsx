@@ -11,6 +11,7 @@ import {
   Hospital,
   Landmark,
   Leaf,
+  Smartphone,
   Truck,
   Users2,
 } from 'lucide-react';
@@ -26,7 +27,7 @@ const ICONS: Record<string, typeof Building2> = {
   nsnp_isp: Truck,
   association: Users2,
   consumer_org: Leaf,
-  consumer: Leaf,
+  consumer: Smartphone,
 };
 
 /**
@@ -68,14 +69,40 @@ export default function JoinPage() {
             Who are you joining as?
           </h1>
           <p className="text-slate-600 max-w-2xl leading-relaxed">
-            <strong className="text-slate-900">1 · Businesses (B2B)</strong>
-            {' '}first ·{' '}
-            <strong className="text-slate-900">2 · Consumer (B2C)</strong>
-            {' '}marketplace ·{' '}
-            <strong className="text-slate-900">3 · Government (B2G)</strong>
-            {' '}last. Most invitations register a normal company.
+            <strong className="text-slate-900">Person (B2C)</strong>
+            {' '}— free SA Member wallet ·{' '}
+            <strong className="text-slate-900">Business (B2B)</strong>
+            {' '}or{' '}
+            <strong className="text-slate-900">government (B2G)</strong>
+            {' '}— company workspace. Same login can do both; they stay separate.
           </p>
         </div>
+
+        <Link
+          href="/me"
+          className="group mb-10 flex items-start gap-4 rounded-[1.75rem] border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-5 shadow-sm ring-1 ring-sky-100 transition-all hover:border-[#00b4d8] hover:shadow-md sm:p-6"
+        >
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#00b4d8] to-[#0077b6] text-white shadow">
+            <Smartphone className="h-6 w-6" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0077b6]">
+              Free · personal
+            </p>
+            <h2 className="mt-0.5 text-lg font-black tracking-tight text-slate-900 sm:text-xl">
+              Create a B2C SA Member account
+            </h2>
+            <p className="mt-1 text-sm leading-relaxed text-slate-600">
+              Email or Google — no company, no trial, no card. Your gym, dentist and
+              hire brands become cards on one personal wallet. If you also run a
+              business, register it later with this same login.
+            </p>
+            <p className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[#0077b6]">
+              Create free account
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            </p>
+          </div>
+        </Link>
 
         <div className="space-y-10">
           {groups.map((group) => (
@@ -92,12 +119,12 @@ export default function JoinPage() {
                 {group.title}
                 {group.lane === 'b2b' ? (
                   <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-sky-800 bg-sky-100 px-2 py-0.5 rounded-full">
-                    First · recommended
+                    Company workspace
                   </span>
                 ) : null}
                 {group.lane === 'b2c' ? (
                   <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-fuchsia-800 bg-fuchsia-100 px-2 py-0.5 rounded-full">
-                    Marketplace
+                    Personal wallet
                   </span>
                 ) : null}
               </h2>
@@ -106,10 +133,15 @@ export default function JoinPage() {
                 {group.entities.map((ent) => {
                   const Icon = ICONS[ent.id] || Building2;
                   const isCompany = ent.id === 'business';
+                  const isPersonal = ent.id === 'consumer';
                   return (
                     <Link
                       key={ent.id}
-                      href={`/onboarding?type=${encodeURIComponent(ent.business_type)}`}
+                      href={
+                        isPersonal
+                          ? '/me'
+                          : `/onboarding?type=${encodeURIComponent(ent.business_type)}`
+                      }
                       className={`group rounded-3xl border bg-white p-5 hover:border-[#00b4d8] hover:shadow-md transition-all ${
                         isCompany
                           ? 'border-sky-200 ring-1 ring-sky-100'
@@ -151,11 +183,12 @@ export default function JoinPage() {
         </div>
 
         <p className="mt-12 text-center text-xs text-slate-400">
-          Already registered?{' '}
+          Already have an account?{' '}
           <Link href="/login" className="font-bold text-[#0077b6] underline">
             Sign in
-          </Link>{' '}
-          then pick your organisation on Select company.
+          </Link>
+          {' '}
+          — same login opens SA Member and any companies you operate.
         </p>
       </div>
     </div>

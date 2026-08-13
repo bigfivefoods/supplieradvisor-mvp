@@ -430,9 +430,15 @@ export default function HireCustomerPortalPage() {
                 {portal.stats.needs_docs} need docs
               </span>
             ) : null}
-            <span className="rounded-full bg-white/20 px-2.5 py-1">
-              {portal.commercial.customer_commission_pct}% platform fee
-            </span>
+            {Number(portal.commercial.customer_commission_pct) > 0 ? (
+              <span className="rounded-full bg-white/20 px-2.5 py-1">
+                {portal.commercial.customer_commission_pct}% platform fee
+              </span>
+            ) : (
+              <span className="rounded-full bg-emerald-400/90 px-2.5 py-1 text-emerald-950">
+                Free to use
+              </span>
+            )}
           </div>
         </div>
       </header>
@@ -696,13 +702,18 @@ export default function HireCustomerPortalPage() {
                           <span className="text-right font-bold">
                             {zar(b.rental_zar)}
                           </span>
-                          <span>
-                            Platform fee (
-                            {portal.commercial.customer_commission_pct}%)
-                          </span>
-                          <span className="text-right font-bold">
-                            {zar(b.customer_commission_zar)}
-                          </span>
+                          {Number(portal.commercial.customer_commission_pct) >
+                            0 || Number(b.customer_commission_zar) > 0 ? (
+                            <>
+                              <span>
+                                Platform fee (
+                                {portal.commercial.customer_commission_pct}%)
+                              </span>
+                              <span className="text-right font-bold">
+                                {zar(b.customer_commission_zar)}
+                              </span>
+                            </>
+                          ) : null}
                           <span>Deposit (refundable)</span>
                           <span className="text-right font-bold">
                             {zar(b.deposit_zar)}
@@ -1046,12 +1057,24 @@ export default function HireCustomerPortalPage() {
                       <span className="text-right font-bold">
                         {zar(quote.fees.rentalZar)}
                       </span>
-                      <span>
-                        Your fee ({quote.fees.customerCommissionPct}%)
-                      </span>
-                      <span className="text-right font-bold">
-                        {zar(quote.fees.customerCommissionZar)}
-                      </span>
+                      {Number(quote.fees.customerCommissionPct) > 0 ||
+                      Number(quote.fees.customerCommissionZar) > 0 ? (
+                        <>
+                          <span>
+                            Your fee ({quote.fees.customerCommissionPct}%)
+                          </span>
+                          <span className="text-right font-bold">
+                            {zar(quote.fees.customerCommissionZar)}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Platform fee</span>
+                          <span className="text-right font-bold text-emerald-800">
+                            Free
+                          </span>
+                        </>
+                      )}
                       <span>Deposit (refundable)</span>
                       <span className="text-right font-bold">
                         {zar(quote.fees.depositZar)}

@@ -30,7 +30,7 @@ export default function HiregraphManagementPage() {
           eyebrow="HireAdvisor® · Insights"
           title="Management report"
           titleAccent="hire GMV pack"
-          description={`Open hires, category mix, and dual commission (${HIRE_SUPPLIER_COMMISSION_PCT}% + ${HIRE_CUSTOMER_COMMISSION_PCT}%) — A4 landscape PDF.`}
+          description={`Open hires, category mix, and supplier commission (${HIRE_SUPPLIER_COMMISSION_PCT}% · members free) — A4 landscape PDF.`}
         />
 
         <div className="mb-4 flex flex-wrap gap-2">

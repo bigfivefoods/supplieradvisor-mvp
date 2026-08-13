@@ -2,7 +2,7 @@
 
 /**
  * HireAdvisor® end-to-end: supplier lists gear → B2C customer rents
- * → category requirements → handover → dual 2.5% commission.
+ * → category requirements → handover → 2.5% on the listing business.
  */
 import { useState } from 'react';
 import Link from 'next/link';
@@ -24,8 +24,6 @@ import {
 } from '@/lib/hire/hiregraph-process-guide-links';
 import {
   HIRE_COMMERCIAL_COPY,
-  HIRE_CUSTOMER_COMMISSION_PCT,
-  HIRE_PLATFORM_COMMISSION_PCT,
   HIRE_SUPPLIER_COMMISSION_PCT,
 } from '@/lib/hire/commercial';
 
@@ -40,7 +38,7 @@ const CHAIN = [
   { label: 'Customer', sub: 'Person rents' },
   { label: 'Requirements', sub: 'KYC / docs' },
   { label: 'Handover', sub: 'Out · return' },
-  { label: 'Settle', sub: '2.5% + 2.5%' },
+  { label: 'Settle', sub: '2.5% · members free' },
 ] as const;
 
 const PHASES = [
@@ -115,9 +113,9 @@ const PHASES = [
       },
       {
         n: '3b',
-        title: 'Settle dual commission',
+        title: 'Settle supplier commission',
         who: 'Platform',
-        desc: `${HIRE_SUPPLIER_COMMISSION_PCT}% supplier + ${HIRE_CUSTOMER_COMMISSION_PCT}% customer on rental GMV.`,
+        desc: `${HIRE_SUPPLIER_COMMISSION_PCT}% on the listing business. Members pay no platform fee.`,
         href: '/dashboard/hiregraph/settlements',
         icon: Percent,
       },
@@ -155,11 +153,11 @@ export default function HiregraphSystemFlow({
             className="min-w-0 flex-1 text-left"
           >
             <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">
-              Hire marketplace · dual commission commercial model
+              Hire marketplace · members free · take-rate on the listing business
             </p>
             <h2 className="mt-0.5 text-lg font-black leading-tight sm:text-xl">
-              Supplier lists → Customer rents →{' '}
-              {HIRE_SUPPLIER_COMMISSION_PCT}% + {HIRE_CUSTOMER_COMMISSION_PCT}%
+              Supplier lists → Customer rents free →{' '}
+              {HIRE_SUPPLIER_COMMISSION_PCT}% on the business
             </h2>
             <p className="mt-1.5 max-w-3xl text-sm leading-snug text-white/90">
               {HIRE_COMMERCIAL_COPY.vsOtherAdvisors} Categories (plant, vehicles,
@@ -199,7 +197,8 @@ export default function HiregraphSystemFlow({
         <div className="space-y-4 p-4 sm:p-5">
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm dark:border-emerald-400/30 dark:bg-gradient-to-r dark:from-emerald-950 dark:to-teal-900/40">
             <p className="font-black text-emerald-950 dark:text-emerald-100">
-              {HIRE_PLATFORM_COMMISSION_PCT}% total on hire rental GMV
+              {HIRE_SUPPLIER_COMMISSION_PCT}% on the listing business · members
+              free
             </p>
             <p className="mt-1 text-[12px] text-emerald-900/90 dark:text-emerald-50/80">
               {HIRE_COMMERCIAL_COPY.supplierLine}. {HIRE_COMMERCIAL_COPY.customerLine}.{' '}

@@ -117,6 +117,11 @@ export default function HomePricing() {
               Unlimited users per company. No per-seat fees. Pay monthly or
               prepay and save up to <strong className="text-slate-800">30%</strong>{' '}
               — secure checkout with Paystack in South African Rand.
+              Members, patients and hire customers use{' '}
+              <Link href="/me" className="font-bold text-[#0077b6] underline">
+                SA Member
+              </Link>{' '}
+              free — no subscription, no platform take-rate.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link

@@ -383,6 +383,33 @@ export async function POST(request: NextRequest) {
       portalToken!
     );
     const { memberAppLink } = await import('@/lib/b2c/member-app');
+    const kind =
+      resolved.module === 'fitgraph'
+        ? 'gym'
+        : resolved.module === 'physiograph'
+          ? 'physio'
+          : 'dental';
+    const person = resolved.person as {
+      id: string;
+      name: string;
+      email?: string;
+      phone?: string;
+      invite_email?: string | null;
+    };
+    void import('@/lib/b2c/directory').then(({ indexBrandPerson }) =>
+      indexBrandPerson({
+        kind,
+        companyId: resolved.companyId,
+        companyName: resolved.businessName,
+        brand: resolved.businessName,
+        refId: person.id,
+        refLabel: person.name,
+        email: person.email || person.invite_email,
+        phone: person.phone,
+        portalToken,
+        portalPath: `/member/${resolved.module}/${encodeURIComponent(portalToken!)}`,
+      })
+    );
 
     return NextResponse.json({
       success: true,

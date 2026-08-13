@@ -128,7 +128,7 @@ export default function HireBookingsPage() {
     <HiregraphWorkbench
       title="Bookings"
       titleAccent="hire requests"
-      description={`Request hire dates against a Core Customers (CRM) renter. System quotes rental, ${HIRE_SUPPLIER_COMMISSION_PCT}% supplier fee, ${HIRE_CUSTOMER_COMMISSION_PCT}% customer fee, and deposit — and lists outstanding category requirements from hire KYC.`}
+      description={`Request hire dates against a Core Customers (CRM) renter. System quotes rental, ${HIRE_SUPPLIER_COMMISSION_PCT}% supplier fee, and deposit. Members pay no platform fee. Category requirements come from hire KYC.`}
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -296,7 +296,7 @@ export default function HireBookingsPage() {
             {preview ? (
               <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-3 text-xs dark:border-emerald-400/30 dark:bg-emerald-950/40">
                 <p className="font-black text-emerald-950 dark:text-emerald-100">
-                  Quote preview · dual commission
+                  Quote preview · members free
                   {preview.customer ? ` · ${preview.customer.name}` : ''}
                 </p>
                 <div className="mt-2 grid gap-1 sm:grid-cols-2">
@@ -322,7 +322,7 @@ export default function HireBookingsPage() {
                     </strong>
                   </span>
                   <span>
-                    Customer {HIRE_CUSTOMER_COMMISSION_PCT}%:{' '}
+                    Customer (free):{' '}
                     <strong>
                       R
                       {preview.fees.customerCommissionZar.toLocaleString(

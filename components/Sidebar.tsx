@@ -9,6 +9,7 @@ import {
   ArrowLeftRight,
   PanelLeftClose,
   PanelLeftOpen,
+  Smartphone,
 } from 'lucide-react';
 import { useCompanyRole } from '@/lib/business/useCompanyRole';
 import { SIDEBAR_MODULE_RESOURCE } from '@/lib/business/permissions';
@@ -259,43 +260,64 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
 
   /** Switch company + expand/collapse — always under brand (same row, expanded & collapsed) */
   const switchCompanyRow = !forceExpanded && (
-    <div
-      className={`flex items-center gap-1 ${
-        isCollapsed ? 'mt-2 flex-col' : 'mt-4'
-      }`}
-    >
-      <Link
-        href="/dashboard/select-company"
-        title="Switch company"
-        className={
-          isCollapsed
-            ? 'flex h-11 w-11 items-center justify-center rounded-2xl text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-[var(--sa-brand)]'
-            : 'flex min-w-0 flex-1 items-center gap-2 rounded-xl py-1.5 text-sm text-neutral-500 transition-colors hover:text-[var(--sa-brand)]'
-        }
+    <div className={isCollapsed ? 'mt-2' : 'mt-4'}>
+      <div
+        className={`flex items-center gap-1 ${
+          isCollapsed ? 'flex-col' : ''
+        }`}
       >
-        <ArrowLeftRight className="h-4 w-4 shrink-0" />
-        {!isCollapsed && (
-          <span className="truncate font-medium">Switch company</span>
-        )}
-      </Link>
-      <button
-        type="button"
-        onClick={toggle}
-        className={
-          isCollapsed
-            ? 'flex h-11 w-11 items-center justify-center rounded-2xl border border-neutral-200 text-neutral-500 transition-colors hover:border-[var(--sa-brand)] hover:text-[var(--sa-brand)]'
-            : 'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-neutral-200 text-neutral-500 transition-colors hover:border-[var(--sa-brand)] hover:text-[var(--sa-brand)]'
-        }
-        title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        aria-expanded={!isCollapsed}
-      >
+        <Link
+          href="/dashboard/select-company"
+          title="Switch company"
+          className={
+            isCollapsed
+              ? 'flex h-11 w-11 items-center justify-center rounded-2xl text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-[var(--sa-brand)]'
+              : 'flex min-w-0 flex-1 items-center gap-2 rounded-xl py-1.5 text-sm text-neutral-500 transition-colors hover:text-[var(--sa-brand)]'
+          }
+        >
+          <ArrowLeftRight className="h-4 w-4 shrink-0" />
+          {!isCollapsed && (
+            <span className="truncate font-medium">Switch company</span>
+          )}
+        </Link>
         {isCollapsed ? (
-          <PanelLeftOpen className="h-4 w-4" />
-        ) : (
-          <PanelLeftClose className="h-4 w-4" />
-        )}
-      </button>
+          <Link
+            href="/me"
+            title="SA Member — personal wallet"
+            className="flex h-11 w-11 items-center justify-center rounded-2xl text-neutral-500 transition-colors hover:bg-sky-50 hover:text-[#0077b6]"
+          >
+            <Smartphone className="h-4 w-4" />
+            <span className="sr-only">SA Member</span>
+          </Link>
+        ) : null}
+        <button
+          type="button"
+          onClick={toggle}
+          className={
+            isCollapsed
+              ? 'flex h-11 w-11 items-center justify-center rounded-2xl border border-neutral-200 text-neutral-500 transition-colors hover:border-[var(--sa-brand)] hover:text-[var(--sa-brand)]'
+              : 'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-neutral-200 text-neutral-500 transition-colors hover:border-[var(--sa-brand)] hover:text-[var(--sa-brand)]'
+          }
+          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!isCollapsed}
+        >
+          {isCollapsed ? (
+            <PanelLeftOpen className="h-4 w-4" />
+          ) : (
+            <PanelLeftClose className="h-4 w-4" />
+          )}
+        </button>
+      </div>
+      {!isCollapsed ? (
+        <Link
+          href="/me"
+          className="mt-1 flex items-center gap-2 rounded-xl py-1.5 text-sm text-neutral-500 transition-colors hover:text-[#0077b6]"
+        >
+          <Smartphone className="h-4 w-4 shrink-0" />
+          <span className="truncate font-medium">SA Member</span>
+        </Link>
+      ) : null}
     </div>
   );
 
@@ -317,7 +339,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
           {switchCompanyRow}
         </div>
 
-        <nav className="flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto p-2">
+        <nav className="flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto p-2 scrollbar-none">
           {visibleModules.map((mod) => {
             const Icon = mod.icon;
             const isActive = isModuleActive(mod.href);
@@ -377,13 +399,22 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
           </Link>
         )}
         {forceExpanded ? (
-          <Link
-            href="/dashboard/select-company"
-            className="mt-0 flex items-center gap-2 text-sm text-neutral-500 transition-colors hover:text-[var(--sa-brand)]"
-          >
-            <ArrowLeftRight className="h-4 w-4" />
-            Switch company
-          </Link>
+          <div className="mt-0 flex flex-col gap-1">
+            <Link
+              href="/dashboard/select-company"
+              className="flex items-center gap-2 text-sm text-neutral-500 transition-colors hover:text-[var(--sa-brand)]"
+            >
+              <ArrowLeftRight className="h-4 w-4" />
+              Switch company
+            </Link>
+            <Link
+              href="/me"
+              className="flex items-center gap-2 text-sm text-neutral-500 transition-colors hover:text-[#0077b6]"
+            >
+              <Smartphone className="h-4 w-4" />
+              SA Member
+            </Link>
+          </div>
         ) : (
           switchCompanyRow
         )}
@@ -396,7 +427,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
         )}
       </div>
 
-      <nav className="flex-1 p-3 overflow-y-auto">
+      <nav className="flex-1 overflow-y-auto p-3 scrollbar-none">
         {visibleModules.map((mod) => {
           const Icon = mod.icon;
           const isActive = isModuleActive(mod.href);

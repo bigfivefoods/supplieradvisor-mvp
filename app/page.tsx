@@ -544,12 +544,12 @@ const MODULES = [
     code: 'I8',
     title: 'HireAdvisor®',
     short: 'HireAdvisor',
-    tagline: 'Hire / rental marketplace · dual commission',
-    body: 'Suppliers list plant, vehicles, tools, kids party gear (jumping castles, soft play, slides), events kit and more; people rent B2C. Categories enforce different requirements — castles need flat ground, power, adult supervision and age/weight limits. Commercial model is different from other Advisors: 2.5% commission to the supplier and 2.5% to the customer on hire rental GMV — deposits stay refundable and are never commissionable.',
+    tagline: 'Hire / rental marketplace · members free',
+    body: 'Suppliers list plant, vehicles, tools, kids party gear (jumping castles, soft play, slides), events kit and more; people rent B2C for free on SA Member. Categories enforce different requirements — castles need flat ground, power, adult supervision and age/weight limits. The listing business pays a 2.5% take-rate on hire GMV. Members pay rental + refundable deposit only — no platform fee.',
     bullets: [
       'Kids party · jumping castles · soft play',
       'Categories · catalogue · B2C bookings',
-      '2.5% + 2.5% settlements · handover pack',
+      'Members free · 2.5% on the listing business · handover pack',
     ],
     Mock: HiregraphMock,
     icon: BriefcaseBusiness,
@@ -804,6 +804,17 @@ export default function LandingPage() {
                   Book a demo
                 </Link>
               </div>
+              <p className="mt-3 text-sm text-slate-600 dark:text-neutral-400">
+                Customer or member?{' '}
+                <Link
+                  href="/me"
+                  className="font-bold text-[#0077b6] underline decoration-sky-200 underline-offset-4 hover:text-[#00b4d8]"
+                >
+                  Create a free SA Member account
+                </Link>
+                {' '}
+                — gym, dentist, hire. No company needed.
+              </p>
 
               <p className="mt-4 text-xs leading-relaxed text-slate-500 sm:text-sm dark:text-neutral-500">
                 Not Excel. Not accounting-only. Not a multi-year ERP project.{' '}
@@ -1014,14 +1025,14 @@ export default function LandingPage() {
               {
                 code: 'B2C',
                 title: 'Business to consumer',
-                body: 'People deserve to know where food and goods came from. Brands earn trust when product passports, ethical sourcing, and outlet impact are real — not marketing claims.',
+                body: 'Create a free personal SA Member account — the same login for gym, dentist, hire and clinic brands. No company. If you also run a business, that workspace stays separate.',
                 points: [
-                  'Provenance & on-chain ready pedigrees',
-                  'Container outlets that feed communities',
-                  'Consumers who join verified brands',
+                  'Free email / Google signup — wallet is you, not a company',
+                  'Independent cards per brand (gym ≠ dentist ≠ hire)',
+                  'Invite link or matching email/phone attaches memberships',
                 ],
                 href: '/me',
-                cta: 'Member login',
+                cta: 'Create free SA Member account',
                 icon: Users2,
               },
             ].map((m) => (
@@ -1101,7 +1112,7 @@ export default function LandingPage() {
               {
                 icon: Stethoscope,
                 t: 'Industry & programme solutions that operate',
-                b: 'CropAdvisor®, QuarryAdvisor®, GymAdvisor®, HireAdvisor® (hire marketplace · 2.5%+2.5% dual commission), clinic Advisors, and SchoolAdvisor® (public-sector NSNP: DBE · school · SP). Most Advisors bill subscription only; HireAdvisor® is primarily transaction-commissioned on hire GMV.',
+                b: 'CropAdvisor®, QuarryAdvisor®, GymAdvisor®, HireAdvisor® (hire marketplace · members free · 2.5% on the listing business), clinic Advisors, and SchoolAdvisor® (public-sector NSNP: DBE · school · SP). Most Advisors bill the operating company a subscription; members and patients never pay SupplierAdvisor®.',
               },
               {
                 icon: Fingerprint,
@@ -1931,9 +1942,9 @@ export default function LandingPage() {
               {
                 icon: Leaf,
                 t: 'Consumers',
-                b: 'Scan passports, support ethical brands, shop with real provenance.',
+                b: 'Free SA Member wallet — book the gym, see the dentist, hire gear. Same login if you later register a company.',
                 href: '/me',
-                cta: 'Member login',
+                cta: 'Create free account',
               },
               {
                 icon: Landmark,
@@ -2038,10 +2049,16 @@ export default function LandingPage() {
               <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
             </Link>
             <Link
+              href="/me"
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-sky-200 bg-white px-8 py-4 text-base font-semibold text-[#0077b6] hover:border-[#00b4d8] sm:text-lg"
+            >
+              Create free SA Member account
+            </Link>
+            <Link
               href="/login"
               className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-8 py-4 text-base font-semibold text-slate-800 hover:border-[#00b4d8] sm:text-lg"
             >
-              Log in to workspace
+              Log in
             </Link>
           </div>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-slate-500 sm:text-sm">
@@ -2104,6 +2121,12 @@ export default function LandingPage() {
                 </a>
                 <Link href="/login" className="block text-slate-600 hover:text-slate-900">
                   Log in
+                </Link>
+                <Link href="/me" className="block text-slate-600 hover:text-slate-900">
+                  SA Member signup
+                </Link>
+                <Link href="/join" className="block text-slate-600 hover:text-slate-900">
+                  Join as business
                 </Link>
               </div>
               <div className="space-y-2">

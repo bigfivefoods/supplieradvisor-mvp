@@ -124,8 +124,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <JsonLd />
         {/* Apply stored theme before paint — avoids light flash in dark mode */}
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
-        {/* Explicit PWA / iOS home-screen tags */}
-        <link rel="manifest" href="/manifest.webmanifest" />
+        {/* Explicit PWA / iOS home-screen tags.
+            Manifest comes from route metadata so /me can serve member-app.webmanifest. */}
         <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180" />
         <link rel="apple-touch-icon" href="/sa-icon-192.png" sizes="192x192" />
         <meta name="apple-mobile-web-app-capable" content="yes" />

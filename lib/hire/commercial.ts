@@ -2,19 +2,20 @@
  * HireAdvisor® commercial model — distinct from other Advisor packs.
  *
  * Other Advisors: platform bills a company subscription (+ optional industry pack).
- * HireAdvisor: primary revenue is a dual-sided hire commission on completed rentals:
+ * HireAdvisor: take-rate is on the listing business only.
  *   • 2.5% charged to the supplier (owner listing the item)
- *   • 2.5% charged to the customer (person renting the item)
- *   • 5.0% total of hire GMV to SupplierAdvisor®
+ *   • 0% charged to the customer / member (B2C is free)
  *
  * Deposit / damage bonds are held separately and are not commissionable.
  */
 
+import { B2C_CUSTOMER_TAKE_RATE_PCT } from '@/lib/b2c/pricing';
+
 /** Supplier-side platform commission on hire rental value (ex-VAT if applicable) */
 export const HIRE_SUPPLIER_COMMISSION_PCT = 2.5;
 
-/** Customer-side platform commission on hire rental value */
-export const HIRE_CUSTOMER_COMMISSION_PCT = 2.5;
+/** Customer-side platform commission — always 0. B2C members are free. */
+export const HIRE_CUSTOMER_COMMISSION_PCT = B2C_CUSTOMER_TAKE_RATE_PCT;
 
 /** Combined platform take-rate */
 export const HIRE_PLATFORM_COMMISSION_PCT =
@@ -43,7 +44,7 @@ function round2(n: number) {
 }
 
 /**
- * Split hire GMV into dual 2.5% commissions.
+ * Split hire GMV. Customer take-rate is 0 (B2C free).
  * Deposit is pass-through (held/refunded) and never takes commission.
  */
 export function computeHireCommissions(opts: {
@@ -91,12 +92,12 @@ export function formatPct(n: number) {
 }
 
 export const HIRE_COMMERCIAL_COPY = {
-  modelLabel: 'Dual-sided hire commission',
+  modelLabel: 'Supplier commission · members free',
   supplierLine: `${HIRE_SUPPLIER_COMMISSION_PCT}% commission to the supplier on hire rental value`,
-  customerLine: `${HIRE_CUSTOMER_COMMISSION_PCT}% commission to the customer (person renting) on hire rental value`,
-  totalLine: `${HIRE_PLATFORM_COMMISSION_PCT}% total platform take-rate on completed hire GMV`,
+  customerLine: 'Members and renters pay no platform fee (B2C is free)',
+  totalLine: `${HIRE_SUPPLIER_COMMISSION_PCT}% platform take-rate on the listing business only`,
   depositLine:
     'Refundable deposits / damage bonds are held separately and are not commissionable',
   vsOtherAdvisors:
-    'Unlike GymAdvisor® / clinic Advisors (subscription-led), HireAdvisor® is primarily transaction-commissioned: suppliers list gear; customers rent; SA earns 2.5% + 2.5% on rental value.',
+    'HireAdvisor® bills the listing business a take-rate on completed hires. Gym / clinic Advisors are subscription-led. End customers never pay SupplierAdvisor®.',
 } as const;

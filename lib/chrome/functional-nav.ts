@@ -35,7 +35,7 @@ export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
   'dentalgraph', // DentalAdvisor® dental practice OS
   'psychiatrygraph', // PsychiatryAdvisor® mental health OS
   'medicalgraph', // MedicalAdvisor® medical practice OS
-  'hiregraph', // HireAdvisor® hire / rental marketplace (dual commission)
+  'hiregraph', // HireAdvisor® hire / rental marketplace (members free)
   'quarrygraph', // QuarryAdvisor® aggregates OS
   'fieldgraph', // CropAdvisor® agri OS
   'schools', // SchoolAdvisor® (public sector / NSNP)

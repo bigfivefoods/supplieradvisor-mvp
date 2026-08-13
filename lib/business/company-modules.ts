@@ -51,7 +51,7 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   medicalgraph:
     'MedicalAdvisor® (tertiary services) — GPs & nurses, patients, consults, care packs, diary, scripts, medical chart, portal & messages',
   hiregraph:
-    'HireAdvisor® — hire/rental marketplace: suppliers list gear, people rent (B2C), category requirements, dual 2.5%+2.5% commission',
+    'HireAdvisor® — hire/rental marketplace: suppliers list gear, people rent free (B2C), category requirements, 2.5% on the listing business',
   intelligence: 'Pulse, forecasts, scorecards & Super-Cube® leadership',
   schools:
     'SchoolAdvisor® (public sector) — NSNP kitchen, learners, SPs, catalogue, feeding, prizes (DBE / PEU / schools)',
@@ -177,7 +177,7 @@ export const MODULE_CATEGORIES: ModuleCategory[] = [
     band: 'industry',
     title: 'Services',
     blurb:
-      'GymAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, MedicalAdvisor® and HireAdvisor® (hire marketplace · dual commission).',
+      'GymAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, MedicalAdvisor® and HireAdvisor® (hire marketplace · members free).',
     moduleIds: [
       'fitgraph',
       'physiograph',

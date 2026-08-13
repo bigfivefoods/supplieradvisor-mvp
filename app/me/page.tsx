@@ -2,8 +2,8 @@
 
 /**
  * SA Member App — B2C personal app (PWA).
- * Bottom tabs: Home · Brands · Check-in · Account
- * One login → hire order/track · gym book/check-in · reviews.
+ * Bottom tabs: Home · Shop · Brands · Check-in · Account
+ * PWA — hire / sale marketplace, gym book/check-in, reviews.
  */
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -27,8 +27,10 @@ import {
   Sparkles,
   Stethoscope,
   Star,
+  Store,
   User,
   WalletCards,
+  Building2,
 } from 'lucide-react';
 import {
   extractEmailFromPrivyUser,
@@ -39,6 +41,7 @@ import {
   B2cInstallChip,
   type B2cTab,
 } from '@/components/b2c/B2cAppChrome';
+import { B2cShopPeek, B2cShopTab } from '@/components/b2c/B2cShopTab';
 import { toast } from 'sonner';
 import EnablePushButton from '@/components/pwa/EnablePushButton';
 
@@ -115,12 +118,15 @@ function MeAppInner() {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [installHint, setInstallHint] = useState(false);
+  const [hasBusiness, setHasBusiness] = useState(false);
+  const [businessCount, setBusinessCount] = useState(0);
 
-  // Deep links: ?tab=checkin|memberships|account  ?link=
+  // Deep links: ?tab=shop|checkin|memberships|account  ?link=
   useEffect(() => {
     const t = search?.get('tab');
     if (
       t === 'home' ||
+      t === 'shop' ||
       t === 'memberships' ||
       t === 'checkin' ||
       t === 'account'
@@ -167,6 +173,10 @@ function MeAppInner() {
       setEmail(
         data.profile?.email || extractEmailFromPrivyUser(user) || ''
       );
+      setHasBusiness(Boolean(data.has_business || data.workspace?.has_business));
+      setBusinessCount(
+        Number(data.business_count || data.workspace?.business_count || 0)
+      );
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Could not load account');
     } finally {
@@ -193,6 +203,15 @@ function MeAppInner() {
     ['physio', 'dental', 'medical', 'psychiatry'].includes(m.kind)
   ).length;
   const checkinReady = memberships.filter((m) => m.checkin_path).length;
+
+  const goTab = (t: B2cTab) => {
+    setTab(t);
+    const params = new URLSearchParams(search?.toString() || '');
+    if (t === 'home') params.delete('tab');
+    else params.set('tab', t);
+    const qs = params.toString();
+    router.replace(qs ? `/me?${qs}` : '/me', { scroll: false });
+  };
 
   const doLink = async (tokenOverride?: string) => {
     const token = (tokenOverride || linkToken).trim();
@@ -306,14 +325,15 @@ function MeAppInner() {
               />
             </div>
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-sky-100">
-              Personal app
+              Personal app · always free
             </p>
             <h1 className="mt-2 text-4xl font-black leading-[1.05] tracking-tight">
               SA Member
             </h1>
             <p className="mt-3 text-base text-sky-50/95">
-              Hire gear, gym classes, physio, dental, medical and psychiatry
-              — one personal app for every Advisor brand you use.
+              One personal app: shop what is for sale or hire, book gym and
+              clinic brands, check in, and keep every membership on this wallet.
+              If you also run a company, that workspace stays separate.
             </p>
 
             <div className="mt-8 space-y-2">
@@ -332,6 +352,11 @@ function MeAppInner() {
                   icon: Stethoscope,
                   t: 'Clinic Advisors',
                   d: 'Physio, dental, medical, psychiatry bookings',
+                },
+                {
+                  icon: Store,
+                  t: 'Shop sale & hire',
+                  d: 'See what brands are selling or hiring out',
                 },
               ].map(({ icon: Icon, t, d }) => (
                 <div
@@ -356,14 +381,19 @@ function MeAppInner() {
               }
               className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-4 text-base font-black text-[#0077b6] shadow-xl"
             >
-              Continue
+              Create free account
               <ArrowRight className="h-5 w-5" />
             </button>
             <p className="mt-3 text-center text-[11px] text-sky-100/80">
-              Free · email or Google · works offline as an installed app
+              Free · email or Google · first time creates your wallet · already
+              have an account? Same button signs you in
             </p>
             <p className="mt-4 text-center text-[11px] text-sky-100/70">
-              Business operator?{' '}
+              Also run a company?{' '}
+              <Link href="/join" className="font-bold underline">
+                Register a business
+              </Link>
+              {' · '}
               <Link href="/login" className="font-bold underline">
                 Company login
               </Link>
@@ -382,6 +412,10 @@ function MeAppInner() {
       title: `Hi, ${displayName.split(' ')[0]}`,
       sub: 'Your member app',
     },
+    shop: {
+      title: 'Shop',
+      sub: 'For sale · hire · book',
+    },
     memberships: {
       title: 'Your brands',
       sub: `${memberships.length} linked`,
@@ -399,7 +433,7 @@ function MeAppInner() {
   return (
     <B2cAppShell
       tab={tab}
-      onTab={setTab}
+      onTab={goTab}
       headerTitle={headerForTab[tab].title}
       headerSubtitle={headerForTab[tab].sub}
       headerRight={
@@ -423,6 +457,29 @@ function MeAppInner() {
       {/* ── HOME ─────────────────────────────────────────────── */}
       {tab === 'home' && (
         <div className="space-y-4">
+          {hasBusiness ? (
+            <Link
+              href="/dashboard/select-company"
+              className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm"
+            >
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                <Building2 className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-black text-slate-900">
+                  You also run a business
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  {businessCount === 1
+                    ? 'Open your company workspace'
+                    : `Open one of ${businessCount} companies`}{' '}
+                  — it will not mix into this personal wallet
+                </p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-slate-400" />
+            </Link>
+          ) : null}
+
           {installHint ? (
             <button
               type="button"
@@ -525,6 +582,8 @@ function MeAppInner() {
             </section>
           ) : null}
 
+          <B2cShopPeek onOpen={() => goTab('shop')} />
+
           <section>
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-sm font-black text-slate-900">Quick actions</h2>
@@ -532,7 +591,24 @@ function MeAppInner() {
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setTab('checkin')}
+                onClick={() => goTab('shop')}
+                className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm active:scale-[0.98]"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                  <Store className="h-5 w-5" />
+                </span>
+                <span>
+                  <span className="block text-xs font-black text-slate-900">
+                    Shop
+                  </span>
+                  <span className="block text-[10px] text-slate-500">
+                    Sale · hire · book
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => goTab('checkin')}
                 className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm active:scale-[0.98]"
               >
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
@@ -623,8 +699,9 @@ function MeAppInner() {
                   No brands yet
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
-                  Get a portal link from your hire company or gym, then add it
-                  here.
+                  Your dentist on DentalAdvisor and your gym on GymAdvisor
+                  stay as separate brand cards. Get a portal link from either,
+                  or sign in with the same email they have on file.
                 </p>
                 <button
                   type="button"
@@ -669,9 +746,24 @@ function MeAppInner() {
         </div>
       )}
 
+      {/* ── SHOP / MARKETPLACE ──────────────────────────────── */}
+      {tab === 'shop' && (
+        <B2cShopTab
+          memberships={memberships.map((m) => ({
+            kind: m.kind,
+            company_id: m.company_id,
+            portal_path: m.portal_path,
+          }))}
+        />
+      )}
+
       {/* ── BRANDS / MEMBERSHIPS ─────────────────────────────── */}
       {tab === 'memberships' && (
         <div className="space-y-3">
+          <p className="rounded-2xl bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+            Each brand is its own card. Your dentist and your gym do not share
+            bookings, payments or medical notes — they only share this login.
+          </p>
           {memberships.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-5 py-12 text-center">
               <p className="text-sm font-black text-slate-800">
@@ -832,6 +924,11 @@ function MeAppInner() {
       {/* ── ACCOUNT ──────────────────────────────────────────── */}
       {tab === 'account' && (
         <div className="space-y-4">
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-[11px] font-semibold text-emerald-950">
+            SA Member is free. Brands may charge their own gym, clinic or hire
+            prices — SupplierAdvisor® never bills this personal wallet.
+          </div>
+
           <div className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-[#0077b6] text-lg font-black text-white">
               {(displayName[0] || 'U').toUpperCase()}
@@ -845,6 +942,44 @@ function MeAppInner() {
               </p>
             </div>
           </div>
+
+          {hasBusiness ? (
+            <Link
+              href="/dashboard/select-company"
+              className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                <Building2 className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-black text-slate-900">
+                  Open my business
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  {businessCount === 1
+                    ? '1 company workspace'
+                    : `${businessCount} company workspaces`}{' '}
+                  · operator books stay off this profile
+                </p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-slate-400" />
+            </Link>
+          ) : (
+            <Link
+              href="/join"
+              className="flex items-center gap-3 rounded-3xl border border-dashed border-slate-300 bg-white p-4"
+            >
+              <Building2 className="h-5 w-5 text-slate-400" />
+              <span>
+                <span className="block text-sm font-black text-slate-900">
+                  Also run a company?
+                </span>
+                <span className="block text-[11px] text-slate-500">
+                  Register a business — this personal wallet stays yours
+                </span>
+              </span>
+            </Link>
+          )}
 
           <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="text-sm font-black text-slate-900">Notifications</h2>
@@ -927,9 +1062,10 @@ function MeAppInner() {
           </button>
 
           <p className="text-center text-[10px] text-slate-400">
-            Company operators use{' '}
-            <Link href="/login" className="font-bold underline">
-              business login
+            Same login for personal and business. Company operators pick a
+            workspace at{' '}
+            <Link href="/dashboard/select-company" className="font-bold underline">
+              select company
             </Link>
             .
           </p>

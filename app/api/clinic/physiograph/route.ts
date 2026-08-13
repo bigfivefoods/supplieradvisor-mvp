@@ -541,6 +541,20 @@ export async function POST(request: NextRequest) {
       }
       patient.portal_token = issuePatientPortalToken(companyId);
       await saveStore(companyId, meta, store);
+      void import('@/lib/b2c/directory').then(({ indexBrandPerson }) =>
+        indexBrandPerson({
+          kind: 'physio',
+          companyId,
+          companyName: store.settings?.brand_name,
+          brand: store.settings?.brand_name,
+          refId: patient.id,
+          refLabel: patient.name,
+          email: patient.email,
+          phone: patient.phone,
+          portalToken: patient.portal_token,
+          portalPath: `/member/physiograph/${encodeURIComponent(patient.portal_token)}`,
+        })
+      );
       return NextResponse.json({
         success: true,
         store,
@@ -694,6 +708,20 @@ export async function POST(request: NextRequest) {
       }
 
       await saveStore(companyId, meta, store);
+      void import('@/lib/b2c/directory').then(({ indexBrandPerson }) =>
+        indexBrandPerson({
+          kind: 'physio',
+          companyId,
+          companyName: businessName,
+          brand: businessName,
+          refId: patient.id,
+          refLabel: patient.name,
+          email,
+          phone: patient.phone,
+          portalToken: patient.portal_token,
+          portalPath: `/member/physiograph/${encodeURIComponent(patient.portal_token!)}`,
+        })
+      );
       return NextResponse.json({
         success: true,
         store,

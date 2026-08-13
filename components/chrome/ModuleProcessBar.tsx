@@ -142,7 +142,7 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
                   {life.title}
                 </span>
                 <div
-                  className="sa-scroll-x flex items-center gap-1 sm:gap-1.5 min-w-0 flex-1 mask-fade-r"
+                  className="sa-scroll-x scrollbar-none flex items-center gap-1 sm:gap-1.5 min-w-0 flex-1 mask-fade-r"
                   role="navigation"
                   aria-label={`${life.title} process`}
                 >

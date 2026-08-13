@@ -162,12 +162,12 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
     id: 'consumer',
     business_type: 'consumer',
     org_type: 'consumer',
-    label: 'Consumer (marketplace)',
-    shortLabel: 'Consumer',
+    label: 'SA Member (personal)',
+    shortLabel: 'Member',
     description:
-      'B2C — shop the marketplace as a buyer. Discover verified brands and buy products.',
+      'Free personal wallet — gym, dentist, hire and clinic brands you use as a customer. No company. Same login can still run a business later.',
     group: 'consumer',
-    homePath: '/marketplace',
+    homePath: '/me',
     modulePreset: 'starter',
     provision: 'none',
     badge: 'B2C',
@@ -357,9 +357,9 @@ export function entityGroups(): Array<{
     {
       id: 'b2c',
       lane: 'b2c',
-      title: 'Consumer (B2C)',
+      title: 'Personal (B2C)',
       blurb:
-        'Join as a consumer to buy on the marketplace — discover verified brands and shop products.',
+        'Create a free SA Member account for yourself. GymAdvisor, DentalAdvisor, HireAdvisor and clinic brands stay as separate cards on one personal wallet.',
       entities: [byId('consumer')],
     },
     {

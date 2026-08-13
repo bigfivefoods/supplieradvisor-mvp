@@ -530,6 +530,20 @@ export async function POST(request: NextRequest) {
       }
       patient.portal_token = issuePatientPortalToken(companyId);
       await saveStore(companyId, meta, store);
+      void import('@/lib/b2c/directory').then(({ indexBrandPerson }) =>
+        indexBrandPerson({
+          kind: 'psychiatry',
+          companyId,
+          companyName: store.settings?.brand_name,
+          brand: store.settings?.brand_name,
+          refId: patient.id,
+          refLabel: patient.name,
+          email: patient.email,
+          phone: patient.phone,
+          portalToken: patient.portal_token,
+          portalPath: `/member/psychiatrygraph/${encodeURIComponent(patient.portal_token)}`,
+        })
+      );
       return NextResponse.json({
         success: true,
         store,

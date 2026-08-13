@@ -349,11 +349,11 @@ export const INDUSTRIES: IndustryPage[] = [
   {
     slug: 'hire-rental',
     name: 'Hire & rental',
-    headline: 'List gear · people rent · 2.5% + 2.5%.',
+    headline: 'List gear · people rent free · 2.5% on the business.',
     subhead:
-      'HireAdvisor® is a hire/rental marketplace: suppliers list plant, vehicles, tools, kids party gear (jumping castles, soft play), events kit and more; customers (people) rent B2C. Categories enforce different requirements — e.g. jumping castles need flat ground, power, adult supervision and age/weight limits. Commercial model is dual commission — 2.5% to the supplier and 2.5% to the customer on rental GMV — not a subscription desk like GymAdvisor® or clinic Advisors. Deposits stay refundable and are never commissionable.',
+      'HireAdvisor® is a hire/rental marketplace: suppliers list plant, vehicles, tools, kids party gear (jumping castles, soft play), events kit and more; customers (people) rent B2C on SA Member for free. Categories enforce different requirements — e.g. jumping castles need flat ground, power, adult supervision and age/weight limits. The listing business pays 2.5% on rental GMV. Members pay rental + refundable deposit only.',
     cardBlurb:
-      'HireAdvisor® — jumping castles, plant, tools; B2C hire; dual 2.5% commission.',
+      'HireAdvisor® — jumping castles, plant, tools; B2C hire free for members; 2.5% on the business.',
     pack: 'HireAdvisor®',
     pains: [
       'WhatsApp hire books and lost deposits',
@@ -377,7 +377,7 @@ export const INDUSTRIES: IndustryPage[] = [
       'Catalogue',
       'Customers (B2C)',
       'Bookings & handover',
-      'Settlements 2.5%+2.5%',
+      'Settlements · members free',
       'Network',
     ],
   },
@@ -385,9 +385,9 @@ export const INDUSTRIES: IndustryPage[] = [
     /** Legacy slug — same product as hire-rental */
     slug: 'staffing-recruitment',
     name: 'Hire & rental (legacy URL)',
-    headline: 'List gear · people rent · 2.5% + 2.5%.',
+    headline: 'List gear · people rent free · 2.5% on the business.',
     subhead:
-      'Redirect path: HireAdvisor® is the hire/rental marketplace (not recruitment staffing). Suppliers list gear; people rent; dual 2.5% + 2.5% commission on rental GMV.',
+      'Redirect path: HireAdvisor® is the hire/rental marketplace (not recruitment staffing). Suppliers list gear; people rent on SA Member for free; listing business pays 2.5% on rental GMV.',
     cardBlurb: 'See Hire & rental — HireAdvisor® marketplace.',
     pack: 'HireAdvisor®',
     pains: [

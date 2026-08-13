@@ -23,8 +23,13 @@ import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
 import { readMedicalgraphFromMetadata } from '@/lib/clinic/medicalgraph';
 import { readPsychiatrygraphFromMetadata } from '@/lib/clinic/psychiatrygraph';
 import { linkPlatformUserId } from '@/lib/messaging/link-platform-user';
-import type { B2cMembership, B2cProfile } from '@/lib/b2c/types';
+import type { B2cProfile } from '@/lib/b2c/types';
 import { upsertMembership } from '@/lib/b2c/profile-store';
+import {
+  findDirectoryEntries,
+  indexBrandPerson,
+  membershipFromDirectory,
+} from '@/lib/b2c/directory';
 
 type CompanyRow = {
   id: number;
@@ -131,6 +136,13 @@ export async function discoverAndAttachMemberships(
     if (row.profile_id) companyIds.add(Number(row.profile_id));
   }
 
+  // Gym / dental / clinic people are often not Core CRM customers of that
+  // brand — look them up from the personal directory too.
+  const directory = await findDirectoryEntries(email, phone);
+  for (const entry of directory) {
+    if (entry.company_id) companyIds.add(entry.company_id);
+  }
+
   let attached = 0;
   let next = profile;
 
@@ -174,9 +186,24 @@ export async function discoverAndAttachMemberships(
         capabilities: ['order', 'book', 'track', 'kyc', 'review'],
         active: true,
       });
-      if (next.memberships.length > before || true) {
+      if (next.memberships.length > before) {
         attached += 1;
       }
+      void indexBrandPerson({
+        kind: 'hire',
+        companyId,
+        companyName: company.name,
+        brand,
+        refId: String(crm.id),
+        refLabel: String(
+          crm.trading_name || crm.legal_name || crm.contact_name || crm.email
+        ),
+        email: crm.email || email,
+        phone: crm.phone || phone,
+        portalToken: portal.portal_token,
+        portalPath: hireCustomerPortalPath(portal.portal_token),
+        capabilities: ['order', 'book', 'track', 'kyc', 'review'],
+      });
     }
     if (hireDirty) {
       company.meta = writeHiregraphToMetadata(company.meta, hireStore);
@@ -209,6 +236,22 @@ export async function discoverAndAttachMemberships(
         active: true,
       });
       attached += 1;
+      void indexBrandPerson({
+        kind: 'gym',
+        companyId,
+        companyName: company.name,
+        brand: fit.settings?.brand_name || company.name,
+        refId: client.id,
+        refLabel: client.name,
+        email: client.email || email,
+        phone: client.phone || phone,
+        portalToken: client.portal_token,
+        portalPath: `/member/fitgraph/${encodeURIComponent(client.portal_token)}`,
+        checkinPath: fit.settings?.public_token
+          ? gymCheckinPath(fit.settings.public_token)
+          : null,
+        capabilities: ['book', 'checkin', 'messages', 'review', 'track'],
+      });
     }
 
     // Clinics
@@ -265,9 +308,36 @@ export async function discoverAndAttachMemberships(
         active: true,
       });
       attached += 1;
+      void indexBrandPerson({
+        kind: clinic.kind,
+        companyId,
+        companyName: company.name,
+        brand: company.name,
+        refId: p.id,
+        refLabel: p.name,
+        email: p.email || email,
+        phone: p.phone || phone,
+        portalToken: p.portal_token,
+        portalPath: `/member/${clinic.path}/${encodeURIComponent(p.portal_token)}`,
+        capabilities: ['book', 'track', 'messages', 'review', 'kyc'],
+      });
     }
 
     await saveMeta(companyId, company.meta);
+  }
+
+  // Directory fallback — attach gym/dental even if the company scan missed them
+  for (const entry of directory) {
+    const already = next.memberships.some(
+      (m) =>
+        m.kind === entry.kind &&
+        m.company_id === entry.company_id &&
+        m.ref_id === entry.ref_id &&
+        m.active !== false
+    );
+    if (already || !entry.portal_path) continue;
+    next = upsertMembership(next, membershipFromDirectory(entry));
+    attached += 1;
   }
 
   return { profile: next, attached };

@@ -770,7 +770,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Customers', href: '/dashboard/hiregraph/customers', desc: 'B2C portal · CRM · hire KYC', section: 'Demand' },
       { name: 'Bookings', href: '/dashboard/hiregraph/bookings', desc: 'Core customer · dual fee quote', section: 'Demand' },
       { name: 'Handover', href: '/dashboard/hiregraph/handover', desc: 'Out · return · condition', section: 'Ops' },
-      { name: 'Settlements', href: '/dashboard/hiregraph/settlements', desc: '2.5% + 2.5% ledger', section: 'Money' },
+      { name: 'Settlements', href: '/dashboard/hiregraph/settlements', desc: '2.5% on the business · members free', section: 'Money' },
       { name: 'Management report', href: '/dashboard/hiregraph/management', desc: 'A4 landscape PDF · GMV', section: 'Insights' },
       { name: 'Messages', href: '/dashboard/messages?from=hiregraph&channel=connection', desc: 'Supplier · renter threads', section: 'Ops', rail: false },
     ],

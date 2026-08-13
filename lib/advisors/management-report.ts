@@ -56,7 +56,7 @@ export const ADVISOR_REPORT_META: Record<
   },
   hiregraph: {
     brand: 'HireAdvisor®',
-    product: 'Hire / rental marketplace (2.5% + 2.5%)',
+    product: 'Hire / rental marketplace (2.5% on the business · members free)',
     defaultHref: '/dashboard/hiregraph/management',
   },
   schools: {
