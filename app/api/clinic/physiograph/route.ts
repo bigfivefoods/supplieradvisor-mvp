@@ -539,7 +539,8 @@ export async function POST(request: NextRequest) {
       if (!patient) {
         return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
       }
-      patient.portal_token = issuePatientPortalToken(companyId);
+      const portalToken = issuePatientPortalToken(companyId);
+      patient.portal_token = portalToken;
       await saveStore(companyId, meta, store);
       void import('@/lib/b2c/directory').then(({ indexBrandPerson }) =>
         indexBrandPerson({
@@ -551,8 +552,8 @@ export async function POST(request: NextRequest) {
           refLabel: patient.name,
           email: patient.email,
           phone: patient.phone,
-          portalToken: patient.portal_token,
-          portalPath: `/member/physiograph/${encodeURIComponent(patient.portal_token)}`,
+          portalToken,
+          portalPath: `/member/physiograph/${encodeURIComponent(portalToken)}`,
         })
       );
       return NextResponse.json({

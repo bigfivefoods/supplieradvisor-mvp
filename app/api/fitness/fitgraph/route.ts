@@ -398,7 +398,8 @@ export async function POST(request: NextRequest) {
       if (!client) {
         return NextResponse.json({ error: 'Client not found' }, { status: 404 });
       }
-      client.portal_token = issueClientPortalToken(companyId);
+      const portalToken = issueClientPortalToken(companyId);
+      client.portal_token = portalToken;
       await saveStore(companyId, meta, store);
       void import('@/lib/b2c/directory').then(({ indexBrandPerson }) =>
         indexBrandPerson({
@@ -410,8 +411,8 @@ export async function POST(request: NextRequest) {
           refLabel: client.name,
           email: client.email,
           phone: client.phone,
-          portalToken: client.portal_token,
-          portalPath: `/member/fitgraph/${encodeURIComponent(client.portal_token)}`,
+          portalToken,
+          portalPath: `/member/fitgraph/${encodeURIComponent(portalToken)}`,
           checkinPath: store.settings?.public_token
             ? gymCheckinPath(store.settings.public_token)
             : null,
