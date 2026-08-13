@@ -228,7 +228,6 @@ async function joinGym(opts: {
       membership_status: 'active',
       start_date: now.slice(0, 10),
       active: true,
-      source: 'member_app_qr',
     };
     store.clients = [...(store.clients || []), client];
   }
