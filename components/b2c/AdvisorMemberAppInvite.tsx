@@ -18,12 +18,15 @@ const KIND_LABEL: Record<string, string> = {
   dental: 'DentalAdvisor®',
   medical: 'MedicalAdvisor®',
   psychiatry: 'PsychiatryAdvisor®',
+  customer: 'Customers',
+  supplier: 'Suppliers',
 };
 
 const AUDIENCE_LABEL: Record<string, string> = {
   members: 'members',
   patients: 'patients',
   customers: 'customers',
+  suppliers: 'suppliers',
 };
 
 export function AdvisorMemberAppInvite({
@@ -35,7 +38,7 @@ export function AdvisorMemberAppInvite({
   kind: MemberAppJoinKind;
   companyId: number;
   brand?: string | null;
-  audience?: 'members' | 'patients' | 'customers';
+  audience?: 'members' | 'patients' | 'customers' | 'suppliers';
 }) {
   const [copied, setCopied] = useState(false);
   const origin =
@@ -60,6 +63,7 @@ export function AdvisorMemberAppInvite({
         memberAppJoinWhatsAppText({
           brand: brandName,
           appLink,
+          kind,
           audience,
         })
       ),
@@ -95,13 +99,14 @@ export function AdvisorMemberAppInvite({
             <Smartphone className="h-3.5 w-3.5" /> SA Member · {KIND_LABEL[kind] || kind}
           </p>
           <h3 className="text-lg font-black text-slate-900 dark:text-white">
-            Invite {AUDIENCE_LABEL[audience] || 'people'} to the app
+            {kind === 'customer' || kind === 'supplier'
+              ? `Invite ${AUDIENCE_LABEL[audience] || 'partners'} to the platform`
+              : `Invite ${AUDIENCE_LABEL[audience] || 'people'} to the app`}
           </h3>
           <p className="text-sm text-slate-600 dark:text-slate-300">
-            Print this QR or send the link. They open SA Member on their phone,
-            create a free profile (email or Google), and can verify themselves.
-            If you already have their email or phone, their {audience === 'patients' ? 'patient' : audience === 'customers' ? 'hire' : 'member'}{' '}
-            record attaches automatically.
+            {kind === 'customer' || kind === 'supplier'
+              ? `Print this QR or send the link. They register a company on SupplierAdvisor and can connect with you as a ${audience === 'suppliers' ? 'supplier' : 'customer'}.`
+              : `Print this QR or send the link. They open SA Member on their phone, create a free profile (email or Google), and can verify themselves. If you already have their email or phone, their ${audience === 'patients' ? 'patient' : audience === 'customers' ? 'hire' : 'member'} record attaches automatically.`}
           </p>
           <p className="break-all font-mono text-[11px] text-slate-500">{appLink}</p>
           <div className="flex flex-wrap gap-2 pt-1">

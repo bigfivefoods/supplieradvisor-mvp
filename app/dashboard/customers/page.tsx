@@ -18,7 +18,8 @@ import {
   Wallet,
   MessageSquare,
 } from 'lucide-react';
-import { getSelectedCompanyId } from '@/lib/containers/company';
+import { getSelectedCompanyId, getSelectedCompanyName } from '@/lib/containers/company';
+import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
 import { formatMoney } from '@/lib/customers/types';
 import {
   CompanyRequired,
@@ -238,6 +239,15 @@ function HubInner() {
       <Suspense fallback={null}>
         <RatingPromptBanner />
       </Suspense>
+
+      <div className="mb-6">
+        <AdvisorMemberAppInvite
+          kind="customer"
+          companyId={companyId}
+          brand={getSelectedCompanyName()}
+          audience="customers"
+        />
+      </div>
 
       <HubHero
         pill="Live CRM · source → sell → rate"

@@ -14,7 +14,7 @@ import {
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
 import { getCanonicalUserId } from '@/lib/auth/identity';
-import { getSelectedCompanyId } from '@/lib/containers/company';
+import { getSelectedCompanyId, getSelectedCompanyName } from '@/lib/containers/company';
 import {
   CUSTOMER_INVITATION_STATUSES,
   invitationAttemptStatusClass,
@@ -23,6 +23,7 @@ import {
 } from '@/lib/customers/types';
 import { CompanyRequired, CustomersHeader } from '@/components/customers/CustomersShell';
 import InviteCustomerButton from '@/components/customers/InviteCustomerButton';
+import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
 
 const FILTERS = [
   { value: 'all', label: 'All' },
@@ -237,6 +238,15 @@ function InvitesInner() {
           </div>
         }
       />
+
+      <div className="mb-6">
+        <AdvisorMemberAppInvite
+          kind="customer"
+          companyId={companyId}
+          brand={getSelectedCompanyName()}
+          audience="customers"
+        />
+      </div>
 
       {showInvitePicker && (
         <div className="mb-6 bg-white border rounded-3xl p-5 space-y-4">

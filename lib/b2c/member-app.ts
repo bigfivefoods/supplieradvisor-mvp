@@ -16,15 +16,30 @@ export type MemberAppJoinKind =
   | 'physio'
   | 'dental'
   | 'medical'
-  | 'psychiatry';
+  | 'psychiatry'
+  | 'customer'
+  | 'supplier';
 
-/** Brand poster / desk QR — members create a free SA Member profile. */
+export function isPlatformJoinKind(kind?: string | null): boolean {
+  return kind === 'customer' || kind === 'supplier';
+}
+
+/** Brand poster / desk QR — SA Member (B2C) or company join (B2B customer/supplier). */
 export function memberAppJoinPath(opts: {
   companyId?: number | null;
   kind?: MemberAppJoinKind | string | null;
   brand?: string | null;
 }): string {
   const q = new URLSearchParams();
+  if (isPlatformJoinKind(opts.kind)) {
+    q.set('lane', 'b2b');
+    q.set('as', String(opts.kind));
+    if (opts.companyId && Number.isFinite(Number(opts.companyId))) {
+      q.set('company', String(opts.companyId));
+    }
+    if (opts.brand?.trim()) q.set('brand', opts.brand.trim());
+    return `/onboarding?${q.toString()}`;
+  }
   q.set('join', '1');
   if (opts.companyId && Number.isFinite(Number(opts.companyId))) {
     q.set('company', String(opts.companyId));
@@ -53,8 +68,18 @@ export function memberAppQrSrc(absoluteUrl: string, size = 280): string {
 export function memberAppJoinWhatsAppText(opts: {
   brand: string;
   appLink: string;
-  audience?: 'members' | 'patients' | 'customers';
+  kind?: MemberAppJoinKind | string | null;
+  audience?: 'members' | 'patients' | 'customers' | 'suppliers';
 }): string {
+  if (opts.kind === 'supplier' || opts.audience === 'suppliers') {
+    return `${opts.brand} invited you to join SupplierAdvisor as a supplier — register your company to trade on the network.\n\nOpen: ${opts.appLink}`;
+  }
+  if (opts.kind === 'customer') {
+    return `${opts.brand} invited you to join SupplierAdvisor — register your company to buy and stay connected.\n\nOpen: ${opts.appLink}`;
+  }
+  if (opts.kind === 'hire') {
+    return `${opts.brand} — get the free SA Member app to hire, track bookings and complete docs.\n\nOpen: ${opts.appLink}`;
+  }
   return `${opts.brand} — get the free SA Member app to create your profile, book and stay in touch.\n\nOpen: ${opts.appLink}`;
 }
 

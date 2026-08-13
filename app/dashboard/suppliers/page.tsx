@@ -20,7 +20,8 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { getCanonicalUserId } from '@/lib/auth/identity';
-import { getSelectedCompanyId } from '@/lib/containers/company';
+import { getSelectedCompanyId, getSelectedCompanyName } from '@/lib/containers/company';
+import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
 import { otifefBand, trustBand } from '@/lib/suppliers/types';
 import {
   CompanyRequired,
@@ -283,6 +284,15 @@ function HubInner() {
           </div>
         }
       />
+
+      <div className="mb-6">
+        <AdvisorMemberAppInvite
+          kind="supplier"
+          companyId={companyId}
+          brand={getSelectedCompanyName()}
+          audience="suppliers"
+        />
+      </div>
 
       <JourneyChecklist role="supplier" />
       <CatalogueEmptyBanner />

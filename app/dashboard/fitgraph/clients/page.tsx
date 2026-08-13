@@ -25,6 +25,7 @@ import {
 } from '@/components/health/InjuryProfileFields';
 import { AdvisorTreatmentPlanPanel } from '@/components/services/AdvisorTreatmentPlanPanel';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
+import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
 import {
   InlineSelect,
   InlineText,
@@ -340,6 +341,12 @@ export default function ClientsPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
+          <AdvisorMemberAppInvite
+            kind="gym"
+            companyId={companyId}
+            brand={store.settings?.brand_name}
+            audience="members"
+          />
           <StatRow
             tone="member"
             items={[

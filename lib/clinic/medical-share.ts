@@ -5,33 +5,33 @@
 
 export function buildPatientMedicalShare(patient: {
   share_medical?: boolean;
-  diagnosis_notes?: string;
+  diagnosis_notes?: string | null;
   clinical?: {
-    injury_status?: string;
+    injury_status?: string | null;
     injury_areas?: unknown;
-    injury_notes?: string;
-    diagnosis_notes?: string;
-    training_modifications?: string;
-    goals?: string;
+    injury_notes?: string | null;
+    diagnosis_notes?: string | null;
+    training_modifications?: string | null;
+    goals?: string | null;
     pain_score?: number | null;
   } | null;
   medical?: {
-    allergies?: string;
-    chronic_conditions?: string;
-    current_meds?: string;
+    allergies?: string | null;
+    chronic_conditions?: string | null;
+    current_meds?: string | null;
     medical_aid?: {
-      scheme_name?: string;
-      plan_name?: string;
-      membership_number?: string;
+      scheme_name?: string | null;
+      plan_name?: string | null;
+      membership_number?: string | null;
     } | null;
     scripts?: Array<{
-      status?: string;
-      medication?: string;
-      strength?: string;
-      dose?: string;
-      frequency?: string;
-      instructions?: string;
-    }>;
+      status?: string | null;
+      medication?: string | null;
+      strength?: string | null;
+      dose?: string | null;
+      frequency?: string | null;
+      instructions?: string | null;
+    }> | null;
   } | null;
 }): Record<string, unknown> | null {
   if (patient.share_medical === false) return null;

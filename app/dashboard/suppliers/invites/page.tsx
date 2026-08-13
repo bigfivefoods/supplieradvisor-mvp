@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Loader2, RefreshCw, Ban } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
-import { getSelectedCompanyId } from '@/lib/containers/company';
+import { getSelectedCompanyId, getSelectedCompanyName } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { inviteStatusClass, type SupplierInvitation } from '@/lib/suppliers/types';
 import {
@@ -12,6 +12,7 @@ import {
   SuppliersHeader,
   SuppliersPage
 } from '@/components/suppliers/SuppliersShell';
+import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
 
 export default function SupplierInvitesPage() {
   return (
@@ -86,6 +87,15 @@ function InvitesInner() {
         title="Supplier invitations"
         description="Pending and historical invites. Suppliers claim via secure link, activate their company, and take ownership — your book entry links automatically."
       />
+
+      <div className="mb-6">
+        <AdvisorMemberAppInvite
+          kind="supplier"
+          companyId={companyId}
+          brand={getSelectedCompanyName()}
+          audience="suppliers"
+        />
+      </div>
 
       <div className="bg-white border rounded-3xl overflow-hidden">
         {loading ? (

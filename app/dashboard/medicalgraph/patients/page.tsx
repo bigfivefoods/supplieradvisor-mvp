@@ -15,6 +15,7 @@ import {
   type MedicalPatient,
 } from '@/lib/clinic/medicalgraph';
 import { healthSummaryLabel, isInjured } from '@/lib/health/body-map';
+import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
 import { medicalAidSummary } from '@/lib/clinic/patient-medical';
 import {
   InjuryProfileFields,
@@ -195,6 +196,12 @@ export default function PatientsPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
+          <AdvisorMemberAppInvite
+            kind="medical"
+            companyId={companyId}
+            brand={store.settings?.brand_name}
+            audience="patients"
+          />
           <StatRow
             items={[
               {
