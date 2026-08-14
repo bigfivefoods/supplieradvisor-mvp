@@ -90,6 +90,9 @@ export type MedicalPractitioner = {
   name: string;
   email?: string;
   phone?: string;
+  /** SA ID / passport for VerifyNow (SA) or Didit (international) */
+  id_number?: string;
+  identity?: import('@/lib/identity/person-verification').PersonIdentityVerification;
   /** Linked People / HR employee id (dual-write) */
   hr_employee_id?: number | null;
   /** Skills / disciplines (owner-managed catalogue) */
@@ -395,6 +398,12 @@ export type MedicalPublicSettings = {
   timezone?: string;
   contact_email?: string;
   contact_phone?: string;
+  /** Practice number printed on medical-aid claim packs */
+  practice_number?: string;
+  bhf_number?: string;
+  vat_number?: string;
+  pcns_number?: string;
+  billing_email?: string;
   embed_primary_color?: string;
   practitioner_disciplines?: string[];
   /** Clinic open days & hours for schedule calendar */

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Copy, Link2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, Copy, Link2, Pencil, Plus, Trash2 } from 'lucide-react';
 import {
   LoadingBlock,
   PsychiatrygraphWorkbench,
@@ -64,6 +64,7 @@ type ProfileDraft = {
   name: string;
   email: string;
   phone: string;
+  id_number: string;
   disciplines: string[];
   public_bio: string;
   bio: string;
@@ -78,6 +79,7 @@ function emptyForm() {
     name: '',
     email: '',
     phone: '',
+    id_number: '',
     disciplines: ['Psychiatry'] as string[],
     public_bio: '',
     bio: '',
@@ -96,6 +98,7 @@ function profileFromPerson(p: PsychiatryPractitioner): ProfileDraft {
     name: p.name || '',
     email: p.email || '',
     phone: p.phone || '',
+    id_number: p.id_number || '',
     disciplines:
       p.disciplines && p.disciplines.length
         ? [...p.disciplines]
@@ -125,6 +128,7 @@ export default function PractitionersPage() {
     Record<string, ProfileDraft>
   >({});
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [openIds, setOpenIds] = useState<Record<string, boolean>>({});
   const [historyOpen, setHistoryOpen] = useState<Record<string, boolean>>({});
   const [endNote, setEndNote] = useState<Record<string, string>>({});
   const [newSkill, setNewSkill] = useState('');
@@ -166,6 +170,15 @@ export default function PractitionersPage() {
   const startEdit = (p: PsychiatryPractitioner) => {
     setProfileDrafts((prev) => ({ ...prev, [p.id]: profileFromPerson(p) }));
     setEditingId(p.id);
+    setOpenIds((prev) => ({ ...prev, [p.id]: true }));
+  };
+
+  const toggleOpen = (id: string) => {
+    setOpenIds((prev) => {
+      const next = !prev[id];
+      if (!next) cancelEdit(id);
+      return { ...prev, [id]: next };
+    });
   };
 
   const cancelEdit = (id: string) => {
@@ -219,14 +232,23 @@ export default function PractitionersPage() {
       toast.error('Name required');
       return;
     }
+    if (!form.email.trim() || !form.email.includes('@')) {
+      toast.error('Login email required — they use this to sign in and use the app');
+      return;
+    }
+    if (!form.id_number.trim()) {
+      toast.error('ID / passport number required for VerifyNow or Didit');
+      return;
+    }
     await post({
       entity: 'practitioners',
       action: 'upsert',
       record: {
         code: form.code,
         name: form.name,
-        email: form.email,
+        email: form.email.trim().toLowerCase(),
         phone: form.phone,
+        id_number: form.id_number.trim(),
         public_bio: form.public_bio,
         bio: form.bio || form.public_bio,
         photo_url: form.photo_url || undefined,
@@ -341,6 +363,14 @@ export default function PractitionersPage() {
       toast.error('Name required');
       return;
     }
+    if (!pr.email.trim() || !pr.email.includes('@')) {
+      toast.error('Login email required — they use this to sign in and use the app');
+      return;
+    }
+    if (!pr.id_number.trim()) {
+      toast.error('ID / passport number required for VerifyNow or Didit');
+      return;
+    }
     await post({
       entity: 'practitioners',
       action: 'upsert',
@@ -348,8 +378,9 @@ export default function PractitionersPage() {
         id: p.id,
         code: pr.code.trim() || p.code,
         name: pr.name.trim(),
-        email: pr.email.trim(),
+        email: pr.email.trim().toLowerCase(),
         phone: pr.phone.trim(),
+        id_number: pr.id_number.trim(),
         disciplines: pr.disciplines.length ? pr.disciplines : ['General'],
         public_bio: pr.public_bio,
         bio: pr.bio || pr.public_bio,
@@ -586,12 +617,38 @@ export default function PractitionersPage() {
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             />
-            <input
-              className={fc()}
-              placeholder="Email"
-              value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-            />
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-800 dark:text-indigo-300">
+                Login email *
+              </span>
+              <input
+                className={fc() + ' mt-1'}
+                type="email"
+                autoComplete="email"
+                placeholder="name@practice.co.za"
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+              />
+              <span className="mt-0.5 block text-[10px] text-slate-500 dark:text-indigo-200/70">
+                They sign in with this email to use the app.
+              </span>
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-800 dark:text-indigo-300">
+                ID / passport *
+              </span>
+              <input
+                className={fc() + ' mt-1'}
+                placeholder="SA ID or passport number"
+                value={form.id_number}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, id_number: e.target.value }))
+                }
+              />
+              <span className="mt-0.5 block text-[10px] text-slate-500 dark:text-indigo-200/70">
+                VerifyNow for SA ID · Didit for passport.
+              </span>
+            </label>
             <input
               className={fc()}
               placeholder="Phone"
@@ -723,11 +780,13 @@ export default function PractitionersPage() {
               const hist = p.history || [];
               const showHist = historyOpen[p.id];
               const isEditing = editingId === p.id;
+              const isOpen = !!openIds[p.id] || isEditing;
               const profile = profileFor(p);
               return (
                 <ListRowCard
                   key={p.id}
                   actions={
+                    isOpen ? (
                     <>
                       <button
                         type="button"
@@ -796,9 +855,15 @@ export default function PractitionersPage() {
                         Remove
                       </button>
                     </>
+                    ) : undefined
                   }
                 >
-                  <div className="flex items-start gap-2">
+                  <button
+                    type="button"
+                    className="flex w-full items-start gap-2 text-left"
+                    aria-expanded={isOpen}
+                    onClick={() => toggleOpen(p.id)}
+                  >
                     {p.photo_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -806,7 +871,11 @@ export default function PractitionersPage() {
                         alt=""
                         className="w-9 h-9 rounded-full object-cover border border-indigo-200 dark:border-indigo-600 shrink-0"
                       />
-                    ) : null}
+                    ) : (
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-indigo-200 bg-indigo-50 text-[11px] font-black text-indigo-800 dark:border-indigo-600 dark:bg-indigo-950 dark:text-indigo-100">
+                        {(p.name || 'P').slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className="font-bold text-sm text-slate-900 dark:text-indigo-50 flex flex-wrap items-center gap-2">
                         <span>
@@ -825,18 +894,24 @@ export default function PractitionersPage() {
                       <div className="text-[11px] text-slate-500 dark:text-indigo-200/80">
                         {(p.disciplines || []).join(', ') || '—'}
                         {p.email ? ` · ${p.email}` : ''}
-                        {p.phone ? ` · ${p.phone}` : ''}
+                        {p.id_number ? ` · ID ${p.id_number}` : ''}
                       </div>
                       <div className="text-[11px] font-semibold text-indigo-900/90 dark:text-indigo-200 mt-0.5">
                         {formatEngagement(p)}
                         {' · '}
                         {formatPractitionerRate(p.rate_zar, p.rate_basis)}
-                        {hist.length > 0
-                          ? ` · ${hist.length} prior stint${hist.length === 1 ? '' : 's'}`
-                          : ''}
                       </div>
+                    </div>
+                    <ChevronDown
+                      className={`mt-1 h-4 w-4 shrink-0 text-indigo-800 transition-transform dark:text-indigo-200 ${
+                        isOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                  {isOpen && (
+                  <div className="mt-3">
                       {p.public_bio && !isEditing && (
-                        <p className="text-[11px] text-slate-600 dark:text-indigo-100/80 mt-1">
+                        <p className="text-[11px] text-slate-600 dark:text-indigo-100/80 mb-2">
                           {p.public_bio}
                         </p>
                       )}
@@ -873,7 +948,7 @@ export default function PractitionersPage() {
                             </label>
                             <label className="block">
                               <span className="text-[10px] text-slate-600 dark:text-indigo-200/70">
-                                Email
+                                Login email *
                               </span>
                               <input
                                 className={fc() + ' mt-0.5'}
@@ -881,6 +956,19 @@ export default function PractitionersPage() {
                                 value={profile.email}
                                 onChange={(e) =>
                                   setProfile(p.id, { email: e.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="text-[10px] text-slate-600 dark:text-indigo-200/70">
+                                ID / passport *
+                              </span>
+                              <input
+                                className={fc() + ' mt-0.5'}
+                                placeholder="SA ID or passport"
+                                value={profile.id_number}
+                                onChange={(e) =>
+                                  setProfile(p.id, { id_number: e.target.value })
                                 }
                               />
                             </label>
@@ -1190,8 +1278,8 @@ export default function PractitionersPage() {
                           toneClass="border-indigo-200/80 bg-indigo-50/50 dark:border-indigo-700/50 dark:bg-indigo-950/30"
                         />
                       </div>
-                    </div>
                   </div>
+                  )}
                 </ListRowCard>
               );
             })}

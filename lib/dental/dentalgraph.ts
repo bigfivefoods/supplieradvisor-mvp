@@ -106,6 +106,9 @@ export type DentalStaff = {
   name: string;
   email?: string;
   phone?: string;
+  /** SA ID / passport for VerifyNow (SA) or Didit (international) */
+  id_number?: string;
+  identity?: import('@/lib/identity/person-verification').PersonIdentityVerification;
   /** Linked People / HR employee id (dual-write) */
   hr_employee_id?: number | null;
   /** Roles / skills (owner-managed catalogue) */
@@ -418,6 +421,11 @@ export type DentalPublicSettings = {
   timezone?: string;
   contact_email?: string;
   contact_phone?: string;
+  practice_number?: string;
+  bhf_number?: string;
+  vat_number?: string;
+  pcns_number?: string;
+  billing_email?: string;
   embed_primary_color?: string;
   staff_roles?: string[];
   /** Practice open days & hours for schedule calendar */

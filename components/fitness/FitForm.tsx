@@ -259,7 +259,7 @@ export function ListRowCard({
     <div
       className={`rounded-2xl border px-4 py-3 flex flex-wrap justify-between gap-3 ${TONE_ROW[tone]}`}
     >
-      <div className="min-w-0">{children}</div>
+      <div className="min-w-0 w-full">{children}</div>
       {actions ? (
         <div className="flex flex-wrap gap-2 items-center">{actions}</div>
       ) : null}

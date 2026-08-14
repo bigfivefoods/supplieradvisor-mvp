@@ -2,7 +2,15 @@
 
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { CalendarDays, Copy, Link2, Pencil, Plus, Trash2 } from 'lucide-react';
+import {
+  CalendarDays,
+  ChevronDown,
+  Copy,
+  Link2,
+  Pencil,
+  Plus,
+  Trash2,
+} from 'lucide-react';
 import Link from 'next/link';
 import {
   FitgraphWorkbench,
@@ -52,6 +60,7 @@ type ProfileDraft = {
   name: string;
   email: string;
   phone: string;
+  id_number: string;
   specialties: string[];
   public_bio: string;
   bio: string;
@@ -67,6 +76,7 @@ function emptyForm() {
     name: '',
     email: '',
     phone: '',
+    id_number: '',
     specialties: ['General'] as string[],
     public_bio: '',
     bio: '',
@@ -85,6 +95,7 @@ function profileFromCoach(c: FitCoach): ProfileDraft {
     name: c.name || '',
     email: c.email || '',
     phone: c.phone || '',
+    id_number: c.id_number || '',
     specialties:
       c.specialties && c.specialties.length ? [...c.specialties] : ['General'],
     public_bio: c.public_bio || '',
@@ -115,6 +126,7 @@ export default function CoachesPage() {
     Record<string, ProfileDraft>
   >({});
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [openIds, setOpenIds] = useState<Record<string, boolean>>({});
   const [historyOpen, setHistoryOpen] = useState<Record<string, boolean>>({});
   const [endNote, setEndNote] = useState<Record<string, string>>({});
   const [newSpecialty, setNewSpecialty] = useState('');
@@ -155,6 +167,15 @@ export default function CoachesPage() {
   const startEdit = (c: FitCoach) => {
     setProfileDrafts((prev) => ({ ...prev, [c.id]: profileFromCoach(c) }));
     setEditingId(c.id);
+    setOpenIds((prev) => ({ ...prev, [c.id]: true }));
+  };
+
+  const toggleOpen = (id: string) => {
+    setOpenIds((prev) => {
+      const next = !prev[id];
+      if (!next) cancelEdit(id);
+      return { ...prev, [id]: next };
+    });
   };
 
   const cancelEdit = (id: string) => {
@@ -207,14 +228,23 @@ export default function CoachesPage() {
       toast.error('Name required');
       return;
     }
+    if (!form.email.trim() || !form.email.includes('@')) {
+      toast.error('Login email required — they use this to sign in and use the app');
+      return;
+    }
+    if (!form.id_number.trim()) {
+      toast.error('ID / passport number required for VerifyNow or Didit');
+      return;
+    }
     await post({
       entity: 'coaches',
       action: 'upsert',
       record: {
         code: form.code,
         name: form.name,
-        email: form.email,
+        email: form.email.trim().toLowerCase(),
         phone: form.phone,
+        id_number: form.id_number.trim(),
         public_bio: form.public_bio,
         bio: form.bio || form.public_bio,
         photo_url: form.photo_url || undefined,
@@ -330,6 +360,14 @@ export default function CoachesPage() {
       toast.error('Name required');
       return;
     }
+    if (!p.email.trim() || !p.email.includes('@')) {
+      toast.error('Login email required — they use this to sign in and use the app');
+      return;
+    }
+    if (!p.id_number.trim()) {
+      toast.error('ID / passport number required for VerifyNow or Didit');
+      return;
+    }
     await post({
       entity: 'coaches',
       action: 'upsert',
@@ -337,8 +375,9 @@ export default function CoachesPage() {
         id: c.id,
         code: p.code.trim() || c.code,
         name: p.name.trim(),
-        email: p.email.trim(),
+        email: p.email.trim().toLowerCase(),
         phone: p.phone.trim(),
+        id_number: p.id_number.trim(),
         specialties: p.specialties.length ? p.specialties : ['General'],
         public_bio: p.public_bio,
         bio: p.bio || p.public_bio,
@@ -630,14 +669,40 @@ export default function CoachesPage() {
                 setForm((f) => ({ ...f, name: e.target.value }))
               }
             />
-            <input
-              className={fc()}
-              placeholder="Email"
-              value={form.email}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, email: e.target.value }))
-              }
-            />
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                Login email *
+              </span>
+              <input
+                className={fc() + ' mt-1'}
+                type="email"
+                autoComplete="email"
+                placeholder="name@studio.co.za"
+                value={form.email}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, email: e.target.value }))
+                }
+              />
+              <span className="mt-0.5 block text-[10px] text-slate-500 dark:text-amber-200/70">
+                They sign in with this email to use the app.
+              </span>
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                ID / passport *
+              </span>
+              <input
+                className={fc() + ' mt-1'}
+                placeholder="SA ID or passport number"
+                value={form.id_number}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, id_number: e.target.value }))
+                }
+              />
+              <span className="mt-0.5 block text-[10px] text-slate-500 dark:text-amber-200/70">
+                VerifyNow for SA ID · Didit for passport.
+              </span>
+            </label>
             <input
               className={fc()}
               placeholder="Phone"
@@ -771,13 +836,66 @@ export default function CoachesPage() {
               const hist = c.history || [];
               const showHist = historyOpen[c.id];
               const isEditing = editingId === c.id;
+              const isOpen = !!openIds[c.id] || isEditing;
               const profile = profileFor(c);
               return (
                 <ListRowCard
                   key={c.id}
                   tone="coach"
-                  actions={
-                    <>
+                >
+                  <button
+                    type="button"
+                    className="flex w-full items-start gap-2 text-left"
+                    aria-expanded={isOpen}
+                    onClick={() => toggleOpen(c.id)}
+                  >
+                    {c.photo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={c.photo_url}
+                        alt=""
+                        className="w-9 h-9 rounded-full object-cover border border-amber-200 dark:border-amber-600 shrink-0"
+                      />
+                    ) : (
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-[11px] font-black text-amber-800 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-100">
+                        {(c.name || 'C').slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-sm text-slate-900 dark:text-amber-50 flex flex-wrap items-center gap-2">
+                        <span>
+                          {c.code} · {c.name}
+                        </span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${
+                            isActive
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200'
+                              : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                          }`}
+                        >
+                          {isActive ? 'Active' : 'Ended'}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-amber-200/80">
+                        {(c.specialties || []).join(', ') || '—'}
+                        {c.email ? ` · ${c.email}` : ''}
+                        {c.id_number ? ` · ID ${c.id_number}` : ''}
+                      </div>
+                      <div className="text-[11px] font-semibold text-amber-900/90 dark:text-amber-200 mt-0.5">
+                        {formatEngagement(c)}
+                        {' · '}
+                        {formatCoachRate(c.rate_zar, c.rate_basis)}
+                      </div>
+                    </div>
+                    <ChevronDown
+                      className={`mt-1 h-4 w-4 shrink-0 text-amber-800 transition-transform dark:text-amber-200 ${
+                        isOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                  {isOpen && (
+                  <div className="mt-3 min-w-0">
+                      <div className="mb-3 flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         disabled={saving}
@@ -835,48 +953,9 @@ export default function CoachesPage() {
                       >
                         Remove
                       </button>
-                    </>
-                  }
-                >
-                  <div className="flex items-start gap-2">
-                    {c.photo_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={c.photo_url}
-                        alt=""
-                        className="w-9 h-9 rounded-full object-cover border border-amber-200 dark:border-amber-600 shrink-0"
-                      />
-                    ) : null}
-                    <div className="min-w-0 flex-1">
-                      <div className="font-bold text-sm text-slate-900 dark:text-amber-50 flex flex-wrap items-center gap-2">
-                        <span>
-                          {c.code} · {c.name}
-                        </span>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${
-                            isActive
-                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200'
-                              : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
-                          }`}
-                        >
-                          {isActive ? 'Active' : 'Ended'}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-slate-500 dark:text-amber-200/80">
-                        {(c.specialties || []).join(', ') || '—'}
-                        {c.email ? ` · ${c.email}` : ''}
-                        {c.phone ? ` · ${c.phone}` : ''}
-                      </div>
-                      <div className="text-[11px] font-semibold text-amber-900/90 dark:text-amber-200 mt-0.5">
-                        {formatEngagement(c)}
-                        {' · '}
-                        {formatCoachRate(c.rate_zar, c.rate_basis)}
-                        {hist.length > 0
-                          ? ` · ${hist.length} prior stint${hist.length === 1 ? '' : 's'}`
-                          : ''}
                       </div>
                       {c.public_bio && !isEditing && (
-                        <p className="text-[11px] text-slate-600 dark:text-amber-100/80 mt-1">
+                        <p className="text-[11px] text-slate-600 dark:text-amber-100/80 mb-2">
                           {c.public_bio}
                         </p>
                       )}
@@ -914,7 +993,7 @@ export default function CoachesPage() {
                             </label>
                             <label className="block">
                               <span className="text-[10px] text-slate-600 dark:text-amber-200/70">
-                                Email
+                                Login email *
                               </span>
                               <input
                                 className={fc() + ' mt-0.5'}
@@ -922,6 +1001,19 @@ export default function CoachesPage() {
                                 value={profile.email}
                                 onChange={(e) =>
                                   setProfile(c.id, { email: e.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="text-[10px] text-slate-600 dark:text-amber-200/70">
+                                ID / passport *
+                              </span>
+                              <input
+                                className={fc() + ' mt-0.5'}
+                                placeholder="SA ID or passport"
+                                value={profile.id_number}
+                                onChange={(e) =>
+                                  setProfile(c.id, { id_number: e.target.value })
                                 }
                               />
                             </label>
@@ -1247,9 +1339,9 @@ export default function CoachesPage() {
                           toneClass="border-amber-200/80 bg-amber-50/50 dark:border-amber-700/50 dark:bg-amber-950/30"
                         />
                       </div>
-                    </div>
                   </div>
-                  {c.portal_token && (
+                  )}
+                  {c.portal_token && isOpen && (
                     <p
                       className={`text-[10px] mt-1 font-mono truncate max-w-md ${toneLinkClass('coach')}`}
                     >

@@ -1207,6 +1207,13 @@ function upsert(
       name: String(rec.name || prev?.name || 'Practitioner'),
       email: rec.email != null ? String(rec.email) : prev?.email,
       phone: rec.phone != null ? String(rec.phone) : prev?.phone,
+      id_number:
+        rec.id_number !== undefined
+          ? rec.id_number
+            ? String(rec.id_number).trim()
+            : undefined
+          : prev?.id_number,
+      identity: prev?.identity,
       hr_employee_id:
         rec.hr_employee_id !== undefined
           ? rec.hr_employee_id

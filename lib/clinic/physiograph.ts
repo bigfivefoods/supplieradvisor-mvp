@@ -88,6 +88,9 @@ export type PhysioPractitioner = {
   name: string;
   email?: string;
   phone?: string;
+  /** SA ID / passport for VerifyNow (SA) or Didit (international) */
+  id_number?: string;
+  identity?: import('@/lib/identity/person-verification').PersonIdentityVerification;
   /** Linked People / HR employee id (dual-write) */
   hr_employee_id?: number | null;
   /** Skills / disciplines (owner-managed catalogue) */
@@ -403,6 +406,11 @@ export type PhysioPublicSettings = {
   timezone?: string;
   contact_email?: string;
   contact_phone?: string;
+  practice_number?: string;
+  bhf_number?: string;
+  vat_number?: string;
+  pcns_number?: string;
+  billing_email?: string;
   embed_primary_color?: string;
   practitioner_disciplines?: string[];
   /** Clinic open days & hours for schedule calendar */
