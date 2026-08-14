@@ -52,6 +52,8 @@ type Props = {
   /** POST helper from workbench */
   post: (body: Record<string, unknown>) => Promise<unknown>;
   saving?: boolean;
+  /** Download claim pack PDF (practice medical-aid submission) */
+  claimPackHref?: (claimId: string) => string;
 };
 
 function blankScript(defaults?: {
@@ -94,6 +96,7 @@ export function PatientMedicalChart({
   defaultPractitionerId = null,
   post,
   saving,
+  claimPackHref,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -1111,19 +1114,29 @@ export function PatientMedicalChart({
                       </p>
                     ) : null}
                   </div>
-                  {c.status === 'draft' || c.status === 'ready' ? (
-                    <button
-                      type="button"
-                      className={`inline-flex items-center gap-1 text-[11px] font-black ${link}`}
-                      onClick={() => void submitClaim(c.id)}
-                    >
-                      <Send className="w-3 h-3" /> Mark submitted
-                    </button>
-                  ) : c.submitted_at ? (
-                    <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
-                      Submitted {c.submitted_at.slice(0, 10)}
-                    </span>
-                  ) : null}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {claimPackHref ? (
+                      <a
+                        href={claimPackHref(c.id)}
+                        className={`inline-flex items-center gap-1 text-[11px] font-black ${link}`}
+                      >
+                        Pack PDF
+                      </a>
+                    ) : null}
+                    {c.status === 'draft' || c.status === 'ready' ? (
+                      <button
+                        type="button"
+                        className={`inline-flex items-center gap-1 text-[11px] font-black ${link}`}
+                        onClick={() => void submitClaim(c.id)}
+                      >
+                        <Send className="w-3 h-3" /> Submit to scheme
+                      </button>
+                    ) : c.submitted_at ? (
+                      <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                        Submitted {c.submitted_at.slice(0, 10)}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               </li>
             ))}

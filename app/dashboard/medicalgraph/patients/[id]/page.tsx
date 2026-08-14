@@ -143,6 +143,9 @@ export default function MedicalPatientRecordPage() {
             }
             post={post}
             saving={saving}
+            claimPackHref={(claimId) =>
+              `/api/clinic/medical-aid-claims/pack?companyId=${companyId}&module=medicalgraph&patientId=${encodeURIComponent(patient.id)}&claimId=${encodeURIComponent(claimId)}`
+            }
           />
         </div>
       )}

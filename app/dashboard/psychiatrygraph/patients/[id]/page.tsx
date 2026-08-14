@@ -143,6 +143,9 @@ export default function PsychiatryPatientRecordPage() {
             }
             post={post}
             saving={saving}
+            claimPackHref={(claimId) =>
+              `/api/clinic/medical-aid-claims/pack?companyId=${companyId}&module=psychiatrygraph&patientId=${encodeURIComponent(patient.id)}&claimId=${encodeURIComponent(claimId)}`
+            }
           />
         </div>
       )}

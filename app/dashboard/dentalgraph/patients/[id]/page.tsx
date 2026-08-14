@@ -141,6 +141,9 @@ export default function DentalPatientRecordPage() {
             }
             post={post}
             saving={saving}
+            claimPackHref={(claimId) =>
+              `/api/clinic/medical-aid-claims/pack?companyId=${companyId}&module=dentalgraph&patientId=${encodeURIComponent(patient.id)}&claimId=${encodeURIComponent(claimId)}`
+            }
           />
         </div>
       )}

@@ -366,10 +366,16 @@ export function submitMedicalClaim(
   const base = mergeMedicalRecord(medical, {});
   const claim = (base.claims || []).find((c) => c.id === claimId);
   if (!claim) throw new Error('Claim not found');
+  const ymd = now.slice(0, 10).replace(/-/g, '');
+  const claim_number =
+    claim.claim_number && !claim.claim_number.startsWith('mclm_')
+      ? claim.claim_number
+      : `CLM-${ymd}-${claim.id.slice(-4).toUpperCase()}`;
   return upsertMedicalClaim(
     base,
     {
       ...claim,
+      claim_number,
       status: 'submitted',
       submitted_at: now,
     },

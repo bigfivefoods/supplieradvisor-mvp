@@ -139,6 +139,9 @@ export default function PhysioPatientRecordPage() {
             }
             post={post}
             saving={saving}
+            claimPackHref={(claimId) =>
+              `/api/clinic/medical-aid-claims/pack?companyId=${companyId}&module=physiograph&patientId=${encodeURIComponent(patient.id)}&claimId=${encodeURIComponent(claimId)}`
+            }
           />
         </div>
       )}
