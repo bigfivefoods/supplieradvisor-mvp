@@ -21,6 +21,7 @@ Connect bank | Upload PDF/CSV
 | `pdf`/`csv` | Live                         | Existing import → ingest |
 | `sandbox` | Live without keys              | Demo FNB sample lines |
 | `banklink`| Live with `BANKLINK_API_KEY`   | Link + sync + webhook |
+| `fnb`     | Live with FNB Integration Channel client ID + secret | Token + statement pull |
 
 ## Environment
 
@@ -29,6 +30,14 @@ BANKLINK_API_KEY=sk_test_...          # or sk_live_...
 BANKLINK_API_BASE=https://api.banklink.co.za/v1
 BANKLINK_WEBHOOK_SECRET=optional_hmac
 BANKLINK_SANDBOX=1                    # force sandbox even if key set
+
+# FNB / FirstRand Integration Channel (Big Five Foods test)
+FNB_CLIENT_ID=
+FNB_CLIENT_SECRET=
+FNB_API_BASE=https://api.fnb.co.za
+FNB_TOKEN_URL=                        # OAuth token URL from the subscribe pack
+FNB_ACCOUNT_NUMBER=                   # operating account for statement pulls
+FNB_SCOPE=
 ```
 
 ## API
@@ -104,4 +113,4 @@ Creates `bank_connections`, `bank_sync_runs`, `bank_match_rules`, and provider c
 3. Set `CRON_SECRET` on Vercel for scheduled bank sync.
 4. Point BankLink Pulse to `/api/banking/webhooks/banklink`.
 5. Seed CoA so fee/interest rules resolve GL codes.
-6. Later: FNB Integration Channel direct provider if contracted.
+6. FNB Integration Channel: set `FNB_CLIENT_ID` + `FNB_CLIENT_SECRET` (and `FNB_TOKEN_URL` from the subscribe pack). Accounting → Bank & allocation → Connect FNB.

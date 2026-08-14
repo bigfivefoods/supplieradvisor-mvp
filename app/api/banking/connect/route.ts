@@ -6,6 +6,9 @@ import {
   banklinkConfig,
   createBankLinkSession,
   fetchBankLinkTransactions,
+  fetchFnbTransactions,
+  fnbConfig,
+  getFnbAccessToken,
   ingestCanonicalTxns,
   startSyncRun,
   finishSyncRun,
@@ -41,6 +44,115 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServer();
     const cfg = banklinkConfig();
+    const fnb = fnbConfig();
+
+    if (action === 'start_fnb' || (action === 'start' && fnb.configured && body.provider === 'fnb')) {
+      if (!fnb.configured) {
+        return NextResponse.json(
+          { error: 'FNB_CLIENT_ID and FNB_CLIENT_SECRET are not set' },
+          { status: 503 }
+        );
+      }
+      const token = await getFnbAccessToken({ force: true });
+      const accountNumber = String(
+        body.account_number || fnb.accountNumber || ''
+      ).replace(/\s+/g, '');
+
+      let targetAccountId = bankAccountId;
+      if (!targetAccountId) {
+        const { data: existing } = await supabase
+          .from('bank_accounts')
+          .select('id')
+          .eq('profile_id', companyId)
+          .ilike('bank_name', '%FNB%')
+          .limit(1)
+          .maybeSingle();
+        if (existing) {
+          targetAccountId = existing.id;
+        } else {
+          const { data: created } = await supabase
+            .from('bank_accounts')
+            .insert({
+              profile_id: companyId,
+              name: accountNumber
+                ? `FNB …${accountNumber.slice(-4)}`
+                : 'FNB Business (Integration Channel)',
+              bank_name: 'FNB',
+              account_type: 'current',
+              currency: 'ZAR',
+              provider: 'fnb',
+              feed_provider: 'fnb',
+              status: 'active',
+            })
+            .select('id')
+            .single();
+          targetAccountId = created?.id ?? null;
+        }
+      }
+
+      const { data: conn, error } = await supabase
+        .from('bank_connections')
+        .insert({
+          profile_id: companyId,
+          bank_account_id: targetAccountId,
+          provider: 'fnb',
+          status: token.ok ? 'active' : 'error',
+          bank_name: 'FNB',
+          account_name: accountNumber
+            ? `FNB …${accountNumber.slice(-4)}`
+            : 'FNB Integration Channel',
+          account_mask: accountNumber ? accountNumber.slice(-4) : null,
+          external_account_id: accountNumber || null,
+          created_by: privyUserId || null,
+          last_error: token.ok ? null : token.error,
+          metadata: {
+            channel: 'integration',
+            account_number: accountNumber || null,
+            token_ok: token.ok,
+            token_url: token.ok ? token.tokenUrl : null,
+            token_error: token.ok ? null : token.error,
+          },
+        })
+        .select('*')
+        .single();
+
+      if (error || !conn) {
+        return NextResponse.json(
+          {
+            error: error?.message || 'Failed to create FNB connection',
+            hint: 'Run supabase/migrations/20260711_bank_middleware.sql',
+          },
+          { status: 400 }
+        );
+      }
+
+      if (targetAccountId) {
+        await supabase
+          .from('bank_accounts')
+          .update({
+            connection_id: conn.id,
+            feed_provider: 'fnb',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', targetAccountId);
+      }
+
+      return NextResponse.json({
+        success: true,
+        connection: conn,
+        mode: 'fnb',
+        token_ok: token.ok,
+        message: token.ok
+          ? 'FNB credentials accepted — sync to pull statements'
+          : token.error,
+        tried: token.ok ? undefined : token.tried?.slice(0, 8),
+        provider: {
+          configured: true,
+          name: 'FNB Integration Channel',
+          fnb: { configured: true },
+        },
+      });
+    }
 
     if (action === 'start') {
       if (bankAccountId) {
@@ -191,7 +303,26 @@ export async function POST(request: NextRequest) {
 
       // Pull transactions (sandbox demo or live)
       let txns = sandboxTransactions();
-      if (conn.provider === 'banklink' && cfg.mode === 'live') {
+      if (conn.provider === 'fnb') {
+        const pulled = await fetchFnbTransactions({
+          accountNumber: String(
+            conn.external_account_id || fnb.accountNumber || ''
+          ),
+        });
+        if (pulled.error && !pulled.txns.length) {
+          return NextResponse.json(
+            {
+              success: true,
+              connectionId: conn.id,
+              token_ok: false,
+              message: pulled.error,
+              tried: pulled.tried,
+            },
+            { status: 200 }
+          );
+        }
+        txns = pulled.txns;
+      } else if (conn.provider === 'banklink' && cfg.mode === 'live') {
         const pulled = await fetchBankLinkTransactions({ accountId: externalAccountId });
         if (pulled.txns.length) txns = pulled.txns;
       }

@@ -75,6 +75,8 @@ type BankingProviderInfo = {
   configured?: boolean;
   name?: string;
   docs?: string;
+  fnb?: { configured?: boolean; hasAccountNumber?: boolean };
+  banklink?: { configured?: boolean; mode?: string };
 };
 
 export default function BankReconciliationPage() {
@@ -158,6 +160,8 @@ function Inner() {
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [showConnect, setShowConnect] = useState(false);
+  const [fnbAccountNumber, setFnbAccountNumber] = useState('');
+  const [fnbProbe, setFnbProbe] = useState<string | null>(null);
   const [showAutoMatch, setShowAutoMatch] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [autoMatchPreview, setAutoMatchPreview] = useState<Record<string, unknown> | null>(
@@ -286,6 +290,7 @@ function Inner() {
   async function startBankConnect() {
     setConnecting(true);
     try {
+      const useFnb = Boolean(bankProvider?.fnb?.configured);
       const returnUrl =
         typeof window !== 'undefined'
           ? `${window.location.origin}/dashboard/accounting/bank-reconciliation`
@@ -296,13 +301,26 @@ function Inner() {
         body: JSON.stringify({
           companyId,
           privyUserId,
-          action: 'start',
+          action: useFnb ? 'start_fnb' : 'start',
+          provider: useFnb ? 'fnb' : undefined,
+          account_number: fnbAccountNumber.trim() || undefined,
           bank_account_id: selectedAccount || undefined,
           returnUrl,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Connect failed');
+
+      if (data.mode === 'fnb') {
+        if (data.token_ok) {
+          toast.success(data.message || 'FNB connected');
+        } else {
+          toast.error(data.message || 'FNB token failed');
+        }
+        setShowConnect(false);
+        void load();
+        return;
+      }
 
       if (data.mode === 'sandbox') {
         // Complete in-app without leaving the page
@@ -1345,9 +1363,11 @@ function Inner() {
                 Bank feed middleware
               </div>
               <p className="text-sm text-slate-600 mt-0.5">
-                {bankProvider?.mode === 'sandbox' || !bankProvider?.configured
-                  ? 'Sandbox mode — demo FNB feed without API keys. Set BANKLINK_API_KEY for live BankLink.'
-                  : 'Live BankLink mode — FNB and roadmap banks via open-banking style link.'}
+                {bankProvider?.fnb?.configured
+                  ? 'FNB Integration Channel is configured — connect Big Five Foods and sync statements.'
+                  : bankProvider?.mode === 'sandbox' || !bankProvider?.configured
+                    ? 'Sandbox mode — demo FNB feed without API keys. Set FNB_CLIENT_ID / FNB_CLIENT_SECRET or BANKLINK_API_KEY.'
+                    : 'Live BankLink mode — FNB and roadmap banks via open-banking style link.'}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -2422,8 +2442,9 @@ function Inner() {
         <Modal title="Connect bank feed" onClose={() => setShowConnect(false)}>
           <div className="space-y-4">
             <p className="text-sm text-slate-600 leading-relaxed">
-              Link a South African bank account via BankLink open banking (FNB live; other banks on
-              roadmap). Transactions land in the same allocation queue as PDF/CSV imports.
+              {bankProvider?.fnb?.configured
+                ? 'Connect FNB through the Integration Channel (client ID + secret). Statements land in the same allocation queue as PDF/CSV imports.'
+                : 'Link a South African bank account via BankLink open banking (FNB live; other banks on roadmap). Transactions land in the same allocation queue as PDF/CSV imports.'}
             </p>
             <div className="rounded-2xl border border-cyan-100 bg-sky-50/60 px-4 py-3 text-xs text-slate-700 space-y-1.5">
               <div className="font-bold text-slate-900">How it works</div>
@@ -2439,10 +2460,63 @@ function Inner() {
               <p className="text-neutral-600">
                 Mode:{' '}
                 <strong>
-                  {bankProvider?.configured ? 'live (API key)' : 'sandbox (no key)'}
+                  {bankProvider?.fnb?.configured
+                    ? 'FNB Integration Channel'
+                    : bankProvider?.configured
+                      ? 'live BankLink'
+                      : 'sandbox (no key)'}
                 </strong>
-                . Webhook URL for BankLink Pulses:
+                .
               </p>
+              {bankProvider?.fnb?.configured ? (
+                <div className="mt-2 space-y-2">
+                  <input
+                    className="w-full rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs"
+                    placeholder="FNB account number (optional if FNB_ACCOUNT_NUMBER is set)"
+                    value={fnbAccountNumber}
+                    onChange={(e) => setFnbAccountNumber(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="text-[11px] font-bold text-[#0077b6]"
+                    onClick={() => {
+                      void (async () => {
+                        setFnbProbe('Probing token…');
+                        try {
+                          const res = await fetch(
+                            `/api/banking/fnb/probe?companyId=${companyId}`
+                          );
+                          const data = await res.json();
+                          if (!res.ok) throw new Error(data.error || 'Probe failed');
+                          if (data.token?.ok) {
+                            setFnbProbe(
+                              `Token OK via ${data.token.tokenUrl || 'FNB'}`
+                            );
+                          } else {
+                            setFnbProbe(
+                              data.token?.error ||
+                                'Token failed — add FNB_TOKEN_URL from the Integration Channel pack'
+                            );
+                          }
+                        } catch (e) {
+                          setFnbProbe(
+                            e instanceof Error ? e.message : 'Probe failed'
+                          );
+                        }
+                      })();
+                    }}
+                  >
+                    Test FNB credentials
+                  </button>
+                  {fnbProbe ? (
+                    <p className="text-[11px] text-slate-600">{fnbProbe}</p>
+                  ) : null}
+                </div>
+              ) : (
+                <>
+                  <p className="text-neutral-600 mt-1">
+                    Webhook URL for BankLink Pulses:
+                  </p>
               <code className="mt-2 block text-[10px] bg-neutral-50 border border-neutral-100 rounded-lg px-2 py-1.5 break-all">
                 {typeof window !== 'undefined'
                   ? `${window.location.origin}/api/banking/webhooks/banklink`
@@ -2452,6 +2526,8 @@ function Inner() {
                 Env: <code className="font-mono">BANKLINK_API_KEY</code>,{' '}
                 <code className="font-mono">BANKLINK_WEBHOOK_SECRET</code> (optional).
               </p>
+                </>
+              )}
             </div>
             {selectedAccount && (
               <p className="text-xs text-neutral-500">
@@ -2477,7 +2553,11 @@ function Inner() {
                 ) : (
                   <Wifi className="w-4 h-4" />
                 )}
-                {bankProvider?.configured ? 'Connect with BankLink' : 'Connect sandbox FNB'}
+                {bankProvider?.fnb?.configured
+                  ? 'Connect FNB Integration Channel'
+                  : bankProvider?.configured
+                    ? 'Connect with BankLink'
+                    : 'Connect sandbox FNB'}
               </button>
             </div>
           </div>

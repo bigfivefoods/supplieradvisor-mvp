@@ -5,6 +5,8 @@ import { parseCompanyId } from '@/lib/accounting/server';
 import {
   banklinkConfig,
   fetchBankLinkTransactions,
+  fetchFnbTransactions,
+  fnbConfig,
   ingestCanonicalTxns,
   startSyncRun,
   finishSyncRun,
@@ -45,6 +47,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServer();
     const cfg = banklinkConfig();
+    const fnb = fnbConfig();
 
     let conn: Record<string, unknown> | null = null;
     if (connectionId) {
@@ -108,7 +111,30 @@ export async function POST(request: NextRequest) {
         ? sandboxTransactions()
         : [];
 
-    if (conn.provider === 'banklink' && cfg.mode === 'live' && externalAccountId) {
+    if (conn.provider === 'fnb') {
+      const pulled = await fetchFnbTransactions({
+        accountNumber: String(externalAccountId || fnb.accountNumber || ''),
+      });
+      if (pulled.error && !pulled.txns.length) {
+        void import('@/lib/notifications/email-alerts').then(
+          ({ notifyBankSyncFailed }) =>
+            notifyBankSyncFailed({
+              profileId: companyId,
+              connectionId: Number(conn.id),
+              error: pulled.error || 'FNB statement pull failed',
+            })
+        );
+        return NextResponse.json(
+          {
+            error: pulled.error || 'Failed to fetch FNB transactions',
+            tried: pulled.tried,
+            tokenUrl: pulled.tokenUrl,
+          },
+          { status: 502 }
+        );
+      }
+      txns = pulled.txns;
+    } else if (conn.provider === 'banklink' && cfg.mode === 'live' && externalAccountId) {
       const pulled = await fetchBankLinkTransactions({ accountId: externalAccountId });
       if (pulled.error && !pulled.txns.length) {
         void import('@/lib/notifications/email-alerts').then(
@@ -127,7 +153,11 @@ export async function POST(request: NextRequest) {
       txns = pulled.txns;
     }
 
-    if (!txns.length && (conn.provider === 'sandbox' || cfg.mode === 'sandbox')) {
+    if (
+      !txns.length &&
+      conn.provider !== 'fnb' &&
+      (conn.provider === 'sandbox' || cfg.mode === 'sandbox')
+    ) {
       txns = sandboxTransactions();
     }
 
