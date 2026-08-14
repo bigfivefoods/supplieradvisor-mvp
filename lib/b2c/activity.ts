@@ -11,6 +11,15 @@ import {
   readFitgraphFromMetadata,
 } from '@/lib/fitness/fitgraph';
 import type { B2cMembership } from '@/lib/b2c/types';
+import {
+  chargesForMember,
+  readMemberAccountStore,
+} from '@/lib/b2c/member-account';
+import {
+  formatZar,
+  isAdvisorAccountKind,
+  kindAccountLabel,
+} from '@/lib/b2c/member-account-types';
 
 export type B2cActivityItem = {
   id: string;
@@ -53,6 +62,29 @@ export async function buildB2cActivity(
     const brand = mem.brand || mem.company_name;
     try {
       const raw = await meta(mem.company_id);
+
+      if (isAdvisorAccountKind(mem.kind)) {
+        const acct = readMemberAccountStore(raw);
+        const mine = chargesForMember(acct, {
+          kind: mem.kind,
+          ref_id: mem.ref_id,
+          email: mem.email,
+        });
+        const openZar = mine
+          .filter((c) => c.status === 'open')
+          .reduce((n, c) => n + (Number(c.amount_zar) || 0), 0);
+        if (openZar > 0) {
+          items.push({
+            id: `acct-${mem.company_id}-${mem.kind}-${mem.ref_id}`,
+            kind: mem.kind,
+            tone: 'alert',
+            title: `${formatZar(openZar)} due`,
+            subtitle: `${brand} · ${kindAccountLabel(mem.kind)}`,
+            href: `/me?tab=memberships&account=${mem.company_id}`,
+            badge: 'Pay',
+          });
+        }
+      }
 
       if (mem.kind === 'hire') {
         const store = readHiregraphFromMetadata(raw);

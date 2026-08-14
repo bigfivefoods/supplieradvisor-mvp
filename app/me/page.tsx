@@ -30,6 +30,7 @@ import {
   Store,
   User,
   WalletCards,
+  Banknote,
 } from 'lucide-react';
 import {
   extractEmailFromPrivyUser,
@@ -45,6 +46,7 @@ import { B2cHireJourneyList } from '@/components/b2c/B2cHireJourney';
 import { B2cIdentityCard } from '@/components/b2c/B2cIdentityCard';
 import { B2cCarePanel } from '@/components/b2c/B2cCarePanel';
 import { B2cProfileShares } from '@/components/b2c/B2cProfileShares';
+import { B2cMemberAccounts } from '@/components/b2c/B2cMemberAccounts';
 import { B2cPhotoField } from '@/components/b2c/B2cPhotoField';
 import { B2cThemeToggle } from '@/components/b2c/B2cThemeToggle';
 import {
@@ -183,6 +185,10 @@ function MeAppInner() {
   const [joinModules, setJoinModules] = useState<string[]>([]);
   const [joinAlready, setJoinAlready] = useState(false);
   const [joinOwned, setJoinOwned] = useState(false);
+  const [accountDueByCompany, setAccountDueByCompany] = useState<
+    Record<number, number>
+  >({});
+  const focusAccount = Number(search?.get('account') || 0) || null;
 
   // Deep links: ?tab=shop|checkin|memberships|account  ?link=
   useEffect(() => {
@@ -201,6 +207,9 @@ function MeAppInner() {
       setLinkToken(link);
       setTab('checkin');
     }
+    if (search?.get('account')) {
+      setTab('memberships');
+    }
   }, [search]);
 
   useEffect(() => {
@@ -212,6 +221,43 @@ function MeAppInner() {
       );
     setInstallHint(!standalone);
   }, []);
+
+  useEffect(() => {
+    const ref = search?.get('ref');
+    const pay = search?.get('pay');
+    if (!authenticated || !ref || pay == null) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/b2c/accounts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'verify',
+            companyId: Number(search.get('companyId') || 0),
+            reference: ref,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not confirm payment');
+        if (!cancelled) toast.success(data.message || 'Payment recorded');
+      } catch (e: unknown) {
+        if (!cancelled) {
+          toast.error(e instanceof Error ? e.message : 'Payment check failed');
+        }
+      } finally {
+        if (cancelled || typeof window === 'undefined') return;
+        const u = new URL(window.location.href);
+        u.searchParams.delete('pay');
+        u.searchParams.delete('ref');
+        u.searchParams.delete('companyId');
+        router.replace(`${u.pathname}${u.search}`);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authenticated, router, search]);
 
   const load = useCallback(async () => {
     if (!authenticated) {
@@ -1017,6 +1063,22 @@ function MeAppInner() {
             linkedCompanyIds={linkedCompanyIds}
             onLinked={() => void load()}
           />
+          <div>
+            <p className="mb-2 px-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
+              Your accounts
+            </p>
+            <B2cMemberAccounts
+              focusCompanyId={focusAccount}
+              onLoaded={(list) => {
+                const map: Record<number, number> = {};
+                for (const row of list) {
+                  map[row.company_id] =
+                    (map[row.company_id] || 0) + (row.summary.open_zar || 0);
+                }
+                setAccountDueByCompany(map);
+              }}
+            />
+          </div>
           {accounts.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-5 py-12 text-center">
               <p className="text-sm font-black text-slate-800">
@@ -1093,6 +1155,21 @@ function MeAppInner() {
                           {kindActionLabel(bookCard.kind)}
                         </Link>
                       ) : null}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const u = new URL(window.location.href);
+                          u.searchParams.set('tab', 'memberships');
+                          u.searchParams.set('account', String(a.company_id));
+                          router.replace(`${u.pathname}${u.search}`);
+                        }}
+                        className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-black text-amber-950"
+                      >
+                        <Banknote className="h-3.5 w-3.5" />
+                        {accountDueByCompany[a.company_id]
+                          ? `Account · R${accountDueByCompany[a.company_id].toLocaleString('en-ZA')}`
+                          : 'Account'}
+                      </button>
                       {clinic ? (
                         <Link
                           href={membershipRecordsHref(clinic)}

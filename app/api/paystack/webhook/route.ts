@@ -401,6 +401,63 @@ export async function POST(request: NextRequest) {
       } catch (e) {
         console.warn('[paystack webhook] subscription/packs soft-fail', e);
       }
+
+      try {
+        const { isMemberAccountPaystack } = await import(
+          '@/lib/b2c/member-account-pay'
+        );
+        if (isMemberAccountPaystack(data)) {
+          const { verifyPaystackTransaction } = await import(
+            '@/lib/billing/paystack'
+          );
+          const v = await verifyPaystackTransaction(reference, {
+            expectedCurrency: 'ZAR',
+          });
+          if (!v.ok && process.env.NODE_ENV === 'production') {
+            void recordPaystackWebhookPulse({
+              event: eventName,
+              reference,
+              handled: 'member_account_verify_failed',
+              summary: v.error,
+            });
+            return NextResponse.json({
+              received: true,
+              handled: 'member_account_verify_failed',
+              reason: v.error,
+              reference,
+            });
+          }
+          const { applyMemberAccountPaystack } = await import(
+            '@/lib/b2c/member-account-apply-paystack'
+          );
+          const applied = await applyMemberAccountPaystack({
+            data,
+            reference,
+            amountCents: v.ok ? v.amount : Number(data.amount || 0),
+          });
+          void recordPaystackWebhookPulse({
+            event: eventName,
+            reference,
+            companyId: applied.ok ? applied.companyId : undefined,
+            handled: applied.ok
+              ? 'member_account_paid'
+              : 'member_account_failed',
+            summary: applied.ok
+              ? `Member account payment ${applied.paymentId}`
+              : applied.error,
+          });
+          return NextResponse.json({
+            received: true,
+            handled: applied.ok
+              ? 'member_account_paid'
+              : 'member_account_failed',
+            reference,
+            ...applied,
+          });
+        }
+      } catch (e) {
+        console.warn('[paystack webhook] member-account soft-fail', e);
+      }
     }
 
     return NextResponse.json({
