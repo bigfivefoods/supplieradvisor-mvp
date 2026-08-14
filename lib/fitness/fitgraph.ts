@@ -257,6 +257,8 @@ export type FitCoach = {
   bio?: string;
   /** Public bio for website / coach cards */
   public_bio?: string;
+  /** Degrees, registrations, short courses + uploaded certificates */
+  qualifications?: import('@/lib/services/person-qualifications').PersonQualification[];
   photo_url?: string;
   /** Token for coach self-service portal (share classes with members) */
   portal_token?: string | null;
@@ -1625,6 +1627,17 @@ export function buildPublicCalendarPayload(
           bio: c.public_bio || c.bio,
           color: c.color,
           photo_url: c.photo_url || undefined,
+          qualifications: (c.qualifications || [])
+            .filter((q) => q.public !== false)
+            .map((q) => ({
+              title: q.title,
+              issuer: q.issuer,
+              year: q.year,
+              certificates: (q.certificates || []).map((d) => ({
+                file_name: d.file_name,
+                url: d.url,
+              })),
+            })),
         }))
     : [];
 
@@ -1940,6 +1953,7 @@ export function buildCoachPortalPayload(
       specialties: coach.specialties || [],
       bio: coach.bio || '',
       public_bio: coach.public_bio || coach.bio || '',
+      qualifications: coach.qualifications || [],
       photo_url: coach.photo_url || '',
       color: coach.color || '',
       start_date: coach.start_date || (coach.created_at || '').slice(0, 10) || '',

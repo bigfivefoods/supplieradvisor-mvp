@@ -6,6 +6,8 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { PersonQualificationsEditor } from '@/components/services/PersonQualificationsEditor';
+import type { PersonQualification } from '@/lib/services/person-qualifications';
 import {
   CalendarDays,
   Check,
@@ -67,6 +69,7 @@ type Portal = {
     bio?: string;
     public_bio?: string;
     photo_url?: string;
+    qualifications?: PersonQualification[];
     can_manage?: boolean;
   };
   from: string;
@@ -120,6 +123,7 @@ export default function ClinicianPortalPage() {
   );
   const [openId, setOpenId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [patientFor, setPatientFor] = useState('');
   const [edit, setEdit] = useState({
     service_id: '',
@@ -276,13 +280,22 @@ export default function ClinicianPortalPage() {
                 )}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-1 rounded-full bg-sky-500 text-sky-950 px-3 py-1.5 text-xs font-black"
-            >
-              <Plus className="w-3.5 h-3.5" /> New appointment
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setShowProfile(true)}
+                className="inline-flex items-center gap-1 rounded-full border border-slate-600 px-3 py-1.5 text-xs font-black text-slate-100"
+              >
+                <User className="w-3.5 h-3.5" /> Bio
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCreate(true)}
+                className="inline-flex items-center gap-1 rounded-full bg-sky-500 text-sky-950 px-3 py-1.5 text-xs font-black"
+              >
+                <Plus className="w-3.5 h-3.5" /> New appointment
+              </button>
+            </div>
           </div>
           <p className="text-[11px] text-slate-400 mt-1">
             Edit and delete diary entries · book patients · mark attendance ·
@@ -310,6 +323,84 @@ export default function ClinicianPortalPage() {
           </div>
         </div>
       </header>
+
+      {showProfile && portal ? (
+        <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 p-4 sm:items-center">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-slate-700 bg-slate-900 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-black">Your bio & qualifications</h2>
+              <button
+                type="button"
+                onClick={() => setShowProfile(false)}
+                className="text-xs font-bold text-slate-400"
+              >
+                Close
+              </button>
+            </div>
+            <textarea
+              className="w-full min-h-[4rem] resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              placeholder="Public bio patients see on the website"
+              defaultValue={portal.clinician.public_bio || ''}
+              id="clinician-public-bio"
+            />
+            <textarea
+              className="w-full min-h-[3rem] resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              placeholder="Internal notes / full bio"
+              defaultValue={portal.clinician.bio || ''}
+              id="clinician-bio"
+            />
+            <button
+              type="button"
+              disabled={busy}
+              className="w-full rounded-xl bg-sky-500 py-2 text-sm font-black text-sky-950 disabled:opacity-50"
+              onClick={() => {
+                const publicBio = (
+                  document.getElementById(
+                    'clinician-public-bio'
+                  ) as HTMLTextAreaElement | null
+                )?.value;
+                const bio = (
+                  document.getElementById('clinician-bio') as HTMLTextAreaElement | null
+                )?.value;
+                void post({
+                  action: 'update_profile',
+                  public_bio: publicBio,
+                  bio,
+                }).then(() => setShowProfile(false));
+              }}
+            >
+              Save bio
+            </button>
+            <PersonQualificationsEditor
+              qualifications={portal.clinician.qualifications || []}
+              onChange={async (next) => {
+                await post({ action: 'update_profile', qualifications: next });
+              }}
+              uploadFile={async (file) => {
+                const fd = new FormData();
+                fd.set('module', mod);
+                fd.set('token', token);
+                fd.set('action', 'upload_certificate');
+                fd.set('file', file);
+                const res = await fetch('/api/public/advisor/clinician', {
+                  method: 'POST',
+                  body: fd,
+                });
+                const data = await res.json();
+                if (!res.ok || !data.url) {
+                  throw new Error(data.error || 'Upload failed');
+                }
+                return {
+                  url: String(data.url),
+                  fileName: String(data.fileName || file.name),
+                };
+              }}
+              disabled={busy}
+              toneClass="border-slate-700 bg-slate-950/60"
+            />
+          </div>
+        </div>
+      ) : null}
 
       <main className="max-w-3xl mx-auto px-3 py-4 sm:px-6 space-y-3">
         {error && (

@@ -26,6 +26,8 @@ import {
 } from 'lucide-react';
 import { addDaysIso } from '@/lib/fitness/fitgraph';
 import { FitClassFeedbackForm } from '@/components/fitness/FitClassFeedbackForm';
+import { PersonQualificationsEditor } from '@/components/services/PersonQualificationsEditor';
+import type { PersonQualification } from '@/lib/services/person-qualifications';
 import type { PersonHealthProfile } from '@/lib/health/body-map';
 import {
   InjuryProfileFields,
@@ -120,6 +122,7 @@ type Portal = {
     bio?: string;
     public_bio?: string;
     photo_url?: string;
+    qualifications?: import('@/lib/services/person-qualifications').PersonQualification[];
     color?: string;
     can_manage_classes?: boolean;
     start_date?: string;
@@ -248,6 +251,7 @@ export default function CoachFitgraphPortalPage() {
     public_bio: '',
     photo_url: '',
     specialties: [] as string[],
+    qualifications: [] as import('@/lib/services/person-qualifications').PersonQualification[],
   });
   const [memberEdit, setMemberEdit] = useState<{
     id: string;
@@ -325,6 +329,9 @@ export default function CoachFitgraphPortalPage() {
           photo_url: c.photo_url || '',
           specialties: Array.isArray(c.specialties)
             ? [...c.specialties]
+            : [],
+          qualifications: Array.isArray(c.qualifications)
+            ? c.qualifications
             : [],
         });
       }
@@ -1294,6 +1301,33 @@ export default function CoachFitgraphPortalPage() {
                 }
               />
             </div>
+            <PersonQualificationsEditor
+              qualifications={profile.qualifications}
+              onChange={async (next) => {
+                setProfile((p) => ({ ...p, qualifications: next }));
+                await post({
+                  action: 'update_profile',
+                  qualifications: next,
+                });
+              }}
+              uploadFile={async (file) => {
+                const fd = new FormData();
+                fd.set('token', token);
+                fd.set('action', 'upload_certificate');
+                fd.set('file', file);
+                const res = await fetch('/api/public/fitgraph/coach', {
+                  method: 'POST',
+                  body: fd,
+                });
+                const data = await res.json();
+                if (!res.ok || !data.url) {
+                  throw new Error(data.error || 'Upload failed');
+                }
+                return { url: String(data.url), fileName: String(data.fileName || file.name) };
+              }}
+              disabled={busy}
+              toneClass="border-slate-700 bg-slate-950/60"
+            />
             <button
               type="button"
               disabled={busy || !profile.name.trim()}
@@ -1307,6 +1341,7 @@ export default function CoachFitgraphPortalPage() {
                   id_number: profile.id_number.trim() || null,
                   bio: profile.bio,
                   public_bio: profile.public_bio,
+                  qualifications: profile.qualifications,
                   photo_url: profile.photo_url.trim() || null,
                   specialties: profile.specialties.length
                     ? profile.specialties

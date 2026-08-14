@@ -33,7 +33,18 @@ type PublicCalendar = {
   from: string;
   to: string;
   sessions: PublicSession[];
-  coaches: Array<{ code: string; name: string; specialties?: string[]; bio?: string }>;
+  coaches: Array<{
+    code: string;
+    name: string;
+    specialties?: string[];
+    bio?: string;
+    qualifications?: Array<{
+      title: string;
+      issuer?: string;
+      year?: string | null;
+      certificates?: Array<{ file_name: string; url: string }>;
+    }>;
+  }>;
   plans: Array<{
     code: string;
     name: string;
@@ -274,6 +285,31 @@ export default function EmbedFitgraphPage() {
                   {c.bio && (
                     <p className="text-[12px] text-slate-600 mt-1">{c.bio}</p>
                   )}
+                  {(c.qualifications || []).length > 0 ? (
+                    <ul className="mt-1.5 space-y-0.5 text-[11px] text-slate-500">
+                      {c.qualifications!.map((q) => (
+                        <li key={q.title}>
+                          <span className="font-semibold text-slate-700">
+                            {q.title}
+                          </span>
+                          {q.issuer || q.year
+                            ? ` · ${[q.issuer, q.year].filter(Boolean).join(' · ')}`
+                            : ''}
+                          {(q.certificates || []).map((d) => (
+                            <a
+                              key={d.url}
+                              href={d.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ml-1 font-bold text-sky-800"
+                            >
+                              Certificate
+                            </a>
+                          ))}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </div>
               ))}
             </div>

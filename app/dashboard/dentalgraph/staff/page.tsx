@@ -22,6 +22,9 @@ import {
   type DentalStaff,
 } from '@/lib/dental/dentalgraph';
 import { FitContractDocsPanel } from '@/components/fitness/FitContractDocs';
+import { PersonQualificationsEditor } from '@/components/services/PersonQualificationsEditor';
+import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
+import type { PersonQualification } from '@/lib/services/person-qualifications';
 import type { FitContractDoc } from '@/lib/fitness/fitgraph';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 
@@ -334,6 +337,17 @@ export default function StaffPage() {
       return next;
     });
     toast.success('Staff rehired — new engagement started, history kept');
+  };
+
+  const saveQualifications = async (
+    p: DentalStaff,
+    qualifications: PersonQualification[]
+  ) => {
+    await post({
+      entity: 'staff',
+      action: 'upsert',
+      record: { id: p.id, code: p.code, name: p.name, qualifications },
+    });
   };
 
   const saveContracts = async (p: DentalStaff, contracts: FitContractDoc[]) => {
@@ -1248,6 +1262,29 @@ export default function StaffPage() {
                             )}
                           </ul>
                         )}
+                      </div>
+
+                      <div className="mt-3">
+                        <PersonQualificationsEditor
+                          qualifications={p.qualifications || []}
+                          onChange={(next) => void saveQualifications(p, next)}
+                          uploadFile={async (file) => {
+                            const result = await uploadCompanyAssetServerFirst({
+                              file,
+                              companyId,
+                              kind: 'qualification_certificate',
+                            });
+                            if (!result.url) {
+                              throw new Error(result.error || 'Upload failed');
+                            }
+                            return {
+                              url: result.url,
+                              fileName: result.fileName || file.name,
+                            };
+                          }}
+                          disabled={saving}
+                          toneClass="border-sky-200/80 bg-sky-50/50 dark:border-sky-700/50 dark:bg-sky-950/30"
+                        />
                       </div>
 
                       <div className="mt-3">

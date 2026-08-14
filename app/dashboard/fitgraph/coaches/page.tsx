@@ -33,6 +33,9 @@ import {
   type FitContractDoc,
 } from '@/lib/fitness/fitgraph';
 import { FitContractDocsPanel } from '@/components/fitness/FitContractDocs';
+import { PersonQualificationsEditor } from '@/components/services/PersonQualificationsEditor';
+import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
+import type { PersonQualification } from '@/lib/services/person-qualifications';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 
 function todayIso() {
@@ -336,6 +339,17 @@ export default function CoachesPage() {
       return next;
     });
     toast.success('Coach rehired — new engagement started, history kept');
+  };
+
+  const saveCoachQualifications = async (
+    c: FitCoach,
+    qualifications: PersonQualification[]
+  ) => {
+    await post({
+      entity: 'coaches',
+      action: 'upsert',
+      record: { id: c.id, code: c.code, name: c.name, qualifications },
+    });
   };
 
   const saveCoachContracts = async (
@@ -1325,6 +1339,31 @@ export default function CoachesPage() {
                             )}
                           </ul>
                         )}
+                      </div>
+
+                      <div className="mt-3">
+                        <PersonQualificationsEditor
+                          qualifications={c.qualifications || []}
+                          onChange={(next) =>
+                            void saveCoachQualifications(c, next)
+                          }
+                          uploadFile={async (file) => {
+                            const result = await uploadCompanyAssetServerFirst({
+                              file,
+                              companyId,
+                              kind: 'qualification_certificate',
+                            });
+                            if (!result.url) {
+                              throw new Error(result.error || 'Upload failed');
+                            }
+                            return {
+                              url: result.url,
+                              fileName: result.fileName || file.name,
+                            };
+                          }}
+                          disabled={saving}
+                          toneClass="border-amber-200/80 bg-amber-50/50 dark:border-amber-700/50 dark:bg-amber-950/30"
+                        />
                       </div>
 
                       <div className="mt-3">

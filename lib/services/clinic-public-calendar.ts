@@ -30,7 +30,17 @@ export type ClinicPublicCalendar = {
   from: string;
   to: string;
   slots: ClinicPublicSlot[];
-  clinicians: Array<{ name: string; disciplines?: string[] }>;
+  clinicians: Array<{
+    name: string;
+    disciplines?: string[];
+    bio?: string;
+    qualifications?: Array<{
+      title: string;
+      issuer?: string;
+      year?: string | null;
+      certificates?: Array<{ file_name: string; url: string }>;
+    }>;
+  }>;
   services: Array<{ name: string; duration_min?: number; price_zar?: number }>;
 };
 
@@ -165,10 +175,40 @@ export function buildClinicPublicCalendar(opts: {
     slots,
     clinicians: clinicians
       .filter((c) => (c as { active?: boolean }).active !== false)
-      .map((c) => ({
-        name: c.name,
-        disciplines: c.disciplines,
-      })),
+      .map((c) => {
+        const person = c as {
+          name: string;
+          disciplines?: string[];
+          roles?: string[];
+          public_bio?: string;
+          bio?: string;
+          qualifications?: unknown;
+        };
+        const quals = (
+          person.qualifications && Array.isArray(person.qualifications)
+            ? person.qualifications
+            : []
+        ) as Array<{
+          title?: string;
+          issuer?: string;
+          year?: string | null;
+          public?: boolean;
+          certificates?: Array<{ file_name: string; url: string }>;
+        }>;
+        return {
+          name: person.name,
+          disciplines: person.disciplines || person.roles,
+          bio: person.public_bio || person.bio,
+          qualifications: quals
+            .filter((q) => q.public !== false && q.title)
+            .map((q) => ({
+              title: String(q.title),
+              issuer: q.issuer,
+              year: q.year,
+              certificates: q.certificates || [],
+            })),
+        };
+      }),
     services: store.services
       .filter((s) => s.active !== false)
       .map((s) => ({

@@ -30,6 +30,7 @@ import {
   type PhysioService,
   type PhysiographStore,
 } from '@/lib/clinic/physiograph';
+import { parseQualifications } from '@/lib/services/person-qualifications';
 import { mergeHealthProfile } from '@/lib/health/body-map';
 import {
   applyMessageAction,
@@ -1401,6 +1402,10 @@ function upsert(
       bio: rec.bio != null ? String(rec.bio) : prev?.bio,
       public_bio:
         rec.public_bio != null ? String(rec.public_bio) : prev?.public_bio,
+      qualifications:
+        rec.qualifications !== undefined
+          ? parseQualifications(rec.qualifications)
+          : prev?.qualifications || [],
       photo_url:
         rec.photo_url !== undefined
           ? rec.photo_url

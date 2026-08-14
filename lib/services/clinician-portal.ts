@@ -76,6 +76,7 @@ export type ClinicianPerson = {
   bio?: string;
   public_bio?: string;
   photo_url?: string;
+  qualifications?: import('@/lib/services/person-qualifications').PersonQualification[];
 };
 
 export type ClinicianAppointment = {
@@ -343,6 +344,7 @@ export function buildClinicianPortalPayload(
       bio: clinician.bio,
       public_bio: clinician.public_bio,
       photo_url: clinician.photo_url,
+      qualifications: clinician.qualifications || [],
       can_manage: clinician.can_manage !== false,
     },
     from: start,

@@ -29,7 +29,17 @@ type Calendar = {
   primary_color?: string;
   city?: string;
   slots: Slot[];
-  clinicians?: Array<{ name: string; disciplines?: string[] }>;
+  clinicians?: Array<{
+    name: string;
+    disciplines?: string[];
+    bio?: string;
+    qualifications?: Array<{
+      title: string;
+      issuer?: string;
+      year?: string | null;
+      certificates?: Array<{ file_name: string; url: string }>;
+    }>;
+  }>;
   services?: Array<{ name: string; price_zar?: number }>;
 };
 
@@ -237,13 +247,39 @@ export default function EmbedClinicAdvisorPage() {
             </h2>
             <ul className="text-sm space-y-1">
               {calendar.clinicians.slice(0, 12).map((c) => (
-                <li key={c.name}>
+                <li key={c.name} className="py-1">
                   <span className="font-semibold">{c.name}</span>
                   {c.disciplines?.length ? (
                     <span className="text-slate-500 text-xs">
                       {' '}
                       · {c.disciplines.join(', ')}
                     </span>
+                  ) : null}
+                  {c.bio ? (
+                    <p className="text-[12px] text-slate-600">{c.bio}</p>
+                  ) : null}
+                  {(c.qualifications || []).length > 0 ? (
+                    <ul className="mt-0.5 text-[11px] text-slate-500">
+                      {c.qualifications!.map((q) => (
+                        <li key={q.title}>
+                          {q.title}
+                          {q.issuer || q.year
+                            ? ` · ${[q.issuer, q.year].filter(Boolean).join(' · ')}`
+                            : ''}
+                          {(q.certificates || []).map((d) => (
+                            <a
+                              key={d.url}
+                              href={d.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ml-1 font-bold text-sky-800"
+                            >
+                              Certificate
+                            </a>
+                          ))}
+                        </li>
+                      ))}
+                    </ul>
                   ) : null}
                 </li>
               ))}

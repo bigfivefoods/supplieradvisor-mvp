@@ -99,6 +99,7 @@ export type PsychiatryPractitioner = {
   disciplines?: string[];
   bio?: string;
   public_bio?: string;
+  qualifications?: import('@/lib/services/person-qualifications').PersonQualification[];
   photo_url?: string;
   rate_zar?: number | null;
   /** hourly | per_session | per_appointment | monthly | fixed | package */

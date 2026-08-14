@@ -194,6 +194,49 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const contentType = request.headers.get('content-type') || '';
+    if (contentType.includes('multipart/form-data')) {
+      const form = await request.formData();
+      const token = String(form.get('token') || '').trim();
+      const action = String(form.get('action') || '');
+      const file = form.get('file');
+      if (action !== 'upload_certificate' || !(file instanceof File)) {
+        return NextResponse.json(
+          { error: 'token, action=upload_certificate and file required' },
+          { status: 400 }
+        );
+      }
+      const resolved = await resolveCoach(token);
+      if (!resolved) {
+        return NextResponse.json(
+          { error: 'Coach portal not found' },
+          { status: 404 }
+        );
+      }
+      const {
+        isAllowedCertificateFile,
+        storeQualificationCertificate,
+      } = await import('@/lib/services/person-qualification-upload');
+      const bad = isAllowedCertificateFile(file);
+      if (bad) {
+        return NextResponse.json({ error: bad }, { status: 400 });
+      }
+      const stored = await storeQualificationCertificate({
+        companyId: resolved.companyId,
+        fileName: file.name,
+        buffer: Buffer.from(await file.arrayBuffer()),
+        contentType: file.type,
+      });
+      if ('error' in stored) {
+        return NextResponse.json({ error: stored.error }, { status: 502 });
+      }
+      return NextResponse.json({
+        success: true,
+        url: stored.url,
+        fileName: stored.fileName,
+      });
+    }
+
     const body = await request.json();
     const token = String(body.token || '').trim();
     const action = String(body.action || '');
@@ -489,6 +532,12 @@ export async function POST(request: NextRequest) {
           .filter(Boolean);
         prev.specialties = specs.length ? specs : ['General'];
       }
+      if (body.qualifications !== undefined) {
+        const { parseQualifications } = await import(
+          '@/lib/services/person-qualifications'
+        );
+        prev.qualifications = parseQualifications(body.qualifications);
+      }
       store.coaches[idx] = prev;
       await saveStore(companyId, meta, store);
       return NextResponse.json({
@@ -503,6 +552,7 @@ export async function POST(request: NextRequest) {
           specialties: prev.specialties,
           bio: prev.bio,
           public_bio: prev.public_bio,
+          qualifications: prev.qualifications || [],
           photo_url: prev.photo_url,
           color: prev.color,
         },

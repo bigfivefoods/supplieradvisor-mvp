@@ -255,6 +255,50 @@ export async function POST(req: NextRequest) {
         }
       );
     }
+    const contentType = req.headers.get('content-type') || '';
+    if (contentType.includes('multipart/form-data')) {
+      const form = await req.formData();
+      const module = String(form.get('module') || '');
+      const token = String(form.get('token') || '');
+      const action = String(form.get('action') || '');
+      const file = form.get('file');
+      if (action !== 'upload_certificate' || !(file instanceof File)) {
+        return NextResponse.json(
+          { error: 'module, token, action=upload_certificate and file required' },
+          { status: 400 }
+        );
+      }
+      const resolvedUp = await resolveClinician(module, token);
+      if (!resolvedUp) {
+        return NextResponse.json(
+          { error: 'Clinician portal not found' },
+          { status: 404 }
+        );
+      }
+      const {
+        isAllowedCertificateFile,
+        storeQualificationCertificate,
+      } = await import('@/lib/services/person-qualification-upload');
+      const bad = isAllowedCertificateFile(file);
+      if (bad) {
+        return NextResponse.json({ error: bad }, { status: 400 });
+      }
+      const stored = await storeQualificationCertificate({
+        companyId: resolvedUp.companyId,
+        fileName: file.name,
+        buffer: Buffer.from(await file.arrayBuffer()),
+        contentType: file.type,
+      });
+      if ('error' in stored) {
+        return NextResponse.json({ error: stored.error }, { status: 502 });
+      }
+      return NextResponse.json({
+        success: true,
+        url: stored.url,
+        fileName: stored.fileName,
+      });
+    }
+
     const body = await req.json();
     const module = String(body.module || '');
     const token = String(body.token || '');
@@ -268,6 +312,41 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
+
+    const { store, clinician, module: mod, companyId } = resolved;
+
+    if (action === 'update_profile') {
+      const people =
+        mod === 'dentalgraph' ? store.staff : store.practitioners;
+      const person = (people || []).find((p) => p.id === clinician.id);
+      if (!person) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      }
+      if (body.name != null) person.name = String(body.name).trim() || person.name;
+      if (body.email !== undefined)
+        person.email = body.email ? String(body.email) : undefined;
+      if (body.phone !== undefined)
+        person.phone = body.phone ? String(body.phone) : undefined;
+      if (body.bio !== undefined) person.bio = String(body.bio);
+      if (body.public_bio !== undefined)
+        person.public_bio = String(body.public_bio);
+      if (body.photo_url !== undefined)
+        person.photo_url = body.photo_url
+          ? String(body.photo_url)
+          : undefined;
+      if (body.qualifications !== undefined) {
+        const { parseQualifications } = await import(
+          '@/lib/services/person-qualifications'
+        );
+        person.qualifications = parseQualifications(body.qualifications);
+      }
+      await save(resolved);
+      return NextResponse.json({
+        ...portalJson(resolved, from, to),
+        message: 'Profile updated',
+      });
+    }
+
     if (resolved.clinician.can_manage === false) {
       return NextResponse.json(
         { error: 'Clinician cannot manage diary' },
@@ -275,7 +354,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { store, clinician, module: mod, companyId } = resolved;
     const now = new Date().toISOString();
     const appointmentId = String(
       body.appointment_id || body.session_id || body.id || ''
@@ -662,32 +740,6 @@ export async function POST(req: NextRequest) {
         ...portalJson(resolved, from, to),
         feedback_path: feedbackPath,
         message: `Marked ${nextStatus.replace('_', ' ')}`,
-      });
-    }
-
-    if (action === 'update_profile') {
-      const people =
-        mod === 'dentalgraph' ? store.staff : store.practitioners;
-      const person = (people || []).find((p) => p.id === clinician.id);
-      if (!person) {
-        return NextResponse.json({ error: 'Not found' }, { status: 404 });
-      }
-      if (body.name != null) person.name = String(body.name).trim() || person.name;
-      if (body.email !== undefined)
-        person.email = body.email ? String(body.email) : undefined;
-      if (body.phone !== undefined)
-        person.phone = body.phone ? String(body.phone) : undefined;
-      if (body.bio !== undefined) person.bio = String(body.bio);
-      if (body.public_bio !== undefined)
-        person.public_bio = String(body.public_bio);
-      if (body.photo_url !== undefined)
-        person.photo_url = body.photo_url
-          ? String(body.photo_url)
-          : undefined;
-      await save(resolved);
-      return NextResponse.json({
-        ...portalJson(resolved, from, to),
-        message: 'Profile updated',
       });
     }
 
