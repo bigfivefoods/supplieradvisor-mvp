@@ -5,7 +5,7 @@
  *   FNB_CLIENT_ID
  *   FNB_CLIENT_SECRET
  *   FNB_API_BASE          default https://api.fnb.co.za
- *   FNB_TOKEN_URL         optional full OAuth token URL
+ *   FNB_TOKEN_URL         default https://api.fnb.co.za/apigateway/oauth2/token/v2
  *   FNB_ACCOUNT_NUMBER    operating account for statement pulls
  *   FNB_SCOPE             optional OAuth scope
  *
@@ -17,12 +17,14 @@ import type { CanonicalTxn } from '../types';
 import { providerTxnId } from '../ingest';
 
 const DEFAULT_BASE = 'https://api.fnb.co.za';
+const DEFAULT_TOKEN_URL =
+  'https://api.fnb.co.za/apigateway/oauth2/token/v2';
 
 export function fnbConfig() {
   const clientId = (process.env.FNB_CLIENT_ID || '').trim();
   const clientSecret = (process.env.FNB_CLIENT_SECRET || '').trim();
   const base = (process.env.FNB_API_BASE || DEFAULT_BASE).replace(/\/$/, '');
-  const tokenUrl = (process.env.FNB_TOKEN_URL || '').trim();
+  const tokenUrl = (process.env.FNB_TOKEN_URL || DEFAULT_TOKEN_URL).trim();
   const accountNumber = (process.env.FNB_ACCOUNT_NUMBER || '').trim();
   const scope = (process.env.FNB_SCOPE || '').trim();
   return {
@@ -101,14 +103,14 @@ function clientAssertionJwt(cfg: ReturnType<typeof fnbConfig>, aud: string): str
 async function postToken(
   url: string,
   body: URLSearchParams,
-  basic?: string
+  extraHeaders?: Record<string, string>
 ): Promise<{ status: number; json: Record<string, unknown>; text: string }> {
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       Accept: 'application/json',
-      ...(basic ? { Authorization: `Basic ${basic}` } : {}),
+      ...(extraHeaders || {}),
     },
     body,
   });
@@ -146,10 +148,25 @@ export async function getFnbAccessToken(opts?: {
   const urls = candidateTokenUrls(cfg);
 
   for (const url of urls) {
-    const variants: Array<{ label: string; body: URLSearchParams; basic?: string }> = [
+    const variants: Array<{
+      label: string;
+      body: URLSearchParams;
+      headers?: Record<string, string>;
+    }> = [
       {
         label: 'form+basic',
-        basic,
+        headers: { Authorization: `Basic ${basic}` },
+        body: new URLSearchParams({
+          grant_type: 'client_credentials',
+          ...(cfg.scope ? { scope: cfg.scope } : {}),
+        }),
+      },
+      {
+        label: 'ibm-client-headers',
+        headers: {
+          'X-IBM-Client-Id': cfg.clientId,
+          'X-IBM-Client-Secret': cfg.clientSecret,
+        },
         body: new URLSearchParams({
           grant_type: 'client_credentials',
           ...(cfg.scope ? { scope: cfg.scope } : {}),
@@ -180,7 +197,7 @@ export async function getFnbAccessToken(opts?: {
     for (const v of variants) {
       const tag = `${url} [${v.label}]`;
       try {
-        const r = await postToken(url, v.body, v.basic);
+        const r = await postToken(url, v.body, v.headers);
         if (r.status === 404 || r.status === 0) {
           tried.push(`${tag} → ${r.status || 'unreachable'}`);
           break;

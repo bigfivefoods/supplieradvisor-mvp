@@ -35,7 +35,7 @@ BANKLINK_SANDBOX=1                    # force sandbox even if key set
 FNB_CLIENT_ID=
 FNB_CLIENT_SECRET=
 FNB_API_BASE=https://api.fnb.co.za
-FNB_TOKEN_URL=                        # OAuth token URL from the subscribe pack
+FNB_TOKEN_URL=https://api.fnb.co.za/apigateway/oauth2/token/v2
 FNB_ACCOUNT_NUMBER=                   # operating account for statement pulls
 FNB_SCOPE=
 ```
@@ -113,4 +113,4 @@ Creates `bank_connections`, `bank_sync_runs`, `bank_match_rules`, and provider c
 3. Set `CRON_SECRET` on Vercel for scheduled bank sync.
 4. Point BankLink Pulse to `/api/banking/webhooks/banklink`.
 5. Seed CoA so fee/interest rules resolve GL codes.
-6. FNB Integration Channel: set `FNB_CLIENT_ID` + `FNB_CLIENT_SECRET` (and `FNB_TOKEN_URL` from the subscribe pack). Accounting → Bank & allocation → Connect FNB.
+6. FNB Integration Channel: set `FNB_CLIENT_ID` + `FNB_CLIENT_SECRET` on Vercel. Token URL defaults to `https://api.fnb.co.za/apigateway/oauth2/token/v2`. Add `FNB_ACCOUNT_NUMBER` to pull statements. Accounting → Bank & allocation → Connect FNB.
