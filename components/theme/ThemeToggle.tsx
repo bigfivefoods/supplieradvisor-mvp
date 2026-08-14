@@ -39,7 +39,7 @@ const CORE_BRAND_OPTIONS: Array<{
     id: 'module',
     label: 'Follow module',
     hint: 'Match a subscribed Advisor you are in',
-    swatch: 'linear-gradient(135deg,#0891b2,#7c3aed,#16a34a)',
+    swatch: 'linear-gradient(135deg,#0891b2,#E8E830,#16a34a)',
   },
 ];
 

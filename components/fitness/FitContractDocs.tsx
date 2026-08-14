@@ -176,7 +176,7 @@ export function FitContractDocsPanel({
           type="button"
           disabled={disabled || uploading}
           onClick={() => fileRef.current?.click()}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-violet-600 dark:hover:bg-violet-500"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-yellow-600 dark:hover:bg-yellow-500"
         >
           {uploading ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />

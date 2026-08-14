@@ -31,13 +31,16 @@ export type PracticeSchedulePdfInput = {
   workingHours?: WorkingHours | null;
   events: PracticePdfEvent[];
   generatedAt?: Date;
+  /** Header / event accent — GymAdvisor uses VUKA yellow */
+  brandColor?: string;
+  brandInk?: string;
+  brandMuted?: string;
 };
 
 const INK = '#0f172a';
 const MUTED = '#64748b';
 const LINE = '#cbd5e1';
 const SOFT = '#f1f5f9';
-const BRAND = '#7c3aed';
 
 function parseIso(date: string): Date {
   const [y, m, d] = date.split('-').map(Number);
@@ -125,14 +128,17 @@ export async function buildPracticeSchedulePdf(
     // pdfkit page-breaks if y + lineHeight > pageH - bottomMargin
     // bottomMargin=50 ⇒ keep footer well above maxY
     const footerY = pageH - 62;
+    const brandFill = input.brandColor || '#7c3aed';
+    const brandInk = input.brandInk || '#ffffff';
+    const brandMuted = input.brandMuted || '#e9d5ff';
 
     // Solid white page (avoids dark / blank viewer look)
     doc.rect(0, 0, pageW, pageH).fill('#ffffff');
 
     // Header
-    doc.rect(0, 0, pageW, 48).fill(BRAND);
+    doc.rect(0, 0, pageW, 48).fill(brandFill);
     doc
-      .fillColor('#ffffff')
+      .fillColor(brandInk)
       .font('Helvetica-Bold')
       .fontSize(13)
       .text(input.brand || 'SupplierAdvisor®', mx, 14, {
@@ -142,7 +148,7 @@ export async function buildPracticeSchedulePdf(
     doc
       .font('Helvetica')
       .fontSize(9)
-      .fillColor('#e9d5ff')
+      .fillColor(brandMuted)
       .text(
         `${input.moduleLabel || 'Practice'} · A4 ${input.orientation}`,
         mx + contentW * 0.55,
@@ -310,7 +316,7 @@ export async function buildPracticeSchedulePdf(
               });
             break;
           }
-          doc.rect(x + 2, ey, colW - 4, 1).fill(BRAND);
+          doc.rect(x + 2, ey, colW - 4, 1).fill(brandFill);
           doc
             .fillColor(INK)
             .font('Helvetica-Bold')
@@ -457,6 +463,9 @@ export type PracticeProfilePdfInput = {
   people: Array<{ name: string; role?: string; code?: string }>;
   offerings: Array<{ name: string; code?: string; detail?: string }>;
   generatedAt?: Date;
+  brandColor?: string;
+  brandInk?: string;
+  brandMuted?: string;
 };
 
 export async function buildPracticeProfilePdf(
@@ -486,17 +495,21 @@ export async function buildPracticeProfilePdf(
     const contentW = pageW - mx * 2;
     const footerY = pageH - 62;
 
+    const brandFill = input.brandColor || '#7c3aed';
+    const brandInk = input.brandInk || '#ffffff';
+    const brandMuted = input.brandMuted || '#e9d5ff';
+
     doc.rect(0, 0, pageW, pageH).fill('#ffffff');
-    doc.rect(0, 0, pageW, 56).fill(BRAND);
+    doc.rect(0, 0, pageW, 56).fill(brandFill);
     doc
-      .fillColor('#fff')
+      .fillColor(brandInk)
       .font('Helvetica-Bold')
       .fontSize(16)
       .text(input.brand || 'Practice', mx, 18, { width: contentW });
     doc
       .font('Helvetica')
       .fontSize(9)
-      .fillColor('#e9d5ff')
+      .fillColor(brandMuted)
       .text(`${input.moduleLabel} · practice profile`, mx, 38);
 
     let y = 72;

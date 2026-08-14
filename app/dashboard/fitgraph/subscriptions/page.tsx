@@ -264,7 +264,7 @@ export default function SubscriptionsPage() {
                         )}
                         <button
                           type="button"
-                          className="text-xs font-bold text-slate-500 dark:text-violet-300/70"
+                          className="text-xs font-bold text-slate-500 dark:text-yellow-300/70"
                           onClick={() =>
                             void post({
                               entity: 'subscriptions',
@@ -278,10 +278,10 @@ export default function SubscriptionsPage() {
                       </>
                     }
                   >
-                    <div className="font-bold text-sm text-slate-900 dark:text-violet-50">
+                    <div className="font-bold text-sm text-slate-900 dark:text-yellow-50">
                       {client?.name || s.client_id} · {plan?.name || 'Plan'}
                     </div>
-                    <div className="text-[11px] text-slate-500 dark:text-violet-200/80">
+                    <div className="text-[11px] text-slate-500 dark:text-yellow-200/80">
                       {s.status} · started {s.started_at}
                       {s.current_period_end
                         ? ` · ends ${s.current_period_end}`

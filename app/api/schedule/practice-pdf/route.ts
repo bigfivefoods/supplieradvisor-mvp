@@ -53,6 +53,17 @@ const MODULE_LABEL: Record<ModuleId, string> = {
   psychiatrygraph: 'PsychiatryAdvisor',
 };
 
+function moduleBrandPaint(moduleId: ModuleId) {
+  if (moduleId === 'fitgraph') {
+    return {
+      brandColor: '#E8E830',
+      brandInk: '#111827',
+      brandMuted: '#6B6B00',
+    };
+  }
+  return {};
+}
+
 function isModule(s: string): s is ModuleId {
   return s in MODULE_LABEL;
 }
@@ -284,6 +295,7 @@ export async function GET(request: NextRequest) {
         rooms,
         people,
         offerings,
+        ...moduleBrandPaint(moduleRaw),
       });
       const safe = brand.replace(/[^\w.-]+/g, '_').slice(0, 40);
       // inline so browser PDF viewer can display (not a blank download tab)
@@ -346,6 +358,7 @@ export async function GET(request: NextRequest) {
       orientation,
       workingHours,
       events,
+      ...moduleBrandPaint(moduleRaw),
     });
     const safe = brand.replace(/[^\w.-]+/g, '_').slice(0, 40);
     const fname = `${safe}-${view}-${from}-${orientation}.pdf`;

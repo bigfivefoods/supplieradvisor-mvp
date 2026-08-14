@@ -175,7 +175,7 @@ export default function CalendarPage() {
           meta: `${booked}${cap ? `/${cap}` : ''} booked${
             s.room ? ` · ${s.room}` : ''
           }${s.public ? ' · public' : ''}`,
-          tone: 'violet' as const,
+          tone: 'yellow' as const,
         };
       });
   }, [store]);
@@ -568,7 +568,7 @@ export default function CalendarPage() {
             saving={saving}
             title="Gym working hours"
             description="Open days and studio hours. Closed days are dimmed on the calendar; day view follows your open window."
-            accentClass="border-violet-200 dark:border-violet-800"
+            accentClass="border-yellow-200 dark:border-yellow-800"
           />
 
           <div className="flex flex-wrap items-center gap-2 -mt-2">
@@ -593,7 +593,7 @@ export default function CalendarPage() {
               module: 'fitgraph',
               personId: personFilter || null,
             }}
-            accent="violet"
+            accent="yellow"
             events={scheduleEvents}
             people={schedulePeople}
             peopleLabel="Coach"
@@ -642,9 +642,9 @@ export default function CalendarPage() {
                   key={s.n}
                   className={`rounded-2xl border px-2 py-2 ${
                     selectedSessionId
-                      ? 'border-violet-400 bg-violet-50 text-violet-900 dark:border-violet-500 dark:bg-violet-950 dark:text-violet-100'
+                      ? 'border-yellow-400 bg-yellow-50 text-yellow-900 dark:border-yellow-500 dark:bg-yellow-950 dark:text-yellow-100'
                       : s.n === '1'
-                        ? 'border-violet-400 bg-violet-50 text-violet-900 dark:border-violet-500 dark:bg-violet-950 dark:text-violet-100'
+                        ? 'border-yellow-400 bg-yellow-50 text-yellow-900 dark:border-yellow-500 dark:bg-yellow-950 dark:text-yellow-100'
                         : 'border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300'
                   }`}
                 >
@@ -660,7 +660,7 @@ export default function CalendarPage() {
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  className="rounded-xl border border-violet-300 bg-white px-3 py-2 text-xs font-bold text-violet-800 dark:border-violet-600 dark:bg-violet-950 dark:text-violet-100"
+                  className="rounded-xl border border-yellow-300 bg-white px-3 py-2 text-xs font-bold text-yellow-800 dark:border-yellow-600 dark:bg-yellow-950 dark:text-yellow-100"
                   onClick={() => startCreateMode({ date: day })}
                 >
                   + New class
@@ -712,14 +712,14 @@ export default function CalendarPage() {
             }
           >
             {selectedSessionId ? (
-              <p className="sm:col-span-2 lg:col-span-3 text-xs text-violet-700 dark:text-violet-300 font-medium rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50/80 dark:bg-violet-950/40 px-3 py-2">
+              <p className="sm:col-span-2 lg:col-span-3 text-xs text-yellow-700 dark:text-yellow-300 font-medium rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50/80 dark:bg-yellow-950/40 px-3 py-2">
                 Viewing / editing this class. Change fields and <strong>Save changes</strong>,
                 use <strong>Delete class</strong> to remove it from the calendar
                 (series can delete one date or all), or assign coach and members on the
                 card below. Click empty calendar time for a new class.
               </p>
             ) : slotPicked ? (
-              <p className="sm:col-span-2 lg:col-span-3 text-xs text-violet-700 dark:text-violet-300 font-medium rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50/80 dark:bg-violet-950/40 px-3 py-2">
+              <p className="sm:col-span-2 lg:col-span-3 text-xs text-yellow-700 dark:text-yellow-300 font-medium rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50/80 dark:bg-yellow-950/40 px-3 py-2">
                 Slot from calendar: <strong>{slotPicked}</strong>. Choose a{' '}
                 <strong>class type</strong> (add types under Classes first),
                 save the class, then assign coach and members on the open card.
@@ -734,7 +734,7 @@ export default function CalendarPage() {
                     No class types yet —{' '}
                     <Link
                       href="/dashboard/fitgraph/classes"
-                      className="font-bold text-violet-700 underline"
+                      className="font-bold text-yellow-700 underline"
                     >
                       add class types
                     </Link>{' '}
@@ -861,7 +861,7 @@ export default function CalendarPage() {
                 onChange={setRecurrence}
                 startDate={form.date}
                 inputClass={fc()}
-                accent="violet"
+                accent="yellow"
                 unitLabel="classes"
               />
             ) : null}
@@ -873,7 +873,7 @@ export default function CalendarPage() {
             ) : null}
             {form.date && form.start_time ? (
               <a
-                className="sm:col-span-2 text-xs font-bold text-violet-700 underline"
+                className="sm:col-span-2 text-xs font-bold text-yellow-700 underline"
                 href={`/api/public/advisor/ics?module=fitgraph&date=${encodeURIComponent(form.date)}&start=${encodeURIComponent(form.start_time)}&title=${encodeURIComponent('GymAdvisor class')}&duration=45&location=${encodeURIComponent(form.location || '')}`}
               >
                 Download .ics (add to calendar)
@@ -897,21 +897,21 @@ export default function CalendarPage() {
             view/edit · coach · members. Join links work once a class exists.{' '}
             <Link
               href="/dashboard/fitgraph/classes"
-              className="font-bold text-violet-700 underline"
+              className="font-bold text-yellow-700 underline"
             >
               Class types
             </Link>{' '}
             ·{' '}
             <Link
               href="/dashboard/fitgraph/coach-calendar"
-              className="font-bold text-violet-700 underline"
+              className="font-bold text-yellow-700 underline"
             >
               Coach calendar
             </Link>{' '}
             ·{' '}
             <Link
               href="/dashboard/fitgraph/bookings"
-              className="font-bold text-violet-700 underline"
+              className="font-bold text-yellow-700 underline"
             >
               Desk · bookings
             </Link>
@@ -919,7 +919,7 @@ export default function CalendarPage() {
           </p>
 
           <div className="space-y-2">
-            <h3 className="text-sm font-black text-slate-800 dark:text-violet-100">
+            <h3 className="text-sm font-black text-slate-800 dark:text-yellow-100">
               Classes on {day}
               {selectedSessionId ? ' · open class highlighted' : ''}
             </h3>
@@ -949,7 +949,7 @@ export default function CalendarPage() {
                       <>
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1 text-xs font-bold text-violet-700 dark:text-violet-300"
+                          className="inline-flex items-center gap-1 text-xs font-bold text-yellow-700 dark:text-yellow-300"
                           onClick={() => {
                             if (managing) {
                               startCreateMode({ date: day });
@@ -973,7 +973,7 @@ export default function CalendarPage() {
                         </button>
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1 text-xs font-bold text-violet-700 dark:text-violet-300"
+                          className="inline-flex items-center gap-1 text-xs font-bold text-yellow-700 dark:text-yellow-300"
                           onClick={() => void copyInvite(s.id)}
                           title="Copy B2C join link for members"
                         >
@@ -1003,10 +1003,10 @@ export default function CalendarPage() {
                     }
                   >
                     <div className="space-y-3">
-                      <div className="font-bold text-sm text-slate-900 dark:text-violet-50">
+                      <div className="font-bold text-sm text-slate-900 dark:text-yellow-50">
                         {s.start_time} · {ct?.name || 'Class'}
                         {s.public ? (
-                          <span className="ml-2 text-[10px] font-black uppercase text-violet-700 bg-violet-100 px-1.5 py-0.5 rounded dark:text-violet-100 dark:bg-violet-800">
+                          <span className="ml-2 text-[10px] font-black uppercase text-yellow-700 bg-yellow-100 px-1.5 py-0.5 rounded dark:text-yellow-100 dark:bg-yellow-800">
                             Public
                           </span>
                         ) : (
@@ -1020,7 +1020,7 @@ export default function CalendarPage() {
                           </span>
                         ) : null}
                       </div>
-                      <div className="text-[11px] text-slate-500 dark:text-violet-200/80">
+                      <div className="text-[11px] text-slate-500 dark:text-yellow-200/80">
                         {s.location || s.room || '—'} · {booked}/{cap} booked
                         {!coach ? (
                           <span className="ml-1 font-bold text-amber-700 dark:text-amber-300">
@@ -1029,18 +1029,18 @@ export default function CalendarPage() {
                         ) : null}
                       </div>
                       {s.class_plan ? (
-                        <p className="text-[11px] text-violet-800 dark:text-violet-200 whitespace-pre-wrap line-clamp-3">
+                        <p className="text-[11px] text-yellow-800 dark:text-yellow-200 whitespace-pre-wrap line-clamp-3">
                           {s.class_plan}
                         </p>
                       ) : null}
 
                       {/* Step 2 — assign coach */}
-                      <div className="rounded-xl border border-violet-100 dark:border-violet-800 bg-violet-50/40 dark:bg-violet-950/30 px-3 py-2 space-y-1.5">
-                        <p className="text-[10px] font-black uppercase tracking-wide text-violet-700 dark:text-violet-300">
+                      <div className="rounded-xl border border-yellow-100 dark:border-yellow-800 bg-yellow-50/40 dark:bg-yellow-950/30 px-3 py-2 space-y-1.5">
+                        <p className="text-[10px] font-black uppercase tracking-wide text-yellow-700 dark:text-yellow-300">
                           Step 2 · Assign coach
                         </p>
                         <select
-                          className="w-full rounded-lg border border-slate-200 text-xs px-2 py-2 dark:border-violet-500/40 dark:bg-violet-950 dark:text-violet-50"
+                          className="w-full rounded-lg border border-slate-200 text-xs px-2 py-2 dark:border-yellow-500/40 dark:bg-yellow-950 dark:text-yellow-50"
                           value={s.coach_id || ''}
                           onChange={(e) =>
                             void reassignCoach(s.id, e.target.value)

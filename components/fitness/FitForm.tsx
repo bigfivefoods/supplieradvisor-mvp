@@ -5,19 +5,19 @@ import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 
 /**
  * GymAdvisor role tones — match end-to-end process “Who does what”:
- * owner = violet · coach = amber · member = cyan
+ * owner = VUKA yellow · coach = amber · member = cyan
  * (`default` is an alias of owner for owner workbenches.)
  */
 export type FitTone = 'owner' | 'coach' | 'member' | 'default';
 
 const OWNER_CARD =
-  'border-violet-300 bg-violet-50 dark:!border-violet-400 dark:!bg-violet-950 dark:ring-1 dark:ring-violet-500/50';
+  'border-yellow-300 bg-yellow-50 dark:!border-yellow-400 dark:!bg-yellow-950 dark:ring-1 dark:ring-yellow-500/50';
 const OWNER_ROW =
-  'border-violet-200 bg-white dark:!border-violet-400 dark:!bg-violet-950 dark:ring-1 dark:ring-violet-500/40';
+  'border-yellow-200 bg-white dark:!border-yellow-400 dark:!bg-yellow-950 dark:ring-1 dark:ring-yellow-500/40';
 const OWNER_TABLE =
-  'border-violet-200 bg-white dark:!border-violet-400 dark:!bg-violet-950 dark:ring-1 dark:ring-violet-500/40';
+  'border-yellow-200 bg-white dark:!border-yellow-400 dark:!bg-yellow-950 dark:ring-1 dark:ring-yellow-500/40';
 const OWNER_THEAD =
-  'bg-violet-50 text-violet-900 dark:bg-violet-900/50 dark:text-violet-200';
+  'bg-yellow-50 text-yellow-900 dark:bg-yellow-900/50 dark:text-yellow-200';
 
 const TONE_CARD: Record<FitTone, string> = {
   // dark:!bg-* beats global pastel remaps so role colours stay true in dark mode
@@ -30,8 +30,8 @@ const TONE_CARD: Record<FitTone, string> = {
 };
 
 const TONE_TITLE: Record<FitTone, string> = {
-  owner: 'text-slate-900 dark:text-violet-50',
-  default: 'text-slate-900 dark:text-violet-50',
+  owner: 'text-slate-900 dark:text-yellow-50',
+  default: 'text-slate-900 dark:text-yellow-50',
   coach: 'text-slate-900 dark:text-amber-50',
   member: 'text-slate-900 dark:text-cyan-50',
 };
@@ -62,22 +62,22 @@ const TONE_THEAD: Record<FitTone, string> = {
 };
 
 const TONE_LINK: Record<FitTone, string> = {
-  owner: 'text-violet-800 dark:text-violet-300',
-  default: 'text-violet-800 dark:text-violet-300',
+  owner: 'text-yellow-800 dark:text-yellow-300',
+  default: 'text-yellow-800 dark:text-yellow-300',
   coach: 'text-amber-800 dark:text-amber-300',
   member: 'text-sky-800 dark:text-cyan-300',
 };
 
 const TONE_LABEL: Record<FitTone, string> = {
-  owner: 'text-violet-700/80 dark:text-violet-300/80',
-  default: 'text-violet-700/80 dark:text-violet-300/80',
+  owner: 'text-yellow-800/80 dark:text-yellow-300/80',
+  default: 'text-yellow-800/80 dark:text-yellow-300/80',
   coach: 'text-amber-700/70 dark:text-amber-300/80',
   member: 'text-sky-700/70 dark:text-cyan-300/80',
 };
 
 const TONE_VALUE: Record<FitTone, string> = {
-  owner: 'text-slate-900 dark:text-violet-50',
-  default: 'text-slate-900 dark:text-violet-50',
+  owner: 'text-slate-900 dark:text-yellow-50',
+  default: 'text-slate-900 dark:text-yellow-50',
   coach: 'text-slate-900 dark:text-amber-50',
   member: 'text-slate-900 dark:text-cyan-50',
 };
@@ -122,7 +122,7 @@ export function FormCard({
   onSubmit: () => void;
   saving: boolean;
   submitLabel?: string;
-  /** Match process role: owner (violet) · coach (amber) · member (cyan) */
+  /** Match process role: owner (yellow) · coach (amber) · member (cyan) */
   tone?: FitTone;
   description?: string;
 }) {
@@ -219,7 +219,7 @@ export function DataTable({
                       <button
                         type="button"
                         onClick={() => onEdit(r.id)}
-                        className="text-violet-700 dark:text-violet-300 p-1 inline-flex"
+                        className="text-yellow-700 dark:text-yellow-300 p-1 inline-flex"
                         title="Edit"
                       >
                         <Pencil className="w-4 h-4" />

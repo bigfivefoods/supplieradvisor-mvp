@@ -540,7 +540,7 @@ export default function ClientsPage() {
                 </option>
               ))}
             </select>
-            <label className="flex items-center gap-2 text-sm font-medium rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50/40 dark:bg-violet-950/30 px-3 py-2">
+            <label className="flex items-center gap-2 text-sm font-medium rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50/40 dark:bg-yellow-950/30 px-3 py-2">
               <input
                 type="checkbox"
                 checked={form.private_client}
@@ -638,7 +638,7 @@ export default function ClientsPage() {
               }))}
               bookings={store.bookings || []}
               useSessionId
-              accentClass="border-violet-200"
+              accentClass="border-yellow-200"
               post={async (body) => {
                 await post(body);
               }}
@@ -790,7 +790,7 @@ export default function ClientsPage() {
                       key="type"
                       className={
                         isPrivate
-                          ? 'inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-violet-900 dark:bg-violet-950 dark:text-violet-200'
+                          ? 'inline-flex rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-yellow-900 dark:bg-yellow-950 dark:text-yellow-200'
                           : 'inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300'
                       }
                       title={
@@ -843,7 +843,7 @@ export default function ClientsPage() {
                       )}
                       <button
                         type="button"
-                        className="text-[10px] font-bold text-violet-700 underline text-left"
+                        className="text-[10px] font-bold text-yellow-700 underline text-left"
                         onClick={() =>
                           void freezeMembership(
                             c,
@@ -945,7 +945,7 @@ export default function ClientsPage() {
                       {c.portal_token ? (
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1 text-[11px] font-bold text-violet-700 dark:text-violet-300"
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-yellow-700 dark:text-yellow-300"
                           onClick={() => void copyPortal(c.portal_token!)}
                           title="Copy member portal link"
                         >
@@ -954,7 +954,7 @@ export default function ClientsPage() {
                       ) : null}
                       <button
                         type="button"
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-violet-800 dark:text-violet-200"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-yellow-800 dark:text-yellow-200"
                         onClick={() => void issuePortal(c.id)}
                         title="Issue member portal so they can book open classes"
                       >

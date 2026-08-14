@@ -89,6 +89,21 @@ const EMERALD: TonePack = {
   chip: 'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-white',
 };
 
+const YELLOW: TonePack = {
+  card:
+    'border-yellow-300 bg-yellow-50 dark:!border-yellow-400 dark:bg-gradient-to-br dark:from-yellow-950 dark:via-[#1a1808] dark:to-black dark:ring-1 dark:ring-yellow-500/40 dark:text-white',
+  row:
+    'border-yellow-200 bg-white dark:!border-yellow-400 dark:bg-gradient-to-br dark:from-yellow-950/95 dark:via-[#161408] dark:to-black dark:ring-1 dark:ring-yellow-500/35 dark:text-white',
+  table:
+    'border-yellow-200 bg-white dark:!border-yellow-400 dark:bg-gradient-to-br dark:from-yellow-950/90 dark:via-[#121006] dark:to-black dark:ring-1 dark:ring-yellow-500/35 dark:text-white',
+  thead: 'bg-yellow-50 text-yellow-900 dark:bg-yellow-900/40 dark:text-white',
+  title: 'text-slate-900 dark:text-white',
+  label: 'text-yellow-800/80 dark:text-white/80',
+  value: 'text-slate-900 dark:text-white',
+  link: 'text-yellow-800 dark:text-white',
+  chip: 'bg-[#E8E830] text-slate-900 dark:bg-yellow-500 dark:text-slate-900',
+};
+
 const SKY: TonePack = {
   card:
     'border-sky-300 bg-sky-50 dark:!border-sky-400 dark:bg-gradient-to-br dark:from-sky-950 dark:via-[#061820] dark:to-black dark:ring-1 dark:ring-sky-500/40 dark:text-white',
@@ -107,7 +122,7 @@ const SKY: TonePack = {
 /** Process-role packs by semantic key */
 export const ROLE_TONES: Record<string, TonePack> = {
   // GymAdvisor
-  owner: VIOLET,
+  owner: YELLOW,
   coach: AMBER,
   member: CYAN,
   // CropAdvisor

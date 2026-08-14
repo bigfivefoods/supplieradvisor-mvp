@@ -110,7 +110,8 @@ type Accent =
   | 'emerald'
   | 'teal'
   | 'rose'
-  | 'indigo';
+  | 'indigo'
+  | 'yellow';
 
 const ACCENT: Record<
   Accent,
@@ -177,6 +178,14 @@ const ACCENT: Record<
       'border-indigo-200 dark:border-indigo-800/60 bg-indigo-50/50 dark:bg-indigo-950/20',
     label: 'text-slate-500 dark:text-indigo-300',
     muted: 'text-slate-500',
+  },
+  yellow: {
+    active: 'bg-[#E8E830] text-slate-900 border-[#E8E830]',
+    border: 'border-slate-200 dark:border-yellow-500',
+    panel:
+      'border-yellow-200 dark:border-yellow-800/60 bg-yellow-50/50 dark:bg-yellow-950/20',
+    label: 'text-yellow-800 dark:text-yellow-300',
+    muted: 'text-slate-500 dark:text-yellow-200/80',
   },
 };
 

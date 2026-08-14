@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { CalendarDays, Check, Loader2, Users } from 'lucide-react';
+import { gymBrandColor } from '@/lib/fitness/fitgraph';
 
 type PublicSession = {
   id: string;
@@ -128,12 +129,12 @@ export default function EmbedFitgraphPage() {
     }
   };
 
-  const color = calendar?.primary_color || '#7c3aed';
+  const color = gymBrandColor(calendar?.primary_color);
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="w-8 h-8 animate-spin text-violet-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-yellow-600" />
       </div>
     );
   }
@@ -234,8 +235,8 @@ export default function EmbedFitgraphPage() {
                         </span>
                       </div>
                       {(s.class_plan || s.public_notes) && (
-                        <div className="mt-1.5 rounded-xl bg-violet-50 border border-violet-100 px-2.5 py-1.5">
-                          <p className="text-[9px] font-black uppercase tracking-wider text-violet-700 mb-0.5">
+                        <div className="mt-1.5 rounded-xl bg-yellow-50 border border-yellow-100 px-2.5 py-1.5">
+                          <p className="text-[9px] font-black uppercase tracking-wider text-yellow-700 mb-0.5">
                             Class plan
                           </p>
                           <p className="text-[11px] text-slate-700 whitespace-pre-wrap">

@@ -43,7 +43,7 @@ function hubModules(hasFrontDesk: boolean): HubModule[] {
     code: '01',
     title: 'Coaches',
     desc: 'Trainers, specialties, coach portal links to share classes.',
-    accent: 'from-violet-50 to-white border-violet-100',
+    accent: 'from-yellow-50 to-white border-yellow-100',
   },
   {
     href: '/dashboard/fitgraph/coach-calendar',
@@ -383,7 +383,7 @@ function Inner() {
 
       {loading ? (
         <div className="py-16 flex justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-violet-600" />
+          <Loader2 className="w-8 h-8 animate-spin text-yellow-600" />
         </div>
       ) : (
         <>
@@ -395,7 +395,7 @@ function Inner() {
           />
           <AdvisorOutcomesPanel
             outcomes={outcomes}
-            accent="violet"
+            accent="yellow"
             title="GymAdvisor outcomes (30 days)"
             onRefresh={() => void load()}
             onSendReminders={() => void sendReminders()}
@@ -405,7 +405,7 @@ function Inner() {
             date={today}
             rows={todayRows}
             title="Today's floor board"
-            accentClass="border-violet-200 dark:border-violet-800"
+            accentClass="border-yellow-200 dark:border-yellow-800"
             onMark={(id, status) => {
               if (id.startsWith('s-')) {
                 toast.message('Open calendar to book members into this class');
@@ -482,12 +482,12 @@ function Inner() {
         ].map((x) => (
           <div
             key={x.t}
-            className="rounded-2xl border border-violet-300 bg-violet-50/50 px-4 py-3 dark:!border-violet-400 dark:!bg-violet-950 dark:ring-1 dark:ring-violet-500/40"
+            className="rounded-2xl border border-yellow-300 bg-yellow-50/50 px-4 py-3 dark:!border-yellow-400 dark:!bg-yellow-950 dark:ring-1 dark:ring-yellow-500/40"
           >
-            <div className="text-sm font-black text-slate-900 dark:text-violet-50">
+            <div className="text-sm font-black text-slate-900 dark:text-yellow-50">
               {x.t}
             </div>
-            <p className="text-[12px] text-slate-600 dark:text-violet-100/85 mt-1 leading-relaxed">
+            <p className="text-[12px] text-slate-600 dark:text-yellow-100/85 mt-1 leading-relaxed">
               {x.b}
             </p>
           </div>
@@ -495,7 +495,7 @@ function Inner() {
       </div>
 
       <div className="mt-6">
-        <h2 className="text-sm font-black uppercase tracking-widest text-violet-800/70 mb-4 dark:text-violet-300/80">
+        <h2 className="text-sm font-black uppercase tracking-widest text-yellow-800/70 mb-4 dark:text-yellow-300/80">
           Workbenches
         </h2>
         <HubModuleGrid

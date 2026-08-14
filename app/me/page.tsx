@@ -116,7 +116,7 @@ function kindIcon(kind: string) {
 function kindTone(kind: string) {
   if (kind === 'hire') return 'from-cyan-500 to-sky-700 border-cyan-200';
   if (kind === 'account') return 'from-emerald-500 to-teal-700 border-emerald-200';
-  if (kind === 'gym') return 'from-violet-500 to-purple-800 border-violet-200';
+  if (kind === 'gym') return 'from-[#E8E830] to-[#6B6B00] border-yellow-200';
   if (kind === 'physio') return 'from-teal-500 to-emerald-800 border-teal-200';
   if (kind === 'dental') return 'from-sky-400 to-blue-800 border-sky-200';
   if (kind === 'medical') return 'from-indigo-500 to-slate-800 border-indigo-200';
@@ -783,7 +783,7 @@ function MeAppInner() {
             <button
               type="button"
               onClick={() => setTab('memberships')}
-              className="rounded-2xl bg-gradient-to-br from-violet-500 to-purple-800 p-2.5 text-left text-white shadow-md"
+              className="rounded-2xl bg-gradient-to-br from-[#E8E830] to-[#6B6B00] p-2.5 text-left text-white shadow-md"
             >
               <Dumbbell className="h-4 w-4 opacity-90" />
               <p className="mt-1.5 text-xl font-black">{gymCount}</p>

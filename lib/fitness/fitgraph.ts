@@ -24,6 +24,17 @@ export { addDaysIso, addMonthsIso, expandRecurrenceDates, weekdayOf };
 export const FITGRAPH_MODULE_ID = 'fitgraph' as const;
 export const FITGRAPH_META_KEY = 'fitgraph';
 
+/** VUKA Fitness wordmark yellow (sampled from vukafitness.com logo). */
+export const GYM_BRAND_YELLOW = '#E8E830';
+export const GYM_BRAND_YELLOW_DEEP = '#6B6B00';
+const LEGACY_GYM_PURPLE = '#7c3aed';
+
+export function gymBrandColor(raw?: string | null): string {
+  const c = String(raw || '').trim();
+  if (!c || c.toLowerCase() === LEGACY_GYM_PURPLE) return GYM_BRAND_YELLOW;
+  return c;
+}
+
 export const COACH_SPECIALTIES = [
   'Strength',
   'HIIT',
@@ -1158,7 +1169,7 @@ export function defaultPublicSettings(companyId?: number): FitPublicSettings {
     show_coaches: true,
     show_pricing: true,
     timezone: 'Africa/Johannesburg',
-    embed_primary_color: '#7c3aed',
+    embed_primary_color: GYM_BRAND_YELLOW,
     coach_specialties: [...DEFAULT_COACH_SPECIALTIES],
     has_front_desk: true,
   };
@@ -1374,7 +1385,7 @@ export function buildMemberPortalPayload(
     allow_booking: store.settings?.allow_public_booking !== false,
     contact_email: store.settings?.contact_email,
     contact_phone: store.settings?.contact_phone,
-    primary_color: store.settings?.embed_primary_color || '#7c3aed',
+    primary_color: gymBrandColor(store.settings?.embed_primary_color),
     from: start,
     to: end,
     client: {
@@ -1475,7 +1486,7 @@ export function ensurePublicToken(
     show_coaches: true,
     show_pricing: true,
     timezone: 'Africa/Johannesburg',
-    embed_primary_color: '#7c3aed',
+    embed_primary_color: GYM_BRAND_YELLOW,
     public_token: '',
     ...(settings || {}),
   };
@@ -1672,7 +1683,7 @@ export function buildPublicCalendarPayload(
     allow_booking: store.settings?.allow_public_booking !== false,
     contact_email: store.settings?.contact_email,
     contact_phone: store.settings?.contact_phone,
-    primary_color: store.settings?.embed_primary_color || '#7c3aed',
+    primary_color: gymBrandColor(store.settings?.embed_primary_color),
     from,
     to,
     sessions,

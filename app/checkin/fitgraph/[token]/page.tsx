@@ -17,6 +17,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import Link from 'next/link';
+import { gymBrandColor } from '@/lib/fitness/fitgraph';
 
 const MEMBER_TOKEN_KEY = 'sa_fitgraph_member_token';
 
@@ -141,12 +142,12 @@ export default function GymCheckinPage() {
     }
   };
 
-  const color = gym?.primary_color || '#7c3aed';
+  const color = gymBrandColor(gym?.primary_color);
 
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-yellow-600" />
       </div>
     );
   }
@@ -164,7 +165,7 @@ export default function GymCheckinPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-violet-50 to-slate-50">
+    <div className="min-h-screen bg-gradient-to-b from-yellow-50 to-slate-50">
       <header
         className="px-4 py-8 text-white"
         style={{
@@ -269,7 +270,7 @@ export default function GymCheckinPage() {
                 onClick={() => setMode('portal')}
                 className={`flex-1 rounded-xl py-2 text-xs font-bold ${
                   mode === 'portal'
-                    ? 'bg-violet-600 text-white'
+                    ? 'bg-[#E8E830] text-slate-900'
                     : 'text-slate-600'
                 }`}
               >
@@ -280,7 +281,7 @@ export default function GymCheckinPage() {
                 onClick={() => setMode('lookup')}
                 className={`flex-1 rounded-xl py-2 text-xs font-bold ${
                   mode === 'lookup'
-                    ? 'bg-violet-600 text-white'
+                    ? 'bg-[#E8E830] text-slate-900'
                     : 'text-slate-600'
                 }`}
               >
@@ -308,7 +309,7 @@ export default function GymCheckinPage() {
                   type="button"
                   disabled={busy || !memberToken.trim()}
                   onClick={() => void checkIn()}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3 text-sm font-black text-white disabled:opacity-50"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-yellow-600 py-3 text-sm font-black text-white disabled:opacity-50"
                 >
                   {busy ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -359,7 +360,7 @@ export default function GymCheckinPage() {
                     (!phone.trim() && !email.trim() && !code.trim())
                   }
                   onClick={() => void checkIn()}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3 text-sm font-black text-white disabled:opacity-50"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-yellow-600 py-3 text-sm font-black text-white disabled:opacity-50"
                 >
                   {busy ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -373,8 +374,8 @@ export default function GymCheckinPage() {
           </>
         )}
 
-        <div className="rounded-2xl border border-dashed border-violet-200 bg-white/80 p-4 text-center">
-          <Smartphone className="mx-auto h-5 w-5 text-violet-600" />
+        <div className="rounded-2xl border border-dashed border-yellow-200 bg-white/80 p-4 text-center">
+          <Smartphone className="mx-auto h-5 w-5 text-yellow-600" />
           <p className="mt-2 text-xs text-slate-600">
             Not a member yet? Link {gym?.brand || 'this gym'} to your SA Member
             wallet, then check in here.
@@ -382,7 +383,7 @@ export default function GymCheckinPage() {
           {gymCompanyId ? (
             <Link
               href={`/me?join=1&kind=gym&company=${gymCompanyId}&brand=${encodeURIComponent(gym?.brand || 'Gym')}`}
-              className="mt-3 inline-block rounded-xl bg-violet-600 px-4 py-2 text-xs font-black text-white"
+              className="mt-3 inline-block rounded-xl bg-yellow-600 px-4 py-2 text-xs font-black text-white"
             >
               Accept & link {gym?.brand || 'gym'}
             </Link>
@@ -390,7 +391,7 @@ export default function GymCheckinPage() {
           {gym?.allow_public_booking && gym?.public_token ? (
             <Link
               href={`/embed/fitgraph/${encodeURIComponent(gym.public_token)}`}
-              className="mt-3 ml-2 inline-block text-xs font-bold text-violet-700 underline"
+              className="mt-3 ml-2 inline-block text-xs font-bold text-yellow-700 underline"
             >
               View class schedule
             </Link>

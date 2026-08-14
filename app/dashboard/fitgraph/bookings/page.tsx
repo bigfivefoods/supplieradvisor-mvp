@@ -160,7 +160,7 @@ export default function BookingsPage() {
             {form.session_id ? (
               <button
                 type="button"
-                className="sm:col-span-2 inline-flex items-center gap-1.5 text-xs font-bold text-violet-700"
+                className="sm:col-span-2 inline-flex items-center gap-1.5 text-xs font-bold text-yellow-700"
                 onClick={() => void copyInvite(form.session_id)}
               >
                 <Share2 className="w-3.5 h-3.5" /> Copy B2C join link for this
@@ -227,11 +227,11 @@ export default function BookingsPage() {
               b.feedback_token &&
               !b.feedback_submitted_at
           ) ? (
-            <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4 dark:border-violet-700/40 dark:bg-violet-950/30">
-              <h3 className="text-sm font-black text-violet-950 dark:text-violet-100">
+            <div className="rounded-2xl border border-yellow-200 bg-yellow-50/60 p-4 dark:border-yellow-700/40 dark:bg-yellow-950/30">
+              <h3 className="text-sm font-black text-yellow-950 dark:text-yellow-100">
                 Feedback requested
               </h3>
-              <p className="text-[11px] text-violet-900/80 dark:text-violet-200/80 mt-0.5 mb-3">
+              <p className="text-[11px] text-yellow-900/80 dark:text-yellow-200/80 mt-0.5 mb-3">
                 Share these links with members after class (WhatsApp / SMS /
                 email).
               </p>
@@ -250,14 +250,14 @@ export default function BookingsPage() {
                     return (
                       <li
                         key={b.id}
-                        className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-100 bg-white px-3 py-2 text-xs dark:border-violet-800 dark:bg-violet-950"
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-yellow-100 bg-white px-3 py-2 text-xs dark:border-yellow-800 dark:bg-yellow-950"
                       >
                         <span className="font-bold">
                           {client?.name || b.guest_name || 'Member'}
                         </span>
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1 font-bold text-violet-700 dark:text-violet-300"
+                          className="inline-flex items-center gap-1 font-bold text-yellow-700 dark:text-yellow-300"
                           onClick={() =>
                             void copyFeedback(b.feedback_token!)
                           }

@@ -12,6 +12,7 @@ import {
   FITGRAPH_PUBLIC_TOKEN_KEY,
   findClientForCheckIn,
   parseCompanyIdFromToken,
+  gymBrandColor,
   readFitgraphFromMetadata,
   recordMemberCheckIn,
   writeFitgraphToMetadata,
@@ -133,7 +134,7 @@ export async function GET(request: NextRequest) {
         bio: s?.public_bio || null,
         contact_phone: s?.contact_phone || null,
         contact_email: s?.contact_email || null,
-        primary_color: s?.embed_primary_color || '#7c3aed',
+        primary_color: gymBrandColor(s?.embed_primary_color),
         timezone: s?.timezone || 'Africa/Johannesburg',
         /** Unique gym public token (QR identity) */
         public_token: s?.public_token,
@@ -236,7 +237,7 @@ export async function POST(request: NextRequest) {
       },
       gym: {
         brand: s?.brand_name || 'Gym',
-        primary_color: s?.embed_primary_color || '#7c3aed',
+        primary_color: gymBrandColor(s?.embed_primary_color),
       },
       /** Owner sees unpaid/frozen attempts on the check-ins board */
       owner_alert: result.access.alert,

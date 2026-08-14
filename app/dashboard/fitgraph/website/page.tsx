@@ -12,6 +12,7 @@ import {
 import { FormCard, StatRow, fc } from '@/components/fitness/FitForm';
 import { FitContractDocsPanel } from '@/components/fitness/FitContractDocs';
 import {
+  gymBrandColor,
   gymCheckinUrl,
   type FitContractDoc,
 } from '@/lib/fitness/fitgraph';
@@ -33,7 +34,7 @@ export default function FitgraphWebsitePage() {
     has_front_desk: true,
     contact_email: '',
     contact_phone: '',
-    embed_primary_color: '#7c3aed',
+    embed_primary_color: '#E8E830',
     timezone: 'Africa/Johannesburg',
   });
   const [copied, setCopied] = useState<string | null>(null);
@@ -53,7 +54,7 @@ export default function FitgraphWebsitePage() {
       has_front_desk: s.has_front_desk !== false,
       contact_email: s.contact_email || '',
       contact_phone: s.contact_phone || '',
-      embed_primary_color: s.embed_primary_color || '#7c3aed',
+      embed_primary_color: gymBrandColor(s.embed_primary_color),
       timezone: s.timezone || 'Africa/Johannesburg',
     });
   }, [store]);
@@ -161,9 +162,9 @@ export default function FitgraphWebsitePage() {
           />
 
           {token ? (
-            <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-5 dark:border-violet-500/30 dark:from-violet-950/50 dark:to-slate-950">
+            <div className="rounded-2xl border border-yellow-200 bg-gradient-to-br from-yellow-50 to-white p-5 dark:border-yellow-500/30 dark:from-yellow-950/50 dark:to-slate-950">
               <div className="flex flex-wrap items-start gap-6">
-                <div className="shrink-0 rounded-2xl border border-violet-100 bg-white p-3 shadow-sm dark:border-violet-500/20">
+                <div className="shrink-0 rounded-2xl border border-yellow-100 bg-white p-3 shadow-sm dark:border-yellow-500/20">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={links.qrImg}
@@ -174,7 +175,7 @@ export default function FitgraphWebsitePage() {
                   />
                 </div>
                 <div className="min-w-0 flex-1 space-y-2">
-                  <p className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-violet-700 dark:text-violet-300">
+                  <p className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-yellow-700 dark:text-yellow-300">
                     <QrCode className="h-3.5 w-3.5" /> Unique gym check-in QR
                   </p>
                   <h3 className="text-lg font-black text-slate-900 dark:text-white">
@@ -187,7 +188,7 @@ export default function FitgraphWebsitePage() {
                     for the desk on{' '}
                     <a
                       href="/dashboard/fitgraph/checkins"
-                      className="font-bold text-violet-700 underline dark:text-violet-300"
+                      className="font-bold text-yellow-700 underline dark:text-yellow-300"
                     >
                       Check-ins
                     </a>
@@ -200,7 +201,7 @@ export default function FitgraphWebsitePage() {
                     <button
                       type="button"
                       onClick={() => void copy('checkin', links.checkin)}
-                      className="inline-flex items-center gap-1 rounded-full bg-violet-700 px-3 py-1.5 text-xs font-bold text-white"
+                      className="inline-flex items-center gap-1 rounded-full bg-[#E8E830] px-3 py-1.5 text-xs font-bold text-slate-900"
                     >
                       {copied === 'checkin' ? (
                         <Check className="h-3.5 w-3.5" />
@@ -213,7 +214,7 @@ export default function FitgraphWebsitePage() {
                       href={links.checkin}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1 rounded-full border border-violet-300 bg-white px-3 py-1.5 text-xs font-bold text-violet-900 dark:border-violet-400/40 dark:bg-violet-900/40 dark:text-violet-50"
+                      className="inline-flex items-center gap-1 rounded-full border border-yellow-300 bg-white px-3 py-1.5 text-xs font-bold text-yellow-900 dark:border-yellow-400/40 dark:bg-yellow-900/40 dark:text-yellow-50"
                     >
                       <ExternalLink className="h-3.5 w-3.5" /> Open
                     </a>
@@ -247,7 +248,7 @@ export default function FitgraphWebsitePage() {
               <label
                 className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition ${
                   form.has_front_desk
-                    ? 'border-violet-400 bg-violet-50/80 dark:border-violet-500 dark:bg-violet-950/40'
+                    ? 'border-yellow-400 bg-yellow-50/80 dark:border-yellow-500 dark:bg-yellow-950/40'
                     : 'border-slate-200 dark:border-slate-700'
                 }`}
               >
@@ -273,7 +274,7 @@ export default function FitgraphWebsitePage() {
               <label
                 className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition ${
                   !form.has_front_desk
-                    ? 'border-violet-400 bg-violet-50/80 dark:border-violet-500 dark:bg-violet-950/40'
+                    ? 'border-yellow-400 bg-yellow-50/80 dark:border-yellow-500 dark:bg-yellow-950/40'
                     : 'border-slate-200 dark:border-slate-700'
                 }`}
               >
@@ -429,14 +430,14 @@ export default function FitgraphWebsitePage() {
             description="Membership agreements, liability waivers, studio terms — attached to your gym bio/profile. Toggle “Show PDF contracts publicly” above to list them on the embed page."
             defaultKind="membership"
             disabled={saving}
-            toneClass="border-violet-200 bg-violet-50/70 dark:border-violet-600/50 dark:bg-violet-950/40"
+            toneClass="border-yellow-200 bg-yellow-50/70 dark:border-yellow-600/50 dark:bg-yellow-950/40"
           />
 
           
           <AdvisorRoomsCard
             rooms={store.settings?.rooms || []}
             saving={saving}
-            accentClass="border-violet-200"
+            accentClass="border-yellow-200"
             label="Studios & rooms"
             hint="Floor resources for the diary (studio, court, spin room)."
             onSave={async (rooms) => {
@@ -472,9 +473,9 @@ export default function FitgraphWebsitePage() {
             }}
           />
 
-          <div className="rounded-3xl border border-violet-300 bg-violet-50 p-4 space-y-4 dark:!border-violet-400 dark:!bg-violet-950 dark:ring-1 dark:ring-violet-500/50">
+          <div className="rounded-3xl border border-yellow-300 bg-yellow-50 p-4 space-y-4 dark:!border-yellow-400 dark:!bg-yellow-950 dark:ring-1 dark:ring-yellow-500/50">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-black text-slate-900 dark:text-violet-50">
+              <h3 className="text-sm font-black text-slate-900 dark:text-yellow-50">
                 Embed & share links
               </h3>
               <button

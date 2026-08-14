@@ -161,7 +161,7 @@ export type ServiceMessagingProps = {
   /** Post actions via parent (company API) */
   onAction: (body: Record<string, unknown>) => Promise<unknown>;
   /** Accent classes */
-  accent?: 'violet' | 'teal' | 'sky' | 'emerald';
+  accent?: 'violet' | 'teal' | 'sky' | 'emerald' | 'yellow';
   /**
    * GymAdvisor: when false, hide desk-first modes and run coach–member messaging
    * (no front desk persona on new threads).
@@ -183,7 +183,7 @@ export function ServiceMessaging({
   saving,
   onAction,
   accent = variant === 'fitgraph'
-    ? 'violet'
+    ? 'yellow'
     : variant === 'dentalgraph'
       ? 'sky'
       : 'teal',
@@ -285,30 +285,39 @@ export function ServiceMessaging({
     setAsStaff(true);
   }, [coachLed, composeMode]);
 
-  const border =
-    accent === 'violet'
-      ? 'border-violet-200 dark:border-violet-500/40'
-      : accent === 'sky'
-        ? 'border-sky-200 dark:border-sky-500/40'
-        : 'border-teal-200 dark:border-teal-500/40';
-  const chip =
-    accent === 'violet'
-      ? 'bg-violet-600 text-white'
-      : accent === 'sky'
-        ? 'bg-sky-600 text-white'
-        : 'bg-teal-600 text-white';
-  const soft =
-    accent === 'violet'
-      ? 'bg-violet-50 dark:bg-violet-950/50'
-      : accent === 'sky'
-        ? 'bg-sky-50 dark:bg-sky-950/50'
-        : 'bg-teal-50 dark:bg-teal-950/50';
-  const textAccent =
-    accent === 'violet'
-      ? 'text-violet-700 dark:text-violet-300'
-      : accent === 'sky'
-        ? 'text-sky-700 dark:text-sky-300'
-        : 'text-teal-700 dark:text-teal-300';
+  const accentStyles = {
+    violet: {
+      border: 'border-violet-200 dark:border-violet-500/40',
+      chip: 'bg-violet-600 text-white',
+      soft: 'bg-violet-50 dark:bg-violet-950/50',
+      text: 'text-violet-700 dark:text-violet-300',
+    },
+    sky: {
+      border: 'border-sky-200 dark:border-sky-500/40',
+      chip: 'bg-sky-600 text-white',
+      soft: 'bg-sky-50 dark:bg-sky-950/50',
+      text: 'text-sky-700 dark:text-sky-300',
+    },
+    teal: {
+      border: 'border-teal-200 dark:border-teal-500/40',
+      chip: 'bg-teal-600 text-white',
+      soft: 'bg-teal-50 dark:bg-teal-950/50',
+      text: 'text-teal-700 dark:text-teal-300',
+    },
+    emerald: {
+      border: 'border-emerald-200 dark:border-emerald-500/40',
+      chip: 'bg-emerald-600 text-white',
+      soft: 'bg-emerald-50 dark:bg-emerald-950/50',
+      text: 'text-emerald-700 dark:text-emerald-300',
+    },
+    yellow: {
+      border: 'border-yellow-300 dark:border-yellow-500/40',
+      chip: 'bg-[#E8E830] text-slate-900',
+      soft: 'bg-yellow-50 dark:bg-yellow-950/50',
+      text: 'text-yellow-800 dark:text-yellow-300',
+    },
+  } as const;
+  const { border, chip, soft, text: textAccent } = accentStyles[accent];
 
   const authorForSend = (): MsgParticipant => {
     if ((coachLed || asStaff) && staffId) {
@@ -875,11 +884,7 @@ export function ServiceMessaging({
                       <div
                         className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
                           mine
-                            ? accent === 'violet'
-                              ? 'bg-violet-600 text-white'
-                              : accent === 'sky'
-                                ? 'bg-sky-600 text-white'
-                                : 'bg-teal-600 text-white'
+                            ? chip
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100'
                         }`}
                       >

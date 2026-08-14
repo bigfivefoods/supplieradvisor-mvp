@@ -2458,7 +2458,7 @@ function seedDemo(now: string, companyId?: number): FitgraphStore {
       timezone: 'Africa/Johannesburg',
       contact_email: 'hello@vukafitness.example',
       contact_phone: '+27 11 000 0000',
-      embed_primary_color: '#7c3aed',
+      embed_primary_color: '#E8E830',
     },
     coaches: [
       {

@@ -130,7 +130,7 @@ export default function ClassesPage() {
               submitLabel={editingId ? 'Save changes' : 'Add class type'}
             >
               {editingId ? (
-                <p className="sm:col-span-2 lg:col-span-3 text-xs text-violet-700 dark:text-violet-300 font-medium rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50/80 dark:bg-violet-950/40 px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="sm:col-span-2 lg:col-span-3 text-xs text-yellow-700 dark:text-yellow-300 font-medium rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50/80 dark:bg-yellow-950/40 px-3 py-2 flex flex-wrap items-center justify-between gap-2">
                   <span>
                     Editing <strong>{editing?.code || editingId}</strong>
                   </span>

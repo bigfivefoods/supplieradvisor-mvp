@@ -31,6 +31,7 @@
   --sa-brand-deep: #0077b6;
   --sa-brand-soft: rgba(0, 180, 216, 0.1);
   --sa-brand-glow: rgba(0, 180, 216, 0.18);
+  --sa-brand-ink: #ffffff;
   --sa-radius: 1.5rem;
   --sa-shadow: 0 10px 30px -12px rgb(0 0 0 / 0.08);
   --sa-shadow-lg: 0 25px 50px -20px rgb(15 23 42 / 0.18);
@@ -84,6 +85,7 @@ html.dark {
   --sa-brand-deep: #0077b6;
   --sa-brand-soft: rgba(0, 180, 216, 0.16);
   --sa-brand-glow: rgba(0, 180, 216, 0.28);
+  --sa-brand-ink: #ffffff;
   --sa-shadow: 0 12px 36px -14px rgb(0 0 0 / 0.75);
   --sa-shadow-lg: 0 28px 60px -24px rgb(0 0 0 / 0.85);
   --sa-overlay: rgb(0 0 0 / 0.72);

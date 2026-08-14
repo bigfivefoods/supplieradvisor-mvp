@@ -347,7 +347,7 @@ export const ONE_SENTENCE =
   'Register coaches and members (People dual-write · invites · family) → memberships, freezes and packs → class types → calendar with rooms and publish/join links → book, waitlist, remind, attend, feedback and recalls → in-app messages by system user ID → website embed, marketplace listing and utilisation reports — SA only bills the gym’s platform subscription.';
 
 
-// ── PDF (violet brand) ──────────────────────────────────────────────────
+// ── PDF (VUKA yellow brand) ─────────────────────────────────────────────
 
 const A4_PORTRAIT_W = 595.28;
 const A4_PORTRAIT_H = 841.89;
@@ -378,8 +378,8 @@ function geoFor(orientation: FitgraphProcessGuideOrientation): Geo {
   };
 }
 
-const BRAND = '#7c3aed';
-const BRAND_DEEP = '#4c1d95';
+const BRAND = '#E8E830';
+const BRAND_DEEP = '#6B6B00';
 const INK = '#0f172a';
 const MUTED = '#64748b';
 const LINE = '#e2e8f0';
@@ -587,7 +587,7 @@ function drawPhase(doc: PdfDoc, g: Geo, phase: ProcessPhase, y: number): number 
     doc
       .font('Helvetica')
       .fontSize(5.5)
-      .fillColor(BRAND)
+      .fillColor(BRAND_DEEP)
       .text(step.who.toUpperCase(), x + 6, y + 18, { width: boxW - 12 });
     doc
       .font('Helvetica')

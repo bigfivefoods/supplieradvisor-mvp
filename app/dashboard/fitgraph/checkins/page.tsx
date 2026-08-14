@@ -83,7 +83,7 @@ export default function CheckinsPage() {
       ) : (
         <div className="space-y-6">
           {checkinUrl ? (
-            <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-violet-200 bg-violet-50/70 px-4 py-3 dark:border-violet-500/30 dark:bg-violet-950/40">
+            <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-yellow-200 bg-yellow-50/70 px-4 py-3 dark:border-yellow-500/30 dark:bg-yellow-950/40">
               {qrImg ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -94,19 +94,19 @@ export default function CheckinsPage() {
                   className="h-[72px] w-[72px] rounded-lg bg-white p-1"
                 />
               ) : (
-                <QrCode className="h-10 w-10 text-violet-700" />
+                <QrCode className="h-10 w-10 text-yellow-700" />
               )}
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-violet-950 dark:text-violet-50">
+                <p className="text-sm font-bold text-yellow-950 dark:text-yellow-50">
                   Unique gym QR — members scan to check in on their phones
                 </p>
-                <p className="truncate font-mono text-[11px] text-violet-800/80 dark:text-violet-200/80">
+                <p className="truncate font-mono text-[11px] text-yellow-800/80 dark:text-yellow-200/80">
                   {checkinUrl}
                 </p>
               </div>
               <Link
                 href="/dashboard/fitgraph/website"
-                className="shrink-0 rounded-full bg-violet-700 px-3 py-1.5 text-xs font-bold text-white"
+                className="shrink-0 rounded-full bg-[#E8E830] px-3 py-1.5 text-xs font-bold text-slate-900"
               >
                 Full QR & print
               </Link>

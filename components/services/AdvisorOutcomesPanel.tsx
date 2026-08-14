@@ -8,7 +8,7 @@ import type { OutcomesSnapshot } from '@/lib/services/advisor-outcomes';
 type Props = {
   outcomes: OutcomesSnapshot | null;
   loading?: boolean;
-  accent?: 'violet' | 'sky' | 'teal' | 'emerald' | 'indigo';
+  accent?: 'violet' | 'sky' | 'teal' | 'emerald' | 'indigo' | 'yellow';
   title?: string;
   onRefresh?: () => void;
   onSendReminders?: () => void;
@@ -21,6 +21,7 @@ const ACCENT: Record<string, string> = {
   teal: 'border-teal-200 dark:border-teal-800',
   emerald: 'border-emerald-200 dark:border-emerald-800',
   indigo: 'border-indigo-200 dark:border-indigo-800',
+  yellow: 'border-yellow-200 dark:border-yellow-800',
 };
 
 export function AdvisorOutcomesPanel({

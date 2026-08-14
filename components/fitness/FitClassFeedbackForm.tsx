@@ -60,20 +60,20 @@ export function FitClassFeedbackForm({
 
   const shell = dark
     ? 'rounded-2xl border border-slate-700 bg-slate-950/50 p-4 space-y-3'
-    : 'rounded-2xl border border-violet-100 bg-violet-50/50 p-4 space-y-3';
+    : 'rounded-2xl border border-yellow-100 bg-yellow-50/50 p-4 space-y-3';
   const label = dark
     ? 'text-[10px] font-black uppercase tracking-wider text-amber-400/90'
-    : 'text-[10px] font-black uppercase tracking-wider text-violet-700';
+    : 'text-[10px] font-black uppercase tracking-wider text-yellow-700';
   const muted = dark ? 'text-slate-400' : 'text-slate-600';
   const input = dark
     ? 'w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100'
     : 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm';
   const chipOn = dark
     ? 'border-amber-500 bg-amber-500 text-amber-950'
-    : 'border-violet-600 bg-violet-600 text-white';
+    : 'border-yellow-600 bg-[#E8E830] text-slate-900';
   const chipOff = dark
     ? 'border-slate-600 bg-slate-900 text-slate-300'
-    : 'border-violet-200 bg-white text-violet-900';
+    : 'border-yellow-200 bg-white text-yellow-900';
 
   const toggleTag = (t: string) => {
     setV((cur) => ({
@@ -134,7 +134,7 @@ export function FitClassFeedbackForm({
           onChange={(e) =>
             setV((cur) => ({ ...cur, feeling: Number(e.target.value) }))
           }
-          className="w-full mt-1 accent-violet-600"
+          className="w-full mt-1 accent-yellow-600"
         />
         <div className={`flex justify-between text-[9px] ${muted}`}>
           <span>Drained</span>
@@ -246,7 +246,7 @@ export function FitClassFeedbackForm({
         className={
           dark
             ? 'w-full rounded-xl bg-amber-500 text-amber-950 py-2.5 text-sm font-black disabled:opacity-50'
-            : 'w-full rounded-xl bg-violet-600 text-white py-2.5 text-sm font-black disabled:opacity-50'
+            : 'w-full rounded-xl bg-[#E8E830] text-slate-900 py-2.5 text-sm font-black disabled:opacity-50'
         }
       >
         {busy ? 'Saving…' : 'Submit feedback'}

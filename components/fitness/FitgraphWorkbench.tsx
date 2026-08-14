@@ -86,7 +86,7 @@ export function FitgraphWorkbench({
         <div className="mb-4">
           <Link
             href="/dashboard/fitgraph"
-            className="inline-flex items-center gap-1 text-xs font-bold text-violet-700 hover:text-violet-900"
+            className="inline-flex items-center gap-1 text-xs font-bold text-yellow-700 hover:text-yellow-900"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> GymAdvisor
           </Link>
@@ -106,7 +106,7 @@ export function FitgraphWorkbench({
 export function LoadingBlock() {
   return (
     <div className="py-16 flex justify-center">
-      <Loader2 className="w-8 h-8 animate-spin text-violet-600" />
+      <Loader2 className="w-8 h-8 animate-spin text-yellow-600" />
     </div>
   );
 }

@@ -70,7 +70,7 @@ function Telemetry({
 }: {
   label: string;
   value: string;
-  tone?: 'cyan' | 'emerald' | 'amber' | 'violet' | 'teal' | 'sky';
+  tone?: 'cyan' | 'emerald' | 'amber' | 'violet' | 'teal' | 'sky' | 'yellow';
 }) {
   const tones = {
     cyan: 'from-cyan-100 to-cyan-50 border-cyan-200 dark:from-cyan-950 dark:to-slate-950 dark:border-cyan-800/60',
@@ -82,6 +82,8 @@ function Telemetry({
       'from-violet-100 to-violet-50 border-violet-200 dark:from-violet-950 dark:to-slate-950 dark:border-violet-800/60',
     teal: 'from-teal-100 to-teal-50 border-teal-200 dark:from-teal-950 dark:to-slate-950 dark:border-teal-800/60',
     sky: 'from-sky-100 to-sky-50 border-sky-200 dark:from-sky-950 dark:to-slate-950 dark:border-sky-800/60',
+    yellow:
+      'from-yellow-100 to-yellow-50 border-yellow-200 dark:from-yellow-950 dark:to-slate-950 dark:border-yellow-800/60',
   };
   return (
     <div
@@ -742,19 +744,19 @@ export function FitgraphMock() {
     <Frame title="dashboard/fitgraph">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div>
-          <div className="text-[9px] font-bold uppercase tracking-widest text-violet-700">
+          <div className="text-[9px] font-bold uppercase tracking-widest text-yellow-700">
             GymAdvisor® · Gym
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
             Rooms · waitlist · marketplace.
           </div>
         </div>
-        <span className="rounded-full border border-violet-200 bg-violet-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
+        <span className="rounded-full border border-yellow-200 bg-[#E8E830] px-2 py-0.5 text-[9px] font-black uppercase text-slate-900">
           Tertiary
         </span>
       </div>
       <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
-        <Telemetry label="Members" value="842" tone="violet" />
+        <Telemetry label="Members" value="842" tone="yellow" />
         <Telemetry label="Waitlist" value="14" tone="sky" />
         <Telemetry label="Rooms" value="5" tone="cyan" />
         <Telemetry label="Feedback" value="4.8" tone="emerald" />
@@ -766,7 +768,7 @@ export function FitgraphMock() {
             className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] text-center shadow-sm sm:p-3"
           >
             <div className="text-[11px] font-bold text-slate-800 sm:text-xs dark:text-white">{t}</div>
-            <div className="mt-2 h-8 rounded-lg bg-gradient-to-br from-violet-50 to-cyan-50" />
+            <div className="mt-2 h-8 rounded-lg bg-gradient-to-br from-yellow-50 to-cyan-50" />
           </div>
         ))}
       </div>

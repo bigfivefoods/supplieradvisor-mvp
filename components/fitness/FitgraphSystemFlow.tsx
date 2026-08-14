@@ -526,7 +526,7 @@ export default function FitgraphSystemFlow({
       aria-label="GymAdvisor full process design"
       id="fitgraph-system-flow"
     >
-      <div className="bg-gradient-to-r from-violet-950 via-violet-800 to-fuchsia-700 px-5 py-4 text-white">
+      <div className="bg-gradient-to-r from-neutral-950 via-neutral-900 to-[#E8E830] px-5 py-4 text-white">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <button
             type="button"
@@ -572,7 +572,7 @@ export default function FitgraphSystemFlow({
               {
                 label: 'People',
                 sub: 'Coaches · POPIA · People',
-                tone: 'violet',
+                tone: 'yellow',
               },
               { label: 'Plans · subs', sub: 'Packs · freeze', tone: 'emerald' },
               { label: 'Class types', sub: 'Capacity', tone: 'amber' },
@@ -600,8 +600,8 @@ export default function FitgraphSystemFlow({
               <div key={node.label} className="contents">
                 <div
                   className={`rounded-2xl border px-3 py-2 min-w-[6rem] ${
-                    node.tone === 'violet'
-                      ? 'border-violet-200 bg-violet-50'
+                    node.tone === 'yellow'
+                      ? 'border-yellow-200 bg-yellow-50'
                       : node.tone === 'emerald'
                         ? 'border-emerald-200 bg-emerald-50'
                         : node.tone === 'amber'
@@ -696,10 +696,10 @@ export default function FitgraphSystemFlow({
             ))}
           </div>
 
-          <div className="rounded-2xl border border-violet-100 bg-violet-50/50 p-4">
+          <div className="rounded-2xl border border-yellow-100 bg-yellow-50/50 p-4">
             <div className="flex items-center gap-2 mb-3">
-              <ShieldCheck className="w-5 h-5 text-violet-700" />
-              <h3 className="text-sm font-black text-violet-950">
+              <ShieldCheck className="w-5 h-5 text-yellow-700" />
+              <h3 className="text-sm font-black text-yellow-950">
                 Guardrails — one gym book of truth
               </h3>
             </div>
@@ -707,7 +707,7 @@ export default function FitgraphSystemFlow({
               {GUARDRAILS.map((g) => (
                 <div
                   key={g.title}
-                  className="rounded-xl bg-white border border-violet-100 px-3 py-2.5"
+                  className="rounded-xl bg-white border border-yellow-100 px-3 py-2.5"
                 >
                   <p className="text-xs font-bold text-slate-900">{g.title}</p>
                   <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
@@ -718,10 +718,10 @@ export default function FitgraphSystemFlow({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-violet-100 bg-violet-50/60 px-4 py-3">
+          <div className="rounded-2xl border border-yellow-100 bg-yellow-50/60 px-4 py-3">
             <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-              <div className="flex items-start gap-2 text-violet-950 min-w-0 flex-1">
-                <Sparkles className="w-5 h-5 shrink-0 text-violet-700 mt-0.5" />
+              <div className="flex items-start gap-2 text-yellow-950 min-w-0 flex-1">
+                <Sparkles className="w-5 h-5 shrink-0 text-yellow-700 mt-0.5" />
                 <p className="text-sm leading-snug">
                   <strong className="font-black">One sentence:</strong> Register
                   coaches and members → sell plans and track subscriptions →
@@ -734,25 +734,25 @@ export default function FitgraphSystemFlow({
               <div className="flex flex-wrap gap-2 shrink-0">
                 <Link
                   href="/dashboard/fitgraph/calendar"
-                  className="text-[11px] font-bold rounded-full bg-violet-800 text-white px-3 py-1.5"
+                  className="text-[11px] font-bold rounded-full bg-yellow-800 text-white px-3 py-1.5"
                 >
                   Calendar
                 </Link>
                 <Link
                   href="/dashboard/fitgraph/messages"
-                  className="text-[11px] font-bold rounded-full bg-white border border-violet-200 px-3 py-1.5 text-violet-800"
+                  className="text-[11px] font-bold rounded-full bg-white border border-yellow-200 px-3 py-1.5 text-yellow-800"
                 >
                   Messages
                 </Link>
                 <Link
                   href="/dashboard/fitgraph/website"
-                  className="text-[11px] font-bold rounded-full bg-white border border-violet-200 px-3 py-1.5 text-violet-800"
+                  className="text-[11px] font-bold rounded-full bg-white border border-yellow-200 px-3 py-1.5 text-yellow-800"
                 >
                   Website
                 </Link>
                 <Link
                   href="/dashboard/fitgraph/report"
-                  className="text-[11px] font-bold rounded-full bg-white border border-violet-200 px-3 py-1.5 text-violet-800"
+                  className="text-[11px] font-bold rounded-full bg-white border border-yellow-200 px-3 py-1.5 text-yellow-800"
                 >
                   Reports
                 </Link>
@@ -777,16 +777,16 @@ const ROLE_STYLES = {
   owner: {
     // Violet — gym owner / manager
     card:
-      'border-violet-300 bg-violet-50/50 dark:border-violet-400 dark:bg-violet-950 dark:ring-1 dark:ring-violet-500/40',
-    badge: 'bg-violet-700 dark:bg-violet-500',
+      'border-yellow-300 bg-yellow-50/50 dark:border-yellow-400 dark:bg-yellow-950 dark:ring-1 dark:ring-yellow-500/40',
+    badge: 'bg-yellow-700 dark:bg-yellow-500',
     chip:
-      'bg-violet-700 text-white dark:bg-violet-500 dark:text-white',
-    title: 'text-slate-900 dark:text-violet-100',
-    subtitle: 'text-slate-500 dark:text-violet-300/80',
-    doesLabel: 'text-violet-700 dark:text-violet-300',
-    doesText: 'text-slate-700 dark:text-violet-50/90',
-    link: 'text-violet-800 dark:text-violet-300',
-    swatch: 'bg-violet-600 dark:bg-violet-500',
+      'bg-[#E8E830] text-slate-900 dark:bg-yellow-500 dark:text-white',
+    title: 'text-slate-900 dark:text-yellow-100',
+    subtitle: 'text-slate-500 dark:text-yellow-300/80',
+    doesLabel: 'text-yellow-700 dark:text-yellow-300',
+    doesText: 'text-slate-700 dark:text-yellow-50/90',
+    link: 'text-yellow-800 dark:text-yellow-300',
+    swatch: 'bg-yellow-600 dark:bg-yellow-500',
     label: 'Owner',
   },
   coach: {
@@ -929,7 +929,7 @@ function PhaseStepCard({ step }: { step: PhaseStep }) {
   return (
     <Link
       href={step.href}
-      className="flex-1 min-w-0 rounded-2xl border border-slate-200 bg-white px-3 py-3 hover:border-violet-300 hover:bg-violet-50/30 transition-colors dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-violet-500/40 dark:hover:bg-neutral-900"
+      className="flex-1 min-w-0 rounded-2xl border border-slate-200 bg-white px-3 py-3 hover:border-yellow-300 hover:bg-yellow-50/30 transition-colors dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-yellow-500/40 dark:hover:bg-neutral-900"
     >
       <div className="flex items-start gap-2">
         <div

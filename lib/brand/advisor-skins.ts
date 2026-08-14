@@ -78,8 +78,9 @@ export const ADVISOR_SKINS: readonly AdvisorSkin[] = [
     prefixes: ['/dashboard/fitgraph'],
     moduleIds: ['fitgraph'],
     packIds: ['fitness_gym'],
-    brand: '#7c3aed',
-    brandDeep: '#5b21b6',
+    // VUKA Fitness wordmark yellow (sampled from vukafitness.com logo)
+    brand: '#E8E830',
+    brandDeep: '#6B6B00',
   },
   {
     id: 'physio',
@@ -338,7 +339,9 @@ export function applyAdvisorSkinToDocument(skin: AdvisorSkin) {
   const g = parseInt(skin.brand.slice(3, 5), 16);
   const b = parseInt(skin.brand.slice(5, 7), 16);
   if (Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b)) {
-    root.style.setProperty('--sa-brand-soft', `rgba(${r}, ${g}, ${b}, 0.12)`);
-    root.style.setProperty('--sa-brand-glow', `rgba(${r}, ${g}, ${b}, 0.22)`);
+    root.style.setProperty('--sa-brand-soft', `rgba(${r}, ${g}, ${b}, 0.16)`);
+    root.style.setProperty('--sa-brand-glow', `rgba(${r}, ${g}, ${b}, 0.28)`);
+    const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    root.style.setProperty('--sa-brand-ink', lum > 0.55 ? '#111827' : '#ffffff');
   }
 }

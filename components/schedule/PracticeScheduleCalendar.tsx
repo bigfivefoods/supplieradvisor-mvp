@@ -40,7 +40,7 @@ export type ScheduleEvent = {
   public?: boolean;
   meta?: string;
   /** Tailwind-ish tone key */
-  tone?: 'violet' | 'teal' | 'sky' | 'emerald' | 'amber' | 'indigo';
+  tone?: 'violet' | 'teal' | 'sky' | 'emerald' | 'amber' | 'indigo' | 'yellow';
 };
 
 export type SchedulePerson = {
@@ -172,37 +172,110 @@ function layoutConcurrentEvents(
 
 const TONE: Record<
   NonNullable<ScheduleEvent['tone']>,
-  { chip: string; bar: string; soft: string }
+  {
+    chip: string;
+    bar: string;
+    soft: string;
+    hint: string;
+    slotHover: string;
+    todayBorder: string;
+    todayText: string;
+    todayRing: string;
+    monthHover: string;
+    printBar: string;
+    printBg: string;
+  }
 > = {
   violet: {
     chip: 'bg-violet-100 text-violet-900 border-violet-200 dark:bg-violet-950 dark:text-violet-100 dark:border-violet-800',
     bar: 'bg-violet-500',
     soft: 'bg-violet-50/80 dark:bg-violet-950/30',
+    hint: 'text-violet-600 dark:text-violet-300',
+    slotHover: 'hover:bg-violet-50/40 dark:hover:bg-violet-950/20',
+    todayBorder: 'border-violet-400 dark:border-violet-500',
+    todayText: 'text-violet-700 dark:text-violet-300',
+    todayRing: 'ring-2 ring-violet-400/60',
+    monthHover: 'hover:border-violet-300 dark:hover:border-violet-600',
+    printBar: '#7c3aed',
+    printBg: '#f5f3ff',
   },
   teal: {
     chip: 'bg-teal-100 text-teal-900 border-teal-200 dark:bg-teal-950 dark:text-teal-100 dark:border-teal-800',
     bar: 'bg-teal-500',
     soft: 'bg-teal-50/80 dark:bg-teal-950/30',
+    hint: 'text-teal-600 dark:text-teal-300',
+    slotHover: 'hover:bg-teal-50/40 dark:hover:bg-teal-950/20',
+    todayBorder: 'border-teal-400 dark:border-teal-500',
+    todayText: 'text-teal-700 dark:text-teal-300',
+    todayRing: 'ring-2 ring-teal-400/60',
+    monthHover: 'hover:border-teal-300 dark:hover:border-teal-600',
+    printBar: '#14b8a6',
+    printBg: '#f0fdfa',
   },
   sky: {
     chip: 'bg-sky-100 text-sky-900 border-sky-200 dark:bg-sky-950 dark:text-sky-100 dark:border-sky-800',
     bar: 'bg-sky-500',
     soft: 'bg-sky-50/80 dark:bg-sky-950/30',
+    hint: 'text-sky-600 dark:text-sky-300',
+    slotHover: 'hover:bg-sky-50/40 dark:hover:bg-sky-950/20',
+    todayBorder: 'border-sky-400 dark:border-sky-500',
+    todayText: 'text-sky-700 dark:text-sky-300',
+    todayRing: 'ring-2 ring-sky-400/60',
+    monthHover: 'hover:border-sky-300 dark:hover:border-sky-600',
+    printBar: '#0284c7',
+    printBg: '#f0f9ff',
   },
   emerald: {
     chip: 'bg-emerald-100 text-emerald-900 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-100 dark:border-emerald-800',
     bar: 'bg-emerald-500',
     soft: 'bg-emerald-50/80 dark:bg-emerald-950/30',
+    hint: 'text-emerald-600 dark:text-emerald-300',
+    slotHover: 'hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20',
+    todayBorder: 'border-emerald-400 dark:border-emerald-500',
+    todayText: 'text-emerald-700 dark:text-emerald-300',
+    todayRing: 'ring-2 ring-emerald-400/60',
+    monthHover: 'hover:border-emerald-300 dark:hover:border-emerald-600',
+    printBar: '#059669',
+    printBg: '#ecfdf5',
   },
   amber: {
     chip: 'bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-950 dark:text-amber-100 dark:border-amber-800',
     bar: 'bg-amber-500',
     soft: 'bg-amber-50/80 dark:bg-amber-950/30',
+    hint: 'text-amber-700 dark:text-amber-300',
+    slotHover: 'hover:bg-amber-50/40 dark:hover:bg-amber-950/20',
+    todayBorder: 'border-amber-400 dark:border-amber-500',
+    todayText: 'text-amber-800 dark:text-amber-300',
+    todayRing: 'ring-2 ring-amber-400/60',
+    monthHover: 'hover:border-amber-300 dark:hover:border-amber-600',
+    printBar: '#d97706',
+    printBg: '#fffbeb',
   },
   indigo: {
     chip: 'bg-indigo-100 text-indigo-900 border-indigo-200 dark:bg-indigo-950 dark:text-indigo-100 dark:border-indigo-800',
     bar: 'bg-indigo-500',
     soft: 'bg-indigo-50/80 dark:bg-indigo-950/30',
+    hint: 'text-indigo-600 dark:text-indigo-300',
+    slotHover: 'hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20',
+    todayBorder: 'border-indigo-400 dark:border-indigo-500',
+    todayText: 'text-indigo-700 dark:text-indigo-300',
+    todayRing: 'ring-2 ring-indigo-400/60',
+    monthHover: 'hover:border-indigo-300 dark:hover:border-indigo-600',
+    printBar: '#4f46e5',
+    printBg: '#eef2ff',
+  },
+  yellow: {
+    chip: 'bg-yellow-100 text-yellow-950 border-yellow-300 dark:bg-yellow-950 dark:text-yellow-100 dark:border-yellow-700',
+    bar: 'bg-[#E8E830]',
+    soft: 'bg-yellow-50/80 dark:bg-yellow-950/30',
+    hint: 'text-yellow-800 dark:text-yellow-300',
+    slotHover: 'hover:bg-yellow-50/40 dark:hover:bg-yellow-950/20',
+    todayBorder: 'border-yellow-400 dark:border-yellow-500',
+    todayText: 'text-yellow-800 dark:text-yellow-300',
+    todayRing: 'ring-2 ring-yellow-400/60',
+    monthHover: 'hover:border-yellow-300 dark:hover:border-yellow-600',
+    printBar: '#E8E830',
+    printBg: '#fefce8',
   },
 };
 
@@ -280,6 +353,8 @@ function openA4Print(opts: {
   hoursNote?: string;
   orientation: 'landscape' | 'portrait';
   contentHtml: string;
+  eventBar?: string;
+  eventBg?: string;
 }) {
   const w = window.open('', '_blank');
   if (!w) {
@@ -362,8 +437,8 @@ function openA4Print(opts: {
     .day-num { font-weight: 800; font-size: 12px; }
     .closed { background: #f8fafc; color: #94a3b8; }
     .ev {
-      border-left: 3px solid #7c3aed;
-      background: #f5f3ff;
+      border-left: 3px solid ${opts.eventBar || '#7c3aed'};
+      background: ${opts.eventBg || '#f5f3ff'};
       margin: 2px 0;
       padding: 2px 4px;
       border-radius: 3px;
@@ -755,6 +830,8 @@ export function PracticeScheduleCalendar({
       hoursNote,
       orientation,
       contentHtml,
+      eventBar: tone.printBar,
+      eventBg: tone.printBg,
     });
   };
 
@@ -951,7 +1028,7 @@ export function PracticeScheduleCalendar({
                 ? ` · ${selectedPerson.name}`
                 : ''}
               {canPickSlot ? (
-                <span className="text-violet-600 dark:text-violet-300 font-bold">
+                <span className={`${tone.hint} font-bold`}>
                   {' '}
                   · click empty time to schedule
                 </span>
@@ -994,7 +1071,7 @@ export function PracticeScheduleCalendar({
             <div
               className={`relative ${
                 canPickSlot
-                  ? 'cursor-crosshair hover:bg-violet-50/40 dark:hover:bg-violet-950/20'
+                  ? `cursor-crosshair ${tone.slotHover}`
                   : ''
               }`}
               style={{ height }}
@@ -1356,7 +1433,7 @@ export function PracticeScheduleCalendar({
                     key={date}
                     className={`rounded-2xl border flex flex-col ${
                       isToday
-                        ? 'border-violet-400 dark:border-violet-500'
+                        ? tone.todayBorder
                         : 'border-slate-200 dark:border-slate-700'
                     } ${
                       closed
@@ -1378,7 +1455,7 @@ export function PracticeScheduleCalendar({
                       </div>
                       <div
                         className={`text-sm font-black ${
-                          isToday ? 'text-violet-700 dark:text-violet-300' : ''
+                          isToday ? tone.todayText : ''
                         }`}
                       >
                         {parseIso(date).getDate()}
@@ -1434,18 +1511,18 @@ export function PracticeScheduleCalendar({
                     key={date}
                     type="button"
                     onClick={() => pickDate(date)}
-                    className={`min-h-[88px] sm:min-h-[100px] rounded-xl border p-1 text-left transition hover:border-violet-300 dark:hover:border-violet-600 ${
+                    className={`min-h-[88px] sm:min-h-[100px] rounded-xl border p-1 text-left transition ${tone.monthHover} ${
                       inMonth
                         ? closed
                           ? 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/80'
                           : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950'
                         : 'border-transparent bg-slate-50/50 dark:bg-slate-900/30 opacity-50'
-                    } ${isToday ? 'ring-2 ring-violet-400/60' : ''}`}
+                    } ${isToday ? tone.todayRing : ''}`}
                   >
                     <div
                       className={`text-[11px] font-bold mb-0.5 flex items-center justify-between gap-1 ${
                         isToday
-                          ? 'text-violet-700 dark:text-violet-300'
+                          ? tone.todayText
                           : 'text-slate-600 dark:text-slate-300'
                       }`}
                     >

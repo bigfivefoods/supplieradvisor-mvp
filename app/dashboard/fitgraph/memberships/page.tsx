@@ -90,7 +90,7 @@ export default function MembershipsPage() {
             Manage member billing status on{' '}
             <a
               href="/dashboard/fitgraph/subscriptions"
-              className="font-bold text-violet-700 underline dark:text-violet-300"
+              className="font-bold text-yellow-700 underline dark:text-yellow-300"
             >
               Subscriptions
             </a>

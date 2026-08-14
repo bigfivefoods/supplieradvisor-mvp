@@ -356,7 +356,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                 }}
                 className={`flex h-11 w-11 items-center justify-center rounded-2xl transition-all ${
                   isActive
-                    ? 'bg-[var(--sa-brand)] text-white shadow-sm'
+                    ? 'bg-[var(--sa-brand)] text-[var(--sa-brand-ink,#fff)] shadow-sm'
                     : 'text-slate-600 hover:bg-neutral-100 hover:text-[var(--sa-brand-deep)]'
                 }`}
               >
@@ -437,7 +437,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
             <div key={mod.id} className="mb-1">
               <div
                 className={`flex items-center justify-between px-3 py-2.5 rounded-2xl transition-all ${
-                  isActive ? 'bg-[var(--sa-brand)] text-white' : 'hover:bg-neutral-100 text-slate-800'
+                  isActive ? 'bg-[var(--sa-brand)] text-[var(--sa-brand-ink,#fff)]' : 'hover:bg-neutral-100 text-slate-800'
                 }`}
               >
                 <Link

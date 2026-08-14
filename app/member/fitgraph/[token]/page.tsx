@@ -26,6 +26,7 @@ import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
 import { VerifiedBadge } from '@/components/services/VerifiedBadge';
 import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
 import { B2cAutoLinkBanner } from '@/components/b2c/B2cAutoLinkBanner';
+import { gymBrandColor } from '@/lib/fitness/fitgraph';
 
 const MEMBER_TOKEN_KEY = 'sa_fitgraph_member_token';
 
@@ -305,12 +306,12 @@ export default function MemberFitgraphPortalPage() {
     }
   };
 
-  const color = portal?.primary_color || '#7c3aed';
+  const color = gymBrandColor(portal?.primary_color);
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="w-8 h-8 animate-spin text-violet-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-yellow-600" />
       </div>
     );
   }
@@ -342,7 +343,7 @@ export default function MemberFitgraphPortalPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-violet-50 to-slate-50">
+    <div className="min-h-screen bg-gradient-to-b from-yellow-50 to-slate-50">
       <header
         className="px-4 py-6 text-white"
         style={{
@@ -416,7 +417,7 @@ export default function MemberFitgraphPortalPage() {
 
       <main className="max-w-lg mx-auto px-4 py-5 space-y-4">
         <PopiaConsentNotice brand={portal.brand} />
-        <B2cAutoLinkBanner token={token} tone="violet" />
+        <B2cAutoLinkBanner token={token} tone="yellow" />
         {(msg || error) && (
           <div
             className={`rounded-xl border px-3 py-2 text-sm ${
@@ -449,7 +450,7 @@ export default function MemberFitgraphPortalPage() {
               }}
               className={`flex-1 min-w-[4rem] rounded-xl py-2 text-xs font-bold ${
                 tab === id
-                  ? 'bg-violet-600 text-white'
+                  ? 'bg-[#E8E830] text-slate-900'
                   : 'text-slate-600 hover:bg-slate-50'
               }`}
             >
@@ -463,8 +464,8 @@ export default function MemberFitgraphPortalPage() {
 
         {tab === 'checkin' && (
           <div className="space-y-3">
-            <div className="rounded-2xl border border-violet-200 bg-white p-4">
-              <div className="flex items-center gap-2 text-violet-800">
+            <div className="rounded-2xl border border-yellow-200 bg-white p-4">
+              <div className="flex items-center gap-2 text-yellow-800">
                 <QrCode className="h-4 w-4" />
                 <h2 className="text-sm font-black">Gym door check-in</h2>
               </div>
@@ -512,7 +513,7 @@ export default function MemberFitgraphPortalPage() {
                 type="button"
                 disabled={checkinBusy}
                 onClick={() => void doCheckIn()}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3 text-sm font-black text-white disabled:opacity-50"
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-yellow-600 py-3 text-sm font-black text-white disabled:opacity-50"
               >
                 {checkinBusy ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -524,7 +525,7 @@ export default function MemberFitgraphPortalPage() {
               {portal.gym_checkin?.path ? (
                 <a
                   href={`${portal.gym_checkin.path}?member=${encodeURIComponent(token)}`}
-                  className="mt-2 block text-center text-xs font-bold text-violet-700 underline"
+                  className="mt-2 block text-center text-xs font-bold text-yellow-700 underline"
                 >
                   Open gym door page (scan-friendly)
                 </a>
@@ -539,7 +540,7 @@ export default function MemberFitgraphPortalPage() {
 
         {tab === 'messages' && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-violet-800">
+            <div className="flex items-center gap-2 text-yellow-800">
               <MessageSquare className="w-4 h-4" />
               <h2 className="text-sm font-black">Messages with your coaches</h2>
             </div>
@@ -564,7 +565,7 @@ export default function MemberFitgraphPortalPage() {
                         }}
                         className={`w-full text-left rounded-2xl border px-3 py-3 ${
                           msgThreadId === t.id
-                            ? 'border-violet-400 bg-violet-50'
+                            ? 'border-yellow-400 bg-yellow-50'
                             : 'border-slate-200 bg-white'
                         }`}
                       >
@@ -601,7 +602,7 @@ export default function MemberFitgraphPortalPage() {
                               key={m.id}
                               className={`rounded-xl px-3 py-2 text-sm ${
                                 mine
-                                  ? 'bg-violet-100 text-violet-950 ml-6'
+                                  ? 'bg-yellow-100 text-yellow-950 ml-6'
                                   : 'bg-slate-100 text-slate-900 mr-6'
                               }`}
                             >
@@ -650,7 +651,7 @@ export default function MemberFitgraphPortalPage() {
                               })
                               .finally(() => setBusyId(null));
                           }}
-                          className="rounded-xl bg-violet-600 text-white px-3 py-2 disabled:opacity-50"
+                          className="rounded-xl bg-[#E8E830] text-slate-900 px-3 py-2 disabled:opacity-50"
                         >
                           <Send className="w-4 h-4" />
                         </button>
@@ -665,7 +666,7 @@ export default function MemberFitgraphPortalPage() {
 
         {(portal.client?.family || []).filter((m) => m.active !== false).length > 0 &&
         (tab === 'open') ? (
-          <div className="rounded-2xl border border-violet-200 bg-white p-3">
+          <div className="rounded-2xl border border-yellow-200 bg-white p-3">
             <label className="text-[10px] font-bold uppercase text-slate-500">
               Book for
             </label>
@@ -734,7 +735,7 @@ export default function MemberFitgraphPortalPage() {
                       <span
                         className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${
                           c.my_status
-                            ? 'bg-violet-100 text-violet-800'
+                            ? 'bg-yellow-100 text-yellow-800'
                             : c.full
                               ? 'bg-rose-100 text-rose-800'
                               : 'bg-emerald-100 text-emerald-800'
@@ -757,7 +758,7 @@ export default function MemberFitgraphPortalPage() {
                   <div className="mt-3 flex flex-wrap gap-2">
                     {c.my_status ? (
                       <>
-                        <span className="inline-flex items-center gap-1 text-xs font-bold text-violet-700">
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-yellow-700">
                           <Check className="w-3.5 h-3.5" />
                           You&apos;re {c.my_status}
                         </span>
@@ -793,7 +794,7 @@ export default function MemberFitgraphPortalPage() {
                           type="button"
                           disabled={busyId === c.id}
                           onClick={() => void book(c.id, false)}
-                          className="rounded-xl bg-violet-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-50"
+                          className="rounded-xl bg-yellow-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-yellow-700 disabled:opacity-50"
                         >
                           {busyId === c.id ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
@@ -834,7 +835,7 @@ export default function MemberFitgraphPortalPage() {
                       {b.status}
                     </span>
                     <a
-                      className="block mt-1 text-[10px] font-bold text-violet-700 underline"
+                      className="block mt-1 text-[10px] font-bold text-yellow-700 underline"
                       href={`/api/public/advisor/ics?module=fitgraph&date=${encodeURIComponent(b.date)}&start=${encodeURIComponent(b.start_time)}&title=${encodeURIComponent(b.class_name)}&duration=45`}
                     >
                       Add to calendar
@@ -859,8 +860,8 @@ export default function MemberFitgraphPortalPage() {
         {tab === 'profile' && (
           <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
             {(portal.packs || []).length > 0 ? (
-              <div className="rounded-xl border border-violet-100 bg-violet-50/50 px-3 py-2 mb-3">
-                <p className="text-[10px] font-black uppercase text-violet-700 mb-1">Session packs</p>
+              <div className="rounded-xl border border-yellow-100 bg-yellow-50/50 px-3 py-2 mb-3">
+                <p className="text-[10px] font-black uppercase text-yellow-700 mb-1">Session packs</p>
                 <ul className="space-y-1">
                   {(portal.packs || []).map((p) => (
                     <li key={p.id} className="text-xs font-semibold text-slate-700">
@@ -887,7 +888,7 @@ export default function MemberFitgraphPortalPage() {
                 label="Your photo"
                 description="Update your member photo (JPG/PNG/WebP · under 8MB)."
                 disabled={busyId === 'profile'}
-                accentClass="border-violet-300"
+                accentClass="border-yellow-300"
               />
             ) : null}
             <label className="block">
@@ -945,8 +946,8 @@ export default function MemberFitgraphPortalPage() {
               family={portal.client.family || []}
               busy={busyId === 'family'}
               context="gym"
-              accentClass="border-violet-200"
-              buttonClass="bg-violet-600 hover:bg-violet-700"
+              accentClass="border-yellow-200"
+              buttonClass="bg-yellow-600 hover:bg-yellow-700"
               onSave={async (member) => {
                 setBusyId('family');
                 try {
@@ -991,14 +992,14 @@ export default function MemberFitgraphPortalPage() {
                     : p
                 )
               }
-              accentClass="border-violet-200"
-              buttonClass="bg-violet-600 hover:bg-violet-700"
+              accentClass="border-yellow-200"
+              buttonClass="bg-yellow-600 hover:bg-yellow-700"
             />
             <button
               type="button"
               disabled={busyId === 'profile'}
               onClick={() => void saveProfile()}
-              className="w-full rounded-xl bg-violet-600 py-2.5 text-sm font-bold text-white hover:bg-violet-700 disabled:opacity-50"
+              className="w-full rounded-xl bg-yellow-600 py-2.5 text-sm font-bold text-white hover:bg-yellow-700 disabled:opacity-50"
             >
               {busyId === 'profile' ? 'Saving…' : 'Save profile'}
             </button>

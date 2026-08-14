@@ -607,7 +607,7 @@ export default function CoachFitgraphPortalPage() {
             {publicToken && (
               <button
                 type="button"
-                className="ml-auto text-[10px] font-bold text-violet-300 inline-flex items-center gap-1"
+                className="ml-auto text-[10px] font-bold text-yellow-300 inline-flex items-center gap-1"
                 onClick={() => {
                   const url = `${window.location.origin}/embed/fitgraph/${encodeURIComponent(publicToken)}`;
                   void navigator.clipboard.writeText(url);
@@ -737,7 +737,7 @@ export default function CoachFitgraphPortalPage() {
               <button
                 type="button"
                 disabled={busy}
-                className="inline-flex items-center gap-1 rounded-xl bg-violet-600 px-2.5 py-1.5 text-[11px] font-bold"
+                className="inline-flex items-center gap-1 rounded-xl bg-yellow-600 px-2.5 py-1.5 text-[11px] font-bold"
                 onClick={() => {
                   setGuestFor(openCard.session.id);
                   setGuestName('');
@@ -1948,7 +1948,7 @@ export default function CoachFitgraphPortalPage() {
               <button
                 type="button"
                 disabled={busy || !guestName.trim()}
-                className="flex-1 rounded-xl bg-violet-600 py-2.5 text-sm font-bold"
+                className="flex-1 rounded-xl bg-yellow-600 py-2.5 text-sm font-bold"
                 onClick={() =>
                   void post({
                     action: 'book_guest',

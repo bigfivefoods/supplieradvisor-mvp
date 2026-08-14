@@ -14,7 +14,7 @@ export function B2cAutoLinkBanner({
   tone = 'cyan',
 }: {
   token: string;
-  tone?: 'cyan' | 'violet' | 'teal' | 'rose' | 'indigo' | 'amber';
+  tone?: 'cyan' | 'violet' | 'teal' | 'rose' | 'indigo' | 'amber' | 'yellow';
 }) {
   const { ready, authenticated, user, login } = usePrivy();
   const [linked, setLinked] = useState(false);
@@ -51,6 +51,7 @@ export function B2cAutoLinkBanner({
     rose: 'border-rose-200 bg-rose-50 text-rose-950',
     indigo: 'border-indigo-200 bg-indigo-50 text-indigo-950',
     amber: 'border-amber-200 bg-amber-50 text-amber-950',
+    yellow: 'border-yellow-300 bg-yellow-50 text-yellow-950',
   };
   const btn: Record<string, string> = {
     cyan: 'bg-cyan-700',
@@ -59,6 +60,7 @@ export function B2cAutoLinkBanner({
     rose: 'bg-rose-700',
     indigo: 'bg-indigo-700',
     amber: 'bg-amber-700',
+    yellow: 'bg-[#E8E830] text-slate-900',
   };
 
   if (authenticated) {

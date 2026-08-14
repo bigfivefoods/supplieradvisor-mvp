@@ -171,7 +171,7 @@ export default function FitgraphMessagesPage() {
           />
           <ServiceMessaging
             variant="fitgraph"
-            accent="violet"
+            accent="yellow"
             hasFrontDesk={hasFrontDesk}
             threads={(store.threads || []) as ServiceThread[]}
             directory={{

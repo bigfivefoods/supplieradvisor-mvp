@@ -34,7 +34,8 @@ export type TelemetryAccent =
   | 'rose'
   | 'slate'
   | 'violet'
-  | 'sky';
+  | 'sky'
+  | 'yellow';
 
 const ACCENTS: Record<TelemetryAccent, string> = {
   cyan: 'from-cyan-50 to-white border-cyan-100',
@@ -44,6 +45,7 @@ const ACCENTS: Record<TelemetryAccent, string> = {
   slate: 'from-slate-50 to-white border-slate-200',
   violet: 'from-violet-50 to-white border-violet-100',
   sky: 'from-sky-50 to-white border-sky-100',
+  yellow: 'from-yellow-50 to-white border-yellow-200',
 };
 
 const DEFAULT_MODULE_ACCENTS = [
