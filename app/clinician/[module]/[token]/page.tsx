@@ -65,6 +65,7 @@ type Portal = {
     name: string;
     email?: string;
     phone?: string;
+    id_number?: string;
     roles?: string[];
     bio?: string;
     public_bio?: string;
@@ -328,7 +329,9 @@ export default function ClinicianPortalPage() {
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 p-4 sm:items-center">
           <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-slate-700 bg-slate-900 p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-black">Your bio & qualifications</h2>
+              <h2 className="text-sm font-black">
+                Your email, ID, bio & qualifications
+              </h2>
               <button
                 type="button"
                 onClick={() => setShowProfile(false)}
@@ -337,6 +340,25 @@ export default function ClinicianPortalPage() {
                 Close
               </button>
             </div>
+            <input
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              type="email"
+              placeholder="Login email"
+              defaultValue={portal.clinician.email || ''}
+              id="clinician-email"
+            />
+            <input
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              placeholder="SA ID / passport number"
+              defaultValue={portal.clinician.id_number || ''}
+              id="clinician-id-number"
+            />
+            <input
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              placeholder="Phone"
+              defaultValue={portal.clinician.phone || ''}
+              id="clinician-phone"
+            />
             <textarea
               className="w-full min-h-[4rem] resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
               placeholder="Public bio patients see on the website"
@@ -362,8 +384,26 @@ export default function ClinicianPortalPage() {
                 const bio = (
                   document.getElementById('clinician-bio') as HTMLTextAreaElement | null
                 )?.value;
+                const email = (
+                  document.getElementById(
+                    'clinician-email'
+                  ) as HTMLInputElement | null
+                )?.value;
+                const idNumber = (
+                  document.getElementById(
+                    'clinician-id-number'
+                  ) as HTMLInputElement | null
+                )?.value;
+                const phone = (
+                  document.getElementById(
+                    'clinician-phone'
+                  ) as HTMLInputElement | null
+                )?.value;
                 void post({
                   action: 'update_profile',
+                  email,
+                  id_number: idNumber,
+                  phone,
                   public_bio: publicBio,
                   bio,
                 }).then(() => setShowProfile(false));

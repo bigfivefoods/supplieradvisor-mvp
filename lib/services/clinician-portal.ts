@@ -68,6 +68,7 @@ export type ClinicianPerson = {
   name: string;
   email?: string;
   phone?: string;
+  id_number?: string;
   portal_token?: string | null;
   can_manage?: boolean;
   active?: boolean;
@@ -340,6 +341,7 @@ export function buildClinicianPortalPayload(
       name: clinician.name,
       email: clinician.email,
       phone: clinician.phone,
+      id_number: clinician.id_number,
       roles: clinician.roles || clinician.specialties || [],
       bio: clinician.bio,
       public_bio: clinician.public_bio,

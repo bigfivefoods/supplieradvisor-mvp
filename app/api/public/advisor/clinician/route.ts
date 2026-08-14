@@ -327,6 +327,10 @@ export async function POST(req: NextRequest) {
         person.email = body.email ? String(body.email) : undefined;
       if (body.phone !== undefined)
         person.phone = body.phone ? String(body.phone) : undefined;
+      if (body.id_number !== undefined)
+        person.id_number = body.id_number
+          ? String(body.id_number).trim()
+          : undefined;
       if (body.bio !== undefined) person.bio = String(body.bio);
       if (body.public_bio !== undefined)
         person.public_bio = String(body.public_bio);

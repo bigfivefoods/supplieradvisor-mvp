@@ -36,6 +36,10 @@ import { FitContractDocsPanel } from '@/components/fitness/FitContractDocs';
 import { PersonQualificationsEditor } from '@/components/services/PersonQualificationsEditor';
 import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
 import type { PersonQualification } from '@/lib/services/person-qualifications';
+import {
+  AdvisorIdentityPanel,
+  needsAdvisorIdentity,
+} from '@/components/services/AdvisorIdentityPanel';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 
 function todayIso() {
@@ -137,6 +141,7 @@ export default function CoachesPage() {
     null
   );
   const [editSpecialtyTo, setEditSpecialtyTo] = useState('');
+  const [onlyIncomplete, setOnlyIncomplete] = useState(false);
 
   const specialtyOptions = useMemo(
     () => (store ? getCoachSpecialtyOptions(store) : []),
@@ -339,6 +344,31 @@ export default function CoachesPage() {
       return next;
     });
     toast.success('Coach rehired — new engagement started, history kept');
+  };
+
+  const saveIdentity = async (c: FitCoach) => {
+    const p = profileFor(c);
+    if (!p.email.trim() || !p.email.includes('@')) {
+      toast.error('Login email required — they use this to sign in');
+      return;
+    }
+    if (!p.id_number.trim()) {
+      toast.error('ID / passport number required for VerifyNow or Didit');
+      return;
+    }
+    await post({
+      entity: 'coaches',
+      action: 'upsert',
+      record: {
+        id: c.id,
+        code: c.code,
+        name: c.name,
+        email: p.email.trim().toLowerCase(),
+        phone: p.phone.trim(),
+        id_number: p.id_number.trim(),
+      },
+    });
+    toast.success(`Saved ${c.name}’s email and ID`);
   };
 
   const saveCoachQualifications = async (
@@ -844,7 +874,28 @@ export default function CoachesPage() {
           </FormCard>
 
           <div className="space-y-2">
-            {store.coaches.map((c) => {
+            {(() => {
+              const incomplete = store.coaches.filter(needsAdvisorIdentity).length;
+              return incomplete > 0 ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] dark:border-amber-700/50 dark:bg-amber-950/40">
+                  <p className="font-semibold text-amber-950 dark:text-amber-100">
+                    {incomplete} coach{incomplete === 1 ? '' : 'es'} still need
+                    a login email or ID
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setOnlyIncomplete((v) => !v)}
+                    className="text-[11px] font-black text-amber-900 underline dark:text-amber-200"
+                  >
+                    {onlyIncomplete ? 'Show all' : 'Show who needs details'}
+                  </button>
+                </div>
+              ) : null;
+            })()}
+            {(onlyIncomplete
+              ? store.coaches.filter(needsAdvisorIdentity)
+              : store.coaches
+            ).map((c) => {
               const draft = draftFor(c);
               const isActive = c.active !== false && !c.end_date;
               const hist = c.history || [];
@@ -892,8 +943,11 @@ export default function CoachesPage() {
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-amber-200/80">
                         {(c.specialties || []).join(', ') || '—'}
-                        {c.email ? ` · ${c.email}` : ''}
-                        {c.id_number ? ` · ID ${c.id_number}` : ''}
+                        {c.email ? ` · ${c.email}` : ' · add email'}
+                        {c.id_number ? ` · ID ${c.id_number}` : ' · add ID'}
+                        {(c.qualifications || []).length
+                          ? ` · ${(c.qualifications || []).length} qual${(c.qualifications || []).length === 1 ? '' : 's'}`
+                          : ' · add qualifications'}
                       </div>
                       <div className="text-[11px] font-semibold text-amber-900/90 dark:text-amber-200 mt-0.5">
                         {formatEngagement(c)}
@@ -973,6 +1027,26 @@ export default function CoachesPage() {
                           {c.public_bio}
                         </p>
                       )}
+
+                      <div className="mb-3">
+                        <AdvisorIdentityPanel
+                          email={profile.email}
+                          idNumber={profile.id_number}
+                          phone={profile.phone}
+                          onChange={(patch) =>
+                            setProfile(c.id, {
+                              email: patch.email ?? profile.email,
+                              id_number: patch.idNumber ?? profile.id_number,
+                              phone: patch.phone ?? profile.phone,
+                            })
+                          }
+                          onSave={() => saveIdentity(c)}
+                          saving={saving}
+                          inputClass={fc()}
+                          toneClass="border-amber-200 bg-amber-50/70 dark:border-amber-700/50 dark:bg-amber-950/30"
+                          personLabel={c.name || 'This coach'}
+                        />
+                      </div>
 
                       {/* Full profile edit (owner) */}
                       {isEditing && (

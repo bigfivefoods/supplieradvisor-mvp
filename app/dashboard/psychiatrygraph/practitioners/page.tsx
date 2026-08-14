@@ -25,6 +25,10 @@ import { FitContractDocsPanel } from '@/components/fitness/FitContractDocs';
 import { PersonQualificationsEditor } from '@/components/services/PersonQualificationsEditor';
 import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
 import type { PersonQualification } from '@/lib/services/person-qualifications';
+import {
+  AdvisorIdentityPanel,
+  needsAdvisorIdentity,
+} from '@/components/services/AdvisorIdentityPanel';
 import type { FitContractDoc } from '@/lib/fitness/fitgraph';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 
@@ -135,6 +139,7 @@ export default function PractitionersPage() {
   const [historyOpen, setHistoryOpen] = useState<Record<string, boolean>>({});
   const [endNote, setEndNote] = useState<Record<string, string>>({});
   const [newSkill, setNewSkill] = useState('');
+  const [onlyIncomplete, setOnlyIncomplete] = useState(false);
   const [editSkillFrom, setEditSkillFrom] = useState<string | null>(null);
   const [editSkillTo, setEditSkillTo] = useState('');
 
@@ -342,6 +347,31 @@ export default function PractitionersPage() {
       return next;
     });
     toast.success('Practitioner rehired — new engagement started, history kept');
+  };
+
+  const saveIdentity = async (p: PsychiatryPractitioner) => {
+    const pr = profileFor(p);
+    if (!pr.email.trim() || !pr.email.includes('@')) {
+      toast.error('Login email required — they use this to sign in');
+      return;
+    }
+    if (!pr.id_number.trim()) {
+      toast.error('ID / passport number required for VerifyNow or Didit');
+      return;
+    }
+    await post({
+      entity: 'practitioners',
+      action: 'upsert',
+      record: {
+        id: p.id,
+        code: p.code,
+        name: p.name,
+        email: pr.email.trim().toLowerCase(),
+        phone: pr.phone.trim(),
+        id_number: pr.id_number.trim(),
+      },
+    });
+    toast.success(`Saved ${p.name}’s email and ID`);
   };
 
   const saveQualifications = async (
@@ -788,7 +818,29 @@ export default function PractitionersPage() {
           </FormCard>
 
           <div className="space-y-2">
-            {store.practitioners.map((p) => {
+            {(() => {
+              const incomplete = store.practitioners.filter(needsAdvisorIdentity)
+                .length;
+              return incomplete > 0 ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] dark:border-amber-700/50 dark:bg-amber-950/40">
+                  <p className="font-semibold text-amber-950 dark:text-amber-100">
+                    {incomplete} practitioner{incomplete === 1 ? '' : 's'} still
+                    need a login email or ID
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setOnlyIncomplete((v) => !v)}
+                    className="text-[11px] font-black text-amber-900 underline dark:text-amber-200"
+                  >
+                    {onlyIncomplete ? 'Show all' : 'Show who needs details'}
+                  </button>
+                </div>
+              ) : null;
+            })()}
+            {(onlyIncomplete
+              ? store.practitioners.filter(needsAdvisorIdentity)
+              : store.practitioners
+            ).map((p) => {
               const draft = draftFor(p);
               const isActive = p.active !== false && !p.end_date;
               const hist = p.history || [];
@@ -907,8 +959,11 @@ export default function PractitionersPage() {
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-indigo-200/80">
                         {(p.disciplines || []).join(', ') || '—'}
-                        {p.email ? ` · ${p.email}` : ''}
-                        {p.id_number ? ` · ID ${p.id_number}` : ''}
+                        {p.email ? ` · ${p.email}` : ' · add email'}
+                        {p.id_number ? ` · ID ${p.id_number}` : ' · add ID'}
+                        {(p.qualifications || []).length
+                          ? ` · ${(p.qualifications || []).length} qual${(p.qualifications || []).length === 1 ? '' : 's'}`
+                          : ' · add qualifications'}
                       </div>
                       <div className="text-[11px] font-semibold text-indigo-900/90 dark:text-indigo-200 mt-0.5">
                         {formatEngagement(p)}
@@ -929,6 +984,26 @@ export default function PractitionersPage() {
                           {p.public_bio}
                         </p>
                       )}
+
+                      <div className="mb-3">
+                        <AdvisorIdentityPanel
+                          email={profile.email}
+                          idNumber={profile.id_number}
+                          phone={profile.phone}
+                          onChange={(patch) =>
+                            setProfile(p.id, {
+                              email: patch.email ?? profile.email,
+                              id_number: patch.idNumber ?? profile.id_number,
+                              phone: patch.phone ?? profile.phone,
+                            })
+                          }
+                          onSave={() => saveIdentity(p)}
+                          saving={saving}
+                          inputClass={fc()}
+                          toneClass="border-indigo-200 bg-indigo-50/70 dark:border-indigo-700/50 dark:bg-indigo-950/30"
+                          personLabel={p.name || 'This practitioner'}
+                        />
+                      </div>
 
                       {isEditing && (
                         <div className="mt-3 rounded-xl border border-indigo-300 bg-white p-3 space-y-2 dark:border-indigo-600 dark:bg-indigo-950/50">
