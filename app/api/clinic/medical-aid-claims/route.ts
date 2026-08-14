@@ -167,14 +167,20 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString();
 
     if (action === 'save_billing') {
-      store.settings = {
-        ...(store.settings || {}),
-        practice_number: String(body.practice_number || ''),
-        bhf_number: String(body.bhf_number || ''),
-        vat_number: String(body.vat_number || ''),
-        pcns_number: String(body.pcns_number || ''),
-        billing_email: String(body.billing_email || ''),
-      };
+      // Mutate in place. Replacing `store.settings` with a spread object
+      // fails the four-clinic union (missing enabled / public_token / …).
+      const settings = store.settings;
+      if (!settings) {
+        return NextResponse.json(
+          { error: 'Practice settings not initialized' },
+          { status: 400 }
+        );
+      }
+      settings.practice_number = String(body.practice_number || '');
+      settings.bhf_number = String(body.bhf_number || '');
+      settings.vat_number = String(body.vat_number || '');
+      settings.pcns_number = String(body.pcns_number || '');
+      settings.billing_email = String(body.billing_email || '');
       await save(companyId, module, meta, store);
       return NextResponse.json({
         success: true,

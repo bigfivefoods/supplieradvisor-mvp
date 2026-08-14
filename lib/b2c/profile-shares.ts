@@ -10,8 +10,8 @@ import {
   loadB2cProfile,
   loadB2cProfileByEmail,
   saveB2cProfile,
-  type B2cProfile,
 } from '@/lib/b2c/profile-store';
+import type { B2cProfile } from '@/lib/b2c/types';
 import {
   detectCompanyModules,
   hasConsumerDesk,

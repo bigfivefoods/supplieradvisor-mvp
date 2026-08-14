@@ -166,7 +166,7 @@ export function createClaimFromVisit(
   if (pi < 0) throw new Error('Patient not found');
   const patient = store.patients[pi];
   const next = upsertMedicalClaim(
-    patient.medical,
+    patient.medical ?? undefined,
     {
       status: 'ready',
       service_date: visit.date,
@@ -192,7 +192,7 @@ export function applyClaimSubmit(
   const pi = store.patients.findIndex((p) => p.id === patientId);
   if (pi < 0) throw new Error('Patient not found');
   const patient = store.patients[pi];
-  const medical = submitMedicalClaim(patient.medical, claimId, now);
+  const medical = submitMedicalClaim(patient.medical ?? undefined, claimId, now);
   const patients = [...store.patients];
   patients[pi] = { ...patient, medical };
   return { ...store, patients };
@@ -212,7 +212,7 @@ export function applyClaimOutcome(
   const claim = (patient.medical?.claims || []).find((c) => c.id === claimId);
   if (!claim) throw new Error('Claim not found');
   const medical = upsertMedicalClaim(
-    patient.medical,
+    patient.medical ?? undefined,
     {
       ...claim,
       status,
