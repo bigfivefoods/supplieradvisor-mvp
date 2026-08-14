@@ -72,6 +72,23 @@ export async function loadB2cProfile(
   return null;
 }
 
+export async function loadB2cProfileByEmail(
+  email: string
+): Promise<B2cProfile | null> {
+  const key = String(email || '')
+    .trim()
+    .toLowerCase();
+  if (!key.includes('@')) return null;
+  const supabase = getSupabaseServer();
+  const { data, error } = await supabase
+    .from('platform_b2c_profiles')
+    .select('*')
+    .ilike('email', key)
+    .maybeSingle();
+  if (error || !data) return null;
+  return rowToProfile(data as Record<string, unknown>);
+}
+
 export async function ensureB2cProfile(
   userId: string,
   opts?: { email?: string | null; full_name?: string | null; phone?: string | null }

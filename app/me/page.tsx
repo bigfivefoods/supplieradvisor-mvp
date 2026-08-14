@@ -44,6 +44,7 @@ import { B2cShopTab } from '@/components/b2c/B2cShopTab';
 import { B2cHireJourneyList } from '@/components/b2c/B2cHireJourney';
 import { B2cIdentityCard } from '@/components/b2c/B2cIdentityCard';
 import { B2cCarePanel } from '@/components/b2c/B2cCarePanel';
+import { B2cProfileShares } from '@/components/b2c/B2cProfileShares';
 import { B2cPhotoField } from '@/components/b2c/B2cPhotoField';
 import { B2cThemeToggle } from '@/components/b2c/B2cThemeToggle';
 import {
@@ -891,6 +892,8 @@ function MeAppInner() {
           ) : null}
 
           <B2cCarePanel />
+
+          <B2cProfileShares />
 
           {activity.length > 0 ? (
             <section>

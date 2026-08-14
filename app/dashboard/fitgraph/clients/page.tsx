@@ -27,6 +27,10 @@ import { AdvisorTreatmentPlanPanel } from '@/components/services/AdvisorTreatmen
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
 import {
+  AdvisorIncomingShares,
+  AdvisorProfileShare,
+} from '@/components/advisors/AdvisorProfileShare';
+import {
   InlineSelect,
   InlineText,
   InlineToggleSelect,
@@ -347,6 +351,7 @@ export default function ClientsPage() {
             brand={store.settings?.brand_name}
             audience="members"
           />
+          <AdvisorIncomingShares companyId={companyId} />
           <StatRow
             tone="member"
             items={[
@@ -640,6 +645,19 @@ export default function ClientsPage() {
               onRefresh={() => {
                 void load();
               }}
+            />
+          ) : null}
+
+          {editing && form.id ? (
+            <AdvisorProfileShare
+              companyId={companyId}
+              personId={form.id}
+              kind="gym"
+              personName={form.name}
+              email={form.email}
+              platformUserId={
+                store.clients.find((x) => x.id === form.id)?.platform_user_id
+              }
             />
           ) : null}
 

@@ -16,6 +16,10 @@ import {
 } from '@/lib/clinic/physiograph';
 import { healthSummaryLabel, isInjured } from '@/lib/health/body-map';
 import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
+import {
+  AdvisorIncomingShares,
+  AdvisorProfileShare,
+} from '@/components/advisors/AdvisorProfileShare';
 import { medicalAidSummary } from '@/lib/clinic/patient-medical';
 import {
   InjuryProfileFields,
@@ -234,6 +238,7 @@ export default function PatientsPage() {
             brand={store.settings?.brand_name}
             audience="patients"
           />
+          <AdvisorIncomingShares companyId={companyId} />
           <StatRow
             items={[
               {
@@ -408,6 +413,19 @@ export default function PatientsPage() {
               inputClass={fc()}
             />
           </FormCard>
+
+          {editing && form.id ? (
+            <AdvisorProfileShare
+              companyId={companyId}
+              personId={form.id}
+              kind="physio"
+              personName={form.name}
+              email={form.email}
+              platformUserId={
+                store.patients.find((x) => x.id === form.id)?.platform_user_id
+              }
+            />
+          ) : null}
           <p className="text-[11px] text-slate-500 -mb-2">
             Press <strong>Edit</strong> on a row to change list fields. Press{' '}
             <strong>Done</strong> to lock the row. Use the full form or Chart for more.
