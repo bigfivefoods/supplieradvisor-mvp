@@ -10,6 +10,11 @@ import {
 } from '@/lib/auth/api-auth';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { loadB2cProfile } from '@/lib/b2c/profile-store';
+import { isWalletVisibleMembership } from '@/lib/b2c/company-modules';
+import {
+  loadBusinessWorkspaceSummary,
+  operatorCompanyIds,
+} from '@/lib/b2c/workspace';
 import {
   loadWalletCompany,
   saveWalletCompanyMeta,
@@ -72,9 +77,16 @@ export async function GET(request: NextRequest) {
     if (!profile) {
       return NextResponse.json({ success: true, accounts: [] });
     }
+    let operated = new Set<number>();
+    try {
+      const workspace = await loadBusinessWorkspaceSummary(gate.userId);
+      operated = new Set(operatorCompanyIds(workspace));
+    } catch {
+      operated = new Set();
+    }
     const filterCompany = Number(request.nextUrl.searchParams.get('companyId'));
     const memberships = (profile.memberships || []).filter((m) => {
-      if (m.active === false) return false;
+      if (!isWalletVisibleMembership(m, operated)) return false;
       if (!isAdvisorMembership(m)) return false;
       if (Number.isFinite(filterCompany) && filterCompany > 0) {
         return m.company_id === filterCompany;

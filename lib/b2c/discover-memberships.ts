@@ -30,7 +30,7 @@ import {
   indexBrandPerson,
   membershipFromDirectory,
 } from '@/lib/b2c/directory';
-import { hasMetaModule } from '@/lib/b2c/company-modules';
+import { hasMetaModule, isPersonalWalletKind } from '@/lib/b2c/company-modules';
 import { shopHref } from '@/lib/b2c/wallet-accounts';
 import {
   loadWalletCompany,
@@ -343,7 +343,12 @@ export async function discoverAndAttachMemberships(
         m.active !== false
     );
     if (already || !entry.portal_path) continue;
-    if (operated.has(entry.company_id) && entry.kind === 'account') continue;
+    if (
+      operated.has(entry.company_id) &&
+      !isPersonalWalletKind(entry.kind)
+    ) {
+      continue;
+    }
     next = upsertMembership(next, membershipFromDirectory(entry));
     attached += 1;
   }

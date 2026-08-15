@@ -25,6 +25,7 @@ import {
 } from '@/lib/b2c/workspace';
 import { buildHireJourneys } from '@/lib/b2c/hire-journeys';
 import { verificationView } from '@/lib/b2c/identity';
+import { isWalletVisibleMembership } from '@/lib/b2c/company-modules';
 import {
   applySnapshotToProfile,
   pushHouseholdToLinkedDesks,
@@ -95,20 +96,20 @@ export async function GET(request: NextRequest) {
       /* discover is best-effort */
     }
 
-    // Operator CRM "account" cards are not memberships. Keep gym / clinic /
-    // hire if they also use that desk as a customer.
+    // Companies you operate stay in Switch to business. Keep a wallet card
+    // only when you are also a gym / clinic / hire customer there.
     const ownedSet = new Set(ownedIds);
-    const hadOwnerAccount = (profile.memberships || []).some(
+    const hadOwnerShopCard = (profile.memberships || []).some(
       (m) =>
         m.active !== false &&
         ownedSet.has(m.company_id) &&
-        m.kind === 'account'
+        !isWalletVisibleMembership(m, ownedSet)
     );
-    if (hadOwnerAccount) {
+    if (hadOwnerShopCard) {
       profile = {
         ...profile,
         memberships: (profile.memberships || []).map((m) =>
-          ownedSet.has(m.company_id) && m.kind === 'account'
+          ownedSet.has(m.company_id) && !isWalletVisibleMembership(m, ownedSet)
             ? { ...m, active: false }
             : m
         ),
@@ -126,11 +127,7 @@ export async function GET(request: NextRequest) {
     }
 
     const memberships = (profile.memberships || [])
-      .filter(
-        (m) =>
-          m.active !== false &&
-          !(ownedSet.has(m.company_id) && m.kind === 'account')
-      )
+      .filter((m) => isWalletVisibleMembership(m, ownedSet))
       .map((m) => ({
         ...m,
         kind_label: kindLabel(m.kind),

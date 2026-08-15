@@ -65,7 +65,10 @@ import {
   primaryPortal,
   shopHref,
 } from '@/lib/b2c/wallet-accounts';
-import { moduleLabels } from '@/lib/b2c/company-modules';
+import {
+  isWalletVisibleMembership,
+  moduleLabels,
+} from '@/lib/b2c/company-modules';
 import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
 
 type Membership = {
@@ -364,8 +367,8 @@ function MeAppInner() {
   );
   const memberships = useMemo(
     () =>
-      (profile?.memberships || []).filter(
-        (m) => m && !(ownedCompanyIds.has(m.company_id) && m.kind === 'account')
+      (profile?.memberships || []).filter((m) =>
+        isWalletVisibleMembership(m, ownedCompanyIds)
       ),
     [profile, ownedCompanyIds]
   );

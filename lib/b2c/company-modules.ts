@@ -40,14 +40,23 @@ export function walletModulesForCompany(
   return advisor.length ? (['account', ...advisor] as B2cMembershipKind[]) : ['account'];
 }
 
-/** Desks you can use as a customer even if you also operate the company. */
-export const CONSUMER_MEMBERSHIP_KINDS: B2cMembershipKind[] = [
+/**
+ * Desks a person uses as a customer on their personal wallet.
+ * Retail / shop / CRM account on a company you operate is workspace
+ * work — not an SA Member membership.
+ */
+export const PERSONAL_WALLET_KINDS: B2cMembershipKind[] = [
   'gym',
   'hire',
   'physio',
   'dental',
   'medical',
   'psychiatry',
+];
+
+/** Desks a shopper can link (includes retail for stores they do not run). */
+export const CONSUMER_MEMBERSHIP_KINDS: B2cMembershipKind[] = [
+  ...PERSONAL_WALLET_KINDS,
   'retail',
 ];
 
@@ -57,10 +66,35 @@ export function isConsumerMembershipKind(
   return CONSUMER_MEMBERSHIP_KINDS.includes(kind as B2cMembershipKind);
 }
 
+export function isPersonalWalletKind(
+  kind: B2cMembershipKind | string | null | undefined
+): boolean {
+  return PERSONAL_WALLET_KINDS.includes(kind as B2cMembershipKind);
+}
+
 export function hasConsumerDesk(
   meta: Record<string, unknown> | null | undefined
 ): boolean {
   return detectCompanyModules(meta).some((k) => isConsumerMembershipKind(k));
+}
+
+/** Gym / clinic / hire — the only desks an operator may also keep on /me. */
+export function hasPersonalWalletDesk(
+  meta: Record<string, unknown> | null | undefined
+): boolean {
+  return detectCompanyModules(meta).some((k) => isPersonalWalletKind(k));
+}
+
+export function isWalletVisibleMembership(
+  m: { kind: string; company_id: number; active?: boolean },
+  operatedCompanyIds: Iterable<number>
+): boolean {
+  if (m.active === false) return false;
+  const owned = new Set(
+    [...operatedCompanyIds].filter((id) => Number.isFinite(id) && id > 0)
+  );
+  if (!owned.has(Number(m.company_id))) return true;
+  return isPersonalWalletKind(m.kind);
 }
 
 export function moduleLabels(kinds: Array<B2cMembershipKind | string>): string {

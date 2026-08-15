@@ -630,22 +630,23 @@ export async function POST(request: NextRequest) {
         );
       }
       await saveStore(companyId, meta, store);
-      void import('@/lib/b2c/directory').then(({ indexBrandPerson }) =>
-        indexBrandPerson({
-          kind: 'psychiatry',
-          companyId,
-          companyName: businessName,
-          brand: businessName,
-          refId: linked.person.id,
-          refLabel: linked.person.name,
-          email: linked.person.email,
-          phone: linked.person.phone,
-          portalToken: linked.person.portal_token,
-          portalPath: linked.person.portal_token
-            ? `/member/psychiatrygraph/${encodeURIComponent(linked.person.portal_token)}`
-            : undefined,
-        })
-      );
+      const portalToken = linked.person.portal_token;
+      if (portalToken) {
+        void import('@/lib/b2c/directory').then(({ indexBrandPerson }) =>
+          indexBrandPerson({
+            kind: 'psychiatry',
+            companyId,
+            companyName: businessName,
+            brand: businessName,
+            refId: linked.person.id,
+            refLabel: linked.person.name,
+            email: linked.person.email,
+            phone: linked.person.phone,
+            portalToken,
+            portalPath: `/member/psychiatrygraph/${encodeURIComponent(portalToken)}`,
+          })
+        );
+      }
       return NextResponse.json({
         success: true,
         store,

@@ -9,8 +9,8 @@ import { loadB2cProfile } from '@/lib/b2c/profile-store';
 import {
   walletModulesForCompany,
   moduleLabels,
-  hasConsumerDesk,
-  isConsumerMembershipKind,
+  hasPersonalWalletDesk,
+  isPersonalWalletKind,
 } from '@/lib/b2c/company-modules';
 import {
   loadBusinessWorkspaceSummary,
@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
             : {};
         const modules = walletModulesForCompany(meta);
         const theyOwn = owned.has(id);
-        const canMember = hasConsumerDesk(meta);
+        const canMember = theyOwn ? hasPersonalWalletDesk(meta) : true;
         return {
           company_id: id,
           name,
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
           modules,
           modules_label: theyOwn
             ? canMember
-              ? `Your company · ${moduleLabels(modules.filter(isConsumerMembershipKind))}`
+              ? `Your company · ${moduleLabels(modules.filter(isPersonalWalletKind))}`
               : 'Your company'
             : moduleLabels(modules),
           already: linked.has(id),
