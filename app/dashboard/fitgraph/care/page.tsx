@@ -48,12 +48,19 @@ export default function FitgraphCarePage() {
               clientName={store.clients.find((c) => c.id === focusId)?.name}
               coachId={store.clients.find((c) => c.id === focusId)?.coach_id}
               onPersist={async (next) => {
+                // Relationship fields live on FitgraphStore via interface augmentation
+                const rel = next as typeof next & {
+                  goals?: unknown[];
+                  journey_events?: unknown[];
+                  member_stories?: unknown[];
+                  consent_shares?: unknown[];
+                };
                 await post({
                   action: 'replace_relationship_store',
-                  goals: next.goals || [],
-                  journey_events: next.journey_events || [],
-                  member_stories: next.member_stories || [],
-                  consent_shares: next.consent_shares || [],
+                  goals: rel.goals || [],
+                  journey_events: rel.journey_events || [],
+                  member_stories: rel.member_stories || [],
+                  consent_shares: rel.consent_shares || [],
                 });
                 await load();
               }}
