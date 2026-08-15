@@ -5,7 +5,6 @@
  * sales_contractor uses SalesShell instead — not this chrome.
  */
 import { useEffect, useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import ModuleAccessGate from '@/components/ModuleAccessGate';
@@ -21,6 +20,8 @@ import {
   AdvisorWordmark,
 } from '@/components/brand/AdvisorSkinApplier';
 import { useAdvisorSkin } from '@/lib/brand/useAdvisorSkin';
+import { PortalBrandLogo } from '@/components/brand/PortalBrandLogo';
+import { useCompanyRole } from '@/lib/business/useCompanyRole';
 
 export default function AppShell({
   children,
@@ -50,6 +51,7 @@ function AppShellInner({
   const pathname = usePathname();
   const { collapsed } = useSidebarChrome();
   const skin = useAdvisorSkin();
+  const { logoUrl, companyName } = useCompanyRole();
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -125,12 +127,11 @@ function AppShellInner({
                 className="flex items-center gap-2.5 min-w-0"
                 aria-label={`${skin.name} home`}
               >
-                <Image
-                  src="/sa-logo.png"
-                  alt=""
-                  width={56}
-                  height={24}
-                  className="sa-logo h-7 w-auto object-contain shrink-0"
+                <PortalBrandLogo
+                  logoUrl={logoUrl}
+                  name={companyName || skin.registered}
+                  className="sa-logo h-7 w-auto max-w-[5.5rem] object-contain shrink-0"
+                  fallbackClassName="sa-logo h-7 w-auto object-contain shrink-0"
                   priority
                 />
                 <AdvisorWordmark className="sa-wordmark font-black text-base tracking-[-0.5px]" />

@@ -702,6 +702,13 @@ function ProfileInner() {
 
       if (result.profileSynced && result.profile) {
         applySavedProfile(result.profile as Partial<CompanyProfile>);
+        if (kind === 'logo' || persistField === 'logo_url') {
+          try {
+            window.dispatchEvent(new Event('sa:company-changed'));
+          } catch {
+            /* ignore */
+          }
+        }
         toast.success(
           result.columnsWritten?.length
             ? `File saved to Supabase (${result.columnsWritten.join(', ')})`

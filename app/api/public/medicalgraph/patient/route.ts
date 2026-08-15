@@ -19,6 +19,10 @@ import {
   type MedicalgraphStore,
 } from '@/lib/clinic/medicalgraph';
 import { notifyPatientBookingPush } from '@/lib/b2c/member-push';
+import {
+  applyCompanyLogoToSettings,
+  pickCompanyLogoUrl,
+} from '@/lib/business/company-logo';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -62,7 +66,7 @@ async function resolvePatient(token: string): Promise<{
 
   const { data: prof } = await supabase
     .from('profiles')
-    .select('id, metadata')
+    .select('id, metadata, logo_url')
     .eq('id', companyId)
     .maybeSingle();
   if (!prof) return null;
@@ -71,6 +75,7 @@ async function resolvePatient(token: string): Promise<{
       ? { ...(prof.metadata as Record<string, unknown>) }
       : {};
   const store = readMedicalgraphFromMetadata(meta);
+  applyCompanyLogoToSettings(store, pickCompanyLogoUrl(prof));
   const patient = store.patients.find((p) => p.portal_token === clean);
   if (!patient || patient.active === false) return null;
   return { companyId: Number(prof.id), meta, store, patient };

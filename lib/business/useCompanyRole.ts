@@ -43,6 +43,8 @@ export type CompanyRoleState = {
   /** Core OS packaging (entity, sector, packs) */
   packaging: PackagingSelection | null;
   businessType: string | null;
+  logoUrl: string | null;
+  companyName: string | null;
   /** Period lock, hard finance close */
   canFinanceCritical: boolean;
   /** QA inspections write */
@@ -91,6 +93,8 @@ export function useCompanyRole(): CompanyRoleState {
   );
   const [packaging, setPackaging] = useState<PackagingSelection | null>(null);
   const [businessType, setBusinessType] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [companyName, setCompanyName] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!companyId || !privyUserId) {
@@ -98,6 +102,8 @@ export function useCompanyRole(): CompanyRoleState {
       setEnabledModules(normalizeEnabledModules(null));
       setPackaging(null);
       setBusinessType(null);
+      setLogoUrl(null);
+      setCompanyName(null);
       setLoading(false);
       return;
     }
@@ -128,6 +134,8 @@ export function useCompanyRole(): CompanyRoleState {
       setBusinessType(
         data.businessType != null ? String(data.businessType) : null
       );
+      setLogoUrl(data.logoUrl ? String(data.logoUrl) : null);
+      setCompanyName(data.companyName ? String(data.companyName) : null);
     } catch {
       setRole(null);
     } finally {
@@ -191,6 +199,8 @@ export function useCompanyRole(): CompanyRoleState {
     isCompanyModuleEnabled,
     packaging,
     businessType,
+    logoUrl,
+    companyName,
     canFinanceCritical,
     canOpsWrite,
     canQaOverride,

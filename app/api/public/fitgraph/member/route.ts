@@ -22,6 +22,10 @@ import {
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
 import { notifyPatientBookingPush } from '@/lib/b2c/member-push';
+import {
+  applyCompanyLogoToSettings,
+  pickCompanyLogoUrl,
+} from '@/lib/business/company-logo';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -70,7 +74,7 @@ async function resolveMember(
 
   const { data: prof } = await supabase
     .from('profiles')
-    .select('id, metadata')
+    .select('id, metadata, logo_url')
     .eq('id', companyId)
     .maybeSingle();
   if (!prof) return null;
@@ -80,6 +84,7 @@ async function resolveMember(
       ? { ...(prof.metadata as Record<string, unknown>) }
       : {};
   const store = readFitgraphFromMetadata(meta);
+  applyCompanyLogoToSettings(store, pickCompanyLogoUrl(prof));
   const client = store.clients.find((c) => c.portal_token === clean);
   if (!client || client.active === false) return null;
 

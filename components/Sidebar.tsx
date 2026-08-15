@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import {
@@ -22,6 +21,7 @@ import { healthStepVisibleForRole } from '@/lib/health/programme-role';
 import { functionalSidebarModules } from '@/lib/chrome/functional-nav';
 import { buildGuideNavSteps } from '@/lib/guide/curriculum';
 import { AdvisorWordmark } from '@/components/brand/AdvisorSkinApplier';
+import { PortalBrandLogo } from '@/components/brand/PortalBrandLogo';
 import { useAdvisorSkin } from '@/lib/brand/useAdvisorSkin';
 
 const EXPANDED_KEY = 'sa-sidebar-expanded-v1';
@@ -64,6 +64,8 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     isCompanyModuleEnabled,
     packaging,
     businessType,
+    logoUrl,
+    companyName,
   } = useCompanyRole();
   const programme = useProgrammeRole();
   const healthProgramme = useHealthProgrammeRole();
@@ -326,13 +328,12 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     return (
       <div className="flex h-full flex-col bg-white">
         <div className="flex flex-col items-center p-3">
-          <Link href={skin.homeHref || homePath || '/dashboard'} title={skin.name} className="block">
-            <Image
-              src="/sa-logo.png"
-              alt={skin.registered}
-              width={64}
-              height={28}
-              className="sa-logo h-8 w-auto object-contain"
+          <Link href={skin.homeHref || homePath || '/dashboard'} title={companyName || skin.name} className="block">
+            <PortalBrandLogo
+              logoUrl={logoUrl}
+              name={companyName || skin.registered}
+              className="sa-logo h-8 w-8 object-contain"
+              fallbackClassName="sa-logo h-8 w-auto object-contain"
               priority
             />
           </Link>
@@ -380,12 +381,11 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
             href={skin.homeHref || homePath || '/dashboard'}
             className="flex min-w-0 items-center gap-2.5"
           >
-            <Image
-              src="/sa-logo.png"
-              alt=""
-              width={64}
-              height={28}
-              className="sa-logo h-8 w-auto shrink-0 object-contain"
+            <PortalBrandLogo
+              logoUrl={logoUrl}
+              name={companyName || skin.registered}
+              className="sa-logo h-8 w-auto max-w-[5.5rem] shrink-0 object-contain"
+              fallbackClassName="sa-logo h-8 w-auto shrink-0 object-contain"
               priority
             />
             <div>

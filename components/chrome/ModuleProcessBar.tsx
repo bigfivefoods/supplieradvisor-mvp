@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { Bot, ChevronRight, Menu, Search } from 'lucide-react';
 import {
@@ -16,7 +15,9 @@ import { stepVisibleForRole } from '@/lib/schools/programme-role';
 import { useHealthProgrammeRole } from '@/lib/health/useProgrammeRole';
 import { healthStepVisibleForRole } from '@/lib/health/programme-role';
 import { AdvisorWordmark } from '@/components/brand/AdvisorSkinApplier';
+import { PortalBrandLogo } from '@/components/brand/PortalBrandLogo';
 import { useAdvisorSkin } from '@/lib/brand/useAdvisorSkin';
+import { useCompanyRole } from '@/lib/business/useCompanyRole';
 
 type Props = {
   /** Mobile sidebar open — when set, menu control sits on this same rail */
@@ -39,6 +40,7 @@ const GROUP_PILL: Record<string, string> = {
 export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
   const pathname = usePathname() || '';
   const skin = useAdvisorSkin();
+  const { logoUrl, companyName } = useCompanyRole();
   const life = lifecycleForPath(pathname);
   const programme = useProgrammeRole();
   const healthProgramme = useHealthProgrammeRole();
@@ -124,12 +126,11 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
             className="md:hidden flex items-center gap-1.5 sm:gap-2 shrink-0"
             aria-label={`${skin.name} home`}
           >
-            <Image
-              src="/sa-logo.png"
-              alt=""
-              width={56}
-              height={24}
-              className="sa-logo h-6 w-auto object-contain shrink-0"
+            <PortalBrandLogo
+              logoUrl={logoUrl}
+              name={companyName || skin.registered}
+              className="sa-logo h-6 w-auto max-w-[4.5rem] object-contain shrink-0"
+              fallbackClassName="sa-logo h-6 w-auto object-contain shrink-0"
               priority
             />
             <AdvisorWordmark className="sa-wordmark hidden min-[360px]:inline font-black text-xs sm:text-sm tracking-[-0.5px]" />

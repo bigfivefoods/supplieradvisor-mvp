@@ -22,6 +22,8 @@ import { PortalMessagesPanel } from '@/components/services/PortalMessagesPanel';
 import { PortalWaitlistReschedule } from '@/components/services/PortalWaitlistReschedule';
 import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
 import { B2cAutoLinkBanner } from '@/components/b2c/B2cAutoLinkBanner';
+import { MemberAnnouncementsFeed } from '@/components/services/MemberAnnouncementsFeed';
+import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
 import { MemberMedicalShare } from '@/components/services/MemberMedicalShare';
 import type {
   SharedAdviceNote,
@@ -48,6 +50,7 @@ type Portal = {
   allow_booking: boolean;
   can_book_other_clinicians?: boolean;
   primary_color?: string;
+  logo_url?: string | null;
   patient: {
     name: string;
     email?: string;
@@ -79,6 +82,7 @@ type Portal = {
   };
   shares?: { schedule?: boolean; feedback?: boolean; medical?: boolean };
   medical_share?: Record<string, unknown> | null;
+  announcements?: import('@/lib/services/member-announcements').MemberAnnouncementPublic[];
   shared_advice?: SharedAdviceNote[];
   treatment_plans?: SharedTreatmentPlan[];
   open_slots: Slot[];
@@ -313,10 +317,11 @@ export default function MemberDentalgraphPortalPage() {
         style={{ background: `linear-gradient(135deg, ${color}, #0c4a6e)` }}
       >
         <div className="max-w-lg mx-auto">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">
-            Patient portal · DentalAdvisor®
-          </p>
-          <h1 className="text-xl font-black mt-1">{portal.brand}</h1>
+          <MemberPortalBrandLockup
+            logoUrl={portal.logo_url}
+            brand={portal.brand}
+            eyebrow="Patient portal · DentalAdvisor®"
+          />
           <div className="mt-3 flex items-center gap-3">
             {portal.patient.photo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -350,6 +355,11 @@ export default function MemberDentalgraphPortalPage() {
       <main className="max-w-lg mx-auto px-4 py-5 space-y-4">
         <PopiaConsentNotice brand={portal.brand} />
         <B2cAutoLinkBanner token={token} tone="cyan" />
+        <MemberAnnouncementsFeed
+          items={portal.announcements}
+          brand={portal.brand}
+          tone="sky"
+        />
         {(msg || error) && (
           <div
             className={`rounded-xl border px-3 py-2 text-sm ${

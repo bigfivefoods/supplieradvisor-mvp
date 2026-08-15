@@ -29,7 +29,10 @@ import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
 import { VerifiedBadge } from '@/components/services/VerifiedBadge';
 import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
 import { B2cAutoLinkBanner } from '@/components/b2c/B2cAutoLinkBanner';
+import { MemberAnnouncementsFeed } from '@/components/services/MemberAnnouncementsFeed';
+import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
 import { gymBrandColor } from '@/lib/fitness/fitgraph';
+import type { MemberAnnouncementPublic } from '@/lib/services/member-announcements';
 
 const MEMBER_TOKEN_KEY = 'sa_fitgraph_member_token';
 
@@ -73,6 +76,7 @@ type Portal = {
   contact_email?: string;
   contact_phone?: string;
   primary_color?: string;
+  logo_url?: string | null;
   from: string;
   to: string;
   client: {
@@ -151,6 +155,7 @@ type Portal = {
     }>;
   };
   relationship?: import('@/components/services/MemberRelationshipSection').MemberRelationshipPayload | null;
+  announcements?: MemberAnnouncementPublic[];
   messages_unread?: number;
   packs?: Array<{
     id: string;
@@ -426,10 +431,11 @@ export default function MemberFitgraphPortalPage() {
         }}
       >
         <div className="max-w-lg mx-auto">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">
-            Member portal · GymAdvisor®
-          </p>
-          <h1 className="text-xl font-black mt-1">{portal.brand}</h1>
+          <MemberPortalBrandLockup
+            logoUrl={portal.logo_url}
+            brand={portal.brand}
+            eyebrow="Member portal · GymAdvisor®"
+          />
           <div className="mt-3 flex items-center gap-3">
             {portal.client.photo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -496,6 +502,11 @@ export default function MemberFitgraphPortalPage() {
       <main className="max-w-lg mx-auto px-4 py-5 space-y-4">
         <PopiaConsentNotice brand={portal.brand} />
         <B2cAutoLinkBanner token={token} tone="yellow" />
+        <MemberAnnouncementsFeed
+          items={portal.announcements}
+          brand={portal.brand}
+          tone="yellow"
+        />
         {(msg || error) && (
           <div
             className={`rounded-xl border px-3 py-2 text-sm ${

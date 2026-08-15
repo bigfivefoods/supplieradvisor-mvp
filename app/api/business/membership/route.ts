@@ -58,16 +58,21 @@ export async function GET(request: NextRequest) {
     let companyModules = normalizeEnabledModules(null);
     let packaging: Record<string, unknown> | null = null;
     let businessType: string | null = null;
+    let logoUrl: string | null = null;
+    let companyName: string | null = null;
     try {
       const supabase = getSupabaseServer();
       const { data: prof } = await supabase
         .from('profiles')
-        .select('metadata, business_type')
+        .select('metadata, business_type, logo_url, trading_name, legal_name')
         .eq('id', companyId)
         .maybeSingle();
       companyModules = extractEnabledModulesFromMetadata(prof?.metadata);
       businessType =
         prof?.business_type != null ? String(prof.business_type) : null;
+      logoUrl = String(prof?.logo_url || '').trim() || null;
+      companyName =
+        String(prof?.trading_name || prof?.legal_name || '').trim() || null;
       const meta =
         prof?.metadata && typeof prof.metadata === 'object'
           ? (prof.metadata as Record<string, unknown>)
@@ -119,6 +124,8 @@ export async function GET(request: NextRequest) {
       companyModules,
       packaging,
       businessType,
+      logoUrl,
+      companyName,
       moduleOptions: listCompanyModuleOptions(),
     });
   } catch (e: unknown) {
