@@ -7,11 +7,11 @@
  *   FNB_API_BASE          default https://api.fnb.co.za
  *   FNB_TOKEN_URL         default https://api.fnb.co.za/apigateway/oauth2/token/v2
  *   FNB_ACCOUNT_NUMBER    operating account for statement pulls
- *   FNB_STATEMENT_PATH    Transaction History URL or path from the subscribe pack
+ *   FNB_STATEMENT_PATH    default GET /apigateway/transaction-history/retrieve/v2/{accountNumber}
  *   FNB_SCOPE             optional OAuth scope
  *
- * Auth: OAuth2 client credentials (form + Basic), then JWT client-assertion.
- * Statements: POST RetrieveRealtimeStatement / ISO 20022 camt.053 JSON.
+ * Auth: OAuth2 client credentials (form + Basic).
+ * Statements: GET Transaction History API 1.0.5 (X-Request-ID + pagination).
  */
 import { createHmac, randomUUID } from 'crypto';
 import type { CanonicalTxn } from '../types';
@@ -20,8 +20,9 @@ import { providerTxnId } from '../ingest';
 const DEFAULT_BASE = 'https://api.fnb.co.za';
 const DEFAULT_TOKEN_URL =
   'https://api.fnb.co.za/apigateway/oauth2/token/v2';
+/** OpenAPI 3.0.1 Transaction History API 1.0.5 */
 const DEFAULT_STATEMENT_PATH =
-  '/apigateway/transaction-history/retrieve/v1';
+  '/apigateway/transaction-history/retrieve/v2/{accountNumber}';
 
 export function fnbConfig() {
   const clientId = (process.env.FNB_CLIENT_ID || '').trim();
@@ -271,9 +272,21 @@ function walkEntries(node: unknown, out: Record<string, unknown>[]): void {
   }
   const o = asRecord(node);
   if (!o) return;
-  if (o.Ntry || o.ntry || o.entries || o.transactions || o.Transactions) {
+  if (
+    o.Ntry ||
+    o.ntry ||
+    o.entry ||
+    o.entries ||
+    o.transactions ||
+    o.Transactions
+  ) {
     const list =
-      o.Ntry || o.ntry || o.entries || o.transactions || o.Transactions;
+      o.Ntry ||
+      o.ntry ||
+      o.entry ||
+      o.entries ||
+      o.transactions ||
+      o.Transactions;
     walkEntries(list, out);
     return;
   }
@@ -297,9 +310,12 @@ function walkEntries(node: unknown, out: Record<string, unknown>[]): void {
 function signedAmount(row: Record<string, unknown>): number {
   const amtObj = asRecord(row.Amt) || asRecord(row.amount) || asRecord(row.Amount);
   const raw = Number(
-    amtObj?.value ??
+    amtObj?.amount ??
+      amtObj?.value ??
       amtObj?.Amt ??
-      row.amount ??
+      (typeof row.amount === 'number' || typeof row.amount === 'string'
+        ? row.amount
+        : undefined) ??
       row.Amount ??
       row.statementAmount ??
       row.txnAmount ??
@@ -322,18 +338,24 @@ function entryDate(row: Record<string, unknown>): string {
   const book = asRecord(row.BookgDt) || asRecord(row.bookingDate);
   const val = asRecord(row.ValDt) || asRecord(row.valueDate);
   const dt =
-    pickStr(book, ['Dt', 'date', 'DtTm']) ||
-    pickStr(val, ['Dt', 'date', 'DtTm']) ||
+    pickStr(book, ['Date', 'Dt', 'date', 'DtTm']) ||
+    pickStr(val, ['Date', 'Dt', 'date', 'DtTm']) ||
     pickStr(row, ['bookingDate', 'valueDate', 'transactionDate', 'date']);
   return (dt || new Date().toISOString()).slice(0, 10);
 }
 
 function entryDesc(row: Record<string, unknown>): string {
   const details = asRecord(row.NtryDtls) || asRecord(row.entryDetails);
-  const tx = asRecord(details?.TxDtls) || asRecord(row.TxDtls);
-  const rmt = asRecord(tx?.RmtInf) || asRecord(row.RmtInf);
+  const tx =
+    asRecord(details?.transactionDetails) ||
+    asRecord(details?.TxDtls) ||
+    asRecord(row.TxDtls);
+  const rmt =
+    asRecord(tx?.remittanceInfo) ||
+    asRecord(tx?.RmtInf) ||
+    asRecord(row.RmtInf);
   return (
-    pickStr(rmt, ['Ustrd', 'ustrd']) ||
+    pickStr(rmt, ['unstructured', 'Ustrd', 'ustrd']) ||
     pickStr(tx, ['AddtlTxInf']) ||
     pickStr(row, [
       'description',
@@ -346,11 +368,19 @@ function entryDesc(row: Record<string, unknown>): string {
 }
 
 function entryRef(row: Record<string, unknown>): string | null {
-  const details = asRecord(row.NtryDtls);
-  const tx = asRecord(details?.TxDtls);
-  const refs = asRecord(tx?.Refs) || asRecord(row.Refs);
+  const details = asRecord(row.NtryDtls) || asRecord(row.entryDetails);
+  const tx =
+    asRecord(details?.transactionDetails) || asRecord(details?.TxDtls);
+  const refs =
+    asRecord(tx?.reference) || asRecord(tx?.Refs) || asRecord(row.Refs);
   const v =
-    pickStr(refs, ['EndToEndId', 'TxId', 'AcctSvcrRef', 'InstrId']) ||
+    pickStr(refs, [
+      'endToEndId',
+      'EndToEndId',
+      'TxId',
+      'AcctSvcrRef',
+      'InstrId',
+    ]) ||
     pickStr(row, [
       'endToEndId',
       'endToEndReference',
@@ -360,6 +390,22 @@ function entryRef(row: Record<string, unknown>): string | null {
       'NtryRef',
     ]);
   return v || null;
+}
+
+function reportPagination(data: unknown): {
+  lastPage: boolean;
+  lastItemKey: string;
+} {
+  const root = asRecord(data);
+  const header =
+    asRecord(root?.groupHeader) || asRecord(root?.GroupHeader);
+  const page = asRecord(header?.pagination) || asRecord(header?.Pagination);
+  const lastItemKey = pickStr(page, ['lastItemKey', 'nextPagingKey']);
+  const lastPage =
+    page?.lastPageIndicator === true ||
+    page?.lastPageIndicator === 'true' ||
+    !lastItemKey;
+  return { lastPage, lastItemKey };
 }
 
 export function parseFnbStatementPayload(data: unknown): CanonicalTxn[] {
@@ -382,11 +428,19 @@ export function parseFnbStatementPayload(data: unknown): CanonicalTxn[] {
       ]),
       booked_at: booked,
       amount,
-      currency: 'ZAR',
+      currency:
+        pickStr(asRecord(row.amount) || asRecord(row.Amt), [
+          'currency',
+          'Ccy',
+        ]) || 'ZAR',
       description,
       reference,
       counterparty: null,
-      balance_after: null,
+      balance_after: (() => {
+        const avail = asRecord(row.availability);
+        const n = Number(avail?.amount);
+        return Number.isFinite(n) ? n : null;
+      })(),
       raw: row,
     });
   }
@@ -403,13 +457,17 @@ async function fnbJson(
     ? path
     : `${cfg.base}${path.startsWith('/') ? path : `/${path}`}`;
   try {
+    const method = String(rest.method || 'GET').toUpperCase();
+    const requestId = randomUUID();
     const res = await fetch(url, {
       ...rest,
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'application/json',
-        'Content-Type': 'application/json',
+        'X-Request-ID': requestId,
+        'X-Idempotency-ID': requestId,
         ...(cfg.clientId ? { 'X-IBM-Client-Id': cfg.clientId } : {}),
+        ...(method !== 'GET' ? { 'Content-Type': 'application/json' } : {}),
         ...(rest.headers || {}),
       },
     });
@@ -427,7 +485,13 @@ async function fnbJson(
         status: res.status,
         data,
         error:
-          pickStr(rec, ['error_description', 'error', 'message', 'detail']) ||
+          pickStr(rec, [
+            'error_description',
+            'error',
+            'message',
+            'detail',
+            'id',
+          ]) ||
           text.slice(0, 200) ||
           res.statusText,
       };
@@ -478,27 +542,23 @@ export async function fetchFnbTransactions(opts?: {
     };
   }
 
-  const qs = new URLSearchParams({
-    accountNumber: account,
-    fromDate: from,
-    toDate: to,
-  }).toString();
-  const paths = [
-    cfg.statementPath || DEFAULT_STATEMENT_PATH,
-    '/apigateway/transaction-history/retrieve/v2',
-  ].filter((p, i, all) => p && all.indexOf(p) === i);
-
-  for (const path of paths) {
-    const url = path.includes('?') ? path : `${path}?${qs}`;
+  const template = cfg.statementPath || DEFAULT_STATEMENT_PATH;
+  const pathBase = template.replace('{accountNumber}', encodeURIComponent(account));
+  const all: CanonicalTxn[] = [];
+  let lastItemKey = '';
+  for (let page = 0; page < 20; page++) {
+    const qs = new URLSearchParams({ fromDate: from, toDate: to });
+    if (lastItemKey) qs.set('lastItemKey', lastItemKey);
+    const url = pathBase.includes('?')
+      ? `${pathBase}&${qs}`
+      : `${pathBase}?${qs}`;
     const res = await fnbJson(url, {
       token: token.accessToken,
       method: 'GET',
     });
-    tried.push(`GET ${path} → ${res.status}${res.error ? ` ${res.error}` : ''}`);
-    if (res.ok) {
-      const txns = parseFnbStatementPayload(res.data);
-      return { txns, tokenUrl: token.tokenUrl, tried };
-    }
+    tried.push(
+      `GET ${template} → ${res.status}${res.error ? ` ${res.error}` : ''}`
+    );
     if (res.status === 401 || res.status === 403) {
       return {
         txns: [],
@@ -508,22 +568,31 @@ export async function fetchFnbTransactions(opts?: {
       };
     }
     const msg = (res.error || '').toLowerCase();
-    if (res.status === 400 && msg.includes('not provisioned')) {
+    if (!res.ok && res.status === 400 && msg.includes('not provisioned')) {
       return {
         txns: [],
-        error: `FNB Transaction History is live (GET ${DEFAULT_STATEMENT_PATH}) but account ${maskAccountNumber(account)} is not provisioned on that API. Ask Integration Channel / Online Banking Enterprise to enable Transaction History for this operating account.`,
+        error: `FNB Transaction History accepted GET ${template} but account ${maskAccountNumber(account)} is not provisioned. Ask Integration Channel / Online Banking Enterprise to enable this operating account.`,
         tokenUrl: token.tokenUrl,
         tried,
       };
     }
+    if (!res.ok) {
+      return {
+        txns: [],
+        error:
+          res.error ||
+          `FNB statement pull failed for ${maskAccountNumber(account)}`,
+        tokenUrl: token.tokenUrl,
+        tried,
+      };
+    }
+    all.push(...parseFnbStatementPayload(res.data));
+    const pageInfo = reportPagination(res.data);
+    if (pageInfo.lastPage || !pageInfo.lastItemKey) break;
+    lastItemKey = pageInfo.lastItemKey;
   }
 
-  return {
-    txns: [],
-    error: `FNB accepted the token for account ${maskAccountNumber(account)}, but the statement pull failed. ${tried[0] || ''}`.trim(),
-    tokenUrl: token.tokenUrl,
-    tried,
-  };
+  return { txns: all, tokenUrl: token.tokenUrl, tried };
 }
 
 export async function probeFnbIntegration(opts?: {
