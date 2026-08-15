@@ -6,6 +6,7 @@
  * Day/week height matches practice open hours for the day.
  */
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ChevronLeft,
   ChevronRight,
@@ -537,6 +538,8 @@ export function PracticeScheduleCalendar({
     left: number;
   } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [fitHeight, setFitHeight] = useState(0);
   const printBtnRef = useRef<HTMLButtonElement>(null);
   const printMenuRef = useRef<HTMLDivElement>(null);
 
@@ -932,8 +935,10 @@ export function PracticeScheduleCalendar({
 
   useEffect(() => {
     if (!expanded) return;
-    const prev = document.body.style.overflow;
+    const prevBody = document.body.style.overflow;
+    const prevHtml = document.documentElement.style.overflow;
     document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       // Event editor sits above the expanded calendar — let it take Escape first.
@@ -942,10 +947,25 @@ export function PracticeScheduleCalendar({
     };
     window.addEventListener('keydown', onKey);
     return () => {
-      document.body.style.overflow = prev;
+      document.body.style.overflow = prevBody;
+      document.documentElement.style.overflow = prevHtml;
       window.removeEventListener('keydown', onKey);
     };
   }, [expanded]);
+
+  useEffect(() => {
+    if (!expanded) {
+      setFitHeight(0);
+      return;
+    }
+    const el = bodyRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const measure = () => setFitHeight(el.clientHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [expanded, view]);
 
   const pickDate = (date: string) => {
     setCursor(date);
@@ -1013,7 +1033,15 @@ export function PracticeScheduleCalendar({
     const duration = closed
       ? 60
       : Math.max(30, closeMin - openMin);
-    const pxPerMin = compact ? 0.95 : expanded ? 1.85 : PX_PER_MIN;
+    const fitPx = expanded && fitHeight > 40 ? fitHeight : 0;
+    const reserve = compact ? 118 : 40;
+    const pxPerMin = compact
+      ? fitPx
+        ? Math.max(0.32, (fitPx - reserve) / Math.max(duration, 30))
+        : 0.95
+      : fitPx
+        ? Math.max(0.4, (fitPx - reserve) / Math.max(duration, 30))
+        : PX_PER_MIN;
     const height = duration * pxPerMin;
     const ticks = closed ? [] : hourTicks(openMin, closeMin);
     const px = pxPerMin;
@@ -1223,22 +1251,24 @@ export function PracticeScheduleCalendar({
     );
   };
 
-  return (
+  const tree = (
     <div
       ref={rootRef}
       className={`${
         expanded
-          ? 'fixed inset-0 z-[70] flex flex-col overflow-hidden bg-slate-900/40 p-2 sm:p-3'
+          ? 'fixed inset-0 z-[120] flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-slate-900/40 p-2 sm:p-3'
           : ''
       }`}
     >
     <div
       className={`${
-        expanded ? 'flex min-h-0 flex-1 flex-col overflow-hidden shadow-2xl' : ''
+        expanded
+          ? 'flex h-full min-h-0 max-h-full flex-1 flex-col overflow-hidden shadow-2xl'
+          : ''
       } rounded-3xl border border-slate-200 dark:border-slate-700 ${tone.soft}`}
     >
       {/* Toolbar — overflow visible so menus are not clipped */}
-      <div className="relative z-20 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 dark:border-slate-700 bg-white/90 dark:bg-slate-950/80 px-3 sm:px-4 py-3 rounded-t-3xl">
+      <div className="relative z-20 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 dark:border-slate-700 bg-white/90 dark:bg-slate-950/80 px-3 sm:px-4 py-3 rounded-t-3xl">
         <div className="flex items-center gap-2 min-w-0">
           <CalendarDays className="w-4 h-4 text-slate-500 shrink-0" />
           <div className="min-w-0">
@@ -1503,17 +1533,32 @@ export function PracticeScheduleCalendar({
       </div>
 
       <div
+        ref={bodyRef}
         className={`p-3 sm:p-4 bg-white dark:bg-slate-950 rounded-b-3xl ${
           expanded
-            ? 'min-h-0 flex-1 overflow-auto'
+            ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
             : 'min-h-[min(72vh,54rem)] overflow-auto'
         }`}
       >
-        {view === 'day' && <HoursTimeline date={cursor} />}
+        {view === 'day' && (
+          <div className={expanded ? 'min-h-0 flex-1 overflow-hidden' : ''}>
+            <HoursTimeline date={cursor} />
+          </div>
+        )}
 
         {view === 'week' && (
-          <div className="overflow-x-auto">
-            <div className="min-w-[720px] grid grid-cols-7 gap-1.5">
+          <div
+            className={
+              expanded
+                ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
+                : 'overflow-x-auto'
+            }
+          >
+            <div
+              className={`min-w-[720px] grid grid-cols-7 gap-1.5 ${
+                expanded ? 'min-h-0 flex-1' : ''
+              }`}
+            >
               {weekDays.map((date) => {
                 const isToday = date === today;
                 const isCursor = date === cursor;
@@ -1524,7 +1569,9 @@ export function PracticeScheduleCalendar({
                 return (
                   <div
                     key={date}
-                    className={`rounded-2xl border flex flex-col ${
+                    className={`flex flex-col rounded-2xl border ${
+                      expanded ? 'min-h-0' : ''
+                    } ${
                       isToday
                         ? tone.todayBorder
                         : 'border-slate-200 dark:border-slate-700'
@@ -1559,7 +1606,7 @@ export function PracticeScheduleCalendar({
                           : `${oc.open}–${oc.close} · ${list.length}`}
                       </div>
                     </button>
-                    <div className="p-1 flex-1">
+                    <div className="min-h-0 flex-1 overflow-hidden p-1">
                       <HoursTimeline date={date} compact />
                     </div>
                     {/* spacer so closed vs open columns don't jump wildly: min height from open mins */}
@@ -1570,6 +1617,7 @@ export function PracticeScheduleCalendar({
                 );
               })}
             </div>
+            {expanded ? null : (
             <p className="mt-2 text-[10px] text-slate-400 font-medium">
               Week columns sized to each day&apos;s working hours
               {weekBounds.startMinute != null
@@ -1577,12 +1625,17 @@ export function PracticeScheduleCalendar({
                 : ''}
               .
             </p>
+            )}
           </div>
         )}
 
         {view === 'month' && (
-          <div>
-            <div className="grid grid-cols-7 gap-1 mb-1">
+          <div
+            className={
+              expanded ? 'flex min-h-0 flex-1 flex-col overflow-hidden' : ''
+            }
+          >
+            <div className="mb-1 grid shrink-0 grid-cols-7 gap-1">
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
                 <div
                   key={d}
@@ -1592,20 +1645,31 @@ export function PracticeScheduleCalendar({
                 </div>
               ))}
             </div>
-            <div className="grid grid-cols-7 gap-1">
+            <div
+              className="grid grid-cols-7 gap-1"
+              style={
+                expanded
+                  ? {
+                      flex: '1 1 0%',
+                      minHeight: 0,
+                      gridTemplateRows: `repeat(${Math.max(1, monthGrid.length / 7)}, minmax(0, 1fr))`,
+                    }
+                  : undefined
+              }
+            >
               {monthGrid.map((date) => {
                 const inMonth =
                   parseIso(date).getMonth() === parseIso(cursor).getMonth();
                 const isToday = date === today;
                 const list = eventsOn(date);
                 const closed = isClosedOn(workingHours, date);
-                const showN = expanded ? 10 : 6;
+                const showN = expanded ? 4 : 6;
                 return (
                   <div
                     key={date}
                     className={`${
                       expanded
-                        ? 'min-h-[18vh] sm:min-h-[20vh]'
+                        ? 'min-h-0 overflow-hidden'
                         : 'min-h-[118px] sm:min-h-[140px]'
                     } rounded-xl border p-1 text-left transition ${tone.monthHover} ${
                       inMonth
@@ -1631,7 +1695,7 @@ export function PracticeScheduleCalendar({
                         </span>
                       ) : null}
                     </button>
-                    <div className="space-y-0.5">
+                    <div className="min-h-0 space-y-0.5 overflow-hidden">
                       {list.slice(0, showN).map((ev) => (
                         <button
                           key={ev.id}
@@ -1690,4 +1754,10 @@ export function PracticeScheduleCalendar({
     </div>
     </div>
   );
+
+  // Expand must paint above the dashboard sidebar (sibling stacking context).
+  if (expanded && typeof document !== 'undefined') {
+    return createPortal(tree, document.body);
+  }
+  return tree;
 }

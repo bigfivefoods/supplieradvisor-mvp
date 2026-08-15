@@ -5,6 +5,7 @@
  * staff edit in place instead of scrolling down the page.
  */
 import { useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 export function ScheduleEventPeek({
@@ -38,9 +39,9 @@ export function ScheduleEventPeek({
 
   if (!open) return null;
 
-  return (
+  const tree = (
     <div
-      className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center p-2 sm:p-6"
+      className="fixed inset-0 z-[130] flex items-end sm:items-center justify-center p-2 sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -79,6 +80,11 @@ export function ScheduleEventPeek({
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined') {
+    return createPortal(tree, document.body);
+  }
+  return tree;
 }
 
 export default ScheduleEventPeek;
