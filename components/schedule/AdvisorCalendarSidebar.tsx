@@ -30,10 +30,19 @@ type Props = {
     date: string;
     start_time: string;
   }) => void | Promise<void>;
+  /** Full diary ICS feed URL (authenticated cookie/session or tokenized later) */
   icsFeedHref?: string | null;
   companyId?: number | string;
   module?: string;
   personFilter?: string;
+  /** Clinical materials summary for selected appointment (dental etc.) */
+  materialsSummary?: {
+    count: number;
+    billableTotal: number;
+    labels: string[];
+    hasLowStock?: boolean;
+    hasOutOfStock?: boolean;
+  } | null;
 };
 
 export function AdvisorCalendarSidebar({
@@ -52,6 +61,7 @@ export function AdvisorCalendarSidebar({
   companyId,
   module = 'fitgraph',
   personFilter,
+  materialsSummary,
 }: Props) {
   const feed =
     icsFeedHref ||
@@ -79,6 +89,7 @@ export function AdvisorCalendarSidebar({
         onClose={onClearSelected}
         reminder={reminder}
         onReschedule={onReschedule}
+        materialsSummary={materialsSummary}
       />
       {feed ? (
         <a
