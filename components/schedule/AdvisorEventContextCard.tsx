@@ -1,5 +1,9 @@
 'use client';
 
+/**
+ * Selected calendar event — customer context, reminders, ICS, quick reschedule.
+ */
+
 import { useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -12,6 +16,8 @@ import {
   Download,
   ChevronLeft,
   ChevronRight,
+  Package,
+  AlertTriangle,
 } from 'lucide-react';
 import type { EnrichedScheduleEvent } from '@/lib/services/advisor-calendar-intelligence';
 import {
@@ -42,6 +48,13 @@ type Props = {
     start_time: string;
   }) => void | Promise<void>;
   authHeaders?: () => Record<string, string> | Promise<Record<string, string>>;
+  materialsSummary?: {
+    count: number;
+    billableTotal: number;
+    labels: string[];
+    hasLowStock?: boolean;
+    hasOutOfStock?: boolean;
+  } | null;
 };
 
 export function AdvisorEventContextCard({
@@ -52,6 +65,7 @@ export function AdvisorEventContextCard({
   reminder,
   onReschedule,
   authHeaders,
+  materialsSummary,
 }: Props) {
   const [busy, setBusy] = useState(false);
   if (!event) return null;
@@ -68,10 +82,7 @@ export function AdvisorEventContextCard({
         duration_min: event.duration_min,
       },
     ]);
-    downloadIcsBrowser(
-      `${event.title.replace(/\s+/g, '-')}-${event.date}.ics`,
-      ics
-    );
+    downloadIcsBrowser(`${event.title.replace(/\s+/g, '-')}-${event.date}.ics`, ics);
     toast.success('ICS downloaded — import into Outlook or Google as a mirror');
   };
 
@@ -182,11 +193,7 @@ export function AdvisorEventContextCard({
           ) : null}
         </div>
         {onClose ? (
-          <button
-            type="button"
-            className="text-[10px] font-bold text-slate-500"
-            onClick={onClose}
-          >
+          <button type="button" className="text-[10px] font-bold text-slate-500" onClick={onClose}>
             Close
           </button>
         ) : null}
@@ -197,9 +204,7 @@ export function AdvisorEventContextCard({
           <span className="inline-flex items-center gap-1 rounded-full bg-white border border-violet-200 px-2 py-0.5 text-[10px] font-black uppercase dark:bg-violet-950 dark:border-violet-700">
             <HeartPulse className="w-3 h-3" />
             {event.relationship_level}
-            {event.relationship_score != null
-              ? ` · ${event.relationship_score}`
-              : ''}
+            {event.relationship_score != null ? ` · ${event.relationship_score}` : ''}
           </span>
         ) : null}
         {event.no_show_risk ? (
@@ -217,85 +222,81 @@ export function AdvisorEventContextCard({
             pack {event.pack_remaining} left
           </span>
         ) : null}
+        {event.is_private_client ? (
+          <span className="rounded-full bg-sky-100 text-sky-900 px-2 py-0.5 text-[10px] font-black uppercase">
+            private client
+          </span>
+        ) : null}
       </div>
+
+      {materialsSummary && materialsSummary.count > 0 ? (
+        <div className="rounded-xl border border-sky-200 bg-sky-50/80 px-2.5 py-2 dark:border-sky-800 dark:bg-sky-950/40">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold text-sky-900 dark:text-sky-200">
+              <Package className="w-3.5 h-3.5" />
+              Materials used ({materialsSummary.count})
+            </div>
+            {materialsSummary.billableTotal > 0 ? (
+              <span className="text-[11px] font-black text-sky-900 dark:text-sky-100">
+                R{materialsSummary.billableTotal.toLocaleString('en-ZA', { maximumFractionDigits: 0 })}
+              </span>
+            ) : null}
+          </div>
+          {materialsSummary.labels.length > 0 ? (
+            <p className="mt-1 text-[10px] leading-snug text-sky-800/90 dark:text-sky-300/90">
+              {materialsSummary.labels.join(' · ')}
+              {materialsSummary.count > materialsSummary.labels.length
+                ? ` · +${materialsSummary.count - materialsSummary.labels.length} more`
+                : ''}
+            </p>
+          ) : null}
+          {materialsSummary.hasOutOfStock || materialsSummary.hasLowStock ? (
+            <p className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800">
+              <AlertTriangle className="w-3 h-3" />
+              {materialsSummary.hasOutOfStock
+                ? 'Includes out-of-stock items at time of use'
+                : 'Includes low-stock items'}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {onReschedule ? (
         <div className="flex flex-wrap gap-1.5">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void move(-15)}
-            className="inline-flex items-center gap-0.5 rounded-lg border border-violet-300 bg-white px-2 py-1 text-[10px] font-bold text-violet-900 disabled:opacity-50"
-          >
+          <button type="button" disabled={busy} onClick={() => void move(-15)} className="inline-flex items-center gap-0.5 rounded-lg border border-violet-300 bg-white px-2 py-1 text-[10px] font-bold text-violet-900 disabled:opacity-50">
             <ChevronLeft className="w-3 h-3" /> −15m
           </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void move(15)}
-            className="inline-flex items-center gap-0.5 rounded-lg border border-violet-300 bg-white px-2 py-1 text-[10px] font-bold text-violet-900 disabled:opacity-50"
-          >
+          <button type="button" disabled={busy} onClick={() => void move(15)} className="inline-flex items-center gap-0.5 rounded-lg border border-violet-300 bg-white px-2 py-1 text-[10px] font-bold text-violet-900 disabled:opacity-50">
             +15m <ChevronRight className="w-3 h-3" />
           </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void move(24 * 60)}
-            className="rounded-lg border border-violet-300 bg-white px-2 py-1 text-[10px] font-bold text-violet-900 disabled:opacity-50"
-          >
+          <button type="button" disabled={busy} onClick={() => void move(24 * 60)} className="rounded-lg border border-violet-300 bg-white px-2 py-1 text-[10px] font-bold text-violet-900 disabled:opacity-50">
             +1 day
           </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void move(-24 * 60)}
-            className="rounded-lg border border-violet-300 bg-white px-2 py-1 text-[10px] font-bold text-violet-900 disabled:opacity-50"
-          >
+          <button type="button" disabled={busy} onClick={() => void move(-24 * 60)} className="rounded-lg border border-violet-300 bg-white px-2 py-1 text-[10px] font-bold text-violet-900 disabled:opacity-50">
             −1 day
           </button>
         </div>
       ) : null}
 
       <div className="flex flex-wrap gap-1.5">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={downloadOne}
-          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-700"
-        >
+        <button type="button" disabled={busy} onClick={downloadOne} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-700">
           <Download className="w-3 h-3" /> ICS
         </button>
         {reminder?.email ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void sendEmailReminder()}
-            className="inline-flex items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-bold text-sky-900 disabled:opacity-50"
-          >
+          <button type="button" disabled={busy} onClick={() => void sendEmailReminder()} className="inline-flex items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-bold text-sky-900 disabled:opacity-50">
             <Mail className="w-3 h-3" /> Email reminder
           </button>
         ) : null}
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void openWhatsApp()}
-          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-900 disabled:opacity-50"
-        >
+        <button type="button" disabled={busy} onClick={() => void openWhatsApp()} className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-900 disabled:opacity-50">
           <Phone className="w-3 h-3" /> WhatsApp
         </button>
       </div>
 
       <div className="flex flex-wrap gap-2 pt-1">
-        <Link
-          href={clientsHref}
-          className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-700 dark:text-sky-300"
-        >
+        <Link href={clientsHref} className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-700 dark:text-sky-300">
           <User className="w-3 h-3" /> Customer profile
         </Link>
-        <Link
-          href={messagesHref}
-          className="inline-flex items-center gap-1 text-[11px] font-bold text-fuchsia-700 dark:text-fuchsia-300"
-        >
+        <Link href={messagesHref} className="inline-flex items-center gap-1 text-[11px] font-bold text-fuchsia-700 dark:text-fuchsia-300">
           <MessageSquare className="w-3 h-3" /> Message
         </Link>
       </div>
