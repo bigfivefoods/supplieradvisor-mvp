@@ -121,7 +121,8 @@ export default function HomePricing() {
               <Link href="/me" className="font-bold text-[#0077b6] underline">
                 SA Member
               </Link>{' '}
-              free — no subscription, no platform take-rate.
+              free — book, check in, family, waitlist, pay &amp; proof, share
+              records. No subscription, no platform take-rate.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link

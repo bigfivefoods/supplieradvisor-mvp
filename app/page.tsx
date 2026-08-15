@@ -52,6 +52,8 @@ import {
   Smartphone,
   BadgeCheck,
   Bell,
+  CalendarDays,
+  Share2,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import LandingNav from '@/components/marketing/LandingNav';
@@ -664,7 +666,7 @@ const SYSTEMS = [
   {
     icon: Wallet,
     title: 'Finance & bank',
-    body: 'GL, AR/AP, VAT, bank import, management accounts.',
+    body: 'GL, AR/AP, VAT, live bank feeds on selected banks, management accounts.',
   },
   {
     icon: Handshake,
@@ -789,11 +791,11 @@ export default function LandingPage() {
               {
                 code: 'B2C',
                 title: 'Business to consumer',
-                body: 'One free personal wallet. Link any business on this platform to manage that account — shop, subscriptions, bookings and medical records. No company. If you also run a business, that workspace stays separate.',
+                body: 'One free personal wallet. Link any business on this platform to manage that account — shop, subscriptions, bookings, check-in, family, waitlist and medical records. No company. If you also run a business, that workspace stays separate.',
                 points: [
-                  'Free PWA — install on your phone, no company, no card',
-                  'Link any gym, clinic, hire desk or shop to this wallet',
-                  'Book, buy, records and push alerts — same login',
+                  'Free PWA — shop, book, check in, hire and subscriptions',
+                  'Family book, waitlist, .ics calendar and gym door QR',
+                  'Shared medical notes, consent-to-share, pay & proof of payment',
                 ],
                 href: '/me',
                 cta: 'Create free SA Member account',
@@ -849,8 +851,9 @@ export default function LandingPage() {
             <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">
               Create one free SA Member profile. Link it to any gym, clinic,
               hire desk or shop on SupplierAdvisor — then manage that account:
-              book, buy, subscriptions, medical records and push alerts. Desks
-              can still print a QR or send WhatsApp. You never pay us.
+              book, buy, check in, family, waitlist, subscriptions, medical
+              records, pay & proof, and push alerts. Desks can still print a QR
+              or send WhatsApp. You never pay us.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -894,6 +897,31 @@ export default function LandingPage() {
                 icon: Bell,
                 t: 'Push notifications',
                 b: 'Appointment reminders, waitlist offers and hire updates on the device — even when the app is closed.',
+              },
+              {
+                icon: QrCode,
+                t: 'Gym door check-in',
+                b: 'Scan the studio QR from SA Member. No clipboard at reception — the desk sees you are in.',
+              },
+              {
+                icon: Users2,
+                t: 'Family & household',
+                b: 'Book a child or household attendee onto a class or clinic slot from the same wallet.',
+              },
+              {
+                icon: CalendarDays,
+                t: 'Waitlist + add to calendar',
+                b: 'Join the waitlist when a slot is full. Download .ics or open Google Calendar for booked times.',
+              },
+              {
+                icon: CreditCard,
+                t: 'Pay & proof of payment',
+                b: 'See charges from the gym or clinic, pay in-app, or upload proof — on your personal wallet.',
+              },
+              {
+                icon: Share2,
+                t: 'Share your care profile',
+                b: 'Consent to share allergies, scripts and care notes with another linked Advisor desk.',
               },
               {
                 icon: Fingerprint,
@@ -1796,7 +1824,7 @@ export default function LandingPage() {
               {
                 icon: Leaf,
                 t: 'B2C · Member account',
-                b: 'Free personal wallet. Link any business on this platform to shop, book, see records and manage subscriptions. Same login if you later register a company.',
+                b: 'Free personal wallet. Link any business to shop, book, check in, family-book, join a waitlist, pay or send proof, and share care notes after you consent. Same login if you later register a company.',
                 href: '/me',
                 cta: 'Create free account',
               },

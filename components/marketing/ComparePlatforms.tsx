@@ -162,10 +162,18 @@ const SECTIONS: Section[] = [
     rows: [
       {
         capability: 'Full GL · journals · bank · VAT',
-        hint: 'Double-entry, bank allocate, tax periods',
+        hint: 'Double-entry, live feeds on selected banks, allocate, tax periods',
         excel: 'partial',
         xero: 'strong',
         erp: 'strong',
+        sa: 'yes',
+      },
+      {
+        capability: 'Live bank feeds (selected banks)',
+        hint: 'FNB Integration Channel and BankLink open-banking — PDF/CSV still land in the same reconciliation',
+        excel: 'no',
+        xero: 'strong',
+        erp: 'yes',
         sa: 'yes',
       },
       {
@@ -453,6 +461,62 @@ const SECTIONS: Section[] = [
         excel: 'no',
         xero: 'no',
         erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'Gym door QR check-in',
+        hint: 'Members scan the studio QR from SA Member — no paper clipboard',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'Family / household booking',
+        hint: 'Book a child or household attendee onto the class or clinic slot from the phone',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'Waitlist + add to calendar (.ics)',
+        hint: 'Join the waitlist when a slot is full; download .ics or open Google Calendar',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'Member account · pay & proof of payment',
+        hint: 'See charges from the gym or clinic, pay, or upload proof — on the personal wallet',
+        excel: 'no',
+        xero: 'partial',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'Consent-based profile share across Advisors',
+        hint: 'Share allergies, scripts and care notes with another linked desk only after the member consents',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'In-app class & care messages',
+        hint: 'Desk, coach or clinician threads land in SA Member by platform user ID',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'Reviews after visit or hire',
+        hint: 'Members rate the gym, clinic or hire after the visit — not vanity store reviews',
+        excel: 'no',
+        xero: 'no',
+        erp: 'partial',
         sa: 'strong',
       },
       {
@@ -750,8 +814,10 @@ export default function ComparePlatforms() {
             , ops, finance (budgets &amp; group hierarchy), quality, people,
             trust, and industry hubs (CropAdvisor®, QuarryAdvisor®, GymAdvisor®
             and clinic Advisors with waitlist desks, treatment plans, rooms, and
-            marketplace listings) — plus referral earnings when you onboard your
-            chain (up to 10% · L1 · L2 · L3).
+            marketplace listings) — plus a free SA Member B2C app (check-in,
+            family book, waitlist, .ics, pay & proof, consent-to-share records)
+            and referral earnings when you onboard your chain (up to 10% · L1 ·
+            L2 · L3).
           </p>
         </div>
 
@@ -779,7 +845,7 @@ export default function ComparePlatforms() {
             {
               name: 'SupplierAdvisor®',
               who: 'The supply-chain OS',
-              body: `Network + in-app messaging (system user ID) + ops + finance + people + service Advisors (rooms, waitlist desks, treatment-plan book next, marketplace). Onboard your chain and earn up to 10% back (L1 6% · L2 3% · L3 1%). ${COMPANY_TRIAL_DAYS}-day trial. From R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo.`,
+              body: `Network + in-app messaging (system user ID) + ops + finance with live bank feeds on selected banks + people + service Advisors + free SA Member (gym QR check-in, family book, waitlist, .ics, pay & proof, consent-to-share records). Onboard your chain and earn up to 10% back (L1 6% · L2 3% · L3 1%). ${COMPANY_TRIAL_DAYS}-day trial. From R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo.`,
               icon: Sparkles,
               highlight: true,
             },

@@ -17,7 +17,7 @@ export const DEFAULT_TITLE =
   'SupplierAdvisor® — The world’s most trusted supplier advice — and OS';
 
 export const DEFAULT_DESCRIPTION =
-  'SupplierAdvisor® is the supply-chain OS — not Excel, not accounting-only, not a multi-year ERP. B2B, B2G & B2C on one verified network: SRM, CRM, inventory, manufacturing, finance, SHEQ, people, containers. Industry Advisors for agri, quarry, gyms, and clinics. 30-day free trial. From R299/mo.';
+  'SupplierAdvisor® is the supply-chain OS — not Excel, not accounting-only, not a multi-year ERP. B2B, B2G & B2C on one verified network: SRM, CRM, inventory, manufacturing, finance with live bank feeds, SHEQ, people, containers. Free SA Member app for gym check-in, clinic booking, family, waitlist, hire and pay. 30-day free trial. From R299/mo.';
 
 /** Core marketing + public indexable routes (no company/product dynamic pages). */
 export const STATIC_SEO_ROUTES: Array<{
@@ -58,6 +58,9 @@ export const SITE_KEYWORDS = [
   'supply chain software',
   'supply chain operating system',
   'B2B marketplace',
+  'B2C member app',
+  'SA Member',
+  'gym check-in app',
   'B2G procurement',
   'supplier relationship management',
   'SRM',

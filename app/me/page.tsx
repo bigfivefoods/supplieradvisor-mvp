@@ -583,12 +583,12 @@ function MeAppInner() {
                 {
                   icon: Dumbbell,
                   t: 'Gym & check-in',
-                  d: 'Book classes and scan the gym QR',
+                  d: 'Book classes, family, waitlist, .ics, scan the gym QR',
                 },
                 {
                   icon: Stethoscope,
                   t: 'Clinic Advisors',
-                  d: 'Book, medical records, and push alerts',
+                  d: 'Book, family, waitlist, records, pay & proof, share after consent',
                 },
                 {
                   icon: Store,
@@ -598,7 +598,7 @@ function MeAppInner() {
                 {
                   icon: WalletCards,
                   t: 'Your wallet',
-                  d: 'Link any business — shop, book, records, subscriptions',
+                  d: 'Link any business — shop, book, check-in, pay, records, subscriptions',
                 },
                 {
                   icon: User,

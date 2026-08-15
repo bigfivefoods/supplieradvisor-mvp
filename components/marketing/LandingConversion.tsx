@@ -406,6 +406,30 @@ export function ComparisonTable() {
       sa: true,
     },
     {
+      feature: 'Free SA Member PWA (B2C wallet)',
+      sheets: false,
+      erp: false,
+      sa: true,
+    },
+    {
+      feature: 'Gym QR check-in · family book · waitlist · .ics',
+      sheets: false,
+      erp: 'Partial',
+      sa: true,
+    },
+    {
+      feature: 'Member account · pay & proof of payment',
+      sheets: false,
+      erp: 'Partial',
+      sa: true,
+    },
+    {
+      feature: 'Consent-based profile share across Advisors',
+      sheets: false,
+      erp: false,
+      sa: true,
+    },
+    {
       feature: 'OTIFEF supplier ratings',
       sheets: false,
       erp: false,
@@ -445,6 +469,12 @@ export function ComparisonTable() {
     {
       feature: 'Finance + management P&L + budgets',
       sheets: 'Manual',
+      erp: true,
+      sa: true,
+    },
+    {
+      feature: 'Live bank feeds (selected banks)',
+      sheets: false,
       erp: true,
       sa: true,
     },

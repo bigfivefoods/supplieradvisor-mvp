@@ -50,12 +50,12 @@ const SCENES = [
     id: 'b2c',
     code: 'B2C',
     title: 'Business to consumer',
-    body: 'One free personal wallet. Link any gym, clinic, hire desk or shop on this platform and manage that account — book, buy, records and push alerts. No company required.',
+    body: 'One free personal wallet. Link any gym, clinic, hire desk or shop on this platform and manage that account — book, buy, check in, family, waitlist, pay & proof, records and push alerts. No company required.',
     short: 'A free personal wallet for gym, clinic and hire — no company needed.',
     points: [
       'Free SA Member app on your phone',
-      'Book, check in and see shared medical notes',
-      'Same login if you later run a business',
+      'Book, check in, family, waitlist, .ics and shared medical notes',
+      'Pay or send proof — same login if you later run a business',
     ],
     cta: { href: '/me', label: 'Create free SA Member account' },
     src: '/marketing/hero-b2c.jpg',
@@ -129,7 +129,7 @@ function MemberPhone() {
             <p className="mt-0.5 text-[12px] font-black leading-tight tracking-tight">
               Home
             </p>
-            <p className="text-[8px] text-white/85">Book · check in · shop</p>
+            <p className="text-[8px] text-white/85">Book · family · check in</p>
           </div>
           <div className="min-h-0 flex-1 space-y-1.5 overflow-hidden px-1.5 py-1.5">
             <div className="grid grid-cols-2 gap-1">
@@ -199,7 +199,7 @@ function HeroProductShots({ sceneId }: { sceneId: (typeof SCENES)[number]['id'] 
               <Metric label="Clinic" value="Thu" />
             </div>
             <div className="mt-2.5 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-semibold text-slate-600">
-              Next: VUKA spin · check in on the phone
+              Next: VUKA spin · family · check in
             </div>
           </ShotWindow>
         </div>
