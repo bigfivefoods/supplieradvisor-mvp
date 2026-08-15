@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
+  Activity,
   AlertTriangle,
   CalendarDays,
   Check,
@@ -14,12 +15,14 @@ import {
   Loader2,
   MapPin,
   MessageSquare,
+  MessageSquareHeart,
   QrCode,
   Send,
   User,
   Users,
   X,
 } from 'lucide-react';
+import { MemberRelationshipSection } from '@/components/services/MemberRelationshipSection';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
 import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
@@ -57,6 +60,9 @@ type MyBooking = {
   class_name: string;
   coach_name?: string;
   location?: string;
+  upcoming?: boolean;
+  feedback_token?: string | null;
+  feedback_submitted_at?: string | null;
 };
 
 type Portal = {
@@ -103,8 +109,48 @@ type Portal = {
   open_classes: OpenClass[];
   vacancies: OpenClass[];
   my_bookings: MyBooking[];
+  upcoming_count?: number;
   open_count: number;
   full_count: number;
+  progress?: {
+    attended_count?: number;
+    no_show_count?: number;
+    attended_30d?: number;
+    check_ins_30d?: number;
+    last_attended?: string | null;
+    health?: {
+      summary?: string | null;
+      injury_status?: string | null;
+      injury_areas?: string[];
+      training_modifications?: string | null;
+      goals?: string | null;
+      pain_score?: number | null;
+    } | null;
+    coach_notes?: Array<{
+      id: string;
+      at: string;
+      title: string;
+      body?: string | null;
+    }>;
+    my_feedback?: Array<{
+      id: string;
+      at: string;
+      class_name: string;
+      date: string;
+      feeling: number;
+      intensity: number;
+      enjoyment?: number | null;
+      comment?: string | null;
+      tags?: string[];
+    }>;
+    pending_feedback?: Array<{
+      booking_id: string;
+      date: string;
+      class_name: string;
+      feedback_token: string;
+    }>;
+  };
+  relationship?: import('@/components/services/MemberRelationshipSection').MemberRelationshipPayload | null;
   messages_unread?: number;
   packs?: Array<{
     id: string;
@@ -154,7 +200,7 @@ export default function MemberFitgraphPortalPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [tab, setTab] = useState<
-    'checkin' | 'open' | 'mine' | 'messages' | 'profile'
+    'checkin' | 'open' | 'mine' | 'progress' | 'messages' | 'profile'
   >('open');
   const [checkinBusy, setCheckinBusy] = useState(false);
   const [checkinScan, setCheckinScan] = useState('');
@@ -198,6 +244,35 @@ export default function MemberFitgraphPortalPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get('tab');
+    if (
+      raw === 'checkin' ||
+      raw === 'open' ||
+      raw === 'mine' ||
+      raw === 'progress' ||
+      raw === 'messages' ||
+      raw === 'profile'
+    ) {
+      setTab(raw);
+    }
+  }, []);
+
+  const selectTab = (
+    id: 'checkin' | 'open' | 'mine' | 'progress' | 'messages' | 'profile'
+  ) => {
+    setTab(id);
+    setError(null);
+    setMsg(null);
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.set('tab', id);
+      window.history.replaceState({}, '', `${u.pathname}${u.search}`);
+    } catch {
+      /* ignore */
+    }
+  };
 
   // Remember portal token for gym QR check-in page + PWA
   useEffect(() => {
@@ -393,7 +468,10 @@ export default function MemberFitgraphPortalPage() {
               {portal.open_count} open spots
             </span>
             <span className="rounded-full bg-white/20 px-2.5 py-1">
-              {portal.my_bookings.length} my bookings
+              {portal.upcoming_count ??
+                portal.my_bookings.filter((b) => b.upcoming !== false)
+                  .length}{' '}
+              upcoming classes
             </span>
             {(portal.messages_unread || 0) > 0 ? (
               <span className="rounded-full bg-amber-400 text-amber-950 px-2.5 py-1">
@@ -434,8 +512,9 @@ export default function MemberFitgraphPortalPage() {
           {(
             [
               ['checkin', 'Check in'],
-              ['open', 'Classes'],
-              ['mine', 'Bookings'],
+              ['open', 'Book'],
+              ['mine', 'My classes'],
+              ['progress', 'Progress'],
               ['messages', 'Messages'],
               ['profile', 'Profile'],
             ] as const
@@ -443,11 +522,7 @@ export default function MemberFitgraphPortalPage() {
             <button
               key={id}
               type="button"
-              onClick={() => {
-                setTab(id);
-                setError(null);
-                setMsg(null);
-              }}
+              onClick={() => selectTab(id)}
               className={`flex-1 min-w-[4rem] rounded-xl py-2 text-xs font-bold ${
                 tab === id
                   ? 'bg-[#E8E830] text-slate-900'
@@ -812,53 +887,285 @@ export default function MemberFitgraphPortalPage() {
         )}
 
         {tab === 'mine' && (
-          <div className="space-y-3">
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">
+              Classes you have booked. Leave feedback after you attend — your
+              coach sees it on your progress.
+            </p>
             {portal.my_bookings.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-                No upcoming bookings. Open classes to book a spot.
+                No booked classes yet.{' '}
+                <button
+                  type="button"
+                  className="font-bold text-yellow-800 underline"
+                  onClick={() => selectTab('open')}
+                >
+                  Book a class
+                </button>
               </div>
             ) : (
-              portal.my_bookings.map((b) => (
-                <div
-                  key={b.booking_id}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 flex items-start justify-between gap-3"
-                >
-                  <div>
-                    <p className="font-black text-slate-900">{b.class_name}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {formatDay(b.date, b.start_time)}
-                    </p>
-                    {b.coach_name ? (
-                      <p className="text-xs text-slate-500">{b.coach_name}</p>
-                    ) : null}
-                    <span className="inline-block mt-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase text-slate-700">
-                      {b.status}
-                    </span>
-                    <a
-                      className="block mt-1 text-[10px] font-bold text-yellow-700 underline"
-                      href={`/api/public/advisor/ics?module=fitgraph&date=${encodeURIComponent(b.date)}&start=${encodeURIComponent(b.start_time)}&title=${encodeURIComponent(b.class_name)}&duration=45`}
-                    >
-                      Add to calendar
-                    </a>
-                  </div>
-                  {b.status === 'booked' || b.status === 'waitlist' ? (
-                    <button
-                      type="button"
-                      disabled={busyId === b.booking_id}
-                      onClick={() => void cancel(b.booking_id)}
-                      className="text-xs font-bold text-rose-600 shrink-0"
-                    >
-                      Cancel
-                    </button>
-                  ) : null}
+              <>
+                {(['upcoming', 'past'] as const).map((bucket) => {
+                  const rows = portal.my_bookings.filter((b) =>
+                    bucket === 'upcoming' ? b.upcoming !== false : b.upcoming === false
+                  );
+                  if (rows.length === 0) return null;
+                  return (
+                    <div key={bucket} className="space-y-2">
+                      <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                        {bucket === 'upcoming' ? 'Upcoming' : 'Recent classes'}
+                      </p>
+                      {rows.map((b) => (
+                        <div
+                          key={b.booking_id}
+                          className="rounded-2xl border border-slate-200 bg-white p-4 flex items-start justify-between gap-3"
+                        >
+                          <div>
+                            <p className="font-black text-slate-900">
+                              {b.class_name}
+                            </p>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              {formatDay(b.date, b.start_time)}
+                            </p>
+                            {b.coach_name ? (
+                              <p className="text-xs text-slate-500">
+                                {b.coach_name}
+                              </p>
+                            ) : null}
+                            <span className="inline-block mt-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase text-slate-700">
+                              {b.status}
+                            </span>
+                            {b.upcoming !== false ? (
+                              <a
+                                className="block mt-1 text-[10px] font-bold text-yellow-700 underline"
+                                href={`/api/public/advisor/ics?module=fitgraph&date=${encodeURIComponent(b.date)}&start=${encodeURIComponent(b.start_time)}&title=${encodeURIComponent(b.class_name)}&duration=45`}
+                              >
+                                Add to calendar
+                              </a>
+                            ) : null}
+                            {b.feedback_token &&
+                            companyId != null &&
+                            !b.feedback_submitted_at ? (
+                              <a
+                                className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-yellow-800 underline"
+                                href={`/f/fitgraph/${companyId}/${encodeURIComponent(b.feedback_token)}`}
+                              >
+                                <MessageSquareHeart className="h-3.5 w-3.5" />
+                                Leave feedback
+                              </a>
+                            ) : b.feedback_submitted_at ? (
+                              <p className="mt-1 text-[11px] font-semibold text-emerald-700">
+                                Feedback sent
+                              </p>
+                            ) : null}
+                          </div>
+                          {b.status === 'booked' || b.status === 'waitlist' ? (
+                            <button
+                              type="button"
+                              disabled={busyId === b.booking_id}
+                              onClick={() => void cancel(b.booking_id)}
+                              className="text-xs font-bold text-rose-600 shrink-0"
+                            >
+                              Cancel
+                            </button>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </div>
+        )}
+
+        {tab === 'progress' && (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">
+              Your attendance, goals, coach notes, and class feedback at{' '}
+              {portal.brand}.
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-2xl border border-yellow-200 bg-white px-3 py-2.5 text-center">
+                <p className="text-lg font-black text-slate-900">
+                  {portal.progress?.attended_30d ?? 0}
+                </p>
+                <p className="text-[10px] font-bold uppercase text-slate-500">
+                  Classes · 30d
+                </p>
+              </div>
+              <div className="rounded-2xl border border-yellow-200 bg-white px-3 py-2.5 text-center">
+                <p className="text-lg font-black text-slate-900">
+                  {portal.progress?.attended_count ?? 0}
+                </p>
+                <p className="text-[10px] font-bold uppercase text-slate-500">
+                  Attended
+                </p>
+              </div>
+              <div className="rounded-2xl border border-yellow-200 bg-white px-3 py-2.5 text-center">
+                <p className="text-lg font-black text-slate-900">
+                  {portal.progress?.check_ins_30d ?? 0}
+                </p>
+                <p className="text-[10px] font-bold uppercase text-slate-500">
+                  Check-ins
+                </p>
+              </div>
+            </div>
+
+            <MemberRelationshipSection
+              relationship={portal.relationship}
+              primaryColor={color}
+            />
+
+            {(portal.packs || []).length > 0 ? (
+              <div className="rounded-2xl border border-yellow-200 bg-white p-4">
+                <p className="text-[10px] font-black uppercase text-yellow-700 mb-1">
+                  Session packs
+                </p>
+                <ul className="space-y-1">
+                  {(portal.packs || []).map((p) => (
+                    <li key={p.id} className="text-xs font-semibold text-slate-700">
+                      {p.label || 'Pack'}: <strong>{p.remaining}</strong> left
+                      {p.expires_at
+                        ? ` · exp ${p.expires_at.slice(0, 10)}`
+                        : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {portal.progress?.health &&
+            (portal.progress.health.goals ||
+              portal.progress.health.training_modifications ||
+              portal.progress.health.summary) ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
+                <div className="flex items-center gap-2 text-yellow-800">
+                  <Activity className="h-4 w-4" />
+                  <h2 className="text-sm font-black">Training notes</h2>
                 </div>
-              ))
+                {portal.progress.health.summary ? (
+                  <p className="text-xs text-slate-600">
+                    {portal.progress.health.summary}
+                  </p>
+                ) : null}
+                {portal.progress.health.goals ? (
+                  <p className="text-sm text-slate-800">
+                    <span className="font-bold">Goals: </span>
+                    {portal.progress.health.goals}
+                  </p>
+                ) : null}
+                {portal.progress.health.training_modifications ? (
+                  <p className="text-sm text-slate-800">
+                    <span className="font-bold">Modifications: </span>
+                    {portal.progress.health.training_modifications}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {(portal.progress?.coach_notes || []).length > 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
+                <h2 className="text-sm font-black text-slate-900">
+                  Coach notes
+                </h2>
+                <ul className="space-y-2">
+                  {(portal.progress?.coach_notes || []).map((n) => (
+                    <li key={n.id} className="rounded-xl bg-slate-50 px-3 py-2">
+                      <p className="text-[10px] font-bold text-slate-400">
+                        {n.at.slice(0, 10)}
+                      </p>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {n.title}
+                      </p>
+                      {n.body ? (
+                        <p className="mt-0.5 whitespace-pre-wrap text-xs text-slate-600">
+                          {n.body}
+                        </p>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {(portal.progress?.pending_feedback || []).length > 0 &&
+            companyId != null ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-2">
+                <div className="flex items-center gap-2 text-amber-950">
+                  <MessageSquareHeart className="h-4 w-4" />
+                  <h2 className="text-sm font-black">Feedback waiting</h2>
+                </div>
+                <ul className="space-y-1.5">
+                  {(portal.progress?.pending_feedback || []).map((f) => (
+                    <li key={f.booking_id}>
+                      <a
+                        href={`/f/fitgraph/${companyId}/${encodeURIComponent(f.feedback_token)}`}
+                        className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-800"
+                      >
+                        <span>
+                          {f.class_name}
+                          {f.date ? ` · ${f.date}` : ''}
+                        </span>
+                        <span className="text-[11px] font-black text-yellow-800">
+                          Leave feedback
+                        </span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {(portal.progress?.my_feedback || []).length > 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
+                <h2 className="text-sm font-black text-slate-900">
+                  Your class feedback
+                </h2>
+                <ul className="space-y-2">
+                  {(portal.progress?.my_feedback || []).map((f) => (
+                    <li
+                      key={f.id}
+                      className="rounded-xl border border-slate-100 px-3 py-2"
+                    >
+                      <p className="text-sm font-black text-slate-900">
+                        {f.class_name}
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        {f.date} · feel {f.feeling}/5 · RPE {f.intensity}/10
+                        {f.enjoyment != null ? ` · enjoy ${f.enjoyment}/5` : ''}
+                      </p>
+                      {f.comment ? (
+                        <p className="mt-1 text-xs text-slate-700">{f.comment}</p>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500">
+                After you attend a class, you can leave feedback from My
+                classes. Coaches use it to adjust your training.
+              </p>
             )}
           </div>
         )}
 
         {tab === 'profile' && (
           <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
+            <button
+              type="button"
+              onClick={() => selectTab('progress')}
+              className="w-full rounded-xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-left"
+            >
+              <p className="text-xs font-black text-yellow-950">
+                Attendance, goals & feedback
+              </p>
+              <p className="text-[11px] text-slate-600">
+                Open Progress for classes attended, coach notes, and your
+                feedback.
+              </p>
+            </button>
             {(portal.packs || []).length > 0 ? (
               <div className="rounded-xl border border-yellow-100 bg-yellow-50/50 px-3 py-2 mb-3">
                 <p className="text-[10px] font-black uppercase text-yellow-700 mb-1">Session packs</p>

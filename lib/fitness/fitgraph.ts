@@ -17,6 +17,8 @@ import {
   expandRecurrenceDates,
   weekdayOf,
 } from '@/lib/schedule/recurrence';
+import { healthSummaryLabel } from '@/lib/health/body-map';
+import { buildRelationshipSummary } from '@/lib/fitness/fitgraph-relationship';
 
 // Re-export shared recurrence helpers for existing Fit imports
 export { addDaysIso, addMonthsIso, expandRecurrenceDates, weekdayOf };
@@ -1294,6 +1296,11 @@ export function buildMemberPortalPayload(
 
   const shareSchedule = client.share_schedule !== false;
   const shareFeedback = client.share_feedback !== false;
+  const historyFrom = (() => {
+    const d = new Date(start + 'T12:00:00');
+    d.setDate(d.getDate() - 45);
+    return d.toISOString().slice(0, 10);
+  })();
 
   const open_classes = shareSchedule
     ? store.sessions
@@ -1353,13 +1360,14 @@ export function buildMemberPortalPayload(
             b.status !== 'cancelled' &&
             (() => {
               const s = store.sessions.find((x) => x.id === b.session_id);
-              return s && s.date >= start;
+              return s && s.date >= historyFrom;
             })()
         )
         .map((b) => {
           const s = store.sessions.find((x) => x.id === b.session_id)!;
           const ct = classTypeById(store, s.class_type_id);
           const coach = coachById(store, s.coach_id);
+          const upcoming = s.date >= start;
           return {
             booking_id: b.id,
             status: b.status,
@@ -1369,7 +1377,11 @@ export function buildMemberPortalPayload(
             class_name: ct?.name || 'Class',
             coach_name: coach?.name,
             location: s.location,
+            upcoming,
             feedback_token: shareFeedback ? b.feedback_token || null : null,
+            feedback_submitted_at: shareFeedback
+              ? b.feedback_submitted_at || null
+              : null,
           };
         })
         .sort((a, b) =>
@@ -1438,6 +1450,7 @@ export function buildMemberPortalPayload(
     open_classes,
     vacancies: open_classes.filter((c) => !c.full && !c.my_status),
     my_bookings,
+    upcoming_count: my_bookings.filter((b) => b.upcoming).length,
     open_count: open_classes.filter((c) => !c.full).length,
     full_count: open_classes.filter((c) => c.full && !c.my_status).length,
     /** Care messages with coaches / desk (member is a participant) */
@@ -1484,7 +1497,162 @@ export function buildMemberPortalPayload(
         }
       : null,
     access: evaluateMemberAccess(store, client),
+    ...buildMemberFacingProgress(store, client, shareFeedback, start),
   };
+}
+
+/** Attendance, goals, coach notes, and class feedback for the member portal. */
+function buildMemberFacingProgress(
+  store: FitgraphStore,
+  client: FitClient,
+  shareFeedback: boolean,
+  today: string
+) {
+  const from30 = (() => {
+    const d = new Date(today + 'T12:00:00');
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  const myBookings = (store.bookings || []).filter(
+    (b) => b.client_id === client.id && b.status !== 'cancelled'
+  );
+  const attended = myBookings.filter((b) => b.status === 'attended');
+  const sessionDate = (b: FitBooking) => {
+    const s = store.sessions.find((x) => x.id === b.session_id);
+    return s?.date || '';
+  };
+  const lastAttended =
+    attended
+      .map(sessionDate)
+      .filter(Boolean)
+      .sort()
+      .reverse()[0] || null;
+
+  const myFeedback = shareFeedback
+    ? (store.class_feedback || [])
+        .filter((f) => f.role === 'member' && f.client_id === client.id)
+        .sort((a, b) =>
+          (b.updated_at || b.created_at).localeCompare(
+            a.updated_at || a.created_at
+          )
+        )
+        .slice(0, 12)
+        .map((f) => {
+          const s = store.sessions.find((x) => x.id === f.session_id);
+          const ct = s ? classTypeById(store, s.class_type_id) : null;
+          return {
+            id: f.id,
+            at: f.updated_at || f.created_at,
+            class_name: ct?.name || 'Class',
+            date: s?.date || f.created_at.slice(0, 10),
+            feeling: f.feeling,
+            intensity: f.intensity,
+            enjoyment: f.enjoyment ?? null,
+            comment: f.comment || null,
+            tags: f.tags || [],
+          };
+        })
+    : [];
+
+  const coachNotes = (store.journey_events || [])
+    .filter(
+      (e) =>
+        e.client_id === client.id &&
+        e.kind === 'coach_note' &&
+        e.visibility !== 'coach_private'
+    )
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .slice(0, 8)
+    .map((e) => ({
+      id: e.id,
+      at: e.at,
+      title: e.title,
+      body: e.body || null,
+    }));
+
+  const health = client.health
+    ? {
+        summary: healthSummaryLabel(client.health),
+        injury_status: client.health.injury_status || null,
+        injury_areas: client.health.injury_areas || [],
+        training_modifications: client.health.training_modifications || null,
+        goals: client.health.goals || null,
+        pain_score: client.health.pain_score ?? null,
+      }
+    : null;
+
+  const raw = buildRelationshipSummary(store, client.id, client.coach_id, {
+    audience: 'member',
+  });
+  const relationship = {
+    health: {
+      score: raw.health.score,
+      level: raw.health.level,
+      label: raw.health.label,
+      metrics: {
+        attended_30d: raw.health.metrics.attended_30d,
+        days_since_attended: raw.health.metrics.days_since_attended,
+        active_goals: raw.health.metrics.active_goals,
+      },
+    },
+    journey_preview: (raw.journey_preview || []).map((e) => ({
+      id: e.id,
+      at: e.at,
+      title: e.title,
+      body: e.body,
+      kind: e.kind,
+    })),
+    active_goals: (raw.active_goals || []).map((g) => ({
+      id: g.id,
+      title: g.title,
+      target_date: g.target_date,
+      status: g.status,
+    })),
+    ledger: raw.ledger,
+  };
+
+  return {
+    progress: {
+      attended_count: client.attended_count ?? attended.length,
+      no_show_count: client.no_show_count || 0,
+      attended_30d: attended.filter((b) => sessionDate(b) >= from30).length,
+      check_ins_30d: (store.check_ins || []).filter(
+        (c) => c.client_id === client.id && c.date >= from30
+      ).length,
+      last_attended: lastAttended,
+      health,
+      coach_notes: coachNotes,
+      my_feedback: myFeedback,
+      pending_feedback: shareFeedback
+        ? pendingFeedbackForClient(store, client)
+        : [],
+    },
+    relationship,
+  };
+}
+
+function pendingFeedbackForClient(store: FitgraphStore, client: FitClient) {
+  return (store.bookings || [])
+    .filter(
+      (b) =>
+        b.client_id === client.id &&
+        b.status === 'attended' &&
+        b.feedback_token &&
+        !b.feedback_submitted_at
+    )
+    .map((b) => {
+      const s = store.sessions.find((x) => x.id === b.session_id);
+      const ct = s ? classTypeById(store, s.class_type_id) : null;
+      return {
+        booking_id: b.id,
+        session_id: b.session_id,
+        date: s?.date || '',
+        class_name: ct?.name || 'Class',
+        feedback_token: b.feedback_token as string,
+      };
+    })
+    .slice(0, 8);
 }
 
 export function ensurePublicToken(

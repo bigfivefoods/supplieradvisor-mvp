@@ -277,12 +277,19 @@ export function activeGoalsForClient(
 export function buildClientJourney(
   store: FitgraphStore,
   clientId: string,
-  opts?: { limit?: number; coachId?: string | null }
+  opts?: {
+    limit?: number;
+    coachId?: string | null;
+    /** member portal hides coach-private notes */
+    audience?: 'coach' | 'member';
+  }
 ): FitJourneyEvent[] {
+  const hide =
+    opts?.audience === 'member' ? 'coach_private' : 'member_private';
   const explicit = (store.journey_events || []).filter(
     (e) =>
       e.client_id === clientId &&
-      e.visibility !== 'member_private' &&
+      e.visibility !== hide &&
       (!opts?.coachId || !e.coach_id || e.coach_id === opts.coachId)
   );
 
@@ -762,12 +769,14 @@ export function appendJourneyEvent(
 export function buildRelationshipSummary(
   store: FitgraphStore,
   clientId: string,
-  coachId?: string | null
+  coachId?: string | null,
+  opts?: { audience?: 'coach' | 'member' }
 ) {
   const health = computeRelationshipHealth(store, clientId, coachId);
   const journey = buildClientJourney(store, clientId, {
     limit: 12,
     coachId,
+    audience: opts?.audience,
   });
   const goals = activeGoalsForClient(store, clientId);
   const ledger = computeValueLedger(store, clientId, {

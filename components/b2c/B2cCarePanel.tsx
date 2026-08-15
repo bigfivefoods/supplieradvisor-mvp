@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { CalendarDays, ChevronRight, HeartPulse, Loader2 } from 'lucide-react';
+import {
+  Activity,
+  CalendarDays,
+  ChevronRight,
+  Dumbbell,
+  HeartPulse,
+  Loader2,
+} from 'lucide-react';
 import type {
   B2cCareBooking,
   B2cCareClinic,
@@ -16,6 +23,9 @@ function formatShare(summary: Record<string, unknown>) {
     'current_meds',
     'chronic_conditions',
     'diagnosis_notes',
+    'care_notes',
+    'progress_notes',
+    'treatment_goals',
     'active_scripts',
   ];
   return keys
@@ -115,6 +125,22 @@ export function B2cCarePanel() {
                 >
                   <CalendarDays className="h-3.5 w-3.5" /> Book
                 </Link>
+                {c.classesHref ? (
+                  <Link
+                    href={c.classesHref}
+                    className="inline-flex items-center gap-1 rounded-xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-[11px] font-black text-yellow-950"
+                  >
+                    <Dumbbell className="h-3.5 w-3.5" /> My classes
+                  </Link>
+                ) : null}
+                {c.progressHref ? (
+                  <Link
+                    href={c.progressHref}
+                    className="inline-flex items-center gap-1 rounded-xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-[11px] font-black text-yellow-950"
+                  >
+                    <Activity className="h-3.5 w-3.5" /> Progress
+                  </Link>
+                ) : null}
                 {c.hasRecords ? (
                   <Link
                     href={c.careHref}

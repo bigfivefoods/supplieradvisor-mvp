@@ -18,6 +18,7 @@ import {
   Download,
   Dumbbell,
   ExternalLink,
+  Activity,
   HeartPulse,
   Link2,
   Loader2,
@@ -110,6 +111,7 @@ function kindIcon(kind: string) {
   if (kind === 'dental') return Sparkles;
   if (kind === 'medical') return Stethoscope;
   if (kind === 'psychiatry') return Brain;
+  if (kind === 'retail') return Store;
   return WalletCards;
 }
 
@@ -121,6 +123,7 @@ function kindTone(kind: string) {
   if (kind === 'dental') return 'from-sky-400 to-blue-800 border-sky-200';
   if (kind === 'medical') return 'from-indigo-500 to-slate-800 border-indigo-200';
   if (kind === 'psychiatry') return 'from-rose-500 to-fuchsia-900 border-rose-200';
+  if (kind === 'retail') return 'from-orange-500 to-amber-800 border-orange-200';
   return 'from-slate-500 to-slate-700 border-slate-200';
 }
 
@@ -136,14 +139,22 @@ function isClinicKind(kind: string) {
 }
 
 function membershipBookHref(m: Membership) {
-  if (isClinicKind(m.kind)) {
+  if (isClinicKind(m.kind) || m.kind === 'gym') {
     return `${m.portal_path}${m.portal_path.includes('?') ? '&' : '?'}tab=open`;
   }
   return m.portal_path;
 }
 
 function membershipRecordsHref(m: Membership) {
-  return `${m.portal_path}${m.portal_path.includes('?') ? '&' : '?'}tab=care`;
+  return `${m.portal_path}${m.portal_path.includes('?') ? '&' : '?'}tab=profile`;
+}
+
+function membershipClassesHref(m: Membership) {
+  return `${m.portal_path}${m.portal_path.includes('?') ? '&' : '?'}tab=mine`;
+}
+
+function membershipProgressHref(m: Membership) {
+  return `${m.portal_path}${m.portal_path.includes('?') ? '&' : '?'}tab=progress`;
 }
 
 function MeAppInner() {
@@ -207,7 +218,7 @@ function MeAppInner() {
       setLinkToken(link);
       setTab('checkin');
     }
-    if (search?.get('account')) {
+    if (search?.get('account') || search?.get('pay') === 'open') {
       setTab('memberships');
     }
   }, [search]);
@@ -1177,6 +1188,22 @@ function MeAppInner() {
                         >
                           <HeartPulse className="h-3.5 w-3.5" /> Records
                         </Link>
+                      ) : null}
+                      {gym ? (
+                        <>
+                          <Link
+                            href={membershipClassesHref(gym)}
+                            className="inline-flex items-center gap-1 rounded-xl border border-yellow-200 bg-yellow-50 px-3 py-2.5 text-xs font-black text-yellow-950"
+                          >
+                            <Dumbbell className="h-3.5 w-3.5" /> My classes
+                          </Link>
+                          <Link
+                            href={membershipProgressHref(gym)}
+                            className="inline-flex items-center gap-1 rounded-xl border border-yellow-200 bg-yellow-50 px-3 py-2.5 text-xs font-black text-yellow-950"
+                          >
+                            <Activity className="h-3.5 w-3.5" /> Progress
+                          </Link>
+                        </>
                       ) : null}
                       {gym?.checkin_path ? (
                         <Link

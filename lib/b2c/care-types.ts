@@ -23,4 +23,6 @@ export type B2cCareClinic = {
   bookHref: string;
   careHref: string;
   hasRecords: boolean;
+  classesHref?: string;
+  progressHref?: string;
 };

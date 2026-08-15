@@ -9,6 +9,10 @@ import {
   portalMessagesUnread,
   portalThreadsForPerson,
 } from '@/lib/services/clinic-portal-messaging';
+import {
+  buildPatientMedicalShare,
+  buildSharedAdvice,
+} from '@/lib/clinic/medical-share';
 
 export const DENTALGRAPH_MODULE_ID = 'dentalgraph' as const;
 export const DENTALGRAPH_META_KEY = 'dentalgraph';
@@ -695,48 +699,9 @@ export function buildDentalPatientPortalPayload(
         )
     : [];
 
-  let medical_share: Record<string, unknown> | null = null;
-  if (shareMedical) {
-    const clinical = patient.clinical;
-    const medical = patient.medical;
-    const summary: Record<string, unknown> = {};
-    if (clinical?.injury_status) summary.injury_status = clinical.injury_status;
-    if (clinical?.injury_areas?.length)
-      summary.injury_areas = clinical.injury_areas;
-    if (clinical?.injury_notes) summary.injury_notes = clinical.injury_notes;
-    if (clinical?.diagnosis_notes || patient.diagnosis_notes) {
-      summary.diagnosis_notes =
-        clinical?.diagnosis_notes || patient.diagnosis_notes;
-    }
-    if (clinical?.training_modifications)
-      summary.care_notes = clinical.training_modifications;
-    if (clinical?.goals) summary.goals = clinical.goals;
-    if (clinical?.pain_score != null) summary.pain_score = clinical.pain_score;
-    if (medical?.allergies) summary.allergies = medical.allergies;
-    if (medical?.chronic_conditions)
-      summary.chronic_conditions = medical.chronic_conditions;
-    if (medical?.current_meds) summary.current_meds = medical.current_meds;
-    if (medical?.medical_aid?.scheme_name) {
-      summary.medical_aid = {
-        scheme_name: medical.medical_aid.scheme_name,
-        plan_name: medical.medical_aid.plan_name,
-        membership_number: medical.medical_aid.membership_number
-          ? `••••${String(medical.medical_aid.membership_number).slice(-4)}`
-          : undefined,
-      };
-    }
-    const activeScripts = (medical?.scripts || []).filter(
-      (s) => String(s.status || 'active').toLowerCase() === 'active'
-    );
-    if (activeScripts.length) {
-      summary.active_scripts = activeScripts.map((s) =>
-        [s.medication, s.strength, s.dose, s.frequency, s.instructions]
-          .filter(Boolean)
-          .join(' · ')
-      );
-    }
-    medical_share = Object.keys(summary).length ? summary : null;
-  }
+  const medical_share = shareMedical
+    ? buildPatientMedicalShare(patient)
+    : null;
 
   return {
     brand: store.settings?.brand_name || 'Practice',
@@ -780,6 +745,9 @@ export function buildDentalPatientPortalPayload(
     /** Patients may book any public clinician, not only their regular one */
     can_book_other_clinicians: true,
     medical_share,
+    shared_advice: shareMedical
+      ? buildSharedAdvice(store.visit_notes, patient.id)
+      : [],
     open_slots,
     vacancies: open_slots.filter((s) => !s.full && !s.my_status),
     my_bookings,

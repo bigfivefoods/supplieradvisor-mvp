@@ -10,7 +10,10 @@ import {
   portalMessagesUnread,
   portalThreadsForPerson,
 } from '@/lib/services/clinic-portal-messaging';
-import { buildPatientMedicalShare } from '@/lib/clinic/medical-share';
+import {
+  buildPatientMedicalShare,
+  buildSharedAdvice,
+} from '@/lib/clinic/medical-share';
 
 export const MEDICALGRAPH_MODULE_ID = 'medicalgraph' as const;
 export const MEDICALGRAPH_META_KEY = 'medicalgraph';
@@ -711,6 +714,7 @@ export function buildPatientPortalPayload(
     })(),
     vacancies: open_slots.filter((s) => !s.full && !s.my_status),
     medical_share: buildPatientMedicalShare(patient),
+    shared_advice: buildSharedAdvice(store.visit_notes, patient.id),
     shares: {
       schedule: true,
       medical: patient.share_medical !== false,

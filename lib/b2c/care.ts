@@ -31,8 +31,11 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
 
   for (const mem of memberships.filter((m) => m.active !== false)) {
     const brand = mem.brand || mem.company_name;
-    const bookHref = `${mem.portal_path}${mem.portal_path.includes('?') ? '&' : '?'}tab=open`;
-    const careHref = `${mem.portal_path}${mem.portal_path.includes('?') ? '&' : '?'}tab=care`;
+    const q = mem.portal_path.includes('?') ? '&' : '?';
+    const bookHref = `${mem.portal_path}${q}tab=open`;
+    const careHref = `${mem.portal_path}${q}tab=profile`;
+    const classesHref = `${mem.portal_path}${q}tab=mine`;
+    const progressHref = `${mem.portal_path}${q}tab=progress`;
     const isClinic = ['physio', 'dental', 'medical', 'psychiatry'].includes(
       mem.kind
     );
@@ -41,9 +44,11 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
       clinics.push({
         kind: mem.kind,
         brand,
-        bookHref: isGym ? mem.portal_path : bookHref,
-        careHref: isClinic ? careHref : mem.portal_path,
+        bookHref,
+        careHref: isClinic ? careHref : progressHref,
         hasRecords: isClinic,
+        classesHref: isGym ? classesHref : undefined,
+        progressHref: isGym ? progressHref : undefined,
       });
     }
     const { data } = await supabase
@@ -75,7 +80,7 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
           title: ct?.name || 'Class',
           when: `${ses.date} ${ses.start_time || ''}`.trim(),
           status: String(b.status),
-          href: mem.portal_path,
+          href: `${mem.portal_path}${mem.portal_path.includes('?') ? '&' : '?'}tab=mine`,
         });
       }
       continue;

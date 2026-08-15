@@ -8,10 +8,8 @@ import { useParams } from 'next/navigation';
 import {
   CalendarDays,
   Check,
-  HeartPulse,
   Loader2,
   MapPin,
-  Stethoscope,
   User,
   X,
 } from 'lucide-react';
@@ -23,6 +21,11 @@ import { PortalMessagesPanel } from '@/components/services/PortalMessagesPanel';
 import { PortalWaitlistReschedule } from '@/components/services/PortalWaitlistReschedule';
 import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
 import { B2cAutoLinkBanner } from '@/components/b2c/B2cAutoLinkBanner';
+import { MemberMedicalShare } from '@/components/services/MemberMedicalShare';
+import type {
+  SharedAdviceNote,
+  SharedTreatmentPlan,
+} from '@/lib/clinic/medical-share';
 
 type Slot = {
   id: string;
@@ -75,6 +78,8 @@ type Portal = {
   };
   shares?: { schedule?: boolean; feedback?: boolean; medical?: boolean };
   medical_share?: Record<string, unknown> | null;
+  shared_advice?: SharedAdviceNote[];
+  treatment_plans?: SharedTreatmentPlan[];
   open_slots: Slot[];
   waitlist_queue?: Array<{ id: string; position: number }>;
   can_book_other_clinicians?: boolean;
@@ -358,47 +363,12 @@ export default function MemberPhysiographPortalPage() {
         </div>
 
         {tab === 'care' && (
-          <div className="rounded-2xl border border-teal-200 bg-white p-4 space-y-3">
-            <div className="flex items-center gap-2 text-teal-800">
-              <HeartPulse className="w-4 h-4" />
-              <h2 className="text-sm font-black">Shared care information</h2>
-            </div>
-            {portal.medical_share &&
-            Object.keys(portal.medical_share).length > 0 ? (
-              <dl className="space-y-2 text-sm">
-                {Object.entries(portal.medical_share).map(([k, v]) => {
-                  if (v == null || v === '') return null;
-                  const label = k.replace(/_/g, ' ');
-                  const value =
-                    typeof v === 'object'
-                      ? Object.entries(v as Record<string, unknown>)
-                          .filter(([, x]) => x != null && x !== '')
-                          .map(([a, b]) => `${a.replace(/_/g, ' ')}: ${b}`)
-                          .join(' · ')
-                      : Array.isArray(v)
-                        ? v.join(', ')
-                        : String(v);
-                  if (!value) return null;
-                  return (
-                    <div key={k}>
-                      <dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                        {label}
-                      </dt>
-                      <dd className="text-slate-800 mt-0.5">{value}</dd>
-                    </div>
-                  );
-                })}
-              </dl>
-            ) : (
-              <p className="text-sm text-slate-500">
-                Your clinic has not shared clinical details yet. Contact the
-                practice if you expected something here.
-              </p>
-            )}
-            <p className="text-[11px] text-slate-400">
-              Only a summary is shown — full charts stay with your care team.
-            </p>
-          </div>
+          <MemberMedicalShare
+            share={portal.medical_share}
+            plans={portal.treatment_plans}
+            advice={portal.shared_advice}
+            tone="teal"
+          />
         )}
 
         {(portal.patient?.family || []).filter((m: { active?: boolean }) => m.active !== false).length >
@@ -601,6 +571,14 @@ export default function MemberPhysiographPortalPage() {
         )}
 
         {tab === 'profile' && (
+          <div className="space-y-4">
+          <MemberMedicalShare
+            share={portal.medical_share}
+            plans={portal.treatment_plans}
+            advice={portal.shared_advice}
+            tone="teal"
+            heading="Physio info, advice & plan"
+          />
           <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
             <p className="text-sm font-black text-slate-900">Your profile</p>
             <p className="text-xs text-slate-500">
@@ -734,6 +712,7 @@ export default function MemberPhysiographPortalPage() {
             >
               Save profile
             </button>
+          </div>
           </div>
         )}
 
