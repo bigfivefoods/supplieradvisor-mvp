@@ -36,8 +36,9 @@ export const ADVISOR_OS_MODULE_IDS = [
   'health',
   'containers',
 ] as const;
+export type AdvisorOsModuleId = (typeof ADVISOR_OS_MODULE_IDS)[number];
 
-const PACK_TO_ADVISOR_MODULE: Record<string, string> = {
+const PACK_TO_ADVISOR_MODULE: Record<string, AdvisorOsModuleId> = {
   fitness_gym: 'fitgraph',
   allied_health_clinic: 'physiograph',
   allied_health: 'physiograph',
@@ -63,7 +64,7 @@ export function advisorModulesForCompany(opts: {
   );
   if (!enabled.length) return [];
 
-  const fromPacks: string[] = [];
+  const fromPacks: AdvisorOsModuleId[] = [];
   for (const pid of opts.packaging?.packIds || []) {
     const id = PACK_TO_ADVISOR_MODULE[String(pid)];
     if (id && enabled.includes(id) && !fromPacks.includes(id)) {
