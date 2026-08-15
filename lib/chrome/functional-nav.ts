@@ -36,6 +36,7 @@ export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
   'psychiatrygraph', // PsychiatryAdvisor® mental health OS
   'medicalgraph', // MedicalAdvisor® medical practice OS
   'hiregraph', // HireAdvisor® hire / rental marketplace (members free)
+  'retailgraph', // RetailAdvisor® B2C till OS
   'quarrygraph', // QuarryAdvisor® aggregates OS
   'fieldgraph', // CropAdvisor® agri OS
   'schools', // SchoolAdvisor® (public sector / NSNP)
@@ -88,6 +89,7 @@ export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
   psychiatrygraph: 'PsychiatryAdvisor (Mental health)',
   medicalgraph: 'MedicalAdvisor (Medical)',
   hiregraph: 'HireAdvisor (Hire / rent)',
+  retailgraph: 'RetailAdvisor (Till)',
   containers: 'Containers',
   schools: 'SchoolAdvisor',
   health: 'Health',
@@ -230,6 +232,7 @@ export function functionalSidebarModules(opts: {
           'psychiatrygraph',
           'medicalgraph',
           'hiregraph',
+          'retailgraph',
         ];
         for (const id of afterIndustry) {
           const idx = out.findIndex((x) => x.id === id);

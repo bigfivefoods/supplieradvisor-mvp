@@ -406,6 +406,12 @@ export function ComparisonTable() {
       sa: true,
     },
     {
+      feature: 'RetailAdvisor® till · QR / NFC phone pay',
+      sheets: false,
+      erp: 'Partial',
+      sa: true,
+    },
+    {
       feature: 'Free SA Member PWA (B2C wallet)',
       sheets: false,
       erp: false,

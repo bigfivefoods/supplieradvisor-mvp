@@ -776,6 +776,41 @@ export function FitgraphMock() {
   );
 }
 
+/** Industry — retail till OS */
+export function RetailgraphMock() {
+  return (
+    <Frame title="dashboard/retailgraph/till">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[9px] font-bold uppercase tracking-widest text-orange-700">
+            RetailAdvisor® · Till
+          </div>
+          <div className="text-sm font-black tracking-tight text-slate-900 dark:text-white sm:text-base">
+            Scan · tap · pay the bill.
+          </div>
+        </div>
+        <span className="rounded-full border border-orange-200 bg-orange-600 px-2 py-0.5 text-[9px] font-black uppercase text-white">
+          NFC
+        </span>
+      </div>
+      <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
+        <Telemetry label="Basket" value="R186" tone="amber" />
+        <Telemetry label="SKUs" value="24" tone="sky" />
+        <Telemetry label="QR" value="Live" tone="cyan" />
+        <Telemetry label="Bills" value="3" tone="emerald" />
+      </div>
+      <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#151c26]">
+        <div className="text-[10px] font-black uppercase text-slate-400">
+          Present
+        </div>
+        <div className="mt-1 text-xs font-bold text-slate-800 dark:text-white">
+          Customer scans QR or taps NFC — pays on SA Member
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
 /** Industry — hire / rental marketplace (members free · 2.5% on the business) */
 export function HiregraphMock() {
   return (

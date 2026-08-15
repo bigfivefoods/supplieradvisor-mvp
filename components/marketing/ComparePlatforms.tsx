@@ -355,6 +355,14 @@ const SECTIONS: Section[] = [
         sa: 'strong',
       },
       {
+        capability: 'RetailAdvisor® · B2C till OS',
+        hint: 'Catalogue, cash, or QR / NFC so the customer pays on SA Member; collect gym/clinic/hire bills at the counter',
+        excel: 'no',
+        xero: 'partial',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
         capability: 'Advisor marketplace listing',
         hint: 'Opt-in public directory on /marketplace/advisors (city + blurb)',
         excel: 'no',
@@ -461,6 +469,14 @@ const SECTIONS: Section[] = [
         excel: 'no',
         xero: 'no',
         erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'Pay at till · QR / NFC',
+        hint: 'Desk presents an amount; customer scans QR or taps NFC (Android Chrome) and pays on SA Member — retail, gym, clinic, hire',
+        excel: 'no',
+        xero: 'partial',
+        erp: 'partial',
         sa: 'strong',
       },
       {

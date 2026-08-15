@@ -38,6 +38,7 @@ import { readMedicalgraphFromMetadata } from '@/lib/clinic/medicalgraph';
 import { readPsychiatrygraphFromMetadata } from '@/lib/clinic/psychiatrygraph';
 import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
 import { readHiregraphFromMetadata } from '@/lib/hire/hiregraph';
+import { readRetailgraphFromMetadata } from '@/lib/retail/retailgraph';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -54,6 +55,13 @@ function listMembers(
 ): MemberOpt[] {
   if (module === 'fitgraph') {
     return (readFitgraphFromMetadata(meta).clients || []).map((c) => ({
+      ref_id: c.id,
+      name: c.name,
+      email: c.email || null,
+    }));
+  }
+  if (module === 'retailgraph') {
+    return (readRetailgraphFromMetadata(meta).customers || []).map((c) => ({
       ref_id: c.id,
       name: c.name,
       email: c.email || null,

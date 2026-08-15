@@ -347,6 +347,36 @@ export const INDUSTRIES: IndustryPage[] = [
     ],
   },
   {
+    slug: 'retail-shop',
+    name: 'Retail till',
+    headline: 'Ring up · tap or scan · pay bills at the counter.',
+    subhead:
+      'RetailAdvisor® is a B2C till OS: catalogue, cash, or QR / NFC so the customer pays on SA Member. The same till can open their gym, clinic and hire bills. GymAdvisor and clinic desks reuse the same present-to-pay path.',
+    cardBlurb:
+      'RetailAdvisor® — till, QR/NFC phone pay, collect SA Member bills at the counter.',
+    pack: 'RetailAdvisor®',
+    pains: [
+      'Card machines and WhatsApp proofs that never match the till',
+      'Members cannot pay a gym or clinic bill while they are in a shop',
+      'No shared pay-at-counter path across Advisors',
+    ],
+    wins: [
+      'Basket + cash or present QR / NFC',
+      'Customer pays on the free SA Member app',
+      'Collect open SA bills at any RetailAdvisor till',
+      'Same present-to-pay on gym and clinic desks',
+    ],
+    modules: [
+      'RetailAdvisor®',
+      'Till (QR · NFC · cash)',
+      'Catalogue',
+      'Sales',
+      'Customers',
+      'Accounts',
+      'SA Member pay',
+    ],
+  },
+  {
     slug: 'hire-rental',
     name: 'Hire & rental',
     headline: 'List gear · people rent free · 2.5% on the business.',

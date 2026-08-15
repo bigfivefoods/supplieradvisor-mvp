@@ -12,6 +12,7 @@
 export type AdvisorSkinId =
   | 'supplier'
   | 'hire'
+  | 'retail'
   | 'gym'
   | 'physio'
   | 'dental'
@@ -67,6 +68,19 @@ export const ADVISOR_SKINS: readonly AdvisorSkin[] = [
     packIds: ['staffing_hire'],
     brand: '#0891b2',
     brandDeep: '#0e7490',
+  },
+  {
+    id: 'retail',
+    name: 'RetailAdvisor',
+    registered: 'RetailAdvisor®',
+    shortName: 'Retail',
+    tagline: 'B2C till · QR / NFC pay',
+    homeHref: '/dashboard/retailgraph',
+    prefixes: ['/dashboard/retailgraph'],
+    moduleIds: ['retailgraph'],
+    packIds: ['retail_shop'],
+    brand: '#ea580c',
+    brandDeep: '#c2410c',
   },
   {
     id: 'gym',

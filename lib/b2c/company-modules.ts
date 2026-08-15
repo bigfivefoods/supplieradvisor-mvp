@@ -14,6 +14,7 @@ export const ADVISOR_META_KEYS: Array<{
   { key: 'dentalgraph', kind: 'dental' },
   { key: 'medicalgraph', kind: 'medical' },
   { key: 'psychiatrygraph', kind: 'psychiatry' },
+  { key: 'retailgraph', kind: 'retail' },
 ];
 
 export function hasMetaModule(
@@ -47,6 +48,7 @@ export const CONSUMER_MEMBERSHIP_KINDS: B2cMembershipKind[] = [
   'dental',
   'medical',
   'psychiatry',
+  'retail',
 ];
 
 export function isConsumerMembershipKind(
@@ -70,6 +72,7 @@ export function moduleLabels(kinds: Array<B2cMembershipKind | string>): string {
     dental: 'Dental',
     medical: 'Medical',
     psychiatry: 'Psychiatry',
+    retail: 'Retail',
   };
   return kinds
     .map((k) => labels[k] || k)

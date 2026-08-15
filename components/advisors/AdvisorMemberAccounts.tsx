@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, Loader2, X } from 'lucide-react';
+import { Check, Loader2, Nfc, X } from 'lucide-react';
+import { TillPresentPay } from '@/components/till/TillPresentPay';
 import { toast } from 'sonner';
 import { useApiAuth } from '@/lib/client/use-api-auth';
 import {
@@ -34,6 +35,8 @@ export function AdvisorMemberAccounts({
     pending_pops: 0,
   });
   const [filter, setFilter] = useState('open');
+  const [tillChargeIds, setTillChargeIds] = useState<string[]>([]);
+  const [presentTill, setPresentTill] = useState(false);
   const [form, setForm] = useState({
     ref_id: '',
     description: '',
@@ -99,6 +102,14 @@ export function AdvisorMemberAccounts({
 
   const pendingPops = payments.filter(
     (p) => p.status === 'pending' && p.method === 'pop'
+  );
+
+  const tillCharges = shown.filter(
+    (c) => tillChargeIds.includes(c.id) && c.status === 'open'
+  );
+  const tillAmount = tillCharges.reduce(
+    (n, c) => n + (Number(c.amount_zar) || 0),
+    0
   );
 
   if (loading) {
@@ -167,6 +178,22 @@ export function AdvisorMemberAccounts({
             ))}
           </ul>
         </section>
+      ) : null}
+
+      {tillCharges.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3">
+          <p className="text-sm font-bold text-orange-950">
+            {tillCharges.length} bill{tillCharges.length === 1 ? '' : 's'} ·{' '}
+            {formatZar(tillAmount)}
+          </p>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 rounded-xl bg-orange-600 px-3 py-2 text-xs font-black text-white"
+            onClick={() => setPresentTill(true)}
+          >
+            <Nfc className="h-3.5 w-3.5" /> Present QR / NFC
+          </button>
+        </div>
       ) : null}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -301,6 +328,20 @@ export function AdvisorMemberAccounts({
                 key={c.id}
                 className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
               >
+                {c.status === 'open' ? (
+                  <input
+                    type="checkbox"
+                    checked={tillChargeIds.includes(c.id)}
+                    onChange={() =>
+                      setTillChargeIds((ids) =>
+                        ids.includes(c.id)
+                          ? ids.filter((x) => x !== c.id)
+                          : [...ids, c.id]
+                      )
+                    }
+                    aria-label={`Select ${c.description}`}
+                  />
+                ) : null}
                 <div className="min-w-0 flex-1">
                   <p className="font-bold text-slate-900">
                     {c.member_name} · {c.description}
@@ -338,6 +379,22 @@ export function AdvisorMemberAccounts({
           )}
         </ul>
       </section>
+
+      {presentTill && tillAmount > 0 ? (
+        <TillPresentPay
+          module={module}
+          kind="bill"
+          amountZar={tillAmount}
+          label={`Bills · ${tillCharges.length}`}
+          chargeIds={tillCharges.map((c) => c.id)}
+          onPaid={() => {
+            setPresentTill(false);
+            setTillChargeIds([]);
+            void load();
+          }}
+          onClose={() => setPresentTill(false)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -349,6 +406,7 @@ const MODULE_KIND: Record<AdvisorAccountModule, string> = {
   medicalgraph: 'medical',
   psychiatrygraph: 'psychiatry',
   hiregraph: 'hire',
+  retailgraph: 'retail',
 };
 
 function Kpi({ label, value }: { label: string; value: string }) {

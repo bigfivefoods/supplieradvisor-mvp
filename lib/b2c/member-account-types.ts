@@ -10,6 +10,7 @@ export const ADVISOR_ACCOUNT_KINDS = [
   'medical',
   'psychiatry',
   'hire',
+  'retail',
 ] as const;
 
 export type AdvisorAccountKind = (typeof ADVISOR_ACCOUNT_KINDS)[number];
@@ -21,6 +22,7 @@ export const ADVISOR_ACCOUNT_MODULES = [
   'medicalgraph',
   'psychiatrygraph',
   'hiregraph',
+  'retailgraph',
 ] as const;
 
 export type AdvisorAccountModule = (typeof ADVISOR_ACCOUNT_MODULES)[number];
@@ -32,6 +34,7 @@ export const KIND_TO_MODULE: Record<AdvisorAccountKind, AdvisorAccountModule> = 
   medical: 'medicalgraph',
   psychiatry: 'psychiatrygraph',
   hire: 'hiregraph',
+  retail: 'retailgraph',
 };
 
 export const MODULE_TO_KIND: Record<AdvisorAccountModule, AdvisorAccountKind> = {
@@ -41,6 +44,7 @@ export const MODULE_TO_KIND: Record<AdvisorAccountModule, AdvisorAccountKind> = 
   medicalgraph: 'medical',
   psychiatrygraph: 'psychiatry',
   hiregraph: 'hire',
+  retailgraph: 'retail',
 };
 
 export type MemberChargeStatus = 'open' | 'pending_pop' | 'paid' | 'void';
@@ -51,7 +55,8 @@ export type MemberChargeSource =
   | 'subscription'
   | 'visit'
   | 'hire'
-  | 'pack';
+  | 'pack'
+  | 'till';
 
 export type MemberAccountCharge = {
   id: string;
@@ -156,5 +161,6 @@ export function kindAccountLabel(kind: string): string {
   if (kind === 'medical') return 'Medical account';
   if (kind === 'psychiatry') return 'Psychiatry account';
   if (kind === 'hire') return 'Hire account';
+  if (kind === 'retail') return 'Retail account';
   return 'Account';
 }

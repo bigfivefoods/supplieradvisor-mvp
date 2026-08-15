@@ -211,6 +211,8 @@ export function collectSuggestions(
     return out;
   }
 
+  if (module === 'retailgraph') return [];
+
   if (module === 'hiregraph') {
     const store = readHiregraphFromMetadata(meta);
     const skip = new Set([
