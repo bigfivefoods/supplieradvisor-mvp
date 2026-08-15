@@ -59,14 +59,15 @@ export function advisorModulesForCompany(opts: {
   isModuleEnabled: (id: string) => boolean;
   packaging?: PackagingSelection | null;
 }): string[] {
-  const enabled = ADVISOR_OS_MODULE_IDS.filter((id) =>
+  const enabled: string[] = ADVISOR_OS_MODULE_IDS.filter((id) =>
     opts.isModuleEnabled(id)
   );
   if (!enabled.length) return [];
 
-  const fromPacks: AdvisorOsModuleId[] = [];
+  const fromPacks: string[] = [];
   for (const pid of opts.packaging?.packIds || []) {
-    const id = PACK_TO_ADVISOR_MODULE[String(pid)];
+    const mapped = PACK_TO_ADVISOR_MODULE[String(pid)];
+    const id = typeof mapped === 'string' ? mapped : '';
     if (id && enabled.includes(id) && !fromPacks.includes(id)) {
       fromPacks.push(id);
     }
