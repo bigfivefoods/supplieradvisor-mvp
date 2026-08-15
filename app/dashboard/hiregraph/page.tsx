@@ -80,8 +80,16 @@ const DEMAND: HubModule[] = [
     icon: CalendarDays,
     code: '05',
     title: 'Bookings',
-    desc: 'Book against core customers — dual fee quote + requirement gaps.',
+    desc: 'Duration, overlap check, extend if the extra days are free.',
     accent: 'from-indigo-50 to-white border-indigo-100',
+  },
+  {
+    href: '/dashboard/hiregraph/calendar',
+    icon: CalendarDays,
+    code: '05b',
+    title: 'Calendar',
+    desc: 'See every hired item by day, week or month — filter by category.',
+    accent: 'from-sky-50 to-white border-sky-100',
   },
   {
     href: '/dashboard/hiregraph/handover',

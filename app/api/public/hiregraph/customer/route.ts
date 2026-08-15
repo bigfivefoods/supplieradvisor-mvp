@@ -280,6 +280,8 @@ export async function POST(request: NextRequest) {
         units: Number(body.units) || 1,
         qty: Number(body.qty) || 1,
         crm_customer_id: crmId,
+        start_date: body.start_date ? String(body.start_date) : null,
+        end_date: body.end_date ? String(body.end_date) : null,
       });
       if (!q) {
         return NextResponse.json({ error: 'Item not found' }, { status: 404 });
@@ -440,10 +442,39 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const units = Math.max(1, Number(body.units) || 1);
       const qty = Math.max(1, Number(body.qty) || 1);
       const start = body.start_date ? String(body.start_date) : null;
       const end = body.end_date ? String(body.end_date) : null;
+      const { applyDateUnits, itemConflict } = await import(
+        '@/lib/hire/availability'
+      );
+      const dated = applyDateUnits(
+        {
+          start_date: start,
+          end_date: end,
+          units: Number(body.units) || 1,
+        },
+        item.rate_unit
+      );
+      const units = dated.units;
+      if (dated.start_date) {
+        const clash = itemConflict(store, {
+          itemId: itemId,
+          start: dated.start_date,
+          end: dated.end_date,
+          qty,
+        });
+        if (clash.conflict) {
+          return NextResponse.json(
+            {
+              error: clash.blocking
+                ? `Already hired ${String(clash.blocking.start_date || '').slice(0, 10)} → ${String(clash.blocking.end_date || clash.blocking.start_date || '').slice(0, 10)}. Pick free dates.`
+                : 'Those dates overlap an existing hire',
+            },
+            { status: 409 }
+          );
+        }
+      }
       const delivery =
         String(body.delivery_address || portal.delivery_default || '').trim() ||
         '';
@@ -471,8 +502,8 @@ export async function POST(request: NextRequest) {
         customer_name: customer.name,
         srm_supplier_id: item.srm_supplier_id ?? null,
         supplier_name: item.supplier_name || '',
-        start_date: start,
-        end_date: end,
+        start_date: dated.start_date,
+        end_date: dated.end_date,
         units,
         qty,
         delivery_address: delivery,
@@ -493,10 +524,51 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (action === 'extend') {
+      const bookingId = String(body.booking_id || body.id || '');
+      const newEnd = String(body.end_date || '').slice(0, 10);
+      const booking = store.bookings.find(
+        (b) =>
+          b.id === bookingId &&
+          Number(b.crm_customer_id || b.customer_id) === crmId
+      );
+      if (!booking) {
+        return NextResponse.json({ error: 'Hire not found' }, { status: 404 });
+      }
+      const { canExtendBooking, applyDateUnits } = await import(
+        '@/lib/hire/availability'
+      );
+      const check = canExtendBooking(store, booking, newEnd);
+      if (!check.ok) {
+        return NextResponse.json({ error: check.error }, { status: 400 });
+      }
+      const dated = applyDateUnits(
+        {
+          start_date: booking.start_date,
+          end_date: newEnd,
+          units: booking.units,
+        },
+        check.item?.rate_unit
+      );
+      store = upsertEntity(store, 'bookings', {
+        ...booking,
+        end_date: dated.end_date,
+        units: dated.units,
+        notes: booking.notes
+          ? `${booking.notes}\nCustomer extended to ${newEnd}`
+          : `Customer extended to ${newEnd}`,
+      });
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        ...portalJson(store, portal, customer, companyName, companyId),
+        message: `Hire extended to ${newEnd} — extra ${check.extraUnits} unit(s) quoted`,
+      });
+    }
+
     return NextResponse.json(
       {
         error:
-          'Unknown action. Use: book, cancel, set_kyc, update_profile, quote',
+          'Unknown action. Use: book, cancel, extend, set_kyc, update_profile, quote',
       },
       { status: 400 }
     );

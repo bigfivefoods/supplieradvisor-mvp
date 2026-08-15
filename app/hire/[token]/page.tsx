@@ -5,7 +5,7 @@
  * Browse catalogue · request hire · KYC · track status · handovers.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import {
   CalendarDays,
   Check,
@@ -48,12 +48,15 @@ type CatalogueItem = {
   requirements_pending: string[];
   requirements_ready: boolean;
   examples?: string[];
+  busy_dates?: string[];
 };
 
 type MyBooking = {
   id: string;
   code: string;
+  item_id?: string;
   item_title: string;
+  category_id?: string;
   status: string;
   status_label: string;
   timeline: Array<{
@@ -64,6 +67,8 @@ type MyBooking = {
   }>;
   start_date?: string | null;
   end_date?: string | null;
+  duration_label?: string;
+  can_extend?: boolean;
   units?: number | null;
   qty?: number | null;
   rental_zar?: number | null;
@@ -132,6 +137,9 @@ type Quote = {
   rate_unit: string;
   units: number;
   qty: number;
+  duration_label?: string;
+  start_date?: string | null;
+  end_date?: string | null;
   fees: {
     rentalZar: number;
     depositZar: number;
@@ -145,14 +153,16 @@ type Quote = {
 
 export default function HireCustomerPortalPage() {
   const { token } = useParams() as { token: string };
+  const searchParams = useSearchParams();
   const [portal, setPortal] = useState<Portal | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<
-    'browse' | 'hires' | 'requirements' | 'account'
+    'browse' | 'hires' | 'calendar' | 'requirements' | 'account'
   >('browse');
+  const [extendEnd, setExtendEnd] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [search, setSearch] = useState('');
   const [selectedItem, setSelectedItem] = useState<CatalogueItem | null>(null);
@@ -217,6 +227,19 @@ export default function HireCustomerPortalPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (
+      t === 'browse' ||
+      t === 'hires' ||
+      t === 'calendar' ||
+      t === 'requirements' ||
+      t === 'account'
+    ) {
+      setTab(t);
+    }
+  }, [searchParams]);
+
   const post = async (body: Record<string, unknown>) => {
     const res = await fetch('/api/public/hiregraph/customer', {
       method: 'POST',
@@ -236,7 +259,13 @@ export default function HireCustomerPortalPage() {
   };
 
   const refreshQuote = useCallback(
-    async (itemId: string, units: string, qty: string) => {
+    async (
+      itemId: string,
+      units: string,
+      qty: string,
+      start?: string,
+      end?: string
+    ) => {
       try {
         const res = await fetch('/api/public/hiregraph/customer', {
           method: 'POST',
@@ -247,6 +276,8 @@ export default function HireCustomerPortalPage() {
             item_id: itemId,
             units: Number(units) || 1,
             qty: Number(qty) || 1,
+            start_date: start || null,
+            end_date: end || null,
           }),
         });
         const data = await res.json();
@@ -263,8 +294,21 @@ export default function HireCustomerPortalPage() {
       setQuote(null);
       return;
     }
-    void refreshQuote(selectedItem.id, bookForm.units, bookForm.qty);
-  }, [selectedItem, bookForm.units, bookForm.qty, refreshQuote]);
+    void refreshQuote(
+      selectedItem.id,
+      bookForm.units,
+      bookForm.qty,
+      bookForm.start_date,
+      bookForm.end_date
+    );
+  }, [
+    selectedItem,
+    bookForm.units,
+    bookForm.qty,
+    bookForm.start_date,
+    bookForm.end_date,
+    refreshQuote,
+  ]);
 
   const filteredCatalogue = useMemo(() => {
     if (!portal) return [];
@@ -463,7 +507,8 @@ export default function HireCustomerPortalPage() {
           {(
             [
               ['browse', 'Browse', Package],
-              ['hires', 'My hires', CalendarDays],
+              ['hires', 'My hires', ClipboardList],
+              ['calendar', 'Calendar', CalendarDays],
               ['requirements', 'Docs', Shield],
               ['account', 'Account', User],
             ] as const
@@ -665,10 +710,11 @@ export default function HireCustomerPortalPage() {
                             {b.item_title}
                           </p>
                           <p className="text-[11px] text-slate-500">
-                            {[b.start_date, b.end_date]
-                              .filter(Boolean)
-                              .join(' → ') || 'Dates TBC'}
-                            {b.units ? ` · ${b.units} units` : ''}
+                            {b.duration_label ||
+                              [b.start_date, b.end_date]
+                                .filter(Boolean)
+                                .join(' → ') ||
+                              'Dates TBC'}
                           </p>
                         </div>
                         <p className="shrink-0 text-sm font-black text-cyan-800">
@@ -723,6 +769,49 @@ export default function HireCustomerPortalPage() {
                             {zar(b.customer_pays_zar)}
                           </span>
                         </div>
+                        {b.can_extend ? (
+                          <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-2">
+                            <p className="font-black text-cyan-950">
+                              Extend if the item is free
+                            </p>
+                            <div className="mt-2 flex gap-2">
+                              <input
+                                type="date"
+                                className="flex-1 rounded-lg border px-2 py-1"
+                                min={b.end_date || b.start_date || undefined}
+                                value={extendEnd}
+                                onChange={(e) => setExtendEnd(e.target.value)}
+                              />
+                              <button
+                                type="button"
+                                disabled={busy || !extendEnd}
+                                className="rounded-lg bg-cyan-700 px-2 py-1 font-black text-white disabled:opacity-50"
+                                onClick={async () => {
+                                  setBusy(true);
+                                  try {
+                                    const data = await post({
+                                      action: 'extend',
+                                      booking_id: b.id,
+                                      end_date: extendEnd,
+                                    });
+                                    setMsg(data.message || 'Extended');
+                                    setExtendEnd('');
+                                  } catch (e) {
+                                    setError(
+                                      e instanceof Error
+                                        ? e.message
+                                        : 'Could not extend'
+                                    );
+                                  } finally {
+                                    setBusy(false);
+                                  }
+                                }}
+                              >
+                                Extend
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
                         {b.delivery_address ? (
                           <p className="flex items-start gap-1 text-slate-600">
                             <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
@@ -793,6 +882,63 @@ export default function HireCustomerPortalPage() {
                 ))}
               </ul>
             )}
+          </div>
+        )}
+
+        {tab === 'calendar' && (
+          <div className="space-y-3">
+            <p className="text-xs text-slate-600">
+              Your hires on the calendar. Category chips filter the list — tap a
+              hire to see duration and extend if the extra days are free.
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setCategoryFilter('')}
+                className={`rounded-full px-2.5 py-1 text-[10px] font-black ${
+                  !categoryFilter
+                    ? 'bg-cyan-700 text-white'
+                    : 'bg-slate-100 text-slate-600'
+                }`}
+              >
+                All
+              </button>
+              {portal.categories.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setCategoryFilter(c.id)}
+                  className={`rounded-full px-2.5 py-1 text-[10px] font-black ${
+                    categoryFilter === c.id
+                      ? 'bg-cyan-700 text-white'
+                      : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {c.short || c.name}
+                </button>
+              ))}
+            </div>
+            <ul className="space-y-2">
+              {portal.my_bookings
+                .filter(
+                  (b) =>
+                    !categoryFilter || b.category_id === categoryFilter
+                )
+                .map((b) => (
+                  <li
+                    key={b.id}
+                    className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                  >
+                    <p className="font-black">{b.item_title}</p>
+                    <p className="text-[11px] text-slate-500">
+                      {b.duration_label ||
+                        `${b.start_date || '—'} → ${b.end_date || '—'}`}
+                      {' · '}
+                      {b.status_label}
+                    </p>
+                  </li>
+                ))}
+            </ul>
           </div>
         )}
 
@@ -1003,16 +1149,27 @@ export default function HireCustomerPortalPage() {
                       }
                     />
                   </label>
-                  <label className="text-xs font-bold">
-                    Units ({selectedItem.rate_unit}s)
-                    <input
-                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                      value={bookForm.units}
-                      onChange={(e) =>
-                        setBookForm((f) => ({ ...f, units: e.target.value }))
-                      }
-                    />
-                  </label>
+                  <p className="sm:col-span-2 text-xs font-bold text-cyan-900">
+                    Duration follows your dates (
+                    {quote?.duration_label ||
+                      `${bookForm.units || 1} ${selectedItem.rate_unit}${
+                        bookForm.units === '1' ? '' : 's'
+                      }`}
+                    )
+                  </p>
+                  {(selectedItem.busy_dates || []).length > 0 ? (
+                    <div className="sm:col-span-2 rounded-xl bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+                      <p className="font-black text-slate-800">Already hired</p>
+                      <p className="mt-1">
+                        {selectedItem.busy_dates!.slice(0, 12).join(', ')}
+                        {selectedItem.busy_dates!.length > 12 ? '…' : ''}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="sm:col-span-2 text-[11px] text-emerald-800">
+                      No overlapping hires on the book yet.
+                    </p>
+                  )}
                   <label className="text-xs font-bold">
                     Qty
                     <input

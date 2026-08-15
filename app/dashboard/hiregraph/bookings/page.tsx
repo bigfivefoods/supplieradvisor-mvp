@@ -24,6 +24,11 @@ import {
   type HireRequirementKey,
 } from '@/lib/hire/hiregraph';
 import {
+  applyDateUnits,
+  durationLabel,
+  itemConflict,
+} from '@/lib/hire/availability';
+import {
   HIRE_CUSTOMER_COMMISSION_PCT,
   HIRE_SUPPLIER_COMMISSION_PCT,
 } from '@/lib/hire/commercial';
@@ -43,12 +48,30 @@ export default function HireBookingsPage() {
     delivery_address: '',
     notes: '',
   });
+  const [extendId, setExtendId] = useState('');
+  const [extendEnd, setExtendEnd] = useState('');
 
   const preview = useMemo(() => {
     if (!store) return null;
     const item = store.items.find((i) => i.id === form.item_id);
     if (!item) return null;
-    const units = Math.max(1, Number(form.units) || 1);
+    const dated = applyDateUnits(
+      {
+        start_date: form.start_date || null,
+        end_date: form.end_date || null,
+        units: Number(form.units) || 1,
+      },
+      item.rate_unit
+    );
+    const units = dated.units;
+    const clash = form.start_date
+      ? itemConflict(store, {
+          itemId: item.id,
+          start: dated.start_date,
+          end: dated.end_date,
+          qty: Math.max(1, Number(form.qty) || 1),
+        })
+      : null;
     const qty = Math.max(1, Number(form.qty) || 1);
     const rental = (Number(item.rate_zar) || 0) * units * qty;
     const cat = getHireCategory(item.category_id);
@@ -69,7 +92,21 @@ export default function HireBookingsPage() {
     );
     const pending = reqs.filter((r) => !met.has(r));
     const customer = coreCustomers.find((c) => c.id === crmId);
-    return { fees, pending, item, reqs, customer };
+    return {
+      fees,
+      pending,
+      item,
+      reqs,
+      customer,
+      dated,
+      clash,
+      duration: durationLabel(
+        dated.start_date,
+        dated.end_date,
+        dated.units,
+        item.rate_unit
+      ),
+    };
   }, [
     store,
     coreCustomers,
@@ -77,6 +114,8 @@ export default function HireBookingsPage() {
     form.crm_customer_id,
     form.units,
     form.qty,
+    form.start_date,
+    form.end_date,
   ]);
 
   const add = async () => {
@@ -91,6 +130,15 @@ export default function HireBookingsPage() {
     }
     const customer = coreCustomers.find((c) => c.id === crmId);
     const item = store?.items.find((i) => i.id === form.item_id);
+    if (preview?.clash?.conflict) {
+      toast.error(
+        preview.clash.blocking
+          ? `Already hired ${preview.clash.blocking.start_date} → ${preview.clash.blocking.end_date || preview.clash.blocking.start_date}`
+          : 'Item is already booked for those dates'
+      );
+      return;
+    }
+    const dated = preview?.dated;
     await post({
       entity: 'bookings',
       action: 'upsert',
@@ -101,9 +149,9 @@ export default function HireBookingsPage() {
         customer_name: customer?.name || '',
         srm_supplier_id: item?.srm_supplier_id ?? null,
         supplier_name: item?.supplier_name || '',
-        start_date: form.start_date || null,
-        end_date: form.end_date || null,
-        units: Number(form.units) || 1,
+        start_date: dated?.start_date || form.start_date || null,
+        end_date: dated?.end_date || form.end_date || null,
+        units: dated?.units || Number(form.units) || 1,
         qty: Number(form.qty) || 1,
         delivery_address: form.delivery_address,
         notes: form.notes,
@@ -128,7 +176,7 @@ export default function HireBookingsPage() {
     <HiregraphWorkbench
       title="Bookings"
       titleAccent="hire requests"
-      description={`Request hire dates against a Core Customers (CRM) renter. System quotes rental, ${HIRE_SUPPLIER_COMMISSION_PCT}% supplier fee, and deposit. Members pay no platform fee. Category requirements come from hire KYC.`}
+      description={`Set start and end — duration and quote follow the item rate unit. Cannot double-book. Extend an open hire if the extra days are free. Calendar shows every hired item.`}
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -140,6 +188,12 @@ export default function HireBookingsPage() {
               under Hire customers if needed.
             </p>
             <div className="flex flex-wrap gap-2">
+              <Link
+                href="/dashboard/hiregraph/calendar"
+                className="inline-flex items-center gap-1 rounded-full border border-cyan-300 bg-white px-3 py-1.5 text-xs font-bold text-cyan-900"
+              >
+                Hire calendar
+              </Link>
               <Link
                 href="/dashboard/customers"
                 className="inline-flex items-center gap-1 rounded-full bg-cyan-700 px-3 py-1.5 text-xs font-bold text-white"
@@ -266,14 +320,20 @@ export default function HireBookingsPage() {
                   }
                 />
               </label>
-              <label className="text-xs font-bold">
-                Units (days/hours)
-                <input
-                  className={fieldClass()}
-                  value={form.units}
-                  onChange={(e) => setForm({ ...form, units: e.target.value })}
-                />
-              </label>
+              <p className="sm:col-span-2 text-xs font-bold text-cyan-900">
+                Duration:{' '}
+                {preview?.duration ||
+                  `${form.units || 1} unit${form.units === '1' ? '' : 's'}`}
+              </p>
+              {preview?.clash?.conflict ? (
+                <p className="sm:col-span-2 text-xs font-bold text-rose-700">
+                  Already hired{' '}
+                  {preview.clash.blocking?.start_date} →{' '}
+                  {preview.clash.blocking?.end_date ||
+                    preview.clash.blocking?.start_date}
+                  . Pick free dates or extend only into a gap.
+                </p>
+              ) : null}
               <label className="text-xs font-bold">
                 Qty
                 <input
@@ -358,25 +418,97 @@ export default function HireBookingsPage() {
               </div>
             ) : null}
           </FormCard>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <h3 className="text-sm font-black">Extend a hire</h3>
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              Only if the extra days are free. Quote updates to the new duration.
+            </p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <select
+                className={fieldClass()}
+                value={extendId}
+                onChange={(e) => setExtendId(e.target.value)}
+              >
+                <option value="">Open hire…</option>
+                {store.bookings
+                  .filter((b) =>
+                    ['approved', 'paid', 'out'].includes(String(b.status || ''))
+                  )
+                  .map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.code} · {b.item_title} · ends{' '}
+                      {b.end_date || b.start_date || '—'}
+                    </option>
+                  ))}
+              </select>
+              <input
+                type="date"
+                className={fieldClass()}
+                value={extendEnd}
+                onChange={(e) => setExtendEnd(e.target.value)}
+              />
+              <button
+                type="button"
+                disabled={saving || !extendId || !extendEnd}
+                className="rounded-xl bg-cyan-700 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
+                onClick={async () => {
+                  try {
+                    const data = await post({
+                      action: 'extend_booking',
+                      booking_id: extendId,
+                      end_date: extendEnd,
+                    });
+                    toast.success(
+                      (data as { message?: string })?.message || 'Extended'
+                    );
+                    setExtendEnd('');
+                  } catch (e) {
+                    toast.error(
+                      e instanceof Error ? e.message : 'Could not extend'
+                    );
+                  }
+                }}
+              >
+                Extend if free
+              </button>
+            </div>
+          </div>
+
           <DataTable
             tone="hg-talent"
-            headers={['Code', 'Item', 'Customer', 'Status', 'Customer pays']}
-            rows={store.bookings.map((b) => ({
-              id: b.id,
-              cells: [
-                b.code,
-                b.item_title || b.item_id,
-                b.customer_name ||
-                  (b.crm_customer_id
-                    ? `CRM #${b.crm_customer_id}`
-                    : b.customer_id) ||
-                  '—',
-                b.status || 'requested',
-                b.customer_pays_zar != null
-                  ? `R${Number(b.customer_pays_zar).toLocaleString('en-ZA')}`
-                  : '—',
-              ],
-            }))}
+            headers={[
+              'Code',
+              'Item',
+              'Customer',
+              'Duration',
+              'Status',
+              'Pays',
+            ]}
+            rows={store.bookings.map((b) => {
+              const item = store.items.find((i) => i.id === b.item_id);
+              return {
+                id: b.id,
+                cells: [
+                  b.code,
+                  b.item_title || b.item_id,
+                  b.customer_name ||
+                    (b.crm_customer_id
+                      ? `CRM #${b.crm_customer_id}`
+                      : b.customer_id) ||
+                    '—',
+                  durationLabel(
+                    b.start_date,
+                    b.end_date,
+                    b.units,
+                    item?.rate_unit
+                  ),
+                  b.status || 'requested',
+                  b.customer_pays_zar != null
+                    ? `R${Number(b.customer_pays_zar).toLocaleString('en-ZA')}`
+                    : '—',
+                ],
+              };
+            })}
             onDelete={async (id) => {
               await post({ entity: 'bookings', action: 'delete', id });
               toast.success('Booking removed');

@@ -926,9 +926,49 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       { name: 'Categories', href: '/dashboard/hiregraph/categories', desc: 'Requirement stacks' },
       { name: 'Catalogue', href: '/dashboard/hiregraph/catalogue', desc: 'Items · rates' },
       { name: 'Customers', href: '/dashboard/hiregraph/customers', desc: 'People renting' },
-      { name: 'Bookings', href: '/dashboard/hiregraph/bookings', desc: 'Dual fee quotes' },
+      { name: 'Bookings', href: '/dashboard/hiregraph/bookings', desc: 'Duration · extend if free' },
+      { name: 'Calendar', href: '/dashboard/hiregraph/calendar', desc: 'Hired items · categories' },
       { name: 'Settlements', href: '/dashboard/hiregraph/settlements', desc: '2.5% on the business · members free' },
       { name: 'Handover', href: '/dashboard/hiregraph/handover', desc: 'Out · return' },
+    ],
+  },
+  {
+    id: 'retail_shop',
+    name: 'Retail till (Services)',
+    shortName: 'Retail',
+    description:
+      'RetailAdvisor® — B2C shop till: catalogue, cash or QR/NFC phone pay, and collect open SA Member bills (gym, clinic, hire) at the counter.',
+    monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
+    priority: 1,
+    recommendSectors: ['tertiary'],
+    recommendEntities: ['private_company'],
+    modules: [
+      {
+        id: 'retail_os',
+        name: 'RetailAdvisor® till OS',
+        description:
+          'Catalogue, till, sales, walk-in customers, and present-to-pay QR/NFC.',
+        unlocks: ['retailgraph', 'customers', 'inventory'],
+      },
+      {
+        id: 'retail_network',
+        name: 'Retail network',
+        description: 'Connect suppliers and nearby Advisors whose members pay here.',
+        unlocks: ['network', 'suppliers', 'retailgraph'],
+      },
+      {
+        id: 'retail_ops',
+        name: 'Shop ops & stock',
+        description: 'Inventory and ops tower for the store.',
+        unlocks: ['operations', 'inventory', 'retailgraph'],
+      },
+    ],
+    industryToolsHrefs: [
+      { name: 'RetailAdvisor®', href: '/dashboard/retailgraph', desc: 'Till OS' },
+      { name: 'Till', href: '/dashboard/retailgraph/till', desc: 'QR · NFC · cash' },
+      { name: 'Catalogue', href: '/dashboard/retailgraph/catalogue', desc: 'SKUs' },
+      { name: 'Sales', href: '/dashboard/retailgraph/sales', desc: 'Takings' },
+      { name: 'Accounts', href: '/dashboard/retailgraph/accounts', desc: 'Bills' },
     ],
   },
   {
@@ -1208,6 +1248,13 @@ export function enabledModulesMapFromPacks(
     unlocked.add('network');
     unlocked.add('operations');
     unlocked.add('distribution');
+  }
+  if (packIds.includes('retail_shop')) {
+    unlocked.add('retailgraph');
+    unlocked.add('customers');
+    unlocked.add('inventory');
+    unlocked.add('network');
+    unlocked.add('operations');
   }
   // Impact pack
   if (packIds.includes('impact_esg')) {
@@ -1494,6 +1541,12 @@ export function appModulesUnlockedByPack(pack: IndustryPackDef): string[] {
     ids.add('quality');
     ids.add('sheq');
     ids.add('sustainability');
+  }
+  if (pack.id === 'retail_shop') {
+    ids.add('retailgraph');
+    ids.add('customers');
+    ids.add('inventory');
+    ids.add('operations');
   }
   if (pack.id === 'fitness_gym') {
     ids.add('fitgraph');

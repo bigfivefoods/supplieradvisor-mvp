@@ -520,6 +520,51 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    if (action === 'extend_booking') {
+      const bookingId = String(body.booking_id || body.id || '');
+      const newEnd = String(body.end_date || '').slice(0, 10);
+      const booking = store.bookings.find((b) => b.id === bookingId);
+      if (!booking) {
+        return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+      }
+      const { canExtendBooking, applyDateUnits } = await import(
+        '@/lib/hire/availability'
+      );
+      const check = canExtendBooking(store, booking, newEnd);
+      if (!check.ok) {
+        return NextResponse.json({ error: check.error }, { status: 400 });
+      }
+      const dated = applyDateUnits(
+        {
+          start_date: booking.start_date,
+          end_date: newEnd,
+          units: booking.units,
+        },
+        check.item?.rate_unit
+      );
+      next = upsertEntity(store, 'bookings', {
+        ...booking,
+        end_date: dated.end_date,
+        units: dated.units,
+        notes: booking.notes
+          ? `${booking.notes}\nExtended to ${newEnd}`
+          : `Extended to ${newEnd}`,
+      });
+      await saveStore(companyId, meta, next);
+      denormaliseNames(next, coreSuppliers, coreCustomers);
+      return NextResponse.json({
+        success: true,
+        store: next,
+        coreSuppliers,
+        coreCustomers,
+        summary: summariseHiregraph(next, {
+          coreSupplierCount: coreSuppliers.length,
+          coreCustomerCount: coreCustomers.length,
+        }),
+        message: `Hire extended to ${newEnd}`,
+      });
+    }
+
     const entity = body.entity;
     if (!isEntity(entity)) {
       return NextResponse.json(
@@ -611,6 +656,26 @@ export async function POST(req: NextRequest) {
             rest.supplier_name = s.name;
           } else {
             rest.srm_supplier_id = sid;
+          }
+        }
+        if (rest.item_id && (rest.start_date || rest.end_date)) {
+          const { itemConflict } = await import('@/lib/hire/availability');
+          const clash = itemConflict(store, {
+            itemId: String(rest.item_id),
+            start: rest.start_date ? String(rest.start_date) : null,
+            end: rest.end_date ? String(rest.end_date) : null,
+            qty: Number(rest.qty) || 1,
+            excludeBookingId: rest.id ? String(rest.id) : null,
+          });
+          if (clash.conflict) {
+            return NextResponse.json(
+              {
+                error: clash.blocking
+                  ? `Item already hired ${String(clash.blocking.start_date || '').slice(0, 10)} → ${String(clash.blocking.end_date || clash.blocking.start_date || '').slice(0, 10)}`
+                  : 'Item is already booked for those dates',
+              },
+              { status: 409 }
+            );
           }
         }
       }

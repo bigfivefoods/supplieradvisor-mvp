@@ -15,6 +15,7 @@ import {
   HIRE_CUSTOMER_COMMISSION_PCT,
   HIRE_SUPPLIER_COMMISSION_PCT,
 } from '@/lib/hire/commercial';
+import { applyDateUnits, busyDatesForItem } from '@/lib/hire/availability';
 
 export const HIREGRAPH_MODULE_ID = 'hiregraph' as const;
 export const HIREGRAPH_META_KEY = 'hiregraph';
@@ -807,6 +808,7 @@ export function buildHireCustomerPortalPayload(
         requirements_pending: pending,
         requirements_ready: pending.length === 0,
         examples: cat?.examples || [],
+        busy_dates: busyDatesForItem(store, item.id),
       };
     })
     .sort((a, b) => a.title.localeCompare(b.title));
@@ -840,6 +842,10 @@ export function buildHireCustomerPortalPayload(
         timeline: bookingStatusTimeline(b.status),
         start_date: b.start_date || null,
         end_date: b.end_date || null,
+        duration_label: `${b.units || 1} ${(item?.rate_unit || 'day')}${
+          Number(b.units || 1) === 1 ? '' : 's'
+        }`,
+        can_extend: ['approved', 'paid', 'out'].includes(String(b.status || '')),
         units: b.units ?? null,
         qty: b.qty ?? null,
         rate_zar: b.rate_zar ?? null,
@@ -971,11 +977,21 @@ export function quoteHireBooking(
     units?: number;
     qty?: number;
     crm_customer_id?: number;
+    start_date?: string | null;
+    end_date?: string | null;
   }
 ) {
   const item = store.items.find((i) => i.id === opts.item_id);
   if (!item) return null;
-  const units = Math.max(1, Number(opts.units) || 1);
+  const dated = applyDateUnits(
+    {
+      start_date: opts.start_date,
+      end_date: opts.end_date,
+      units: opts.units,
+    },
+    item.rate_unit
+  );
+  const units = dated.units;
   const qty = Math.max(1, Number(opts.qty) || 1);
   const rate = Number(item.rate_zar) || 0;
   const rental = rate * units * qty;
@@ -998,6 +1014,9 @@ export function quoteHireBooking(
     rate_unit: item.rate_unit || cat?.unit || 'day',
     units,
     qty,
+    start_date: dated.start_date,
+    end_date: dated.end_date,
+    duration_label: `${units} ${item.rate_unit || 'day'}${units === 1 ? '' : 's'}`,
     fees,
     requirements: reqs.map((r) => ({
       key: r,
@@ -1080,7 +1099,15 @@ function enrichBooking(
     raw.category_id || item?.category_id || 'specialty_other'
   );
   const cat = getHireCategory(categoryId);
-  const units = Math.max(1, Number(raw.units) || 1);
+  const dated = applyDateUnits(
+    {
+      start_date: raw.start_date as string | null,
+      end_date: raw.end_date as string | null,
+      units: raw.units as number | null,
+    },
+    String(raw.rate_unit || item?.rate_unit || cat?.unit || 'day')
+  );
+  const units = dated.units;
   const qty = Math.max(1, Number(raw.qty) || 1);
   const rate = Number(raw.rate_zar ?? item?.rate_zar) || 0;
   const rentalZar =
@@ -1135,6 +1162,8 @@ function enrichBooking(
     crm_customer_id: crmId,
     customer_id: crmId,
     customer_name: raw.customer_name || '',
+    start_date: dated.start_date,
+    end_date: dated.end_date,
     units,
     qty,
     rate_zar: rate,

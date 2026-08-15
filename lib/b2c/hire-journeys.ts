@@ -30,6 +30,8 @@ export type B2cHireJourney = {
   }>;
   start_date?: string | null;
   end_date?: string | null;
+  duration_label?: string;
+  can_extend?: boolean;
   customer_pays_zar?: number | null;
   deposit_zar?: number | null;
   docs_pending: Array<{ key: string; label: string }>;
@@ -125,6 +127,8 @@ export async function buildHireJourneys(
         timeline: payload.timeline,
         start_date: b.start_date || null,
         end_date: b.end_date || null,
+        duration_label: `${b.units || 1} unit${Number(b.units || 1) === 1 ? '' : 's'}`,
+        can_extend: ['approved', 'paid', 'out'].includes(st),
         customer_pays_zar: b.customer_pays_zar ?? b.rental_zar ?? null,
         deposit_zar: b.deposit_zar ?? null,
         docs_pending: docs,

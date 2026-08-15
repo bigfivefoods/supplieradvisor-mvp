@@ -39,9 +39,11 @@ export function B2cHireJourneyCard({
           </span>
           <span className="block truncate text-[11px] text-slate-500">
             {journey.brand}
-            {journey.start_date
-              ? ` · ${String(journey.start_date).slice(0, 10)}`
-              : ''}
+            {journey.duration_label
+              ? ` · ${journey.duration_label}`
+              : journey.start_date
+                ? ` · ${String(journey.start_date).slice(0, 10)}`
+                : ''}
           </span>
           <span className="mt-1.5 block text-[11px] font-semibold text-[#0077b6]">
             {journey.next_action}
@@ -127,6 +129,12 @@ export function B2cHireJourneyCard({
             ))}
           </ol>
 
+          {journey.duration_label ? (
+            <p className="text-[11px] font-semibold text-slate-600">
+              Duration: {journey.duration_label}
+            </p>
+          ) : null}
+
           {(journey.customer_pays_zar != null || journey.deposit_zar != null) && (
             <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-50 px-3 py-2 text-[11px]">
               <span className="text-slate-500">You pay</span>
@@ -161,10 +169,13 @@ export function B2cHireJourneyCard({
           ) : null}
 
           <Link
-            href={journey.portal_path}
+            href={`${journey.portal_path}${journey.can_extend ? '?tab=hires' : ''}`}
             className="flex items-center justify-center gap-1 rounded-2xl bg-[#0077b6] py-3 text-sm font-black text-white"
           >
-            Open hire portal <ChevronRight className="h-4 w-4" />
+            {journey.can_extend
+              ? 'Extend or manage this hire'
+              : 'Open hire portal'}{' '}
+            <ChevronRight className="h-4 w-4" />
           </Link>
         </div>
       ) : null}

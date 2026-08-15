@@ -36,6 +36,7 @@ import {
   BrainCircuit,
   Hospital,
   BriefcaseBusiness,
+  Store,
 } from 'lucide-react';
 import type { ProcessStep } from '@/components/relationship/RelationshipChrome';
 import type { PermissionResource } from '@/lib/business/permissions';
@@ -777,12 +778,32 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Categories', href: '/dashboard/hiregraph/categories', desc: 'Requirement stacks', section: 'Supply' },
       { name: 'Catalogue', href: '/dashboard/hiregraph/catalogue', desc: 'Items linked to core suppliers', section: 'Supply' },
       { name: 'Customers', href: '/dashboard/hiregraph/customers', desc: 'B2C portal · CRM · hire KYC', section: 'Demand' },
-      { name: 'Bookings', href: '/dashboard/hiregraph/bookings', desc: 'Core customer · dual fee quote', section: 'Demand' },
+      { name: 'Bookings', href: '/dashboard/hiregraph/bookings', desc: 'Duration · extend if free', section: 'Demand' },
+      { name: 'Calendar', href: '/dashboard/hiregraph/calendar', desc: 'Hired items · category views', section: 'Demand' },
       { name: 'Handover', href: '/dashboard/hiregraph/handover', desc: 'Out · return · condition', section: 'Ops' },
       { name: 'Settlements', href: '/dashboard/hiregraph/settlements', desc: '2.5% on the business · members free', section: 'Money' },
       { name: 'Accounts', href: '/dashboard/hiregraph/accounts', desc: 'Hirer fees · pay · proof', section: 'Money' },
       { name: 'Management report', href: '/dashboard/hiregraph/management', desc: 'A4 landscape PDF · GMV', section: 'Insights' },
       { name: 'Messages', href: '/dashboard/messages?from=hiregraph&channel=connection', desc: 'Supplier · renter threads', section: 'Ops', rail: false },
+    ],
+  },
+  {
+    id: 'retailgraph',
+    name: 'RetailAdvisor',
+    icon: Store,
+    href: '/dashboard/retailgraph',
+    resource: 'operations',
+    /**
+     * RetailAdvisor® — B2C retail till OS.
+     * Catalogue, till (cash / QR / NFC), sales, customers, accounts.
+     */
+    steps: [
+      { name: 'Command', href: '/dashboard/retailgraph', exact: true, desc: 'Retail till home', section: 'Home' },
+      { name: 'Till', href: '/dashboard/retailgraph/till', desc: 'Basket · QR · NFC · cash', section: 'Floor' },
+      { name: 'Catalogue', href: '/dashboard/retailgraph/catalogue', desc: 'SKUs · prices', section: 'Floor' },
+      { name: 'Sales', href: '/dashboard/retailgraph/sales', desc: 'Paid baskets', section: 'Money' },
+      { name: 'Customers', href: '/dashboard/retailgraph/customers', desc: 'Walk-in book', section: 'People' },
+      { name: 'Accounts', href: '/dashboard/retailgraph/accounts', desc: 'Bills · present at till', section: 'Money' },
     ],
   },
   {
