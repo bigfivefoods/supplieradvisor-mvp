@@ -1,64 +1,61 @@
 # Advisor Calendar & Customers — better than Outlook / Google
 
-Generic calendars optimise for **meetings**. Advisor calendars optimise for **care delivery + revenue continuity**.
+## Shipped
 
-## Why SA calendar wins for advisors
+### Intelligence
+- `lib/services/advisor-calendar-intelligence.ts` — utilisation, gaps, day briefing, risk enrich
+- `components/schedule/AdvisorCalendarBriefing.tsx`
+- `components/schedule/AdvisorEventContextCard.tsx` — ICS one-shot, email/WhatsApp reminder, ±15m / ±1 day reschedule
+- `components/schedule/AdvisorCalendarSidebar.tsx` — briefing + context + diary ICS link
 
-| Capability | Outlook / Google | SupplierAdvisor |
-|------------|------------------|-----------------|
-| Day / week / month | Yes | Yes (`PracticeScheduleCalendar`) |
-| Working hours / closed days | Partial | Practice hours + closed days |
-| Clinician double-book guard | No | `findClinicianDiaryConflict` |
-| Practice vs person diary | Limited | Explicit diary scope toggle |
-| Utilisation & gaps | No | `advisor-calendar-intelligence` |
-| Day briefing (risk, capacity) | No | `AdvisorCalendarBriefing` |
-| Relationship / no-show on events | No | Enriched events + context card |
-| Waitlist / packs / membership | No | Event context + client 360 |
-| Print desk PDF | Limited | Brand print layout |
-| Cross-module patients | No | Shared identity + consent shares |
+### System of record vs mirror
+- `lib/schedule/advisor-ics.ts` + `GET /api/schedule/ics` — full diary feed for Outlook/Google **mirror**
+- SA remains source of truth; ICS is export only
 
-## Customers (clients / patients) as the core
+### Reminders
+- `POST /api/schedule/remind` — email (Resend) or WhatsApp deep link (`wa.me`)
 
-1. **Identity** — verified SA ID / passport, family members, POPIA consent  
-2. **Relationship health** — care queue, journey, goals  
-3. **Schedule** — upcoming, history, no-shows  
-4. **Commercial** — membership, packs, claims (medical aid)  
-5. **Record share** — patient portal + professional-to-professional consent  
+### Page mounts
+Calendar pages for **fitgraph, dentalgraph, physiograph, medicalgraph, psychiatrygraph** use:
+1. Grid layout with sticky intelligence rail
+2. `selectedEvent` state on click
+3. `onReschedule` → upsert session/appointment
+4. ICS feed download link
 
-Clicking a calendar block should open **ops context**, not a blank event form.
-
-## Components
-
-- `lib/services/advisor-calendar-intelligence.ts` — utilisation, gaps, briefing, risk enrich  
-- `components/schedule/AdvisorCalendarBriefing.tsx` — side rail  
-- `components/schedule/AdvisorEventContextCard.tsx` — selected event 360  
-- Existing: `PracticeScheduleCalendar`, clinician diary conflicts, series/recurrence  
-
-## Wire pattern (any advisor calendar page)
+## Wire pattern
 
 ```tsx
-const [day, setDay] = useState(today);
-const [selected, setSelected] = useState<EnrichedScheduleEvent | null>(null);
-
-<div className="grid lg:grid-cols-[1fr_280px] gap-4">
-  <PracticeScheduleCalendar
-    events={enriched}
-    workingHours={hours}
-    people={staff}
-    onSelectDate={setDay}
-    onSelectEvent={(e) => setSelected(e)}
-    onCreateAt={...}
-  />
-  <div className="space-y-3">
-    <AdvisorCalendarBriefing date={day} events={enriched} workingHours={hours} people={staff} />
-    <AdvisorEventContextCard event={selected} />
+<div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+  <div className="min-w-0">
+    <PracticeScheduleCalendar ... onSelectEvent={(ev) => setSelectedEvent(ev)} />
   </div>
+  <AdvisorCalendarSidebar
+    date={day}
+    events={events}
+    workingHours={workingHours}
+    people={people}
+    selected={selectedEvent}
+    companyId={companyId}
+    module="dentalgraph"
+    onReschedule={async ({ id, date, start_time }) => {
+      await post({ entity: 'appointments', action: 'upsert', record: { id, date, start_time } });
+    }}
+  />
 </div>
 ```
 
-## Next
+## Why not Outlook/Google as primary
 
-- Mount briefing + context on fitgraph / dental / physio / medical / psychiatry calendar pages  
-- Drag-reschedule with conflict checks  
-- SMS/WhatsApp reminder from event card  
-- ICS feed per clinician for those who still want Outlook as a mirror (SA remains system of record)
+| Need | Generic calendar | SA |
+|------|------------------|-----|
+| Clinician double-book guard | No | Yes |
+| Utilisation / gaps / care risk | No | Day briefing |
+| Membership, packs, relationship | No | Event context |
+| Patient consent shares | No | Record share layer |
+| Remind from the block | Awkward | Email + WhatsApp |
+| ICS for staff who insist | Native | Mirror feed |
+
+## Optional later
+- Drag-drop on the grid (quick ±15m covers most desk moves today)
+- Conflict toast when reschedule hits `findClinicianDiaryConflict`
+- Tokenized public ICS URLs for staff without dashboard login
