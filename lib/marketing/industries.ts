@@ -16,6 +16,7 @@ export type IndustrySlug =
   | 'medical-practices'
   | 'staffing-recruitment'
   | 'hire-rental'
+  | 'retail-shop'
   | 'public-sector'
   | 'multi-entity';
 
