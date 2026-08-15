@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Link2, Share2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -25,6 +25,7 @@ import {
 } from '@/components/schedule/PracticeScheduleCalendar';
 import { WorkingHoursEditor } from '@/components/schedule/WorkingHoursEditor';
 import { PracticeProfilePdfButton } from '@/components/schedule/PracticeProfilePdfButton';
+import { ScheduleEventPeek } from '@/components/schedule/ScheduleEventPeek';
 import {
   RecurrenceFields,
   emptyRecurrenceForm,
@@ -36,8 +37,8 @@ import { normalizeWorkingHours } from '@/lib/schedule/working-hours';
 
 export default function CalendarPage() {
   const { companyId, store, loading, saving, post, summary } = useFitgraph();
-  const formAnchorRef = useRef<HTMLDivElement>(null);
   const [day, setDay] = useState(new Date().toISOString().slice(0, 10));
+  const [editorOpen, setEditorOpen] = useState(false);
   const [personFilter, setPersonFilter] = useState('');
   const [diaryScope, setDiaryScope] = useState<DiaryScope>('practice');
   const [slotPicked, setSlotPicked] = useState<string | null>(null);
@@ -81,15 +82,6 @@ export default function CalendarPage() {
     status: 'scheduled',
   });
 
-  const scrollToForm = () => {
-    requestAnimationFrame(() => {
-      formAnchorRef.current?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
-      });
-    });
-  };
-
   /** Open an existing class from the calendar grid for view / edit. */
   const openSession = (sessionId: string) => {
     const s = store?.sessions.find((x) => x.id === sessionId);
@@ -116,7 +108,15 @@ export default function CalendarPage() {
       status: s.status || 'scheduled',
     });
     setRecurrence(emptyRecurrenceForm());
-    scrollToForm();
+    setEditorOpen(true);
+  };
+
+  const closeEditor = () => {
+    setEditorOpen(false);
+    setSelectedSessionId(null);
+    setSlotPicked(null);
+    setAddMemberIds([]);
+    setMemberQuery('');
   };
 
   const startCreateMode = (partial?: {
@@ -139,9 +139,9 @@ export default function CalendarPage() {
     if (partial?.date && partial?.start_time) {
       setSlotPicked(`${partial.date} · ${partial.start_time.slice(0, 5)}`);
     } else {
-      setSlotPicked(null);
+      setSlotPicked(`${d} · ${(partial?.start_time || '06:00').slice(0, 5)}`);
     }
-    scrollToForm();
+    setEditorOpen(true);
   };
 
   const daySessions = useMemo(() => {
@@ -219,7 +219,7 @@ export default function CalendarPage() {
       coach_id: slot.person_id || personFilter || '',
     });
     toast.message('New class slot', {
-      description: `${slot.date} at ${slot.start_time.slice(0, 5)} — finish details below, or click an existing class to open it`,
+      description: `${slot.date} at ${slot.start_time.slice(0, 5)} — finish details in the pop-out`,
     });
   };
 
@@ -282,9 +282,7 @@ export default function CalendarPage() {
         (data?.message as string) ||
           (deleteSeries ? 'Series deleted' : 'Class deleted')
       );
-      setSelectedSessionId(null);
-      setAddMemberIds([]);
-      startCreateMode({ date: prev.date });
+      closeEditor();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not delete class');
     }
@@ -409,7 +407,6 @@ export default function CalendarPage() {
         setSelectedSessionId(firstId);
         setAddMemberIds([]);
         setDay(form.date);
-        scrollToForm();
       }
       return;
     }
@@ -438,7 +435,7 @@ export default function CalendarPage() {
       form.coach_id
         ? form.public
           ? 'Class created with coach · published'
-          : 'Class created with coach — now add members below'
+          : 'Class created with coach — add members in this window'
         : 'Class created — next: assign a coach, then add members'
     );
     setSlotPicked(null);
@@ -446,7 +443,6 @@ export default function CalendarPage() {
     // Reload form from server store happens via post(); open by id after brief tick
     setSelectedSessionId(sessionId);
     setAddMemberIds([]);
-    scrollToForm();
   };
 
   const memberChoices = useMemo(() => {
@@ -537,7 +533,7 @@ export default function CalendarPage() {
     <FitgraphWorkbench
       title="Calendar"
       titleAccent="main gym diary"
-      description="Main gym calendar: click a class to open it (view/edit · coach · members). Click empty time to create. Multiple coaches can run at the same time. SA bills platform subscription only — member fees stay yours."
+      description="Main gym calendar: expand to fill the screen, step months, and click a class to edit it in a pop-out. Click empty time to create. Multiple coaches can run at the same time."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -620,13 +616,39 @@ export default function CalendarPage() {
             onSelectSlot={pickSlot}
             onSelectEvent={(ev) => {
               openSession(ev.id);
-              toast.message('Class open', {
-                description: `${ev.start_time.slice(0, 5)} · ${ev.title} — edit details, coach, or members below`,
-              });
             }}
           />
 
-          <div ref={formAnchorRef}>
+          <div className="flex flex-wrap items-center justify-between gap-2 -mt-2">
+            <p className="text-xs text-slate-500">
+              Click a class to edit it in a pop-out. Expand the calendar to fill
+              the screen. Use the month name to jump months.
+            </p>
+            <button
+              type="button"
+              className="rounded-xl border border-yellow-300 bg-white px-3 py-2 text-xs font-bold text-yellow-800 dark:border-yellow-600 dark:bg-yellow-950 dark:text-yellow-100"
+              onClick={() => startCreateMode({ date: day })}
+            >
+              + New class
+            </button>
+          </div>
+
+          <ScheduleEventPeek
+            open={editorOpen}
+            title={
+              selectedSessionId
+                ? `Open class · ${form.date} ${form.start_time}`
+                : slotPicked
+                  ? `New class · ${slotPicked}`
+                  : 'New class'
+            }
+            subtitle={
+              selectedSessionId
+                ? 'Edit details, coach and members here'
+                : 'Set type, time and room — then save'
+            }
+            onClose={closeEditor}
+          >
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="grid flex-1 min-w-[240px] grid-cols-3 gap-2 text-center text-[11px] font-bold">
               {[
@@ -698,7 +720,7 @@ export default function CalendarPage() {
             }
             description={
               selectedSessionId
-                ? 'Edit details below, then Save — or Delete class above. Coach and members are managed on the open class card.'
+                ? 'Edit details here, then Save — or Delete class above. Coach is on this form; members are listed under the save button.'
                 : undefined
             }
             onSubmit={() => void add()}
@@ -716,7 +738,7 @@ export default function CalendarPage() {
                 Viewing / editing this class. Change fields and <strong>Save changes</strong>,
                 use <strong>Delete class</strong> to remove it from the calendar
                 (series can delete one date or all), or assign coach and members on the
-                card below. Click empty calendar time for a new class.
+                this window. Click empty calendar time for a new class.
               </p>
             ) : slotPicked ? (
               <p className="sm:col-span-2 lg:col-span-3 text-xs text-yellow-700 dark:text-yellow-300 font-medium rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50/80 dark:bg-yellow-950/40 px-3 py-2">
@@ -890,7 +912,98 @@ export default function CalendarPage() {
               List on public website calendar
             </label>
           </FormCard>
-          </div>
+          {selectedSessionId && store ? (
+            <div className="mt-4 space-y-3">
+              {(() => {
+                const s = store.sessions.find((x) => x.id === selectedSessionId);
+                if (!s) return null;
+                const booked = sessionBookingCount(store, s.id);
+                const roster = store.bookings.filter(
+                  (b) =>
+                    b.session_id === s.id && b.status !== 'cancelled'
+                );
+                return (
+                  <div className="rounded-xl border border-sky-200 bg-sky-50/50 px-3 py-2 space-y-2 dark:border-sky-800 dark:bg-sky-950/30">
+                    <p className="text-[10px] font-black uppercase tracking-wide text-sky-800 dark:text-sky-200">
+                      Members on this class
+                      {addMemberIds.length
+                        ? ` · ${addMemberIds.length} selected`
+                        : ` · ${booked} booked`}
+                    </p>
+                    {roster.length > 0 ? (
+                      <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                        Already on class:{' '}
+                        {roster
+                          .map((b) => {
+                            const cl = store.clients.find(
+                              (c) => c.id === b.client_id
+                            );
+                            return (
+                              b.family_member_name || cl?.name || b.client_id
+                            );
+                          })
+                          .join(', ')}
+                      </p>
+                    ) : null}
+                    <input
+                      className={fc()}
+                      placeholder="Search members…"
+                      value={memberQuery}
+                      onChange={(e) => setMemberQuery(e.target.value)}
+                    />
+                    <div className="max-h-40 overflow-y-auto rounded-lg border border-sky-100 bg-white divide-y divide-slate-100 dark:border-sky-900 dark:bg-slate-950 dark:divide-slate-800">
+                      {memberChoices.map((c) => {
+                        const already = roster.some(
+                          (b) => b.client_id === c.id
+                        );
+                        const on = addMemberIds.includes(c.id);
+                        return (
+                          <label
+                            key={c.id}
+                            className={`flex items-start gap-2 px-2.5 py-1.5 text-sm ${
+                              already
+                                ? 'opacity-50'
+                                : 'cursor-pointer hover:bg-sky-50 dark:hover:bg-sky-950/40'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-1"
+                              disabled={already}
+                              checked={already || on}
+                              onChange={() =>
+                                !already && toggleAddMember(c.id)
+                              }
+                            />
+                            <span>
+                              <span className="font-semibold">{c.name}</span>
+                              {already ? (
+                                <span className="text-[10px] text-slate-500">
+                                  {' '}
+                                  · already booked
+                                </span>
+                              ) : null}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <button
+                      type="button"
+                      disabled={saving || !addMemberIds.length}
+                      className="rounded-xl bg-sky-600 text-white px-3 py-2 text-xs font-bold disabled:opacity-50"
+                      onClick={() => void saveMembersOnSession(s.id)}
+                    >
+                      {addMemberIds.length
+                        ? `Book ${addMemberIds.length} member(s)`
+                        : 'Book selected members'}
+                    </button>
+                  </div>
+                );
+              })()}
+            </div>
+          ) : null}
+          </ScheduleEventPeek>
 
           <p className="text-xs text-slate-500">
             <strong>Click any class</strong> on the calendar to open it for
@@ -952,7 +1065,7 @@ export default function CalendarPage() {
                           className="inline-flex items-center gap-1 text-xs font-bold text-yellow-700 dark:text-yellow-300"
                           onClick={() => {
                             if (managing) {
-                              startCreateMode({ date: day });
+                              closeEditor();
                             } else {
                               openSession(s.id);
                             }

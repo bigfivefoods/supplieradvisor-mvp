@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import {
@@ -16,6 +16,7 @@ import {
 } from '@/components/schedule/PracticeScheduleCalendar';
 import { WorkingHoursEditor } from '@/components/schedule/WorkingHoursEditor';
 import { PracticeProfilePdfButton } from '@/components/schedule/PracticeProfilePdfButton';
+import { ScheduleEventPeek } from '@/components/schedule/ScheduleEventPeek';
 import {
   RecurrenceFields,
   emptyRecurrenceForm,
@@ -33,11 +34,11 @@ import {
 export default function CalendarPage() {
   const { companyId, store, loading, saving, post, summary, load } =
     usePhysiograph();
-  const formAnchorRef = useRef<HTMLDivElement>(null);
   const [personFilter, setPersonFilter] = useState('');
   const [diaryScope, setDiaryScope] = useState<DiaryScope>('practice');
   /** null = create mode; set = open appointment for view/edit (main clinic diary) */
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [form, setForm] = useState({
     service_id: '',
     practitioner_id: '',
@@ -54,13 +55,9 @@ export default function CalendarPage() {
     emptyRecurrenceForm
   );
 
-  const scrollToForm = () => {
-    requestAnimationFrame(() => {
-      formAnchorRef.current?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
-      });
-    });
+  const closeEditor = () => {
+    setEditorOpen(false);
+    setSelectedId(null);
   };
 
   const openAppointment = (id: string) => {
@@ -86,7 +83,7 @@ export default function CalendarPage() {
       patient_id: '',
       family_member_id: '',
     });
-    scrollToForm();
+    setEditorOpen(true);
   };
 
   const startCreate = (partial?: {
@@ -110,7 +107,7 @@ export default function CalendarPage() {
       patient_id: '',
       family_member_id: '',
     }));
-    scrollToForm();
+    setEditorOpen(true);
   };
 
   const events: ScheduleEvent[] = useMemo(() => {
@@ -253,7 +250,7 @@ export default function CalendarPage() {
       );
       setSelectedId(null);
       setRecurrence(emptyRecurrenceForm());
-      startCreate({ date: prev.date });
+      setEditorOpen(false);
     } catch (e) {
       toast.error(
         e instanceof Error ? e.message : 'Could not delete appointment'
@@ -505,18 +502,46 @@ export default function CalendarPage() {
                   slot.person_id || personFilter || undefined,
               });
               toast.message('New appointment slot', {
-                description: `${slot.date} at ${slot.start_time.slice(0, 5)} — finish details below`,
+                description: `${slot.date} at ${slot.start_time.slice(0, 5)} — finish details in the pop-out`,
               });
             }}
             onSelectEvent={(ev) => {
               openAppointment(ev.id);
               toast.message('Appointment open', {
-                description: `${ev.start_time.slice(0, 5)} · ${ev.title} — edit or book patient below`,
+                description: `${ev.start_time.slice(0, 5)} · ${ev.title} — edit in the pop-out`,
               });
             }}
           />
 
-          <div ref={formAnchorRef} className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 -mt-2">
+            <p className="text-xs text-slate-500">
+              Click an appointment to edit it in a pop-out. Expand the calendar
+              to fill the screen. Use the month name to jump months.
+            </p>
+            <button
+              type="button"
+              className="rounded-xl border border-teal-300 bg-white px-3 py-2 text-xs font-bold text-teal-800"
+              onClick={() => startCreate({ date: form.date })}
+            >
+              + New appointment
+            </button>
+          </div>
+
+          <ScheduleEventPeek
+            open={editorOpen}
+            title={
+              selectedId
+                ? `Open appointment · ${form.date} ${form.start_time}`
+                : 'Schedule appointment'
+            }
+            subtitle={
+              selectedId
+                ? 'Edit this slot or book a patient'
+                : 'New appointment on the diary'
+            }
+            onClose={closeEditor}
+          >
+          <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs text-slate-500">
                 {selectedId
@@ -747,6 +772,7 @@ export default function CalendarPage() {
               ) : null}
             </FormCard>
           </div>
+          </ScheduleEventPeek>
 
           <DataTable
             headers={[
@@ -781,7 +807,7 @@ export default function CalendarPage() {
                 };
               })}
             onDelete={(id) => {
-              if (selectedId === id) setSelectedId(null);
+              if (selectedId === id) closeEditor();
               void post({ entity: 'appointments', action: 'delete', id });
             }}
           />

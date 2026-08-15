@@ -17,6 +17,8 @@ import {
   Stethoscope,
   Building2,
   User,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import {
   hourBounds,
@@ -123,6 +125,8 @@ type Props = {
       | 'psychiatrygraph';
     personId?: string | null;
   };
+  /** Start on month so the whole month is visible (Outlook / Google). */
+  defaultView?: ScheduleViewMode;
 };
 
 /**
@@ -514,10 +518,12 @@ export function PracticeScheduleCalendar({
   onVisibleRangeChange,
   hideScopeToggle = false,
   pdfExport,
+  defaultView = 'month',
 }: Props) {
   const [pdfBusy, setPdfBusy] = useState(false);
   const today = toIsoDate(new Date());
-  const [view, setView] = useState<ScheduleViewMode>('week');
+  const [view, setView] = useState<ScheduleViewMode>(defaultView);
+  const [expanded, setExpanded] = useState(false);
   const [cursor, setCursor] = useState(initialDate || today);
   const [personFilterLocal, setPersonFilterLocal] = useState(
     personFilterProp || ''
@@ -911,7 +917,35 @@ export function PracticeScheduleCalendar({
     }
   };
 
+  const shiftMonth = (dir: -1 | 1) => {
+    const d = parseIso(cursor);
+    d.setMonth(d.getMonth() + dir);
+    setCursor(toIsoDate(d));
+  };
+
+  const monthLabel = parseIso(cursor).toLocaleDateString(undefined, {
+    month: 'long',
+    year: 'numeric',
+  });
+
   const goToday = () => setCursor(today);
+
+  useEffect(() => {
+    if (!expanded) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      // Event editor sits above the expanded calendar — let it take Escape first.
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      setExpanded(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [expanded]);
 
   const pickDate = (date: string) => {
     setCursor(date);
@@ -979,9 +1013,10 @@ export function PracticeScheduleCalendar({
     const duration = closed
       ? 60
       : Math.max(30, closeMin - openMin);
-    const height = duration * (compact ? 0.95 : PX_PER_MIN);
+    const pxPerMin = compact ? 0.95 : expanded ? 1.85 : PX_PER_MIN;
+    const height = duration * pxPerMin;
     const ticks = closed ? [] : hourTicks(openMin, closeMin);
-    const px = compact ? 0.95 : PX_PER_MIN;
+    const px = pxPerMin;
     const canPickSlot = Boolean(onSelectSlot) && !closed;
 
     const handleSlotClick = (e: MouseEvent<HTMLDivElement>) => {
@@ -1191,7 +1226,16 @@ export function PracticeScheduleCalendar({
   return (
     <div
       ref={rootRef}
-      className={`rounded-3xl border border-slate-200 dark:border-slate-700 ${tone.soft}`}
+      className={`${
+        expanded
+          ? 'fixed inset-0 z-[70] flex flex-col overflow-hidden bg-slate-900/40 p-2 sm:p-3'
+          : ''
+      }`}
+    >
+    <div
+      className={`${
+        expanded ? 'flex min-h-0 flex-1 flex-col overflow-hidden shadow-2xl' : ''
+      } rounded-3xl border border-slate-200 dark:border-slate-700 ${tone.soft}`}
     >
       {/* Toolbar — overflow visible so menus are not clipped */}
       <div className="relative z-20 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 dark:border-slate-700 bg-white/90 dark:bg-slate-950/80 px-3 sm:px-4 py-3 rounded-t-3xl">
@@ -1364,6 +1408,49 @@ export function PracticeScheduleCalendar({
             </label>
           ) : null}
 
+          <div className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-1 py-0.5 dark:border-slate-600 dark:bg-slate-900">
+            <button
+              type="button"
+              onClick={() => shiftMonth(-1)}
+              className="rounded-lg p-1.5 hover:bg-slate-50 dark:hover:bg-slate-800"
+              aria-label="Previous month"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setView('month');
+              }}
+              className="min-w-[8.5rem] px-1 text-center text-[12px] font-black text-slate-900 dark:text-white"
+              title="Show full month"
+            >
+              {monthLabel}
+            </button>
+            <button
+              type="button"
+              onClick={() => shiftMonth(1)}
+              className="rounded-lg p-1.5 hover:bg-slate-50 dark:hover:bg-slate-800"
+              aria-label="Next month"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-2.5 py-1.5 text-[11px] font-bold hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-800"
+            title={expanded ? 'Exit full calendar' : 'Expand calendar'}
+          >
+            {expanded ? (
+              <Minimize2 className="h-3.5 w-3.5" />
+            ) : (
+              <Maximize2 className="h-3.5 w-3.5" />
+            )}
+            {expanded ? 'Exit' : 'Expand'}
+          </button>
+
           <div className="inline-flex rounded-xl border border-slate-200 dark:border-slate-600 p-0.5 bg-slate-50 dark:bg-slate-900">
             {(
               [
@@ -1415,7 +1502,13 @@ export function PracticeScheduleCalendar({
         </div>
       </div>
 
-      <div className="p-3 sm:p-4 bg-white dark:bg-slate-950 rounded-b-3xl overflow-hidden">
+      <div
+        className={`p-3 sm:p-4 bg-white dark:bg-slate-950 rounded-b-3xl ${
+          expanded
+            ? 'min-h-0 flex-1 overflow-auto'
+            : 'min-h-[min(72vh,54rem)] overflow-auto'
+        }`}
+      >
         {view === 'day' && <HoursTimeline date={cursor} />}
 
         {view === 'week' && (
@@ -1506,12 +1599,15 @@ export function PracticeScheduleCalendar({
                 const isToday = date === today;
                 const list = eventsOn(date);
                 const closed = isClosedOn(workingHours, date);
+                const showN = expanded ? 10 : 6;
                 return (
-                  <button
+                  <div
                     key={date}
-                    type="button"
-                    onClick={() => pickDate(date)}
-                    className={`min-h-[88px] sm:min-h-[100px] rounded-xl border p-1 text-left transition ${tone.monthHover} ${
+                    className={`${
+                      expanded
+                        ? 'min-h-[18vh] sm:min-h-[20vh]'
+                        : 'min-h-[118px] sm:min-h-[140px]'
+                    } rounded-xl border p-1 text-left transition ${tone.monthHover} ${
                       inMonth
                         ? closed
                           ? 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/80'
@@ -1519,8 +1615,10 @@ export function PracticeScheduleCalendar({
                         : 'border-transparent bg-slate-50/50 dark:bg-slate-900/30 opacity-50'
                     } ${isToday ? tone.todayRing : ''}`}
                   >
-                    <div
-                      className={`text-[11px] font-bold mb-0.5 flex items-center justify-between gap-1 ${
+                    <button
+                      type="button"
+                      onClick={() => pickDate(date)}
+                      className={`mb-0.5 flex w-full items-center justify-between gap-1 text-[11px] font-bold ${
                         isToday
                           ? tone.todayText
                           : 'text-slate-600 dark:text-slate-300'
@@ -1532,31 +1630,64 @@ export function PracticeScheduleCalendar({
                           off
                         </span>
                       ) : null}
-                    </div>
+                    </button>
                     <div className="space-y-0.5">
-                      {list.slice(0, 3).map((ev) => (
-                        <div
+                      {list.slice(0, showN).map((ev) => (
+                        <button
                           key={ev.id}
-                          className={`truncate rounded px-1 py-0.5 text-[9px] font-semibold border ${
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectEvent?.(ev);
+                          }}
+                          className={`block w-full truncate rounded px-1 py-0.5 text-left text-[9px] font-semibold border ${
                             TONE[ev.tone || accent].chip
+                          } ${
+                            selectedEventId === ev.id
+                              ? 'ring-2 ring-offset-1 ring-slate-400'
+                              : ''
                           }`}
                         >
                           {ev.start_time.slice(0, 5)} {ev.title}
-                        </div>
+                        </button>
                       ))}
-                      {list.length > 3 ? (
-                        <div className="text-[9px] font-bold text-slate-400 px-0.5">
-                          +{list.length - 3} more
-                        </div>
+                      {list.length > showN ? (
+                        <button
+                          type="button"
+                          className="px-0.5 text-[9px] font-bold text-slate-400"
+                          onClick={() => pickDate(date)}
+                        >
+                          +{list.length - showN} more
+                        </button>
+                      ) : null}
+                      {onSelectSlot ? (
+                        <button
+                          type="button"
+                          className="w-full rounded px-0.5 py-1 text-left text-[9px] font-semibold text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+                          onClick={() => {
+                            setCursor(date);
+                            onSelectDate?.(date);
+                            const oc = openCloseOn(workingHours, date);
+                            onSelectSlot({
+                              date,
+                              start_time: oc.closed ? '09:00' : oc.open,
+                              person_id:
+                                personFilter || selectedPerson?.id || null,
+                            });
+                          }}
+                        >
+                          {list.length === 0 ? 'Add' : '+'}
+                        </button>
                       ) : null}
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }

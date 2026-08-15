@@ -591,7 +591,11 @@ export default function CoachCalendarPage() {
 
           {/* Session detail: plan + actual */}
           {openCard && (
-            <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-3">
+            <div
+              className="fixed inset-0 z-[90] bg-black/50 flex items-end sm:items-center justify-center p-3"
+              role="dialog"
+              aria-modal="true"
+            >
               <div className="w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-3xl border border-amber-300 bg-white dark:!border-amber-400 dark:!bg-amber-950 p-5 space-y-4 shadow-xl">
                 <div className="flex justify-between gap-2">
                   <div>
@@ -907,7 +911,11 @@ export default function CoachCalendarPage() {
 
           {/* Create class modal */}
           {showCreate && (
-            <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-3">
+            <div
+              className="fixed inset-0 z-[90] bg-black/50 flex items-end sm:items-center justify-center p-3"
+              role="dialog"
+              aria-modal="true"
+            >
               <div className="w-full max-w-md rounded-3xl border border-amber-300 bg-white dark:!border-amber-400 dark:!bg-amber-950 p-5 space-y-3 shadow-xl">
                 <div className="flex justify-between">
                   <h3 className="font-black dark:text-amber-50">
