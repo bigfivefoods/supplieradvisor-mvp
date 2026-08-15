@@ -1,14 +1,16 @@
 /**
  * Service-module member/patient invites.
- * GymAdvisor clients · PhysioAdvisor / DentalAdvisor patients can be emailed a join
- * link to open their portal (classes, appointments, feedback, medical share).
+ * GymAdvisor clients · clinic patients can be emailed a join link so they
+ * open SA Member and link this business to their wallet.
  */
 import { getAppUrl } from '@/lib/resend';
 
 export type ServiceMemberModule =
   | 'fitgraph'
   | 'physiograph'
-  | 'dentalgraph';
+  | 'dentalgraph'
+  | 'medicalgraph'
+  | 'psychiatrygraph';
 
 export const SERVICE_MEMBER_INVITE_STATUSES = [
   'none',
@@ -41,31 +43,45 @@ const MODULE_SHORT: Record<ServiceMemberModule, string> = {
   fitgraph: 'fit',
   physiograph: 'phy',
   dentalgraph: 'den',
+  medicalgraph: 'med',
+  psychiatrygraph: 'psy',
 };
 
 const MODULE_LABEL: Record<ServiceMemberModule, string> = {
   fitgraph: 'GymAdvisor® gym membership',
   physiograph: 'PhysioAdvisor® clinic patient portal',
   dentalgraph: 'DentalAdvisor® practice patient portal',
+  medicalgraph: 'MedicalAdvisor® practice patient portal',
+  psychiatrygraph: 'PsychiatryAdvisor® practice patient portal',
 };
 
 const MODULE_ROLE: Record<ServiceMemberModule, string> = {
   fitgraph: 'member / client',
   physiograph: 'patient',
   dentalgraph: 'patient',
+  medicalgraph: 'patient',
+  psychiatrygraph: 'patient',
 };
 
 const MODULE_PORTAL_PATH: Record<ServiceMemberModule, string> = {
   fitgraph: '/member/fitgraph',
   physiograph: '/member/physiograph',
   dentalgraph: '/member/dentalgraph',
+  medicalgraph: '/member/medicalgraph',
+  psychiatrygraph: '/member/psychiatrygraph',
 };
 
 export function isServiceMemberModule(
   raw: string | null | undefined
 ): raw is ServiceMemberModule {
   const m = String(raw || '').toLowerCase();
-  return m === 'fitgraph' || m === 'physiograph' || m === 'dentalgraph';
+  return (
+    m === 'fitgraph' ||
+    m === 'physiograph' ||
+    m === 'dentalgraph' ||
+    m === 'medicalgraph' ||
+    m === 'psychiatrygraph'
+  );
 }
 
 /** Invite token embeds module short + company id for fast resolve. */
@@ -83,7 +99,9 @@ export function parseServiceMemberInviteToken(token: string): {
   module: ServiceMemberModule | null;
   companyId: number | null;
 } {
-  const m = /^sinv_(fit|phy|den)_(\d+)_/.exec(String(token || '').trim());
+  const m = /^sinv_(fit|phy|den|med|psy)_(\d+)_/.exec(
+    String(token || '').trim()
+  );
   if (!m) return { module: null, companyId: null };
   const short = m[1];
   const companyId = Number(m[2]);
@@ -94,7 +112,11 @@ export function parseServiceMemberInviteToken(token: string): {
         ? 'physiograph'
         : short === 'den'
           ? 'dentalgraph'
-          : null;
+          : short === 'med'
+            ? 'medicalgraph'
+            : short === 'psy'
+              ? 'psychiatrygraph'
+              : null;
   return {
     module,
     companyId: Number.isFinite(companyId) ? companyId : null,
@@ -124,6 +146,23 @@ export function serviceMemberModuleLabel(module: ServiceMemberModule): string {
 
 export function serviceMemberRoleLabel(module: ServiceMemberModule): string {
   return MODULE_ROLE[module];
+}
+
+export function serviceMemberAdvisorName(module: ServiceMemberModule): string {
+  switch (module) {
+    case 'fitgraph':
+      return 'GymAdvisor®';
+    case 'physiograph':
+      return 'PhysioAdvisor®';
+    case 'dentalgraph':
+      return 'DentalAdvisor®';
+    case 'medicalgraph':
+      return 'MedicalAdvisor®';
+    case 'psychiatrygraph':
+      return 'PsychiatryAdvisor®';
+    default:
+      return 'SupplierAdvisor®';
+  }
 }
 
 export function inviteExpiryIso(days = 14): string {

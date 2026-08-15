@@ -36,8 +36,8 @@ type Props = {
   busy?: boolean;
   accentClass?: string;
   buttonClass?: string;
-  /** gym | clinic wording */
-  context?: 'gym' | 'clinic' | 'practice';
+  /** gym | clinic | wallet wording */
+  context?: 'gym' | 'clinic' | 'practice' | 'wallet';
 };
 
 const blank = () => ({
@@ -72,11 +72,13 @@ export function PortalFamilyMembers({
   );
 
   const place =
-    context === 'gym'
-      ? 'gym desk'
-      : context === 'clinic'
-        ? 'clinic'
-        : 'practice';
+    context === 'wallet'
+      ? 'wallet'
+      : context === 'gym'
+        ? 'gym desk'
+        : context === 'clinic'
+          ? 'clinic'
+          : 'practice';
 
   const startAdd = () => {
     setEditingId(null);
@@ -154,17 +156,18 @@ export function PortalFamilyMembers({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-black text-slate-900">Family members</p>
           <p className="text-xs text-slate-500 mt-0.5">
-            Add kids or other household members. Your email stays as the
-            parent/guardian contact for messages and invites; names sync to the{' '}
-            {place}.
+            {context === 'wallet'
+              ? 'Add kids or household members once. Every gym and clinic you link uses this list — you should not have to recapture them.'
+              : `Add kids or other household members. Your email stays as the parent/guardian contact for messages and invites; names sync to the ${place}.`}
           </p>
         </div>
       </div>
 
       {list.length === 0 ? (
         <p className="text-xs text-slate-500 rounded-xl border border-dashed border-slate-200 bg-white px-3 py-3">
-          No family members yet. Add a child or dependent so the {place} knows
-          who is in your household.
+          {context === 'wallet'
+            ? 'No family members yet. Add a child or dependent here — every gym and clinic you link will pick them up.'
+            : `No family members yet. Add a child or dependent so the ${place} knows who is in your household.`}
         </p>
       ) : (
         <ul className="space-y-2">

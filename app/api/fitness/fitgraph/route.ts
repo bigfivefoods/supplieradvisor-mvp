@@ -1758,7 +1758,53 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'entity required' }, { status: 400 });
     }
     const rec = (body.record || body) as Record<string, unknown>;
+    const existingClientId = rec.id ? String(rec.id) : '';
+    const clientWasNew =
+      entity === 'clients' &&
+      (!existingClientId ||
+        !store.clients.some((c) => c.id === existingClientId));
     upsert(store, entity, rec, now);
+
+    let walletInvite: {
+      email_sent?: boolean;
+      warning?: string;
+      invite_link?: string;
+      wallet_linked?: boolean;
+      email?: string;
+    } | null = null;
+    if (entity === 'clients') {
+      const person =
+        store.clients.find(
+          (c) => existingClientId && c.id === existingClientId
+        ) || store.clients[store.clients.length - 1];
+      if (person) {
+        const { attachWalletAndMaybeInvite } = await import(
+          '@/lib/services/desk-wallet-link'
+        );
+        const sendInvite =
+          rec.send_wallet_invite !== false &&
+          (clientWasNew || rec.send_wallet_invite === true);
+        const linked = await attachWalletAndMaybeInvite({
+          person,
+          operatorUserId: gate.userId,
+          sendInvite,
+          module: 'fitgraph',
+          companyId,
+          businessName: store.settings?.brand_name || 'Your gym',
+          invitedBy: String(rec.invited_by || rec.invitedBy || 'Your gym team'),
+          issuePortalToken: () => issueClientPortalToken(companyId),
+        });
+        const ci = store.clients.findIndex((c) => c.id === person.id);
+        if (ci >= 0) store.clients[ci] = linked.person;
+        walletInvite = {
+          email_sent: linked.invite?.email_sent,
+          warning: linked.invite?.warning,
+          invite_link: linked.invite?.invite_link,
+          wallet_linked: linked.wallet_linked,
+          email: linked.person.email,
+        };
+      }
+    }
 
     // Dual-write coaches → People / HR directory
     let peopleSync: { employeeId: number | null; created?: boolean } | null =
@@ -1787,12 +1833,22 @@ export async function POST(request: NextRequest) {
       summary: summariseFitgraph(store),
       analysis: analysis(store),
       people_sync: peopleSync,
+      invite_sent: walletInvite?.email_sent,
+      invite_link: walletInvite?.invite_link,
+      wallet_linked: walletInvite?.wallet_linked,
+      warning: walletInvite?.warning,
       message:
         entity === 'coaches' && peopleSync?.employeeId
           ? peopleSync.created
             ? 'Coach saved and added to People directory'
             : 'Coach saved and People record updated'
-          : undefined,
+          : walletInvite?.warning
+            ? walletInvite.warning
+            : walletInvite?.email_sent
+              ? `Member saved — invite sent to ${walletInvite.email} to link their SA Member wallet`
+              : walletInvite?.wallet_linked
+                ? 'Member saved — profile and family pulled from their SA Member wallet'
+                : undefined,
     });
   } catch (e: unknown) {
     console.error('[fitgraph]', e);

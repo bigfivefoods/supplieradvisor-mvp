@@ -66,6 +66,7 @@ import {
   shopHref,
 } from '@/lib/b2c/wallet-accounts';
 import { moduleLabels } from '@/lib/b2c/company-modules';
+import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
 
 type Membership = {
   id: string;
@@ -89,6 +90,20 @@ type Profile = {
   photo_url?: string | null;
   city?: string | null;
   id_number?: string | null;
+  family?: Array<{
+    id: string;
+    name: string;
+    relationship: string;
+    date_of_birth?: string | null;
+    id_number?: string;
+    phone?: string;
+    email?: string;
+    notes?: string;
+    is_minor?: boolean;
+    active?: boolean;
+    age?: number | null;
+    relationship_label?: string;
+  }>;
   memberships: Membership[];
 };
 
@@ -1432,6 +1447,68 @@ function MeAppInner() {
             >
               Save changes
             </button>
+          </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <PortalFamilyMembers
+              family={profile?.family || []}
+              busy={busy}
+              context="wallet"
+              accentClass="border-sky-200"
+              buttonClass="bg-[#0077b6] hover:bg-[#023e8a]"
+              onSave={async (member) => {
+                setBusy(true);
+                try {
+                  const res = await fetch('/api/b2c/me', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      action: 'family_upsert',
+                      member,
+                      privyUserId: getCanonicalUserId(user?.id),
+                    }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.error || 'Could not save');
+                  if (data.profile) setProfile(data.profile);
+                  toast.success(
+                    data.message || 'Family saved on your wallet'
+                  );
+                } catch (e: unknown) {
+                  toast.error(
+                    e instanceof Error ? e.message : 'Could not save family'
+                  );
+                  throw e;
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              onRemove={async (id) => {
+                setBusy(true);
+                try {
+                  const res = await fetch('/api/b2c/me', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      action: 'family_remove',
+                      member_id: id,
+                      privyUserId: getCanonicalUserId(user?.id),
+                    }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.error || 'Could not remove');
+                  if (data.profile) setProfile(data.profile);
+                  toast.success(data.message || 'Removed');
+                } catch (e: unknown) {
+                  toast.error(
+                    e instanceof Error ? e.message : 'Could not remove'
+                  );
+                  throw e;
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            />
           </section>
 
           {installHint ? (

@@ -25,6 +25,17 @@ import {
 } from '@/lib/b2c/workspace';
 import { buildHireJourneys } from '@/lib/b2c/hire-journeys';
 import { verificationView } from '@/lib/b2c/identity';
+import {
+  applySnapshotToProfile,
+  pushHouseholdToLinkedDesks,
+  refreshWalletHousehold,
+  snapshotFromProfile,
+} from '@/lib/b2c/wallet-household';
+import {
+  portalFamilyView,
+  removeFamilyMember,
+  upsertFamilyMember,
+} from '@/lib/services/family-members';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -105,6 +116,15 @@ export async function GET(request: NextRequest) {
       await saveB2cProfile(profile);
     }
 
+    try {
+      profile = await refreshWalletHousehold(profile, {
+        extraCompanyIds: ownedIds,
+        push: true,
+      });
+    } catch {
+      /* household sync is best-effort */
+    }
+
     const memberships = (profile.memberships || [])
       .filter(
         (m) =>
@@ -154,6 +174,7 @@ export async function GET(request: NextRequest) {
         memberships,
         city: profile.city || null,
         id_number: profile.id_number || null,
+        family: portalFamilyView(profile.family),
       },
       verification,
       journeys,
@@ -213,6 +234,69 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (action === 'family_upsert' || action === 'family_save') {
+      const patch = (body.member || body.record || body) as Record<
+        string,
+        unknown
+      >;
+      const { list, member, error } = upsertFamilyMember(
+        snapshotFromProfile(profile).family,
+        patch
+      );
+      if (error) {
+        return NextResponse.json({ error }, { status: 400 });
+      }
+      profile = applySnapshotToProfile(profile, {
+        ...snapshotFromProfile(profile),
+        family: list,
+      });
+      await saveB2cProfile(profile);
+      try {
+        await pushHouseholdToLinkedDesks(profile);
+      } catch {
+        /* desk push is best-effort */
+      }
+      return NextResponse.json({
+        success: true,
+        member,
+        profile: {
+          ...profile,
+          family: portalFamilyView(profile.family),
+        },
+        message: patch.id
+          ? 'Family member updated on your wallet'
+          : 'Family member saved — linked gyms and clinics will use this list',
+      });
+    }
+
+    if (action === 'family_remove' || action === 'family_delete') {
+      const famId = String(body.member_id || body.id || '');
+      if (!famId) {
+        return NextResponse.json(
+          { error: 'member_id required' },
+          { status: 400 }
+        );
+      }
+      profile = applySnapshotToProfile(profile, {
+        ...snapshotFromProfile(profile),
+        family: removeFamilyMember(snapshotFromProfile(profile).family, famId),
+      });
+      await saveB2cProfile(profile);
+      try {
+        await pushHouseholdToLinkedDesks(profile);
+      } catch {
+        /* desk push is best-effort */
+      }
+      return NextResponse.json({
+        success: true,
+        profile: {
+          ...profile,
+          family: portalFamilyView(profile.family),
+        },
+        message: 'Family member removed from your wallet',
+      });
+    }
+
     if (action === 'unlink_company') {
       const companyId = Number(body.company_id || body.company);
       if (!Number.isFinite(companyId) || companyId <= 0) {
@@ -244,10 +328,18 @@ export async function POST(request: NextRequest) {
       profile.photo_url = String(body.photo_url).trim() || null;
     }
     await saveB2cProfile(profile);
+    try {
+      await pushHouseholdToLinkedDesks(profile);
+    } catch {
+      /* desk push is best-effort */
+    }
     return NextResponse.json({
       success: true,
-      profile,
-      message: 'Profile saved',
+      profile: {
+        ...profile,
+        family: portalFamilyView(profile.family),
+      },
+      message: 'Profile saved — linked gyms and clinics are up to date',
     });
   } catch (e: unknown) {
     return NextResponse.json(

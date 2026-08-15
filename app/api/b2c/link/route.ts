@@ -77,6 +77,14 @@ export async function POST(request: NextRequest) {
       profile.full_name = resolved.membership.ref_label;
     }
     await saveB2cProfile(profile);
+    try {
+      const { refreshWalletHousehold } = await import(
+        '@/lib/b2c/wallet-household'
+      );
+      profile = await refreshWalletHousehold(profile, { push: true });
+    } catch {
+      /* stamp is best-effort */
+    }
 
     return NextResponse.json({
       success: true,

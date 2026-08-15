@@ -116,39 +116,26 @@ export async function GET(request: NextRequest) {
     if (!resolved) {
       return NextResponse.json({ error: 'Patient portal not found' }, { status: 404 });
     }
-    // Link platform system user when patient is logged into SupplierAdvisor
     try {
-      const { requireVerifiedUser, legacyPrivyFrom } = await import(
-        '@/lib/auth/api-auth'
+      const { maybeHydratePortalPerson } = await import(
+        '@/lib/b2c/wallet-household'
       );
-      const { linkPlatformUserId } = await import(
-        '@/lib/messaging/link-platform-user'
+      const hydrated = await maybeHydratePortalPerson(
+        request,
+        resolved.patient
       );
-      const gate = await requireVerifiedUser(request, {
-        legacyPrivyUserId: legacyPrivyFrom(request),
-      });
-      if (gate.ok && gate.userId) {
+      if (hydrated.changed) {
         const pi = resolved.store.patients.findIndex(
           (p) => p.id === resolved.patient.id
         );
         if (pi >= 0) {
-          const before = resolved.store.patients[pi].platform_user_id;
-          linkPlatformUserId(resolved.store.patients[pi], gate.userId);
-          if (
-            resolved.store.patients[pi].platform_user_id &&
-            resolved.store.patients[pi].platform_user_id !== before
-          ) {
-            await saveStore(
-              resolved.companyId,
-              resolved.meta,
-              resolved.store
-            );
-            resolved.patient = resolved.store.patients[pi];
-          }
+          resolved.store.patients[pi] = hydrated.person;
+          await saveStore(resolved.companyId, resolved.meta, resolved.store);
         }
+        resolved.patient = hydrated.person;
       }
     } catch {
-      /* portal works without login */
+      /* wallet hydrate is best-effort */
     }
 
     return NextResponse.json({
@@ -275,12 +262,20 @@ export async function POST(request: NextRequest) {
       }
       store.patients[pi] = p;
       await saveStore(companyId, meta, store);
+      try {
+        const { writeThroughPortalIdentity } = await import(
+          '@/lib/b2c/wallet-household'
+        );
+        await writeThroughPortalIdentity(p);
+      } catch {
+        /* wallet write-through is best-effort */
+      }
       return NextResponse.json({
         success: true,
         portal: buildDentalPatientPortalPayload(store, p),
         message: result.emailChanged
-          ? 'Profile updated — email synced to practice records and care messages'
-          : 'Profile updated',
+          ? 'Profile updated — email synced to your wallet and practice records'
+          : 'Profile updated on your wallet',
       });
     }
 
@@ -302,13 +297,21 @@ export async function POST(request: NextRequest) {
       p.updated_at = now;
       store.patients[pi] = p;
       await saveStore(companyId, meta, store);
+      try {
+        const { writeThroughFamilyUpsert } = await import(
+          '@/lib/b2c/wallet-household'
+        );
+        await writeThroughFamilyUpsert(p, member);
+      } catch {
+        /* wallet write-through is best-effort */
+      }
       return NextResponse.json({
         success: true,
         member,
         portal: buildDentalPatientPortalPayload(store, p),
         message: patch.id
           ? 'Family member updated'
-          : 'Family member added — synced to the practice',
+          : 'Family member added — saved on your wallet and this practice',
       });
     }
 
@@ -328,6 +331,14 @@ export async function POST(request: NextRequest) {
       p.updated_at = now;
       store.patients[pi] = p;
       await saveStore(companyId, meta, store);
+      try {
+        const { writeThroughFamilyRemove } = await import(
+          '@/lib/b2c/wallet-household'
+        );
+        await writeThroughFamilyRemove(p, famId);
+      } catch {
+        /* wallet write-through is best-effort */
+      }
       return NextResponse.json({
         success: true,
         portal: buildDentalPatientPortalPayload(store, p),

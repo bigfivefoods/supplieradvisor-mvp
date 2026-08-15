@@ -300,6 +300,14 @@ export type MedicalPatient = {
   portal_token?: string | null;
   /** Platform system user id once on SupplierAdvisor — in-app messaging key */
   platform_user_id?: string | null;
+  invite_token?: string | null;
+  invite_status?: string | null;
+  invite_email?: string | null;
+  invite_sent_at?: string | null;
+  invite_accepted_at?: string | null;
+  invite_expires_at?: string | null;
+  share_schedule?: boolean;
+  share_feedback?: boolean;
   status?: (typeof PATIENT_STATUSES)[number] | string;
   practitioner_id?: string | null;
   package_id?: string | null;

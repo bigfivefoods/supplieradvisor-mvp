@@ -51,6 +51,7 @@ import {
   upsertMedicalClaim,
   upsertPatientScript,
 } from '@/lib/clinic/patient-medical';
+import { mergeInviteFieldsFromRecord } from '@/lib/services/member-invite';
 
 export const runtime = 'nodejs';
 
@@ -581,6 +582,84 @@ export async function POST(request: NextRequest) {
         portal_token: patient.portal_token,
         analysis: analysis(store),
         message: 'Patient portal link issued',
+      });
+    }
+
+    if (
+      action === 'invite_patient' ||
+      action === 'invite_member' ||
+      action === 'send_member_invite'
+    ) {
+      const patientId = String(
+        body.patientId || body.patient_id || body.id || ''
+      );
+      const patient = store.patients.find((p) => p.id === patientId);
+      if (!patient) {
+        return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+      }
+      const { attachWalletAndMaybeInvite } = await import(
+        '@/lib/services/desk-wallet-link'
+      );
+      const supabase = getSupabaseServer();
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('trading_name, legal_name')
+        .eq('id', companyId)
+        .maybeSingle();
+      const businessName =
+        store.settings?.brand_name ||
+        prof?.trading_name ||
+        prof?.legal_name ||
+        'Your clinic';
+      const linked = await attachWalletAndMaybeInvite({
+        person: patient,
+        operatorUserId: gate.userId,
+        sendInvite: true,
+        module: 'psychiatrygraph',
+        companyId,
+        businessName,
+        invitedBy: String(body.invitedBy || body.invited_by || 'Your care team'),
+        issuePortalToken: () => issuePatientPortalToken(companyId),
+      });
+      const pi = store.patients.findIndex((p) => p.id === patient.id);
+      if (pi >= 0) store.patients[pi] = linked.person;
+      if (!linked.invite && !String(linked.person.email || '').includes('@')) {
+        return NextResponse.json(
+          { error: 'A valid email is required to send a patient invite' },
+          { status: 400 }
+        );
+      }
+      await saveStore(companyId, meta, store);
+      void import('@/lib/b2c/directory').then(({ indexBrandPerson }) =>
+        indexBrandPerson({
+          kind: 'psychiatry',
+          companyId,
+          companyName: businessName,
+          brand: businessName,
+          refId: linked.person.id,
+          refLabel: linked.person.name,
+          email: linked.person.email,
+          phone: linked.person.phone,
+          portalToken: linked.person.portal_token,
+          portalPath: linked.person.portal_token
+            ? `/member/psychiatrygraph/${encodeURIComponent(linked.person.portal_token)}`
+            : undefined,
+        })
+      );
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summarisePsychiatrygraph(store),
+        analysis: analysis(store),
+        invite_token: linked.invite?.invite_token,
+        invite_link: linked.invite?.invite_link,
+        portal_token: linked.person.portal_token,
+        email_sent: Boolean(linked.invite?.email_sent),
+        warning: linked.invite?.warning,
+        wallet_linked: linked.wallet_linked,
+        message: linked.invite?.warning
+          ? linked.invite.warning
+          : `Patient invite sent to ${linked.person.email}`,
       });
     }
 
@@ -1138,7 +1217,56 @@ export async function POST(request: NextRequest) {
 
       }
 
+      const existingPatientId = rec.id ? String(rec.id) : '';
+      const patientWasNew =
+        entity === 'patients' &&
+        (!existingPatientId ||
+          !store.patients.some((p) => p.id === existingPatientId));
+
       upsert(store, entity, rec, now);
+
+      let walletInvite: {
+        email_sent?: boolean;
+        warning?: string;
+        invite_link?: string;
+        wallet_linked?: boolean;
+        email?: string;
+      } | null = null;
+      if (entity === 'patients') {
+        const person =
+          store.patients.find(
+            (p) => existingPatientId && p.id === existingPatientId
+          ) || store.patients[store.patients.length - 1];
+        if (person) {
+          const { attachWalletAndMaybeInvite } = await import(
+            '@/lib/services/desk-wallet-link'
+          );
+          const sendInvite =
+            rec.send_wallet_invite !== false &&
+            (patientWasNew || rec.send_wallet_invite === true);
+          const linked = await attachWalletAndMaybeInvite({
+            person,
+            operatorUserId: gate.userId,
+            sendInvite,
+            module: 'psychiatrygraph',
+            companyId,
+            businessName: store.settings?.brand_name || 'Your clinic',
+            invitedBy: String(
+              rec.invited_by || rec.invitedBy || 'Your care team'
+            ),
+            issuePortalToken: () => issuePatientPortalToken(companyId),
+          });
+          const pi = store.patients.findIndex((p) => p.id === person.id);
+          if (pi >= 0) store.patients[pi] = linked.person;
+          walletInvite = {
+            email_sent: linked.invite?.email_sent,
+            warning: linked.invite?.warning,
+            invite_link: linked.invite?.invite_link,
+            wallet_linked: linked.wallet_linked,
+            email: linked.person.email,
+          };
+        }
+      }
 
       let peopleSync: { employeeId: number | null; created?: boolean } | null =
         null;
@@ -1166,12 +1294,22 @@ export async function POST(request: NextRequest) {
         summary: summarisePsychiatrygraph(store),
         analysis: analysis(store),
         people_sync: peopleSync,
+        invite_sent: walletInvite?.email_sent,
+        invite_link: walletInvite?.invite_link,
+        wallet_linked: walletInvite?.wallet_linked,
+        warning: walletInvite?.warning,
         message:
           entity === 'practitioners' && peopleSync?.employeeId
             ? peopleSync.created
               ? 'Practitioner saved and added to People directory'
               : 'Practitioner saved and People record updated'
-            : undefined,
+            : walletInvite?.warning
+              ? walletInvite.warning
+              : walletInvite?.email_sent
+                ? `Patient saved — invite sent to ${walletInvite.email} to link their SA Member wallet`
+                : walletInvite?.wallet_linked
+                  ? 'Patient saved — profile and family pulled from their SA Member wallet'
+                  : undefined,
       });
     }
 
@@ -1376,6 +1514,13 @@ function upsert(
             ? String(rec.portal_token)
             : null
           : prev?.portal_token ?? null,
+      platform_user_id:
+        rec.platform_user_id !== undefined
+          ? rec.platform_user_id
+            ? String(rec.platform_user_id)
+            : null
+          : prev?.platform_user_id ?? null,
+      ...mergeInviteFieldsFromRecord(prev, rec),
       status: String(rec.membership_status || rec.status || prev?.status || 'active'),
       practitioner_id:
         rec.practitioner_id !== undefined

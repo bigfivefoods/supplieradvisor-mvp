@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { Copy, Link2, Pencil, X } from 'lucide-react';
+import { Copy, Link2, Mail, Pencil, X } from 'lucide-react';
 import {
   LoadingBlock,
   MedicalgraphWorkbench,
@@ -34,6 +34,10 @@ import {
   InlineSelect,
   InlineText,
 } from '@/components/services/InlineListFields';
+import {
+  DeskUseMyWalletButton,
+  DeskWalletInviteToggle,
+} from '@/components/b2c/DeskWalletPatientFields';
 
 type PatientForm = {
   id?: string;
@@ -49,6 +53,7 @@ type PatientForm = {
   notes: string;
   clinical: InjuryFormState;
   popia_consent: boolean;
+  send_wallet_invite: boolean;
 };
 
 const blankForm = (): PatientForm => ({
@@ -64,6 +69,7 @@ const blankForm = (): PatientForm => ({
   notes: '',
   clinical: emptyInjuryForm(),
   popia_consent: false,
+  send_wallet_invite: true,
 });
 
 export default function PatientsPage() {
@@ -87,6 +93,7 @@ export default function PatientsPage() {
       notes: p.notes || '',
       clinical: healthToForm(p.clinical, p.diagnosis_notes),
       popia_consent: !!p.popia_consent_at,
+      send_wallet_invite: !p.invite_sent_at,
     });
     setEditing(true);
   };
@@ -127,34 +134,47 @@ export default function PatientsPage() {
       return;
     }
     const clinical = formToHealthPayload(form.clinical);
-    await post({
-      entity: 'patients',
-      action: 'upsert',
-      record: {
-        id: form.id,
-        code: form.code,
-        name: form.name,
-        email: form.email,
-        phone: form.phone,
-        photo_url: form.photo_url || '',
-        status: form.status,
-        practitioner_id: form.practitioner_id || null,
-        package_id: form.package_id || null,
-        emergency_contact: form.emergency_contact,
-        notes: form.notes,
-        ...(form.id
-          ? {}
-          : {
-              popia_consent_at: form.popia_consent
-                ? new Date().toISOString()
-                : null,
-            }),
-        clinical,
-        diagnosis_notes: clinical.diagnosis_notes,
-        clinical_updated_by: 'desk',
-      },
-    });
-    toast.success(form.id ? 'Patient profile updated' : 'Patient saved');
+    let data: Record<string, unknown> | undefined;
+    try {
+      data = await post({
+        entity: 'patients',
+        action: 'upsert',
+        record: {
+          id: form.id,
+          code: form.code,
+          name: form.name,
+          email: form.email,
+          phone: form.phone,
+          photo_url: form.photo_url || '',
+          status: form.status,
+          practitioner_id: form.practitioner_id || null,
+          package_id: form.package_id || null,
+          emergency_contact: form.emergency_contact,
+          notes: form.notes,
+          send_wallet_invite: form.send_wallet_invite,
+          ...(form.id
+            ? {}
+            : {
+                popia_consent_at: form.popia_consent
+                  ? new Date().toISOString()
+                  : null,
+              }),
+          clinical,
+          diagnosis_notes: clinical.diagnosis_notes,
+          clinical_updated_by: 'desk',
+        },
+      });
+    } catch {
+      return;
+    }
+    if (data?.warning) toast.warning(String(data.warning));
+    else
+      toast.success(
+        String(
+          data?.message ||
+            (form.id ? 'Patient profile updated' : 'Patient saved')
+        )
+      );
     setForm(blankForm());
     setEditing(false);
   };
@@ -178,6 +198,32 @@ export default function PatientsPage() {
       } else {
         toast.success('Patient portal issued');
       }
+    } catch {
+      /* toast in post */
+    }
+  };
+
+  const invitePatient = async (p: MedicalPatient) => {
+    try {
+      const data = await post({
+        action: 'invite_patient',
+        patientId: p.id,
+        email: p.email,
+      });
+      const link = data?.invite_link as string | undefined;
+      if (link && typeof window !== 'undefined') {
+        try {
+          await navigator.clipboard.writeText(link);
+        } catch {
+          /* ignore */
+        }
+      }
+      if (data?.warning) toast.warning(String(data.warning));
+      else
+        toast.success(
+          data?.message ||
+            `Invite sent to ${p.email || 'their wallet'} — they can link this practice`
+        );
     } catch {
       /* toast in post */
     }
@@ -225,7 +271,7 @@ export default function PatientsPage() {
             description={
               editing
                 ? 'Update contact and clinical awareness for the whole practice.'
-                : 'Register a patient; capture injury region, diagnosis and goals so treatment stays aligned.'
+                : 'Register a patient. If this is you, use your wallet — we email a link so the practice is added to SA Member.'
             }
             onSubmit={() => void save()}
             saving={saving}
@@ -257,6 +303,20 @@ export default function PatientsPage() {
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             />
+            <div className="sm:col-span-2 lg:col-span-3">
+              <DeskUseMyWalletButton
+                disabled={saving}
+                onFill={(w) =>
+                  setForm((f) => ({
+                    ...f,
+                    name: f.name.trim() || w.full_name || f.name,
+                    email: w.email || f.email,
+                    phone: w.phone || f.phone,
+                    photo_url: w.photo_url || f.photo_url,
+                  }))
+                }
+              />
+            </div>
             <input
               className={fc()}
               placeholder="Email"
@@ -335,6 +395,15 @@ export default function PatientsPage() {
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
             />
+            <div className="sm:col-span-2 lg:col-span-3">
+              <DeskWalletInviteToggle
+                checked={form.send_wallet_invite}
+                onChange={(send_wallet_invite) =>
+                  setForm((f) => ({ ...f, send_wallet_invite }))
+                }
+                email={form.email}
+              />
+            </div>
             {!form.id ? (
               <div className="sm:col-span-2 lg:col-span-3">
                 <PopiaConsentNotice
@@ -545,6 +614,14 @@ export default function PatientsPage() {
                           <Copy className="w-3 h-3" /> Portal
                         </button>
                       ) : null}
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800"
+                        onClick={() => void invitePatient(p)}
+                      >
+                        <Mail className="w-3 h-3" />
+                        {p.invite_sent_at ? 'Re-invite' : 'Email wallet link'}
+                      </button>
                       <button
                         type="button"
                         className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-900"

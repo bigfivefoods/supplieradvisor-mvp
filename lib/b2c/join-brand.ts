@@ -30,6 +30,10 @@ import {
   loadBusinessWorkspaceSummary,
 } from '@/lib/b2c/workspace';
 import {
+  refreshWalletHousehold,
+  stampSnapshotOnPerson,
+} from '@/lib/b2c/wallet-household';
+import {
   gymCheckinPath,
   issueClientPortalToken,
   newId as newFitId,
@@ -179,6 +183,14 @@ export async function acceptBrandJoin(opts: {
     full_name: opts.full_name,
     phone: opts.phone,
   });
+  try {
+    profile = await refreshWalletHousehold(profile, {
+      extraCompanyIds: workspace?.businesses?.map((b) => b.id) || [],
+      push: false,
+    });
+  } catch {
+    /* harvest is best-effort — still create the desk record */
+  }
   const email = opts.email || profile.email || null;
   const phone = opts.phone || profile.phone || null;
   const displayName =
@@ -363,6 +375,7 @@ async function joinGym(opts: {
   if (opts.email && !client.email) client.email = opts.email;
   if (opts.phone && !client.phone) client.phone = opts.phone;
   if (!client.name) client.name = opts.displayName;
+  client = await stampSnapshotOnPerson(client, opts.profile);
   client.invite_status = 'accepted';
   client.invite_accepted_at = now;
   client.updated_at = now;
@@ -548,7 +561,8 @@ async function joinClinic(opts: {
       newId: () => newPhysioId('pat'),
       issueToken: () => issuePhysioToken(opts.company.id),
     });
-    store.patients = patients;
+    const stamped = await stampSnapshotOnPerson(person, opts.profile);
+    store.patients = patients.map((p) => (p.id === stamped.id ? stamped : p));
     await saveMeta(
       opts.company.id,
       writePhysiographToMetadata(opts.company.meta, store)
@@ -559,7 +573,7 @@ async function joinClinic(opts: {
       kind: 'physio',
       path: 'physiograph',
       brand: store.settings?.brand_name || opts.company.name,
-      person,
+      person: stamped,
       email: opts.email,
       phone: opts.phone,
     });
@@ -572,7 +586,8 @@ async function joinClinic(opts: {
       newId: () => newDentalId('pat'),
       issueToken: () => issueDentalPatientPortalToken(opts.company.id),
     });
-    store.patients = patients;
+    const stamped = await stampSnapshotOnPerson(person, opts.profile);
+    store.patients = patients.map((p) => (p.id === stamped.id ? stamped : p));
     await saveMeta(
       opts.company.id,
       writeDentalgraphToMetadata(opts.company.meta, store)
@@ -583,7 +598,7 @@ async function joinClinic(opts: {
       kind: 'dental',
       path: 'dentalgraph',
       brand: store.settings?.brand_name || opts.company.name,
-      person,
+      person: stamped,
       email: opts.email,
       phone: opts.phone,
     });
@@ -596,7 +611,8 @@ async function joinClinic(opts: {
       newId: () => newMedicalId('pat'),
       issueToken: () => issueMedicalToken(opts.company.id),
     });
-    store.patients = patients;
+    const stamped = await stampSnapshotOnPerson(person, opts.profile);
+    store.patients = patients.map((p) => (p.id === stamped.id ? stamped : p));
     await saveMeta(
       opts.company.id,
       writeMedicalgraphToMetadata(opts.company.meta, store)
@@ -607,7 +623,7 @@ async function joinClinic(opts: {
       kind: 'medical',
       path: 'medicalgraph',
       brand: store.settings?.brand_name || opts.company.name,
-      person,
+      person: stamped,
       email: opts.email,
       phone: opts.phone,
     });
@@ -619,7 +635,8 @@ async function joinClinic(opts: {
     newId: () => newPsychiatryId('pat'),
     issueToken: () => issuePsychiatryToken(opts.company.id),
   });
-  store.patients = patients;
+  const stamped = await stampSnapshotOnPerson(person, opts.profile);
+  store.patients = patients.map((p) => (p.id === stamped.id ? stamped : p));
   await saveMeta(
     opts.company.id,
     writePsychiatrygraphToMetadata(opts.company.meta, store)
@@ -630,7 +647,7 @@ async function joinClinic(opts: {
     kind: 'psychiatry',
     path: 'psychiatrygraph',
     brand: store.settings?.brand_name || opts.company.name,
-    person,
+    person: stamped,
     email: opts.email,
     phone: opts.phone,
   });

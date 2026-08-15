@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Accept a GymAdvisor / PhysioAdvisor / DentalAdvisor member or patient invite,
- * then open the self-serve portal (classes, appointments, feedback, medical).
+ * Accept a GymAdvisor / clinic member or patient invite,
+ * then open SA Member and link this business to the wallet.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -113,7 +113,11 @@ export default function JoinServiceMemberPage() {
       ? 'from-teal-500 to-emerald-600'
       : invite?.module === 'dentalgraph'
         ? 'from-sky-500 to-blue-600'
-        : 'from-violet-500 to-indigo-600';
+        : invite?.module === 'medicalgraph'
+          ? 'from-indigo-500 to-slate-800'
+          : invite?.module === 'psychiatrygraph'
+            ? 'from-rose-500 to-fuchsia-800'
+            : 'from-violet-500 to-indigo-600';
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">

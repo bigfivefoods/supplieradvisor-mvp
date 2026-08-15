@@ -912,12 +912,16 @@ export function PracticeScheduleCalendar({
 
   const shift = (dir: -1 | 1) => {
     if (view === 'day') setCursor(addDays(cursor, dir));
-    else if (view === 'week') setCursor(addDays(cursor, dir * 7));
+    else if (view === 'week') setCursor(addDays(startOfWeek(cursor), dir * 7));
     else {
       const d = parseIso(cursor);
       d.setMonth(d.getMonth() + dir);
       setCursor(toIsoDate(d));
     }
+  };
+
+  const shiftWeek = (dir: -1 | 1) => {
+    setCursor(addDays(startOfWeek(cursor), dir * 7));
   };
 
   const shiftMonth = (dir: -1 | 1) => {
@@ -1504,31 +1508,66 @@ export function PracticeScheduleCalendar({
               </button>
             ))}
           </div>
-          <div className="inline-flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => shift(-1)}
-              className="rounded-xl border border-slate-200 dark:border-slate-600 p-2 hover:bg-slate-50 dark:hover:bg-slate-800"
-              aria-label="Previous"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={goToday}
-              className="rounded-xl border border-slate-200 dark:border-slate-600 px-2.5 py-1.5 text-[11px] font-bold hover:bg-slate-50 dark:hover:bg-slate-800"
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              onClick={() => shift(1)}
-              className="rounded-xl border border-slate-200 dark:border-slate-600 p-2 hover:bg-slate-50 dark:hover:bg-slate-800"
-              aria-label="Next"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+          {view === 'week' ? (
+            <div className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-0.5 dark:border-slate-600 dark:bg-slate-900">
+              <button
+                type="button"
+                onClick={() => shiftWeek(-1)}
+                className="inline-flex items-center gap-0.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold hover:bg-slate-50 dark:hover:bg-slate-800"
+                aria-label="Last week"
+                title="Show the previous week"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Last week
+              </button>
+              <button
+                type="button"
+                onClick={goToday}
+                className="rounded-lg px-2.5 py-1.5 text-[11px] font-bold hover:bg-slate-50 dark:hover:bg-slate-800"
+                title="Jump to this week"
+              >
+                This week
+              </button>
+              <button
+                type="button"
+                onClick={() => shiftWeek(1)}
+                className="inline-flex items-center gap-0.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold hover:bg-slate-50 dark:hover:bg-slate-800"
+                aria-label="Next week"
+                title="Show the next week"
+              >
+                Next week
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => shift(-1)}
+                className="rounded-xl border border-slate-200 p-2 hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-800"
+                aria-label={view === 'day' ? 'Previous day' : 'Previous month'}
+                title={view === 'day' ? 'Previous day' : 'Previous month'}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={goToday}
+                className="rounded-xl border border-slate-200 px-2.5 py-1.5 text-[11px] font-bold hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-800"
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={() => shift(1)}
+                className="rounded-xl border border-slate-200 p-2 hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-800"
+                aria-label={view === 'day' ? 'Next day' : 'Next month'}
+                title={view === 'day' ? 'Next day' : 'Next month'}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

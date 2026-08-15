@@ -8,6 +8,7 @@ import {
   type B2cMembership,
   type B2cProfile,
 } from '@/lib/b2c/types';
+import { normalizeFamilyList } from '@/lib/services/family-members';
 
 function emptyProfile(userId: string, email?: string | null): B2cProfile {
   return {
@@ -37,6 +38,7 @@ function rowToProfile(row: Record<string, unknown>): B2cProfile {
     photo_url: row.photo_url ? String(row.photo_url) : null,
     city: metadata.city ? String(metadata.city) : null,
     id_number: metadata.id_number ? String(metadata.id_number) : null,
+    family: normalizeFamilyList(metadata.family),
     memberships: memberships.filter((m) => m && m.active !== false),
     metadata,
     created_at: row.created_at ? String(row.created_at) : undefined,
@@ -135,6 +137,9 @@ export async function saveB2cProfile(profile: B2cProfile): Promise<void> {
       ...(profile.metadata || {}),
       ...(profile.city != null ? { city: profile.city } : {}),
       ...(profile.id_number != null ? { id_number: profile.id_number } : {}),
+      family: normalizeFamilyList(
+        profile.family ?? (profile.metadata || {}).family
+      ),
     },
     updated_at: now,
     created_at: profile.created_at || now,

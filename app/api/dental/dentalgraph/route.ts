@@ -1383,7 +1383,56 @@ export async function POST(request: NextRequest) {
 
       }
 
+      const existingPatientId = rec.id ? String(rec.id) : '';
+      const patientWasNew =
+        entity === 'patients' &&
+        (!existingPatientId ||
+          !store.patients.some((p) => p.id === existingPatientId));
+
       upsert(store, entity, rec, now);
+
+      let walletInvite: {
+        email_sent?: boolean;
+        warning?: string;
+        invite_link?: string;
+        wallet_linked?: boolean;
+        email?: string;
+      } | null = null;
+      if (entity === 'patients') {
+        const person =
+          store.patients.find(
+            (p) => existingPatientId && p.id === existingPatientId
+          ) || store.patients[store.patients.length - 1];
+        if (person) {
+          const { attachWalletAndMaybeInvite } = await import(
+            '@/lib/services/desk-wallet-link'
+          );
+          const sendInvite =
+            rec.send_wallet_invite !== false &&
+            (patientWasNew || rec.send_wallet_invite === true);
+          const linked = await attachWalletAndMaybeInvite({
+            person,
+            operatorUserId: gate.userId,
+            sendInvite,
+            module: 'dentalgraph',
+            companyId,
+            businessName: store.settings?.brand_name || 'Your practice',
+            invitedBy: String(
+              rec.invited_by || rec.invitedBy || 'Your dental team'
+            ),
+            issuePortalToken: () => issueDentalPatientPortalToken(companyId),
+          });
+          const pi = store.patients.findIndex((p) => p.id === person.id);
+          if (pi >= 0) store.patients[pi] = linked.person;
+          walletInvite = {
+            email_sent: linked.invite?.email_sent,
+            warning: linked.invite?.warning,
+            invite_link: linked.invite?.invite_link,
+            wallet_linked: linked.wallet_linked,
+            email: linked.person.email,
+          };
+        }
+      }
 
       let peopleSync: { employeeId: number | null; created?: boolean } | null =
         null;
@@ -1411,12 +1460,22 @@ export async function POST(request: NextRequest) {
         summary: summariseDentalgraph(store),
         analysis: analysis(store),
         people_sync: peopleSync,
+        invite_sent: walletInvite?.email_sent,
+        invite_link: walletInvite?.invite_link,
+        wallet_linked: walletInvite?.wallet_linked,
+        warning: walletInvite?.warning,
         message:
           entity === 'staff' && peopleSync?.employeeId
             ? peopleSync.created
               ? 'Staff saved and added to People directory'
               : 'Staff saved and People record updated'
-            : undefined,
+            : walletInvite?.warning
+              ? walletInvite.warning
+              : walletInvite?.email_sent
+                ? `Patient saved — invite sent to ${walletInvite.email} to link their SA Member wallet`
+                : walletInvite?.wallet_linked
+                  ? 'Patient saved — profile and family pulled from their SA Member wallet'
+                  : undefined,
       });
     }
 

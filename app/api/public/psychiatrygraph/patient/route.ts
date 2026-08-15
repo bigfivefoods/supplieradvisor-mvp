@@ -116,6 +116,27 @@ export async function GET(request: NextRequest) {
     if (!resolved) {
       return NextResponse.json({ error: 'Patient portal not found' }, { status: 404 });
     }
+    try {
+      const { maybeHydratePortalPerson } = await import(
+        '@/lib/b2c/wallet-household'
+      );
+      const hydrated = await maybeHydratePortalPerson(
+        request,
+        resolved.patient
+      );
+      if (hydrated.changed) {
+        const pi = resolved.store.patients.findIndex(
+          (p) => p.id === resolved.patient.id
+        );
+        if (pi >= 0) {
+          resolved.store.patients[pi] = hydrated.person;
+          await saveStore(resolved.companyId, resolved.meta, resolved.store);
+        }
+        resolved.patient = hydrated.person;
+      }
+    } catch {
+      /* wallet hydrate is best-effort */
+    }
     return NextResponse.json({
       success: true,
       portal: buildPatientPortalPayload(
@@ -239,12 +260,20 @@ export async function POST(request: NextRequest) {
       }
       store.patients[pi] = p;
       await saveStore(companyId, meta, store);
+      try {
+        const { writeThroughPortalIdentity } = await import(
+          '@/lib/b2c/wallet-household'
+        );
+        await writeThroughPortalIdentity(p);
+      } catch {
+        /* wallet write-through is best-effort */
+      }
       return NextResponse.json({
         success: true,
         portal: buildPatientPortalPayload(store, p),
         message: result.emailChanged
-          ? 'Profile updated — email synced to clinic records and care messages'
-          : 'Profile updated',
+          ? 'Profile updated — email synced to your wallet and clinic records'
+          : 'Profile updated on your wallet',
       });
     }
 
@@ -266,13 +295,21 @@ export async function POST(request: NextRequest) {
       p.updated_at = now;
       store.patients[pi] = p;
       await saveStore(companyId, meta, store);
+      try {
+        const { writeThroughFamilyUpsert } = await import(
+          '@/lib/b2c/wallet-household'
+        );
+        await writeThroughFamilyUpsert(p, member);
+      } catch {
+        /* wallet write-through is best-effort */
+      }
       return NextResponse.json({
         success: true,
         member,
         portal: buildPatientPortalPayload(store, p),
         message: patch.id
           ? 'Family member updated'
-          : 'Family member added — synced to the practice',
+          : 'Family member added — saved on your wallet and this clinic',
       });
     }
 
@@ -292,6 +329,14 @@ export async function POST(request: NextRequest) {
       p.updated_at = now;
       store.patients[pi] = p;
       await saveStore(companyId, meta, store);
+      try {
+        const { writeThroughFamilyRemove } = await import(
+          '@/lib/b2c/wallet-household'
+        );
+        await writeThroughFamilyRemove(p, famId);
+      } catch {
+        /* wallet write-through is best-effort */
+      }
       return NextResponse.json({
         success: true,
         portal: buildPatientPortalPayload(store, p),

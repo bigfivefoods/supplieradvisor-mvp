@@ -28,6 +28,20 @@ import {
   type DentalgraphStore,
 } from '@/lib/dental/dentalgraph';
 import {
+  issuePatientPortalToken as issueMedicalToken,
+  readMedicalgraphFromMetadata,
+  writeMedicalgraphToMetadata,
+  type MedicalPatient,
+  type MedicalgraphStore,
+} from '@/lib/clinic/medicalgraph';
+import {
+  issuePatientPortalToken as issuePsychiatryToken,
+  readPsychiatrygraphFromMetadata,
+  writePsychiatrygraphToMetadata,
+  type PsychiatryPatient,
+  type PsychiatrygraphStore,
+} from '@/lib/clinic/psychiatrygraph';
+import {
   buildServiceMemberPortalLink,
   isInviteExpired,
   isServiceMemberModule,
@@ -46,7 +60,12 @@ type ResolvedInvite = {
   companyId: number;
   meta: Record<string, unknown>;
   businessName: string;
-  person: FitClient | PhysioPatient | DentalPatient;
+  person:
+    | FitClient
+    | PhysioPatient
+    | DentalPatient
+    | MedicalPatient
+    | PsychiatryPatient;
   personKind: 'client' | 'patient';
 };
 
@@ -132,6 +151,36 @@ async function resolveInvite(
     };
   }
 
+  if (module === 'medicalgraph') {
+    const store = readMedicalgraphFromMetadata(meta);
+    const brand = store.settings?.brand_name || businessName;
+    const person = store.patients.find((p) => p.invite_token === clean);
+    if (!person || person.active === false) return null;
+    return {
+      module,
+      companyId: Number(prof.id),
+      meta,
+      businessName: brand,
+      person,
+      personKind: 'patient',
+    };
+  }
+
+  if (module === 'psychiatrygraph') {
+    const store = readPsychiatrygraphFromMetadata(meta);
+    const brand = store.settings?.brand_name || businessName;
+    const person = store.patients.find((p) => p.invite_token === clean);
+    if (!person || person.active === false) return null;
+    return {
+      module,
+      companyId: Number(prof.id),
+      meta,
+      businessName: brand,
+      person,
+      personKind: 'patient',
+    };
+  }
+
   return null;
 }
 
@@ -158,7 +207,8 @@ function invitePreview(resolved: ResolvedInvite) {
       medical:
         resolved.module === 'fitgraph'
           ? false
-          : (p as PhysioPatient | DentalPatient).share_medical !== false,
+          : (p as PhysioPatient | DentalPatient | MedicalPatient | PsychiatryPatient)
+              .share_medical !== false,
     },
     can_claim: !expired && (status === 'pending' || status === 'accepted'),
   };
@@ -347,6 +397,62 @@ export async function POST(request: NextRequest) {
         .update({ metadata: nextMeta, updated_at: now })
         .eq('id', resolved.companyId);
       if (error) throw new Error(error.message);
+    } else if (resolved.module === 'medicalgraph') {
+      const store = readMedicalgraphFromMetadata(
+        resolved.meta
+      ) as MedicalgraphStore;
+      const idx = store.patients.findIndex((p) => p.invite_token === token);
+      if (idx < 0) {
+        return NextResponse.json({ error: 'Invite not found' }, { status: 404 });
+      }
+      if (!store.patients[idx].portal_token) {
+        store.patients[idx].portal_token = issueMedicalToken(resolved.companyId);
+      }
+      store.patients[idx].invite_status = 'accepted';
+      store.patients[idx].invite_accepted_at = now;
+      store.patients[idx].updated_at = now;
+      if (claimUserId) {
+        const { linkPlatformUserId } = await import(
+          '@/lib/messaging/link-platform-user'
+        );
+        linkPlatformUserId(store.patients[idx], claimUserId);
+      }
+      portalToken = store.patients[idx].portal_token!;
+      const nextMeta = writeMedicalgraphToMetadata(resolved.meta, store);
+      const { error } = await supabase
+        .from('profiles')
+        .update({ metadata: nextMeta, updated_at: now })
+        .eq('id', resolved.companyId);
+      if (error) throw new Error(error.message);
+    } else if (resolved.module === 'psychiatrygraph') {
+      const store = readPsychiatrygraphFromMetadata(
+        resolved.meta
+      ) as PsychiatrygraphStore;
+      const idx = store.patients.findIndex((p) => p.invite_token === token);
+      if (idx < 0) {
+        return NextResponse.json({ error: 'Invite not found' }, { status: 404 });
+      }
+      if (!store.patients[idx].portal_token) {
+        store.patients[idx].portal_token = issuePsychiatryToken(
+          resolved.companyId
+        );
+      }
+      store.patients[idx].invite_status = 'accepted';
+      store.patients[idx].invite_accepted_at = now;
+      store.patients[idx].updated_at = now;
+      if (claimUserId) {
+        const { linkPlatformUserId } = await import(
+          '@/lib/messaging/link-platform-user'
+        );
+        linkPlatformUserId(store.patients[idx], claimUserId);
+      }
+      portalToken = store.patients[idx].portal_token!;
+      const nextMeta = writePsychiatrygraphToMetadata(resolved.meta, store);
+      const { error } = await supabase
+        .from('profiles')
+        .update({ metadata: nextMeta, updated_at: now })
+        .eq('id', resolved.companyId);
+      if (error) throw new Error(error.message);
     } else {
       const store = readDentalgraphFromMetadata(
         resolved.meta
@@ -388,7 +494,11 @@ export async function POST(request: NextRequest) {
         ? 'gym'
         : resolved.module === 'physiograph'
           ? 'physio'
-          : 'dental';
+          : resolved.module === 'medicalgraph'
+            ? 'medical'
+            : resolved.module === 'psychiatrygraph'
+              ? 'psychiatry'
+              : 'dental';
     const person = resolved.person as {
       id: string;
       name: string;

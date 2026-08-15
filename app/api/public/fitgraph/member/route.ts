@@ -142,39 +142,26 @@ export async function GET(request: NextRequest) {
     const from = request.nextUrl.searchParams.get('from') || undefined;
     const to = request.nextUrl.searchParams.get('to') || undefined;
 
-    // Link platform system user when member is logged into SupplierAdvisor
     try {
-      const { requireVerifiedUser, legacyPrivyFrom } = await import(
-        '@/lib/auth/api-auth'
+      const { maybeHydratePortalPerson } = await import(
+        '@/lib/b2c/wallet-household'
       );
-      const { linkPlatformUserId } = await import(
-        '@/lib/messaging/link-platform-user'
+      const hydrated = await maybeHydratePortalPerson(
+        request,
+        resolved.client
       );
-      const gate = await requireVerifiedUser(request, {
-        legacyPrivyUserId: legacyPrivyFrom(request),
-      });
-      if (gate.ok && gate.userId) {
+      if (hydrated.changed) {
         const ci = resolved.store.clients.findIndex(
           (c) => c.id === resolved.client.id
         );
         if (ci >= 0) {
-          const before = resolved.store.clients[ci].platform_user_id;
-          linkPlatformUserId(resolved.store.clients[ci], gate.userId);
-          if (
-            resolved.store.clients[ci].platform_user_id &&
-            resolved.store.clients[ci].platform_user_id !== before
-          ) {
-            await saveStore(
-              resolved.companyId,
-              resolved.meta,
-              resolved.store
-            );
-            resolved.client = resolved.store.clients[ci];
-          }
+          resolved.store.clients[ci] = hydrated.person;
+          await saveStore(resolved.companyId, resolved.meta, resolved.store);
         }
+        resolved.client = hydrated.person;
       }
     } catch {
-      /* portal works without login */
+      /* wallet hydrate is best-effort */
     }
 
     const portal = buildMemberPortalPayload(
@@ -383,12 +370,20 @@ export async function POST(request: NextRequest) {
       }
       store.clients[ci] = c;
       await saveStore(companyId, meta, store);
+      try {
+        const { writeThroughPortalIdentity } = await import(
+          '@/lib/b2c/wallet-household'
+        );
+        await writeThroughPortalIdentity(c);
+      } catch {
+        /* wallet write-through is best-effort */
+      }
       return NextResponse.json({
         success: true,
         portal: buildMemberPortalPayload(store, c),
         message: result.emailChanged
-          ? 'Profile updated — email synced to gym records and care messages'
-          : 'Profile updated',
+          ? 'Profile updated — email synced to your wallet and gym records'
+          : 'Profile updated on your wallet',
       });
     }
 
@@ -409,13 +404,21 @@ export async function POST(request: NextRequest) {
       c.updated_at = now;
       store.clients[ci] = c;
       await saveStore(companyId, meta, store);
+      try {
+        const { writeThroughFamilyUpsert } = await import(
+          '@/lib/b2c/wallet-household'
+        );
+        await writeThroughFamilyUpsert(c, member);
+      } catch {
+        /* wallet write-through is best-effort */
+      }
       return NextResponse.json({
         success: true,
         member,
         portal: buildMemberPortalPayload(store, c),
         message: patch.id
           ? 'Family member updated'
-          : 'Family member added — synced to gym desk',
+          : 'Family member added — saved on your wallet and this gym',
       });
     }
 
@@ -435,6 +438,14 @@ export async function POST(request: NextRequest) {
       c.updated_at = now;
       store.clients[ci] = c;
       await saveStore(companyId, meta, store);
+      try {
+        const { writeThroughFamilyRemove } = await import(
+          '@/lib/b2c/wallet-household'
+        );
+        await writeThroughFamilyRemove(c, famId);
+      } catch {
+        /* wallet write-through is best-effort */
+      }
       return NextResponse.json({
         success: true,
         portal: buildMemberPortalPayload(store, c),

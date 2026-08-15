@@ -49,6 +49,7 @@ import {
   loadWalletCompany,
   saveWalletCompanyMeta,
 } from '@/lib/b2c/load-company';
+import { hydratePersonFromWallet } from '@/lib/b2c/wallet-household';
 
 export type LinkTokenResult =
   | {
@@ -131,6 +132,11 @@ async function linkClinicPatient(opts: {
     };
   }
   linkPlatformUserId(patient, opts.platformUserId);
+  const hydrated = await hydratePersonFromWallet(patient, {
+    userId: opts.platformUserId,
+    email: patient.email,
+  });
+  Object.assign(patient, hydrated.person);
   const idx = opts.store.patients.findIndex(
     (p: PersonLike) => p.id === patient.id
   );
@@ -401,6 +407,11 @@ export async function resolveAndLinkPortalToken(
         return { ok: false, error: 'Gym member portal not found' };
       }
       linkPlatformUserId(client, platformUserId);
+      const hydrated = await hydratePersonFromWallet(client, {
+        userId: platformUserId,
+        email: client.email,
+      });
+      Object.assign(client, hydrated.person);
       const ci = store.clients.findIndex((c) => c.id === client.id);
       if (ci >= 0) store.clients[ci] = client;
       await saveMeta(companyId, writeFitgraphToMetadata(company.meta, store));

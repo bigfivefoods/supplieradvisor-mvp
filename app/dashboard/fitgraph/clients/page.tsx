@@ -26,6 +26,7 @@ import {
 import { AdvisorTreatmentPlanPanel } from '@/components/services/AdvisorTreatmentPlanPanel';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
+import { DeskUseMyWalletButton } from '@/components/b2c/DeskWalletPatientFields';
 import {
   AdvisorIncomingShares,
   AdvisorProfileShare,
@@ -455,6 +456,20 @@ export default function ClientsPage() {
                 setForm((f) => ({ ...f, name: e.target.value }))
               }
             />
+            <div className="sm:col-span-2 lg:col-span-3">
+              <DeskUseMyWalletButton
+                disabled={saving}
+                onFill={(w) =>
+                  setForm((f) => ({
+                    ...f,
+                    name: f.name.trim() || w.full_name || f.name,
+                    email: w.email || f.email,
+                    phone: w.phone || f.phone,
+                    photo_url: w.photo_url || f.photo_url,
+                  }))
+                }
+              />
+            </div>
             <input
               className={fc()}
               placeholder="Email"

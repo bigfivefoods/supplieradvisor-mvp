@@ -61,6 +61,8 @@ export type B2cProfile = {
   photo_url?: string | null;
   city?: string | null;
   id_number?: string | null;
+  /** Household — one list for every gym / clinic this wallet links. */
+  family?: import('@/lib/services/family-members').FamilyMember[];
   memberships: B2cMembership[];
   metadata?: Record<string, unknown>;
   created_at?: string;
