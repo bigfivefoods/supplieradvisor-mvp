@@ -39,6 +39,10 @@ import {
 } from '@/lib/messaging/service-inbox';
 import { issueFeedbackPrompt } from '@/lib/services/booking-feedback';
 import {
+  applyAnnouncementAction,
+  isAnnouncementAction,
+} from '@/lib/services/member-announcements';
+import {
   addMedicalDocument,
   mergeMedicalRecord,
   removeMedicalDocument,
@@ -281,6 +285,30 @@ export async function POST(request: NextRequest) {
         analysis: analysis(store),
         message: 'Website / clinic settings updated',
       });
+    }
+
+    if (isAnnouncementAction(action)) {
+      try {
+        const result = applyAnnouncementAction(
+          store.announcements,
+          action,
+          body
+        );
+        store.announcements = result.list;
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          store,
+          summary: summarisePhysiograph(store),
+          analysis: analysis(store),
+          message: result.message,
+        });
+      } catch (e: unknown) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : 'Announcement failed' },
+          { status: 400 }
+        );
+      }
     }
 
     /** Patient medical chart: docs, medical aid, claims */

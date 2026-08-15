@@ -26,3 +26,15 @@ export type B2cCareClinic = {
   classesHref?: string;
   progressHref?: string;
 };
+
+export type B2cCareAnnouncement = {
+  id: string;
+  kind: string;
+  brand: string;
+  title: string;
+  body: string;
+  href: string;
+  pinned?: boolean;
+  cta_label?: string | null;
+  cta_href?: string | null;
+};

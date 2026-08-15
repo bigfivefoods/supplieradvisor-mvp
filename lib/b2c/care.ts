@@ -11,21 +11,25 @@ import { readFitgraphFromMetadata } from '@/lib/fitness/fitgraph';
 import { buildPatientMedicalShare } from '@/lib/clinic/medical-share';
 import type { B2cMembership } from '@/lib/b2c/types';
 import type {
+  B2cCareAnnouncement,
   B2cCareBooking,
   B2cCareClinic,
   B2cCareRecord,
 } from '@/lib/b2c/care-types';
+import { publishedAnnouncements } from '@/lib/services/member-announcements';
 
-export type { B2cCareBooking, B2cCareClinic, B2cCareRecord };
+export type { B2cCareAnnouncement, B2cCareBooking, B2cCareClinic, B2cCareRecord };
 
 export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
   bookings: B2cCareBooking[];
   records: B2cCareRecord[];
   clinics: B2cCareClinic[];
+  announcements: B2cCareAnnouncement[];
 }> {
   const bookings: B2cCareBooking[] = [];
   const records: B2cCareRecord[] = [];
   const clinics: B2cCareClinic[] = [];
+  const announcements: B2cCareAnnouncement[] = [];
   const today = new Date().toISOString().slice(0, 10);
   const supabase = getSupabaseServer();
 
@@ -65,6 +69,19 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
       const store = readFitgraphFromMetadata(meta);
       const client = store.clients.find((c) => c.id === mem.ref_id);
       if (!client) continue;
+      for (const a of publishedAnnouncements(store.announcements, 4)) {
+        announcements.push({
+          id: a.id,
+          kind: 'gym',
+          brand,
+          title: a.title,
+          body: a.body,
+          href: mem.portal_path,
+          pinned: a.pinned,
+          cta_label: a.cta_label,
+          cta_href: a.cta_href,
+        });
+      }
       for (const b of store.bookings || []) {
         if (b.client_id !== client.id) continue;
         if (!['booked', 'waitlist', 'attended'].includes(String(b.status))) {
@@ -101,6 +118,20 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
     const patient = (store.patients || []).find((p) => p.id === mem.ref_id);
     if (!patient) continue;
 
+    for (const a of publishedAnnouncements(store.announcements, 4)) {
+      announcements.push({
+        id: a.id,
+        kind: mem.kind,
+        brand,
+        title: a.title,
+        body: a.body,
+        href: mem.portal_path,
+        pinned: a.pinned,
+        cta_label: a.cta_label,
+        cta_href: a.cta_href,
+      });
+    }
+
     const share = buildPatientMedicalShare(patient);
     if (share) {
       records.push({
@@ -129,5 +160,14 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
   }
 
   bookings.sort((a, b) => a.when.localeCompare(b.when));
-  return { bookings: bookings.slice(0, 20), records, clinics };
+  announcements.sort((a, b) => {
+    if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+    return a.title.localeCompare(b.title);
+  });
+  return {
+    bookings: bookings.slice(0, 20),
+    records,
+    clinics,
+    announcements: announcements.slice(0, 8),
+  };
 }

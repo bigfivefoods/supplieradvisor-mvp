@@ -14,6 +14,8 @@ import {
   buildPatientMedicalShare,
   buildSharedAdvice,
 } from '@/lib/clinic/medical-share';
+import { publishedAnnouncements } from '@/lib/services/member-announcements';
+import { logoUrlFromSettings } from '@/lib/business/company-logo';
 
 export const PSYCHIATRYGRAPH_MODULE_ID = 'psychiatrygraph' as const;
 export const PSYCHIATRYGRAPH_META_KEY = 'psychiatrygraph';
@@ -436,6 +438,7 @@ export type PsychiatrygraphStore = {
   threads?: import('@/lib/messaging/service-inbox').ServiceThread[];
   /** Patient post-visit feedback */
   appointment_feedback?: import('@/lib/services/booking-feedback').ServiceFeedback[];
+  announcements?: import('@/lib/services/member-announcements').MemberAnnouncement[];
   settings?: PsychiatryPublicSettings;
   updated_at?: string;
 };
@@ -470,6 +473,7 @@ export function emptyPsychiatrygraphStore(): PsychiatrygraphStore {
     bookings: [],
     threads: [],
     appointment_feedback: [],
+    announcements: [],
     settings: defaultPublicSettings(),
   };
 }
@@ -660,6 +664,9 @@ export function buildPatientPortalPayload(
     );
 
   return {
+    logo_url: logoUrlFromSettings(
+      store.settings as { company_logo_url?: string | null } | undefined
+    ),
     brand: store.settings?.brand_name || 'Clinic',
     bio: store.settings?.public_bio,
     timezone: store.settings?.timezone || 'Africa/Johannesburg',
@@ -712,6 +719,7 @@ export function buildPatientPortalPayload(
     })(),
     vacancies: open_slots.filter((s) => !s.full && !s.my_status),
     medical_share: buildPatientMedicalShare(patient),
+    announcements: publishedAnnouncements(store.announcements),
     shared_advice: buildSharedAdvice(store.visit_notes, patient.id),
     shares: {
       schedule: true,

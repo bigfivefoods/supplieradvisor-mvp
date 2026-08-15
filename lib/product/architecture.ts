@@ -724,6 +724,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       { name: 'Subscriptions', href: '/dashboard/fitgraph/subscriptions', desc: 'Member plans' },
       { name: 'Calendar', href: '/dashboard/fitgraph/calendar', desc: 'Schedule coaches' },
       { name: 'Website', href: '/dashboard/fitgraph/website', desc: 'Embed calendar' },
+      { name: 'Comms', href: '/dashboard/fitgraph/comms', desc: 'Ads · notices to members' },
       { name: 'Bookings', href: '/dashboard/fitgraph/bookings', desc: 'Book & attend' },
       { name: 'Suppliers', href: '/dashboard/suppliers', desc: 'Gym suppliers' },
     ],
@@ -791,6 +792,11 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
         href: '/dashboard/physiograph/website',
         desc: 'Clinic profile',
       },
+      {
+        name: 'Comms',
+        href: '/dashboard/physiograph/comms',
+        desc: 'Ads · notices to patients',
+      },
     ],
   },
   {
@@ -855,6 +861,11 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
         name: 'Website',
         href: '/dashboard/dentalgraph/website',
         desc: 'Practice profile',
+      },
+      {
+        name: 'Comms',
+        href: '/dashboard/dentalgraph/comms',
+        desc: 'Ads · notices to patients',
       },
       { name: 'Suppliers', href: '/dashboard/suppliers', desc: 'Dental supply' },
     ],

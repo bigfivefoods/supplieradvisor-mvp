@@ -13,6 +13,8 @@ import {
   buildPatientMedicalShare,
   buildSharedAdvice,
 } from '@/lib/clinic/medical-share';
+import { publishedAnnouncements } from '@/lib/services/member-announcements';
+import { logoUrlFromSettings } from '@/lib/business/company-logo';
 
 export const PHYSIOGRAPH_MODULE_ID = 'physiograph' as const;
 export const PHYSIOGRAPH_META_KEY = 'physiograph';
@@ -447,6 +449,7 @@ export type PhysiographStore = {
   threads?: import('@/lib/messaging/service-inbox').ServiceThread[];
   /** Patient post-visit feedback */
   appointment_feedback?: import('@/lib/services/booking-feedback').ServiceFeedback[];
+  announcements?: import('@/lib/services/member-announcements').MemberAnnouncement[];
   settings?: PhysioPublicSettings;
   updated_at?: string;
 };
@@ -481,6 +484,7 @@ export function emptyPhysiographStore(): PhysiographStore {
     bookings: [],
     threads: [],
     appointment_feedback: [],
+    announcements: [],
     settings: defaultPublicSettings(),
   };
 }
@@ -690,6 +694,9 @@ export function buildPatientPortalPayload(
     : null;
 
   return {
+    logo_url: logoUrlFromSettings(
+      store.settings as { company_logo_url?: string | null } | undefined
+    ),
     brand: store.settings?.brand_name || 'Clinic',
     bio: store.settings?.public_bio,
     timezone: store.settings?.timezone || 'Africa/Johannesburg',
@@ -729,6 +736,7 @@ export function buildPatientPortalPayload(
       medical: shareMedical,
     },
     medical_share,
+    announcements: publishedAnnouncements(store.announcements),
     shared_advice: shareMedical
       ? buildSharedAdvice(store.visit_notes, patient.id)
       : [],

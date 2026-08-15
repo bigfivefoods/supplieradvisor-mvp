@@ -19,6 +19,8 @@ import {
 } from '@/lib/schedule/recurrence';
 import { healthSummaryLabel } from '@/lib/health/body-map';
 import { buildRelationshipSummary } from '@/lib/fitness/fitgraph-relationship';
+import { publishedAnnouncements } from '@/lib/services/member-announcements';
+import { logoUrlFromSettings } from '@/lib/business/company-logo';
 
 // Re-export shared recurrence helpers for existing Fit imports
 export { addDaysIso, addMonthsIso, expandRecurrenceDates, weekdayOf };
@@ -1151,6 +1153,8 @@ export interface FitgraphStore {
   treatment_plans?: import('@/lib/services/advisor-clinical').TreatmentPlan[];
   /** Desk · coach · member messaging threads */
   threads?: import('@/lib/messaging/service-inbox').ServiceThread[];
+  /** Owner ads / notices shown to every member */
+  announcements?: import('@/lib/services/member-announcements').MemberAnnouncement[];
   settings?: FitPublicSettings;
   updated_at?: string;
 }
@@ -1190,6 +1194,7 @@ export function emptyFitgraphStore(): FitgraphStore {
     pt_packs: [],
     class_feedback: [],
     threads: [],
+    announcements: [],
     settings: defaultPublicSettings(),
   };
 }
@@ -1399,6 +1404,9 @@ export function buildMemberPortalPayload(
     : null;
 
   return {
+    logo_url: logoUrlFromSettings(
+      store.settings as { company_logo_url?: string | null } | undefined
+    ),
     brand:
       store.settings?.brand_name ||
       store.settings?.public_bio?.slice(0, 40) ||
@@ -1497,6 +1505,7 @@ export function buildMemberPortalPayload(
         }
       : null,
     access: evaluateMemberAccess(store, client),
+    announcements: publishedAnnouncements(store.announcements),
     ...buildMemberFacingProgress(store, client, shareFeedback, start),
   };
 }

@@ -9,8 +9,10 @@ import {
   Dumbbell,
   HeartPulse,
   Loader2,
+  Megaphone,
 } from 'lucide-react';
 import type {
+  B2cCareAnnouncement,
   B2cCareBooking,
   B2cCareClinic,
   B2cCareRecord,
@@ -48,6 +50,7 @@ export function B2cCarePanel() {
   const [bookings, setBookings] = useState<B2cCareBooking[]>([]);
   const [records, setRecords] = useState<B2cCareRecord[]>([]);
   const [clinics, setClinics] = useState<B2cCareClinic[]>([]);
+  const [announcements, setAnnouncements] = useState<B2cCareAnnouncement[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,6 +61,9 @@ export function B2cCarePanel() {
         setBookings(Array.isArray(data.bookings) ? data.bookings : []);
         setRecords(Array.isArray(data.records) ? data.records : []);
         setClinics(Array.isArray(data.clinics) ? data.clinics : []);
+        setAnnouncements(
+          Array.isArray(data.announcements) ? data.announcements : []
+        );
       })
       .catch(() => {})
       .finally(() => {
@@ -75,11 +81,35 @@ export function B2cCarePanel() {
       </div>
     );
   }
-  if (!bookings.length && !records.length && !clinics.length) return null;
+  if (!bookings.length && !records.length && !clinics.length && !announcements.length)
+    return null;
 
   return (
     <section className="space-y-3">
       <h2 className="text-sm font-black text-slate-900">Your care</h2>
+      {announcements.length > 0 ? (
+        <ul className="space-y-2">
+          {announcements.slice(0, 5).map((a) => (
+            <li key={`${a.kind}-${a.id}`}>
+              <Link
+                href={a.cta_href || a.href}
+                className="block rounded-2xl border border-amber-200 bg-white p-3 shadow-sm"
+              >
+                <div className="flex items-center gap-2 text-amber-900">
+                  <Megaphone className="h-4 w-4" />
+                  <p className="text-sm font-black">{a.brand}</p>
+                </div>
+                <p className="mt-1 text-sm font-black text-slate-900">{a.title}</p>
+                {a.body ? (
+                  <p className="mt-0.5 line-clamp-2 text-xs text-slate-600">
+                    {a.body}
+                  </p>
+                ) : null}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {bookings.length > 0 ? (
         <ul className="space-y-2">
           {bookings.slice(0, 5).map((b) => (

@@ -13,6 +13,8 @@ import {
   buildPatientMedicalShare,
   buildSharedAdvice,
 } from '@/lib/clinic/medical-share';
+import { publishedAnnouncements } from '@/lib/services/member-announcements';
+import { logoUrlFromSettings } from '@/lib/business/company-logo';
 
 export const DENTALGRAPH_MODULE_ID = 'dentalgraph' as const;
 export const DENTALGRAPH_META_KEY = 'dentalgraph';
@@ -467,6 +469,7 @@ export type DentalgraphStore = {
   threads?: import('@/lib/messaging/service-inbox').ServiceThread[];
   /** Patient post-visit feedback */
   appointment_feedback?: import('@/lib/services/booking-feedback').ServiceFeedback[];
+  announcements?: import('@/lib/services/member-announcements').MemberAnnouncement[];
   settings?: DentalPublicSettings;
   updated_at?: string;
 };
@@ -501,6 +504,7 @@ export function emptyDentalgraphStore(): DentalgraphStore {
     bookings: [],
     threads: [],
     appointment_feedback: [],
+    announcements: [],
     settings: defaultDentalPublicSettings(),
   };
 }
@@ -704,6 +708,9 @@ export function buildDentalPatientPortalPayload(
     : null;
 
   return {
+    logo_url: logoUrlFromSettings(
+      store.settings as { company_logo_url?: string | null } | undefined
+    ),
     brand: store.settings?.brand_name || 'Practice',
     bio: store.settings?.public_bio,
     timezone: store.settings?.timezone || 'Africa/Johannesburg',
@@ -745,6 +752,7 @@ export function buildDentalPatientPortalPayload(
     /** Patients may book any public clinician, not only their regular one */
     can_book_other_clinicians: true,
     medical_share,
+    announcements: publishedAnnouncements(store.announcements),
     shared_advice: shareMedical
       ? buildSharedAdvice(store.visit_notes, patient.id)
       : [],

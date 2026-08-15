@@ -64,6 +64,10 @@ import {
   buildPublicFeedbackPath,
   issueFeedbackPrompt,
 } from '@/lib/services/booking-feedback';
+import {
+  applyAnnouncementAction,
+  isAnnouncementAction,
+} from '@/lib/services/member-announcements';
 import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import {
   buildServiceMemberInviteLink,
@@ -369,6 +373,30 @@ export async function POST(request: NextRequest) {
         analysis: analysis(store),
         message: 'Website / portal settings updated',
       });
+    }
+
+    if (isAnnouncementAction(action)) {
+      try {
+        const result = applyAnnouncementAction(
+          store.announcements,
+          action,
+          body
+        );
+        store.announcements = result.list;
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          store,
+          summary: summariseFitgraph(store),
+          analysis: analysis(store),
+          message: result.message,
+        });
+      } catch (e: unknown) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : 'Announcement failed' },
+          { status: 400 }
+        );
+      }
     }
 
     if (action === 'issue_coach_portal') {
