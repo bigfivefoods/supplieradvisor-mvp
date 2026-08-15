@@ -19,10 +19,74 @@ import {
 } from 'lucide-react';
 
 /**
+ * Advisor / programme OS hubs. When a company has one of these enabled
+ * (or a pack that unlocks it), that hub is pinned first in the sidenav.
+ */
+export const ADVISOR_OS_MODULE_IDS = [
+  'fitgraph',
+  'physiograph',
+  'dentalgraph',
+  'psychiatrygraph',
+  'medicalgraph',
+  'hiregraph',
+  'retailgraph',
+  'quarrygraph',
+  'fieldgraph',
+  'schools',
+  'health',
+  'containers',
+] as const;
+
+const PACK_TO_ADVISOR_MODULE: Record<string, string> = {
+  fitness_gym: 'fitgraph',
+  allied_health_clinic: 'physiograph',
+  allied_health: 'physiograph',
+  dental: 'dentalgraph',
+  staffing_hire: 'hiregraph',
+  retail_shop: 'retailgraph',
+  quarry_aggregates: 'quarrygraph',
+  agri_regen: 'fieldgraph',
+  public_procurement: 'schools',
+  logistics_containers: 'containers',
+};
+
+/**
+ * This company's Advisor OS module(s), primary pack first.
+ * Empty when the workspace is a generic / all-modules company.
+ */
+export function advisorModulesForCompany(opts: {
+  isModuleEnabled: (id: string) => boolean;
+  packaging?: PackagingSelection | null;
+}): string[] {
+  const enabled = ADVISOR_OS_MODULE_IDS.filter((id) =>
+    opts.isModuleEnabled(id)
+  );
+  if (!enabled.length) return [];
+
+  const fromPacks: string[] = [];
+  for (const pid of opts.packaging?.packIds || []) {
+    const id = PACK_TO_ADVISOR_MODULE[String(pid)];
+    if (id && enabled.includes(id) && !fromPacks.includes(id)) {
+      fromPacks.push(id);
+    }
+  }
+  if (fromPacks.length) {
+    return [
+      ...fromPacks,
+      ...enabled.filter((id) => !fromPacks.includes(id)),
+    ];
+  }
+  // Platform / all-on workspace — keep the default functional order
+  if (enabled.length >= 6) return [];
+  return [...enabled];
+}
+
+/**
  * Functional ordering of existing MODULE_NAV ids (1:1, full trees preserved).
- * 1) Control Tower (+ Platform admin sits under it)
- * 2) Industry / programme OS (GymAdvisor · QuarryAdvisor · CropAdvisor · SchoolAdvisor)
- * 3) Core modules
+ * 1) This company's Advisor OS (GymAdvisor, PhysioAdvisor, …) when enabled
+ * 2) Control Tower (+ Platform admin)
+ * 3) Other industry / programme OS
+ * 4) Core modules
  */
 export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
   // 1 — Command / Control Tower
@@ -169,6 +233,11 @@ export function functionalSidebarModules(opts: {
   const hasPacks = packIds.length > 0;
   const out: SidebarModuleShape[] = [];
   const seen = new Set<string>();
+  const pinnedAdvisors = advisorModulesForCompany(opts);
+  const moduleOrder = [
+    ...pinnedAdvisors,
+    ...FUNCTIONAL_MODULE_ORDER.filter((id) => !pinnedAdvisors.includes(id)),
+  ];
 
   const shouldShowModule = (id: string): boolean => {
     if (!opts.isModuleEnabled(id)) return false;
@@ -179,7 +248,7 @@ export function functionalSidebarModules(opts: {
     return opts.isModuleEnabled(id);
   };
 
-  for (const id of FUNCTIONAL_MODULE_ORDER) {
+  for (const id of moduleOrder) {
     if (seen.has(id)) continue;
     if (!shouldShowModule(id)) continue;
     const m = moduleById(id);

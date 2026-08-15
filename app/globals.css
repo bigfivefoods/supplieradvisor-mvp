@@ -55,12 +55,16 @@
 }
 
 /* Advisor product skins (HireAdvisor, GymAdvisor, …) set --sa-brand via JS.
-   html[data-advisor] lets us tune chrome without rewriting every component. */
+   html[data-advisor] lets us tune chrome without rewriting every component.
+   ® inherits the same Advisor colour as the wordmark (not SA cyan). */
 html[data-advisor]:not([data-advisor='supplier']) .sa-wordmark {
   color: var(--sa-brand-deep);
 }
 html.dark[data-advisor]:not([data-advisor='supplier']) .sa-wordmark {
   color: var(--sa-brand);
+}
+html[data-advisor]:not([data-advisor='supplier']) .sa-wordmark .sa-wordmark-mark {
+  color: inherit;
 }
 
 html.dark {
@@ -1231,7 +1235,7 @@ html.dark img[src*='sa-icon'] {
 
 /*
  * Wordmark matches SA monogram navy from the logo (#203878).
- * ® uses brand cyan (check accent). Dark: white to match inverted logo.
+ * ® is SA cyan on Core OS; Advisor skins inherit the wordmark colour above.
  */
 .sa-wordmark {
   color: #203878;
