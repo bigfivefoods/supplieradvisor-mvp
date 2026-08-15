@@ -1,19 +1,47 @@
 'use client';
 
-/**
- * Context card when an advisor selects a calendar event —
- * membership, relationship, packs, actions (not a bare Outlook event).
- */
-
+import { useState } from 'react';
 import Link from 'next/link';
+import { toast } from 'sonner';
+import {
+  MessageSquare,
+  User,
+  HeartPulse,
+  Mail,
+  Phone,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import type { EnrichedScheduleEvent } from '@/lib/services/advisor-calendar-intelligence';
-import { MessageSquare, User, HeartPulse } from 'lucide-react';
+import {
+  buildIcsCalendar,
+  downloadIcsBrowser,
+  shiftSlot,
+} from '@/lib/schedule/advisor-ics';
+
+export type EventReminderTarget = {
+  email?: string | null;
+  phone?: string | null;
+  personName?: string;
+  brand?: string;
+  manageUrl?: string;
+  moduleLabel?: string;
+  companyId?: number | string;
+};
 
 type Props = {
   event: EnrichedScheduleEvent | null;
   clientsHref?: string;
   messagesHref?: string;
   onClose?: () => void;
+  reminder?: EventReminderTarget | null;
+  onReschedule?: (next: {
+    id: string;
+    date: string;
+    start_time: string;
+  }) => void | Promise<void>;
+  authHeaders?: () => Record<string, string> | Promise<Record<string, string>>;
 };
 
 export function AdvisorEventContextCard({
@@ -21,8 +49,121 @@ export function AdvisorEventContextCard({
   clientsHref = '/dashboard/fitgraph/clients',
   messagesHref = '/dashboard/fitgraph/messages',
   onClose,
+  reminder,
+  onReschedule,
+  authHeaders,
 }: Props) {
+  const [busy, setBusy] = useState(false);
   if (!event) return null;
+
+  const downloadOne = () => {
+    const ics = buildIcsCalendar([
+      {
+        id: event.id,
+        title: event.title,
+        description: [event.subtitle, event.meta].filter(Boolean).join(' · '),
+        date: event.date,
+        start_time: event.start_time,
+        end_time: event.end_time,
+        duration_min: event.duration_min,
+      },
+    ]);
+    downloadIcsBrowser(
+      `${event.title.replace(/\s+/g, '-')}-${event.date}.ics`,
+      ics
+    );
+    toast.success('ICS downloaded — import into Outlook or Google as a mirror');
+  };
+
+  const sendEmailReminder = async () => {
+    if (!reminder?.email || !reminder.companyId) {
+      toast.error('Customer email or company missing');
+      return;
+    }
+    setBusy(true);
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(authHeaders ? await authHeaders() : {}),
+      };
+      const res = await fetch('/api/schedule/remind', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          companyId: reminder.companyId,
+          channel: 'email',
+          to: reminder.email,
+          personName: reminder.personName || 'there',
+          brand: reminder.brand || 'Practice',
+          eventTitle: event.title,
+          date: event.date,
+          start_time: event.start_time,
+          location: event.subtitle,
+          manageUrl: reminder.manageUrl,
+          moduleLabel: reminder.moduleLabel,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Send failed');
+      toast.success(`Reminder emailed to ${reminder.email}`);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Email failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openWhatsApp = async () => {
+    if (!reminder?.companyId) {
+      toast.error('Company missing');
+      return;
+    }
+    setBusy(true);
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(authHeaders ? await authHeaders() : {}),
+      };
+      const res = await fetch('/api/schedule/remind', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          companyId: reminder.companyId,
+          channel: 'whatsapp',
+          phone: reminder.phone || '',
+          personName: reminder.personName || 'there',
+          brand: reminder.brand || 'Practice',
+          eventTitle: event.title,
+          date: event.date,
+          start_time: event.start_time,
+          manageUrl: reminder.manageUrl,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'WhatsApp failed');
+      if (data.whatsapp_url && typeof window !== 'undefined') {
+        window.open(String(data.whatsapp_url), '_blank', 'noopener,noreferrer');
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'WhatsApp failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const move = async (deltaMin: number) => {
+    if (!onReschedule) return;
+    const next = shiftSlot(event.date, event.start_time, deltaMin);
+    setBusy(true);
+    try {
+      await onReschedule({ id: event.id, ...next });
+      toast.success(`Moved to ${next.date} ${next.start_time}`);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Reschedule failed');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-3 dark:border-violet-800 dark:bg-violet-950/30 space-y-2">
@@ -56,7 +197,9 @@ export function AdvisorEventContextCard({
           <span className="inline-flex items-center gap-1 rounded-full bg-white border border-violet-200 px-2 py-0.5 text-[10px] font-black uppercase dark:bg-violet-950 dark:border-violet-700">
             <HeartPulse className="w-3 h-3" />
             {event.relationship_level}
-            {event.relationship_score != null ? ` · ${event.relationship_score}` : ''}
+            {event.relationship_score != null
+              ? ` · ${event.relationship_score}`
+              : ''}
           </span>
         ) : null}
         {event.no_show_risk ? (
@@ -74,16 +217,73 @@ export function AdvisorEventContextCard({
             pack {event.pack_remaining} left
           </span>
         ) : null}
-        {event.is_private_client ? (
-          <span className="rounded-full bg-sky-100 text-sky-900 px-2 py-0.5 text-[10px] font-black uppercase">
-            private client
-          </span>
-        ) : null}
       </div>
 
-      {event.meta ? (
-        <p className="text-[11px] text-slate-500">{event.meta}</p>
+      {onReschedule ? (
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void move(-15)}
+            className="inline-flex items-center gap-0.5 rounded-lg border border-violet-300 bg-white px-2 py-1 text-[10px] font-bold text-violet-900 disabled:opacity-50"
+          >
+            <ChevronLeft className="w-3 h-3" /> −15m
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void move(15)}
+            className="inline-flex items-center gap-0.5 rounded-lg border border-violet-300 bg-white px-2 py-1 text-[10px] font-bold text-violet-900 disabled:opacity-50"
+          >
+            +15m <ChevronRight className="w-3 h-3" />
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void move(24 * 60)}
+            className="rounded-lg border border-violet-300 bg-white px-2 py-1 text-[10px] font-bold text-violet-900 disabled:opacity-50"
+          >
+            +1 day
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void move(-24 * 60)}
+            className="rounded-lg border border-violet-300 bg-white px-2 py-1 text-[10px] font-bold text-violet-900 disabled:opacity-50"
+          >
+            −1 day
+          </button>
+        </div>
       ) : null}
+
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={downloadOne}
+          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-700"
+        >
+          <Download className="w-3 h-3" /> ICS
+        </button>
+        {reminder?.email ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void sendEmailReminder()}
+            className="inline-flex items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-bold text-sky-900 disabled:opacity-50"
+          >
+            <Mail className="w-3 h-3" /> Email reminder
+          </button>
+        ) : null}
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void openWhatsApp()}
+          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-900 disabled:opacity-50"
+        >
+          <Phone className="w-3 h-3" /> WhatsApp
+        </button>
+      </div>
 
       <div className="flex flex-wrap gap-2 pt-1">
         <Link
