@@ -1203,7 +1203,7 @@ export function readFitgraphFromMetadata(
   for (const key of Object.keys(e) as Array<keyof FitgraphStore>) {
     if (key === 'updated_at' || key === 'settings') continue;
     const v = s[key];
-    (e as Record<string, unknown>)[key] = Array.isArray(v) ? v : [];
+    (e as unknown as Record<string, unknown>)[key] = Array.isArray(v) ? v : [];
   }
   e.settings = {
     ...defaultPublicSettings(),
@@ -1213,7 +1213,7 @@ export function readFitgraphFromMetadata(
     e.settings.public_token = defaultPublicSettings().public_token;
   }
   e.updated_at = s.updated_at ? String(s.updated_at) : undefined;
-  const extra = s as Record<string, unknown>;
+  const extra = s as unknown as Record<string, unknown>;
   for (const key of [
     'goals',
     'journey_events',
@@ -1221,7 +1221,7 @@ export function readFitgraphFromMetadata(
     'consent_shares',
   ]) {
     if (Array.isArray(extra[key])) {
-      (e as Record<string, unknown>)[key] = extra[key];
+      (e as unknown as Record<string, unknown>)[key] = extra[key];
     }
   }
   return e;

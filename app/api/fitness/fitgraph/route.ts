@@ -1707,7 +1707,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        (store as Record<string, unknown>)[key] = list.filter(
+        (store as unknown as Record<string, unknown>)[key] = list.filter(
           (row: { id?: string }) => row.id !== id
         );
         // Drop bookings tied to a removed class
