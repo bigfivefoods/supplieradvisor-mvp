@@ -20,6 +20,8 @@ import { providerTxnId } from '../ingest';
 const DEFAULT_BASE = 'https://api.fnb.co.za';
 const DEFAULT_TOKEN_URL =
   'https://api.fnb.co.za/apigateway/oauth2/token/v2';
+const DEFAULT_STATEMENT_PATH =
+  '/apigateway/transaction-history/retrieve/v1';
 
 export function fnbConfig() {
   const clientId = (process.env.FNB_CLIENT_ID || '').trim();
@@ -465,23 +467,6 @@ export async function fetchFnbTransactions(opts?: {
     /\s+/g,
     ''
   );
-  const compact = { accountNumber: account, fromDate: from, toDate: to };
-  const pascal = { AccountNumber: account, FromDate: from, ToDate: to };
-
-  const paths: string[] = [];
-  if (cfg.statementPath) paths.push(cfg.statementPath);
-  paths.push(
-    '/apigateway/transactionhistory/v1/getTransactionHistory',
-    '/apigateway/transaction-history/v1/getTransactionHistory',
-    '/apigateway/i_can_tran_hist/v1/getTransactionHistory',
-    '/apigateway/accounts/v1/transactionhistory',
-    '/apigateway/statements/v1/RetrieveRealtimeStatement',
-    '/RetrieveRealtimeStatement',
-    '/statements/realtime',
-    '/v1/statements/realtime',
-    '/camt053/retrieve'
-  );
-
   const tried: string[] = [];
   if (!account) {
     return {
@@ -493,42 +478,49 @@ export async function fetchFnbTransactions(opts?: {
     };
   }
 
+  const qs = new URLSearchParams({
+    accountNumber: account,
+    fromDate: from,
+    toDate: to,
+  }).toString();
+  const paths = [
+    cfg.statementPath || DEFAULT_STATEMENT_PATH,
+    '/apigateway/transaction-history/retrieve/v2',
+  ].filter((p, i, all) => p && all.indexOf(p) === i);
+
   for (const path of paths) {
-    const body = path.includes('camt053')
-      ? { acct: { id: account }, frDt: from, toDt: to }
-      : compact;
-    const variants = path.includes('camt053') ? [body] : [compact, pascal];
-    for (const payload of variants) {
-      const res = await fnbJson(path, {
-        token: token.accessToken,
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      tried.push(
-        `${path} → ${res.status}${res.error ? ` ${res.error}` : ''}`
-      );
-      if (res.ok) {
-        const txns = parseFnbStatementPayload(res.data);
-        return { txns, tokenUrl: token.tokenUrl, tried };
-      }
-      if (res.status === 401 || res.status === 403) {
-        return {
-          txns: [],
-          error: res.error || 'FNB rejected the access token',
-          tokenUrl: token.tokenUrl,
-          tried,
-        };
-      }
-      // 404 on this path — try next path, skip extra body shape
-      if (res.status === 404) break;
+    const url = path.includes('?') ? path : `${path}?${qs}`;
+    const res = await fnbJson(url, {
+      token: token.accessToken,
+      method: 'GET',
+    });
+    tried.push(`GET ${path} → ${res.status}${res.error ? ` ${res.error}` : ''}`);
+    if (res.ok) {
+      const txns = parseFnbStatementPayload(res.data);
+      return { txns, tokenUrl: token.tokenUrl, tried };
+    }
+    if (res.status === 401 || res.status === 403) {
+      return {
+        txns: [],
+        error: res.error || 'FNB rejected the access token',
+        tokenUrl: token.tokenUrl,
+        tried,
+      };
+    }
+    const msg = (res.error || '').toLowerCase();
+    if (res.status === 400 && msg.includes('not provisioned')) {
+      return {
+        txns: [],
+        error: `FNB Transaction History is live (GET ${DEFAULT_STATEMENT_PATH}) but account ${maskAccountNumber(account)} is not provisioned on that API. Ask Integration Channel / Online Banking Enterprise to enable Transaction History for this operating account.`,
+        tokenUrl: token.tokenUrl,
+        tried,
+      };
     }
   }
 
   return {
     txns: [],
-    error: account
-      ? `FNB accepted the token (transaction-history scope) for account ${maskAccountNumber(account)}, but every statement URL returned 404. Paste the Transaction History resource URL from the Integration Channel subscribe pack as FNB_STATEMENT_PATH.`
-      : 'Authenticated, but no statement endpoint accepted the request.',
+    error: `FNB accepted the token for account ${maskAccountNumber(account)}, but the statement pull failed. ${tried[0] || ''}`.trim(),
     tokenUrl: token.tokenUrl,
     tried,
   };
