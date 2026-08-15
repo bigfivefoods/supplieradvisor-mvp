@@ -54,9 +54,17 @@ export async function POST(request: NextRequest) {
         );
       }
       const token = await getFnbAccessToken({ force: true });
-      const accountNumber = String(
+      let accountNumber = String(
         body.account_number || fnb.accountNumber || ''
       ).replace(/\s+/g, '');
+      if (!accountNumber) {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('account_number')
+          .eq('id', companyId)
+          .maybeSingle();
+        accountNumber = String(prof?.account_number || '').replace(/\s+/g, '');
+      }
 
       let targetAccountId = bankAccountId;
       if (!targetAccountId) {

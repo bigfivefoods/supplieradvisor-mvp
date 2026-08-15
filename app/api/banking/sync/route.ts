@@ -112,8 +112,19 @@ export async function POST(request: NextRequest) {
         : [];
 
     if (conn.provider === 'fnb') {
+      let accountNumber = String(
+        externalAccountId || fnb.accountNumber || ''
+      ).replace(/\s+/g, '');
+      if (!accountNumber) {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('account_number')
+          .eq('id', companyId)
+          .maybeSingle();
+        accountNumber = String(prof?.account_number || '').replace(/\s+/g, '');
+      }
       const pulled = await fetchFnbTransactions({
-        accountNumber: String(externalAccountId || fnb.accountNumber || ''),
+        accountNumber,
       });
       if (pulled.error && !pulled.txns.length) {
         void import('@/lib/notifications/email-alerts').then(

@@ -7,6 +7,7 @@
  *   FNB_API_BASE          default https://api.fnb.co.za
  *   FNB_TOKEN_URL         default https://api.fnb.co.za/apigateway/oauth2/token/v2
  *   FNB_ACCOUNT_NUMBER    operating account for statement pulls
+ *   FNB_STATEMENT_PATH    Transaction History URL or path from the subscribe pack
  *   FNB_SCOPE             optional OAuth scope
  *
  * Auth: OAuth2 client credentials (form + Basic), then JWT client-assertion.
@@ -26,6 +27,7 @@ export function fnbConfig() {
   const base = (process.env.FNB_API_BASE || DEFAULT_BASE).replace(/\/$/, '');
   const tokenUrl = (process.env.FNB_TOKEN_URL || DEFAULT_TOKEN_URL).trim();
   const accountNumber = (process.env.FNB_ACCOUNT_NUMBER || '').trim();
+  const statementPath = (process.env.FNB_STATEMENT_PATH || '').trim();
   const scope = (process.env.FNB_SCOPE || '').trim();
   return {
     clientId,
@@ -33,9 +35,16 @@ export function fnbConfig() {
     base,
     tokenUrl,
     accountNumber,
+    statementPath,
     scope,
     configured: Boolean(clientId && clientSecret),
   };
+}
+
+export function maskAccountNumber(raw?: string | null): string | null {
+  const digits = String(raw || '').replace(/\s+/g, '');
+  if (!digits) return null;
+  return `…${digits.slice(-4)}`;
 }
 
 type TokenOk = {
@@ -398,6 +407,7 @@ async function fnbJson(
         Authorization: `Bearer ${token}`,
         Accept: 'application/json',
         'Content-Type': 'application/json',
+        ...(cfg.clientId ? { 'X-IBM-Client-Id': cfg.clientId } : {}),
         ...(rest.headers || {}),
       },
     });
@@ -451,78 +461,86 @@ export async function fetchFnbTransactions(opts?: {
   const from =
     opts?.from ||
     new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
-  const account = opts?.accountNumber || cfg.accountNumber;
+  const account = String(opts?.accountNumber || cfg.accountNumber || '').replace(
+    /\s+/g,
+    ''
+  );
+  const compact = { accountNumber: account, fromDate: from, toDate: to };
+  const pascal = { AccountNumber: account, FromDate: from, ToDate: to };
 
-  const bodies: Array<{ path: string; body: Record<string, unknown> }> = [
-    {
-      path: '/RetrieveRealtimeStatement',
-      body: {
-        accountNumber: account,
-        fromDate: from,
-        toDate: to,
-      },
-    },
-    {
-      path: '/statements/realtime',
-      body: {
-        accountNumber: account,
-        fromDate: from,
-        toDate: to,
-      },
-    },
-    {
-      path: '/v1/statements/realtime',
-      body: {
-        accountNumber: account,
-        fromDate: from,
-        toDate: to,
-      },
-    },
-    {
-      path: '/camt053/retrieve',
-      body: {
-        acct: { id: account },
-        frDt: from,
-        toDt: to,
-      },
-    },
-  ];
+  const paths: string[] = [];
+  if (cfg.statementPath) paths.push(cfg.statementPath);
+  paths.push(
+    '/apigateway/transactionhistory/v1/getTransactionHistory',
+    '/apigateway/transaction-history/v1/getTransactionHistory',
+    '/apigateway/i_can_tran_hist/v1/getTransactionHistory',
+    '/apigateway/accounts/v1/transactionhistory',
+    '/apigateway/statements/v1/RetrieveRealtimeStatement',
+    '/RetrieveRealtimeStatement',
+    '/statements/realtime',
+    '/v1/statements/realtime',
+    '/camt053/retrieve'
+  );
 
   const tried: string[] = [];
-  for (const spec of bodies) {
-    if (!account && spec.body.accountNumber != null) continue;
-    const res = await fnbJson(spec.path, {
-      token: token.accessToken,
-      method: 'POST',
-      body: JSON.stringify(spec.body),
-    });
-    tried.push(`${spec.path} → ${res.status}${res.error ? ` ${res.error}` : ''}`);
-    if (res.ok) {
-      const txns = parseFnbStatementPayload(res.data);
-      return { txns, tokenUrl: token.tokenUrl, tried };
-    }
-    if (res.status === 401 || res.status === 403) {
-      return {
-        txns: [],
-        error: res.error || 'FNB rejected the access token',
-        tokenUrl: token.tokenUrl,
-        tried,
-      };
+  if (!account) {
+    return {
+      txns: [],
+      error:
+        'FNB token is valid, but no operating account number was sent. Enter the FNB account on Connect bank, or set FNB_ACCOUNT_NUMBER.',
+      tokenUrl: token.tokenUrl,
+      tried,
+    };
+  }
+
+  for (const path of paths) {
+    const body = path.includes('camt053')
+      ? { acct: { id: account }, frDt: from, toDt: to }
+      : compact;
+    const variants = path.includes('camt053') ? [body] : [compact, pascal];
+    for (const payload of variants) {
+      const res = await fnbJson(path, {
+        token: token.accessToken,
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      tried.push(
+        `${path} → ${res.status}${res.error ? ` ${res.error}` : ''}`
+      );
+      if (res.ok) {
+        const txns = parseFnbStatementPayload(res.data);
+        return { txns, tokenUrl: token.tokenUrl, tried };
+      }
+      if (res.status === 401 || res.status === 403) {
+        return {
+          txns: [],
+          error: res.error || 'FNB rejected the access token',
+          tokenUrl: token.tokenUrl,
+          tried,
+        };
+      }
+      // 404 on this path — try next path, skip extra body shape
+      if (res.status === 404) break;
     }
   }
 
   return {
     txns: [],
-    error:
-      'Authenticated, but no statement endpoint accepted the request. Set FNB_ACCOUNT_NUMBER and confirm the statement path in your Integration Channel pack.',
+    error: account
+      ? `FNB accepted the token (transaction-history scope) for account ${maskAccountNumber(account)}, but every statement URL returned 404. Paste the Transaction History resource URL from the Integration Channel subscribe pack as FNB_STATEMENT_PATH.`
+      : 'Authenticated, but no statement endpoint accepted the request.',
     tokenUrl: token.tokenUrl,
     tried,
   };
 }
 
-export async function probeFnbIntegration(): Promise<{
+export async function probeFnbIntegration(opts?: {
+  accountNumber?: string;
+}): Promise<{
   configured: boolean;
   clientIdMasked: string | null;
+  accountMasked: string | null;
+  statementPath: string | null;
   token: TokenOk | TokenFail;
   statement?: Awaited<ReturnType<typeof fetchFnbTransactions>>;
 }> {
@@ -530,13 +548,18 @@ export async function probeFnbIntegration(): Promise<{
   const clientIdMasked = cfg.clientId
     ? `${cfg.clientId.slice(0, 2)}…${cfg.clientId.slice(-2)}`
     : null;
+  const accountNumber = String(
+    opts?.accountNumber || cfg.accountNumber || ''
+  ).replace(/\s+/g, '');
   const token = await getFnbAccessToken({ force: true });
   let statement: Awaited<ReturnType<typeof fetchFnbTransactions>> | undefined;
-  if (token.ok && cfg.accountNumber) {
-    statement = await fetchFnbTransactions();
+  if (token.ok && accountNumber) {
+    statement = await fetchFnbTransactions({ accountNumber });
   }
   return {
     configured: cfg.configured,
+    accountMasked: maskAccountNumber(accountNumber),
+    statementPath: cfg.statementPath || null,
     clientIdMasked,
     token,
     statement,

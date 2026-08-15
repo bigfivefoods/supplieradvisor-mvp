@@ -378,7 +378,14 @@ function Inner() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Sync failed');
+      if (!res.ok) {
+        const tried = Array.isArray(data.tried)
+          ? data.tried.slice(0, 4).join(' · ')
+          : '';
+        throw new Error(
+          [data.error || 'Sync failed', tried].filter(Boolean).join(' — ')
+        );
+      }
       toast.success(
         `Synced ${data.ingest?.inserted ?? 0} new · ${data.ingest?.duplicates ?? 0} duplicates`
       );
@@ -2489,9 +2496,20 @@ function Inner() {
                           const data = await res.json();
                           if (!res.ok) throw new Error(data.error || 'Probe failed');
                           if (data.token?.ok) {
-                            setFnbProbe(
-                              `Token OK via ${data.token.tokenUrl || 'FNB'}`
-                            );
+                            const stmt = data.statement;
+                            if (stmt?.error) {
+                              setFnbProbe(
+                                `Token OK${data.accountMasked ? ` · account ${data.accountMasked}` : ''}. ${stmt.error}`
+                              );
+                            } else if (stmt?.txns) {
+                              setFnbProbe(
+                                `Token OK · ${stmt.txns.length} statement line(s)`
+                              );
+                            } else {
+                              setFnbProbe(
+                                `Token OK via ${data.token.tokenUrl || 'FNB'}${data.accountMasked ? ` · account ${data.accountMasked}` : ''}`
+                              );
+                            }
                           } else {
                             setFnbProbe(
                               data.token?.error ||

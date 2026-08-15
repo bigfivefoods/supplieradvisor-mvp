@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
         fnb: {
           configured: fnb.configured,
           hasAccountNumber: Boolean(fnb.accountNumber),
+          statementPath: fnb.statementPath || null,
         },
         banklink: {
           configured: cfg.configured,
