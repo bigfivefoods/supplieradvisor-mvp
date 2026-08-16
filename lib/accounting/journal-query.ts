@@ -148,7 +148,10 @@ export async function fetchJournalLinesByEntryIds(
     if (error) {
       return { lines, warning: error.message };
     }
-    for (const row of data || []) lines.push(row as Record<string, unknown>);
+    const page = (data || []) as unknown as Array<Record<string, unknown>>;
+    for (const row of page) {
+      if (row && typeof row === 'object') lines.push(row);
+    }
   }
   return { lines };
 }
