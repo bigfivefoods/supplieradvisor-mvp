@@ -21,6 +21,7 @@ import {
 import { isTillModule, type TillLine, type TillSessionKind } from '@/lib/till/types';
 import { getAppUrl } from '@/lib/resend';
 import { tillPayPath } from '@/lib/till/sessions';
+import { advisorPaystackSplitFromMeta } from '@/lib/billing/advisor-payout';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -113,6 +114,12 @@ export async function POST(request: NextRequest) {
             );
       if (kind !== 'wallet' && amountZar <= 0) {
         return NextResponse.json({ error: 'Amount required' }, { status: 400 });
+      }
+      if (kind === 'sale' || kind === 'bill') {
+        const split = advisorPaystackSplitFromMeta(meta, 'desk');
+        if (!split.ok) {
+          return NextResponse.json({ error: split.error }, { status: 400 });
+        }
       }
       const session = createTillSession({
         companyId,

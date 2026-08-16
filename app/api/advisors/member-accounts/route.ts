@@ -39,6 +39,10 @@ import { readPsychiatrygraphFromMetadata } from '@/lib/clinic/psychiatrygraph';
 import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
 import { readHiregraphFromMetadata } from '@/lib/hire/hiregraph';
 import { readRetailgraphFromMetadata } from '@/lib/retail/retailgraph';
+import {
+  publicAdvisorPayout,
+  readAdvisorPayout,
+} from '@/lib/billing/advisor-payout';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -142,6 +146,7 @@ export async function GET(request: NextRequest) {
       payments,
       suggestions,
       members,
+      payout: publicAdvisorPayout(readAdvisorPayout(company.meta)),
       kpis: {
         open_zar: openZar,
         pending_zar: pendingZar,

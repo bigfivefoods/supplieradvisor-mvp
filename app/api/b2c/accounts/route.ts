@@ -43,6 +43,11 @@ import {
 } from '@/lib/b2c/member-account';
 import { initializePaystackTransaction } from '@/lib/billing/paystack-plans';
 import { verifyPaystackTransaction } from '@/lib/billing/paystack';
+import {
+  advisorPaystackSplitFromMeta,
+  advisorSplitMetadata,
+  previewAdvisorPayoutSplit,
+} from '@/lib/billing/advisor-payout';
 import { applyMemberAccountPaystack } from '@/lib/b2c/member-account-apply-paystack';
 import { notifyAdvisorOfMemberPayment } from '@/lib/b2c/member-account-notify';
 import { deskPathForKind } from '@/lib/b2c/member-account-pay';
@@ -264,19 +269,28 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      const split = advisorPaystackSplitFromMeta(company.meta, 'member');
+      if (!split.ok) {
+        return NextResponse.json({ error: split.error }, { status: 400 });
+      }
       const paymentId = newMemberAccountId('map');
       const reference = `sa-memacc-${companyId}-${Date.now().toString(36)}`;
+      const splitPreview = previewAdvisorPayoutSplit(amountZar);
       const init = await initializePaystackTransaction({
         email,
         amountCents: Math.round(amountZar * 100),
         currency: 'ZAR',
         reference,
         callbackUrl: `${getAppUrl()}/me?tab=memberships&pay=1&ref=${encodeURIComponent(reference)}&companyId=${companyId}`,
+        subaccount: split.subaccount,
+        bearer: split.bearer,
         metadata: {
           product: 'member_account',
           company_id: companyId,
           payment_id: paymentId,
           charge_ids: selected.map((c) => c.id).join(','),
+          ...advisorSplitMetadata(split),
+          platform_fee_zar: splitPreview.platform_fee_zar,
           custom_fields: [
             { display_name: 'Product', variable_name: 'product', value: 'member_account' },
             { display_name: 'Company', variable_name: 'company_id', value: String(companyId) },
@@ -285,6 +299,11 @@ export async function POST(request: NextRequest) {
               display_name: 'Charges',
               variable_name: 'charge_ids',
               value: selected.map((c) => c.id).join(','),
+            },
+            {
+              display_name: 'Split',
+              variable_name: 'advisor_split',
+              value: '1pct_subaccount',
             },
           ],
         },

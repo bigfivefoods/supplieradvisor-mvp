@@ -8,7 +8,7 @@ export default function FitgraphAccountsPage() {
     <FitgraphWorkbench
       title="Member accounts"
       titleAccent="pay & proof"
-      description="Charge members, collect Paystack or proof of payment, and post receipts to Customers invoices."
+      description="Charge members, collect card / Apple Pay (settles to your bank, 1% admin) or proof of payment, and post receipts to Customers invoices."
     >
       <AdvisorMemberAccounts module="fitgraph" />
     </FitgraphWorkbench>

@@ -396,7 +396,7 @@ export default function PhysiographSystemFlow({
             <p className="text-sm text-white/90 mt-1.5 max-w-3xl leading-snug">
               POPIA-aware patient book; exclusive clinician diaries with rooms; waitlist
               desk and treatment-plan book next; in-app care by system user ID;
-              marketplace listing — SA bills platform subscription only.
+              marketplace listing — SA bills company SaaS plus 1% on card / Apple Pay collections.
             </p>
           </button>
           <div className="flex flex-wrap items-center gap-2 shrink-0">

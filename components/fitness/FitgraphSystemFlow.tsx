@@ -328,7 +328,7 @@ const ROLE_CARDS = [
       'Website embed, marketplace listing, reschedule ops',
     ],
     doesNot: [
-      'Does not take membership fees through SupplierAdvisor',
+      'Does not surcharge members — 1% admin comes from card / Apple Pay settlement',
       'Does not publish without website settings on',
     ],
     href: '/dashboard/fitgraph/calendar',
@@ -543,7 +543,7 @@ export default function FitgraphSystemFlow({
             </h2>
             <p className="text-sm text-white/90 mt-1.5 max-w-3xl leading-snug">
               {hasFrontDesk
-                ? 'Permanent coaches dual-write to People; rooms on the calendar; waitlist, reminders and recalls; in-app care by system user ID; marketplace listing — SA bills platform subscription only, not member fees.'
+                ? 'Permanent coaches dual-write to People; rooms on the calendar; waitlist, reminders and recalls; in-app care by system user ID; marketplace listing — SA bills company SaaS plus 1% on card / Apple Pay collections.'
                 : 'Coach-led gym: owner sets brand and coaches; coaches own the floor with rooms, waitlist and care threads (system user ID when on-platform); members book via portal. No front-desk persona. SA does not bill member fees.'}
             </p>
           </button>

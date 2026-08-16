@@ -5,7 +5,7 @@ import { ArrowLeft } from 'lucide-react';
 export const metadata = {
   title: 'Cancellation & Refund Policy',
   description:
-    'How to cancel SupplierAdvisor® platform subscriptions and when refunds apply — company SaaS only; practice and trade fees stay off-platform.',
+    'How to cancel SupplierAdvisor® platform subscriptions and when refunds apply — company SaaS plus the 1% Advisor card collection fee.',
   alternates: {
     canonical: 'https://www.supplieradvisor.com/cancellation-refund',
   },
@@ -51,7 +51,7 @@ export default function CancellationRefundPage() {
           Cancellation &amp; Refund Policy
         </h1>
         <p className="text-slate-500 mb-10">
-          Last updated: 11 August 2026 · SupplierAdvisor® (South Africa)
+          Last updated: 16 August 2026 · SupplierAdvisor® (South Africa)
         </p>
 
         <div className="space-y-8 text-[15px] leading-relaxed text-slate-700">
@@ -61,16 +61,27 @@ export default function CancellationRefundPage() {
             </h2>
             <p className="mb-2">
               This policy applies to <strong>SupplierAdvisor® platform fees</strong>{' '}
-              only — the company SaaS subscription (and related prepaid platform
-              plans) you pay us so your organisation can use the Platform.
+              — the company SaaS subscription (and related prepaid platform
+              plans) you pay us so your organisation can use the Platform, and
+              the 1% admin fee on Advisor card / Apple Pay collections.
+            </p>
+            <p className="mb-2">
+              Advisor card and Apple Pay collections (memberships, till,
+              inventory) are processed on SupplierAdvisor’s Paystack merchant and
+              split at settlement: a <strong>1% admin fee</strong> to
+              SupplierAdvisor and the rest to the Advisor’s connected bank. The
+              Advisor also bears Paystack’s card fees. Members are not
+              surcharged. A refund of a split charge reverses that same split
+              through Paystack — it is not a SaaS subscription refund.
             </p>
             <p>
-              It does <strong>not</strong> cover money that never flows through
-              SupplierAdvisor, including: gym or clinic member/patient fees;
-              goods or services you buy or sell with trading partners; logistics
-              or carrier charges; or any fees you set inside GymAdvisor®, clinic
-              Advisors, or other vertical modules. Those arrangements stay
-              between you and your customers or suppliers.
+              This policy does <strong>not</strong> cover money that never
+              flows through SupplierAdvisor, including: proof-of-payment / EFT
+              and cash taken by the Advisor; goods or services you buy or sell
+              with trading partners; logistics or carrier charges; or the
+              membership, session, and product prices you set inside
+              GymAdvisor®, clinic Advisors, or other vertical modules. Those
+              arrangements stay between you and your customers or suppliers.
             </p>
           </section>
 

@@ -12,6 +12,11 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { initializePaystackTransaction } from '@/lib/billing/paystack-plans';
 import { verifyPaystackTransaction } from '@/lib/billing/paystack';
 import {
+  advisorPaystackSplitFromMeta,
+  advisorSplitMetadata,
+  previewAdvisorPayoutSplit,
+} from '@/lib/billing/advisor-payout';
+import {
   expireSession,
   findSession,
   parseTillToken,
@@ -103,17 +108,27 @@ export async function POST(request: NextRequest) {
       if (amountCents <= 0) {
         return NextResponse.json({ error: 'Nothing to pay' }, { status: 400 });
       }
+      const split = advisorPaystackSplitFromMeta(meta, 'member');
+      if (!split.ok) {
+        return NextResponse.json({ error: split.error }, { status: 400 });
+      }
+      const splitPreview = previewAdvisorPayoutSplit(session.amount_zar);
       const reference = `till_${session.token}_${Date.now().toString(36)}`;
       const init = await initializePaystackTransaction({
         email,
         amountCents,
         reference,
         callbackUrl: `${getAppUrl()}${tillPayPath(session.token)}?ref=${encodeURIComponent(reference)}`,
+        subaccount: split.subaccount,
+        bearer: split.bearer,
         metadata: {
           till_token: session.token,
           company_id: session.company_id,
           kind: session.kind,
           user_id: userId,
+          product: session.kind === 'bill' ? 'member_account' : 'advisor_till',
+          ...advisorSplitMetadata(split),
+          platform_fee_zar: splitPreview.platform_fee_zar,
         },
       });
       if (!init.ok) {

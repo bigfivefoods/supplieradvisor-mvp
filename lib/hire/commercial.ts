@@ -99,5 +99,5 @@ export const HIRE_COMMERCIAL_COPY = {
   depositLine:
     'Refundable deposits / damage bonds are held separately and are not commissionable',
   vsOtherAdvisors:
-    'HireAdvisor® bills the listing business a take-rate on completed hires. Gym / clinic Advisors are subscription-led. End customers never pay SupplierAdvisor®.',
+    'HireAdvisor® bills the listing business a take-rate on completed hires. Gym / clinic Advisors are subscription-led, with a 1% admin fee on card / Apple Pay collections. End customers never pay SupplierAdvisor®.',
 } as const;

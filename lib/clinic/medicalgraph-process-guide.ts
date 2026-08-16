@@ -51,7 +51,7 @@ export const ROLE_CARDS = [
     ],
     doesNot: [
       'Does not double-book the same clinician diary',
-      'Does not take member/patient fees through SupplierAdvisor (platform subscription only)',
+      'Does not surcharge patients — 1% admin fee is taken from your card / Apple Pay settlement',
     ],
   },
   {
@@ -216,7 +216,7 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '6a',
         title: 'Profile · rooms · ops',
         who: 'Owner',
-        desc: 'Brand bio, room list, reschedule policy; no SA patient payments — platform subscription only.',
+        desc: 'Brand bio, room list, reschedule policy. Card / Apple Pay settles to your bank (1% admin).',
       },
       {
         n: '6b',

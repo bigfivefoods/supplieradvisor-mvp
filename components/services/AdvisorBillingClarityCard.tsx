@@ -30,13 +30,13 @@ export function AdvisorBillingClarityCard({
             <Info className="w-3 h-3" /> Billing clarity · {moduleLabel}
           </p>
           <p className="text-sm font-bold text-slate-900 dark:text-white">
-            SupplierAdvisor bills the platform subscription only.
+            Company SaaS is billed to SupplierAdvisor. Card / Apple Pay
+            memberships settle to your bank.
           </p>
           <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-            Member fees, class packs, care plans, and chair-side charges stay
-            with <strong>{brand}</strong>. Collect them your way (cash, EFT,
-            Paystack, etc.) — we do not take a cut of patient or member
-            revenue.
+            Connect a payout bank on Accounts. Members pay the listed price;
+            you pay a 1% admin fee plus Paystack card fees. Cash and proof of
+            payment stay with <strong>{brand}</strong>.
           </p>
           <p className="text-[11px] text-slate-500">
             Manage company subscription under{' '}

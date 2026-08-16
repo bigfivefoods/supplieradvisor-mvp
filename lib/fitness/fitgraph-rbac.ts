@@ -110,7 +110,7 @@ export const FIT_ACTIONS = [
   'messages.coach',
   'messages.member',
 
-  // Memberships / money (gym-side tracking only; SA does not collect member fees)
+  // Memberships / money (desk tracking + Paystack split to the gym)
   'memberships.manage_plans',
   'subscriptions.manage',
   'pt_packs.manage',

@@ -9,6 +9,7 @@ import {
   RetailgraphRequired,
 } from '@/components/retail/RetailgraphShell';
 import { TillPresentPay } from '@/components/till/TillPresentPay';
+import { AdvisorPayoutSettings } from '@/components/advisors/AdvisorPayoutSettings';
 import { formatZar } from '@/lib/b2c/member-account-types';
 import type { RetailSku } from '@/lib/retail/retailgraph';
 import type { TillLine } from '@/lib/till/types';
@@ -21,6 +22,7 @@ export default function RetailTillPage() {
   const [basket, setBasket] = useState<BasketLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [present, setPresent] = useState<'sale' | 'wallet' | null>(null);
+  const [payoutReady, setPayoutReady] = useState(false);
 
   const load = useCallback(async () => {
     if (!companyId) return;
@@ -94,6 +96,12 @@ export default function RetailTillPage() {
         title="Till"
         description="Add SKUs, then take cash or present a QR / NFC for the customer to pay on SA Member. “Pay my bills” opens their open gym, clinic and hire charges on the phone."
       >
+        <div className="mb-5">
+          <AdvisorPayoutSettings
+            compact
+            onChange={(p) => setPayoutReady(p.ready)}
+          />
+        </div>
         {loading ? (
           <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
         ) : (
@@ -175,7 +183,10 @@ export default function RetailTillPage() {
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  disabled={total <= 0}
+                  disabled={total <= 0 || !payoutReady}
+                  title={
+                    payoutReady ? undefined : 'Connect a payout bank first'
+                  }
                   onClick={() => setPresent('sale')}
                   className="rounded-xl bg-orange-600 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
                 >

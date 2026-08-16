@@ -51,7 +51,7 @@ export const ROLE_CARDS = [
       'Website embed, marketplace listing, reschedule policy, ops',
     ],
     doesNot: [
-      'Does not take membership fees through SupplierAdvisor (platform subscription only)',
+      'Does not surcharge members — 1% admin fee is taken from your card / Apple Pay settlement',
       'Does not publish without website settings enabled',
     ],
   },

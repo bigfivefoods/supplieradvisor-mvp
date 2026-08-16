@@ -435,6 +435,10 @@ export async function POST(request: NextRequest) {
             reference,
             amountCents: v.ok ? v.amount : Number(data.amount || 0),
           });
+          const splitMeta =
+            data.metadata && typeof data.metadata === 'object'
+              ? (data.metadata as Record<string, unknown>)
+              : {};
           void recordPaystackWebhookPulse({
             event: eventName,
             reference,
@@ -445,6 +449,13 @@ export async function POST(request: NextRequest) {
             summary: applied.ok
               ? `Member account payment ${applied.paymentId}`
               : applied.error,
+            metadata: {
+              advisor_split: Boolean(splitMeta.advisor_split),
+              platform_fee_pct: splitMeta.platform_fee_pct ?? null,
+              subaccount_code: splitMeta.subaccount_code
+                ? String(splitMeta.subaccount_code)
+                : null,
+            },
           });
           return NextResponse.json({
             received: true,

@@ -31,11 +31,7 @@ export function envPaystackPlanCode(
   return v || null;
 }
 
-/**
- * Initialize a Paystack transaction (server-side).
- * Returns authorization_url + access_code for Popup resumeTransaction / redirect.
- */
-export async function initializePaystackTransaction(opts: {
+export type PaystackInitializeOpts = {
   email: string;
   amountCents: number;
   currency?: string;
@@ -45,20 +41,16 @@ export async function initializePaystackTransaction(opts: {
   channels?: string[];
   /** Existing Paystack plan code for subscription-style first charge */
   planCode?: string | null;
-}): Promise<
-  | {
-      ok: true;
-      authorizationUrl: string;
-      accessCode: string;
-      reference: string;
-    }
-  | { ok: false; error: string }
-> {
-  const secret = getPaystackSecretKey();
-  if (!secret) {
-    return { ok: false, error: 'PAYSTACK_SECRET_KEY not configured' };
-  }
+  /** Advisor member/till sales only — never set on SA SaaS billing */
+  subaccount?: string | null;
+  /** Who bears Paystack card fees. Advisor sales use `subaccount`. */
+  bearer?: 'account' | 'subaccount';
+};
 
+/** Pure initialize body — used by checkout and unit tests. */
+export function buildPaystackInitializeBody(
+  opts: PaystackInitializeOpts
+): Record<string, unknown> {
   const body: Record<string, unknown> = {
     email: opts.email,
     amount: opts.amountCents,
@@ -77,6 +69,35 @@ export async function initializePaystackTransaction(opts: {
   };
   if (opts.callbackUrl) body.callback_url = opts.callbackUrl;
   if (opts.planCode) body.plan = opts.planCode;
+  const subaccount = String(opts.subaccount || '').trim();
+  if (subaccount) {
+    body.subaccount = subaccount;
+    body.bearer = opts.bearer || 'subaccount';
+  }
+  return body;
+}
+
+/**
+ * Initialize a Paystack transaction (server-side).
+ * Returns authorization_url + access_code for Popup resumeTransaction / redirect.
+ */
+export async function initializePaystackTransaction(
+  opts: PaystackInitializeOpts
+): Promise<
+  | {
+      ok: true;
+      authorizationUrl: string;
+      accessCode: string;
+      reference: string;
+    }
+  | { ok: false; error: string }
+> {
+  const secret = getPaystackSecretKey();
+  if (!secret) {
+    return { ok: false, error: 'PAYSTACK_SECRET_KEY not configured' };
+  }
+
+  const body = buildPaystackInitializeBody(opts);
 
   try {
     const res = await fetch('https://api.paystack.co/transaction/initialize', {

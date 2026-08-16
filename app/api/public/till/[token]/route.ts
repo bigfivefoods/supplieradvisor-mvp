@@ -9,6 +9,10 @@ import {
   parseTillToken,
   readTillSessions,
 } from '@/lib/till/sessions';
+import {
+  isAdvisorPayoutReady,
+  readAdvisorPayout,
+} from '@/lib/billing/advisor-payout';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -43,6 +47,7 @@ export async function GET(
     if (!session) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
+    const payoutReady = isAdvisorPayoutReady(readAdvisorPayout(meta));
     return NextResponse.json({
       success: true,
       session: {
@@ -56,6 +61,7 @@ export async function GET(
         lines: session.lines || [],
         expires_at: session.expires_at,
         module: session.module,
+        payout_ready: session.kind === 'wallet' ? true : payoutReady,
       },
     });
   } catch (e: unknown) {

@@ -19,6 +19,7 @@ type Peek = {
   label: string;
   brand?: string;
   lines?: Array<{ name: string; qty: number; unit_zar: number }>;
+  payout_ready?: boolean;
 };
 
 export default function TillPayPage() {
@@ -125,6 +126,11 @@ export default function TillPayPage() {
           {peek.status === 'paid' ? (
             <p className="mt-6 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-900">
               Paid — you can put the phone away.
+            </p>
+          ) : peek.kind !== 'wallet' && peek.payout_ready === false ? (
+            <p className="mt-6 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-bold text-amber-950">
+              This Advisor has not connected card / Apple Pay yet. Ask the desk
+              for cash or proof of payment.
             </p>
           ) : !ready ? (
             <Loader2 className="mt-6 h-5 w-5 animate-spin" />

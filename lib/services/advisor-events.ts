@@ -69,9 +69,8 @@ export function appendAdvisorEvent(
 /**
  * Side-effect hooks — best-effort, never throws.
  *
- * Payments: SupplierAdvisor only collects platform subscription fees
- * (company → SA via existing Paystack billing). Module→client money
- * (class fees, deposits, care packs) is never processed here.
+ * Payments: this event bus does not collect money. Company SaaS is billed
+ * to SA. Advisor card / Apple Pay uses Paystack subaccounts (1% admin).
  */
 export async function dispatchAdvisorEventSideEffects(
   event: AdvisorEvent

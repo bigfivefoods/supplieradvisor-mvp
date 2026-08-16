@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, Loader2, Nfc, X } from 'lucide-react';
 import { TillPresentPay } from '@/components/till/TillPresentPay';
+import { AdvisorPayoutSettings } from '@/components/advisors/AdvisorPayoutSettings';
+import type { AdvisorPayoutPublic } from '@/lib/billing/advisor-payout';
 import { toast } from 'sonner';
 import { useApiAuth } from '@/lib/client/use-api-auth';
 import {
@@ -37,6 +39,7 @@ export function AdvisorMemberAccounts({
   const [filter, setFilter] = useState('open');
   const [tillChargeIds, setTillChargeIds] = useState<string[]>([]);
   const [presentTill, setPresentTill] = useState(false);
+  const [payout, setPayout] = useState<AdvisorPayoutPublic | null>(null);
   const [form, setForm] = useState({
     ref_id: '',
     description: '',
@@ -52,6 +55,7 @@ export function AdvisorMemberAccounts({
       suggestions?: MemberAccountSuggestion[];
       members?: MemberOpt[];
       kpis?: typeof kpis;
+      payout?: AdvisorPayoutPublic;
     }>(
       `/api/advisors/member-accounts?companyId=${companyId}&module=${module}`
     );
@@ -60,6 +64,7 @@ export function AdvisorMemberAccounts({
     setSuggestions(data.suggestions || []);
     setMembers(data.members || []);
     if (data.kpis) setKpis(data.kpis);
+    setPayout(data.payout || null);
   }, [companyId, module, withAuthJson]);
 
   useEffect(() => {
@@ -122,6 +127,7 @@ export function AdvisorMemberAccounts({
 
   return (
     <div className="space-y-5">
+      <AdvisorPayoutSettings onChange={setPayout} />
       <div className="grid gap-3 sm:grid-cols-3">
         <Kpi label="Open" value={formatZar(kpis.open_zar)} />
         <Kpi label="Proof waiting" value={formatZar(kpis.pending_zar)} />
@@ -185,10 +191,21 @@ export function AdvisorMemberAccounts({
           <p className="text-sm font-bold text-orange-950">
             {tillCharges.length} bill{tillCharges.length === 1 ? '' : 's'} ·{' '}
             {formatZar(tillAmount)}
+            {!payout?.ready ? (
+              <span className="ml-2 text-[11px] font-semibold text-amber-800">
+                Connect payout to present card / Apple Pay
+              </span>
+            ) : null}
           </p>
           <button
             type="button"
-            className="inline-flex items-center gap-1 rounded-xl bg-orange-600 px-3 py-2 text-xs font-black text-white"
+            disabled={!payout?.ready}
+            title={
+              payout?.ready
+                ? undefined
+                : 'Connect a payout bank first'
+            }
+            className="inline-flex items-center gap-1 rounded-xl bg-orange-600 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
             onClick={() => setPresentTill(true)}
           >
             <Nfc className="h-3.5 w-3.5" /> Present QR / NFC
