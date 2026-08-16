@@ -220,35 +220,33 @@ export function memberFacingProgramme(
 
 export function parseProgrammeItems(raw: unknown): FitProgrammeItem[] {
   if (!Array.isArray(raw)) return [];
-  return raw
-    .map((row, i) => {
-      const r = (row || {}) as Record<string, unknown>;
-      const movementId = String(r.movement_id || '').trim();
-      if (!movementId) return null;
-      return {
-        id: String(r.id || `itm_${i}_${movementId}`),
-        movement_id: movementId,
-        sets:
-          r.sets != null && r.sets !== ''
-            ? Math.max(1, Number(r.sets) || 1)
-            : null,
-        reps: r.reps != null && String(r.reps).trim() ? String(r.reps) : null,
-        rest_sec:
-          r.rest_sec != null && r.rest_sec !== ''
-            ? Math.max(0, Number(r.rest_sec) || 0)
-            : null,
-        tempo:
-          r.tempo != null && String(r.tempo).trim()
-            ? String(r.tempo)
-            : null,
-        notes:
-          r.notes != null && String(r.notes).trim()
-            ? String(r.notes)
-            : undefined,
-        sort: r.sort != null ? Number(r.sort) || i : i,
-      } satisfies FitProgrammeItem;
-    })
-    .filter((x): x is FitProgrammeItem => Boolean(x));
+  const out: FitProgrammeItem[] = [];
+  raw.forEach((row, i) => {
+    const r = (row || {}) as Record<string, unknown>;
+    const movementId = String(r.movement_id || '').trim();
+    if (!movementId) return;
+    out.push({
+      id: String(r.id || `itm_${i}_${movementId}`),
+      movement_id: movementId,
+      sets:
+        r.sets != null && r.sets !== ''
+          ? Math.max(1, Number(r.sets) || 1)
+          : null,
+      reps: r.reps != null && String(r.reps).trim() ? String(r.reps) : null,
+      rest_sec:
+        r.rest_sec != null && r.rest_sec !== ''
+          ? Math.max(0, Number(r.rest_sec) || 0)
+          : null,
+      tempo:
+        r.tempo != null && String(r.tempo).trim() ? String(r.tempo) : null,
+      notes:
+        r.notes != null && String(r.notes).trim()
+          ? String(r.notes)
+          : undefined,
+      sort: r.sort != null ? Number(r.sort) || i : i,
+    });
+  });
+  return out;
 }
 
 export function parseStringIds(raw: unknown): string[] {
