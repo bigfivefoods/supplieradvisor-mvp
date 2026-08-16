@@ -637,6 +637,17 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         ],
         tip: 'Clear inspections before ship whenever possible — overrides are exceptional.',
       },
+      {
+        name: 'Review inventory metrics',
+        href: '/dashboard/inventory/report',
+        summary:
+          'On-hand, value, cover days, low stock, expiring lots, and a one-page PDF for stand-ups.',
+        steps: [
+          'Inventory → Report (next to Stock)',
+          'Check low stock and dated lots',
+          'Download the one-pager for the ops review',
+        ],
+      },
     ],
     checklist: [
       'Products and warehouses defined',

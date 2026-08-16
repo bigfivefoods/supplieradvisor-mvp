@@ -22,6 +22,10 @@ import {
 } from '@/lib/accounting/balance-sheet-allocate';
 import { priorComparablePeriod } from '@/lib/accounting/afs-period';
 import type { AfsLine, AfsNote, AfsPack, AfsSection } from '@/lib/accounting/afs-types';
+import {
+  GAAP_DISCLAIMER_LONG,
+  GAAP_DISCLAIMER_SHORT,
+} from '@/lib/accounting/gaap-disclaimer';
 
 export type { AfsLine, AfsNote, AfsPack, AfsSection } from '@/lib/accounting/afs-types';
 
@@ -808,7 +812,7 @@ export async function buildAfsPack(opts: {
       number: '1',
       title: 'Basis of preparation',
       body:
-        'These annual financial statements are compiled from the company general ledger on the accrual basis of accounting, using an IFRS-oriented chart of accounts. Comparative figures are the immediately preceding equivalent period (the previous financial year when a full year is selected). Amounts are in the company base currency. Year-end closing journals are excluded from profit or loss so that performance is shown before the transfer to retained earnings.',
+        `${GAAP_DISCLAIMER_LONG} Comparative figures are the immediately preceding equivalent period (the previous financial year when a full year is selected). Amounts are in the company base currency. Year-end closing journals are excluded from profit or loss so that performance is shown before the transfer to retained earnings.`,
     },
     {
       number: '2',
@@ -961,8 +965,7 @@ export async function buildAfsPack(opts: {
     notes,
     policies,
     compilation: {
-      basis:
-        'Compiled from posted double-entry journals. Unaudited. Not a statutory audit or independent review opinion.',
+      basis: GAAP_DISCLAIMER_SHORT,
       unaudited: true,
       journalCount: journals.length,
       warning: warning || lineWarn,

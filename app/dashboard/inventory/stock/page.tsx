@@ -350,6 +350,12 @@ function StockInner() {
         action={
           <div className="flex flex-wrap items-center gap-2">
             <Link
+              href="/dashboard/inventory/report"
+              className="btn-secondary !py-2.5 !px-3 text-sm inline-flex items-center gap-1.5"
+            >
+              Report
+            </Link>
+            <Link
               href="/dashboard/inventory/scan"
               className="btn-secondary !py-2.5 !px-3 text-sm inline-flex items-center gap-1.5"
             >

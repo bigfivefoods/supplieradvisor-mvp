@@ -12,6 +12,7 @@ export const INVENTORY_PROCESS = [
   { href: '/dashboard/inventory/products', label: 'Products', short: 'Products', exact: false },
   { href: '/dashboard/inventory/warehouses', label: 'Locations', short: 'Locations', exact: false },
   { href: '/dashboard/inventory/stock', label: 'Live stock', short: 'Stock', exact: false },
+  { href: '/dashboard/inventory/report', label: 'Report', short: 'Report', exact: false },
   { href: '/dashboard/inventory/scan', label: 'Receive', short: 'Receive', exact: false },
   {
     href: '/dashboard/inventory/stock-transfers',

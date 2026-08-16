@@ -13,6 +13,7 @@ import {
   CompanyRequired,
 } from '@/components/accounting/AccountingShell';
 import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
+import { GaapDisclaimer } from '@/components/accounting/GaapDisclaimer';
 import PeriodSlicer, {
   initialPeriodSlicerValue,
   type PeriodSlicerValue,
@@ -136,6 +137,8 @@ function Inner() {
           defaultOpen
         />
       </div>
+
+      <GaapDisclaimer variant="long" className="mb-6" />
 
       {loading ? (
         <div className="flex justify-center py-20">
@@ -267,8 +270,8 @@ function Cover({ pack }: { pack: AfsPack }) {
           Comparative column is {pack.period.priorLabel} ({pack.period.priorFrom} to{' '}
           {pack.period.priorTo}).
         </p>
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-800">
-          Unaudited — compiled from the general ledger
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-700">
+          IFRS / SA GAAP basis — compiled, unaudited
         </p>
       </div>
     </Panel>

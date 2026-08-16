@@ -372,6 +372,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Overview', href: '/dashboard/inventory', exact: true, section: 'Home' },
       { name: 'Catalog', href: '/dashboard/inventory/products', section: 'Catalog' },
       { name: 'Stock', href: '/dashboard/inventory/stock', section: 'Stock' },
+      {
+        name: 'Report',
+        href: '/dashboard/inventory/report',
+        desc: 'Inventory metrics & one-pager',
+        section: 'Stock',
+      },
       { name: 'Lots', href: '/dashboard/inventory/lots', section: 'Stock' },
       { name: 'Receive', href: '/dashboard/inventory/scan', section: 'Move' },
       { name: 'Move', href: '/dashboard/inventory/stock-transfers', section: 'Move' },

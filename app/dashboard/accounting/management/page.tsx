@@ -10,6 +10,7 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronRight,
+  Download,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -21,6 +22,7 @@ import {
   AccountingPage,
   CompanyRequired,
 } from '@/components/accounting/AccountingShell';
+import { GaapDisclaimer } from '@/components/accounting/GaapDisclaimer';
 import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
 import PeriodSlicer, {
   initialPeriodSlicerValue,
@@ -136,6 +138,7 @@ function Inner() {
     bankOut: number[];
     cashNet: number[];
   } | null>(null);
+  const [downloading, setDownloading] = useState(false);
   const [budgetVsActual, setBudgetVsActual] = useState<{
     summary?: {
       hasBudget?: boolean;
@@ -227,14 +230,63 @@ function Inner() {
     void load();
   }, [load]);
 
+  async function downloadPdf() {
+    setDownloading(true);
+    try {
+      const params = new URLSearchParams({
+        companyId: String(companyId),
+        from,
+        to,
+        label: periodLabel,
+        download: '1',
+      });
+      if (privyUserId) params.set('privyUserId', privyUserId);
+      const res = await fetch(`/api/accounting/management/pdf?${params}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(
+          (data as { error?: string }).error || 'Could not build PDF'
+        );
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const slug = periodLabel.replace(/[^a-z0-9]+/gi, '-').slice(0, 40);
+      a.href = url;
+      a.download = `mgmt-accounts-${slug || from}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success('Management pack downloaded');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Download failed');
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <AccountingPage>
       <AccountingHeader
         title="Management"
         titleAccent="accounts"
-        description="Period P&L from posted journals (including bank allocations), with budget (plan) vs actual when a 12-month COA budget exists. For formal statements use Finance → AFS."
+        description="Period P&L from posted journals (including bank allocations), with budget (plan) vs actual when a 12-month COA budget exists. Download a one-page PDF for review meetings, or open AFS for the formal pack."
         action={
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={downloading || loading}
+              onClick={() => void downloadPdf()}
+              className="btn-primary !py-2.5 !px-5 text-sm inline-flex items-center gap-2 disabled:opacity-50"
+            >
+              {downloading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              One-pager PDF
+            </button>
             <Link
               href="/dashboard/accounting/afs"
               className="btn-secondary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
@@ -257,6 +309,8 @@ function Inner() {
         onChange={setPeriod}
         fyStartMonth={fyStartMonth}
       />
+
+      <GaapDisclaimer className="mb-6" />
 
       {loading ? (
         <div className="flex justify-center py-20">

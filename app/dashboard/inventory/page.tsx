@@ -113,6 +113,16 @@ function HubInner() {
       metricLabel: 'units',
     },
     {
+      href: '/dashboard/inventory/report',
+      icon: ClipboardCheck,
+      code: '03b',
+      title: 'Inventory report',
+      desc: 'Key metrics, value, cover, lots, and a one-page PDF.',
+      accent: 'from-slate-50 to-white border-slate-200',
+      metric: s?.lowStock ?? '—',
+      metricLabel: 'low SKUs',
+    },
+    {
       href: '/dashboard/inventory/scan',
       icon: QrCode,
       code: '04',
