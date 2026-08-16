@@ -8,7 +8,7 @@ export default function AccountsReceivablePage() {
       direction="receivable"
       title="Accounts"
       titleAccent="receivable"
-      description="Customer invoices, collections, partial payments, and overdue balances — one AR ledger."
+      description="Customer invoices, collections, partial payments, and overdue balances — one AR ledger. Use Finance → ECL for the IFRS 9 allowance worksheet."
     />
   );
 }

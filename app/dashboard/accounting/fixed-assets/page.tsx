@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Plus, TrendingDown, X } from 'lucide-react';
+import { Loader2, Plus, TrendingDown, X, Trash2 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -35,6 +35,12 @@ function Inner() {
   const [assets, setAssets] = useState<AssetRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [disposeId, setDisposeId] = useState<number | null>(null);
+  const [disposeForm, setDisposeForm] = useState({
+    proceeds: '',
+    disposal_date: new Date().toISOString().slice(0, 10),
+    proceedsTo: 'bank' as 'bank' | 'none',
+  });
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: '',
@@ -158,6 +164,41 @@ function Inner() {
     }
   }
 
+  async function disposeAsset(e: React.FormEvent) {
+    e.preventDefault();
+    if (disposeId == null) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/accounting/fixed-assets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          action: 'dispose',
+          id: disposeId,
+          proceeds: Number(disposeForm.proceeds || 0),
+          disposal_date: disposeForm.disposal_date,
+          proceedsTo: disposeForm.proceedsTo,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      const gl = Number(data.gain_loss || 0);
+      toast.success(
+        data.journal?.entryNumber
+          ? `Disposed · ${data.journal.entryNumber} · ${gl >= 0 ? 'gain' : 'loss'} ${formatMoney(Math.abs(gl))}`
+          : 'Asset marked disposed'
+      );
+      setDisposeId(null);
+      void load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function capitalizeAll() {
     try {
       const res = await fetch('/api/accounting/fixed-assets', {
@@ -197,7 +238,7 @@ function Inner() {
       <AccountingHeader
         title="Fixed"
         titleAccent="assets"
-        description="Register assets, capitalise onto the balance sheet (Dr PPE · Cr AP), and post depreciation to GL."
+        description="Register assets, capitalise onto the balance sheet (Dr PPE · Cr AP), post depreciation, and dispose with IAS 16 gain/loss."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -320,6 +361,23 @@ function Inner() {
                             <TrendingDown className="w-4 h-4" />
                           </button>
                         )}
+                        {a.status !== 'disposed' && (
+                          <button
+                            type="button"
+                            title="Dispose — derecognise PPE and book gain/loss"
+                            onClick={() => {
+                              setDisposeForm({
+                                proceeds: '',
+                                disposal_date: new Date().toISOString().slice(0, 10),
+                                proceedsTo: 'bank',
+                              });
+                              setDisposeId(a.id);
+                            }}
+                            className="p-1.5 rounded-lg border border-neutral-200 hover:border-red-200 text-neutral-500 hover:text-red-700"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -432,6 +490,90 @@ function Inner() {
                 </button>
                 <button type="submit" disabled={saving} className="btn-primary !py-2 !px-4 text-sm">
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Register'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {disposeId != null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <h3 className="font-bold">Dispose asset</h3>
+              <button
+                type="button"
+                onClick={() => setDisposeId(null)}
+                className="p-1.5 rounded-lg hover:bg-neutral-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={disposeAsset} className="p-5 space-y-3">
+              <p className="text-xs text-neutral-600 leading-relaxed">
+                IAS 16: derecognise cost and accumulated depreciation, book proceeds, and
+                recognise the gain or loss (proceeds minus book value) in profit or loss.
+              </p>
+              {(() => {
+                const a = assets.find((x) => x.id === disposeId);
+                return a ? (
+                  <p className="text-xs text-slate-700">
+                    {a.name} · book value {formatMoney(a.book_value)}
+                  </p>
+                ) : null;
+              })()}
+              <label className="block text-xs font-semibold text-neutral-600">
+                Disposal date
+                <input
+                  type="date"
+                  required
+                  value={disposeForm.disposal_date}
+                  onChange={(e) =>
+                    setDisposeForm({ ...disposeForm, disposal_date: e.target.value })
+                  }
+                  className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="block text-xs font-semibold text-neutral-600">
+                Proceeds
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={disposeForm.proceeds}
+                  onChange={(e) =>
+                    setDisposeForm({ ...disposeForm, proceeds: e.target.value })
+                  }
+                  className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="block text-xs font-semibold text-neutral-600">
+                Proceeds to
+                <select
+                  value={disposeForm.proceedsTo}
+                  onChange={(e) =>
+                    setDisposeForm({
+                      ...disposeForm,
+                      proceedsTo: e.target.value as 'bank' | 'none',
+                    })
+                  }
+                  className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2 text-sm bg-white"
+                >
+                  <option value="bank">Bank (cash sale)</option>
+                  <option value="none">None (scrap / write-off)</option>
+                </select>
+              </label>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDisposeId(null)}
+                  className="btn-secondary !py-2 !px-4 text-sm"
+                >
+                  Cancel
+                </button>
+                <button type="submit" disabled={saving} className="btn-primary !py-2 !px-4 text-sm">
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Post disposal'}
                 </button>
               </div>
             </form>

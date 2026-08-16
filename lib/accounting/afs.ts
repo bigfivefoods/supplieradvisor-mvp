@@ -5,7 +5,7 @@
  *  - Statement of financial position (as at period end + comparative)
  *  - Statement of profit or loss (period + comparative; excludes year-end close)
  *  - Statement of changes in equity
- *  - Statement of cash flows (indirect method)
+ *  - Statement of cash flows (IAS 7 direct method from bank GL)
  *  - Notes + accounting policies
  *
  * These are compiled AFS from the ledger — not an audit opinion.
@@ -84,30 +84,6 @@ function isCash(a: CoaRow): boolean {
   const s = String(a.subtype || '').toLowerCase();
   const c = String(a.code || '');
   return s === 'bank' || s === 'cash' || c === '1110' || c === '1120';
-}
-
-function isPpeCost(a: CoaRow): boolean {
-  const s = String(a.subtype || '').toLowerCase();
-  const c = String(a.code || '');
-  return (
-    (s === 'fixed' || c.startsWith('12')) &&
-    s !== 'contra_asset' &&
-    c !== '1220' &&
-    c !== '1240'
-  );
-}
-
-function isNonCashExpense(a: CoaRow): boolean {
-  const s = String(a.subtype || '').toLowerCase();
-  const c = String(a.code || '');
-  return (
-    s === 'depreciation' ||
-    s === 'impairment' ||
-    s === 'credit_loss' ||
-    c === '6800' ||
-    c === '6810' ||
-    c === '6820'
-  );
 }
 
 function residualNi(
@@ -474,257 +450,28 @@ export async function buildAfsPack(opts: {
     })),
   ];
 
-  // ── Cash flows (indirect) ─────────────────────────────────────────────
-  function wcChange(
-    pred: (a: CoaRow) => boolean,
-    type: string,
-    curMap: Map<number, { debit: number; credit: number }>,
-    openMap: Map<number, { debit: number; credit: number }>
-  ): number {
-    let n = 0;
-    for (const a of accounts) {
-      if (!pred(a)) continue;
-      n += amt(curMap, a.id, type) - amt(openMap, a.id, type);
-    }
-    return round2(n);
-  }
-
-  function buildCfSide(
-    closeMap: Map<number, { debit: number; credit: number }>,
-    openMap: Map<number, { debit: number; credit: number }>,
-    periodMap: Map<number, { debit: number; credit: number }>,
-    ni: number
-  ) {
-    const depr = accounts
-      .filter((a) => a.account_type === 'expense' && isNonCashExpense(a))
-      .reduce((s, a) => s + amt(periodMap, a.id, 'expense'), 0);
-
-    const dAr = wcChange(
-      (a) =>
-        a.account_type === 'asset' &&
-        (String(a.subtype) === 'receivable' ||
-          (String(a.subtype) === 'contra_asset' && !String(a.code).startsWith('12'))),
-      'asset',
-      closeMap,
-      openMap
-    );
-    const dInv = wcChange(
-      (a) => a.account_type === 'asset' && String(a.subtype) === 'inventory',
-      'asset',
-      closeMap,
-      openMap
-    );
-    const dPrepay = wcChange(
-      (a) =>
-        a.account_type === 'asset' &&
-        !isCash(a) &&
-        !isPpeCost(a) &&
-        String(a.subtype) !== 'receivable' &&
-        String(a.subtype) !== 'inventory' &&
-        String(a.subtype) !== 'contra_asset',
-      'asset',
-      closeMap,
-      openMap
-    );
-    const dAp = wcChange(
-      (a) => a.account_type === 'liability' && String(a.subtype) === 'payable',
-      'liability',
-      closeMap,
-      openMap
-    );
-    const dTax = wcChange(
-      (a) => a.account_type === 'liability' && String(a.subtype) === 'tax',
-      'liability',
-      closeMap,
-      openMap
-    );
-    const dOthLiab = wcChange(
-      (a) =>
-        a.account_type === 'liability' &&
-        classifyBsSection(a.account_type, a.subtype, a.code) ===
-          'current_liabilities' &&
-        String(a.subtype) !== 'payable' &&
-        String(a.subtype) !== 'tax',
-      'liability',
-      closeMap,
-      openMap
-    );
-
-    const operating: AfsLine[] = [
-      { code: '', name: 'Profit / (loss) for the period', current: ni, prior: 0 },
-      {
-        code: '',
-        name: 'Adjustments for non-cash items (depreciation / impairment / ECL)',
-        current: round2(depr),
-        prior: 0,
-      },
-      {
-        code: '',
-        name: '(Increase) / decrease in trade receivables',
-        current: round2(-dAr),
-        prior: 0,
-      },
-      {
-        code: '',
-        name: '(Increase) / decrease in inventory',
-        current: round2(-dInv),
-        prior: 0,
-      },
-      {
-        code: '',
-        name: '(Increase) / decrease in other current assets',
-        current: round2(-dPrepay),
-        prior: 0,
-      },
-      {
-        code: '',
-        name: 'Increase / (decrease) in trade payables',
-        current: round2(dAp),
-        prior: 0,
-      },
-      {
-        code: '',
-        name: 'Increase / (decrease) in tax payable',
-        current: round2(dTax),
-        prior: 0,
-      },
-      {
-        code: '',
-        name: 'Increase / (decrease) in other current liabilities',
-        current: round2(dOthLiab),
-        prior: 0,
-      },
-    ];
-
-    const dPpe = wcChange(
-      (a) => a.account_type === 'asset' && isPpeCost(a),
-      'asset',
-      closeMap,
-      openMap
-    );
-    const investing: AfsLine[] = [
-      {
-        code: '',
-        name: 'Acquisition of property, plant and equipment / intangibles',
-        current: round2(-dPpe),
-        prior: 0,
-      },
-    ];
-
-    const dCapital = wcChange(
-      (a) =>
-        a.account_type === 'equity' &&
-        (String(a.subtype) === 'capital' || a.code === '3100'),
-      'equity',
-      closeMap,
-      openMap
-    );
-    const dDraw = wcChange(
-      (a) =>
-        a.account_type === 'equity' &&
-        (String(a.subtype) === 'drawings' || a.code === '3300'),
-      'equity',
-      closeMap,
-      openMap
-    );
-    const dLoan = wcChange(
-      (a) =>
-        a.account_type === 'liability' &&
-        classifyBsSection(a.account_type, a.subtype, a.code) ===
-          'non_current_liabilities',
-      'liability',
-      closeMap,
-      openMap
-    );
-    const financing: AfsLine[] = [
-      {
-        code: '',
-        name: 'Proceeds from / (repayment of) long-term borrowings',
-        current: round2(dLoan),
-        prior: 0,
-      },
-      {
-        code: '',
-        name: 'Proceeds from share capital / owner contributions',
-        current: round2(dCapital),
-        prior: 0,
-      },
-      {
-        code: '',
-        name: 'Owner drawings / distributions',
-        current: round2(dDraw),
-        prior: 0,
-      },
-    ];
-
-    const netOp = round2(operating.reduce((s, l) => s + l.current, 0));
-    const netInv = round2(investing.reduce((s, l) => s + l.current, 0));
-    const netFin = round2(financing.reduce((s, l) => s + l.current, 0));
-    const opening = cashTotal(accounts, openMap);
-    const closing = cashTotal(accounts, closeMap);
-    const implied = round2(opening + netOp + netInv + netFin);
-    const plug = round2(closing - implied);
-    if (Math.abs(plug) >= 0.05) {
-      operating.push({
-        code: '',
-        name: 'Other working-capital / unclassified movements',
-        current: plug,
-        prior: 0,
-      });
-    }
-    const netOp2 = round2(operating.reduce((s, l) => s + l.current, 0));
-    return {
-      operating,
-      investing,
-      financing,
-      netOp: netOp2,
-      netInv,
-      netFin,
-      opening,
-      closing,
-    };
-  }
-
-  const cfCur = buildCfSide(
-    buckets.asAtCurrent,
-    buckets.asAtPrior,
-    buckets.periodCurrent,
-    niCurrent
+  // ── Cash flows (IAS 7 direct, from bank GL) ────────────────────────
+  const { buildIas7CashFlow, ias7ToAfsLines } = await import(
+    '@/lib/accounting/cash-flow-ias7'
   );
-  const cfPrior = buildCfSide(
-    buckets.asAtPrior,
-    buckets.asAtPriorOpen,
-    buckets.periodPrior,
-    niPrior
-  );
-
-  function mergeCf(a: AfsLine[], b: AfsLine[]): AfsLine[] {
-    const max = Math.max(a.length, b.length);
-    const out: AfsLine[] = [];
-    for (let i = 0; i < max; i++) {
-      out.push({
-        code: '',
-        name: a[i]?.name || b[i]?.name || '',
-        current: a[i]?.current ?? 0,
-        prior: b[i]?.current ?? 0,
-      });
-    }
-    return out;
-  }
-
-  const cfOperating = mergeCf(cfCur.operating, cfPrior.operating);
-  const cfInvesting = mergeCf(cfCur.investing, cfPrior.investing);
-  const cfFinancing = mergeCf(cfCur.financing, cfPrior.financing);
-  const netChange = pair(
-    cfCur.netOp + cfCur.netInv + cfCur.netFin,
-    cfPrior.netOp + cfPrior.netInv + cfPrior.netFin
-  );
-  const openingCash = pair(cfCur.opening, cfPrior.opening);
-  const closingCash = pair(cfCur.closing, cfPrior.closing);
-  const impliedClose = pair(
-    openingCash.current + netChange.current,
-    openingCash.prior + netChange.prior
-  );
+  const ias7Cur = await buildIas7CashFlow({
+    profileId: opts.profileId,
+    from,
+    to,
+  });
+  const ias7Prior = await buildIas7CashFlow({
+    profileId: opts.profileId,
+    from: prior.from,
+    to: prior.to,
+  });
+  const mergedCf = ias7ToAfsLines(ias7Cur, ias7Prior);
+  const cfOperating = mergedCf.operating;
+  const cfInvesting = mergedCf.investing;
+  const cfFinancing = mergedCf.financing;
+  const netChange = pair(ias7Cur.netChange, ias7Prior.netChange);
+  const openingCash = pair(ias7Cur.openingCash, ias7Prior.openingCash);
+  const closingCash = pair(ias7Cur.closingCash, ias7Prior.closingCash);
+  const impliedClose = pair(ias7Cur.impliedClose, ias7Prior.impliedClose);
 
   // ── Notes ─────────────────────────────────────────────────────────────
   const ppeLines = sectionLines(
@@ -891,11 +638,15 @@ export async function buildAfsPack(opts: {
     },
     {
       title: 'Property, plant and equipment (IAS 16 — simplified)',
-      body: 'Cost model. Straight-line depreciation. Componentisation, revaluation, and automated disposal accounting are not applied unless posted as journals.',
+      body: 'Cost model. Straight-line depreciation. Disposal derecognises cost and accumulated depreciation, books proceeds, and recognises the gain or loss in profit or loss. Componentisation and revaluation are not automated.',
     },
     {
       title: 'Financial instruments (IFRS 9 — simplified)',
-      body: 'Trade receivables and payables are recognised at transaction price. Expected credit losses and fair-value instruments are not automated.',
+      body: 'Trade receivables and payables are recognised at transaction price. Expected credit losses are measured on the ECL worksheet (Finance → ECL) using management aging rates and posted to 1135 / 6820. Fair-value instruments are not automated.',
+    },
+    {
+      title: 'Statement of cash flows (IAS 7)',
+      body: 'Cash flows are presented using the direct method from movements on cash and bank GL accounts, classified as operating, investing, or financing from the opposite journal lines.',
     },
     {
       title: 'Leases, deferred tax, foreign currency',
@@ -951,9 +702,9 @@ export async function buildAfsPack(opts: {
       operating: cfOperating,
       investing: cfInvesting,
       financing: cfFinancing,
-      netOperating: pair(cfCur.netOp, cfPrior.netOp),
-      netInvesting: pair(cfCur.netInv, cfPrior.netInv),
-      netFinancing: pair(cfCur.netFin, cfPrior.netFin),
+      netOperating: pair(ias7Cur.netOperating, ias7Prior.netOperating),
+      netInvesting: pair(ias7Cur.netInvesting, ias7Prior.netInvesting),
+      netFinancing: pair(ias7Cur.netFinancing, ias7Prior.netFinancing),
       netChange,
       openingCash,
       closingCash,

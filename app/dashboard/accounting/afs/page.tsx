@@ -211,7 +211,7 @@ function Inner() {
           <StatementBlock
             id="scf"
             title="Statement of cash flows"
-            subtitle="Indirect method — for the selected period"
+            subtitle="IAS 7 direct method from bank / cash GL"
             pack={pack}
           >
             <Scf pack={pack} money={money} />

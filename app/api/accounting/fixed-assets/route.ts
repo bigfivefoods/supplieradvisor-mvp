@@ -96,6 +96,39 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (body.action === 'dispose') {
+      const id = Number(body.id);
+      if (!Number.isFinite(id)) {
+        return NextResponse.json({ error: 'id required' }, { status: 400 });
+      }
+      const { disposeFixedAsset } = await import(
+        '@/lib/accounting/balance-sheet-allocate'
+      );
+      const result = await disposeFixedAsset({
+        companyId,
+        fixedAssetId: id,
+        proceeds: body.proceeds != null ? Number(body.proceeds) : 0,
+        disposalDate: body.disposal_date || body.disposalDate || null,
+        createdBy: _gate.userId || privyUserId || null,
+        proceedsTo: body.proceedsTo === 'none' ? 'none' : 'bank',
+      });
+      if (!result.ok) {
+        return NextResponse.json(
+          { error: result.error || 'Disposal failed' },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json({
+        success: true,
+        asset: result.asset,
+        gain_loss: result.gainLoss ?? 0,
+        carrying_amount: result.carryingAmount ?? 0,
+        journal: result.journalId
+          ? { id: result.journalId, entryNumber: result.entryNumber }
+          : null,
+      });
+    }
+
     // action: capitalize — post asset to balance sheet (Dr PPE · Cr AP)
     if (body.action === 'capitalize' || body.action === 'post_to_bs') {
       const id = Number(body.id);

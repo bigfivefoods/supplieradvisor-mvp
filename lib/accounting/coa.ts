@@ -49,6 +49,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS: CoaSeed[] = [
   { code: '4100', name: 'Sales revenue', account_type: 'revenue', subtype: 'sales', normal_balance: 'credit' },
   { code: '4200', name: 'Service revenue', account_type: 'revenue', subtype: 'service', normal_balance: 'credit' },
   { code: '4300', name: 'Other income', account_type: 'revenue', subtype: 'other', normal_balance: 'credit' },
+  { code: '4310', name: 'Gain on disposal of assets', account_type: 'revenue', subtype: 'other', normal_balance: 'credit', description: 'IAS 16 disposal gain (proceeds above carrying amount)' },
 
   // Cost of sales
   { code: '5000', name: 'Cost of sales', account_type: 'cogs', is_header: true, normal_balance: 'debit' },
@@ -67,6 +68,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS: CoaSeed[] = [
   { code: '6800', name: 'Depreciation expense', account_type: 'expense', subtype: 'depreciation', normal_balance: 'debit' },
   { code: '6810', name: 'Impairment losses', account_type: 'expense', subtype: 'impairment', normal_balance: 'debit' },
   { code: '6820', name: 'Credit loss expense', account_type: 'expense', subtype: 'credit_loss', normal_balance: 'debit', description: 'IFRS 9 expected credit losses' },
+  { code: '6830', name: 'Loss on disposal of assets', account_type: 'expense', subtype: 'other', normal_balance: 'debit', description: 'IAS 16 disposal loss (proceeds below carrying amount)' },
   { code: '6900', name: 'Bank charges', account_type: 'expense', subtype: 'finance', normal_balance: 'debit' },
   { code: '6950', name: 'Interest expense', account_type: 'expense', subtype: 'finance', normal_balance: 'debit' },
   { code: '6990', name: 'Miscellaneous expense', account_type: 'expense', subtype: 'other', normal_balance: 'debit' },

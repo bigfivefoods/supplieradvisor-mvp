@@ -139,6 +139,14 @@ function HubInner() {
       metricLabel: 'open',
     },
     {
+      href: '/dashboard/accounting/ecl',
+      icon: FileText,
+      code: '03b',
+      title: 'ECL worksheet',
+      desc: 'IFRS 9 aging rates and post the AR allowance (1135 / 6820).',
+      accent: 'from-amber-50 to-white border-amber-100',
+    },
+    {
       href: '/dashboard/accounting/accounts-payable',
       icon: ArrowUpCircle,
       code: '04',

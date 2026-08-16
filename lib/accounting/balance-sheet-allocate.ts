@@ -459,6 +459,226 @@ export async function postFixedAssetDepreciation(opts: {
 }
 
 /**
+ * IAS 16 disposal: derecognise cost and accum. depr., book proceeds and gain/loss.
+ * Dr Accum. depr. · Dr Bank (proceeds) · Dr Loss / Cr Gain · Cr PPE
+ */
+export async function disposeFixedAsset(opts: {
+  companyId: number;
+  fixedAssetId: number;
+  proceeds?: number;
+  disposalDate?: string | null;
+  createdBy?: string | null;
+  /** bank = cash sale; none = scrap / write-off */
+  proceedsTo?: 'bank' | 'none';
+}): Promise<
+  PostResult & {
+    gainLoss?: number;
+    carryingAmount?: number;
+    asset?: Record<string, unknown>;
+  }
+> {
+  const supabase = getSupabaseServer();
+  const { data: asset, error } = await supabase
+    .from('fixed_assets')
+    .select('*')
+    .eq('id', opts.fixedAssetId)
+    .eq('profile_id', opts.companyId)
+    .maybeSingle();
+  if (error || !asset) {
+    return { ok: false, error: error?.message || 'Fixed asset not found' };
+  }
+  if (String(asset.status) === 'disposed') {
+    return { ok: false, error: 'Asset is already disposed' };
+  }
+
+  const cost = Math.abs(Number(asset.purchase_cost || 0));
+  const accum = Math.min(
+    Math.abs(Number(asset.accumulated_depreciation || 0)),
+    cost
+  );
+  const carrying = Math.round((cost - accum) * 100) / 100;
+  const rawProceeds = Math.max(0, Number(opts.proceeds || 0));
+  const takeCash = opts.proceedsTo !== 'none' && rawProceeds >= 0.005;
+  const proceeds = takeCash ? rawProceeds : 0;
+  const gainLoss = Math.round((proceeds - carrying) * 100) / 100;
+  const disposalDate = String(
+    opts.disposalDate || new Date().toISOString()
+  ).slice(0, 10);
+
+  const accts = await resolveBsAccounts(opts.companyId);
+  const ppeId =
+    (asset.gl_asset_account_id ? Number(asset.gl_asset_account_id) : null) ||
+    accts.ppe;
+  const accumId =
+    (asset.gl_depr_account_id ? Number(asset.gl_depr_account_id) : null) ||
+    accts.accumDepr;
+  const gainId =
+    (await resolveCoaAccountIdByCode(opts.companyId, '4310')) ||
+    (await resolveCoaAccountId({
+      profileId: opts.companyId,
+      accountTypes: ['revenue'],
+      subtypes: ['other'],
+    }));
+  const lossId =
+    (await resolveCoaAccountIdByCode(opts.companyId, '6830')) ||
+    (await resolveCoaAccountId({
+      profileId: opts.companyId,
+      accountTypes: ['expense'],
+      subtypes: ['other'],
+    }));
+
+  let journalId: number | undefined;
+  let entryNumber: string | undefined;
+
+  if (asset.capitalization_journal_id && ppeId && cost >= 0.005) {
+    if (!accumId) {
+      return { ok: false, error: 'COA missing accumulated depreciation (1220)' };
+    }
+    if (gainLoss > 0 && !gainId) {
+      return { ok: false, error: 'COA missing gain on disposal (4310)' };
+    }
+    if (gainLoss < 0 && !lossId) {
+      return { ok: false, error: 'COA missing loss on disposal (6830)' };
+    }
+    if (takeCash && !accts.bank) {
+      return { ok: false, error: 'COA missing bank (1110) for proceeds' };
+    }
+
+    const memo =
+      `Dispose FA ${asset.asset_code || asset.id}: ${asset.name}`.slice(0, 500);
+    type Ln = {
+      accountId: number;
+      debit: number;
+      credit: number;
+      memo?: string;
+      fixedAssetId?: number;
+    };
+    const lines: Ln[] = [];
+    if (accum >= 0.005) {
+      lines.push({
+        accountId: accumId,
+        debit: accum,
+        credit: 0,
+        memo: 'Derecognise accumulated depreciation',
+        fixedAssetId: Number(asset.id),
+      });
+    }
+    if (takeCash) {
+      lines.push({
+        accountId: accts.bank!,
+        debit: proceeds,
+        credit: 0,
+        memo: 'Disposal proceeds',
+        fixedAssetId: Number(asset.id),
+      });
+    }
+    if (gainLoss < -0.005 && lossId) {
+      lines.push({
+        accountId: lossId,
+        debit: Math.abs(gainLoss),
+        credit: 0,
+        memo: 'Loss on disposal',
+        fixedAssetId: Number(asset.id),
+      });
+    }
+    lines.push({
+      accountId: ppeId,
+      debit: 0,
+      credit: cost,
+      memo,
+      fixedAssetId: Number(asset.id),
+    });
+    if (gainLoss > 0.005 && gainId) {
+      lines.push({
+        accountId: gainId,
+        debit: 0,
+        credit: gainLoss,
+        memo: 'Gain on disposal',
+        fixedAssetId: Number(asset.id),
+      });
+    }
+
+    const posted = await postBalancedJournal({
+      profileId: opts.companyId,
+      entryDate: disposalDate,
+      memo,
+      source: 'fixed_asset_disposal',
+      sourceId: String(asset.id),
+      createdBy: opts.createdBy || null,
+      metadata: {
+        fixed_asset_id: asset.id,
+        proceeds,
+        carrying_amount: carrying,
+        gain_loss: gainLoss,
+      },
+      lines,
+    });
+    if (!posted.ok) return { ok: false, error: posted.error };
+    journalId = posted.journalId;
+    entryNumber = posted.entryNumber;
+  }
+
+  const meta =
+    asset.metadata && typeof asset.metadata === 'object'
+      ? { ...(asset.metadata as Record<string, unknown>) }
+      : {};
+  const patch: Record<string, unknown> = {
+    status: 'disposed',
+    disposal_date: disposalDate,
+    disposal_proceeds: proceeds,
+    book_value: 0,
+    updated_at: new Date().toISOString(),
+    metadata: {
+      ...meta,
+      disposal_journal_id: journalId || null,
+      disposal_gain_loss: gainLoss,
+    },
+  };
+  if (journalId) patch.disposal_journal_id = journalId;
+
+  const { data: updated, error: upErr } = await supabase
+    .from('fixed_assets')
+    .update(patch)
+    .eq('id', asset.id)
+    .eq('profile_id', opts.companyId)
+    .select('*')
+    .single();
+
+  if (upErr) {
+    const { data: soft } = await supabase
+      .from('fixed_assets')
+      .update({
+        status: 'disposed',
+        disposal_date: disposalDate,
+        disposal_proceeds: proceeds,
+        book_value: 0,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', asset.id)
+      .eq('profile_id', opts.companyId)
+      .select('*')
+      .single();
+    return {
+      ok: true,
+      journalId,
+      entryNumber,
+      gainLoss,
+      carryingAmount: carrying,
+      asset: soft || undefined,
+    };
+  }
+
+  return {
+    ok: true,
+    journalId,
+    entryNumber,
+    gainLoss,
+    carryingAmount: carrying,
+    asset: updated || undefined,
+  };
+}
+
+/**
  * Post a liability register row to the BS (Cr liability · Dr bank or equity).
  */
 export async function capitalizeLiability(opts: {

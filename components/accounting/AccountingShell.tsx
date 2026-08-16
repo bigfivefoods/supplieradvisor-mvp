@@ -13,6 +13,7 @@ export const ACCOUNTING_NAV: readonly NavItem[] = [
   { href: '/dashboard/accounting/chart-of-accounts', label: 'CoA' },
   { href: '/dashboard/accounting/journal-entries', label: 'Journals' },
   { href: '/dashboard/accounting/accounts-receivable', label: 'AR' },
+  { href: '/dashboard/accounting/ecl', label: 'ECL' },
   { href: '/dashboard/accounting/accounts-payable', label: 'AP' },
   { href: '/dashboard/accounting/payments', label: 'Pay' },
   { href: '/dashboard/accounting/bank-reconciliation', label: 'Bank' },

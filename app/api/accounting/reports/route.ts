@@ -99,35 +99,43 @@ export async function GET(request: NextRequest) {
     }
 
     if (report === 'cashflow') {
-      let payQ = supabase
-        .from('payments')
-        .select('*')
-        .eq('profile_id', companyId)
-        .order('paid_at', { ascending: false })
-        .limit(500);
-      if (from) payQ = payQ.gte('paid_at', `${from}T00:00:00`);
-      if (to) payQ = payQ.lte('paid_at', `${to}T23:59:59`);
-      const { data: payments, error } = await payQ;
-      if (error) {
-        return NextResponse.json({ success: true, report, rows: [], warning: error.message });
-      }
-      let inflow = 0;
-      let outflow = 0;
-      for (const p of payments || []) {
-        const amt = Number(p.amount || 0);
-        if (p.direction === 'inbound') inflow += amt;
-        else outflow += amt;
-      }
+      const { buildIas7CashFlow } = await import('@/lib/accounting/cash-flow-ias7');
+      const rangeFrom = from || `${new Date().getFullYear()}-01-01`;
+      const rangeTo = to || new Date().toISOString().slice(0, 10);
+      const ias7 = await buildIas7CashFlow({
+        profileId: companyId,
+        from: rangeFrom,
+        to: rangeTo,
+      });
       return NextResponse.json({
         success: true,
         report,
+        method: 'ias7_direct',
+        period: { from: rangeFrom, to: rangeTo },
+        ias7,
         summary: {
-          inflow: round2(inflow),
-          outflow: round2(outflow),
-          net: round2(inflow - outflow),
-          count: (payments || []).length,
+          inflow: round2(
+            [...ias7.operating, ...ias7.investing, ...ias7.financing].reduce(
+              (s, l) => s + l.inflow,
+              0
+            )
+          ),
+          outflow: round2(
+            [...ias7.operating, ...ias7.investing, ...ias7.financing].reduce(
+              (s, l) => s + l.outflow,
+              0
+            )
+          ),
+          net: ias7.netChange,
+          operating: ias7.netOperating,
+          investing: ias7.netInvesting,
+          financing: ias7.netFinancing,
+          openingCash: ias7.openingCash,
+          closingCash: ias7.closingCash,
+          reconciled: ias7.reconciled,
+          count: ias7.journalCount,
         },
-        rows: payments || [],
+        warning: ias7.warning,
       });
     }
 

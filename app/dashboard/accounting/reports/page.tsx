@@ -956,52 +956,66 @@ function ReportBody({
   }
 
   if (report === 'cashflow') {
-    const summary = data.summary as Record<string, number> | undefined;
-    const rows = (data.rows as Array<Record<string, unknown>>) || [];
-    // Build daily/weekly-ish series from payment rows for chart
-    const byDay = new Map<string, { in: number; out: number }>();
-    for (const r of rows) {
-      const d = String(r.paid_at || '').slice(0, 10) || '—';
-      if (!byDay.has(d)) byDay.set(d, { in: 0, out: 0 });
-      const cell = byDay.get(d)!;
-      const amt = Number(r.amount || 0);
-      if (r.direction === 'inbound') cell.in += amt;
-      else cell.out += amt;
-    }
-    const dayKeys = Array.from(byDay.keys()).sort().slice(-30);
+    const summary = data.summary as Record<string, number | boolean> | undefined;
+    const ias7 = data.ias7 as
+      | {
+          operating?: Array<{ name: string; inflow: number; outflow: number; net: number }>;
+          investing?: Array<{ name: string; inflow: number; outflow: number; net: number }>;
+          financing?: Array<{ name: string; inflow: number; outflow: number; net: number }>;
+          reconciled?: boolean;
+        }
+      | undefined;
+    const sectionRows = (
+      title: string,
+      rows: Array<{ name: string; inflow: number; outflow: number; net: number }>
+    ) =>
+      rows.length
+        ? [
+            [title, '', '', ''],
+            ...rows.map((r) => [
+              `  ${r.name}`,
+              formatMoney(r.inflow),
+              formatMoney(r.outflow),
+              formatMoney(r.net),
+            ]),
+          ]
+        : [];
     return (
       <>
+        <p className="text-xs text-neutral-500 mb-3">
+          IAS 7 direct method — cash movements on bank / petty-cash GL, classified from the
+          opposite journal lines.
+        </p>
         {summary && (
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            <SumCard label="Inflow" value={formatMoney(summary.inflow)} tone="emerald" />
-            <SumCard label="Outflow" value={formatMoney(summary.outflow)} />
-            <SumCard label="Net" value={formatMoney(summary.net)} />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+            <SumCard label="Operating" value={formatMoney(Number(summary.operating))} tone="emerald" />
+            <SumCard label="Investing" value={formatMoney(Number(summary.investing))} />
+            <SumCard label="Financing" value={formatMoney(Number(summary.financing))} />
+            <SumCard
+              label="Net change"
+              value={formatMoney(Number(summary.net))}
+              tone={Number(summary.net) >= 0 ? 'emerald' : 'amber'}
+            />
           </div>
         )}
-        <div className="grid lg:grid-cols-2 gap-4 mb-6">
-          <ChartCard
-            title="Cash movement"
-            subtitle="Recent payments (last 30 dates with activity)"
-            height={300}
-            className="lg:col-span-2"
-          >
-            <CashflowChart
-              labels={dayKeys.map((d) => d.slice(5))}
-              inflow={dayKeys.map((d) => byDay.get(d)!.in)}
-              outflow={dayKeys.map((d) => byDay.get(d)!.out)}
-              net={dayKeys.map((d) => byDay.get(d)!.in - byDay.get(d)!.out)}
+        {summary && (
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            <SumCard label="Opening cash" value={formatMoney(Number(summary.openingCash))} />
+            <SumCard label="Closing cash" value={formatMoney(Number(summary.closingCash))} />
+            <SumCard
+              label="Reconciled"
+              value={summary.reconciled ? 'Yes' : 'Review'}
+              tone={summary.reconciled ? 'emerald' : 'amber'}
             />
-          </ChartCard>
-        </div>
+          </div>
+        )}
         <SimpleTable
-          headers={['Date', 'Direction', 'Method', 'Counterparty', 'Amount']}
-          rows={rows.map((r) => [
-            String(r.paid_at || '').slice(0, 10),
-            String(r.direction),
-            String(r.method || '—'),
-            String(r.counterparty_name || '—'),
-            formatMoney(Number(r.amount)),
-          ])}
+          headers={['Line', 'Inflow', 'Outflow', 'Net']}
+          rows={[
+            ...sectionRows('Operating activities', ias7?.operating || []),
+            ...sectionRows('Investing activities', ias7?.investing || []),
+            ...sectionRows('Financing activities', ias7?.financing || []),
+          ]}
         />
       </>
     );
