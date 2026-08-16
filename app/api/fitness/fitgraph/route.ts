@@ -14,10 +14,15 @@ import {
   buildClassJoinPath,
   buildCoachPortalPayload,
   closeCoachEngagement,
+  applySessionKindRules,
+  coachPersonalBookingError,
   createSessionsFromTemplate,
   defaultPublicSettings,
   ensurePublicToken,
   ensureSessionShareCode,
+  resolveClassTypeForSession,
+  resolveSessionTimes,
+  sessionKindOf,
   issueCoachPortalToken,
   issueClientPortalToken,
   newId,
@@ -48,6 +53,7 @@ import {
   type FitPublicSettings,
 } from '@/lib/fitness/fitgraph';
 import { parseQualifications } from '@/lib/services/person-qualifications';
+import { upsertMovement, upsertProgramme } from '@/lib/fitness/movements';
 import {
   applyFitClientImport,
   buildFitClientsXlsx,
@@ -91,7 +97,9 @@ type Entity =
   | 'sessions'
   | 'bookings'
   | 'check_ins'
-  | 'pt_packs';
+  | 'pt_packs'
+  | 'movements'
+  | 'programmes';
 
 async function loadStore(companyId: number) {
   const supabase = getSupabaseServer();
@@ -707,20 +715,37 @@ export async function POST(request: NextRequest) {
       const classTypeId = String(body.class_type_id || '');
       const date = String(body.date || now.slice(0, 10));
       const startTime = String(body.start_time || '06:00');
-      // Flow: create class first → assign coach later → book members later
-      if (!classTypeId) {
+      const resolved = resolveClassTypeForSession(store, {
+        class_type_id: classTypeId,
+        session_kind: body.session_kind,
+      });
+      // Flow: create class first → assign coach later → book members later.
+      // Private PT / coach personal time use system class types and need a coach.
+      if (resolved.kind === 'class' && !resolved.class_type_id) {
         return NextResponse.json(
           { error: 'class_type_id required' },
+          { status: 400 }
+        );
+      }
+      if (!resolved.class_type_id) {
+        return NextResponse.json(
+          { error: 'Could not resolve class type for this session' },
           { status: 400 }
         );
       }
       if (coachId && !store.coaches.find((c) => c.id === coachId)) {
         return NextResponse.json({ error: 'Coach not found' }, { status: 404 });
       }
-      if (!store.class_types.find((c) => c.id === classTypeId)) {
+      if (!store.class_types.find((c) => c.id === resolved.class_type_id)) {
         return NextResponse.json(
           { error: 'Class type not found' },
           { status: 404 }
+        );
+      }
+      if (resolved.kind !== 'class' && !coachId) {
+        return NextResponse.json(
+          { error: 'Pick a coach for private PT or personal time' },
+          { status: 400 }
         );
       }
       let recurrence: FitRecurrence | null = null;
@@ -755,13 +780,14 @@ export async function POST(request: NextRequest) {
       const created = createSessionsFromTemplate(
         store,
         {
-          class_type_id: classTypeId,
+          class_type_id: resolved.class_type_id,
           coach_id: coachId,
           date,
           start_time: startTime,
           end_time: body.end_time != null ? String(body.end_time) : null,
           duration_min:
             body.duration_min != null ? Number(body.duration_min) : null,
+          session_kind: resolved.kind,
           capacity: body.capacity != null ? Number(body.capacity) : null,
           location: body.location != null ? String(body.location) : undefined,
           room: body.room != null ? String(body.room) : null,
@@ -772,6 +798,10 @@ export async function POST(request: NextRequest) {
           class_plan:
             body.class_plan != null ? String(body.class_plan) : undefined,
           origin: 'owner',
+          programme_id:
+            body.programme_id != null && String(body.programme_id).trim()
+              ? String(body.programme_id)
+              : null,
         },
         recurrence,
         now
@@ -787,8 +817,16 @@ export async function POST(request: NextRequest) {
         sessions: created,
         message:
           created.length > 1
-            ? `Scheduled ${created.length} classes in series`
-            : 'Bespoke class scheduled',
+            ? resolved.kind === 'coach_personal'
+              ? `Blocked ${created.length} personal-time slots`
+              : resolved.kind === 'private_pt'
+                ? `Scheduled ${created.length} private PT sessions`
+                : `Scheduled ${created.length} classes in series`
+            : resolved.kind === 'coach_personal'
+              ? 'Personal time blocked on the calendar'
+              : resolved.kind === 'private_pt'
+                ? 'Private PT scheduled'
+                : 'Bespoke class scheduled',
       });
     }
 
@@ -801,6 +839,12 @@ export async function POST(request: NextRequest) {
       const session = store.sessions.find((s) => s.id === sessionId);
       if (!session) {
         return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+      }
+      if (sessionKindOf(store, session) === 'coach_personal') {
+        return NextResponse.json(
+          { error: 'Coach personal time cannot be shared as a join link' },
+          { status: 400 }
+        );
       }
       store.settings = ensurePublicToken(store.settings, companyId);
       // Keep calendar usable for invites even if not fully published
@@ -1703,6 +1747,32 @@ export async function POST(request: NextRequest) {
       }
       const key = entity as keyof FitgraphStore;
       const list = store[key];
+      if (entity === 'movements') {
+        const { isSystemMovement } = await import(
+          '@/lib/fitness/movement-catalog'
+        );
+        const existing = (store.movements || []).find((m) => m.id === id);
+        if (existing && isSystemMovement(existing)) {
+          return NextResponse.json(
+            { error: 'Built-in catalog movements cannot be deleted' },
+            { status: 400 }
+          );
+        }
+        const { removeMovementFromProgrammes } = await import(
+          '@/lib/fitness/movements'
+        );
+        if (!store.programmes) store.programmes = [];
+        removeMovementFromProgrammes(store.programmes, id);
+      }
+      if (entity === 'programmes') {
+        const { clearProgrammeFromSessions } = await import(
+          '@/lib/fitness/movements'
+        );
+        clearProgrammeFromSessions(store.sessions, id);
+        for (const p of store.programmes || []) {
+          p.session_ids = (p.session_ids || []).filter((x) => x !== id);
+        }
+      }
       if (Array.isArray(list)) {
         // Optional: delete whole class series when series_id matches
         if (
@@ -1758,6 +1828,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'entity required' }, { status: 400 });
     }
     const rec = (body.record || body) as Record<string, unknown>;
+    if (entity === 'bookings') {
+      const session = store.sessions.find(
+        (s) => s.id === String(rec.session_id || '')
+      );
+      const blocked = coachPersonalBookingError(store, session);
+      if (blocked) {
+        return NextResponse.json({ error: blocked }, { status: 400 });
+      }
+    }
     const existingClientId = rec.id ? String(rec.id) : '';
     const clientWasNew =
       entity === 'clients' &&
@@ -2251,15 +2330,44 @@ function upsert(
         );
       }
     }
-    const ct = store.class_types.find(
-      (c) => c.id === String(rec.class_type_id || prev?.class_type_id || '')
-    );
-    const makePublic = rec.public === true || rec.public === 'true';
-    const row: FitSession = {
-      id,
+    const resolved = resolveClassTypeForSession(store, {
       class_type_id: String(
         rec.class_type_id || prev?.class_type_id || ''
       ),
+      session_kind:
+        rec.session_kind !== undefined
+          ? rec.session_kind
+          : prev?.session_kind,
+    });
+    const ct = store.class_types.find((c) => c.id === resolved.class_type_id);
+    const times = resolveSessionTimes({
+      start_time: String(rec.start_time || prev?.start_time || '06:00'),
+      end_time:
+        rec.end_time != null
+          ? String(rec.end_time)
+          : rec.duration_min != null
+            ? null
+            : prev?.end_time ?? null,
+      duration_min:
+        rec.duration_min != null
+          ? Number(rec.duration_min)
+          : prev?.duration_min ?? ct?.default_duration_min ?? 45,
+      fallbackDuration: ct?.default_duration_min ?? 45,
+    });
+    const rules = applySessionKindRules(resolved.kind, {
+      public:
+        rec.public !== undefined
+          ? rec.public === true || rec.public === 'true'
+          : prev?.public === true,
+      capacity:
+        rec.capacity != null
+          ? Number(rec.capacity)
+          : prev?.capacity ?? ct?.capacity ?? 20,
+    });
+    const makePublic = rules.public;
+    const row: FitSession = {
+      id,
+      class_type_id: resolved.class_type_id,
       coach_id:
         rec.coach_id !== undefined
           ? rec.coach_id
@@ -2267,19 +2375,11 @@ function upsert(
             : null
           : prev?.coach_id ?? null,
       date: String(rec.date || prev?.date || now.slice(0, 10)),
-      start_time: String(rec.start_time || prev?.start_time || '06:00'),
-      end_time:
-        rec.end_time != null
-          ? String(rec.end_time)
-          : prev?.end_time ?? null,
-      duration_min:
-        rec.duration_min != null
-          ? Number(rec.duration_min)
-          : prev?.duration_min ?? ct?.default_duration_min ?? 45,
-      capacity:
-        rec.capacity != null
-          ? Number(rec.capacity)
-          : prev?.capacity ?? ct?.capacity ?? 20,
+      start_time: times.start_time,
+      end_time: times.end_time,
+      duration_min: times.duration_min,
+      session_kind: resolved.kind,
+      capacity: rules.capacity,
       location:
         rec.location != null
           ? String(rec.location)
@@ -2291,10 +2391,7 @@ function upsert(
             : null
           : prev?.room ?? (rec.location != null ? String(rec.location) : null),
       status: (rec.status as FitSession['status']) || prev?.status || 'scheduled',
-      public:
-        rec.public !== undefined
-          ? makePublic || rec.public === true
-          : prev?.public === true,
+      public: rules.public,
       share_code:
         rec.share_code !== undefined
           ? rec.share_code
@@ -2323,6 +2420,12 @@ function upsert(
         rec.origin != null
           ? String(rec.origin)
           : prev?.origin ?? 'owner',
+      programme_id:
+        rec.programme_id !== undefined
+          ? rec.programme_id
+            ? String(rec.programme_id)
+            : null
+          : prev?.programme_id ?? null,
       created_at: prev?.created_at || now,
     };
     if (i >= 0) store.sessions[i] = row;
@@ -2499,6 +2602,12 @@ function upsert(
     };
     if (i >= 0) store.pt_packs[i] = row;
     else store.pt_packs.push(row);
+  } else if (entity === 'movements') {
+    if (!store.movements) store.movements = [];
+    upsertMovement(store.movements, rec, now, newId);
+  } else if (entity === 'programmes') {
+    if (!store.programmes) store.programmes = [];
+    upsertProgramme(store.programmes, rec, now, newId);
   } else {
     throw new Error('Unknown entity');
   }

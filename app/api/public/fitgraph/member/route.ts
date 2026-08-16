@@ -16,6 +16,7 @@ import {
   readFitgraphFromMetadata,
   recordMemberCheckIn,
   sessionBookingCount,
+  sessionKindOf,
   writeFitgraphToMetadata,
   type FitBooking,
   type FitClient,
@@ -567,6 +568,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { error: 'Class not available for member booking' },
           { status: 404 }
+        );
+      }
+      if (sessionKindOf(store, session) === 'coach_personal') {
+        return NextResponse.json(
+          { error: 'Coach personal time cannot be booked by members' },
+          { status: 400 }
         );
       }
 

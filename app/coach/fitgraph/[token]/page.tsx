@@ -25,6 +25,17 @@ import {
   X,
 } from 'lucide-react';
 import { addDaysIso } from '@/lib/fitness/fitgraph';
+import {
+  SESSION_KIND_OPTIONS,
+  SYS_COACH_TIME_CODE,
+  SYS_PT_CODE,
+  durationFromStartEnd,
+  endFromStartDuration,
+  patchFormForSessionKind,
+  resolveSessionTimes,
+  sessionKindFromRecord,
+  type FitSessionKind,
+} from '@/lib/fitness/session-times';
 import { FitClassFeedbackForm } from '@/components/fitness/FitClassFeedbackForm';
 import { PersonQualificationsEditor } from '@/components/services/PersonQualificationsEditor';
 import type { PersonQualification } from '@/lib/services/person-qualifications';
@@ -36,6 +47,13 @@ import {
   type InjuryFormState,
 } from '@/components/health/InjuryProfileFields';
 import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
+import { CoachMovementStudio } from '@/components/fitness/CoachMovementStudio';
+import { ProgrammeView } from '@/components/fitness/ProgrammeView';
+import type {
+  FitHydratedProgramme,
+  FitMovement,
+  FitProgramme,
+} from '@/lib/fitness/movements';
 
 type RosterRow = {
   booking_id: string;
@@ -57,14 +75,20 @@ type PortalSession = {
     class_type_id?: string;
     date: string;
     start_time: string;
+    end_time?: string | null;
+    duration_min?: number | null;
     location?: string;
     capacity?: number | null;
     public?: boolean;
     status: string;
     series_id?: string | null;
+    session_kind?: import('@/lib/fitness/session-times').FitSessionKind;
+    notes?: string;
     class_plan?: string;
     public_notes?: string;
+    programme_id?: string | null;
   };
+  programme?: FitHydratedProgramme | null;
   class_name?: string;
   capacity: number;
   planned: number;
@@ -100,14 +124,18 @@ type PortalSession = {
 };
 
 type SessionEditForm = {
+  session_kind: import('@/lib/fitness/session-times').FitSessionKind;
   class_type_id: string;
   date: string;
   start_time: string;
+  end_time: string;
   location: string;
   capacity: string;
   status: string;
   public: boolean;
   class_plan: string;
+  notes: string;
+  programme_id: string;
 };
 
 type Portal = {
@@ -172,6 +200,8 @@ type Portal = {
     name: string;
     capacity?: number | null;
   }>;
+  movements?: FitMovement[];
+  programmes?: FitProgramme[];
   threads?: Array<{
     id: string;
     channel: string;
@@ -224,20 +254,25 @@ export default function CoachFitgraphPortalPage() {
   );
   const [openId, setOpenId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
   const [guestFor, setGuestFor] = useState<string | null>(null);
   const [guestName, setGuestName] = useState('');
   const [memberFor, setMemberFor] = useState('');
   const [create, setCreate] = useState({
+    session_kind: 'class' as FitSessionKind,
     class_type_id: '',
     date: new Date().toISOString().slice(0, 10),
     start_time: '06:00',
+    end_time: '06:45',
     location: '',
     capacity: '',
     class_plan: '',
+    notes: '',
     repeat: 'none' as 'none' | 'weekly',
     count: '8',
     weekdays: [] as number[],
     public: false,
+    programme_id: '',
   });
   const [classPlanDraft, setClassPlanDraft] = useState('');
   const [sessionEdit, setSessionEdit] = useState<SessionEditForm | null>(null);
@@ -374,10 +409,23 @@ export default function CoachFitgraphPortalPage() {
   useEffect(() => {
     if (openCard) {
       setClassPlanDraft(openCard.session.class_plan || '');
+      const kind = sessionKindFromRecord({
+        session_kind: openCard.session.session_kind,
+        class_code: portal?.class_types.find(
+          (c) => c.id === openCard.session.class_type_id
+        )?.code,
+      });
+      const times = resolveSessionTimes({
+        start_time: String(openCard.session.start_time || '06:00').slice(0, 5),
+        end_time: openCard.session.end_time,
+        duration_min: openCard.session.duration_min,
+      });
       setSessionEdit({
+        session_kind: kind,
         class_type_id: openCard.session.class_type_id || '',
         date: openCard.session.date || '',
-        start_time: String(openCard.session.start_time || '06:00').slice(0, 5),
+        start_time: times.start_time,
+        end_time: times.end_time,
         location: openCard.session.location || '',
         capacity:
           openCard.session.capacity != null
@@ -386,8 +434,10 @@ export default function CoachFitgraphPortalPage() {
               ? String(openCard.capacity)
               : '',
         status: openCard.session.status || 'scheduled',
-        public: openCard.session.public === true,
+        public: kind === 'class' && openCard.session.public === true,
         class_plan: openCard.session.class_plan || '',
+        notes: openCard.session.notes || '',
+        programme_id: openCard.session.programme_id || '',
       });
     } else {
       setSessionEdit(null);
@@ -402,12 +452,16 @@ export default function CoachFitgraphPortalPage() {
     openCard?.session.status,
     openCard?.session.public,
     openCard?.session.class_type_id,
+    openCard?.session.end_time,
+    openCard?.session.session_kind,
+    openCard?.session.notes,
     openCard?.capacity,
+    portal?.class_types,
   ]);
 
   const saveSessionEdit = async () => {
     if (!openCard || !sessionEdit) return;
-    if (!sessionEdit.class_type_id) {
+    if (sessionEdit.session_kind === 'class' && !sessionEdit.class_type_id) {
       setError('Pick a class type');
       return;
     }
@@ -415,17 +469,26 @@ export default function CoachFitgraphPortalPage() {
       setError('Set date and start time');
       return;
     }
+    const times = resolveSessionTimes({
+      start_time: sessionEdit.start_time,
+      end_time: sessionEdit.end_time,
+    });
     await post({
       action: 'update_session',
       session_id: openCard.session.id,
       class_type_id: sessionEdit.class_type_id,
+      session_kind: sessionEdit.session_kind,
       date: sessionEdit.date,
-      start_time: sessionEdit.start_time,
+      start_time: times.start_time,
+      end_time: times.end_time,
+      duration_min: times.duration_min,
       location: sessionEdit.location || '',
       capacity: sessionEdit.capacity ? Number(sessionEdit.capacity) : null,
       status: sessionEdit.status,
-      public: sessionEdit.public,
+      public: sessionEdit.session_kind === 'class' && sessionEdit.public,
       class_plan: sessionEdit.class_plan,
+      notes: sessionEdit.notes,
+      programme_id: sessionEdit.programme_id || null,
     });
     setClassPlanDraft(sessionEdit.class_plan);
     void load();
@@ -578,7 +641,14 @@ export default function CoachFitgraphPortalPage() {
                 onClick={() => setShowCreate(true)}
                 className="inline-flex items-center gap-1 rounded-full bg-amber-500 text-amber-950 px-3 py-1.5 text-xs font-black"
               >
-                <Plus className="w-3.5 h-3.5" /> New class
+                <Plus className="w-3.5 h-3.5" /> Class / PT / block
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowLibrary(true)}
+                className="inline-flex items-center gap-1 rounded-full border border-amber-500/50 px-3 py-1.5 text-xs font-bold text-amber-200"
+              >
+                Library
               </button>
             </div>
           </div>
@@ -655,9 +725,17 @@ export default function CoachFitgraphPortalPage() {
                       >
                         <div className="text-[11px] font-black tabular-nums text-amber-200">
                           {card.session.start_time}
+                          {card.session.end_time
+                            ? `–${card.session.end_time}`
+                            : ''}
                         </div>
                         <div className="text-[10px] font-semibold truncate">
-                          {card.class_name || 'Class'}
+                          {card.session.session_kind === 'coach_personal'
+                            ? card.session.notes?.split('\n')[0] ||
+                              'Personal time'
+                            : card.session.session_kind === 'private_pt'
+                              ? `PT · ${card.class_name || 'PT'}`
+                              : card.class_name || 'Class'}
                         </div>
                         <div className="text-[9px] text-slate-500 flex gap-1 items-center">
                           <span>
@@ -684,8 +762,8 @@ export default function CoachFitgraphPortalPage() {
 
         {portal.sessions.length === 0 && (
           <p className="text-center text-slate-500 py-10 text-sm">
-            No classes this week. Tap <strong>New class</strong> for a bespoke
-            session or weekly series.
+            Nothing this week. Tap <strong>Class / PT / block</strong> to add a
+            class, private PT, or your own training.
           </p>
         )}
       </main>
@@ -698,16 +776,27 @@ export default function CoachFitgraphPortalPage() {
               <div>
                 <p className="text-[10px] font-black uppercase tracking-wider text-amber-400">
                   {openCard.session.date} · {openCard.session.start_time}
+                  {openCard.session.end_time
+                    ? `–${openCard.session.end_time}`
+                    : ''}
                   {openCard.session.series_id ? ' · series' : ' · bespoke'}
                 </p>
                 <h3 className="text-lg font-black">
-                  {openCard.class_name || 'Class'}
+                  {openCard.session.session_kind === 'coach_personal'
+                    ? openCard.session.notes?.split('\n')[0] ||
+                      'Coach personal time'
+                    : openCard.class_name || 'Class'}
                 </h3>
                 <p className="text-xs text-slate-400">
                   {openCard.session.location || '—'} · Plan {openCard.planned}/
                   {openCard.capacity} · Actual attended {openCard.attended} ·
                   no-show {openCard.no_show}
                 </p>
+                {openCard.programme ? (
+                  <div className="mt-3">
+                    <ProgrammeView programme={openCard.programme} dark compact />
+                  </div>
+                ) : null}
               </div>
               <button type="button" onClick={() => setOpenId(null)}>
                 <X className="w-5 h-5" />
@@ -715,65 +804,69 @@ export default function CoachFitgraphPortalPage() {
             </div>
 
             <div className="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                disabled={busy}
-                className="inline-flex items-center gap-1 rounded-xl border border-slate-600 px-2.5 py-1.5 text-[11px] font-bold"
-                onClick={() =>
-                  void post({
-                    action: 'share_session',
-                    session_id: openCard.session.id,
-                    public: !openCard.session.public,
-                  }).then(() => {
-                    setSessionEdit((f) =>
-                      f ? { ...f, public: !openCard.session.public } : f
-                    );
-                  })
-                }
-              >
-                <Share2 className="w-3 h-3" />
-                {openCard.session.public ? 'Unshare' : 'Share publicly'}
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                className="inline-flex items-center gap-1 rounded-xl bg-yellow-600 px-2.5 py-1.5 text-[11px] font-bold"
-                onClick={() => {
-                  setGuestFor(openCard.session.id);
-                  setGuestName('');
-                }}
-              >
-                <UserPlus className="w-3 h-3" /> Walk-in guest
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                className="inline-flex items-center gap-1 rounded-xl border border-amber-500/50 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-bold text-amber-200"
-                onClick={() =>
-                  void post({
-                    action: 'issue_class_invite',
-                    session_id: openCard.session.id,
-                  }).then(async (data) => {
-                    const inv = data.invite as
-                      | { path?: string; text?: string }
-                      | undefined;
-                    if (!inv?.path) return;
-                    const url = `${window.location.origin}${inv.path}`;
-                    await navigator.clipboard.writeText(
-                      `${inv.text || 'Join class'}\n${url}`
-                    );
-                  })
-                }
-              >
-                <Share2 className="w-3 h-3" /> Copy join link
-              </button>
+              {sessionEdit?.session_kind !== 'coach_personal' ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    className="inline-flex items-center gap-1 rounded-xl border border-slate-600 px-2.5 py-1.5 text-[11px] font-bold"
+                    onClick={() =>
+                      void post({
+                        action: 'share_session',
+                        session_id: openCard.session.id,
+                        public: !openCard.session.public,
+                      }).then(() => {
+                        setSessionEdit((f) =>
+                          f ? { ...f, public: !openCard.session.public } : f
+                        );
+                      })
+                    }
+                  >
+                    <Share2 className="w-3 h-3" />
+                    {openCard.session.public ? 'Unshare' : 'Share publicly'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    className="inline-flex items-center gap-1 rounded-xl bg-yellow-600 px-2.5 py-1.5 text-[11px] font-bold"
+                    onClick={() => {
+                      setGuestFor(openCard.session.id);
+                      setGuestName('');
+                    }}
+                  >
+                    <UserPlus className="w-3 h-3" /> Walk-in guest
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    className="inline-flex items-center gap-1 rounded-xl border border-amber-500/50 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-bold text-amber-200"
+                    onClick={() =>
+                      void post({
+                        action: 'issue_class_invite',
+                        session_id: openCard.session.id,
+                      }).then(async (data) => {
+                        const inv = data.invite as
+                          | { path?: string; text?: string }
+                          | undefined;
+                        if (!inv?.path) return;
+                        const url = `${window.location.origin}${inv.path}`;
+                        await navigator.clipboard.writeText(
+                          `${inv.text || 'Join class'}\n${url}`
+                        );
+                      })
+                    }
+                  >
+                    <Share2 className="w-3 h-3" /> Copy join link
+                  </button>
+                </>
+              ) : null}
               <button
                 type="button"
                 disabled={busy}
                 className="inline-flex items-center gap-1 rounded-xl border border-rose-500/50 bg-rose-950/40 px-2.5 py-1.5 text-[11px] font-bold text-rose-200"
                 onClick={() => void deleteOpenSession()}
               >
-                Delete class
+                Delete
               </button>
             </div>
 
@@ -788,21 +881,55 @@ export default function CoachFitgraphPortalPage() {
                 </p>
                 <select
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                  value={sessionEdit.class_type_id}
+                  value={sessionEdit.session_kind}
                   onChange={(e) =>
                     setSessionEdit((f) =>
-                      f ? { ...f, class_type_id: e.target.value } : f
+                      f
+                        ? patchFormForSessionKind(
+                            f,
+                            e.target.value as FitSessionKind,
+                            portal.class_types
+                          )
+                        : f
                     )
                   }
                 >
-                  <option value="">Class type…</option>
-                  {portal.class_types.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
+                  {SESSION_KIND_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
                     </option>
                   ))}
                 </select>
-                <div className="grid grid-cols-2 gap-2">
+                {sessionEdit.session_kind !== 'coach_personal' ? (
+                  <select
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                    value={sessionEdit.class_type_id}
+                    onChange={(e) =>
+                      setSessionEdit((f) =>
+                        f ? { ...f, class_type_id: e.target.value } : f
+                      )
+                    }
+                  >
+                    <option value="">Class type…</option>
+                    {portal.class_types
+                      .filter((c) =>
+                        sessionEdit.session_kind === 'private_pt'
+                          ? c.code !== SYS_COACH_TIME_CODE
+                          : c.code !== SYS_PT_CODE &&
+                            c.code !== SYS_COACH_TIME_CODE
+                      )
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                  </select>
+                ) : (
+                  <p className="text-[10px] text-slate-500">
+                    Your own training or blocked time — members cannot book it.
+                  </p>
+                )}
+                <div className="grid grid-cols-3 gap-2">
                   <input
                     type="date"
                     className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
@@ -818,10 +945,30 @@ export default function CoachFitgraphPortalPage() {
                     className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
                     value={sessionEdit.start_time}
                     onChange={(e) =>
+                      setSessionEdit((f) => {
+                        if (!f) return f;
+                        const next = e.target.value;
+                        const dur = f.end_time
+                          ? durationFromStartEnd(f.start_time, f.end_time)
+                          : 45;
+                        return {
+                          ...f,
+                          start_time: next,
+                          end_time: endFromStartDuration(next, dur),
+                        };
+                      })
+                    }
+                  />
+                  <input
+                    type="time"
+                    className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                    value={sessionEdit.end_time}
+                    onChange={(e) =>
                       setSessionEdit((f) =>
-                        f ? { ...f, start_time: e.target.value } : f
+                        f ? { ...f, end_time: e.target.value } : f
                       )
                     }
+                    aria-label="End time"
                   />
                 </div>
                 <input
@@ -861,18 +1008,54 @@ export default function CoachFitgraphPortalPage() {
                     <option value="cancelled">Cancelled</option>
                   </select>
                 </div>
-                <label className="flex items-center gap-2 text-xs text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={sessionEdit.public}
+                {sessionEdit.session_kind === 'class' ? (
+                  <label className="flex items-center gap-2 text-xs text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={sessionEdit.public}
+                      onChange={(e) =>
+                        setSessionEdit((f) =>
+                          f ? { ...f, public: e.target.checked } : f
+                        )
+                      }
+                    />
+                    Publish on website calendar
+                  </label>
+                ) : (
+                  <p className="text-[10px] text-slate-500">
+                    {sessionEdit.session_kind === 'private_pt'
+                      ? 'Private PT stays off the public website.'
+                      : 'Personal time is private and not member-bookable.'}
+                  </p>
+                )}
+                {sessionEdit.session_kind === 'coach_personal' ? (
+                  <textarea
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[4rem] resize-y"
+                    placeholder="What this time is for (own training, admin…)"
+                    value={sessionEdit.notes}
                     onChange={(e) =>
                       setSessionEdit((f) =>
-                        f ? { ...f, public: e.target.checked } : f
+                        f ? { ...f, notes: e.target.value } : f
                       )
                     }
                   />
-                  Publish on website calendar
-                </label>
+                ) : null}
+                <select
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                  value={sessionEdit.programme_id}
+                  onChange={(e) =>
+                    setSessionEdit((f) =>
+                      f ? { ...f, programme_id: e.target.value } : f
+                    )
+                  }
+                >
+                  <option value="">Programme (optional)…</option>
+                  {(portal.programmes || []).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-wider text-amber-400 mb-1">
                     Class plan · activities
@@ -1092,6 +1275,7 @@ export default function CoachFitgraphPortalPage() {
               />
             </div>
 
+            {sessionEdit?.session_kind !== 'coach_personal' ? (
             <div className="flex flex-wrap gap-2 items-end border-t border-slate-800 pt-3">
               <select
                 className="flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
@@ -1120,6 +1304,11 @@ export default function CoachFitgraphPortalPage() {
                 Add
               </button>
             </div>
+            ) : (
+              <p className="text-[11px] text-slate-500 border-t border-slate-800 pt-3">
+                Personal time cannot take members.
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -1755,26 +1944,61 @@ export default function CoachFitgraphPortalPage() {
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-3">
           <div className="w-full max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-5 space-y-3">
             <div className="flex justify-between">
-              <h3 className="font-black">New class</h3>
+              <h3 className="font-black">New session</h3>
               <button type="button" onClick={() => setShowCreate(false)}>
                 <X className="w-5 h-5" />
               </button>
             </div>
             <select
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              value={create.class_type_id}
+              value={create.session_kind}
               onChange={(e) =>
-                setCreate((f) => ({ ...f, class_type_id: e.target.value }))
+                setCreate((f) =>
+                  patchFormForSessionKind(
+                    f,
+                    e.target.value as FitSessionKind,
+                    portal.class_types
+                  )
+                )
               }
             >
-              <option value="">Class type…</option>
-              {portal.class_types.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
+              {SESSION_KIND_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
                 </option>
               ))}
             </select>
-            <div className="grid grid-cols-2 gap-2">
+            {create.session_kind !== 'coach_personal' ? (
+              <select
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                value={create.class_type_id}
+                onChange={(e) =>
+                  setCreate((f) => ({ ...f, class_type_id: e.target.value }))
+                }
+              >
+                <option value="">
+                  {create.session_kind === 'private_pt'
+                    ? 'PT type (optional)…'
+                    : 'Class type…'}
+                </option>
+                {portal.class_types
+                  .filter((c) =>
+                    create.session_kind === 'private_pt'
+                      ? c.code !== SYS_COACH_TIME_CODE
+                      : c.code !== SYS_PT_CODE && c.code !== SYS_COACH_TIME_CODE
+                  )
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </select>
+            ) : (
+              <p className="text-[10px] text-slate-400">
+                Blocks your diary for own training or other personal time.
+              </p>
+            )}
+            <div className="grid grid-cols-3 gap-2">
               <input
                 type="date"
                 className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
@@ -1788,8 +2012,27 @@ export default function CoachFitgraphPortalPage() {
                 className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
                 value={create.start_time}
                 onChange={(e) =>
-                  setCreate((f) => ({ ...f, start_time: e.target.value }))
+                  setCreate((f) => {
+                    const next = e.target.value;
+                    const dur = f.end_time
+                      ? durationFromStartEnd(f.start_time, f.end_time)
+                      : 45;
+                    return {
+                      ...f,
+                      start_time: next,
+                      end_time: endFromStartDuration(next, dur),
+                    };
+                  })
                 }
+              />
+              <input
+                type="time"
+                className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                value={create.end_time}
+                onChange={(e) =>
+                  setCreate((f) => ({ ...f, end_time: e.target.value }))
+                }
+                aria-label="End time"
               />
             </div>
             <input
@@ -1800,14 +2043,25 @@ export default function CoachFitgraphPortalPage() {
                 setCreate((f) => ({ ...f, location: e.target.value }))
               }
             />
-            <textarea
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[4rem] resize-y"
-              placeholder="Class plan / activities (members & coaches see this)"
-              value={create.class_plan}
-              onChange={(e) =>
-                setCreate((f) => ({ ...f, class_plan: e.target.value }))
-              }
-            />
+            {create.session_kind === 'coach_personal' ? (
+              <textarea
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[4rem] resize-y"
+                placeholder="What this time is for (own training, admin…)"
+                value={create.notes}
+                onChange={(e) =>
+                  setCreate((f) => ({ ...f, notes: e.target.value }))
+                }
+              />
+            ) : (
+              <textarea
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[4rem] resize-y"
+                placeholder="Class plan / activities (members & coaches see this)"
+                value={create.class_plan}
+                onChange={(e) =>
+                  setCreate((f) => ({ ...f, class_plan: e.target.value }))
+                }
+              />
+            )}
             <div className="flex gap-2">
               <button
                 type="button"
@@ -1873,39 +2127,73 @@ export default function CoachFitgraphPortalPage() {
                 />
               </>
             )}
-            <label className="flex items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={create.public}
-                onChange={(e) =>
-                  setCreate((f) => ({ ...f, public: e.target.checked }))
-                }
-              />
-              Publish on public calendar
-            </label>
+            {create.session_kind === 'class' ? (
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={create.public}
+                  onChange={(e) =>
+                    setCreate((f) => ({ ...f, public: e.target.checked }))
+                  }
+                />
+                Publish on public calendar
+              </label>
+            ) : (
+              <p className="text-[10px] text-slate-400">
+                {create.session_kind === 'private_pt'
+                  ? 'Private PT stays off the public calendar.'
+                  : 'Personal time stays private on your diary.'}
+              </p>
+            )}
+            <select
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              value={create.programme_id}
+              onChange={(e) =>
+                setCreate((f) => ({ ...f, programme_id: e.target.value }))
+              }
+            >
+              <option value="">Programme (optional)…</option>
+              {(portal.programmes || []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
             <p className="text-[10px] text-slate-400">
               Other coaches can schedule at the same time — the gym is large
               enough for parallel sessions.
             </p>
             <button
               type="button"
-              disabled={busy || !create.class_type_id}
+              disabled={
+                busy ||
+                (create.session_kind === 'class' && !create.class_type_id)
+              }
               className="w-full rounded-xl bg-amber-500 text-amber-950 py-2.5 text-sm font-black"
-              onClick={() =>
+              onClick={() => {
+                const times = resolveSessionTimes({
+                  start_time: create.start_time,
+                  end_time: create.end_time,
+                });
                 void post({
                   action:
                     create.repeat === 'weekly'
                       ? 'create_series'
                       : 'create_session',
                   class_type_id: create.class_type_id,
+                  session_kind: create.session_kind,
+                  programme_id: create.programme_id || null,
                   date: create.date,
-                  start_time: create.start_time,
+                  start_time: times.start_time,
+                  end_time: times.end_time,
+                  duration_min: times.duration_min,
                   location: create.location || undefined,
                   capacity: create.capacity
                     ? Number(create.capacity)
                     : undefined,
                   class_plan: create.class_plan.trim() || undefined,
-                  public: create.public,
+                  notes: create.notes.trim() || undefined,
+                  public: create.session_kind === 'class' && create.public,
                   count: Number(create.count) || 8,
                   weekdays:
                     create.weekdays.length > 0
@@ -1913,10 +2201,10 @@ export default function CoachFitgraphPortalPage() {
                       : [new Date(create.date + 'T12:00:00').getDay()],
                 }).then(() => {
                   setShowCreate(false);
-                  setCreate((f) => ({ ...f, class_plan: '' }));
+                  setCreate((f) => ({ ...f, class_plan: '', notes: '' }));
                   void load();
-                })
-              }
+                });
+              }}
             >
               {busy ? (
                 <Loader2 className="w-4 h-4 animate-spin inline" />
@@ -1963,6 +2251,24 @@ export default function CoachFitgraphPortalPage() {
           </div>
         </div>
       )}
+
+      {showLibrary ? (
+        <CoachMovementStudio
+          token={token}
+          coachId={portal.coach.id}
+          movements={portal.movements || []}
+          programmes={portal.programmes || []}
+          classTypes={portal.class_types}
+          sessions={portal.sessions.map((c) => ({
+            id: c.session.id,
+            date: c.session.date,
+            start_time: c.session.start_time,
+            class_type_id: c.session.class_type_id,
+          }))}
+          onClose={() => setShowLibrary(false)}
+          onChanged={() => void load()}
+        />
+      ) : null}
     </div>
   );
 }

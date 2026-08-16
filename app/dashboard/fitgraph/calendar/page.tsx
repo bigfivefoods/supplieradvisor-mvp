@@ -18,6 +18,24 @@ import {
   toneLinkClass,
 } from '@/components/fitness/FitForm';
 import { sessionBookingCount } from '@/lib/fitness/fitgraph';
+import { ProgrammeView } from '@/components/fitness/ProgrammeView';
+import {
+  hydrateProgramme,
+  resolveProgrammeForSession,
+} from '@/lib/fitness/movements';
+import {
+  SESSION_KIND_OPTIONS,
+  SYS_COACH_TIME_CODE,
+  SYS_PT_CODE,
+  durationFromStartEnd,
+  endFromStartDuration,
+  patchFormForSessionKind,
+  resolveSessionTimes,
+  sessionKindFromRecord,
+  sessionKindLabel,
+  sessionKindTone,
+  type FitSessionKind,
+} from '@/lib/fitness/session-times';
 import {
   PracticeScheduleCalendar,
   type DiaryScope,
@@ -52,34 +70,42 @@ export default function CalendarPage() {
   const [addMemberIds, setAddMemberIds] = useState<string[]>([]);
   const [memberQuery, setMemberQuery] = useState('');
   const [form, setForm] = useState({
+    session_kind: 'class' as FitSessionKind,
     class_type_id: '',
     coach_id: '',
     date: new Date().toISOString().slice(0, 10),
     start_time: '06:00',
+    end_time: '06:45',
     location: 'Studio A',
     room: '',
     capacity: '',
     public: true,
     public_notes: '',
     class_plan: '',
+    notes: '',
     status: 'scheduled',
+    programme_id: '',
   });
   const [recurrence, setRecurrence] = useState<RecurrenceFormValue>(
     emptyRecurrenceForm
   );
 
   const blankCreateForm = () => ({
+    session_kind: 'class' as FitSessionKind,
     class_type_id: '',
     coach_id: personFilter || '',
     date: day,
     start_time: '06:00',
+    end_time: '06:45',
     location: 'Studio A',
     room: '',
     capacity: '',
     public: true,
     public_notes: '',
     class_plan: '',
+    notes: '',
     status: 'scheduled',
+    programme_id: '',
   });
 
   /** Open an existing class from the calendar grid for view / edit. */
@@ -94,18 +120,33 @@ export default function CalendarPage() {
     setSlotPicked(null);
     setAddMemberIds([]);
     setMemberQuery('');
+    const kind = sessionKindFromRecord({
+      session_kind: s.session_kind,
+      class_code: store?.class_types.find((c) => c.id === s.class_type_id)
+        ?.code,
+    });
+    const times = resolveSessionTimes({
+      start_time: String(s.start_time || '06:00').slice(0, 5),
+      end_time: s.end_time,
+      duration_min: s.duration_min,
+      fallbackDuration: kind === 'class' ? 45 : 60,
+    });
     setForm({
+      session_kind: kind,
       class_type_id: s.class_type_id || '',
       coach_id: s.coach_id || '',
       date: s.date,
-      start_time: String(s.start_time || '06:00').slice(0, 5),
+      start_time: times.start_time,
+      end_time: times.end_time,
       location: s.location || '',
       room: s.room || '',
       capacity: s.capacity != null ? String(s.capacity) : '',
-      public: s.public === true,
+      public: kind === 'class' && s.public === true,
       public_notes: s.public_notes || '',
       class_plan: s.class_plan || '',
+      notes: s.notes || '',
       status: s.status || 'scheduled',
+      programme_id: s.programme_id || '',
     });
     setRecurrence(emptyRecurrenceForm());
     setEditorOpen(true);
@@ -130,10 +171,12 @@ export default function CalendarPage() {
     setRecurrence(emptyRecurrenceForm());
     const d = partial?.date || day;
     setDay(d);
+    const start = partial?.start_time || '06:00';
     setForm({
       ...blankCreateForm(),
       date: d,
-      start_time: partial?.start_time || '06:00',
+      start_time: start,
+      end_time: endFromStartDuration(start, 45),
       coach_id: partial?.coach_id || personFilter || '',
     });
     if (partial?.date && partial?.start_time) {
@@ -160,22 +203,42 @@ export default function CalendarPage() {
         const coach = store.coaches.find((c) => c.id === s.coach_id);
         const booked = sessionBookingCount(store, s.id);
         const cap = s.capacity ?? ct?.capacity ?? 0;
+        const kind = sessionKindFromRecord({
+          session_kind: s.session_kind,
+          class_code: ct?.code,
+        });
+        const times = resolveSessionTimes({
+          start_time: s.start_time,
+          end_time: s.end_time,
+          duration_min: s.duration_min,
+          fallbackDuration: ct?.default_duration_min ?? 45,
+        });
+        const noteTitle = (s.notes || '').split('\n')[0]?.trim();
+        const title =
+          kind === 'coach_personal'
+            ? noteTitle || 'Coach personal'
+            : kind === 'private_pt'
+              ? `PT · ${ct?.name || 'Personal training'}`
+              : ct?.name || 'Class';
         return {
           id: s.id,
           date: s.date,
-          start_time: s.start_time,
-          end_time: s.end_time,
-          duration_min: s.duration_min ?? ct?.default_duration_min ?? 45,
-          title: ct?.name || 'Class',
+          start_time: times.start_time,
+          end_time: times.end_time,
+          duration_min: times.duration_min,
+          title,
           subtitle: s.location || undefined,
           person_id: s.coach_id || null,
           person_name: coach?.name,
           status: s.status,
           public: s.public === true,
-          meta: `${booked}${cap ? `/${cap}` : ''} booked${
-            s.room ? ` · ${s.room}` : ''
-          }${s.public ? ' · public' : ''}`,
-          tone: 'yellow' as const,
+          meta:
+            kind === 'coach_personal'
+              ? `Personal block${s.room ? ` · ${s.room}` : ''}`
+              : `${booked}${cap ? `/${cap}` : ''} booked${
+                  s.room ? ` · ${s.room}` : ''
+                }${s.public ? ' · public' : ''}`,
+          tone: sessionKindTone(kind),
         };
       });
   }, [store]);
@@ -218,8 +281,8 @@ export default function CalendarPage() {
       start_time: slot.start_time.slice(0, 5),
       coach_id: slot.person_id || personFilter || '',
     });
-    toast.message('New class slot', {
-      description: `${slot.date} at ${slot.start_time.slice(0, 5)} — finish details in the pop-out`,
+    toast.message('New calendar slot', {
+      description: `${slot.date} at ${slot.start_time.slice(0, 5)} — pick class, private PT, or personal time`,
     });
   };
 
@@ -296,8 +359,12 @@ export default function CalendarPage() {
       toast.error('Class not found');
       return;
     }
-    if (!form.class_type_id) {
+    if (form.session_kind === 'class' && !form.class_type_id) {
       toast.error('Select a class type');
+      return;
+    }
+    if (form.session_kind !== 'class' && !form.coach_id) {
+      toast.error('Pick a coach for private PT or personal time');
       return;
     }
     if (!form.date || !form.start_time) {
@@ -320,15 +387,24 @@ export default function CalendarPage() {
       prev.id,
       scope
     );
-    const patch = {
+    const times = resolveSessionTimes({
       start_time: form.start_time,
+      end_time: form.end_time,
+    });
+    const patch = {
+      start_time: times.start_time,
+      end_time: times.end_time,
+      duration_min: times.duration_min,
       location: form.location || undefined,
       capacity: form.capacity ? Number(form.capacity) : null,
       class_type_id: form.class_type_id,
-      public: form.public,
+      session_kind: form.session_kind,
+      public: form.session_kind === 'class' && form.public,
       public_notes: form.public_notes || undefined,
       class_plan: form.class_plan || undefined,
+      notes: form.notes || undefined,
       status: form.status || prev.status || 'scheduled',
+      programme_id: form.programme_id || null,
     };
     for (const id of ids) {
       const row = store.sessions.find((s) => s.id === id);
@@ -351,8 +427,8 @@ export default function CalendarPage() {
     setDay(form.date);
     toast.success(
       scope === 'future'
-        ? `Updated ${ids.length} classes (this & future)`
-        : 'Class updated'
+        ? `Updated ${ids.length} sessions (this & future)`
+        : `${sessionKindLabel(form.session_kind)} updated`
     );
   };
 
@@ -365,14 +441,22 @@ export default function CalendarPage() {
       await saveSelected();
       return;
     }
-    if (!form.class_type_id) {
+    if (form.session_kind === 'class' && !form.class_type_id) {
       toast.error('Select a class type first (Classes catalogue)');
       return;
     }
-    if (!form.date || !form.start_time) {
-      toast.error('Set date and start time');
+    if (form.session_kind !== 'class' && !form.coach_id) {
+      toast.error('Pick a coach for private PT or personal time');
       return;
     }
+    if (!form.date || !form.start_time) {
+      toast.error('Set date, start time and end time');
+      return;
+    }
+    const createTimes = resolveSessionTimes({
+      start_time: form.start_time,
+      end_time: form.end_time,
+    });
     if (recurrence.frequency !== 'none') {
       const recErr = validateRecurrenceForm(recurrence);
       if (recErr) {
@@ -384,14 +468,19 @@ export default function CalendarPage() {
         action: 'create_session_series',
         coach_id: form.coach_id || null,
         class_type_id: form.class_type_id,
+        session_kind: form.session_kind,
         date: form.date,
-        start_time: form.start_time,
+        start_time: createTimes.start_time,
+        end_time: createTimes.end_time,
+        duration_min: createTimes.duration_min,
         location: form.location || undefined,
         room: form.room || undefined,
         capacity: form.capacity ? Number(form.capacity) : undefined,
-        public: form.public,
+        public: form.session_kind === 'class' && form.public,
         public_notes: form.public_notes || undefined,
         class_plan: form.class_plan.trim() || undefined,
+        notes: form.notes.trim() || undefined,
+        programme_id: form.programme_id || null,
         ...payload,
       });
       const sessions = (data.sessions || []) as Array<{ id: string }>;
@@ -419,24 +508,33 @@ export default function CalendarPage() {
       record: {
         id: sessionId,
         class_type_id: form.class_type_id,
+        session_kind: form.session_kind,
         coach_id: form.coach_id || null,
         date: form.date,
-        start_time: form.start_time,
+        start_time: createTimes.start_time,
+        end_time: createTimes.end_time,
+        duration_min: createTimes.duration_min,
         location: form.location,
         room: form.room || null,
         capacity: form.capacity ? Number(form.capacity) : null,
-        public: form.public,
+        public: form.session_kind === 'class' && form.public,
         public_notes: form.public_notes || undefined,
         class_plan: form.class_plan.trim() || undefined,
+        notes: form.notes.trim() || undefined,
         origin: 'owner',
+        programme_id: form.programme_id || null,
       },
     });
     toast.success(
-      form.coach_id
-        ? form.public
-          ? 'Class created with coach · published'
-          : 'Class created with coach — add members in this window'
-        : 'Class created — next: assign a coach, then add members'
+      form.session_kind === 'coach_personal'
+        ? 'Personal time blocked on the calendar'
+        : form.session_kind === 'private_pt'
+          ? 'Private PT booked — add the member in this window'
+          : form.coach_id
+            ? form.public
+              ? 'Class created with coach · published'
+              : 'Class created with coach — add members in this window'
+            : 'Class created — next: assign a coach, then add members'
     );
     setSlotPicked(null);
     setDay(form.date);
@@ -533,7 +631,7 @@ export default function CalendarPage() {
     <FitgraphWorkbench
       title="Calendar"
       titleAccent="main gym diary"
-      description="Main gym calendar: expand to fill the screen, step months, and click a class to edit it in a pop-out. Click empty time to create. Multiple coaches can run at the same time."
+      description="Main gym calendar: expand to fill the screen, step months, and click a class or block to edit it. Click empty time to add a class, private PT, or a coach’s own training. Multiple coaches can run at the same time."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -606,8 +704,8 @@ export default function CalendarPage() {
               if (id) setForm((f) => ({ ...f, coach_id: id }));
             }}
             initialDate={day}
-            emptyLabel="No classes"
-            slotHint="Click empty time to add a class · click a class to open"
+            emptyLabel="No sessions"
+            slotHint="Click empty time to add a class, PT, or personal block"
             selectedEventId={selectedSessionId}
             onSelectDate={(date) => {
               setDay(date);
@@ -621,15 +719,15 @@ export default function CalendarPage() {
 
           <div className="flex flex-wrap items-center justify-between gap-2 -mt-2">
             <p className="text-xs text-slate-500">
-              Click a class to edit it in a pop-out. Expand the calendar to fill
-              the screen. Use the month name to jump months.
+              Click a class or personal block to edit it. Expand the calendar to
+              fill the screen. Use the month name to jump months.
             </p>
             <button
               type="button"
               className="rounded-xl border border-yellow-300 bg-white px-3 py-2 text-xs font-bold text-yellow-800 dark:border-yellow-600 dark:bg-yellow-950 dark:text-yellow-100"
               onClick={() => startCreateMode({ date: day })}
             >
-              + New class
+              + Class / PT / block
             </button>
           </div>
 
@@ -637,15 +735,17 @@ export default function CalendarPage() {
             open={editorOpen}
             title={
               selectedSessionId
-                ? `Open class · ${form.date} ${form.start_time}`
+                ? `${sessionKindLabel(form.session_kind)} · ${form.date} ${form.start_time}${form.end_time ? `–${form.end_time}` : ''}`
                 : slotPicked
-                  ? `New class · ${slotPicked}`
-                  : 'New class'
+                  ? `New session · ${slotPicked}`
+                  : 'New session'
             }
             subtitle={
               selectedSessionId
-                ? 'Edit details, coach and members here'
-                : 'Set type, time and room — then save'
+                ? form.session_kind === 'coach_personal'
+                  ? 'Coach’s own training or blocked diary time'
+                  : 'Edit details, coach and members here'
+                : 'Group class, private PT, or coach personal time'
             }
             onClose={closeEditor}
           >
@@ -654,11 +754,11 @@ export default function CalendarPage() {
               {[
                 {
                   n: '1',
-                  t: selectedSessionId ? 'View / edit' : 'Create class',
-                  d: selectedSessionId ? 'Details · room' : 'Type · when · room',
+                  t: selectedSessionId ? 'View / edit' : 'Create',
+                  d: selectedSessionId ? 'Details · time' : 'Kind · when · room',
                 },
-                { n: '2', t: 'Assign coach', d: 'On the class' },
-                { n: '3', t: 'Add members', d: 'On the class' },
+                { n: '2', t: 'Assign coach', d: 'Required for PT / block' },
+                { n: '3', t: 'Add members', d: 'Classes & PT only' },
               ].map((s) => (
                 <div
                   key={s.n}
@@ -685,7 +785,7 @@ export default function CalendarPage() {
                   className="rounded-xl border border-yellow-300 bg-white px-3 py-2 text-xs font-bold text-yellow-800 dark:border-yellow-600 dark:bg-yellow-950 dark:text-yellow-100"
                   onClick={() => startCreateMode({ date: day })}
                 >
-                  + New class
+                  + New session
                 </button>
                 {store?.sessions.find((s) => s.id === selectedSessionId)
                   ?.series_id ? (
@@ -704,7 +804,7 @@ export default function CalendarPage() {
                   className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-800 hover:bg-rose-100 disabled:opacity-50 dark:border-rose-700 dark:bg-rose-950/50 dark:text-rose-200"
                   onClick={() => void deleteSelected()}
                 >
-                  Delete class
+                  Delete
                 </button>
               </div>
             ) : null}
@@ -713,14 +813,14 @@ export default function CalendarPage() {
             tone="owner"
             title={
               selectedSessionId
-                ? `Open class · ${form.date} ${form.start_time}`
+                ? `${sessionKindLabel(form.session_kind)} · ${form.date} ${form.start_time}${form.end_time ? `–${form.end_time}` : ''}`
                 : slotPicked
-                  ? `Create class · ${slotPicked}`
-                  : 'Create class'
+                  ? `Create session · ${slotPicked}`
+                  : 'Create session'
             }
             description={
               selectedSessionId
-                ? 'Edit details here, then Save — or Delete class above. Coach is on this form; members are listed under the save button.'
+                ? 'Edit details here, then Save — or Delete above. Coach is on this form; members are listed under the save button (not for personal blocks).'
                 : undefined
             }
             onSubmit={() => void add()}
@@ -729,8 +829,16 @@ export default function CalendarPage() {
               selectedSessionId
                 ? 'Save changes'
                 : recurrence.frequency !== 'none'
-                  ? 'Create class series'
-                  : 'Create class'
+                  ? form.session_kind === 'coach_personal'
+                    ? 'Block repeating personal time'
+                    : form.session_kind === 'private_pt'
+                      ? 'Create PT series'
+                      : 'Create class series'
+                  : form.session_kind === 'coach_personal'
+                    ? 'Block personal time'
+                    : form.session_kind === 'private_pt'
+                      ? 'Book private PT'
+                      : 'Create class'
             }
           >
             {selectedSessionId ? (
@@ -767,18 +875,71 @@ export default function CalendarPage() {
             )}
             <select
               className={fc()}
-              value={form.class_type_id}
+              value={form.session_kind}
               onChange={(e) =>
-                setForm((f) => ({ ...f, class_type_id: e.target.value }))
+                setForm((f) =>
+                  patchFormForSessionKind(
+                    f,
+                    e.target.value as FitSessionKind,
+                    store.class_types
+                  )
+                )
               }
             >
-              <option value="">Class type (required)…</option>
-              {store.class_types.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
+              {SESSION_KIND_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
                 </option>
               ))}
             </select>
+            {form.session_kind !== 'coach_personal' ? (
+              <select
+                className={fc()}
+                value={form.class_type_id}
+                onChange={(e) => {
+                  const ct = store.class_types.find(
+                    (c) => c.id === e.target.value
+                  );
+                  const inferred = sessionKindFromRecord({
+                    class_code: ct?.code,
+                  });
+                  setForm((f) => {
+                    if (inferred !== 'class' && inferred !== f.session_kind) {
+                      return {
+                        ...patchFormForSessionKind(
+                          f,
+                          inferred,
+                          store.class_types
+                        ),
+                        class_type_id: e.target.value,
+                      };
+                    }
+                    return { ...f, class_type_id: e.target.value };
+                  });
+                }}
+              >
+                <option value="">
+                  {form.session_kind === 'private_pt'
+                    ? 'PT type (optional)…'
+                    : 'Class type (required)…'}
+                </option>
+                {store.class_types
+                  .filter((c) =>
+                    form.session_kind === 'private_pt'
+                      ? c.code !== SYS_COACH_TIME_CODE
+                      : c.code !== SYS_PT_CODE && c.code !== SYS_COACH_TIME_CODE
+                  )
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </select>
+            ) : (
+              <p className="text-xs text-slate-500 px-1 self-center">
+                Blocks the coach’s diary — not member-bookable.
+              </p>
+            )}
             <select
               className={fc()}
               value={form.coach_id}
@@ -786,7 +947,11 @@ export default function CalendarPage() {
                 setForm((f) => ({ ...f, coach_id: e.target.value }))
               }
             >
-              <option value="">Coach (optional now — step 2)…</option>
+              <option value="">
+                {form.session_kind === 'class'
+                  ? 'Coach (optional now — step 2)…'
+                  : 'Coach (required)…'}
+              </option>
               {store.coaches
                 .filter((c) => c.active !== false)
                 .map((c) => (
@@ -806,14 +971,38 @@ export default function CalendarPage() {
                 setForm((f) => ({ ...f, date: e.target.value }))
               }
             />
-            <input
-              className={fc()}
-              type="time"
-              value={form.start_time}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, start_time: e.target.value }))
-              }
-            />
+            <label className="flex flex-col gap-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
+              Start
+              <input
+                className={fc()}
+                type="time"
+                value={form.start_time}
+                onChange={(e) =>
+                  setForm((f) => {
+                    const next = e.target.value;
+                    const dur = f.end_time
+                      ? durationFromStartEnd(f.start_time, f.end_time)
+                      : 45;
+                    return {
+                      ...f,
+                      start_time: next,
+                      end_time: endFromStartDuration(next, dur),
+                    };
+                  })
+                }
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
+              End
+              <input
+                className={fc()}
+                type="time"
+                value={form.end_time}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, end_time: e.target.value }))
+                }
+              />
+            </label>
             <input
               className={fc()}
               placeholder="Location / site"
@@ -847,23 +1036,36 @@ export default function CalendarPage() {
                 }
               />
             )}
-            <input
-              className={fc()}
-              type="number"
-              placeholder="Capacity override"
-              value={form.capacity}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, capacity: e.target.value }))
-              }
-            />
-            <textarea
-              className={fc() + ' min-h-[4rem] resize-y sm:col-span-2'}
-              placeholder="Class plan / activities (members see this)"
-              value={form.class_plan}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, class_plan: e.target.value }))
-              }
-            />
+            {form.session_kind !== 'coach_personal' ? (
+              <input
+                className={fc()}
+                type="number"
+                placeholder="Capacity override"
+                value={form.capacity}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, capacity: e.target.value }))
+                }
+              />
+            ) : null}
+            {form.session_kind === 'coach_personal' ? (
+              <textarea
+                className={fc() + ' min-h-[4rem] resize-y sm:col-span-2'}
+                placeholder="What this time is for (private — own training, admin, errands…)"
+                value={form.notes}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, notes: e.target.value }))
+                }
+              />
+            ) : (
+              <textarea
+                className={fc() + ' min-h-[4rem] resize-y sm:col-span-2'}
+                placeholder="Class plan / activities (members see this)"
+                value={form.class_plan}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, class_plan: e.target.value }))
+                }
+              />
+            )}
             {selectedSessionId ? (
               <select
                 className={fc()}
@@ -884,35 +1086,100 @@ export default function CalendarPage() {
                 startDate={form.date}
                 inputClass={fc()}
                 accent="yellow"
-                unitLabel="classes"
+                unitLabel={
+                  form.session_kind === 'coach_personal'
+                    ? 'blocks'
+                    : form.session_kind === 'private_pt'
+                      ? 'sessions'
+                      : 'classes'
+                }
               />
             ) : null}
             {!selectedSessionId ? (
             <p className="sm:col-span-2 lg:col-span-3 text-[11px] text-slate-500 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 px-3 py-2">
-              <strong>After create:</strong> the class opens automatically so you
-              can assign a coach and add members. Coach can stay blank until later.
+              <strong>After create:</strong>{' '}
+              {form.session_kind === 'coach_personal'
+                ? 'personal time is blocked on the coach diary. Members cannot book it.'
+                : form.session_kind === 'private_pt'
+                  ? 'the PT session opens so you can add the member.'
+                  : 'the class opens automatically so you can assign a coach and add members. Coach can stay blank until later.'}
             </p>
             ) : null}
             {form.date && form.start_time ? (
               <a
                 className="sm:col-span-2 text-xs font-bold text-yellow-700 underline"
-                href={`/api/public/advisor/ics?module=fitgraph&date=${encodeURIComponent(form.date)}&start=${encodeURIComponent(form.start_time)}&title=${encodeURIComponent('GymAdvisor class')}&duration=45&location=${encodeURIComponent(form.location || '')}`}
+                href={`/api/public/advisor/ics?module=fitgraph&date=${encodeURIComponent(form.date)}&start=${encodeURIComponent(form.start_time)}&title=${encodeURIComponent(
+                  form.session_kind === 'coach_personal'
+                    ? form.notes.split('\n')[0] || 'Coach personal time'
+                    : form.session_kind === 'private_pt'
+                      ? 'Private PT'
+                      : 'GymAdvisor class'
+                )}&duration=${durationFromStartEnd(form.start_time, form.end_time || endFromStartDuration(form.start_time, 45))}&location=${encodeURIComponent(form.location || '')}`}
               >
                 Download .ics (add to calendar)
               </a>
             ) : null}
-            <label className="flex items-center gap-2 text-sm font-medium px-1 sm:col-span-2">
-              <input
-                type="checkbox"
-                checked={form.public}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, public: e.target.checked }))
-                }
-              />
-              List on public website calendar
-            </label>
+            <select
+              className={fc()}
+              value={form.programme_id}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, programme_id: e.target.value }))
+              }
+            >
+              <option value="">Programme (optional)…</option>
+              {(store.programmes || []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            {form.session_kind === 'class' ? (
+              <label className="flex items-center gap-2 text-sm font-medium px-1 sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={form.public}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, public: e.target.checked }))
+                  }
+                />
+                List on public website calendar
+              </label>
+            ) : (
+              <p className="sm:col-span-2 text-[11px] text-slate-500">
+                {form.session_kind === 'private_pt'
+                  ? 'Private PT stays off the public website. Add the member after saving.'
+                  : 'Personal time stays private on the coach diary. Members cannot book it.'}
+              </p>
+            )}
           </FormCard>
-          {selectedSessionId && store ? (
+          {store && (form.programme_id || selectedSessionId)
+            ? (() => {
+                const s = selectedSessionId
+                  ? store.sessions.find((x) => x.id === selectedSessionId)
+                  : null;
+                const found =
+                  (form.programme_id &&
+                    (store.programmes || []).find(
+                      (p) => p.id === form.programme_id
+                    )) ||
+                  (s
+                    ? resolveProgrammeForSession(store.programmes || [], {
+                        id: s.id,
+                        class_type_id: s.class_type_id,
+                        coach_id: s.coach_id,
+                        session_kind: s.session_kind,
+                        programme_id: s.programme_id,
+                      })
+                    : null);
+                if (!found) return null;
+                return (
+                  <ProgrammeView
+                    programme={hydrateProgramme(found, store.movements || [])}
+                  />
+                );
+              })()
+            : null}
+          {selectedSessionId && store && form.session_kind !== 'coach_personal' ? (
             <div className="mt-4 space-y-3">
               {(() => {
                 const s = store.sessions.find((x) => x.id === selectedSessionId);
@@ -1006,8 +1273,9 @@ export default function CalendarPage() {
           </ScheduleEventPeek>
 
           <p className="text-xs text-slate-500">
-            <strong>Click any class</strong> on the calendar to open it for
-            view/edit · coach · members. Join links work once a class exists.{' '}
+            <strong>Click any session</strong> on the calendar to open it.
+            Private PT and coach personal time use start and end times. Join
+            links work for classes and PT.{' '}
             <Link
               href="/dashboard/fitgraph/classes"
               className="font-bold text-yellow-700 underline"
@@ -1033,12 +1301,13 @@ export default function CalendarPage() {
 
           <div className="space-y-2">
             <h3 className="text-sm font-black text-slate-800 dark:text-yellow-100">
-              Classes on {day}
-              {selectedSessionId ? ' · open class highlighted' : ''}
+              Sessions on {day}
+              {selectedSessionId ? ' · open session highlighted' : ''}
             </h3>
             {daySessions.length === 0 ? (
               <p className="text-sm text-slate-500 py-8 text-center border border-dashed border-slate-200 rounded-2xl">
-                No classes on {day}. Click empty calendar time to create one.
+                Nothing on {day}. Click empty calendar time to add a class, PT,
+                or personal block.
               </p>
             ) : (
               daySessions.map((s) => {
@@ -1049,6 +1318,15 @@ export default function CalendarPage() {
                 const booked = sessionBookingCount(store, s.id);
                 const cap = s.capacity ?? ct?.capacity ?? 0;
                 const managing = selectedSessionId === s.id;
+                const kind = sessionKindFromRecord({
+                  session_kind: s.session_kind,
+                  class_code: ct?.code,
+                });
+                const times = resolveSessionTimes({
+                  start_time: s.start_time,
+                  end_time: s.end_time,
+                  duration_min: s.duration_min,
+                });
                 const roster = store.bookings.filter(
                   (b) =>
                     b.session_id === s.id &&
@@ -1073,32 +1351,38 @@ export default function CalendarPage() {
                         >
                           {managing ? 'Close' : 'Open'}
                         </button>
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 text-xs font-bold text-sky-700 dark:text-sky-300"
-                          onClick={() => {
-                            openSession(s.id);
-                            setAddMemberIds([]);
-                            setMemberQuery('');
-                          }}
-                        >
-                          Members
-                        </button>
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 text-xs font-bold text-yellow-700 dark:text-yellow-300"
-                          onClick={() => void copyInvite(s.id)}
-                          title="Copy B2C join link for members"
-                        >
-                          <Share2 className="w-3.5 h-3.5" /> Join link
-                        </button>
-                        <button
-                          type="button"
-                          className={`text-xs font-bold ${toneLinkClass('owner')}`}
-                          onClick={() => void togglePublic(s.id, !s.public)}
-                        >
-                          {s.public ? 'Unpublish' : 'Publish'}
-                        </button>
+                        {kind !== 'coach_personal' ? (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-xs font-bold text-sky-700 dark:text-sky-300"
+                            onClick={() => {
+                              openSession(s.id);
+                              setAddMemberIds([]);
+                              setMemberQuery('');
+                            }}
+                          >
+                            Members
+                          </button>
+                        ) : null}
+                        {kind !== 'coach_personal' ? (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-xs font-bold text-yellow-700 dark:text-yellow-300"
+                            onClick={() => void copyInvite(s.id)}
+                            title="Copy B2C join link for members"
+                          >
+                            <Share2 className="w-3.5 h-3.5" /> Join link
+                          </button>
+                        ) : null}
+                        {kind === 'class' ? (
+                          <button
+                            type="button"
+                            className={`text-xs font-bold ${toneLinkClass('owner')}`}
+                            onClick={() => void togglePublic(s.id, !s.public)}
+                          >
+                            {s.public ? 'Unpublish' : 'Publish'}
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           className="text-rose-600 dark:text-rose-400 text-xs font-bold"
@@ -1117,16 +1401,22 @@ export default function CalendarPage() {
                   >
                     <div className="space-y-3">
                       <div className="font-bold text-sm text-slate-900 dark:text-yellow-50">
-                        {s.start_time} · {ct?.name || 'Class'}
-                        {s.public ? (
+                        {times.start_time}–{times.end_time} ·{' '}
+                        {kind === 'coach_personal'
+                          ? s.notes?.split('\n')[0] || 'Coach personal'
+                          : ct?.name || sessionKindLabel(kind)}
+                        <span className="ml-2 text-[10px] font-black uppercase text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded dark:text-slate-300 dark:bg-slate-800">
+                          {sessionKindLabel(kind)}
+                        </span>
+                        {kind === 'class' && s.public ? (
                           <span className="ml-2 text-[10px] font-black uppercase text-yellow-700 bg-yellow-100 px-1.5 py-0.5 rounded dark:text-yellow-100 dark:bg-yellow-800">
                             Public
                           </span>
-                        ) : (
+                        ) : kind !== 'coach_personal' ? (
                           <span className="ml-2 text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded dark:text-neutral-400 dark:bg-neutral-800">
                             Invite
                           </span>
-                        )}
+                        ) : null}
                         {s.series_id ? (
                           <span className="ml-1 text-[10px] font-black uppercase text-amber-700">
                             series
@@ -1174,7 +1464,11 @@ export default function CalendarPage() {
                       </div>
 
                       {/* Step 3 — members */}
-                      {managing ? (
+                      {kind === 'coach_personal' ? (
+                        <p className="text-[11px] text-indigo-700 dark:text-indigo-300">
+                          Personal block — members cannot book this slot.
+                        </p>
+                      ) : managing ? (
                         <div className="rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 px-3 py-2 space-y-2">
                           <p className="text-[10px] font-black uppercase tracking-wide text-sky-800 dark:text-sky-200">
                             Step 3 · Add members
@@ -1302,8 +1596,12 @@ export default function CalendarPage() {
                   id: s.id,
                   cells: [
                     s.date,
-                    s.start_time,
-                    ct?.name || '—',
+                    `${s.start_time}${s.end_time ? `–${s.end_time}` : ''}`,
+                    `${ct?.name || '—'}${
+                      s.session_kind && s.session_kind !== 'class'
+                        ? ` · ${sessionKindLabel(s.session_kind)}`
+                        : ''
+                    }`,
                     coach?.name || '—',
                     s.location || '—',
                     s.capacity ?? '—',

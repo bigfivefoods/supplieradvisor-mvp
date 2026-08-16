@@ -61,6 +61,7 @@ export const ROLE_CARDS = [
     does: [
       'Open coach portal; update profile / bio',
       'Create one-off or weekly series; class plan members can see',
+      'Build a movement library (image / video) and allocate programmes to class or own PT',
       'Share / unshare classes; book walk-ins; rooms when set',
       'Mark plan vs actual (attended / no-show); no-show soft-block',
       'Message desk and members (in-app when member is on-system)',

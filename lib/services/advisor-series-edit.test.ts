@@ -34,6 +34,13 @@ assert.equal(patched.start_time, '10:30');
 assert.equal(patched.location, 'B');
 assert.equal(patched.date, '2026-08-02');
 
+const timed = applySeriesPatch(
+  { id: 'a1', start_time: '09:00', end_time: '09:45', session_kind: 'class' },
+  { end_time: '10:30', session_kind: 'private_pt' }
+);
+assert.equal(timed.end_time, '10:30');
+assert.equal(timed.session_kind, 'private_pt');
+
 const bookings = [
   { id: '1', status: 'cancelled', booked_at: '2026-01-01', appointment_id: 'a' },
   { id: '2', status: 'waitlist', booked_at: '2026-01-03', appointment_id: 'a' },

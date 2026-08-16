@@ -8,10 +8,15 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
 import {
   FITGRAPH_COACH_TOKENS_KEY,
+  applySessionKindRules,
   buildClassJoinPath,
   buildCoachPortalPayload,
+  coachPersonalBookingError,
   createSessionsFromTemplate,
   ensureSessionShareCode,
+  resolveClassTypeForSession,
+  resolveSessionTimes,
+  sessionKindOf,
   newId,
   parseCompanyIdFromToken,
   readFitgraphFromMetadata,
@@ -200,9 +205,16 @@ export async function POST(request: NextRequest) {
       const token = String(form.get('token') || '').trim();
       const action = String(form.get('action') || '');
       const file = form.get('file');
-      if (action !== 'upload_certificate' || !(file instanceof File)) {
+      if (
+        (action !== 'upload_certificate' &&
+          action !== 'upload_movement_media') ||
+        !(file instanceof File)
+      ) {
         return NextResponse.json(
-          { error: 'token, action=upload_certificate and file required' },
+          {
+            error:
+              'token, action=upload_certificate|upload_movement_media and file required',
+          },
           { status: 400 }
         );
       }
@@ -212,6 +224,29 @@ export async function POST(request: NextRequest) {
           { error: 'Coach portal not found' },
           { status: 404 }
         );
+      }
+      if (action === 'upload_movement_media') {
+        const { isAllowedMovementMedia, storeFitMovementMedia } = await import(
+          '@/lib/fitness/movement-upload'
+        );
+        const bad = isAllowedMovementMedia(file);
+        if (bad) {
+          return NextResponse.json({ error: bad }, { status: 400 });
+        }
+        const stored = await storeFitMovementMedia({
+          companyId: resolved.companyId,
+          fileName: file.name,
+          buffer: Buffer.from(await file.arrayBuffer()),
+          contentType: file.type,
+        });
+        if ('error' in stored) {
+          return NextResponse.json({ error: stored.error }, { status: 502 });
+        }
+        return NextResponse.json({
+          success: true,
+          url: stored.url,
+          fileName: stored.fileName,
+        });
       }
       const {
         isAllowedCertificateFile,
@@ -573,6 +608,12 @@ export async function POST(request: NextRequest) {
       if (!session) {
         return NextResponse.json({ error: 'Session not found' }, { status: 404 });
       }
+      if (sessionKindOf(store, session) === 'coach_personal') {
+        return NextResponse.json(
+          { error: 'Coach personal time cannot be shared as a join link' },
+          { status: 400 }
+        );
+      }
       if (!store.settings) {
         const { defaultPublicSettings } = await import('@/lib/fitness/fitgraph');
         store.settings = defaultPublicSettings(companyId);
@@ -614,6 +655,12 @@ export async function POST(request: NextRequest) {
       );
       if (!session) {
         return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+      }
+      if (sessionKindOf(store, session) === 'coach_personal') {
+        return NextResponse.json(
+          { error: 'Coach personal time cannot be listed on the public calendar' },
+          { status: 400 }
+        );
       }
       session.public = body.public !== false;
       if (session.public) {
@@ -677,10 +724,47 @@ export async function POST(request: NextRequest) {
       if (body.duration_min != null && body.duration_min !== '') {
         session.duration_min = Number(body.duration_min);
       }
+      if (body.session_kind != null || body.class_type_id != null) {
+        const resolved = resolveClassTypeForSession(store, {
+          class_type_id: session.class_type_id,
+          session_kind:
+            body.session_kind != null
+              ? body.session_kind
+              : session.session_kind,
+        });
+        session.session_kind = resolved.kind;
+        if (resolved.class_type_id) {
+          session.class_type_id = resolved.class_type_id;
+        }
+      }
+      const times = resolveSessionTimes({
+        start_time: session.start_time,
+        end_time: session.end_time,
+        duration_min: session.duration_min,
+      });
+      session.start_time = times.start_time;
+      session.end_time = times.end_time;
+      session.duration_min = times.duration_min;
+      const kind = sessionKindOf(store, session);
+      const rules = applySessionKindRules(kind, {
+        public: session.public === true,
+        capacity: session.capacity,
+      });
       if (body.capacity === null || body.capacity === '') {
-        session.capacity = null;
+        session.capacity = rules.capacity;
       } else if (body.capacity != null) {
-        session.capacity = Number(body.capacity);
+        session.capacity =
+          kind === 'coach_personal' ? 0 : Number(body.capacity);
+      } else {
+        session.capacity = rules.capacity;
+      }
+      if (kind !== 'class') {
+        session.public = false;
+      }
+      if (body.programme_id !== undefined) {
+        session.programme_id = body.programme_id
+          ? String(body.programme_id)
+          : null;
       }
       if (body.notes != null) session.notes = String(body.notes);
       if (body.public_notes != null) session.public_notes = String(body.public_notes);
@@ -703,7 +787,7 @@ export async function POST(request: NextRequest) {
       }
       if (body.location != null) session.location = String(body.location);
       if (body.public === true || body.public === false) {
-        session.public = body.public;
+        session.public = kind === 'class' ? body.public : false;
         if (session.public) {
           ensureSessionShareCode(session);
           if (store.settings) store.settings.enabled = true;
@@ -764,6 +848,10 @@ export async function POST(request: NextRequest) {
       );
       if (!session || session.status === 'cancelled') {
         return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+      }
+      const blocked = coachPersonalBookingError(store, session);
+      if (blocked) {
+        return NextResponse.json({ error: blocked }, { status: 400 });
       }
       const name = String(body.name || body.guest_name || '').trim();
       if (!name) {
@@ -965,6 +1053,10 @@ export async function POST(request: NextRequest) {
       if (!session || session.status === 'cancelled') {
         return NextResponse.json({ error: 'Session not found' }, { status: 404 });
       }
+      const blocked = coachPersonalBookingError(store, session);
+      if (blocked) {
+        return NextResponse.json({ error: blocked }, { status: 400 });
+      }
       const clientId = String(body.client_id || '');
       const client = store.clients.find((c) => c.id === clientId);
       if (!client) {
@@ -1006,13 +1098,23 @@ export async function POST(request: NextRequest) {
       const classTypeId = String(body.class_type_id || '');
       const date = String(body.date || now.slice(0, 10));
       const startTime = String(body.start_time || '06:00');
-      if (!classTypeId) {
+      const resolved = resolveClassTypeForSession(store, {
+        class_type_id: classTypeId,
+        session_kind: body.session_kind,
+      });
+      if (resolved.kind === 'class' && !resolved.class_type_id) {
         return NextResponse.json(
           { error: 'class_type_id required' },
           { status: 400 }
         );
       }
-      const ct = store.class_types.find((c) => c.id === classTypeId);
+      if (!resolved.class_type_id) {
+        return NextResponse.json(
+          { error: 'Could not resolve class type for this session' },
+          { status: 400 }
+        );
+      }
+      const ct = store.class_types.find((c) => c.id === resolved.class_type_id);
       if (!ct) {
         return NextResponse.json(
           { error: 'Class type not found' },
@@ -1053,8 +1155,12 @@ export async function POST(request: NextRequest) {
       const created = createSessionsFromTemplate(
         store,
         {
-          class_type_id: classTypeId,
+          class_type_id: resolved.class_type_id,
           coach_id: coach.id,
+          programme_id:
+            body.programme_id != null && String(body.programme_id).trim()
+              ? String(body.programme_id)
+              : null,
           date,
           start_time: startTime,
           end_time: body.end_time != null ? String(body.end_time) : null,
@@ -1062,6 +1168,7 @@ export async function POST(request: NextRequest) {
             body.duration_min != null
               ? Number(body.duration_min)
               : ct.default_duration_min ?? 45,
+          session_kind: resolved.kind,
           capacity:
             body.capacity != null ? Number(body.capacity) : ct.capacity ?? 20,
           location: body.location != null ? String(body.location) : undefined,
@@ -1090,8 +1197,220 @@ export async function POST(request: NextRequest) {
         portal: buildCoachPortalPayload(store, coach),
         message:
           created.length > 1
-            ? `Created ${created.length} repeating classes`
-            : 'Bespoke class created',
+            ? resolved.kind === 'coach_personal'
+              ? `Blocked ${created.length} personal-time slots`
+              : resolved.kind === 'private_pt'
+                ? `Scheduled ${created.length} private PT sessions`
+                : `Created ${created.length} repeating classes`
+            : resolved.kind === 'coach_personal'
+              ? 'Personal time blocked on your diary'
+              : resolved.kind === 'private_pt'
+                ? 'Private PT scheduled'
+                : 'Bespoke class created',
+      });
+    }
+
+    if (
+      action === 'upsert_movement' ||
+      action === 'update_movement_media' ||
+      action === 'delete_movement' ||
+      action === 'upsert_programme' ||
+      action === 'delete_programme'
+    ) {
+      if (!store.movements) store.movements = [];
+      if (!store.programmes) store.programmes = [];
+      const {
+        upsertMovement,
+        upsertProgramme,
+        removeMovementFromProgrammes,
+        clearProgrammeFromSessions,
+      } = await import('@/lib/fitness/movements');
+      if (action === 'upsert_movement') {
+        const rec = {
+          ...(body.record && typeof body.record === 'object'
+            ? (body.record as Record<string, unknown>)
+            : body),
+          coach_id: coach.id,
+        };
+        if (!String(rec.name || '').trim()) {
+          return NextResponse.json(
+            { error: 'Movement name required' },
+            { status: 400 }
+          );
+        }
+        const existing = rec.id
+          ? store.movements.find((m) => m.id === String(rec.id))
+          : null;
+        if (existing && existing.coach_id && existing.coach_id !== coach.id) {
+          return NextResponse.json(
+            { error: 'You can only edit your own movements' },
+            { status: 403 }
+          );
+        }
+        const { isSystemMovement } = await import(
+          '@/lib/fitness/movement-catalog'
+        );
+        if (existing && isSystemMovement(existing)) {
+          existing.image_url =
+            rec.image_url !== undefined
+              ? rec.image_url
+                ? String(rec.image_url)
+                : null
+              : existing.image_url ?? null;
+          existing.video_url =
+            rec.video_url !== undefined
+              ? rec.video_url
+                ? String(rec.video_url)
+                : null
+              : existing.video_url ?? null;
+          if (rec.video_description != null) {
+            existing.video_description = String(rec.video_description);
+          }
+          existing.updated_at = now;
+          await saveStore(companyId, meta, store);
+          return NextResponse.json({
+            success: true,
+            movement: existing,
+            portal: buildCoachPortalPayload(store, coach),
+            message: 'Catalog image / video updated',
+          });
+        }
+        const row = upsertMovement(store.movements, rec, now, newId);
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          movement: row,
+          portal: buildCoachPortalPayload(store, coach),
+          message: existing ? 'Movement updated' : 'Movement added to library',
+        });
+      }
+      if (action === 'update_movement_media') {
+        if (!store.movements) store.movements = [];
+        const id = String(body.id || body.movement_id || '');
+        const existing = store.movements.find((m) => m.id === id);
+        if (!existing) {
+          return NextResponse.json(
+            { error: 'Movement not found' },
+            { status: 404 }
+          );
+        }
+        if (existing.coach_id && existing.coach_id !== coach.id) {
+          return NextResponse.json(
+            { error: 'You can only change media on your own movements' },
+            { status: 403 }
+          );
+        }
+        if (body.image_url !== undefined) {
+          existing.image_url = body.image_url
+            ? String(body.image_url)
+            : null;
+        }
+        if (body.video_url !== undefined) {
+          existing.video_url = body.video_url
+            ? String(body.video_url)
+            : null;
+        }
+        if (body.video_description != null) {
+          existing.video_description = String(body.video_description);
+        }
+        existing.updated_at = now;
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          movement: existing,
+          portal: buildCoachPortalPayload(store, coach),
+          message: existing.image_url
+            ? 'Image saved'
+            : 'Catalog image restored',
+        });
+      }
+      if (action === 'delete_movement') {
+        const id = String(body.id || body.movement_id || '');
+        const existing = store.movements.find((m) => m.id === id);
+        if (!existing) {
+          return NextResponse.json(
+            { error: 'Movement not found' },
+            { status: 404 }
+          );
+        }
+        if (existing.coach_id && existing.coach_id !== coach.id) {
+          return NextResponse.json(
+            { error: 'You can only delete your own movements' },
+            { status: 403 }
+          );
+        }
+        {
+          const { isSystemMovement } = await import(
+            '@/lib/fitness/movement-catalog'
+          );
+          if (isSystemMovement(existing)) {
+            return NextResponse.json(
+              { error: 'Built-in catalog movements cannot be deleted' },
+              { status: 400 }
+            );
+          }
+        }
+        store.movements = store.movements.filter((m) => m.id !== id);
+        removeMovementFromProgrammes(store.programmes, id);
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          portal: buildCoachPortalPayload(store, coach),
+          message: 'Movement removed',
+        });
+      }
+      if (action === 'upsert_programme') {
+        const rec = {
+          ...(body.record && typeof body.record === 'object'
+            ? (body.record as Record<string, unknown>)
+            : body),
+          coach_id: coach.id,
+        };
+        if (!String(rec.name || '').trim()) {
+          return NextResponse.json(
+            { error: 'Programme name required' },
+            { status: 400 }
+          );
+        }
+        const existing = rec.id
+          ? store.programmes.find((p) => p.id === String(rec.id))
+          : null;
+        if (existing && existing.coach_id && existing.coach_id !== coach.id) {
+          return NextResponse.json(
+            { error: 'You can only edit your own programmes' },
+            { status: 403 }
+          );
+        }
+        const row = upsertProgramme(store.programmes, rec, now, newId);
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          programme: row,
+          portal: buildCoachPortalPayload(store, coach),
+          message: existing ? 'Programme updated' : 'Programme saved',
+        });
+      }
+      const id = String(body.id || body.programme_id || '');
+      const existing = store.programmes.find((p) => p.id === id);
+      if (!existing) {
+        return NextResponse.json(
+          { error: 'Programme not found' },
+          { status: 404 }
+        );
+      }
+      if (existing.coach_id && existing.coach_id !== coach.id) {
+        return NextResponse.json(
+          { error: 'You can only delete your own programmes' },
+          { status: 403 }
+        );
+      }
+      store.programmes = store.programmes.filter((p) => p.id !== id);
+      clearProgrammeFromSessions(store.sessions, id);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        portal: buildCoachPortalPayload(store, coach),
+        message: 'Programme removed',
       });
     }
 

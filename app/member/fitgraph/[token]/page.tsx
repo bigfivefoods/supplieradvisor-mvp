@@ -23,6 +23,7 @@ import {
   X,
 } from 'lucide-react';
 import { MemberRelationshipSection } from '@/components/services/MemberRelationshipSection';
+import { ProgrammeView } from '@/components/fitness/ProgrammeView';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
 import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
@@ -52,6 +53,7 @@ type OpenClass = {
   class_plan?: string;
   my_status?: string | null;
   my_booking_id?: string | null;
+  programme?: import('@/lib/fitness/movements').FitHydratedProgramme | null;
 };
 
 type MyBooking = {
@@ -66,6 +68,7 @@ type MyBooking = {
   upcoming?: boolean;
   feedback_token?: string | null;
   feedback_submitted_at?: string | null;
+  programme?: import('@/lib/fitness/movements').FitHydratedProgramme | null;
 };
 
 type Portal = {
@@ -841,6 +844,11 @@ export default function MemberFitgraphPortalPage() {
                       {c.class_plan}
                     </p>
                   ) : null}
+                  {c.programme ? (
+                    <div className="mt-3">
+                      <ProgrammeView programme={c.programme} compact />
+                    </div>
+                  ) : null}
                   <div className="mt-3 flex flex-wrap gap-2">
                     {c.my_status ? (
                       <>
@@ -968,6 +976,11 @@ export default function MemberFitgraphPortalPage() {
                               <p className="mt-1 text-[11px] font-semibold text-emerald-700">
                                 Feedback sent
                               </p>
+                            ) : null}
+                            {b.programme ? (
+                              <div className="mt-3">
+                                <ProgrammeView programme={b.programme} compact />
+                              </div>
                             ) : null}
                           </div>
                           {b.status === 'booked' || b.status === 'waitlist' ? (

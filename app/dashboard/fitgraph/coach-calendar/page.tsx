@@ -25,6 +25,19 @@ import {
 import { fc } from '@/components/fitness/FitForm';
 import { addDaysIso } from '@/lib/fitness/fitgraph';
 import {
+  SESSION_KIND_OPTIONS,
+  SYS_COACH_TIME_CODE,
+  SYS_PT_CODE,
+  durationFromStartEnd,
+  endFromStartDuration,
+  patchFormForSessionKind,
+  resolveSessionTimes,
+  sessionKindFromRecord,
+  sessionKindLabel,
+  sessionKindTone,
+  type FitSessionKind,
+} from '@/lib/fitness/session-times';
+import {
   PracticeScheduleCalendar,
   type ScheduleEvent,
 } from '@/components/schedule/PracticeScheduleCalendar';
@@ -55,6 +68,8 @@ type SessionCard = {
     id: string;
     date: string;
     start_time: string;
+    end_time?: string | null;
+    duration_min?: number | null;
     location?: string;
     capacity?: number | null;
     public?: boolean;
@@ -62,6 +77,8 @@ type SessionCard = {
     series_id?: string | null;
     origin?: string;
     class_type_id: string;
+    session_kind?: FitSessionKind;
+    notes?: string;
     /** Planned activities — visible to members & coaches */
     class_plan?: string;
     public_notes?: string;
@@ -115,12 +132,15 @@ export default function CoachCalendarPage() {
   const [openSession, setOpenSession] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [create, setCreate] = useState({
+    session_kind: 'class' as FitSessionKind,
     class_type_id: '',
     date: new Date().toISOString().slice(0, 10),
     start_time: '06:00',
+    end_time: '06:45',
     location: '',
     capacity: '',
     class_plan: '',
+    notes: '',
     public: false,
     client_ids: [] as string[],
     member_query: '',
@@ -131,14 +151,17 @@ export default function CoachCalendarPage() {
   const [bookClientIds, setBookClientIds] = useState<string[]>([]);
   const [classPlanDraft, setClassPlanDraft] = useState('');
   const [sessionEdit, setSessionEdit] = useState({
+    session_kind: 'class' as FitSessionKind,
     class_type_id: '',
     date: '',
     start_time: '06:00',
+    end_time: '06:45',
     location: '',
     capacity: '',
     status: 'scheduled',
     public: false,
     class_plan: '',
+    notes: '',
   });
 
   const workingHours = useMemo(
@@ -187,23 +210,47 @@ export default function CoachCalendarPage() {
 
   const scheduleEvents: ScheduleEvent[] = useMemo(() => {
     if (!portal?.sessions?.length) return [];
-    return portal.sessions.map((card) => ({
-      id: card.session.id,
-      date: card.session.date,
-      start_time: String(card.session.start_time || '06:00').slice(0, 5),
-      duration_min: 45,
-      title: card.class_name || 'Class',
-      subtitle: card.session.location || undefined,
-      person_id: coachId,
-      person_name: portal.coach?.name,
-      status: card.session.status,
-      public: card.session.public === true,
-      meta: `Plan ${card.planned}/${card.capacity} · Act ${card.attended}${
-        card.session.series_id ? ' · series' : ''
-      }`,
-      tone: 'amber' as const,
-    }));
-  }, [portal, coachId]);
+    return portal.sessions.map((card) => {
+      const kind = sessionKindFromRecord({
+        session_kind: card.session.session_kind,
+        class_code: (store?.class_types || []).find(
+          (c) => c.id === card.session.class_type_id
+        )?.code,
+      });
+      const times = resolveSessionTimes({
+        start_time: String(card.session.start_time || '06:00').slice(0, 5),
+        end_time: card.session.end_time,
+        duration_min: card.session.duration_min,
+        fallbackDuration: 45,
+      });
+      const noteTitle = (card.session.notes || '').split('\n')[0]?.trim();
+      return {
+        id: card.session.id,
+        date: card.session.date,
+        start_time: times.start_time,
+        end_time: times.end_time,
+        duration_min: times.duration_min,
+        title:
+          kind === 'coach_personal'
+            ? noteTitle || 'Coach personal'
+            : kind === 'private_pt'
+              ? `PT · ${card.class_name || 'Personal training'}`
+              : card.class_name || 'Class',
+        subtitle: card.session.location || undefined,
+        person_id: coachId,
+        person_name: portal.coach?.name,
+        status: card.session.status,
+        public: card.session.public === true,
+        meta:
+          kind === 'coach_personal'
+            ? 'Personal block'
+            : `Plan ${card.planned}/${card.capacity} · Act ${card.attended}${
+                card.session.series_id ? ' · series' : ''
+              }`,
+        tone: sessionKindTone(kind),
+      };
+    });
+  }, [portal, coachId, store?.class_types]);
 
   const saveHours = async (hours: typeof workingHours) => {
     await post({
@@ -242,8 +289,12 @@ export default function CoachCalendarPage() {
   };
 
   const createClass = async () => {
-    if (!create.class_type_id || !coachId) {
+    if (create.session_kind === 'class' && !create.class_type_id) {
       toast.error('Pick class type and coach');
+      return;
+    }
+    if (!coachId) {
+      toast.error('Pick a coach');
       return;
     }
     if (recurrence.frequency !== 'none') {
@@ -254,6 +305,10 @@ export default function CoachCalendarPage() {
       }
     }
     const payload = recurrenceApiPayload(recurrence, create.date);
+    const times = resolveSessionTimes({
+      start_time: create.start_time,
+      end_time: create.end_time,
+    });
     const data = await post({
       action:
         recurrence.frequency !== 'none'
@@ -261,12 +316,16 @@ export default function CoachCalendarPage() {
           : 'create_session',
       coach_id: coachId,
       class_type_id: create.class_type_id,
+      session_kind: create.session_kind,
       date: create.date,
-      start_time: create.start_time,
+      start_time: times.start_time,
+      end_time: times.end_time,
+      duration_min: times.duration_min,
       location: create.location || undefined,
       capacity: create.capacity ? Number(create.capacity) : undefined,
       class_plan: create.class_plan.trim() || undefined,
-      public: create.public,
+      notes: create.notes.trim() || undefined,
+      public: create.session_kind === 'class' && create.public,
       ...(payload || { frequency: 'none', repeat: 'none' }),
     });
     const sessions = (data.sessions || []) as Array<{ id: string }>;
@@ -289,7 +348,11 @@ export default function CoachCalendarPage() {
       );
       if (hit) sessionIds = [hit.id];
     }
-    if (create.client_ids.length && sessionIds.length) {
+    if (
+      create.session_kind !== 'coach_personal' &&
+      create.client_ids.length &&
+      sessionIds.length
+    ) {
       for (const sessionId of sessionIds) {
         for (const clientId of create.client_ids) {
           await post({
@@ -331,7 +394,7 @@ export default function CoachCalendarPage() {
   };
 
   const saveSessionEdit = async (sessionId: string) => {
-    if (!sessionEdit.class_type_id) {
+    if (sessionEdit.session_kind === 'class' && !sessionEdit.class_type_id) {
       toast.error('Pick a class type');
       return;
     }
@@ -344,24 +407,32 @@ export default function CoachCalendarPage() {
       toast.error('Class not found');
       return;
     }
+    const times = resolveSessionTimes({
+      start_time: sessionEdit.start_time,
+      end_time: sessionEdit.end_time,
+    });
     await post({
       entity: 'sessions',
       action: 'upsert',
       record: {
         ...prev,
         class_type_id: sessionEdit.class_type_id,
+        session_kind: sessionEdit.session_kind,
         date: sessionEdit.date,
-        start_time: sessionEdit.start_time,
+        start_time: times.start_time,
+        end_time: times.end_time,
+        duration_min: times.duration_min,
         location: sessionEdit.location || undefined,
         capacity: sessionEdit.capacity
           ? Number(sessionEdit.capacity)
           : null,
         status: sessionEdit.status || prev.status || 'scheduled',
-        public: sessionEdit.public,
+        public: sessionEdit.session_kind === 'class' && sessionEdit.public,
         class_plan: sessionEdit.class_plan.trim() || undefined,
+        notes: sessionEdit.notes.trim() || undefined,
       },
     });
-    toast.success('Class updated');
+    toast.success(`${sessionKindLabel(sessionEdit.session_kind)} updated`);
     await loadPortal();
   };
 
@@ -450,10 +521,23 @@ export default function CoachCalendarPage() {
   useEffect(() => {
     if (openCard) {
       setClassPlanDraft(openCard.session.class_plan || '');
+      const kind = sessionKindFromRecord({
+        session_kind: openCard.session.session_kind,
+        class_code: (store?.class_types || []).find(
+          (c) => c.id === openCard.session.class_type_id
+        )?.code,
+      });
+      const times = resolveSessionTimes({
+        start_time: String(openCard.session.start_time || '06:00').slice(0, 5),
+        end_time: openCard.session.end_time,
+        duration_min: openCard.session.duration_min,
+      });
       setSessionEdit({
+        session_kind: kind,
         class_type_id: openCard.session.class_type_id || '',
         date: openCard.session.date || '',
-        start_time: String(openCard.session.start_time || '06:00').slice(0, 5),
+        start_time: times.start_time,
+        end_time: times.end_time,
         location: openCard.session.location || '',
         capacity:
           openCard.session.capacity != null
@@ -462,8 +546,9 @@ export default function CoachCalendarPage() {
               ? String(openCard.capacity)
               : '',
         status: openCard.session.status || 'scheduled',
-        public: openCard.session.public === true,
+        public: kind === 'class' && openCard.session.public === true,
         class_plan: openCard.session.class_plan || '',
+        notes: openCard.session.notes || '',
       });
     }
   }, [
@@ -476,14 +561,18 @@ export default function CoachCalendarPage() {
     openCard?.session.capacity,
     openCard?.session.status,
     openCard?.session.public,
+    openCard?.session.end_time,
+    openCard?.session.session_kind,
+    openCard?.session.notes,
     openCard?.capacity,
+    store?.class_types,
   ]);
 
   return (
     <FitgraphWorkbench
       title="Coach calendar"
       titleAccent="plan · actual"
-      description="Day, week and month views with gym operating hours. Open a class for plan/actuals, create bespoke or repeating classes, and download A4 landscape or portrait."
+      description="Day, week and month views with gym operating hours. Open a class for plan/actuals, or block private PT and the coach’s own training with start and end times."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -511,7 +600,7 @@ export default function CoachCalendarPage() {
               onClick={() => setShowCreate(true)}
               className="btn-primary !py-2 !px-3 text-sm inline-flex items-center gap-1.5 ml-auto"
             >
-              <Plus className="w-4 h-4" /> New class
+              <Plus className="w-4 h-4" /> Class / PT / block
             </button>
             <Link
               href="/dashboard/fitgraph/calendar"
@@ -565,8 +654,8 @@ export default function CoachCalendarPage() {
               showDiaryScopeToggle={false}
               workingHours={workingHours}
               initialDate={calendarDate}
-              emptyLabel="No classes in this view"
-              slotHint="Click empty time to create a class for this coach"
+              emptyLabel="No sessions in this view"
+              slotHint="Click empty time to add a class, PT, or personal block"
               selectedEventId={openSession}
               onVisibleRangeChange={onVisibleRangeChange}
               onSelectDate={(date) => {
@@ -575,11 +664,18 @@ export default function CoachCalendarPage() {
               }}
               onSelectSlot={(slot) => {
                 setCalendarDate(slot.date);
-                setCreate((f) => ({
-                  ...f,
-                  date: slot.date,
-                  start_time: slot.start_time.slice(0, 5),
-                }));
+                const start = slot.start_time.slice(0, 5);
+                setCreate((f) => {
+                  const dur = f.end_time
+                    ? durationFromStartEnd(f.start_time, f.end_time)
+                    : 45;
+                  return {
+                    ...f,
+                    date: slot.date,
+                    start_time: start,
+                    end_time: endFromStartDuration(start, dur),
+                  };
+                });
                 setShowCreate(true);
               }}
               onSelectEvent={(ev) => {
@@ -653,22 +749,50 @@ export default function CoachCalendarPage() {
                   </h4>
                   <select
                     className={fc()}
-                    value={sessionEdit.class_type_id}
+                    value={sessionEdit.session_kind}
                     onChange={(e) =>
-                      setSessionEdit((f) => ({
-                        ...f,
-                        class_type_id: e.target.value,
-                      }))
+                      setSessionEdit((f) =>
+                        patchFormForSessionKind(
+                          f,
+                          e.target.value as FitSessionKind,
+                          store.class_types
+                        )
+                      )
                     }
                   >
-                    <option value="">Class type…</option>
-                    {store.class_types.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
+                    {SESSION_KIND_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
                       </option>
                     ))}
                   </select>
-                  <div className="grid grid-cols-2 gap-2">
+                  {sessionEdit.session_kind !== 'coach_personal' ? (
+                    <select
+                      className={fc()}
+                      value={sessionEdit.class_type_id}
+                      onChange={(e) =>
+                        setSessionEdit((f) => ({
+                          ...f,
+                          class_type_id: e.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">Class type…</option>
+                      {store.class_types
+                        .filter((c) =>
+                          sessionEdit.session_kind === 'private_pt'
+                            ? c.code !== SYS_COACH_TIME_CODE
+                            : c.code !== SYS_PT_CODE &&
+                              c.code !== SYS_COACH_TIME_CODE
+                        )
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                    </select>
+                  ) : null}
+                  <div className="grid grid-cols-3 gap-2">
                     <input
                       type="date"
                       className={fc()}
@@ -682,11 +806,30 @@ export default function CoachCalendarPage() {
                       className={fc()}
                       value={sessionEdit.start_time}
                       onChange={(e) =>
+                        setSessionEdit((f) => {
+                          const next = e.target.value;
+                          const dur = f.end_time
+                            ? durationFromStartEnd(f.start_time, f.end_time)
+                            : 45;
+                          return {
+                            ...f,
+                            start_time: next,
+                            end_time: endFromStartDuration(next, dur),
+                          };
+                        })
+                      }
+                    />
+                    <input
+                      type="time"
+                      className={fc()}
+                      value={sessionEdit.end_time}
+                      onChange={(e) =>
                         setSessionEdit((f) => ({
                           ...f,
-                          start_time: e.target.value,
+                          end_time: e.target.value,
                         }))
                       }
+                      aria-label="End time"
                     />
                   </div>
                   <input
@@ -729,31 +872,50 @@ export default function CoachCalendarPage() {
                       <option value="cancelled">Cancelled</option>
                     </select>
                   </div>
-                  <label className="flex items-center gap-2 text-xs font-medium dark:text-amber-100">
-                    <input
-                      type="checkbox"
-                      checked={sessionEdit.public}
+                  {sessionEdit.session_kind === 'class' ? (
+                    <label className="flex items-center gap-2 text-xs font-medium dark:text-amber-100">
+                      <input
+                        type="checkbox"
+                        checked={sessionEdit.public}
+                        onChange={(e) =>
+                          setSessionEdit((f) => ({
+                            ...f,
+                            public: e.target.checked,
+                          }))
+                        }
+                      />
+                      Publish on website calendar
+                    </label>
+                  ) : (
+                    <p className="text-[11px] text-slate-500 dark:text-amber-200/70">
+                      {sessionEdit.session_kind === 'private_pt'
+                        ? 'Private PT stays off the public website.'
+                        : 'Personal time is private and not member-bookable.'}
+                    </p>
+                  )}
+                  {sessionEdit.session_kind === 'coach_personal' ? (
+                    <textarea
+                      className={fc() + ' min-h-[4rem] resize-y'}
+                      placeholder="What this time is for (own training, admin…)"
+                      value={sessionEdit.notes}
                       onChange={(e) =>
-                        setSessionEdit((f) => ({
-                          ...f,
-                          public: e.target.checked,
-                        }))
+                        setSessionEdit((f) => ({ ...f, notes: e.target.value }))
                       }
                     />
-                    Publish on website calendar
-                  </label>
-                  <textarea
-                    className={fc() + ' min-h-[5.5rem] resize-y'}
-                    placeholder={
-                      'e.g.\n• Warm-up 5 min\n• Strength circuit 20 min\n• HIIT finisher 10 min\n• Cool-down & stretch'
-                    }
-                    value={sessionEdit.class_plan}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setSessionEdit((f) => ({ ...f, class_plan: v }));
-                      setClassPlanDraft(v);
-                    }}
-                  />
+                  ) : (
+                    <textarea
+                      className={fc() + ' min-h-[5.5rem] resize-y'}
+                      placeholder={
+                        'e.g.\n• Warm-up 5 min\n• Strength circuit 20 min\n• HIIT finisher 10 min\n• Cool-down & stretch'
+                      }
+                      value={sessionEdit.class_plan}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setSessionEdit((f) => ({ ...f, class_plan: v }));
+                        setClassPlanDraft(v);
+                      }}
+                    />
+                  )}
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
@@ -774,14 +936,16 @@ export default function CoachCalendarPage() {
                     >
                       Save plan only
                     </button>
-                    <button
-                      type="button"
-                      disabled={saving}
-                      className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
-                      onClick={() => void copyInvite(openCard.session.id)}
-                    >
-                      <Share2 className="w-3.5 h-3.5" /> Copy join link
-                    </button>
+                    {sessionEdit.session_kind !== 'coach_personal' ? (
+                      <button
+                        type="button"
+                        disabled={saving}
+                        className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+                        onClick={() => void copyInvite(openCard.session.id)}
+                      >
+                        <Share2 className="w-3.5 h-3.5" /> Copy join link
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       disabled={saving}
@@ -861,6 +1025,7 @@ export default function CoachCalendarPage() {
                   )}
                 </div>
 
+                {sessionEdit.session_kind !== 'coach_personal' ? (
                 <div className="space-y-2 border-t border-amber-100 dark:border-amber-800 pt-3">
                   <p className="text-[10px] font-black uppercase text-slate-500 dark:text-amber-300">
                     Add members to plan
@@ -905,6 +1070,12 @@ export default function CoachCalendarPage() {
                       : 'Add to plan'}
                   </button>
                 </div>
+                ) : (
+                  <p className="text-sm text-slate-500 dark:text-amber-200/70">
+                    Personal time is blocked on this coach’s diary. Members
+                    cannot be booked onto it.
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -919,7 +1090,7 @@ export default function CoachCalendarPage() {
               <div className="w-full max-w-md rounded-3xl border border-amber-300 bg-white dark:!border-amber-400 dark:!bg-amber-950 p-5 space-y-3 shadow-xl">
                 <div className="flex justify-between">
                   <h3 className="font-black dark:text-amber-50">
-                    New class for {portal?.coach.name || 'coach'}
+                    New session for {portal?.coach.name || 'coach'}
                   </h3>
                   <button type="button" onClick={() => setShowCreate(false)}>
                     <X className="w-5 h-5" />
@@ -927,19 +1098,56 @@ export default function CoachCalendarPage() {
                 </div>
                 <select
                   className={fc()}
-                  value={create.class_type_id}
+                  value={create.session_kind}
                   onChange={(e) =>
-                    setCreate((f) => ({ ...f, class_type_id: e.target.value }))
+                    setCreate((f) =>
+                      patchFormForSessionKind(
+                        f,
+                        e.target.value as FitSessionKind,
+                        store.class_types
+                      )
+                    )
                   }
                 >
-                  <option value="">Class type…</option>
-                  {store.class_types.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
+                  {SESSION_KIND_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
                     </option>
                   ))}
                 </select>
-                <div className="grid grid-cols-2 gap-2">
+                {create.session_kind !== 'coach_personal' ? (
+                  <select
+                    className={fc()}
+                    value={create.class_type_id}
+                    onChange={(e) =>
+                      setCreate((f) => ({ ...f, class_type_id: e.target.value }))
+                    }
+                  >
+                    <option value="">
+                      {create.session_kind === 'private_pt'
+                        ? 'PT type (optional)…'
+                        : 'Class type…'}
+                    </option>
+                    {store.class_types
+                      .filter((c) =>
+                        create.session_kind === 'private_pt'
+                          ? c.code !== SYS_COACH_TIME_CODE
+                          : c.code !== SYS_PT_CODE &&
+                            c.code !== SYS_COACH_TIME_CODE
+                      )
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                  </select>
+                ) : (
+                  <p className="text-[11px] text-slate-500 dark:text-amber-200/70">
+                    Own training, admin, or other blocked time — not
+                    member-bookable.
+                  </p>
+                )}
+                <div className="grid grid-cols-3 gap-2">
                   <input
                     type="date"
                     className={fc()}
@@ -953,8 +1161,27 @@ export default function CoachCalendarPage() {
                     className={fc()}
                     value={create.start_time}
                     onChange={(e) =>
-                      setCreate((f) => ({ ...f, start_time: e.target.value }))
+                      setCreate((f) => {
+                        const next = e.target.value;
+                        const dur = f.end_time
+                          ? durationFromStartEnd(f.start_time, f.end_time)
+                          : 45;
+                        return {
+                          ...f,
+                          start_time: next,
+                          end_time: endFromStartDuration(next, dur),
+                        };
+                      })
                     }
+                  />
+                  <input
+                    type="time"
+                    className={fc()}
+                    value={create.end_time}
+                    onChange={(e) =>
+                      setCreate((f) => ({ ...f, end_time: e.target.value }))
+                    }
+                    aria-label="End time"
                   />
                 </div>
                 <input
@@ -965,41 +1192,63 @@ export default function CoachCalendarPage() {
                     setCreate((f) => ({ ...f, location: e.target.value }))
                   }
                 />
-                <input
-                  className={fc()}
-                  type="number"
-                  placeholder="Capacity (optional)"
-                  value={create.capacity}
-                  onChange={(e) =>
-                    setCreate((f) => ({ ...f, capacity: e.target.value }))
-                  }
-                />
-                <textarea
-                  className={fc() + ' min-h-[4.5rem] resize-y sm:col-span-2'}
-                  placeholder="Class plan / activities (members & coaches see this)"
-                  value={create.class_plan}
-                  onChange={(e) =>
-                    setCreate((f) => ({ ...f, class_plan: e.target.value }))
-                  }
-                />
+                {create.session_kind !== 'coach_personal' ? (
+                  <input
+                    className={fc()}
+                    type="number"
+                    placeholder="Capacity (optional)"
+                    value={create.capacity}
+                    onChange={(e) =>
+                      setCreate((f) => ({ ...f, capacity: e.target.value }))
+                    }
+                  />
+                ) : null}
+                {create.session_kind === 'coach_personal' ? (
+                  <textarea
+                    className={fc() + ' min-h-[4.5rem] resize-y sm:col-span-2'}
+                    placeholder="What this time is for (own training, admin…)"
+                    value={create.notes}
+                    onChange={(e) =>
+                      setCreate((f) => ({ ...f, notes: e.target.value }))
+                    }
+                  />
+                ) : (
+                  <textarea
+                    className={fc() + ' min-h-[4.5rem] resize-y sm:col-span-2'}
+                    placeholder="Class plan / activities (members & coaches see this)"
+                    value={create.class_plan}
+                    onChange={(e) =>
+                      setCreate((f) => ({ ...f, class_plan: e.target.value }))
+                    }
+                  />
+                )}
                 <RecurrenceFields
                   value={recurrence}
                   onChange={setRecurrence}
                   startDate={create.date}
                   inputClass={fc()}
                   accent="amber"
-                  unitLabel="classes"
+                  unitLabel={
+                    create.session_kind === 'coach_personal'
+                      ? 'blocks'
+                      : create.session_kind === 'private_pt'
+                        ? 'sessions'
+                        : 'classes'
+                  }
                 />
-                <label className="flex items-center gap-2 text-xs font-medium dark:text-amber-100">
-                  <input
-                    type="checkbox"
-                    checked={create.public}
-                    onChange={(e) =>
-                      setCreate((f) => ({ ...f, public: e.target.checked }))
-                    }
-                  />
-                  Publish on website calendar
-                </label>
+                {create.session_kind === 'class' ? (
+                  <label className="flex items-center gap-2 text-xs font-medium dark:text-amber-100">
+                    <input
+                      type="checkbox"
+                      checked={create.public}
+                      onChange={(e) =>
+                        setCreate((f) => ({ ...f, public: e.target.checked }))
+                      }
+                    />
+                    Publish on website calendar
+                  </label>
+                ) : null}
+                {create.session_kind !== 'coach_personal' ? (
                 <div className="space-y-1.5">
                   <p className="text-[10px] font-black uppercase text-slate-500 dark:text-amber-300">
                     Add members
@@ -1057,18 +1306,32 @@ export default function CoachCalendarPage() {
                       })}
                   </div>
                 </div>
+                ) : null}
                 <button
                   type="button"
-                  disabled={saving}
+                  disabled={
+                    saving ||
+                    (create.session_kind === 'class' && !create.class_type_id)
+                  }
                   className="btn-primary w-full !py-2.5 text-sm"
                   onClick={() => void createClass()}
                 >
                   {saving ? (
                     <Loader2 className="w-4 h-4 animate-spin inline" />
                   ) : null}{' '}
-                  {create.client_ids.length
-                    ? `Create${recurrence.frequency !== 'none' ? ' series' : ' class'} + ${create.client_ids.length} member(s)`
-                    : `Create class${recurrence.frequency !== 'none' ? ' series' : ''}`}
+                  {create.session_kind === 'coach_personal'
+                    ? recurrence.frequency !== 'none'
+                      ? 'Block repeating personal time'
+                      : 'Block personal time'
+                    : create.session_kind === 'private_pt'
+                      ? create.client_ids.length
+                        ? `Book PT + ${create.client_ids.length} member(s)`
+                        : recurrence.frequency !== 'none'
+                          ? 'Create PT series'
+                          : 'Book private PT'
+                      : create.client_ids.length
+                        ? `Create${recurrence.frequency !== 'none' ? ' series' : ' class'} + ${create.client_ids.length} member(s)`
+                        : `Create class${recurrence.frequency !== 'none' ? ' series' : ''}`}
                 </button>
               </div>
             </div>

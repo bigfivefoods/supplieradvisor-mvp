@@ -21,6 +21,33 @@ import { healthSummaryLabel } from '@/lib/health/body-map';
 import { buildRelationshipSummary } from '@/lib/fitness/fitgraph-relationship';
 import { publishedAnnouncements } from '@/lib/services/member-announcements';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
+import {
+  SYS_COACH_TIME_CODE,
+  SYS_PT_CODE,
+  normalizeSessionKind,
+  resolveSessionTimes,
+  type FitSessionKind,
+} from '@/lib/fitness/session-times';
+import type {
+  FitMovement,
+  FitProgramme,
+} from '@/lib/fitness/movements';
+import {
+  hydrateProgramme,
+  memberFacingProgramme,
+  resolveProgrammeForSession,
+} from '@/lib/fitness/movements';
+import { ensureSystemMovements } from '@/lib/fitness/movement-catalog';
+
+export {
+  SYS_COACH_TIME_CODE,
+  SYS_PT_CODE,
+  normalizeSessionKind,
+  resolveSessionTimes,
+  sessionKindFromRecord,
+  sessionKindLabel,
+  type FitSessionKind,
+} from '@/lib/fitness/session-times';
 
 // Re-export shared recurrence helpers for existing Fit imports
 export { addDaysIso, addMonthsIso, expandRecurrenceDates, weekdayOf };
@@ -499,6 +526,11 @@ export type FitSession = {
   start_time: string;
   end_time?: string | null;
   duration_min?: number | null;
+  /**
+   * class = group class · private_pt = 1:1 personal training ·
+   * coach_personal = coach's own training / blocked time (not member-bookable)
+   */
+  session_kind?: FitSessionKind;
   capacity?: number | null;
   location?: string;
   /** Multi-resource diary: room / studio / court */
@@ -524,6 +556,8 @@ export type FitSession = {
   series_id?: string | null;
   /** How this row was created */
   origin?: 'one_off' | 'series' | 'owner' | 'coach' | string;
+  /** Optional programme override for this occurrence */
+  programme_id?: string | null;
   created_at: string;
 };
 
@@ -1155,6 +1189,10 @@ export interface FitgraphStore {
   threads?: import('@/lib/messaging/service-inbox').ServiceThread[];
   /** Owner ads / notices shown to every member */
   announcements?: import('@/lib/services/member-announcements').MemberAnnouncement[];
+  /** Coach / gym exercise movement library */
+  movements?: FitMovement[];
+  /** Class and personal-training programmes built from movements */
+  programmes?: FitProgramme[];
   settings?: FitPublicSettings;
   updated_at?: string;
 }
@@ -1181,6 +1219,124 @@ export function defaultPublicSettings(companyId?: number): FitPublicSettings {
   };
 }
 
+export function ensureSystemClassTypes(store: FitgraphStore): void {
+  const now = new Date().toISOString();
+  if (!store.class_types.some((c) => c.code === SYS_PT_CODE)) {
+    store.class_types.push({
+      id: 'cls_sys_pt',
+      code: SYS_PT_CODE,
+      name: 'Personal training',
+      category: 'PT',
+      default_duration_min: 60,
+      capacity: 1,
+      description: '1:1 private training with a coach',
+      active: true,
+      created_at: now,
+    });
+  }
+  if (!store.class_types.some((c) => c.code === SYS_COACH_TIME_CODE)) {
+    store.class_types.push({
+      id: 'cls_sys_coach_time',
+      code: SYS_COACH_TIME_CODE,
+      name: 'Coach personal time',
+      category: 'Coach',
+      default_duration_min: 60,
+      capacity: 0,
+      description: 'Coach’s own training, admin, or blocked diary time',
+      active: true,
+      created_at: now,
+    });
+  }
+}
+
+export function sessionKindOf(
+  store: FitgraphStore,
+  session: Pick<FitSession, 'session_kind' | 'class_type_id'>
+): FitSessionKind {
+  if (session.session_kind) {
+    return normalizeSessionKind(session.session_kind);
+  }
+  const ct = store.class_types.find((c) => c.id === session.class_type_id);
+  if (ct?.code === SYS_PT_CODE) return 'private_pt';
+  if (ct?.code === SYS_COACH_TIME_CODE) return 'coach_personal';
+  return 'class';
+}
+
+/** Resolve kind + catalogue row. PT / personal time fall back to system types. */
+export function resolveClassTypeForSession(
+  store: FitgraphStore,
+  opts: { class_type_id?: string | null; session_kind?: unknown }
+): { class_type_id: string; kind: FitSessionKind } {
+  ensureSystemClassTypes(store);
+  const ctId = String(opts.class_type_id || '').trim();
+  const ct = ctId
+    ? store.class_types.find((c) => c.id === ctId)
+    : undefined;
+  const hasExplicitKind =
+    opts.session_kind != null && String(opts.session_kind).trim() !== '';
+  const kind = hasExplicitKind
+    ? normalizeSessionKind(opts.session_kind)
+    : ct?.code === SYS_PT_CODE
+      ? 'private_pt'
+      : ct?.code === SYS_COACH_TIME_CODE
+        ? 'coach_personal'
+        : 'class';
+  const isSystem =
+    ct?.code === SYS_PT_CODE || ct?.code === SYS_COACH_TIME_CODE;
+  if (kind === 'private_pt' && (!ct || isSystem)) {
+    const sys = store.class_types.find((c) => c.code === SYS_PT_CODE);
+    return { class_type_id: sys?.id || ctId, kind };
+  }
+  if (kind === 'coach_personal' && (!ct || isSystem)) {
+    const sys = store.class_types.find((c) => c.code === SYS_COACH_TIME_CODE);
+    return { class_type_id: sys?.id || ctId, kind };
+  }
+  return { class_type_id: ctId, kind };
+}
+
+export function applySessionKindRules(
+  kind: FitSessionKind,
+  opts?: { public?: boolean; capacity?: number | null }
+): { public: boolean; capacity: number | null } {
+  if (kind === 'coach_personal') {
+    return { public: false, capacity: 0 };
+  }
+  if (kind === 'private_pt') {
+    const cap = opts?.capacity;
+    return {
+      public: false,
+      capacity: cap != null && cap > 0 ? cap : 1,
+    };
+  }
+  return {
+    public: opts?.public === true,
+    capacity: opts?.capacity ?? 20,
+  };
+}
+
+/** Group classes listed on the public / member diary. */
+export function isPublicListingSession(
+  store: FitgraphStore,
+  session: FitSession
+): boolean {
+  return (
+    session.public === true &&
+    session.status === 'scheduled' &&
+    sessionKindOf(store, session) === 'class'
+  );
+}
+
+export function coachPersonalBookingError(
+  store: FitgraphStore,
+  session: FitSession | undefined | null
+): string | null {
+  if (!session) return null;
+  if (sessionKindOf(store, session) === 'coach_personal') {
+    return 'Coach personal time cannot be booked by members';
+  }
+  return null;
+}
+
 export function emptyFitgraphStore(): FitgraphStore {
   return {
     coaches: [],
@@ -1195,6 +1351,8 @@ export function emptyFitgraphStore(): FitgraphStore {
     class_feedback: [],
     threads: [],
     announcements: [],
+    movements: [],
+    programmes: [],
     settings: defaultPublicSettings(),
   };
 }
@@ -1202,9 +1360,19 @@ export function emptyFitgraphStore(): FitgraphStore {
 export function readFitgraphFromMetadata(
   meta: Record<string, unknown> | null | undefined
 ): FitgraphStore {
-  if (!meta || typeof meta !== 'object') return emptyFitgraphStore();
+  if (!meta || typeof meta !== 'object') {
+    const empty = emptyFitgraphStore();
+    ensureSystemClassTypes(empty);
+    ensureSystemMovements(empty);
+    return empty;
+  }
   const raw = meta[FITGRAPH_META_KEY];
-  if (!raw || typeof raw !== 'object') return emptyFitgraphStore();
+  if (!raw || typeof raw !== 'object') {
+    const empty = emptyFitgraphStore();
+    ensureSystemClassTypes(empty);
+    ensureSystemMovements(empty);
+    return empty;
+  }
   const s = raw as Partial<FitgraphStore>;
   const e = emptyFitgraphStore();
   for (const key of Object.keys(e) as Array<keyof FitgraphStore>) {
@@ -1226,11 +1394,15 @@ export function readFitgraphFromMetadata(
     'journey_events',
     'member_stories',
     'consent_shares',
+    'movements',
+    'programmes',
   ]) {
     if (Array.isArray(extra[key])) {
       (e as unknown as Record<string, unknown>)[key] = extra[key];
     }
   }
+  ensureSystemClassTypes(e);
+  ensureSystemMovements(e);
   return e;
 }
 
@@ -1311,8 +1483,7 @@ export function buildMemberPortalPayload(
     ? store.sessions
         .filter(
           (s) =>
-            s.public === true &&
-            s.status === 'scheduled' &&
+            isPublicListingSession(store, s) &&
             s.date >= start &&
             s.date <= end
         )
@@ -1348,6 +1519,9 @@ export function buildMemberPortalPayload(
             share_code: s.share_code,
             my_status: myBooking?.status || null,
             my_booking_id: myBooking?.id || null,
+            programme: programmeForSessionPayload(store, s, {
+              memberFacing: true,
+            }),
           };
         })
         .sort((a, b) =>
@@ -1387,6 +1561,9 @@ export function buildMemberPortalPayload(
             feedback_submitted_at: shareFeedback
               ? b.feedback_submitted_at || null
               : null,
+            programme: programmeForSessionPayload(store, s, {
+              memberFacing: true,
+            }),
           };
         })
         .sort((a, b) =>
@@ -1727,6 +1904,10 @@ export function summariseFitgraph(store: FitgraphStore) {
     planCount: plans.length,
     activeSubscriptions: subs.length,
     classTypeCount: store.class_types.filter((c) => c.active !== false).length,
+    movementCount: (store.movements || []).filter((m) => m.active !== false)
+      .length,
+    programmeCount: (store.programmes || []).filter((p) => p.active !== false)
+      .length,
     sessionsToday: sessionsToday.length,
     sessionsUpcoming: store.sessions.filter(
       (s) => s.date >= today && s.status === 'scheduled'
@@ -1778,8 +1959,7 @@ export function buildPublicCalendarPayload(
   const sessions = store.sessions
     .filter(
       (s) =>
-        s.public === true &&
-        s.status === 'scheduled' &&
+        isPublicListingSession(store, s) &&
         s.date >= from &&
         s.date <= to &&
         (!opts?.coachId || s.coach_id === opts.coachId)
@@ -1808,6 +1988,9 @@ export function buildPublicCalendarPayload(
         /** Planned activities — members see this on the public calendar */
         class_plan: s.class_plan || s.public_notes || undefined,
         share_code: s.share_code,
+        programme: programmeForSessionPayload(store, s, {
+          memberFacing: true,
+        }),
       };
     })
     .sort((a, b) =>
@@ -1892,6 +2075,7 @@ export function createSessionsFromTemplate(
     start_time: string;
     end_time?: string | null;
     duration_min?: number | null;
+    session_kind?: FitSessionKind;
     capacity?: number | null;
     location?: string;
     room?: string | null;
@@ -1900,6 +2084,7 @@ export function createSessionsFromTemplate(
     public_notes?: string;
     class_plan?: string;
     origin?: string;
+    programme_id?: string | null;
   },
   recurrence?: FitRecurrence | null,
   nowIso?: string
@@ -1908,25 +2093,41 @@ export function createSessionsFromTemplate(
   const dates = expandRecurrenceDates(template.date, recurrence);
   const seriesId =
     dates.length > 1 ? newId('ser') : (null as string | null);
-  const ct = classTypeById(store, template.class_type_id);
-  const makePublic = template.public === true;
+  const resolved = resolveClassTypeForSession(store, {
+    class_type_id: template.class_type_id,
+    session_kind: template.session_kind,
+  });
+  const ct = classTypeById(store, resolved.class_type_id);
+  const kind = resolved.kind;
+  const times = resolveSessionTimes({
+    start_time: template.start_time,
+    end_time: template.end_time,
+    duration_min: template.duration_min,
+    fallbackDuration: ct?.default_duration_min ?? (kind === 'class' ? 45 : 60),
+  });
+  const rules = applySessionKindRules(kind, {
+    public: template.public,
+    capacity:
+      template.capacity ??
+      (kind === 'class' ? (ct?.capacity ?? 20) : undefined),
+  });
   const coachId = template.coach_id ? String(template.coach_id) : null;
   return dates.map((date) => {
     const id = newId('ses');
     return {
       id,
-      class_type_id: template.class_type_id,
+      class_type_id: resolved.class_type_id,
       coach_id: coachId,
       date,
-      start_time: template.start_time,
-      end_time: template.end_time ?? null,
-      duration_min:
-        template.duration_min ?? ct?.default_duration_min ?? 45,
-      capacity: template.capacity ?? ct?.capacity ?? 20,
+      start_time: times.start_time,
+      end_time: times.end_time,
+      duration_min: times.duration_min,
+      session_kind: kind,
+      capacity: rules.capacity,
       location: template.location,
       room: template.room ?? null,
       status: 'scheduled' as const,
-      public: makePublic,
+      public: rules.public,
       // Always issue a share code so B2C join links work (invite-only or public)
       share_code: `s_${Math.random().toString(36).slice(2, 12)}`,
       notes: template.notes,
@@ -1936,6 +2137,7 @@ export function createSessionsFromTemplate(
       origin:
         template.origin ||
         (dates.length > 1 ? 'series' : 'one_off'),
+      programme_id: template.programme_id ?? null,
       created_at: now,
     };
   });
@@ -1958,6 +2160,7 @@ export type CoachRosterRow = {
 
 export type CoachSessionCard = {
   session: FitSession;
+  programme?: ReturnType<typeof programmeForSessionPayload>;
   class_name?: string;
   class_code?: string;
   capacity: number;
@@ -2069,6 +2272,7 @@ export function buildCoachPortalPayload(
       );
       return {
         session: s,
+        programme: programmeForSessionPayload(store, s),
         class_name: ct?.name,
         class_code: ct?.code,
         capacity: s.capacity ?? ct?.capacity ?? 0,
@@ -2183,6 +2387,16 @@ export function buildCoachPortalPayload(
     by_date: byDate,
     members,
     class_types: classTypes,
+    movements: (store.movements || []).filter(
+      (m) =>
+        m.active !== false &&
+        (!m.coach_id || m.coach_id === coach.id)
+    ),
+    programmes: (store.programmes || []).filter(
+      (p) =>
+        p.active !== false &&
+        (!p.coach_id || p.coach_id === coach.id)
+    ),
     threads: coachThreads,
     messages_unread: messagesUnread,
     /** Peer coaches for colleague messaging */
@@ -2190,6 +2404,24 @@ export function buildCoachPortalPayload(
       .filter((c) => c.active !== false && c.id !== coach.id)
       .map((c) => ({ id: c.id, code: c.code, name: c.name })),
   };
+}
+
+export function programmeForSessionPayload(
+  store: FitgraphStore,
+  session: FitSession,
+  opts?: { memberFacing?: boolean }
+) {
+  const found = resolveProgrammeForSession(store.programmes || [], {
+    id: session.id,
+    class_type_id: session.class_type_id,
+    coach_id: session.coach_id,
+    session_kind: sessionKindOf(store, session),
+    programme_id: session.programme_id,
+  });
+  if (!found) return null;
+  const hydrated = hydrateProgramme(found, store.movements || []);
+  if (opts?.memberFacing) return memberFacingProgramme(hydrated);
+  return hydrated;
 }
 
 export function sessionBookingCount(
@@ -2259,6 +2491,7 @@ export function buildClassJoinPayload(
 } | null {
   const session = sessionByShareCode(store, shareCode);
   if (!session) return null;
+  if (sessionKindOf(store, session) === 'coach_personal') return null;
   const ct = classTypeById(store, session.class_type_id);
   const coach = coachById(store, session.coach_id);
   const booked = sessionBookingCount(store, session.id);

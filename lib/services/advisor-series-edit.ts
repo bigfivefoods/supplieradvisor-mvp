@@ -36,10 +36,13 @@ export function resolveSeriesEditIds<T extends DatedOccurrence>(
 
 export type SeriesPatch = {
   start_time?: string;
+  end_time?: string | null;
   location?: string | null;
   duration_min?: number | null;
   capacity?: number | null;
   class_type_id?: string;
+  session_kind?: string;
+  programme_id?: string | null;
   service_id?: string;
   public?: boolean;
   notes?: string | null;
@@ -55,10 +58,13 @@ export function applySeriesPatch<T extends object>(
 ): T {
   const next = { ...row } as T & {
     start_time?: string;
+    end_time?: string | null;
     location?: string | null;
     duration_min?: number | null;
     capacity?: number | null;
     class_type_id?: string;
+    session_kind?: string;
+    programme_id?: string | null;
     service_id?: string;
     public?: boolean;
     notes?: string | null;
@@ -69,6 +75,19 @@ export function applySeriesPatch<T extends object>(
   };
   if (patch.start_time != null) {
     next.start_time = String(patch.start_time).slice(0, 5);
+  }
+  if (patch.end_time !== undefined) {
+    next.end_time = patch.end_time
+      ? String(patch.end_time).slice(0, 5)
+      : null;
+  }
+  if (patch.session_kind) {
+    next.session_kind = String(patch.session_kind);
+  }
+  if (patch.programme_id !== undefined) {
+    next.programme_id = patch.programme_id
+      ? String(patch.programme_id)
+      : null;
   }
   if (patch.location !== undefined) {
     next.location = patch.location;

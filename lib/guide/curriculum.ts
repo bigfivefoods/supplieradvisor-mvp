@@ -906,6 +906,17 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         tip: 'Close the year into retained earnings first if you want equity presented after the year-end transfer.',
       },
       {
+        name: 'Post ECL and dispose PPE',
+        href: '/dashboard/accounting/ecl',
+        summary:
+          'IFRS 9 aging worksheet posts 1135/6820. Asset disposal books IAS 16 gain/loss. Reports → Cash flow is IAS 7 from the bank GL.',
+        steps: [
+          'Finance → ECL — set rates, recalculate, post allowance',
+          'Finance → Assets — dispose with proceeds',
+          'Reports → Cash flow — review operating / investing / financing',
+        ],
+      },
+      {
         name: 'Close a period',
         href: '/dashboard/accounting/settings',
         summary: 'Owner/admin/finance only. Unbalanced TB can block lock.',
@@ -1406,6 +1417,8 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         steps: [
           'Website — optional room list (studio / court)',
           'Classes — define type, duration, capacity',
+          'Movements — coaches add exercises with image or video',
+          'Programmes — build a session and allocate to a class or personal PT',
           'Coaches — register trainer; permanent → People',
           'Calendar — schedule session, room, assign coach, mark public',
           'Website — enable publish + copy embed / page link',
