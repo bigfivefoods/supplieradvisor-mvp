@@ -82,6 +82,38 @@ function Inner() {
     }
   }, [companyId, privyUserId]);
 
+  async function closeYear() {
+    if (
+      !window.confirm(
+        'Post year-end close? This transfers P&L for the last completed financial year into retained earnings and locks those months. Unlock the last month of that year first if it is locked. Undo only by reversing the close journal.'
+      )
+    ) {
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/accounting/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          action: 'year_end_close',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success(
+        `Closed FY ${data.close?.fyLabel || ''} — net ${data.close?.netIncome ?? ''}`
+      );
+      void load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function toggleMonthLock(period_key: string, locked: boolean) {
     setSaving(true);
     try {
@@ -184,25 +216,47 @@ function Inner() {
         description="Periods, currencies, document number prefixes, and system defaults."
       />
 
-      <SectionLabel>Period close checklist</SectionLabel>
+      <SectionLabel>IFRS / SA GAAP close checklist</SectionLabel>
       <Panel className="mb-6">
-        <div className="p-5 sm:p-6">
+        <div className="p-5 sm:p-6 space-y-4">
           <ol className="space-y-2 text-sm text-neutral-700 list-decimal list-inside">
             <li>
-              Trial balance balanced
+              Trial balance balanced (debits = credits)
               {tb
                 ? tb.balanced
-                  ? ' — ✓ ready'
+                  ? ' — ready'
                   : ' — fix Δ first'
                 : ' — load TB above'}
             </li>
-            <li>Bank lines allocated / auto-matched for the month</li>
-            <li>AR/AP and tax reviewed for the period</li>
+            <li>Bank lines allocated or matched to invoices (do not code invoiced sales to income again)</li>
+            <li>Issued AR/AP invoices recognised on the GL; cash applied as settlement, not as a second sale</li>
+            <li>VAT input/output reviewed against the period tax list</li>
+            <li>Fixed assets capitalised; depreciation posted to month-end</li>
             <li>
               Lock the month (owner / admin / finance only)
               {!canFinanceCritical && ` — your role (${roleLabel || '…'}) cannot lock`}
             </li>
+            <li>After year-end, close P&amp;L into retained earnings and lock the financial year</li>
           </ol>
+          <p className="text-xs text-neutral-500 leading-relaxed">
+            Books follow IFRS-oriented double-entry (accrual). Not automated: expected credit
+            losses (IFRS 9), PPE impairment tests (IAS 36), lease accounting (IFRS 16), deferred
+            tax (IAS 12), inventory costing layers (IAS 2), or multi-element revenue contracts
+            (IFRS 15). Post those as journals on the new CoA accounts (1135, 1240, 6810, 6820).
+          </p>
+          {canFinanceCritical && (
+            <div className="flex flex-wrap gap-2">
+              <RoleAwareButton
+                allowed={canFinanceCritical}
+                deniedHint="Owner, admin, or finance required"
+                disabled={saving}
+                onClick={() => void closeYear()}
+                className="text-xs font-semibold px-3 py-2 rounded-xl border bg-white border-neutral-200 text-neutral-800 hover:border-[#00b4d8]"
+              >
+                Close last completed financial year
+              </RoleAwareButton>
+            </div>
+          )}
         </div>
       </Panel>
 
@@ -414,6 +468,9 @@ function Inner() {
                 }
                 className="field"
               />
+              <p className="mt-1 text-[11px] text-neutral-500">
+                Posted journals, allocations, and depreciation on or before this date are rejected.
+              </p>
             </Field>
           </div>
           <label className="flex items-center gap-2 text-xs font-semibold text-neutral-600">

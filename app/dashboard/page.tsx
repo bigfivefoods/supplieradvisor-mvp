@@ -1079,6 +1079,7 @@ export default function DashboardCommandCenter() {
                 <SectionLinks
                   links={[
                     { href: '/dashboard/accounting/management', label: 'Management accounts' },
+                    { href: '/dashboard/accounting/afs', label: 'Annual financial statements' },
                     { href: '/dashboard/accounting/reports', label: 'Reports & forecast' },
                     { href: '/dashboard/accounting/bank-reconciliation', label: 'Bank' },
                     { href: '/dashboard/accounting/tax', label: 'Tax' },

@@ -1191,13 +1191,13 @@ function Inner() {
     }
   }
 
-  /** Undo wrong GL/VAT allocation — voids linked journal and returns line to unallocated */
+  /** Undo wrong GL/VAT allocation — reverses linked journal and returns line to unallocated */
   async function unallocate(id: string | number, clearTax = false) {
     if (
       !window.confirm(
         clearTax
-          ? 'Unallocate and clear VAT code? Linked journal will be voided.'
-          : 'Unallocate this line? The linked journal will be voided so you can re-allocate with the correct GL/VAT.'
+          ? 'Unallocate and clear VAT code? A reversing journal will be posted.'
+          : 'Unallocate this line? A reversing journal will be posted so you can re-allocate with the correct GL/VAT.'
       )
     ) {
       return;
@@ -1802,7 +1802,7 @@ function Inner() {
                           {(alloc === 'allocated' || alloc === 'matched_invoice') && (
                             <>
                               <IconBtn
-                                title="Unallocate (void journal — fix wrong GL/VAT)"
+                                title="Unallocate (reverse journal — fix wrong GL/VAT)"
                                 onClick={() => void unallocate(t.id, false)}
                               >
                                 <Undo2 className="w-3.5 h-3.5" />

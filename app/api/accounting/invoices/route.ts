@@ -263,10 +263,28 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    let journalWarning: string | undefined;
+    if (data && status !== 'draft') {
+      try {
+        const { recognizeInvoiceIfNeeded } = await import(
+          '@/lib/accounting/invoice-gl'
+        );
+        const gl = await recognizeInvoiceIfNeeded({
+          profileId: companyId,
+          invoice: data,
+          createdBy: _gate.userId || privyUserId || null,
+        });
+        if (!gl.ok) journalWarning = gl.error;
+      } catch (e: unknown) {
+        journalWarning = e instanceof Error ? e.message : 'Recognition failed';
+      }
+    }
+
     return NextResponse.json({
       success: true,
       invoice: { ...data, balance_due: invoiceBalance(data) },
       mirroredInvoiceId,
+      journalWarning,
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -326,6 +344,13 @@ export async function PATCH(request: NextRequest) {
     }
 
     const supabase = getSupabaseServer();
+    const { data: before } = await supabase
+      .from('invoices')
+      .select('*')
+      .eq('id', id)
+      .eq('profile_id', companyId)
+      .maybeSingle();
+
     const { data, error } = await supabase
       .from('invoices')
       .update(patch)
@@ -335,9 +360,64 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    let journalWarning: string | undefined;
+    try {
+      const { isIssuedInvoiceStatus, recognizeInvoiceIfNeeded, reverseInvoiceBooks } =
+        await import('@/lib/accounting/invoice-gl');
+      const nextStatus = String(data.status || '');
+      const prevStatus = String(before?.status || '');
+      if (
+        ['void', 'cancelled'].includes(nextStatus) &&
+        !['void', 'cancelled'].includes(prevStatus)
+      ) {
+        const rev = await reverseInvoiceBooks({
+          profileId: companyId,
+          invoice: before || data,
+          createdBy: _gate.userId || privyUserId || null,
+        });
+        if (!rev.ok) journalWarning = rev.error;
+      } else if (isIssuedInvoiceStatus(nextStatus)) {
+        const totalsChanged =
+          Number(before?.total_amount || 0) !== Number(data.total_amount || 0) ||
+          Number(before?.tax_amount || 0) !== Number(data.tax_amount || 0);
+        const alreadyOnBooks = Boolean(
+          before?.metadata &&
+            typeof before.metadata === 'object' &&
+            (before.metadata as { recognition_journal_id?: number })
+              .recognition_journal_id
+        );
+        if (alreadyOnBooks && totalsChanged) {
+          const rev = await reverseInvoiceBooks({
+            profileId: companyId,
+            invoice: before,
+            createdBy: _gate.userId || privyUserId || null,
+          });
+          if (!rev.ok) journalWarning = rev.error;
+          else {
+            const meta =
+              data.metadata && typeof data.metadata === 'object'
+                ? { ...(data.metadata as Record<string, unknown>) }
+                : {};
+            delete meta.recognition_journal_id;
+            data.metadata = meta;
+          }
+        }
+        const gl = await recognizeInvoiceIfNeeded({
+          profileId: companyId,
+          invoice: data,
+          createdBy: _gate.userId || privyUserId || null,
+        });
+        if (!gl.ok) journalWarning = journalWarning || gl.error;
+      }
+    } catch (e: unknown) {
+      journalWarning = e instanceof Error ? e.message : 'Invoice GL failed';
+    }
+
     return NextResponse.json({
       success: true,
       invoice: { ...data, balance_due: invoiceBalance(data) },
+      journalWarning,
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -361,6 +441,26 @@ export async function DELETE(request: NextRequest) {
     if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();
+    const { data: existing } = await supabase
+      .from('invoices')
+      .select('*')
+      .eq('id', id)
+      .eq('profile_id', companyId)
+      .maybeSingle();
+
+    if (existing) {
+      try {
+        const { reverseInvoiceBooks } = await import('@/lib/accounting/invoice-gl');
+        await reverseInvoiceBooks({
+          profileId: companyId,
+          invoice: existing,
+          createdBy: _gate.userId || privyUserId || null,
+        });
+      } catch {
+        /* reverse is best-effort so the commercial void still lands */
+      }
+    }
+
     const { error } = await supabase
       .from('invoices')
       .update({ status: 'void', updated_at: new Date().toISOString() })

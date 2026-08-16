@@ -231,6 +231,87 @@ function hasSignal(arr: Array<number | null | undefined>) {
   return arr.some((v) => v != null && Math.abs(Number(v)) > 0.001);
 }
 
+/** Input vs output VAT across months in the selected period */
+export function VatIoTrendChart({
+  labels,
+  output,
+  input,
+}: {
+  labels: string[];
+  output: number[];
+  input: number[];
+}) {
+  const ok = hasSignal([...output, ...input]);
+  const data: ChartData<'line'> = {
+    labels,
+    datasets: [
+      {
+        label: 'Output VAT',
+        data: output,
+        borderColor: '#d97706',
+        backgroundColor: 'rgba(245, 158, 11, 0.14)',
+        fill: true,
+        pointHoverBackgroundColor: '#d97706',
+      },
+      {
+        label: 'Input VAT',
+        data: input,
+        borderColor: '#059669',
+        backgroundColor: 'rgba(16, 185, 129, 0.14)',
+        fill: true,
+        pointHoverBackgroundColor: '#059669',
+      },
+    ],
+  };
+  return (
+    <div className="relative h-full w-full">
+      {!ok && (
+        <EmptyChartState message="Classify invoices or bank lines to see input and output VAT" />
+      )}
+      <Line data={data} options={lineOptions} />
+    </div>
+  );
+}
+
+export function VatTypeBarChart({
+  labels,
+  output,
+  input,
+}: {
+  labels: string[];
+  output: number[];
+  input: number[];
+}) {
+  const ok = hasSignal([...output, ...input]);
+  const data: ChartData<'bar'> = {
+    labels,
+    datasets: [
+      {
+        label: 'Output VAT',
+        data: output,
+        backgroundColor: 'rgba(217, 119, 6, 0.85)',
+        borderRadius: 8,
+        maxBarThickness: 28,
+      },
+      {
+        label: 'Input VAT',
+        data: input,
+        backgroundColor: 'rgba(5, 150, 105, 0.85)',
+        borderRadius: 8,
+        maxBarThickness: 28,
+      },
+    ],
+  };
+  return (
+    <div className="relative h-full w-full">
+      {!ok && (
+        <EmptyChartState message="No VAT by type in this period yet" />
+      )}
+      <Bar data={data} options={barOptions} />
+    </div>
+  );
+}
+
 /** Revenue / expenses / net — lucid multi-line */
 export function PnlTrendChart({
   labels,

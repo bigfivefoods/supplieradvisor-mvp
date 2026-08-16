@@ -882,6 +882,19 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         tip: 'Bank allocations and posted journals feed these numbers — keep bank and Post current first.',
       },
       {
+        name: 'Compile annual financial statements',
+        href: '/dashboard/accounting/afs',
+        summary:
+          'Select a period (default full financial year) and compile an unaudited AFS pack from posted journals.',
+        steps: [
+          'Finance → AFS (below Manage)',
+          'Pick the reporting period with the slicer',
+          'Review SoFP, P&L, equity, cash flows, and notes',
+          'Print / PDF for the board pack',
+        ],
+        tip: 'Close the year into retained earnings first if you want equity presented after the year-end transfer.',
+      },
+      {
         name: 'Close a period',
         href: '/dashboard/accounting/settings',
         summary: 'Owner/admin/finance only. Unbalanced TB can block lock.',

@@ -454,6 +454,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Bank', href: '/dashboard/accounting/bank-reconciliation', section: 'Bank' },
       { name: 'Budget', href: '/dashboard/accounting/budget', desc: '12-month plan by COA', section: 'Plan' },
       { name: 'Manage', href: '/dashboard/accounting/management', section: 'Plan' },
+      {
+        name: 'AFS',
+        href: '/dashboard/accounting/afs',
+        desc: 'Annual financial statements',
+        section: 'Plan',
+      },
       { name: 'Reports', href: '/dashboard/accounting/reports', section: 'Report' },
       { name: 'VAT', href: '/dashboard/accounting/tax', section: 'Report' },
       { name: 'Assets', href: '/dashboard/accounting/fixed-assets', section: 'Report' },

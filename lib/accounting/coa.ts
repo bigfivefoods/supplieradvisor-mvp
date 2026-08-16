@@ -18,6 +18,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS: CoaSeed[] = [
   { code: '1110', name: 'Bank — operating', account_type: 'asset', subtype: 'bank', normal_balance: 'debit', description: 'Primary operating bank account' },
   { code: '1120', name: 'Petty cash', account_type: 'asset', subtype: 'cash', normal_balance: 'debit' },
   { code: '1130', name: 'Accounts receivable', account_type: 'asset', subtype: 'receivable', normal_balance: 'debit' },
+  { code: '1135', name: 'Allowance for expected credit losses', account_type: 'asset', subtype: 'contra_asset', normal_balance: 'credit', description: 'IFRS 9 ECL contra to AR — post manually until ECL is automated' },
   { code: '1140', name: 'Inventory', account_type: 'asset', subtype: 'inventory', normal_balance: 'debit' },
   { code: '1150', name: 'VAT input (recoverable)', account_type: 'asset', subtype: 'tax', normal_balance: 'debit' },
   { code: '1160', name: 'Prepayments', account_type: 'asset', subtype: 'current', normal_balance: 'debit' },
@@ -25,6 +26,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS: CoaSeed[] = [
   { code: '1210', name: 'Property, plant & equipment', account_type: 'asset', subtype: 'fixed', normal_balance: 'debit' },
   { code: '1220', name: 'Accumulated depreciation', account_type: 'asset', subtype: 'contra_asset', normal_balance: 'credit' },
   { code: '1230', name: 'Intangible assets', account_type: 'asset', subtype: 'fixed', normal_balance: 'debit' },
+  { code: '1240', name: 'Accumulated impairment — PPE', account_type: 'asset', subtype: 'contra_asset', normal_balance: 'credit', description: 'IAS 36 impairment losses against carrying amount' },
 
   // Liabilities
   { code: '2000', name: 'Liabilities', account_type: 'liability', is_header: true, normal_balance: 'credit' },
@@ -63,6 +65,8 @@ export const DEFAULT_CHART_OF_ACCOUNTS: CoaSeed[] = [
   { code: '6600', name: 'Professional fees', account_type: 'expense', subtype: 'professional', normal_balance: 'debit' },
   { code: '6700', name: 'Insurance', account_type: 'expense', subtype: 'insurance', normal_balance: 'debit' },
   { code: '6800', name: 'Depreciation expense', account_type: 'expense', subtype: 'depreciation', normal_balance: 'debit' },
+  { code: '6810', name: 'Impairment losses', account_type: 'expense', subtype: 'impairment', normal_balance: 'debit' },
+  { code: '6820', name: 'Credit loss expense', account_type: 'expense', subtype: 'credit_loss', normal_balance: 'debit', description: 'IFRS 9 expected credit losses' },
   { code: '6900', name: 'Bank charges', account_type: 'expense', subtype: 'finance', normal_balance: 'debit' },
   { code: '6950', name: 'Interest expense', account_type: 'expense', subtype: 'finance', normal_balance: 'debit' },
   { code: '6990', name: 'Miscellaneous expense', account_type: 'expense', subtype: 'other', normal_balance: 'debit' },

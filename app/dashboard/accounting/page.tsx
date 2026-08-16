@@ -191,9 +191,17 @@ function HubInner() {
       accent: 'from-violet-50 to-white border-violet-100',
     },
     {
+      href: '/dashboard/accounting/afs',
+      icon: FileText,
+      code: '09',
+      title: 'Annual financial statements',
+      desc: 'Compiled AFS pack — SoFP, P&L, equity, cash flow, notes.',
+      accent: 'from-slate-50 to-white border-slate-200',
+    },
+    {
       href: '/dashboard/accounting/reports',
       icon: BarChart3,
-      code: '09',
+      code: '10',
       title: 'Reports & analytics',
       desc: 'Trial balance, P&L, BS, budget vs actual, aging, forecast.',
       accent: 'from-sky-50 to-white border-sky-100',
@@ -201,7 +209,7 @@ function HubInner() {
     {
       href: '/dashboard/accounting/tax',
       icon: Receipt,
-      code: '10',
+      code: '11',
       title: 'VAT & tax',
       desc: 'VAT return box, output/input, rates, SARS-ready summary.',
       accent: 'from-slate-50 to-white border-slate-200',
@@ -214,7 +222,7 @@ function HubInner() {
     {
       href: '/dashboard/accounting/fixed-assets',
       icon: Building2,
-      code: '11',
+      code: '12',
       title: 'Fixed assets',
       desc: 'Asset register, depreciation, disposals, BS allocation.',
       accent: 'from-emerald-50 to-white border-emerald-100',
@@ -224,7 +232,7 @@ function HubInner() {
     {
       href: '/dashboard/accounting/entities',
       icon: Globe,
-      code: '12',
+      code: '13',
       title: 'Legal entities & group',
       desc: 'Multi-entity books tied to holding / association structure.',
       accent: 'from-amber-50 to-white border-amber-100',
@@ -234,7 +242,7 @@ function HubInner() {
     {
       href: '/dashboard/accounting/settings',
       icon: Settings,
-      code: '13',
+      code: '14',
       title: 'Settings',
       desc: 'FY start, periods, lock date, document prefixes.',
       accent: 'from-cyan-50 to-white border-cyan-100',
@@ -247,7 +255,7 @@ function HubInner() {
         eyebrow="Financial control"
         title="Accounting"
         titleAccent="Command"
-        description="Full finance OS: CoA, journals, AR/AP, payments, bank balances & allocation, budgets, management accounts, VAT, assets, multi-entity group, and reports."
+        description="Full finance OS: CoA, journals, AR/AP, payments, bank balances & allocation, budgets, management accounts, annual financial statements, VAT, assets, multi-entity group, and reports."
         action={
           <div className="flex flex-wrap gap-2">
             <button

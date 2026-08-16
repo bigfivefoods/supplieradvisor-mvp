@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertAccountingAccess } from '@/lib/accounting/access';
 import { getOrCreateSettings, parseCompanyId } from '@/lib/accounting/server';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  requireCompanyAccess,
+  requireCompanyRoles,
+  ROLES_FINANCE_CRITICAL,
+  legacyPrivyFrom,
+  requireVerifiedUser,
+} from '@/lib/auth/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
@@ -91,12 +97,36 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-/** POST — create accounting period */
+/** POST — create accounting period or year-end close */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = parseCompanyId(body.companyId);
     const privyUserId = body.privyUserId as string | undefined;
+
+    if (body.action === 'year_end_close') {
+      if (!Number.isFinite(companyId)) {
+        return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+      }
+      const gate = await requireCompanyRoles(
+        request,
+        companyId,
+        ROLES_FINANCE_CRITICAL,
+        { legacyPrivyUserId: privyUserId || legacyPrivyFrom(request, body) }
+      );
+      if (!gate.ok) return gate.response;
+      const { closeFiscalYear } = await import('@/lib/accounting/year-end-close');
+      const result = await closeFiscalYear({
+        profileId: companyId,
+        fyStartYear: body.fyStartYear != null ? Number(body.fyStartYear) : undefined,
+        createdBy: gate.userId || privyUserId || null,
+        lockPeriods: body.lockPeriods !== false,
+      });
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      return NextResponse.json({ success: true, close: result });
+    }
 
     if (!Number.isFinite(companyId) || !body.name || !body.start_date || !body.end_date) {
       return NextResponse.json(

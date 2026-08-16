@@ -15,6 +15,7 @@ import {
 } from '@/lib/auth/api-auth';
 import { auditLog } from '@/lib/audit/log';
 import { isPeriodLocked } from '@/lib/accounting/period-lock';
+import { validatePostableLines } from '@/lib/accounting/post-journal';
 
 /** GET ?companyId=&status= */
 export async function GET(request: NextRequest) {
@@ -127,6 +128,30 @@ export async function POST(request: NextRequest) {
         },
         { status: 400 }
       );
+    }
+    if (status === 'posted') {
+      const mixed = (lines as Array<{ debit?: number; credit?: number }>).find(
+        (l) => Number(l.debit || 0) > 0 && Number(l.credit || 0) > 0
+      );
+      if (mixed) {
+        return NextResponse.json(
+          { error: 'A journal line cannot carry both a debit and a credit' },
+          { status: 400 }
+        );
+      }
+      const checked = await validatePostableLines(
+        companyId,
+        lines.map(
+          (l: { account_id: number; debit?: number; credit?: number }) => ({
+            account_id: Number(l.account_id),
+            debit: round2(Number(l.debit || 0)),
+            credit: round2(Number(l.credit || 0)),
+          })
+        )
+      );
+      if (!checked.ok) {
+        return NextResponse.json({ error: checked.error }, { status: 400 });
+      }
     }
 
     const entryDate = body.entry_date || new Date().toISOString().slice(0, 10);
@@ -338,6 +363,16 @@ export async function PATCH(request: NextRequest) {
       if (String(existing.status) === 'void') {
         return NextResponse.json({ error: 'Already void' }, { status: 400 });
       }
+      if (String(existing.status) === 'posted') {
+        return NextResponse.json(
+          {
+            error:
+              'Posted journals cannot be deleted. Reverse them so the audit trail stays intact.',
+            code: 'USE_REVERSE',
+          },
+          { status: 409 }
+        );
+      }
       const { data, error } = await supabase
         .from('journal_entries')
         .update({ status: 'void', updated_at: new Date().toISOString() })
@@ -399,6 +434,19 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json(
           { error: 'Only posted journals can be reversed (edit drafts instead)' },
           { status: 400 }
+        );
+      }
+      const existingMeta =
+        existing.metadata && typeof existing.metadata === 'object'
+          ? (existing.metadata as Record<string, unknown>)
+          : {};
+      if (existingMeta.reversed_by_journal_id) {
+        return NextResponse.json(
+          {
+            error: `Already reversed by journal ${existingMeta.reversed_by_journal_id}`,
+            code: 'ALREADY_REVERSED',
+          },
+          { status: 409 }
         );
       }
       const reverseDate =
@@ -489,11 +537,10 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: lineErr.message }, { status: 400 });
       }
 
-      // Mark original void so it no longer affects open reports that filter void
+      // Keep original posted — voiding it AND posting a reverse would invert the books.
       await supabase
         .from('journal_entries')
         .update({
-          status: 'void',
           updated_at: new Date().toISOString(),
           metadata: {
             ...(existing.metadata && typeof existing.metadata === 'object'
@@ -602,6 +649,20 @@ export async function PATCH(request: NextRequest) {
           { status: 400 }
         );
       }
+      const corrMeta =
+        existing.metadata && typeof existing.metadata === 'object'
+          ? (existing.metadata as Record<string, unknown>)
+          : {};
+      if (corrMeta.reversed_by_journal_id) {
+        return NextResponse.json(
+          {
+            error:
+              'This journal was already reversed. Reclassify the replacement entry instead.',
+            code: 'ALREADY_REVERSED',
+          },
+          { status: 409 }
+        );
+      }
       const newLines = Array.isArray(body.lines) ? body.lines : [];
       if (newLines.length < 2) {
         return NextResponse.json({ error: 'New lines required for correction' }, { status: 400 });
@@ -687,7 +748,16 @@ export async function PATCH(request: NextRequest) {
 
       await supabase
         .from('journal_entries')
-        .update({ status: 'void', updated_at: new Date().toISOString() })
+        .update({
+          updated_at: new Date().toISOString(),
+          metadata: {
+            ...(existing.metadata && typeof existing.metadata === 'object'
+              ? (existing.metadata as Record<string, unknown>)
+              : {}),
+            reversed_by_journal_id: revEntry.id,
+            reversed_at: new Date().toISOString(),
+          },
+        })
         .eq('id', id)
         .eq('profile_id', companyId);
 

@@ -173,7 +173,6 @@ function Inner() {
 
         const bsParams = new URLSearchParams(base);
         bsParams.set('report', 'balance_sheet');
-        if (from) bsParams.set('from', from);
         if (to) bsParams.set('to', to);
 
         const arParams = new URLSearchParams(base);
@@ -223,6 +222,8 @@ function Inner() {
               String(Math.max(...selectedHorizons, horizonMonths))
             );
           }
+        } else if (report === 'balance_sheet') {
+          if (to) params.set('to', to);
         } else if (report !== 'ar_aging' && report !== 'ap_aging') {
           if (from) params.set('from', from);
           if (to) params.set('to', to);
@@ -658,6 +659,10 @@ function ReportBody({
     ];
     return (
       <>
+        <p className="text-xs text-neutral-500 mb-3">
+          Statement of financial position as at the period end (all posted journals through that
+          date), not a period movement.
+        </p>
         {summary && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
             <SumCard label="Assets" value={formatMoney(Number(summary.assets))} tone="emerald" />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   Loader2,
@@ -12,6 +12,7 @@ import {
   CheckSquare,
   Info,
   ArrowRight,
+  Filter,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -29,6 +30,12 @@ import PeriodSlicer, {
   initialPeriodSlicerValue,
   type PeriodSlicerValue,
 } from '@/components/accounting/PeriodSlicer';
+import {
+  ChartCard,
+  MixDoughnut,
+  VatIoTrendChart,
+  VatTypeBarChart,
+} from '@/components/accounting/AccountingCharts';
 
 type RateRow = TaxRate & { category?: VatCategory | string };
 
@@ -66,6 +73,29 @@ type Unclassified = {
   suggested_reason: string;
 };
 
+type VatTxn = {
+  id: string | number;
+  source: string;
+  date?: string;
+  ref?: string | null;
+  counterparty?: string | null;
+  net: number;
+  vat: number;
+  gross: number;
+  tax_code: string;
+  category: string;
+  side: string;
+  unclassified?: boolean;
+  suggested_code?: string;
+};
+
+type VatMonth = { month: string; outputVat: number; inputVat: number };
+
+type VatTypeFilter =
+  | 'all'
+  | VatCategory
+  | 'unclassified';
+
 export default function TaxPage() {
   return (
     <CompanyRequired>
@@ -91,8 +121,13 @@ function Inner() {
   const [returnBox, setReturnBox] = useState<ReturnBox | null>(null);
   const [byCode, setByCode] = useState<ByCode[]>([]);
   const [unclassified, setUnclassified] = useState<Unclassified[]>([]);
-  const [invoiceLines, setInvoiceLines] = useState<Array<Record<string, unknown>>>([]);
-  const [bankLines, setBankLines] = useState<Array<Record<string, unknown>>>([]);
+  const [transactions, setTransactions] = useState<VatTxn[]>([]);
+  const [byMonth, setByMonth] = useState<VatMonth[]>([]);
+  const [typeFilter, setTypeFilter] = useState<VatTypeFilter>('all');
+  const [sideFilter, setSideFilter] = useState<'all' | 'input' | 'output'>('all');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'invoice' | 'bank'>('all');
+  const [search, setSearch] = useState('');
+  const [txnSelected, setTxnSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -158,9 +193,10 @@ function Inner() {
       setReturnBox(data.returnBox || null);
       setByCode(data.byCode || []);
       setUnclassified(data.unclassified || []);
-      setInvoiceLines(data.invoiceLines || []);
-      setBankLines(data.bankLines || []);
+      setTransactions(Array.isArray(data.transactions) ? data.transactions : []);
+      setByMonth(Array.isArray(data.byMonth) ? data.byMonth : []);
       setSelected(new Set());
+      setTxnSelected(new Set());
       if (data.warning) toast.message(data.warning, { description: data.hint });
     } catch {
       setRates([]);
@@ -302,6 +338,106 @@ function Inner() {
     });
   }
 
+  function txnKey(row: Pick<VatTxn, 'id' | 'source'>) {
+    return `${row.source}-${row.id}`;
+  }
+
+  function toggleTxn(row: VatTxn) {
+    const key = txnKey(row);
+    setTxnSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  async function applyVatCode(
+    rows: VatTxn[],
+    taxCode: string,
+    inclusive = taxInclusive
+  ) {
+    if (!rows.length) {
+      toast.message('Select a transaction first');
+      return;
+    }
+    setClassifying(true);
+    try {
+      const bankIds = rows.filter((r) => r.source === 'bank').map((r) => r.id);
+      const invIds = rows.filter((r) => r.source === 'invoice').map((r) => r.id);
+      let updated = 0;
+      if (bankIds.length) {
+        const res = await fetch('/api/accounting/tax', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            privyUserId,
+            action: 'classify_bank',
+            ids: bankIds,
+            tax_code: taxCode,
+            tax_inclusive: inclusive,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        updated += Number(data.updated || 0);
+      }
+      if (invIds.length) {
+        const res = await fetch('/api/accounting/tax', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            privyUserId,
+            action: 'classify_invoice',
+            ids: invIds,
+            tax_code: taxCode,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        updated += Number(data.updated || 0);
+      }
+      toast.success(`Reallocated ${updated} line(s) to ${taxCode}`);
+      void load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setClassifying(false);
+    }
+  }
+
+  const typeOptions: Array<{ id: VatTypeFilter; label: string }> = [
+    { id: 'all', label: 'All types' },
+    { id: 'standard', label: 'Standard-rated' },
+    { id: 'zero_rated', label: 'Zero-rated' },
+    { id: 'exempt', label: 'Exempt' },
+    { id: 'out_of_scope', label: 'Out of scope' },
+    { id: 'unclassified', label: 'Unclassified' },
+  ];
+
+  const filteredTxns = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return transactions.filter((t) => {
+      const cat = String(t.category || (t.unclassified ? 'unclassified' : ''));
+      if (typeFilter !== 'all' && cat !== typeFilter) return false;
+      if (sideFilter !== 'all' && t.side !== sideFilter) return false;
+      if (sourceFilter !== 'all' && t.source !== sourceFilter) return false;
+      if (q) {
+        const hay = `${t.ref || ''} ${t.counterparty || ''} ${t.tax_code || ''}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [transactions, typeFilter, sideFilter, sourceFilter, search]);
+
+  const monthLabels = byMonth.map((m) => {
+    const [y, mo] = m.month.split('-');
+    const d = new Date(Number(y), Number(mo) - 1, 1);
+    return d.toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
+  });
+
   const rateOptions = rates.length
     ? rates
     : [
@@ -316,7 +452,7 @@ function Inner() {
       <AccountingHeader
         title="Tax &"
         titleAccent="VAT"
-        description="Classify supplies as standard, zero-rated, exempt, or out of scope. Automate input/output VAT from invoices and bank lines."
+        description="Filter every VAT line by type, reallocate a wrong code, and see input versus output VAT on the charts."
         action={
           <>
             <button
@@ -418,12 +554,63 @@ function Inner() {
                 tone={summary.bankUnclassified > 0 ? 'amber' : 'emerald'}
               />
               <Kpi
-                label="How it works"
-                value="→"
-                sub="Mark each line VATable / exempt"
+                label="VAT lines"
+                value={String(transactions.length)}
+                sub="Filter and reallocate below"
               />
             </div>
           )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+            <ChartCard
+              title="Input vs output VAT"
+              subtitle="Recoverable purchases versus VAT on sales"
+              height={240}
+            >
+              <MixDoughnut
+                segments={[
+                  {
+                    label: 'Output VAT',
+                    value: returnBox?.outputVat || 0,
+                    color: '#d97706',
+                  },
+                  {
+                    label: 'Input VAT',
+                    value: returnBox?.inputVat || 0,
+                    color: '#059669',
+                  },
+                ]}
+                centerLabel={
+                  (returnBox?.netVat || 0) >= 0 ? 'Payable' : 'Refund'
+                }
+                centerValue={formatMoney(
+                  Math.abs(returnBox?.netVat || 0)
+                )}
+              />
+            </ChartCard>
+            <ChartCard
+              title="VAT by type"
+              subtitle="Output and input on each tax code"
+              height={240}
+            >
+              <VatTypeBarChart
+                labels={byCode.map((b) => b.code)}
+                output={byCode.map((b) => b.outputVat)}
+                input={byCode.map((b) => b.inputVat)}
+              />
+            </ChartCard>
+            <ChartCard
+              title="VAT over the period"
+              subtitle="Monthly input and output"
+              height={240}
+            >
+              <VatIoTrendChart
+                labels={monthLabels}
+                output={byMonth.map((m) => m.outputVat)}
+                input={byMonth.map((m) => m.inputVat)}
+              />
+            </ChartCard>
+          </div>
 
           {/* How VAT works */}
           <div className="mb-6 flex gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-xs text-slate-600 leading-relaxed">
@@ -716,151 +903,221 @@ function Inner() {
             )}
           </Panel>
 
-          {/* Fix / reclassify bank VAT */}
-          {bankLines.length > 0 && (
-            <>
-              <SectionLabel>Fix bank VAT codes (already classified)</SectionLabel>
-              <Panel className="mb-6">
-                <div className="px-4 py-2 border-b border-neutral-100 text-[11px] text-neutral-500">
-                  Change a wrong VAT code here. If the line was also allocated to GL,{' '}
-                  <Link
-                    href="/dashboard/accounting/bank-reconciliation"
-                    className="font-semibold text-[#00b4d8] hover:underline"
+          <SectionLabel
+            action={
+              <span className="text-[11px] text-neutral-500">
+                {filteredTxns.length} of {transactions.length} lines
+              </span>
+            }
+          >
+            VAT transactions
+          </SectionLabel>
+          <Panel className="mb-6">
+            <div className="px-4 py-3 border-b border-neutral-100 space-y-3">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5 text-slate-400" />
+                {typeOptions.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setTypeFilter(opt.id)}
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold border ${
+                      typeFilter === opt.id
+                        ? 'border-[#00b4d8] bg-sky-50 text-[#0077b6]'
+                        : 'border-neutral-200 text-slate-600 hover:border-slate-300'
+                    }`}
                   >
-                    unallocate on Bank
-                  </Link>{' '}
-                  first so the journal is voided, then re-allocate with the correct tax amount.
-                </div>
-                <div className="overflow-x-auto max-h-80 overflow-y-auto">
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-white">
-                      <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-400 border-b border-neutral-100">
-                        <th className="px-3 py-2 font-semibold">Date</th>
-                        <th className="px-3 py-2 font-semibold">Description</th>
-                        <th className="px-3 py-2 font-semibold text-right">Gross</th>
-                        <th className="px-3 py-2 font-semibold">Code</th>
-                        <th className="px-3 py-2 font-semibold text-right">VAT</th>
-                        <th className="px-3 py-2 font-semibold">Change to</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-50">
-                      {bankLines.slice(0, 100).map((row) => (
-                        <tr key={`bank-fix-${row.id}`} className="hover:bg-neutral-50/80">
-                          <td className="px-3 py-2 tabular-nums text-xs whitespace-nowrap">
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={sideFilter}
+                  onChange={(e) =>
+                    setSideFilter(e.target.value as 'all' | 'input' | 'output')
+                  }
+                  className="rounded-xl border border-neutral-200 px-2.5 py-1.5 text-xs font-semibold"
+                >
+                  <option value="all">Input & output</option>
+                  <option value="output">Output (sales)</option>
+                  <option value="input">Input (purchases)</option>
+                </select>
+                <select
+                  value={sourceFilter}
+                  onChange={(e) =>
+                    setSourceFilter(e.target.value as 'all' | 'invoice' | 'bank')
+                  }
+                  className="rounded-xl border border-neutral-200 px-2.5 py-1.5 text-xs font-semibold"
+                >
+                  <option value="all">Invoices & bank</option>
+                  <option value="invoice">Invoices only</option>
+                  <option value="bank">Bank only</option>
+                </select>
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search description or counterparty"
+                  className="min-w-[12rem] flex-1 rounded-xl border border-neutral-200 px-3 py-1.5 text-xs"
+                />
+                <select
+                  value={bulkCode}
+                  onChange={(e) => setBulkCode(e.target.value)}
+                  className="rounded-xl border border-neutral-200 px-2.5 py-1.5 text-xs font-semibold"
+                >
+                  {rateOptions.map((r) => (
+                    <option key={String(r.code)} value={String(r.code)}>
+                      {r.code} — {r.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={classifying || txnSelected.size === 0}
+                  onClick={() =>
+                    void applyVatCode(
+                      filteredTxns.filter((t) => txnSelected.has(txnKey(t))),
+                      bulkCode
+                    )
+                  }
+                  className="btn-primary !py-1.5 !px-3 text-xs disabled:opacity-50"
+                >
+                  Reallocate selected
+                </button>
+              </div>
+              <p className="text-[11px] text-neutral-500">
+                Change a wrong VAT type here. If a bank line is already posted to GL,{' '}
+                <Link
+                  href="/dashboard/accounting/bank-reconciliation"
+                  className="font-semibold text-[#00b4d8] hover:underline"
+                >
+                  unallocate on Bank
+                </Link>{' '}
+                first so the journal is voided, then re-allocate.
+              </p>
+            </div>
+            {filteredTxns.length === 0 ? (
+              <div className="px-6 py-12 text-center text-sm text-neutral-500">
+                No VAT transactions match these filters.
+              </div>
+            ) : (
+              <div className="overflow-x-auto max-h-[36rem] overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-white z-[1]">
+                    <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-400 border-b border-neutral-100">
+                      <th className="px-3 py-2 w-10">
+                        <input
+                          type="checkbox"
+                          checked={
+                            filteredTxns.length > 0 &&
+                            filteredTxns.every((t) => txnSelected.has(txnKey(t)))
+                          }
+                          onChange={() => {
+                            if (
+                              filteredTxns.every((t) =>
+                                txnSelected.has(txnKey(t))
+                              )
+                            ) {
+                              setTxnSelected(new Set());
+                            } else {
+                              setTxnSelected(
+                                new Set(filteredTxns.map((t) => txnKey(t)))
+                              );
+                            }
+                          }}
+                        />
+                      </th>
+                      <th className="px-3 py-2 font-semibold">Date</th>
+                      <th className="px-3 py-2 font-semibold">Source</th>
+                      <th className="px-3 py-2 font-semibold">Description</th>
+                      <th className="px-3 py-2 font-semibold">Side</th>
+                      <th className="px-3 py-2 font-semibold">Type</th>
+                      <th className="px-3 py-2 font-semibold text-right">Net</th>
+                      <th className="px-3 py-2 font-semibold text-right">VAT</th>
+                      <th className="px-3 py-2 font-semibold">Reallocate</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-50">
+                    {filteredTxns.map((row) => {
+                      const key = txnKey(row);
+                      const cat = (row.category ||
+                        (row.unclassified ? 'unclassified' : 'standard')) as
+                        | VatCategory
+                        | 'unclassified';
+                      return (
+                        <tr key={`${row.source}-${key}`} className="hover:bg-neutral-50/80">
+                          <td className="px-3 py-2">
+                            <input
+                              type="checkbox"
+                              checked={txnSelected.has(key)}
+                              onChange={() => toggleTxn(row)}
+                            />
+                          </td>
+                          <td className="px-3 py-2 tabular-nums text-xs whitespace-nowrap text-neutral-500">
                             {String(row.date || '').slice(0, 10)}
                           </td>
-                          <td className="px-3 py-2 max-w-[12rem] truncate text-slate-700">
-                            {String(row.ref || '—')}
+                          <td className="px-3 py-2 text-[10px] font-bold uppercase text-neutral-500">
+                            {row.source}
+                          </td>
+                          <td className="px-3 py-2 max-w-[16rem] truncate text-slate-800">
+                            {row.ref || row.counterparty || '—'}
+                          </td>
+                          <td className="px-3 py-2">
+                            <span
+                              className={`text-[10px] font-bold uppercase ${
+                                row.side === 'output'
+                                  ? 'text-amber-800'
+                                  : 'text-emerald-800'
+                              }`}
+                            >
+                              {row.side}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="font-mono text-xs font-semibold">
+                              {row.tax_code || '—'}
+                            </div>
+                            <div className="text-[10px] text-neutral-400">
+                              {cat === 'unclassified'
+                                ? 'Unclassified'
+                                : categoryLabel(cat)}
+                            </div>
                           </td>
                           <td className="px-3 py-2 text-right tabular-nums">
-                            {formatMoney(Number(row.gross || 0))}
-                          </td>
-                          <td className="px-3 py-2 font-mono text-xs font-semibold">
-                            {String(row.tax_code)}
+                            {formatMoney(Number(row.net || 0))}
                           </td>
                           <td className="px-3 py-2 text-right tabular-nums font-semibold">
                             {formatMoney(Number(row.vat || 0))}
                           </td>
                           <td className="px-3 py-2">
-                            <div className="flex flex-wrap gap-1">
-                              {['VAT15', 'VAT0', 'EXEMPT', 'OUT'].map((c) => (
-                                <button
-                                  key={c}
-                                  type="button"
-                                  disabled={classifying || String(row.tax_code) === c}
-                                  onClick={() => {
-                                    void (async () => {
-                                      setClassifying(true);
-                                      try {
-                                        const res = await fetch('/api/accounting/tax', {
-                                          method: 'POST',
-                                          headers: { 'Content-Type': 'application/json' },
-                                          body: JSON.stringify({
-                                            companyId,
-                                            privyUserId,
-                                            action: 'classify_bank',
-                                            ids: [row.id],
-                                            tax_code: c,
-                                            tax_inclusive: true,
-                                          }),
-                                        });
-                                        const data = await res.json();
-                                        if (!res.ok) throw new Error(data.error || 'Failed');
-                                        toast.success(`Changed to ${c}`);
-                                        void load();
-                                      } catch (err) {
-                                        toast.error(
-                                          err instanceof Error ? err.message : 'Failed'
-                                        );
-                                      } finally {
-                                        setClassifying(false);
-                                      }
-                                    })();
-                                  }}
-                                  className="text-[10px] font-bold px-2 py-1 rounded-lg border border-neutral-200 hover:border-[#00b4d8] hover:text-[#0077b6] disabled:opacity-40"
-                                >
-                                  {c}
-                                </button>
+                            <select
+                              disabled={classifying}
+                              value={row.tax_code || ''}
+                              onChange={(e) => {
+                                const next = e.target.value;
+                                if (!next || next === row.tax_code) return;
+                                void applyVatCode([row], next);
+                              }}
+                              className="max-w-[9rem] rounded-lg border border-neutral-200 px-2 py-1 text-[11px] font-semibold"
+                            >
+                              {!row.tax_code ? (
+                                <option value="">Set type…</option>
+                              ) : null}
+                              {rateOptions.map((r) => (
+                                <option key={String(r.code)} value={String(r.code)}>
+                                  {r.code}
+                                </option>
                               ))}
-                            </div>
+                            </select>
                           </td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Panel>
-            </>
-          )}
-
-          {/* Recent classified lines */}
-          {(invoiceLines.length > 0 || bankLines.length > 0) && (
-            <>
-              <SectionLabel>Period detail (sample)</SectionLabel>
-              <Panel>
-                <div className="overflow-x-auto max-h-80 overflow-y-auto">
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-white">
-                      <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-400 border-b border-neutral-100">
-                        <th className="px-4 py-2 font-semibold">Source</th>
-                        <th className="px-4 py-2 font-semibold">Date</th>
-                        <th className="px-4 py-2 font-semibold">Ref</th>
-                        <th className="px-4 py-2 font-semibold">Side</th>
-                        <th className="px-4 py-2 font-semibold">Code</th>
-                        <th className="px-4 py-2 font-semibold text-right">Net</th>
-                        <th className="px-4 py-2 font-semibold text-right">VAT</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-50">
-                      {[...invoiceLines, ...bankLines].slice(0, 80).map((row, i) => (
-                        <tr key={`${row.source}-${row.id}-${i}`} className="hover:bg-neutral-50/80">
-                          <td className="px-4 py-2 text-xs font-semibold uppercase text-neutral-500">
-                            {String(row.source)}
-                          </td>
-                          <td className="px-4 py-2 tabular-nums text-xs">
-                            {String(row.date || '').slice(0, 10)}
-                          </td>
-                          <td className="px-4 py-2 max-w-[14rem] truncate text-slate-700">
-                            {String(row.ref || row.counterparty || '—')}
-                          </td>
-                          <td className="px-4 py-2 text-xs">{String(row.side)}</td>
-                          <td className="px-4 py-2 font-mono text-xs font-semibold">
-                            {String(row.tax_code)}
-                          </td>
-                          <td className="px-4 py-2 text-right tabular-nums">
-                            {formatMoney(Number(row.net || 0))}
-                          </td>
-                          <td className="px-4 py-2 text-right tabular-nums font-semibold">
-                            {formatMoney(Number(row.vat || 0))}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Panel>
-            </>
-          )}
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
         </>
       )}
 

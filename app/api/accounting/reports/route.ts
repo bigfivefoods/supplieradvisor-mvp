@@ -951,24 +951,32 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    let jeQ = supabase
-      .from('journal_entries')
-      .select('id, entry_date, status')
-      .eq('profile_id', companyId)
-      .eq('status', 'posted');
-    if (from) jeQ = jeQ.gte('entry_date', from);
-    if (to) jeQ = jeQ.lte('entry_date', to);
-    const { data: entries } = await jeQ;
-    const entryIds = (entries || []).map((e) => e.id);
+    const {
+      fetchPostedJournalIds,
+      fetchJournalLinesByEntryIds,
+    } = await import('@/lib/accounting/journal-query');
+    // IAS 1: statement of financial position is as-at a date (all history through `to`).
+    // P&L / TB stay period-filtered.
+    const fetched = await fetchPostedJournalIds({
+      profileId: companyId,
+      from: report === 'balance_sheet' ? null : from,
+      to,
+    });
+    const entryIds = fetched.ids;
 
     let lines: Array<{ account_id: number; debit: number; credit: number }> = [];
     if (entryIds.length) {
-      // chunk if large
-      const { data: lineRows } = await supabase
-        .from('journal_lines')
-        .select('account_id, debit, credit')
-        .in('journal_entry_id', entryIds);
-      lines = (lineRows || []).map((l) => ({
+      const { lines: lineRows, warning: lineWarn } =
+        await fetchJournalLinesByEntryIds(entryIds, 'account_id, debit, credit');
+      if (lineWarn) {
+        return NextResponse.json({
+          success: true,
+          report,
+          rows: [],
+          warning: lineWarn,
+        });
+      }
+      lines = lineRows.map((l) => ({
         account_id: Number(l.account_id),
         debit: Number(l.debit || 0),
         credit: Number(l.credit || 0),
@@ -1008,6 +1016,7 @@ export async function GET(request: NextRequest) {
         rows,
         totals: { debit: sumDebit, credit: sumCredit, balanced: Math.abs(sumDebit - sumCredit) < 0.02 },
         period: { from, to },
+        warning: fetched.warning,
       });
     }
 
@@ -1050,6 +1059,7 @@ export async function GET(request: NextRequest) {
         rows,
         summary: { revenue, cogs, grossProfit, expenses, netIncome },
         period: { from, to },
+        warning: fetched.warning,
       });
     }
 
@@ -1211,6 +1221,7 @@ export async function GET(request: NextRequest) {
           balanced: Math.abs(assets - (liabilities + equity)) < 0.05,
         },
         period: { from, to },
+        warning: fetched.warning,
       });
     }
 

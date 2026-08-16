@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, transaction: data });
     }
 
-    /** Undo GL/VAT allocation — voids linked journal and returns line to the queue */
+    /** Undo GL/VAT allocation — posts a reversing journal and returns the line to the queue */
     if (action === 'unallocate' || action === 'undo_allocate') {
       const ids: Array<string | number> = Array.isArray(body.ids)
         ? body.ids

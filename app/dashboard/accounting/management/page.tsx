@@ -232,15 +232,23 @@ function Inner() {
       <AccountingHeader
         title="Management"
         titleAccent="accounts"
-        description="Period P&L from posted journals (including bank allocations), with budget (plan) vs actual when a 12-month COA budget exists."
+        description="Period P&L from posted journals (including bank allocations), with budget (plan) vs actual when a 12-month COA budget exists. For formal statements use Finance → AFS."
         action={
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="btn-secondary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
-          >
-            <RefreshCw className="w-4 h-4" /> Refresh
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/dashboard/accounting/afs"
+              className="btn-secondary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
+            >
+              Open AFS
+            </Link>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="btn-secondary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" /> Refresh
+            </button>
+          </div>
         }
       />
 

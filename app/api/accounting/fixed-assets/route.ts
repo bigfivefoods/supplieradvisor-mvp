@@ -55,8 +55,8 @@ export async function POST(request: NextRequest) {
     const companyId = parseCompanyId(body.companyId);
     const privyUserId = body.privyUserId as string | undefined;
 
-    if (!Number.isFinite(companyId) || !body.name) {
-      return NextResponse.json({ error: 'companyId and name required' }, { status: 400 });
+    if (!Number.isFinite(companyId)) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
     const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: privyUserId || legacyPrivyFrom(request) });
     if (!_gate.ok) return _gate.response;
@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
         fixedAssetId: id,
         periods: body.periods != null ? Number(body.periods) : 1,
         createdBy: _gate.userId || privyUserId || null,
+        entryDate: body.entry_date || body.entryDate || null,
       });
       if (!result.ok) {
         return NextResponse.json(
@@ -150,6 +151,13 @@ export async function POST(request: NextRequest) {
             : 'ap',
       });
       return NextResponse.json({ success: true, ...result });
+    }
+
+    if (!String(body.name || '').trim()) {
+      return NextResponse.json(
+        { error: 'companyId and name required' },
+        { status: 400 }
+      );
     }
 
     const cost = round2(Number(body.purchase_cost || 0));

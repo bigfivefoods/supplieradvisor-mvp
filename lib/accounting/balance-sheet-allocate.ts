@@ -287,6 +287,8 @@ export async function postFixedAssetDepreciation(opts: {
   fixedAssetId: number;
   periods?: number;
   createdBy?: string | null;
+  /** Default: last calendar day of the current month (period cut-off). */
+  entryDate?: string | null;
 }): Promise<PostResult & { amount?: number; asset?: Record<string, unknown> }> {
   const supabase = getSupabaseServer();
   const { data: asset, error } = await supabase
@@ -335,65 +337,73 @@ export async function postFixedAssetDepreciation(opts: {
     (asset.gl_depr_account_id ? Number(asset.gl_depr_account_id) : null) ||
     accts.accumDepr;
 
-  let journalId: number | undefined;
-  let entryNumber: string | undefined;
-
-  if (expenseId && accumId && expenseId !== accumId) {
-    const memo =
-      `Depreciation FA ${asset.asset_code || asset.id}: ${asset.name}`.slice(
-        0,
-        500
-      );
-    const posted = await postBalancedJournal({
-      profileId: opts.companyId,
-      entryDate: new Date().toISOString().slice(0, 10),
-      memo,
-      source: 'fixed_asset_depreciation',
-      sourceId: String(asset.id),
-      createdBy: opts.createdBy || null,
-      metadata: {
-        fixed_asset_id: asset.id,
-        periods,
-        business_unit_id: asset.business_unit_id,
-        work_center_id: asset.work_center_id,
-      },
-      lines: [
-        {
-          accountId: expenseId,
-          debit: actual,
-          credit: 0,
-          memo,
-          businessUnitId: asset.business_unit_id
-            ? Number(asset.business_unit_id)
-            : null,
-          workCenterId: asset.work_center_id
-            ? Number(asset.work_center_id)
-            : null,
-          workStationId: asset.work_station_id
-            ? Number(asset.work_station_id)
-            : null,
-          fixedAssetId: Number(asset.id),
-        },
-        {
-          accountId: accumId,
-          debit: 0,
-          credit: actual,
-          memo: 'Accumulated depreciation',
-          businessUnitId: asset.business_unit_id
-            ? Number(asset.business_unit_id)
-            : null,
-          workCenterId: asset.work_center_id
-            ? Number(asset.work_center_id)
-            : null,
-          fixedAssetId: Number(asset.id),
-        },
-      ],
-    });
-    if (posted.ok) {
-      journalId = posted.journalId;
-      entryNumber = posted.entryNumber;
-    }
+  if (!expenseId || !accumId || expenseId === accumId) {
+    return {
+      ok: false,
+      error:
+        'COA missing depreciation expense (6800) or accumulated depreciation (1220)',
+    };
   }
+
+  const memo =
+    `Depreciation FA ${asset.asset_code || asset.id}: ${asset.name}`.slice(
+      0,
+      500
+    );
+  const today = new Date();
+  const defaultPeriodEnd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()).padStart(2, '0')}`;
+  const entryDate = String(opts.entryDate || defaultPeriodEnd).slice(0, 10);
+
+  const posted = await postBalancedJournal({
+    profileId: opts.companyId,
+    entryDate,
+    memo,
+    source: 'fixed_asset_depreciation',
+    sourceId: String(asset.id),
+    createdBy: opts.createdBy || null,
+    metadata: {
+      fixed_asset_id: asset.id,
+      periods,
+      business_unit_id: asset.business_unit_id,
+      work_center_id: asset.work_center_id,
+    },
+    lines: [
+      {
+        accountId: expenseId,
+        debit: actual,
+        credit: 0,
+        memo,
+        businessUnitId: asset.business_unit_id
+          ? Number(asset.business_unit_id)
+          : null,
+        workCenterId: asset.work_center_id
+          ? Number(asset.work_center_id)
+          : null,
+        workStationId: asset.work_station_id
+          ? Number(asset.work_station_id)
+          : null,
+        fixedAssetId: Number(asset.id),
+      },
+      {
+        accountId: accumId,
+        debit: 0,
+        credit: actual,
+        memo: 'Accumulated depreciation',
+        businessUnitId: asset.business_unit_id
+          ? Number(asset.business_unit_id)
+          : null,
+        workCenterId: asset.work_center_id
+          ? Number(asset.work_center_id)
+          : null,
+        fixedAssetId: Number(asset.id),
+      },
+    ],
+  });
+  if (!posted.ok) {
+    return { ok: false, error: posted.error };
+  }
+  const journalId = posted.journalId;
+  const entryNumber = posted.entryNumber;
 
   const patch: Record<string, unknown> = {
     accumulated_depreciation: newAccum,

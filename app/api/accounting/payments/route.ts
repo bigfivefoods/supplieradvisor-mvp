@@ -174,6 +174,25 @@ export async function POST(request: NextRequest) {
             updated_at: new Date().toISOString(),
           })
           .eq('id', invoiceId);
+
+        try {
+          const { settleInvoicePayment } = await import(
+            '@/lib/accounting/invoice-gl'
+          );
+          await settleInvoicePayment({
+            profileId: companyId,
+            invoice: { ...inv, status },
+            paymentId: Number(payment.id),
+            amount,
+            paidAt: String(payment.paid_at || new Date().toISOString()),
+            bankAccountId: body.bank_account_id
+              ? Number(body.bank_account_id)
+              : null,
+            createdBy: _gate.userId || privyUserId || null,
+          });
+        } catch (e) {
+          console.warn('payment settlement GL', e);
+        }
       }
     }
 

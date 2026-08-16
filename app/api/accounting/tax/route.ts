@@ -345,9 +345,52 @@ export async function GET(request: NextRequest) {
         outOfScope: round2(outOfScope),
       },
       byCode: Object.values(byCode).sort((a, b) => b.outputVat + b.inputVat - (a.outputVat + a.inputVat)),
-      invoiceLines: invoiceLines.slice(0, 200),
-      bankLines: bankLines.slice(0, 200),
-      unclassified: unclassified.slice(0, 100),
+      invoiceLines,
+      bankLines,
+      unclassified,
+      transactions: [
+        ...invoiceLines,
+        ...bankLines,
+        ...unclassified.map((u) => ({
+          id: u.id,
+          source: 'bank',
+          direction: Number(u.amount || 0) > 0 ? 'inflow' : 'outflow',
+          date: u.txn_date,
+          ref: u.description,
+          counterparty: null,
+          net: Math.abs(Number(u.amount || 0)),
+          vat: 0,
+          gross: Math.abs(Number(u.amount || 0)),
+          tax_code: '',
+          category: 'unclassified',
+          side: Number(u.amount || 0) > 0 ? 'output' : 'input',
+          unclassified: true,
+          suggested_code: u.suggested_code,
+          suggested_reason: u.suggested_reason,
+        })),
+      ].sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))),
+      byMonth: (() => {
+        const months: Record<
+          string,
+          { month: string; outputVat: number; inputVat: number }
+        > = {};
+        const bump = (date: unknown, side: unknown, vat: number) => {
+          const key = String(date || '').slice(0, 7);
+          if (!/^\d{4}-\d{2}$/.test(key) || vat <= 0) return;
+          if (!months[key]) months[key] = { month: key, outputVat: 0, inputVat: 0 };
+          if (side === 'output') months[key].outputVat += vat;
+          else if (side === 'input') months[key].inputVat += vat;
+        };
+        for (const row of invoiceLines) bump(row.date, row.side, Number(row.vat || 0));
+        for (const row of bankLines) bump(row.date, row.side, Number(row.vat || 0));
+        return Object.values(months)
+          .map((m) => ({
+            ...m,
+            outputVat: round2(m.outputVat),
+            inputVat: round2(m.inputVat),
+          }))
+          .sort((a, b) => a.month.localeCompare(b.month));
+      })(),
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -491,6 +534,80 @@ export async function POST(request: NextRequest) {
         category: cat,
         rate: ratePct,
         tax_inclusive: taxInclusive,
+      });
+    }
+
+    // ── Reallocate invoice VAT type ───────────────────────────────────────
+    if (body.action === 'classify_invoice' || body.classifyInvoice) {
+      const ids: Array<string | number> = Array.isArray(body.ids)
+        ? body.ids
+        : body.id != null
+          ? [body.id]
+          : [];
+      if (!ids.length) {
+        return NextResponse.json({ error: 'ids required' }, { status: 400 });
+      }
+      const taxCode = String(body.tax_code || body.taxCode || '')
+        .trim()
+        .toUpperCase();
+      if (!taxCode) {
+        return NextResponse.json({ error: 'tax_code required' }, { status: 400 });
+      }
+
+      const { data: rates } = await supabase
+        .from('tax_rates')
+        .select('*')
+        .eq('profile_id', companyId);
+      const map = rateMap(rates || []);
+      const rateLike = findRate(map, taxCode);
+      const cat = resolveVatCategory(rateLike || { code: taxCode, rate: body.rate });
+      const ratePct =
+        body.rate != null
+          ? Number(body.rate)
+          : Number(rateLike?.rate || (taxCode === 'VAT15' ? 15 : 0));
+
+      const { data: rows, error: fetchErr } = await supabase
+        .from('invoices')
+        .select('id, subtotal, total_amount, tax_amount')
+        .eq('profile_id', companyId)
+        .in('id', ids);
+      if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 400 });
+
+      let updated = 0;
+      for (const row of rows || []) {
+        const taxPrev = Number(row.tax_amount || 0);
+        const total = Number(row.total_amount || 0);
+        const sub =
+          Number(row.subtotal || 0) ||
+          round2(Math.max(0, total - taxPrev)) ||
+          total;
+        const calc = computeVatAmount({
+          amount: sub,
+          ratePct,
+          category: cat,
+          taxInclusive: false,
+        });
+        const { error } = await supabase
+          .from('invoices')
+          .update({
+            tax_code: taxCode,
+            tax_rate: ratePct,
+            tax_amount: calc.vat,
+            subtotal: calc.net,
+            total_amount: calc.gross,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', row.id)
+          .eq('profile_id', companyId);
+        if (!error) updated += 1;
+      }
+
+      return NextResponse.json({
+        success: true,
+        updated,
+        tax_code: taxCode,
+        category: cat,
+        rate: ratePct,
       });
     }
 

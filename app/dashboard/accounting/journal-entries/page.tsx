@@ -289,9 +289,9 @@ function Inner() {
   async function action(id: number, act: 'post' | 'void' | 'reverse') {
     const labels = {
       post: 'Post this draft?',
-      void: 'Void this journal? It will no longer affect reports.',
+      void: 'Void this draft? Posted journals cannot be deleted — reverse them instead.',
       reverse:
-        'Reverse this posted journal? A reversing entry will be posted and the original voided. Use Edit instead if you want to reclassify to different COA accounts.',
+        'Reverse this posted journal? A reversing entry will be posted and the original stays on the audit trail. Use Edit to reclassify to different accounts.',
     };
     if (!window.confirm(labels[act])) return;
     try {
@@ -307,7 +307,7 @@ function Inner() {
           ? 'Posted'
           : act === 'void'
             ? 'Voided'
-            : 'Reversed — original voided'
+            : 'Reversed — offsetting entry posted'
       );
       void load();
     } catch (err) {
@@ -448,7 +448,7 @@ function Inner() {
                         Reverse
                       </button>
                     )}
-                    {je.status !== 'void' && (
+                    {je.status === 'draft' && (
                       <button
                         type="button"
                         title="Void"

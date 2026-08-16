@@ -1,5 +1,7 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { nextDocumentNumber, round2 } from '@/lib/accounting/server';
+import { round2 } from '@/lib/accounting/server';
+import { isPeriodLocked } from '@/lib/accounting/period-lock';
+import { postBalancedJournal } from '@/lib/accounting/post-journal';
 
 /**
  * Resolve the GL cash/bank account for a bank account.
@@ -115,6 +117,19 @@ export async function allocateBankTransaction(params: AllocateParams): Promise<
     };
   }
 
+  const entryDate =
+    (txn.txn_date as string | null) ||
+    (txn.tx_date ? String(txn.tx_date).slice(0, 10) : null) ||
+    new Date().toISOString().slice(0, 10);
+  const lock = await isPeriodLocked(params.profileId, entryDate);
+  if (lock.locked) {
+    return {
+      ok: false,
+      error: `Period ${lock.period_key} is locked — cannot allocate`,
+      status: 409,
+    };
+  }
+
   const abs = Math.abs(amount);
   const tax = round2(Number(params.taxAmount || 0));
   const net = tax > 0 && tax < abs ? round2(abs - tax) : abs;
@@ -176,48 +191,28 @@ export async function allocateBankTransaction(params: AllocateParams): Promise<
     lines.push({ account_id: bankGlId, debit: 0, credit: abs, memo: memo || undefined });
   }
 
-  const entryNumber = await nextDocumentNumber(params.profileId, 'journal');
-  const entryDate =
-    (txn.txn_date as string | null) ||
-    (txn.tx_date ? String(txn.tx_date).slice(0, 10) : null) ||
-    new Date().toISOString().slice(0, 10);
-  const { data: entry, error: jeErr } = await supabase
-    .from('journal_entries')
-    .insert({
-      profile_id: params.profileId,
-      entry_number: entryNumber,
-      entry_date: entryDate,
-      memo,
-      status: 'posted',
-      source: 'bank_allocation',
-      source_id: String(txn.id),
-      currency: txn.currency || 'ZAR',
-      created_by: params.privyUserId || null,
-      posted_at: new Date().toISOString(),
-      metadata: { bank_transaction_id: txn.id, bank_account_id: txn.bank_account_id },
-    })
-    .select('*')
-    .single();
-
-  if (jeErr || !entry) {
-    return { ok: false, error: jeErr?.message || 'Failed to create journal', status: 400 };
+  const posted = await postBalancedJournal({
+    profileId: params.profileId,
+    entryDate,
+    memo: String(memo || 'Bank allocation'),
+    source: 'bank_allocation',
+    sourceId: String(txn.id),
+    currency: txn.currency || 'ZAR',
+    createdBy: params.privyUserId || null,
+    metadata: { bank_transaction_id: txn.id, bank_account_id: txn.bank_account_id },
+    lines: lines.map((l) => ({
+      accountId: l.account_id,
+      debit: l.debit,
+      credit: l.credit,
+      memo: l.memo,
+      counterparty: l.counterparty,
+    })),
+  });
+  if (!posted.ok) {
+    return { ok: false, error: posted.error, status: 400 };
   }
-
-  const lineRows = lines.map((l) => ({
-    journal_entry_id: entry.id,
-    profile_id: params.profileId,
-    account_id: l.account_id,
-    debit: l.debit,
-    credit: l.credit,
-    memo: l.memo || null,
-    counterparty: l.counterparty || null,
-  }));
-
-  const { error: lineErr } = await supabase.from('journal_lines').insert(lineRows);
-  if (lineErr) {
-    await supabase.from('journal_entries').delete().eq('id', entry.id);
-    return { ok: false, error: lineErr.message, status: 400 };
-  }
+  const entry = { id: posted.journalId };
+  const entryNumber = posted.entryNumber;
 
   const patch: Record<string, unknown> = {
     allocation_status: 'allocated',
@@ -295,24 +290,53 @@ export async function unallocateBankTransaction(params: {
       .eq('profile_id', params.profileId)
       .maybeSingle();
 
-    if (je && String(je.status) !== 'void') {
-      const { error: voidErr } = await supabase
+    if (je && String(je.status) === 'posted') {
+      const { data: jeFull } = await supabase
         .from('journal_entries')
-        .update({
-          status: 'void',
-          updated_at: new Date().toISOString(),
-        })
+        .select('id, entry_date, memo')
         .eq('id', journalId)
-        .eq('profile_id', params.profileId);
-
-      if (voidErr) {
+        .maybeSingle();
+      const entryDate = String(
+        jeFull?.entry_date || new Date().toISOString().slice(0, 10)
+      );
+      const lock = await isPeriodLocked(params.profileId, entryDate);
+      if (lock.locked) {
         return {
           ok: false,
-          error: `Could not void linked journal: ${voidErr.message}`,
-          status: 400,
+          error: `Period ${lock.period_key} is locked — reverse in an open period instead of unallocating`,
+          status: 409,
         };
       }
-      voidedJournalId = journalId;
+      const { data: oldLines } = await supabase
+        .from('journal_lines')
+        .select('account_id, debit, credit, memo, counterparty')
+        .eq('journal_entry_id', journalId);
+      if (oldLines?.length) {
+        const reversed = await postBalancedJournal({
+          profileId: params.profileId,
+          entryDate,
+          memo: `Reversal of bank allocation ${jeFull?.memo || journalId}`,
+          source: 'reversal',
+          sourceId: String(journalId),
+          createdBy: params.privyUserId || null,
+          metadata: { reverses_journal_id: journalId, unallocate: true },
+          lines: oldLines.map((l) => ({
+            accountId: Number(l.account_id),
+            debit: round2(Number(l.credit || 0)),
+            credit: round2(Number(l.debit || 0)),
+            memo: l.memo,
+            counterparty: l.counterparty,
+          })),
+        });
+        if (!reversed.ok) {
+          return {
+            ok: false,
+            error: reversed.error || 'Could not reverse allocation journal',
+            status: 400,
+          };
+        }
+        voidedJournalId = reversed.journalId;
+      }
     }
   }
 
@@ -450,6 +474,24 @@ export async function matchBankToInvoice(params: {
       updated_at: new Date().toISOString(),
     })
     .eq('id', txn.id);
+
+  try {
+    const { settleInvoicePayment } = await import('@/lib/accounting/invoice-gl');
+    const gl = await settleInvoicePayment({
+      profileId: params.profileId,
+      invoice: inv,
+      paymentId: Number(payment.id),
+      amount,
+      paidAt: txnDate,
+      bankAccountId: txn.bank_account_id ? Number(txn.bank_account_id) : null,
+      createdBy: params.privyUserId || null,
+    });
+    if (!gl.ok) {
+      console.warn('invoice settlement GL', gl.error);
+    }
+  } catch (e) {
+    console.warn('invoice settlement GL', e);
+  }
 
   return { ok: true, paymentId: payment.id };
 }

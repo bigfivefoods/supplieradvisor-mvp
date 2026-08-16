@@ -3,6 +3,10 @@
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { round2 } from '@/lib/accounting/server';
+import {
+  fetchJournalLinesByEntryIds,
+  fetchPostedJournalIds,
+} from '@/lib/accounting/journal-query';
 
 export type TrialBalanceRow = {
   account_id: number;
@@ -35,17 +39,12 @@ export async function computeTrialBalance(params: {
 }): Promise<TrialBalanceResult> {
   const supabase = getSupabaseServer();
 
-  let q = supabase
-    .from('journal_entries')
-    .select('id, entry_date, status')
-    .eq('profile_id', params.profileId)
-    .eq('status', 'posted');
-
-  if (params.from) q = q.gte('entry_date', params.from);
-  if (params.to) q = q.lte('entry_date', params.to);
-
-  const { data: entries, error: eErr } = await q.limit(5000);
-  if (eErr) {
+  const { ids, warning: idWarn } = await fetchPostedJournalIds({
+    profileId: params.profileId,
+    from: params.from,
+    to: params.to,
+  });
+  if (idWarn && !ids.length) {
     return {
       ok: false,
       balanced: false,
@@ -54,11 +53,9 @@ export async function computeTrialBalance(params: {
       difference: 0,
       rows: [],
       entry_count: 0,
-      warning: eErr.message,
+      warning: idWarn,
     };
   }
-
-  const ids = (entries || []).map((e) => e.id);
   if (!ids.length) {
     return {
       ok: true,
@@ -73,10 +70,10 @@ export async function computeTrialBalance(params: {
     };
   }
 
-  const { data: lines, error: lErr } = await supabase
-    .from('journal_lines')
-    .select('account_id, debit, credit')
-    .in('journal_entry_id', ids);
+  const { lines: rawLines, warning: lErr } = await fetchJournalLinesByEntryIds(
+    ids,
+    'account_id, debit, credit'
+  );
 
   if (lErr) {
     return {
@@ -87,9 +84,10 @@ export async function computeTrialBalance(params: {
       difference: 0,
       rows: [],
       entry_count: ids.length,
-      warning: lErr.message,
+      warning: lErr,
     };
   }
+  const lines = rawLines;
 
   const byAcct = new Map<number, { debit: number; credit: number }>();
   let totalDebit = 0;
@@ -151,5 +149,6 @@ export async function computeTrialBalance(params: {
     entry_count: ids.length,
     from: params.from,
     to: params.to,
+    warning: idWarn,
   };
 }

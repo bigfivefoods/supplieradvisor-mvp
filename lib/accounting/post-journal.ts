@@ -3,6 +3,7 @@
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { ensureDefaultCoa, nextDocumentNumber, round2 } from '@/lib/accounting/server';
+import { isPeriodLocked } from '@/lib/accounting/period-lock';
 
 export type JournalLineInput = {
   accountId: number;
@@ -92,6 +93,59 @@ export async function resolveCoaAccountId(opts: {
   return null;
 }
 
+export async function validatePostableLines(
+  profileId: number,
+  lines: Array<{ account_id: number; debit: number; credit: number }>
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (lines.length < 2) {
+    return { ok: false, error: 'Need at least two journal lines with amounts' };
+  }
+  const mixed = lines.find((l) => l.debit > 0 && l.credit > 0);
+  if (mixed) {
+    return {
+      ok: false,
+      error: 'A journal line cannot carry both a debit and a credit',
+    };
+  }
+  const totalDr = round2(lines.reduce((s, l) => s + l.debit, 0));
+  const totalCr = round2(lines.reduce((s, l) => s + l.credit, 0));
+  if (Math.abs(totalDr - totalCr) > 0.005) {
+    return {
+      ok: false,
+      error: `Unbalanced journal (Dr ${totalDr} vs Cr ${totalCr})`,
+    };
+  }
+
+  const supabase = getSupabaseServer();
+  const accountIds = [...new Set(lines.map((l) => l.account_id))];
+  const { data: accts } = await supabase
+    .from('chart_of_accounts')
+    .select('id, code, is_header, is_active')
+    .eq('profile_id', profileId)
+    .in('id', accountIds);
+  const found = new Set((accts || []).map((a) => Number(a.id)));
+  for (const id of accountIds) {
+    if (!found.has(id)) {
+      return { ok: false, error: `Account ${id} is not on this company's chart` };
+    }
+  }
+  for (const a of accts || []) {
+    if (a.is_header) {
+      return {
+        ok: false,
+        error: `Cannot post to header account ${a.code || a.id}`,
+      };
+    }
+    if (a.is_active === false) {
+      return {
+        ok: false,
+        error: `Account ${a.code || a.id} is inactive`,
+      };
+    }
+  }
+  return { ok: true };
+}
+
 /**
  * Post a balanced journal entry. Soft-fails if COA/journals missing.
  */
@@ -148,13 +202,18 @@ export async function postBalancedJournal(opts: {
     return { ok: false, error: 'Need at least two journal lines with amounts' };
   }
 
-  const totalDr = round2(lines.reduce((s, l) => s + l.debit, 0));
-  const totalCr = round2(lines.reduce((s, l) => s + l.credit, 0));
-  if (Math.abs(totalDr - totalCr) > 0.02) {
-    return {
-      ok: false,
-      error: `Unbalanced journal (Dr ${totalDr} vs Cr ${totalCr})`,
-    };
+  const checked = await validatePostableLines(opts.profileId, lines);
+  if (!checked.ok) return { ok: false, error: checked.error };
+
+  const status = opts.status || 'posted';
+  if (status === 'posted') {
+    const lock = await isPeriodLocked(opts.profileId, opts.entryDate);
+    if (lock.locked) {
+      return {
+        ok: false,
+        error: `Period ${lock.period_key} is locked — cannot post`,
+      };
+    }
   }
 
   let entryNumber: string;
@@ -164,7 +223,6 @@ export async function postBalancedJournal(opts: {
     entryNumber = `JE-MFG-${Date.now()}`;
   }
 
-  const status = opts.status || 'posted';
   const { data: entry, error: jeErr } = await supabase
     .from('journal_entries')
     .insert({

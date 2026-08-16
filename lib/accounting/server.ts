@@ -145,7 +145,32 @@ export async function ensureDefaultCoa(profileId: number): Promise<{ seeded: num
     return { seeded: 0, warning: error.message };
   }
   if (existing && existing.length > 0) {
-    return { seeded: 0 };
+    const { data: have } = await supabase
+      .from('chart_of_accounts')
+      .select('code')
+      .eq('profile_id', profileId);
+    const codes = new Set((have || []).map((r) => String(r.code)));
+    const missing = DEFAULT_CHART_OF_ACCOUNTS.filter((a) => !codes.has(a.code));
+    if (!missing.length) return { seeded: 0 };
+    const rows = missing.map((a, i) => ({
+      profile_id: profileId,
+      code: a.code,
+      name: a.name,
+      account_type: a.account_type,
+      subtype: a.subtype || null,
+      is_active: true,
+      is_system: true,
+      is_header: a.is_header || false,
+      normal_balance: a.normal_balance,
+      description: a.description || null,
+      currency: 'ZAR',
+      sort_order: 800 + i,
+    }));
+    const { data, error: fillErr } = await supabase
+      .from('chart_of_accounts')
+      .insert(rows)
+      .select('id');
+    return { seeded: data?.length || 0, warning: fillErr?.message };
   }
 
   const rows = DEFAULT_CHART_OF_ACCOUNTS.map((a, i) => ({
