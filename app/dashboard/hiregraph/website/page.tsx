@@ -11,6 +11,7 @@ import {
 import { FormCard, StatRow, fieldClass } from '@/components/hire/SimpleEntityForm';
 import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
 import { AdvisorDeskInviteCard } from '@/components/advisors/AdvisorDeskInviteCard';
+import { AdvisorPayoutSettings } from '@/components/advisors/AdvisorPayoutSettings';
 import { AdvisorEmbedSnippet } from '@/components/services/AdvisorEmbedSnippet';
 import { hirePublicEmbedPath } from '@/lib/hire/hiregraph';
 
@@ -116,6 +117,7 @@ export default function HiregraphWebsitePage() {
             brand={form.brand_name || store.settings?.brand_name}
             audience="customers"
           />
+          <AdvisorPayoutSettings compact />
           <AdvisorDeskInviteCard module="hiregraph" />
 
           {token ? (

@@ -13,6 +13,7 @@ import { AdvisorRoomsCard } from '@/components/services/AdvisorRoomsCard';
 import { PracticeProfilePdfButton } from '@/components/schedule/PracticeProfilePdfButton';
 import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
 import { AdvisorDeskInviteCard } from '@/components/advisors/AdvisorDeskInviteCard';
+import { AdvisorPayoutSettings } from '@/components/advisors/AdvisorPayoutSettings';
 import { AdvisorMemberCalendarShareCard } from '@/components/advisors/AdvisorMemberCalendarShareCard';
 import { AdvisorEmbedSnippet } from '@/components/services/AdvisorEmbedSnippet';
 
@@ -90,6 +91,7 @@ export default function WebsitePage() {
             brand={form.brand_name || store.settings?.brand_name}
             audience="patients"
           />
+          <AdvisorPayoutSettings compact />
           <AdvisorDeskInviteCard module="medicalgraph" />
           <AdvisorMemberCalendarShareCard
             shareMemberCalendar={store.settings?.share_member_calendar !== false}

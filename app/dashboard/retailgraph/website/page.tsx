@@ -10,6 +10,7 @@ import {
 } from '@/components/retail/RetailgraphShell';
 import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
 import { AdvisorDeskInviteCard } from '@/components/advisors/AdvisorDeskInviteCard';
+import { AdvisorPayoutSettings } from '@/components/advisors/AdvisorPayoutSettings';
 import { AdvisorEmbedSnippet } from '@/components/services/AdvisorEmbedSnippet';
 import type { RetailgraphStore } from '@/lib/retail/retailgraph';
 
@@ -118,6 +119,7 @@ export default function RetailgraphWebsitePage() {
               brand={form.brand_name || store.settings.brand_name}
               audience="customers"
             />
+            <AdvisorPayoutSettings compact />
             <AdvisorDeskInviteCard module="retailgraph" />
 
             {token ? (

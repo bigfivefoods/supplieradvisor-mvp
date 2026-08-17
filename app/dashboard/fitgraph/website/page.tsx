@@ -19,8 +19,8 @@ import {
 import { AdvisorRoomsCard } from '@/components/services/AdvisorRoomsCard';
 import { PracticeProfilePdfButton } from '@/components/schedule/PracticeProfilePdfButton';
 import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
-import { AdvisorApplePaySetup } from '@/components/advisors/AdvisorApplePaySetup';
 import { AdvisorDeskInviteCard } from '@/components/advisors/AdvisorDeskInviteCard';
+import { AdvisorPayoutSettings } from '@/components/advisors/AdvisorPayoutSettings';
 import { gymRequiresPaidMembership } from '@/lib/fitness/gym-shop';
 
 export default function FitgraphWebsitePage() {
@@ -166,7 +166,7 @@ export default function FitgraphWebsitePage() {
             audience="members"
           />
 
-          <AdvisorApplePaySetup />
+          <AdvisorPayoutSettings compact />
           <AdvisorDeskInviteCard module="fitgraph" />
 
           {token ? (
