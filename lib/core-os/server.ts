@@ -16,6 +16,7 @@ import { memberDebitBankComplete } from '@/lib/fitness/member-debit-bank';
 import {
   assembleCustomer360,
   type Customer360,
+  type LoosePerson,
 } from './customer-360';
 import { classifyCrmCustomer, customerKindMatches } from './kinds';
 import {
@@ -51,6 +52,28 @@ export async function loadCompanyMeta(companyId: number) {
     name: company?.name || `Company #${companyId}`,
     meta: company?.meta || {},
   };
+}
+
+function clinicPatients(
+  rows: Array<{
+    id: string;
+    name: string;
+    email?: string | null;
+    phone?: string | null;
+    crm_customer_id?: number | null;
+    platform_user_id?: string | null;
+    family?: LoosePerson['family'];
+  }>
+): LoosePerson[] {
+  return rows.map((p) => ({
+    id: p.id,
+    name: p.name,
+    email: p.email ?? null,
+    phone: p.phone ?? null,
+    crm_customer_id: p.crm_customer_id ?? null,
+    platform_user_id: p.platform_user_id ?? null,
+    family: p.family,
+  }));
 }
 
 export function advisorStoresFromMeta(meta: Record<string, unknown>) {
@@ -120,7 +143,7 @@ export async function loadCustomer360Bundle(
   const clinics = [
     {
       module: 'physiograph',
-      patients: (stores.physio.patients || []) as never[],
+      patients: clinicPatients(stores.physio.patients || []),
       appointments: (stores.physio.appointments || []).map((a) => ({
         id: a.id,
         date: a.date,
@@ -141,43 +164,28 @@ export async function loadCustomer360Bundle(
     },
     {
       module: 'dentalgraph',
-      patients: ((stores.dental as { patients?: never[] }).patients || []) as never[],
-      appointments: (
-        (stores.dental as { appointments?: Array<{
-          id: string;
-          date: string;
-          start_time?: string;
-          service_id?: string;
-          status?: string;
-        }> }).appointments || []
-      ).map((a) => ({
+      patients: clinicPatients(stores.dental.patients || []),
+      appointments: (stores.dental.appointments || []).map((a) => ({
         id: a.id,
         date: a.date,
         start_time: a.start_time,
         class_type_id: a.service_id,
         status: a.status,
       })),
-      bookings: (
-        (stores.dental as { bookings?: Array<{
-          id: string;
-          appointment_id: string;
-          patient_id: string;
-          status: string;
-        }> }).bookings || []
-      ).map((b) => ({
+      bookings: (stores.dental.bookings || []).map((b) => ({
         id: b.id,
         appointment_id: b.appointment_id,
         patient_id: b.patient_id,
         status: b.status,
       })),
-      services: (
-        (stores.dental as { services?: Array<{ id: string; name: string }> })
-          .services || []
-      ).map((s) => ({ id: s.id, name: s.name })),
+      services: (stores.dental.services || []).map((s) => ({
+        id: s.id,
+        name: s.name,
+      })),
     },
     {
       module: 'medicalgraph',
-      patients: (stores.medical.patients || []) as never[],
+      patients: clinicPatients(stores.medical.patients || []),
       appointments: (stores.medical.appointments || []).map((a) => ({
         id: a.id,
         date: a.date,
@@ -198,7 +206,7 @@ export async function loadCustomer360Bundle(
     },
     {
       module: 'psychiatrygraph',
-      patients: (stores.psychiatry.patients || []) as never[],
+      patients: clinicPatients(stores.psychiatry.patients || []),
       appointments: (stores.psychiatry.appointments || []).map((a) => ({
         id: a.id,
         date: a.date,
