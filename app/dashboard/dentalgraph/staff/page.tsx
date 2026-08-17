@@ -901,6 +901,7 @@ export default function StaffPage() {
                         module="dentalgraph"
                         personId={p.id}
                         email={p.email}
+                        phone={p.phone}
                         engagement={p.engagement}
                         inviteStatus={p.work_invite_status}
                         onChanged={() => void load()}

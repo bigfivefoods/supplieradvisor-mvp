@@ -19,6 +19,7 @@ import {
   accessLaneForEngagement,
   advisorWorkforceLabel,
   buildAdvisorStaffTodayPath,
+  advisorWorkInviteShareText,
   buildAdvisorWorkJoinLink,
   buildAdvisorWorkPortalPath,
   isAdvisorWorkforceModule,
@@ -228,6 +229,7 @@ export async function POST(request: NextRequest) {
     if (
       action === 'invite_person' ||
       action === 'resend_person' ||
+      action === 'share_person' ||
       action === 'revoke_person' ||
       action === 'set_engagement'
     ) {
@@ -279,17 +281,19 @@ export async function POST(request: NextRequest) {
       const email = String(body.email || person.email || '')
         .trim()
         .toLowerCase();
-      if (!email.includes('@')) {
-        return NextResponse.json(
-          { error: 'Add an email on this person first' },
-          { status: 400 }
-        );
-      }
+      const shareOnly = action === 'share_person';
       const engagement = resolveAdvisorEngagement({
         ...person,
         engagement: body.engagement || person.engagement,
       });
       const now = new Date().toISOString();
+
+      if (!email.includes('@') && !(shareOnly && accessLaneForEngagement(engagement) === 'b2c')) {
+        return NextResponse.json(
+          { error: 'Add an email on this person first' },
+          { status: 400 }
+        );
+      }
 
       if (accessLaneForEngagement(engagement) === 'b2b') {
         const invited = await sendTeamWorkspaceInvite({
@@ -301,6 +305,7 @@ export async function POST(request: NextRequest) {
           inviterName,
           companyName: bundle.brand,
           roleLabel: roleLabel(moduleRaw, 'staff'),
+          skipEmail: shareOnly,
         });
         if (!invited.ok) {
           return NextResponse.json(
@@ -320,15 +325,27 @@ export async function POST(request: NextRequest) {
           work_team_member_id: invited.memberId,
         });
         await bundle.persist();
+        const staffRole = roleLabel(moduleRaw, 'staff');
         return NextResponse.json({
           success: true,
           lane: 'b2b',
           invite_link: invited.inviteLink,
+          share_text: invited.inviteLink
+            ? advisorWorkInviteShareText({
+                personName: person.name,
+                businessName: bundle.brand,
+                inviteLink: invited.inviteLink,
+                lane: 'b2b',
+                roleLabel: staffRole,
+              })
+            : '',
           email_sent: invited.emailSent,
           warning: invited.warning,
-          message: invited.emailSent
-            ? `Workspace invitation sent to ${email}`
-            : invited.warning || 'Workspace invitation saved',
+          message: shareOnly
+            ? 'Workspace invite link ready to share'
+            : invited.emailSent
+              ? `Workspace invitation sent to ${email}`
+              : invited.warning || 'Workspace invitation saved',
         });
       }
 
@@ -348,21 +365,27 @@ export async function POST(request: NextRequest) {
               );
       }
       const joinLink = buildAdvisorWorkJoinLink(moduleRaw, token);
-      const mailed = await sendContractorWorkInviteEmail({
-        to: email,
-        inviteeName: person.name,
-        businessName: bundle.brand,
-        invitedBy: inviterName,
-        inviteLink: joinLink,
-        module: moduleRaw,
-        roleLabel: roleLabel(moduleRaw, 'contractor'),
-      });
+      const contractorRole = roleLabel(moduleRaw, 'contractor');
+      let mailed: { sent: boolean; warning?: string } = {
+        sent: false,
+      };
+      if (!shareOnly && email.includes('@')) {
+        mailed = await sendContractorWorkInviteEmail({
+          to: email,
+          inviteeName: person.name,
+          businessName: bundle.brand,
+          invitedBy: inviterName,
+          inviteLink: joinLink,
+          module: moduleRaw,
+          roleLabel: contractorRole,
+        });
+      }
       bundle.applyPerson(personId, {
         engagement: 'contractor',
-        email,
+        email: email.includes('@') ? email : person.email,
         portal_token: portalToken,
         work_invite_token: token,
-        work_invite_email: email,
+        work_invite_email: email.includes('@') ? email : person.work_invite_email,
         work_invite_status: 'pending',
         work_invite_sent_at: now,
         work_team_member_id: null,
@@ -372,12 +395,21 @@ export async function POST(request: NextRequest) {
         success: true,
         lane: 'b2c',
         invite_link: joinLink,
+        share_text: advisorWorkInviteShareText({
+          personName: person.name,
+          businessName: bundle.brand,
+          inviteLink: joinLink,
+          lane: 'b2c',
+          roleLabel: contractorRole,
+        }),
         portal_path: buildAdvisorWorkPortalPath(moduleRaw, portalToken),
         email_sent: mailed.sent,
         warning: mailed.warning,
-        message: mailed.sent
-          ? `Work app invitation sent to ${email}`
-          : mailed.warning || 'Work app invitation saved',
+        message: shareOnly
+          ? 'Work app invite link ready to share'
+          : mailed.sent
+            ? `Work app invitation sent to ${email}`
+            : mailed.warning || 'Work app invitation saved',
       });
     }
 

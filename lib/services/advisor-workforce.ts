@@ -164,6 +164,37 @@ export function buildAdvisorWorkJoinLink(
   return `${base}/join/work/${encodeURIComponent(module)}/${encodeURIComponent(token)}`;
 }
 
+export function advisorWorkInviteShareText(opts: {
+  personName?: string | null;
+  businessName: string;
+  inviteLink: string;
+  lane: AdvisorAccessLane;
+  roleLabel: string;
+}): string {
+  const first =
+    (opts.personName || '').trim().split(/\s+/)[0] || 'there';
+  const brand = (opts.businessName || '').trim() || 'the practice';
+  const role = opts.roleLabel || 'the team';
+  if (opts.lane === 'b2b') {
+    return [
+      `Hi ${first},`,
+      ``,
+      `${brand} invited you to join the ${role} workspace on SupplierAdvisor.`,
+      ``,
+      `Open this link to accept:`,
+      opts.inviteLink,
+    ].join('\n');
+  }
+  return [
+    `Hi ${first},`,
+    ``,
+    `${brand} invited you as a ${role} — manage your diary and clients on your phone.`,
+    ``,
+    `Open this link to join the work app:`,
+    opts.inviteLink,
+  ].join('\n');
+}
+
 export function buildAdvisorWorkPortalPath(
   module: AdvisorWorkforceModule,
   portalToken: string

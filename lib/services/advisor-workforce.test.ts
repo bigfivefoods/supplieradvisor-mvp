@@ -9,6 +9,7 @@ import {
   resolveAdvisorEngagement,
   issueAdvisorWorkInviteToken,
   buildAdvisorWorkPortalPath,
+  advisorWorkInviteShareText,
 } from './advisor-workforce';
 
 assert.equal(accessLaneForEngagement('employed'), 'b2b');
@@ -44,5 +45,17 @@ assert.ok(
     '/clinician/physiograph/'
   )
 );
+
+const wa = advisorWorkInviteShareText({
+  personName: 'Sam Coach',
+  businessName: 'Vuka',
+  inviteLink: 'https://example.com/join',
+  lane: 'b2c',
+  roleLabel: 'Coach',
+});
+assert.match(wa, /Sam/);
+assert.match(wa, /Vuka/);
+assert.match(wa, /https:\/\/example.com\/join/);
+assert.match(wa, /work app/);
 
 console.log('advisor-workforce.test.ts ok');

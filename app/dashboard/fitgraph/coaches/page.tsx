@@ -1020,6 +1020,7 @@ export default function CoachesPage() {
                         module="fitgraph"
                         personId={c.id}
                         email={c.email}
+                        phone={c.phone}
                         engagement={c.engagement}
                         inviteStatus={c.work_invite_status}
                         onChanged={() => void load()}

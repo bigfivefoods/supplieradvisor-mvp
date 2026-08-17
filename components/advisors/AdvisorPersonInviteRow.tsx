@@ -1,15 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, Mail, UserMinus } from 'lucide-react';
+import { Copy, Loader2, Mail, MessageCircle, Share2, Smartphone, UserMinus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApiAuth } from '@/lib/client/use-api-auth';
+import {
+  buildWhatsAppShareUrl,
+  openWhatsAppShare,
+  toWhatsAppE164Digits,
+} from '@/lib/invites/whatsapp';
 import type { AdvisorWorkforceModule } from '@/lib/services/advisor-workforce';
 
 export function AdvisorPersonInviteRow({
   module,
   personId,
   email,
+  phone,
   engagement,
   inviteStatus,
   onChanged,
@@ -17,6 +23,7 @@ export function AdvisorPersonInviteRow({
   module: AdvisorWorkforceModule;
   personId: string;
   email?: string | null;
+  phone?: string | null;
   engagement?: string | null;
   inviteStatus?: string | null;
   onChanged?: () => void;
@@ -28,31 +35,102 @@ export function AdvisorPersonInviteRow({
   );
 
   const post = async (action: string) => {
-    if (!companyId) return;
+    if (!companyId) return null;
     setBusy(true);
     try {
-      const data = await withAuthJson<{ message?: string; warning?: string }>(
-        '/api/advisors/workforce',
-        {
-          method: 'POST',
-          jsonBody: {
-            companyId,
-            module,
-            action,
-            person_id: personId,
-            engagement: lane,
-            email,
-          },
-        }
-      );
-      if (data.warning) toast.message(data.warning);
-      else toast.success(data.message || 'Done');
+      const data = await withAuthJson<{
+        message?: string;
+        warning?: string;
+        invite_link?: string;
+        share_text?: string;
+      }>('/api/advisors/workforce', {
+        method: 'POST',
+        jsonBody: {
+          companyId,
+          module,
+          action,
+          person_id: personId,
+          engagement: lane,
+          email,
+        },
+      });
+      if (data.warning && action !== 'share_person') toast.message(data.warning);
+      else if (action !== 'share_person') toast.success(data.message || 'Done');
       onChanged?.();
+      return data;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed');
+      return null;
     } finally {
       setBusy(false);
     }
+  };
+
+  const ensureShare = async () => {
+    const data = await post('share_person');
+    const link = String(data?.invite_link || '').trim();
+    const text = String(data?.share_text || '').trim();
+    if (!link && !text) return null;
+    return {
+      link,
+      text: text || `You have been invited. Open: ${link}`,
+    };
+  };
+
+  const shareWhatsApp = async () => {
+    const share = await ensureShare();
+    if (!share) return;
+    let resolved = phone || null;
+    if (!toWhatsAppE164Digits(resolved)) {
+      const entered = window.prompt(
+        'WhatsApp number (optional — leave blank to pick a contact):',
+        resolved || ''
+      );
+      if (entered === null) return;
+      resolved = entered.trim() || null;
+    }
+    openWhatsAppShare({ phone: resolved, text: share.text });
+    toast.success('WhatsApp opened with the invite');
+  };
+
+  const copyLink = async () => {
+    const share = await ensureShare();
+    if (!share?.link) return;
+    try {
+      await navigator.clipboard.writeText(share.link);
+      toast.success('Invite link copied');
+    } catch {
+      toast.error('Could not copy');
+    }
+  };
+
+  const shareSms = async () => {
+    const share = await ensureShare();
+    if (!share) return;
+    const digits = toWhatsAppE164Digits(phone);
+    const href = digits
+      ? `sms:+${digits}?body=${encodeURIComponent(share.text)}`
+      : `sms:?body=${encodeURIComponent(share.text)}`;
+    window.location.href = href;
+  };
+
+  const shareSheet = async () => {
+    const share = await ensureShare();
+    if (!share) return;
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Work invite',
+          text: share.text,
+          url: share.link || undefined,
+        });
+        return;
+      } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') return;
+      }
+    }
+    const url = buildWhatsAppShareUrl({ phone, text: share.text });
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -106,7 +184,39 @@ export function AdvisorPersonInviteRow({
         ) : (
           <Mail className="h-3 w-3" />
         )}
-        {inviteStatus === 'pending' ? 'Resend invite' : 'Email invite'}
+        {inviteStatus === 'pending' ? 'Resend email' : 'Email invite'}
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void shareWhatsApp()}
+        className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-900 disabled:opacity-50"
+      >
+        <MessageCircle className="h-3 w-3" /> WhatsApp
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void copyLink()}
+        className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+      >
+        <Copy className="h-3 w-3" /> Copy link
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void shareSms()}
+        className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+      >
+        <Smartphone className="h-3 w-3" /> SMS
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void shareSheet()}
+        className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+      >
+        <Share2 className="h-3 w-3" /> Share
       </button>
       {inviteStatus === 'pending' || inviteStatus === 'accepted' ? (
         <button

@@ -915,6 +915,7 @@ export default function PractitionersPage() {
                         module="medicalgraph"
                         personId={p.id}
                         email={p.email}
+                        phone={p.phone}
                         engagement={p.engagement}
                         inviteStatus={p.work_invite_status}
                         onChanged={() => void load()}

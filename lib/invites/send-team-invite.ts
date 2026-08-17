@@ -27,6 +27,8 @@ export async function sendTeamWorkspaceInvite(opts: {
   companyName?: string;
   /** Override the role label in the email (e.g. Front desk) */
   roleLabel?: string;
+  /** Create the join link without sending email (WhatsApp / copy). */
+  skipEmail?: boolean;
 }): Promise<
   | {
       ok: true;
@@ -137,7 +139,9 @@ export async function sendTeamWorkspaceInvite(opts: {
 
   let emailSent = false;
   let warning: string | undefined;
-  if (!process.env.RESEND_API_KEY) {
+  if (opts.skipEmail) {
+    warning = undefined;
+  } else if (!process.env.RESEND_API_KEY) {
     warning = 'Invite saved but email is not configured — copy the join link';
   } else {
     try {
