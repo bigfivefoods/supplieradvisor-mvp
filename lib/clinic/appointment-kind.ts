@@ -112,7 +112,7 @@ export function isSystemPersonalService(code?: string | null): boolean {
 export function ensureSystemPersonalService<
   T extends {
     id: string;
-    code: string;
+    code?: string;
     name: string;
     default_duration_min?: number;
     duration_min?: number;

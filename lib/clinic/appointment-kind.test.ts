@@ -29,6 +29,16 @@ const services = ensureSystemPersonalService([]);
 assert.equal(services[0].code, SYS_PERSONAL_CODE);
 assert.equal(consultServices(services).length, 0);
 
+const portalServices: Array<{
+  id: string;
+  code?: string;
+  name: string;
+  capacity?: number | null;
+}> = [{ id: 'svc_1', name: 'Consult' }];
+const withPersonal = ensureSystemPersonalService(portalServices);
+assert.equal(withPersonal.some((s) => s.code === SYS_PERSONAL_CODE), true);
+assert.equal(ensureSystemPersonalService(withPersonal).length, withPersonal.length);
+
 const personal = applyAppointmentKindRules(
   {
     appointment_kind: 'personal',
