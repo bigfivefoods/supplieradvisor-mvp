@@ -1157,8 +1157,16 @@ export async function persistVukaCatalogIfNeeded(
     tradingName: identity?.tradingName,
     legalName: identity?.legalName,
   });
-  if (result.changed) {
-    await save(result.store);
+  let next = result.store;
+  let dirty = result.changed;
+  if (result.applied) {
+    const { ensureVukaRoster } = await import('@/lib/fitness/vuka-roster');
+    const roster = ensureVukaRoster(next);
+    next = roster.store;
+    dirty = dirty || roster.changed;
   }
-  return result.store;
+  if (dirty) {
+    await save(next);
+  }
+  return next;
 }
