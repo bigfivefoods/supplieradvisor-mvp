@@ -105,6 +105,10 @@ export function buildClinicPublicCalendar(opts: {
       public_bio?: string;
       timezone?: string;
       allow_public_booking?: boolean;
+      share_member_calendar?: boolean;
+      generate_member_slots?: boolean;
+      member_slot_minutes?: number;
+      working_hours?: import('@/lib/schedule/working-hours').WorkingHours;
       contact_email?: string;
       contact_phone?: string;
       embed_primary_color?: string;

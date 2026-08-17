@@ -232,7 +232,7 @@ function clinicianId(a: {
   return a.practitioner_id || a.staff_id || null;
 }
 
-function peopleOf(store: ClinicMemberStore) {
+function peopleOf(store: ClinicSlotStore) {
   const list =
     store.practitioners && store.practitioners.length
       ? store.practitioners
@@ -241,12 +241,12 @@ function peopleOf(store: ClinicMemberStore) {
   return active.length ? active : [{ id: '', name: 'Practice' }];
 }
 
-function defaultConsult(store: ClinicMemberStore) {
+function defaultConsult(store: ClinicSlotStore) {
   const list = consultServices(store.services || []);
   return list[0] || null;
 }
 
-function slotMinutes(store: ClinicMemberStore, svc?: { default_duration_min?: number } | null) {
+function slotMinutes(store: ClinicSlotStore, svc?: { default_duration_min?: number } | null) {
   const set = Number(store.settings?.member_slot_minutes);
   if (Number.isFinite(set) && set >= 15) return Math.min(180, set);
   const d = Number(svc?.default_duration_min);
@@ -313,8 +313,18 @@ export function parseVirtualSlotId(id: string): {
   };
 }
 
+/** Enough of a clinic store to list bookable hours (public calendar + PWA). */
+export type ClinicSlotStore = {
+  appointments: ClinicMemberStore['appointments'];
+  bookings: Array<{ appointment_id: string; status: string }>;
+  services: ClinicMemberStore['services'];
+  practitioners?: ClinicMemberStore['practitioners'];
+  staff?: ClinicMemberStore['staff'];
+  settings?: ClinicMemberStore['settings'];
+};
+
 export function generateAdvisorMemberSlots(
-  store: ClinicMemberStore,
+  store: ClinicSlotStore,
   opts?: { from?: string; to?: string }
 ): AdvisorMemberSlot[] {
   if (!memberCalendarShareOn(store.settings)) return [];
