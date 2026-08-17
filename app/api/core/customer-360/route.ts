@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       });
       created.push({
         member_id: d.member_id,
-        invoice_id: charge.invoice_id,
+        invoice_id: charge.invoice_id ?? undefined,
       });
     }
     return NextResponse.json({
