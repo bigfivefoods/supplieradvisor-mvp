@@ -338,7 +338,8 @@ export async function GET(request: NextRequest) {
             });
           }
           for (const l of lineRows || []) {
-            const row = l as Record<string, unknown>;
+            if (!l || typeof l !== 'object') continue;
+            const row = l as unknown as Record<string, unknown>;
             lines.push({
               account_id: Number(row.account_id),
               debit: Number(row.debit || 0),
