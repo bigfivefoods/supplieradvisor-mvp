@@ -21,6 +21,7 @@ import {
 } from '@/components/retail/RetailgraphShell';
 import { formatZar } from '@/lib/b2c/member-account-types';
 import { AdvisorBillingClarityCard } from '@/components/services/AdvisorBillingClarityCard';
+import RetailgraphSystemFlow from '@/components/retail/RetailgraphSystemFlow';
 
 type Summary = {
   skuCount: number;
@@ -69,6 +70,8 @@ export default function RetailgraphHubPage() {
             <Stat label="Open tills" value={String(summary?.openTills || 0)} />
           </div>
         )}
+
+        <RetailgraphSystemFlow defaultCollapsed={false} />
 
         <div className="mb-6">
           <AdvisorBillingClarityCard

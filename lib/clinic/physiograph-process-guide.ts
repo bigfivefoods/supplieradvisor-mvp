@@ -29,12 +29,12 @@ export type ProcessPhase = {
 };
 
 export const PROCESS_CHAIN = [
-  { label: 'People', sub: 'Practitioners · patients · POPIA' },
-  { label: 'Services · packs', sub: 'Catalogue · packs · plans' },
-  { label: 'Diary', sub: 'Rooms · practice · clinician' },
+  { label: 'People', sub: 'Workforce · CRM 360' },
+  { label: 'Services · packs', sub: 'VAT invoices · plans' },
+  { label: 'Diary', sub: 'Leave blocks · rooms' },
   { label: 'Floor', sub: 'Waitlist · attend · recall' },
   { label: 'Messages', sub: 'System ID · in-app' },
-  { label: 'Website · reports', sub: 'Marketplace · rooms · ops' },
+  { label: 'Website · One OS', sub: 'Finance · calendar · 360' },
 ] as const;
 
 export const ROLE_CARDS = [
@@ -42,8 +42,8 @@ export const ROLE_CARDS = [
     title: 'Practice owner / manager',
     subtitle: 'Team · diary · waitlist · marketplace',
     does: [
-      'Register clinicians; rates, bios; permanent staff dual-write to People',
-      'Patient register with POPIA consent; invites & portals; family / dependents',
+      'Register clinicians; employed + contractors dual-write to People; leave blocks the diary'
+      'Patients land on Customers 360 (visits, invoices, household); POPIA + invites'
       'Services, care packs, treatment plans; one-click book next session',
       'Practice diary (parallel clinicians) + exclusive clinician books; rooms',
       'Waitlist desk, 24h reminders, outcomes & recalls, staff Today PWA',
@@ -82,7 +82,7 @@ export const ROLE_CARDS = [
     ],
     doesNot: [
       'Does not see private / unpublished slots or other patients’ charts',
-      'Does not pay gym/clinic fees through the SA platform (practice bills separately)',
+      'Does not pay company SaaS — visit fees settle to the practice (1% admin on card / Apple Pay)'
     ],
   },
 ] as const;
@@ -90,19 +90,19 @@ export const ROLE_CARDS = [
 export const PROCESS_PHASES: ProcessPhase[] = [
   {
     title: '1 · People (clinicians & patients)',
-    subtitle: 'Who treats · who is in care · POPIA · People dual-write',
+    subtitle: 'Workforce book · Customers 360 · POPIA',
     steps: [
       {
         n: '1a',
         title: 'Practitioners',
         who: 'Owner',
-        desc: 'Physios, OT, biokinetics; disciplines, rates, bios. Permanent staff dual-write to People (HR).',
+        desc: 'Physios, OT, biokinetics; rates, bios. Employed + contractors dual-write to People. Leave blocks assign.',
       },
       {
         n: '1b',
         title: 'Patients · POPIA · invite',
         who: 'Owner / desk',
-        desc: 'Patient book with POPIA consent; email invite & portal; assign practitioner and package.',
+        desc: 'Patient book dual-writes CRM. Open Customers 360 for visits, invoices and household. POPIA + invite.',
       },
       {
         n: '1c',
@@ -126,7 +126,7 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '2b',
         title: 'Rehab packages',
         who: 'Owner',
-        desc: 'Multi-session packs with session ledger (fees outside SA).',
+        desc: 'Multi-session packs with session ledger. Charges post AR + revenue + VAT on Finance.',
       },
       {
         n: '2c',
@@ -144,7 +144,7 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '3a',
         title: 'Rooms & schedule',
         who: 'Owner / desk',
-        desc: 'Define rooms/room / bays on Website; schedule date, time, service, room; assign clinician.',
+        desc: 'Schedule date, time, service, room; assign clinician. People leave blocks that person. Company calendar overlays the week.',
       },
       {
         n: '3b',
@@ -180,7 +180,7 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '4c',
         title: 'Remind · attend · plan · feedback',
         who: 'Desk / clinician',
-        desc: 'Send 24h reminders; mark attended / no-show (soft-block risk); care plan progresses; feedback token; recalls board.',
+        desc: 'Remind, attend, progress plans, feedback, recalls. Attendance and recalls write CRM activity + Intelligence.',
       },
     ],
   },
@@ -264,12 +264,12 @@ export const GUARDRAILS = [
     desc: 'Once the patient is on SupplierAdvisor, care threads deliver in-app by platform user ID.',
   },
   {
-    title: 'SA does not bill patients',
-    desc: 'SupplierAdvisor only bills the company platform subscription; clinic fees stay off-platform.',
+    title: 'One money book',
+    desc: 'Visit and pack fees post CRM + Finance (AR, revenue, VAT). Card / Apple Pay 1% admin to your bank.',
   },
   {
-    title: 'Permanent staff → People',
-    desc: 'Permanent clinicians dual-write into the People module; casuals stay on the Advisor book only.',
+    title: 'Workforce book',
+    desc: 'Employed clinicians on payroll; contractors as a People type. Leave blocks the diary.',
   },
   {
     title: 'Tokenised public surfaces',
@@ -313,7 +313,7 @@ export const SYSTEM_BENEFITS = [
 ];
 
 export const ONE_SENTENCE =
-  'Register practitioners and patients (POPIA · clinical · medical chart) → services, rehab packs and treatment plans → diary with rooms and exclusive clinician books → book, waitlist desk, reminders, attend, recalls → in-app messages by system user ID → website, marketplace listing and utilisation.';
+  'Register clinicians (People workforce · leave blocks diary) and patients (Customers 360 · POPIA) → services, packs and treatment plans with VAT invoices → diary and company calendar → book, waitlist, attend (CRM + Intelligence) → messages by system user ID → website, marketplace and Finance — one OS.';
 
 
 // ── PDF (teal brand) ────────────────────────────────────────────────────
@@ -418,7 +418,7 @@ function drawHero(doc: PdfDoc, g: Geo): number {
   const orientLabel = g.isLandscape ? 'A4 LANDSCAPE · 2 PAGES' : 'A4 PORTRAIT · 2 PAGES';
   return drawProcessGuideHero(doc, g, {
     eyebrow: 'PhysioAdvisor® · end-to-end process · ' + orientLabel,
-    title: 'Practitioners → Patients → Services → Diary → Bookings → Website',
+    title: 'Practitioners → Patients → Diary → One OS',
     subtitle: g.isLandscape ? undefined : 'Tertiary / services clinic OS — people, diary, packages, website & reports.',
     sideNote: g.isLandscape ? 'End-to-end physio clinic OS on SupplierAdvisor® — diary, rehab packs, website booking.' : undefined,
     landscape: g.isLandscape,
@@ -703,7 +703,7 @@ export async function buildPhysiographProcessGuidePdf(opts?: {
     doc.addPage({ size: 'A4', layout });
     y = drawProcessGuidePageHeader(doc, g, {
       eyebrow: 'PhysioAdvisor® · end-to-end process · continued',
-      title: 'Process continued · Floor · Messages · Website · Guardrails',
+      title: 'Process continued · Floor · Messages · One OS · Guardrails',
       landscape: g.isLandscape,
     });
     drawProcessPageWash(doc, g, Math.max(0, y - 8));

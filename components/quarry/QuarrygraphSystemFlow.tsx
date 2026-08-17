@@ -281,7 +281,7 @@ const PHASES: Phase[] = [
         n: '7b',
         title: 'Sold & compliant',
         who: 'Trade',
-        desc: 'Dispatch with permits valid and QA on the trail.',
+        desc: 'Dispatch with permits and QA. Permanent crews in People; company calendar overlays deliveries.',
         href: '/dashboard/quarrygraph/dispatch',
         icon: Scale,
       },

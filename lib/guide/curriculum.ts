@@ -1202,7 +1202,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     title: 'CropAdvisor®',
     tagline: 'Fields → estimates → harvest → fleet/labour → trade',
     purpose:
-      'Primary multi-crop farm OS: shared field master, season estimates (with revisions), harvest planner, inputs, vehicle fuel util (L/h · L/km · R/km), gangs & rates, regen samples, and farm-to-buyer trade with origin lots. Download the 2-page process design PDF from the command hub.',
+      'Primary multi-crop farm OS: shared field master, season estimates, harvest planner, inputs, fleet and labour (permanent staff in People), regen samples, farm-to-buyer trade on Customers with company calendar overlay. Process design PDF on the hub.',
     who: ['Farm office', 'Field ops', 'Mill / buyer trade'],
     principles: [
       {
@@ -1288,7 +1288,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     title: 'QuarryAdvisor®',
     tagline: 'Locations → reserves → plant → dispatch → compliant',
     purpose:
-      'Primary quarrying & aggregates OS: permanent / temporary / batching locations with GPS, pits & products, reserves, production plan, plant & stockpiles, weighbridge, fleet fuel util (L/h · R/km), labour, resource allocation to projects, QA and permits. Process design PDF on the hub.',
+      'Primary quarrying & aggregates OS: locations, pits, reserves, plant, dispatch, fleet and labour (permanent crews in People), QA and permits. Trade buyers sit on Customers; company calendar overlays deliveries. Process design PDF on the hub.',
     who: ['Quarry office', 'Plant & pit ops', 'Dispatch & trade'],
     principles: [
       {
@@ -1373,9 +1373,9 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     slug: 'fitgraph',
     moduleId: 'fitgraph',
     title: 'GymAdvisor®',
-    tagline: 'Coaches → rooms → waitlist → marketplace',
+    tagline: 'Coaches → class plans → floor → One OS',
     purpose:
-      'Tertiary gym / studio OS: coaches (permanent dual-write to People), members (invites, family, POPIA-aware desk), memberships with freeze & packs, class types, calendar with rooms and concurrent-coach option, bookings/waitlist, 24h reminders, outcomes/recalls, staff Today PWA, in-app messages by system user ID, website embed + marketplace listing. Process design PDF on the hub. SA bills platform subscription only — not member fees.',
+      'Tertiary gym / studio OS on one Core book: coaches (employed + contractors in People; leave blocks the diary), members on Customers 360 (class subscriptions, debit bank, invoices, household), class types, calendar + company week view, waitlist, attendance that writes CRM activity + Intelligence, SA Member, website + marketplace, VAT journals and debit-order file. Process design PDF on the hub.',
     who: ['Gym owner / manager', 'Coach', 'Front desk', 'Member (public)'],
     principles: [
       {
@@ -1391,8 +1391,8 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         body: 'Once a member is on SupplierAdvisor, care threads deliver in-app by platform user ID.',
       },
       {
-        title: 'SA does not bill members',
-        body: 'SupplierAdvisor only bills the company platform subscription; gym fees stay off-platform.',
+        title: 'One money book',
+        body: 'Gym fees post CRM + Finance (AR, revenue, VAT incl.). Card / Apple Pay 1% admin; debit-order CSV from Finance.',
       },
     ],
     outcomes: [
@@ -1402,12 +1402,12 @@ export const GUIDE_SECTIONS: GuideSection[] = [
       'Website published; marketplace listing option understood',
     ],
     flow: [
-      { id: 'a', label: 'People', hint: 'Coaches · POPIA · People', tone: 'violet' },
-      { id: 'b', label: 'Plans', hint: 'Subs · packs · freeze', tone: 'emerald' },
+      { id: 'a', label: 'People', hint: 'Workforce · CRM 360', tone: 'violet' },
+      { id: 'b', label: 'Plans', hint: 'Classes · debit bank', tone: 'emerald' },
       { id: 'c', label: 'Classes', hint: 'Types', tone: 'amber' },
-      { id: 'd', label: 'Calendar', hint: 'Rooms · coach', tone: 'cyan' },
+      { id: 'd', label: 'Calendar', hint: 'Leave blocks · rooms', tone: 'cyan' },
       { id: 'e', label: 'Floor', hint: 'Waitlist · recall', tone: 'rose' },
-      { id: 'f', label: 'Website', hint: 'Marketplace · embed', tone: 'violet' },
+      { id: 'f', label: 'One OS', hint: 'Finance · SKUs · 360', tone: 'violet' },
     ],
     processes: [
       {
@@ -1419,7 +1419,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
           'Classes — define type, duration, capacity',
           'Movements — coaches add exercises with image or video',
           'Programmes — build a session and allocate to a class or personal PT',
-          'Coaches — register trainer; permanent → People',
+          'Coaches — register trainer; employed + contractors → People; leave blocks assign',
           'Calendar — schedule session, room, assign coach, mark public',
           'Website — enable publish + copy embed / page link',
           'Open /embed/fitgraph/{token} to verify customer view',
@@ -1430,8 +1430,8 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         href: '/dashboard/fitgraph/bookings',
         summary: 'Entitlement → book / waitlist → remind → attend → feedback.',
         steps: [
-          'Memberships — create plan (fees outside SA)',
-          'Subscriptions — start sub; freeze if needed',
+          'Memberships — class plans; members subscribe; fee follows classes',
+          'Clients — collect debit-order bank; raise VAT invoices / debit file',
           'Bookings — book member (waitlist if full); family optional',
           'Send 24h reminders from hub / bookings',
           'Mark attended / no-show; check-ins or staff Today PWA',
@@ -1480,7 +1480,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     title: 'PhysioAdvisor®',
     tagline: 'Practitioners → rooms → waitlist → marketplace',
     purpose:
-      'Tertiary clinic OS for physio, OT, biokinetics and allied health: practitioners (permanent dual-write to People), patients (POPIA, invites, family), services, rehab packs, treatment plans with one-click book next, exclusive clinician diaries with rooms, waitlist desk, reminders, outcomes/recalls, staff Today PWA, in-app messages by system user ID, website + marketplace. Process design PDF on the hub. SA bills platform subscription only.',
+      'Tertiary clinic OS on one Core book: practitioners (employed + contractors in People; leave blocks the diary), patients on Customers 360 (visits, invoices, household), services, rehab packs with VAT invoices, exclusive clinician diaries + company calendar, waitlist, attendance → CRM activity + Intelligence, SA Member, website + marketplace. Process design PDF on the hub.',
     who: ['Practice owner', 'Practitioner', 'Front desk', 'Patient (public)'],
     principles: [
       {
@@ -1496,8 +1496,8 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         body: 'Once a patient is on SupplierAdvisor, care threads deliver in-app by platform user ID.',
       },
       {
-        title: 'SA does not bill patients',
-        body: 'SupplierAdvisor only bills the company platform subscription; practice fees stay off-platform.',
+        title: 'One money book',
+        body: 'Visit and pack fees post CRM + Finance (AR, revenue, VAT). Card / Apple Pay 1% admin to the practice bank.',
       },
     ],
     outcomes: [
@@ -1587,7 +1587,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     title: 'DentalAdvisor®',
     tagline: 'Staff → chairs → waitlist → marketplace',
     purpose:
-      'Tertiary dental practice OS: staff (permanent dual-write to People), patients (POPIA, invites, family), services, care packs, treatment plans with one-click book next, exclusive clinician diaries with chairs/rooms, waitlist desk, reminders, outcomes/recalls, staff Today PWA, in-app messages by system user ID, website + marketplace. Process design PDF on the hub. SA bills platform subscription only.',
+      'Tertiary dental OS on one Core book: staff (employed + contractors in People; leave blocks the diary), patients on Customers 360, services and care packs with VAT invoices, exclusive clinician diaries + company calendar, waitlist, attendance → CRM + Intelligence, SA Member, website + marketplace. Process design PDF on the hub.',
     who: ['Practice owner', 'Dentist', 'Hygienist', 'Reception', 'Patient (public)'],
     principles: [
       {
@@ -1603,8 +1603,8 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         body: 'Once a patient is on SupplierAdvisor, care threads deliver in-app by platform user ID.',
       },
       {
-        title: 'SA does not bill patients',
-        body: 'SupplierAdvisor only bills the company platform subscription; practice fees stay off-platform.',
+        title: 'One money book',
+        body: 'Visit and pack fees post CRM + Finance (AR, revenue, VAT). Card / Apple Pay 1% admin to the practice bank.',
       },
     ],
     outcomes: [
@@ -1694,7 +1694,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     title: 'PsychiatryAdvisor®',
     tagline: 'Practitioners → rooms → waitlist → marketplace',
     purpose:
-      'Tertiary mental health OS for psychiatry and psychology: practitioners (People dual-write), patients (POPIA, invites, family), services, care packs, treatment plans, exclusive clinician diaries with rooms, waitlist desk, reminders, outcomes/recalls, staff Today PWA, in-app messages by system user ID, website + marketplace. Process design PDF on the hub. SA bills platform subscription only.',
+      'Tertiary mental health OS on one Core book: practitioners (People workforce; leave blocks the diary), patients on Customers 360, packs with VAT invoices, exclusive diaries + company calendar, waitlist, attendance → CRM + Intelligence, SA Member, website + marketplace. Process design PDF on the hub.',
     who: ['Practice owner', 'Psychiatrist', 'Psychologist', 'Front desk', 'Patient (public)'],
     principles: [
       {
@@ -1710,8 +1710,8 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         body: 'Once a patient is on SupplierAdvisor, care threads deliver in-app by platform user ID.',
       },
       {
-        title: 'SA does not bill patients',
-        body: 'SupplierAdvisor only bills the company platform subscription; practice fees stay off-platform.',
+        title: 'One money book',
+        body: 'Visit and pack fees post CRM + Finance (AR, revenue, VAT). Card / Apple Pay 1% admin to the practice bank.',
       },
     ],
     outcomes: [
@@ -1792,7 +1792,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     title: 'MedicalAdvisor®',
     tagline: 'Practitioners → rooms → waitlist → marketplace',
     purpose:
-      'Tertiary medical practice OS for GPs, specialists and nursing: practitioners (People dual-write), patients (POPIA, invites, family), services, care packs, treatment plans, exclusive clinician diaries with rooms, waitlist desk, reminders, outcomes/recalls, staff Today PWA, in-app messages by system user ID, website + marketplace. Process design PDF on the hub. SA bills platform subscription only.',
+      'Tertiary medical OS on one Core book: practitioners (People workforce; leave blocks the diary), patients on Customers 360, packs with VAT invoices, exclusive diaries + company calendar, waitlist, attendance → CRM + Intelligence, SA Member, website + marketplace. Process design PDF on the hub.',
     who: ['Practice owner', 'GP', 'Nurse', 'Front desk', 'Patient (public)'],
     principles: [
       {
@@ -1808,8 +1808,8 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         body: 'Once a patient is on SupplierAdvisor, care threads deliver in-app by platform user ID.',
       },
       {
-        title: 'SA does not bill patients',
-        body: 'SupplierAdvisor only bills the company platform subscription; practice fees stay off-platform.',
+        title: 'One money book',
+        body: 'Visit and pack fees post CRM + Finance (AR, revenue, VAT). Card / Apple Pay 1% admin to the practice bank.',
       },
     ],
     outcomes: [

@@ -2,7 +2,7 @@
 
 /**
  * End-to-end GymAdvisor® process design:
- * People → Plans → Classes → Calendar (rooms) → Floor → Messages → Marketplace · reports
+ * People → Class plans → Calendar → Floor → Messages → One OS
  *
  * Expandable on the GymAdvisor command hub; downloadable A4 PDF
  * (landscape + portrait) — same pattern as NSNP / CropAdvisor.
@@ -58,7 +58,7 @@ const PHASES: Phase[] = [
   {
     id: 'people',
     title: '1 · People (coaches & members)',
-    subtitle: 'Who trains · People dual-write · invite · family',
+    subtitle: 'Workforce book · Customers 360 · identity · POPIA',
     steps: [
       {
         id: 'specialties',
@@ -74,7 +74,7 @@ const PHASES: Phase[] = [
         n: '1b',
         title: 'Coach register · People',
         who: 'Owner',
-        desc: 'Bio, photo, portal link; permanent coaches dual-write to People (HR).',
+        desc: 'Employed on payroll; contractors as a People workforce type. Leave blocks their diary.',
         href: '/dashboard/fitgraph/coaches',
         icon: UserRound,
       },
@@ -90,9 +90,9 @@ const PHASES: Phase[] = [
       {
         id: 'clients',
         n: '1d',
-        title: 'Members · invite · family',
+        title: 'Members · 360 · family',
         who: 'Owner / desk',
-        desc: 'Member book or bulk .xlsx; email invite & portal; family; POPIA-aware desk.',
+        desc: 'Member book dual-writes CRM. Open Customers 360 for classes, debit bank, invoices, household.',
         href: '/dashboard/fitgraph/clients',
         icon: Users,
       },
@@ -110,33 +110,33 @@ const PHASES: Phase[] = [
   {
     id: 'money',
     title: '2 · Memberships & subscriptions',
-    subtitle: 'Plans · packs · freeze (fees outside SA)',
+    subtitle: 'Class plans · debit bank · VAT invoices',
     steps: [
       {
         id: 'plans',
         n: '2a',
-        title: 'Membership plans',
+        title: 'Class memberships',
         who: 'Owner',
-        desc: 'Unlimited, packs, drop-in; public pricing flag. Fees not charged via SA.',
+        desc: 'Slot-specific plans (e.g. VUKA 5am FSF). Members subscribe; fee follows the classes they pick.',
         href: '/dashboard/fitgraph/memberships',
         icon: CreditCard,
       },
       {
         id: 'subs',
         n: '2b',
-        title: 'Subscriptions · freeze',
-        who: 'Owner',
-        desc: 'Active / trial / paused; remaining credits; freeze periods.',
-        href: '/dashboard/fitgraph/subscriptions',
+        title: 'Debit-order bank',
+        who: 'Member / desk',
+        desc: 'Bank details on the member profile complete membership when the owner runs debit orders.',
+        href: '/dashboard/fitgraph/clients',
         icon: Repeat,
       },
       {
         id: 'pt',
         n: '2c',
-        title: 'PT & class packs',
+        title: 'Invoices · VAT · debit file',
         who: 'Owner',
-        desc: 'Session packs / ledger; remaining sessions and expiry.',
-        href: '/dashboard/fitgraph/memberships',
+        desc: 'Fees post AR + revenue + VAT on Finance. Export the debit-order CSV and match on bank rec.',
+        href: '/dashboard/accounting/debit-orders',
         icon: Dumbbell,
       },
     ],
@@ -176,7 +176,7 @@ const PHASES: Phase[] = [
         n: '4a',
         title: 'Rooms & schedule',
         who: 'Owner',
-        desc: 'Named studios under Website; schedule date, time, room, class; assign coach.',
+        desc: 'Schedule date, time, room, class; assign coach. People leave blocks that coach. Company calendar overlays the week.',
         href: '/dashboard/fitgraph/calendar',
         icon: CalendarDays,
       },
@@ -228,7 +228,7 @@ const PHASES: Phase[] = [
         n: '5c',
         title: 'Feedback · outcomes · recalls',
         who: 'Member · coach · owner',
-        desc: 'Class feedback; outcomes board; re-engage overdue members.',
+        desc: 'Class feedback; outcomes; recalls. Attendance and recalls write CRM activity and an Intelligence pulse.',
         href: '/dashboard/fitgraph/feedback',
         icon: Sparkles,
       },
@@ -303,10 +303,10 @@ const PHASES: Phase[] = [
       {
         id: 'report',
         n: '7c',
-        title: 'Reports (slice & dice)',
+        title: 'Reports · One OS',
         who: 'Owner',
-        desc: 'Coaches, classes, plan vs actual, feedback, utilisation CSV.',
-        href: '/dashboard/fitgraph/report',
+        desc: 'Fill and utilisation; Customers 360; debit file; shared SKUs with Inventory.',
+        href: '/dashboard/customers/360',
         icon: Package,
       },
     ],
@@ -320,16 +320,16 @@ const ROLE_CARDS = [
     title: 'Gym owner / manager',
     subtitle: 'Brand · people · floor · marketplace',
     does: [
-      'Register coaches; permanent staff dual-write to People',
-      'Members with invites, family, freezes and packs',
-      'Schedule with rooms; concurrent coaches when floor allows',
-      'Waitlist, reminders, outcomes; staff Today PWA',
-      'In-app messages by system user ID; delivery status',
-      'Website embed, marketplace listing, reschedule ops',
+      'Register coaches; employed + contractors dual-write to People',
+      'Members land on Customers 360 (classes, debit bank, invoices)',
+      'Class subscriptions set the fee; leave blocks the diary',
+      'Waitlist, reminders, outcomes; CRM activity + Intelligence',
+      'Card / Apple Pay (1%) or debit-order file from Finance',
+      'Website embed, marketplace, shared SKUs',
     ],
     doesNot: [
       'Does not surcharge members — 1% admin comes from card / Apple Pay settlement',
-      'Does not publish without website settings on',
+      'Does not keep a second ledger — CRM and Finance show the same fee',
     ],
     href: '/dashboard/fitgraph/calendar',
   },
@@ -358,15 +358,15 @@ const ROLE_CARDS = [
     title: 'Member / customer',
     subtitle: 'Portal · book · family · feedback',
     does: [
-      'Accept email invite; portal book or waitlist',
-      'Book household family members; identity verify when asked',
-      'Public schedule on embed; add to phone calendar',
+      'Subscribe to the classes they train; fee follows those classes',
+      'Submit debit-order bank details when the gym collects them',
+      'Pay card / Apple Pay where offered, or owner debit file',
+      'Book covered classes / waitlist on SA Member; household',
       'In-app messages once on SupplierAdvisor',
-      'Post-class feel & intensity feedback',
     ],
     doesNot: [
       'Does not see private / unpublished sessions',
-      'Does not pay gym fees through the SA platform',
+      'Does not book a class they have not subscribed to when class plans apply',
     ],
     href: '/dashboard/fitgraph/website',
   },
@@ -398,12 +398,12 @@ const GUARDRAILS = [
     desc: 'Once the member is on SupplierAdvisor, care threads deliver in-app by platform user ID.',
   },
   {
-    title: 'SA does not bill members',
-    desc: 'SupplierAdvisor only bills the company platform subscription; gym fees stay off-platform.',
+    title: 'One money book',
+    desc: 'Gym fees post CRM + Finance (AR, revenue, VAT incl.). Card / Apple Pay 1%; debit-order CSV.',
   },
   {
-    title: 'Permanent coaches → People',
-    desc: 'Permanent coaches dual-write into People; casuals stay on the GymAdvisor book only.',
+    title: 'Workforce book',
+    desc: 'Employed coaches on payroll; contractors as a People type. Leave blocks the diary.',
   },
   {
     title: 'Tokenised portals',
@@ -538,13 +538,12 @@ export default function FitgraphSystemFlow({
               {!hasFrontDesk ? ' · coach-led (no front desk)' : ''}
             </p>
             <h2 className="text-lg sm:text-xl font-black mt-0.5 leading-tight">
-              People → Plans → Classes → Calendar (rooms) → Floor → Messages → Marketplace ·
-              reports
+              People → Class plans → Calendar → Floor → Messages → One OS
             </h2>
             <p className="text-sm text-white/90 mt-1.5 max-w-3xl leading-snug">
               {hasFrontDesk
-                ? 'Permanent coaches dual-write to People; rooms on the calendar; waitlist, reminders and recalls; in-app care by system user ID; marketplace listing — SA bills company SaaS plus 1% on card / Apple Pay collections.'
-                : 'Coach-led gym: owner sets brand and coaches; coaches own the floor with rooms, waitlist and care threads (system user ID when on-platform); members book via portal. No front-desk persona. SA does not bill member fees.'}
+                ? 'Workforce in People (employed + contractors; leave blocks the diary). Members on Customers 360 with class subscriptions, debit bank and VAT invoices. Company calendar, shared SKUs, CRM activity and Intelligence — one OS.'
+                : 'Coach-led gym: owner sets brand and coaches; coaches own the floor; members subscribe to classes on SA Member. People leave, Customers 360 and Finance still sit on the same OS.'}
             </p>
           </button>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -571,14 +570,14 @@ export default function FitgraphSystemFlow({
             {[
               {
                 label: 'People',
-                sub: 'Coaches · POPIA · People',
+                sub: 'Workforce · CRM 360',
                 tone: 'yellow',
               },
-              { label: 'Plans · subs', sub: 'Packs · freeze', tone: 'emerald' },
+              { label: 'Plans · subs', sub: 'Classes · debit bank', tone: 'emerald' },
               { label: 'Class types', sub: 'Capacity', tone: 'amber' },
               {
                 label: 'Calendar',
-                sub: 'Rooms · series · join',
+                sub: 'Leave blocks · rooms',
                 tone: 'sky',
               },
               {
@@ -592,8 +591,8 @@ export default function FitgraphSystemFlow({
                 tone: 'fuchsia',
               },
               {
-                label: 'Website · reports',
-                sub: 'Marketplace · embed · ops',
+                label: 'Website · One OS',
+                sub: 'Finance · SKUs · 360',
                 tone: 'sky',
               },
             ].map((node, i, arr) => (
@@ -661,7 +660,7 @@ export default function FitgraphSystemFlow({
           <div className="space-y-6">
             <div>
               <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Full process (people → website)
+                Full process (people → One OS)
               </h3>
               <p className="text-sm text-slate-600 mt-1">
                 Read top to bottom. Each step opens the live workbench.

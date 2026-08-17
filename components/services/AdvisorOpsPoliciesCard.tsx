@@ -31,8 +31,8 @@ type Props = {
 /**
  * Desk ops: reschedule rules + marketplace.
  *
- * Money rule: SupplierAdvisor only bills companies for the platform
- * subscription. Gyms/clinics collect member fees outside SA.
+ * Money rule: company SaaS bills to SA. Member/patient card & Apple Pay
+ * settle to the practice (1% admin). Debit orders export from Finance.
  */
 export function AdvisorOpsPoliciesCard({
   reschedule,

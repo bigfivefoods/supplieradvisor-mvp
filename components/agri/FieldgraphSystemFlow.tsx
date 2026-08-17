@@ -293,7 +293,7 @@ const PHASES: Phase[] = [
         n: '7c',
         title: 'Season insights',
         who: 'Farm office',
-        desc: 'Yield, nutrients, fleet, labour cost and regen on one scorecard.',
+        desc: 'Yield, nutrients, fleet, labour and regen. Permanent staff in People; company calendar overlays deliveries.',
         href: '/dashboard/fieldgraph/report',
         icon: Sparkles,
       },

@@ -261,7 +261,7 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '7c',
         title: 'Sold & compliant',
         who: 'Trade',
-        desc: 'Dispatch with permits valid and QA on the ticket trail.',
+        desc: 'Dispatch with permits and QA. Company calendar overlays deliveries; permanent crews live in People.',
       },
     ],
   },
@@ -295,6 +295,10 @@ export const GUARDRAILS = [
   {
     title: 'Permits auto-flag',
     desc: 'Expiring / expired rights and WUL visible next to production.',
+  },
+  {
+    title: 'One OS with Core',
+    desc: 'Permanent crews live in People. Trade buyers sit on Customers. Company calendar overlays dispatch.',
   },
 ];
 
@@ -338,7 +342,7 @@ export const SYSTEM_BENEFITS = [
 ];
 
 export const ONE_SENTENCE =
-  'Register locations and sites → plan reserves and production → run plant and stockpiles → ticket dispatch with fleet and labour → message office, pit and trade partners in-app → prove QA and permits on every tonne sold.';
+  'Register locations and sites → plan reserves and production → run plant and stockpiles → ticket dispatch with fleet and labour (permanent crews in People) → in-app messages → QA and permits on every tonne, with Customers and company calendar on the same OS.';
 
 // ── PDF (same structure as CropAdvisor; amber/stone brand) ───────────────
 

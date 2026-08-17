@@ -33,12 +33,12 @@ type Props = {
 };
 
 const CHAIN = [
-  { label: 'Supplier', sub: 'List gear' },
+  { label: 'Supplier', sub: 'Core SRM · SKUs' },
   { label: 'Category', sub: 'Rules' },
-  { label: 'Customer', sub: 'Person rents' },
+  { label: 'Customer', sub: 'CRM 360' },
   { label: 'Requirements', sub: 'KYC / docs' },
   { label: 'Handover', sub: 'Out · return' },
-  { label: 'Settle', sub: '2.5% · members free' },
+  { label: 'Settle · One OS', sub: '2.5% · Finance' },
 ] as const;
 
 const PHASES = [
@@ -65,7 +65,7 @@ const PHASES = [
         n: '1c',
         title: 'List catalogue',
         who: 'Supplier',
-        desc: 'Items against a core supplier — rate, deposit, stock, category rules.',
+        desc: 'Items against a core supplier and Inventory SKU — rate, deposit, stock, category rules.',
         href: '/dashboard/hiregraph/catalogue',
         icon: Package,
       },
@@ -78,7 +78,7 @@ const PHASES = [
         n: '2a',
         title: 'Core Customers + portal',
         who: 'Customer',
-        desc: 'CRM renters get a B2C portal link — browse, request, KYC, track on phone.',
+        desc: 'Renters live on Customers 360. Portal to browse, request, KYC and track on SA Member.',
         href: '/dashboard/hiregraph/customers',
         icon: UserRound,
       },
@@ -115,7 +115,7 @@ const PHASES = [
         n: '3b',
         title: 'Settle supplier commission',
         who: 'Platform',
-        desc: `${HIRE_SUPPLIER_COMMISSION_PCT}% on the listing business. Members pay no platform fee.`,
+        desc: `${HIRE_SUPPLIER_COMMISSION_PCT}% on the listing business. Rental posts AR + VAT. Members pay no platform fee.`}
         href: '/dashboard/hiregraph/settlements',
         icon: Percent,
       },
@@ -156,7 +156,7 @@ export default function HiregraphSystemFlow({
               Hire marketplace · members free · take-rate on the listing business
             </p>
             <h2 className="mt-0.5 text-lg font-black leading-tight sm:text-xl">
-              Supplier lists → Customer rents free →{' '}
+              Supplier lists → Customer 360 → settle on One OS ·{' '}
               {HIRE_SUPPLIER_COMMISSION_PCT}% on the business
             </h2>
             <p className="mt-1.5 max-w-3xl text-sm leading-snug text-white/90">

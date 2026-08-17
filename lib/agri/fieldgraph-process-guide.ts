@@ -262,7 +262,7 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '7c',
         title: 'Season insights',
         who: 'Farm office',
-        desc: 'Yield, nutrients, fleet, labour cost and regen on one scorecard.',
+        desc: 'Yield, nutrients, fleet, labour cost and regen. Company calendar overlays deliveries; permanent staff live in People.',
       },
     ],
   },
@@ -296,6 +296,10 @@ export const GUARDRAILS = [
   {
     title: 'Origin never drops',
     desc: 'Lots inherit field origin so mill / buyer traceability stays intact.',
+  },
+  {
+    title: 'One OS with Core',
+    desc: 'Permanent staff live in People. Trade buyers sit on Customers. Company calendar overlays harvest and deliveries.',
   },
 ];
 
@@ -339,7 +343,7 @@ export const SYSTEM_BENEFITS = [
 ];
 
 export const ONE_SENTENCE =
-  'Maintain the shared field master → build and revise season estimates → run the harvest planner → log inputs, fleet and labour → message office, field and trade partners in-app → hand lots to mill / buyer with origin and review season insights.';
+  'Maintain the shared field master → season estimates → harvest planner → inputs, fleet and labour (permanent staff in People) → in-app messages → lots to mill / buyer on Customers with company calendar overlay and season insights.';
 
 // ── PDF geometry ────────────────────────────────────────────────────────
 

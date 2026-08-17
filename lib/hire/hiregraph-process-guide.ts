@@ -50,12 +50,12 @@ function geoFor(orientation: HiregraphProcessGuideOrientation): Geo {
 }
 
 const CHAIN = [
-  { label: 'Supplier', sub: 'List · rate · stock' },
-  { label: 'Catalogue', sub: 'Category rules' },
-  { label: 'Customer', sub: 'Person rents' },
+  { label: 'Supplier', sub: 'Core SRM · SKUs' },
+  { label: 'Catalogue', sub: 'Inventory link' },
+  { label: 'Customer', sub: 'CRM 360' },
   { label: 'Requirements', sub: 'ID · licence · deposit' },
   { label: 'Handover', sub: 'Out · return' },
-  { label: 'Settle', sub: '2.5% · members free' },
+  { label: 'Settle · One OS', sub: '2.5% · Finance' },
 ] as const;
 
 const ROLES = [
@@ -106,13 +106,13 @@ const PHASES = [
     steps: [
       'Add gear owners in Core Suppliers (SRM) — not a hire-only address book',
       'Choose categories (plant, vehicles, tools, kids party…)',
-      'List catalogue items linked to srm_suppliers (rate, deposit, stock)',
+      'List catalogue items linked to srm_suppliers and Core Inventory SKUs (rate, deposit, stock)',
     ],
   },
   {
     title: '2 · Core customers & hire request (B2C)',
     steps: [
-      'Renters live in Core Customers (CRM); set hire KYC per customer',
+      'Renters live in Core Customers 360 — hire bookings, invoices, identity on one row',
       'Book against crm_customers + catalogue item; dual fee quote',
       'Clear category requirements (licence, ID, castle safety…)',
     ],
@@ -129,8 +129,8 @@ const PHASES = [
     title: '4 · Return · settle · release deposit',
     steps: [
       'Handover RETURN; damage against deposit if any',
-      'Booking completed; platform records 2.5% on the listing business',
-      'Refundable deposit released (not commissionable)',
+      'Booking completed; 2.5% on the listing business; rental posts AR + VAT on Finance',
+      'Refundable deposit released (not commissionable); week shows on company calendar',
     ],
   },
 ] as const;
@@ -141,7 +141,7 @@ function drawHero(doc: PdfDoc, g: Geo): number {
     : 'A4 PORTRAIT · 2 PAGES';
   return drawProcessGuideHero(doc, g, {
     eyebrow: `HireAdvisor® · rental marketplace · ${orientLabel}`,
-    title: 'Supplier lists → Customer rents free → 2.5% on the business',
+    title: 'Supplier lists → Customer 360 → 2.5% on One OS',
     subtitle: g.isLandscape
       ? undefined
       : `Members rent free on SA Member. The listing business pays ${HIRE_SUPPLIER_COMMISSION_PCT}%. Categories enforce different hire requirements.`,

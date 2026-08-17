@@ -1148,7 +1148,6 @@ export async function POST(request: NextRequest) {
       } catch {
         /* leave gate is best-effort */
       }
-      }
 
       const { planAppointmentSeries, recurrenceFromRequestBody } =
         await import('@/lib/schedule/appointment-series');

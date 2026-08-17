@@ -190,7 +190,7 @@ export const INDUSTRIES: IndustryPage[] = [
     name: 'Fitness & gyms',
     headline: 'Coaches · members · classes — one gym OS.',
     subhead:
-      'GymAdvisor® coaches (tenure, rates, People dual-write), member invites & portal (family, waitlist), memberships with freeze & packs, rooms on the calendar, reminders & recalls, in-app class-group messages by system user ID, website embed and marketplace listing — front desk or coach-led. SA bills platform subscription only.',
+      'GymAdvisor® coaches (employed + contractors in People; leave blocks the diary), members on Customers 360 (class subscriptions, debit bank, invoices), rooms on the calendar, waitlist and recalls that write CRM activity, SA Member, website embed and marketplace — VAT journals and debit-order file on Finance.',
     cardBlurb:
       'GymAdvisor® — coaches, rooms, waitlist, in-app messages, marketplace.',
     pack: 'GymAdvisor®',

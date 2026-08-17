@@ -56,14 +56,14 @@ const PHASES: Phase[] = [
   {
     id: 'people',
     title: '1 · People (clinicians & patients)',
-    subtitle: 'Who treats · POPIA · People dual-write · invite',
+    subtitle: 'Workforce book · Customers 360 · POPIA · invite'
     steps: [
       {
         id: 'staff',
         n: '1a',
         title: 'Practitioners',
         who: 'Owner',
-        desc: 'GPs, specialists, nursing — disciplines, rates. Permanent staff → People (HR).',
+        desc: 'GPs, specialists, nursing — rates, bios. Employed + contractors dual-write to People. Leave blocks assign.',
         href: '/dashboard/medicalgraph/practitioners',
         icon: UserRound,
       },
@@ -72,7 +72,7 @@ const PHASES: Phase[] = [
         n: '1b',
         title: 'Patients · POPIA',
         who: 'Owner / desk',
-        desc: 'Patient book with POPIA consent; assign clinician/pack; family dependents.',
+        desc: 'Patient book dual-writes CRM. Open Customers 360 for visits, invoices and household. POPIA + invite.',
         href: '/dashboard/medicalgraph/patients',
         icon: Users,
       },
@@ -115,7 +115,7 @@ const PHASES: Phase[] = [
         n: '2b',
         title: 'Care packages',
         who: 'Owner',
-        desc: 'Multi-visit packs with session ledger (fees outside SA).',
+        desc: 'Multi-visit packs with session ledger. Charges post AR + revenue + VAT on Finance.',
         href: '/dashboard/medicalgraph/packages',
         icon: CreditCard,
       },
@@ -275,7 +275,7 @@ const ROLE_CARDS = [
     title: 'Practice owner / manager',
     subtitle: 'Team · diary · waitlist · marketplace',
     does: [
-      'Register clinicians; permanent staff dual-write to People',
+      'Register clinicians; employed + contractors dual-write to People; leave blocks the diary'
       'Patients with POPIA consent; invites, portals, family',
       'Services, care packs, treatment plans; one-click book next',
       'Practice + exclusive clinician diaries; rooms as resources',
@@ -284,7 +284,7 @@ const ROLE_CARDS = [
     ],
     doesNot: [
       'Does not double-book the same clinician diary',
-      'Does not take patient fees through SupplierAdvisor',
+      'Does not keep a second ledger — CRM and Finance show the same fee'
     ],
     href: '/dashboard/medicalgraph/calendar',
   },
@@ -320,7 +320,7 @@ const ROLE_CARDS = [
     ],
     doesNot: [
       'Does not see private slots or other patients’ charts',
-      'Does not pay practice fees through the SA platform',
+      'Does not pay company SaaS — visit fees settle to the practice (1% on card / Apple Pay)'
     ],
     href: '/dashboard/medicalgraph/website',
   },
@@ -352,12 +352,12 @@ const GUARDRAILS = [
     desc: 'Once the patient is on SupplierAdvisor, care threads deliver in-app by platform user ID.',
   },
   {
-    title: 'SA does not bill patients',
-    desc: 'SupplierAdvisor only bills the company platform subscription; clinic fees stay off-platform.',
+    title: 'One money book',
+    desc: 'Visit and pack fees post CRM + Finance (AR, revenue, VAT). Card / Apple Pay 1% admin.',
   },
   {
-    title: 'Permanent staff → People',
-    desc: 'Permanent clinicians dual-write into People; casuals stay on the Advisor book only.',
+    title: 'Workforce book',
+    desc: 'Employed clinicians on payroll; contractors as a People type. Leave blocks the diary.',
   },
   {
     title: 'Tokenised public surfaces',
@@ -390,11 +390,10 @@ export default function MedicalgraphSystemFlow({
               Full clinic OS — process design
             </p>
             <h2 className="text-lg sm:text-xl font-black mt-0.5 leading-tight">
-              People → Packs · plans → Diary (rooms) → Waitlist · floor → Messages →
-              Marketplace · reports
+              People → Packs · plans → Diary → Floor → Messages → One OS
             </h2>
             <p className="text-sm text-white/90 mt-1.5 max-w-3xl leading-snug">
-              POPIA-aware patient book; exclusive clinician diaries with rooms; waitlist
+              Workforce in People; patients on Customers 360 with VAT invoices; waitlist
               desk and treatment-plan book next; in-app care by system user ID;
               marketplace listing — SA bills company SaaS plus 1% on card / Apple Pay collections.
             </p>
@@ -423,15 +422,15 @@ export default function MedicalgraphSystemFlow({
             {[
               {
                 label: 'People',
-                sub: 'Practitioners · POPIA · People',
+                sub: 'Workforce · CRM 360',
                 tone: 'teal',
               },
               {
                 label: 'Services · packs',
-                sub: 'Packs · treatment plans',
+                sub: 'VAT invoices · plans',
                 tone: 'emerald',
               },
-              { label: 'Diary', sub: 'Rooms · practice · clinician', tone: 'violet' },
+              { label: 'Diary', sub: 'Leave blocks · rooms', tone: 'violet' },
               {
                 label: 'Floor',
                 sub: 'Waitlist · attend · recall',
@@ -439,7 +438,7 @@ export default function MedicalgraphSystemFlow({
               },
               { label: 'Messages', sub: 'System ID · in-app', tone: 'fuchsia' },
               {
-                label: 'Website · reports',
+                label: 'Website · One OS',
                 sub: 'Marketplace · rooms · ops',
                 tone: 'sky',
               },

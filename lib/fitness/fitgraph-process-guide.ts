@@ -29,13 +29,13 @@ export type ProcessPhase = {
 };
 
 export const PROCESS_CHAIN = [
-  { label: 'People', sub: 'Coaches · members · POPIA' },
-  { label: 'Plans · subs', sub: 'Memberships · packs · freeze' },
+  { label: 'People', sub: 'Workforce · CRM 360' },
+  { label: 'Plans · subs', sub: 'Classes · debit bank' },
   { label: 'Class types', sub: 'Capacity · duration' },
-  { label: 'Calendar', sub: 'Rooms · series · join' },
+  { label: 'Calendar', sub: 'Leave blocks · rooms' },
   { label: 'Floor', sub: 'Waitlist · actual · recall' },
   { label: 'Messages', sub: 'System ID · in-app' },
-  { label: 'Website · reports', sub: 'Marketplace · embed' },
+  { label: 'Website · One OS', sub: 'Finance · SKUs · 360' },
 ] as const;
 
 export const ROLE_CARDS = [
@@ -43,17 +43,17 @@ export const ROLE_CARDS = [
     title: 'Gym owner / manager',
     subtitle: 'Brand · people · floor · marketplace',
     does: [
-      'Register coaches; employed staff join B2B workspace; contractors get the work app',
-      'Members with invites, family, POPIA-aware desk; membership freeze',
-      'Schedule with rooms/studios; concurrent coaches when floor allows',
-      'Waitlist, reminders, outcomes; staff Today PWA',
-      'In-app messages by system user ID; delivery status',
-      'Website embed, marketplace listing, reschedule policy, ops',
-      'Sell memberships and programmes — members pay first (Paystack / Apple Pay)',
+      'Register coaches; employed + contractors dual-write to People; leave blocks their diary',
+      'Members land on Customers 360 (classes, debit bank, invoices, household)',
+      'Class subscriptions set the fee; debit-order bank completes membership',
+      'Schedule with rooms; People leave cannot be assigned; company calendar overlay',
+      'Waitlist, reminders, outcomes; attendance writes CRM activity + Intelligence',
+      'Card / Apple Pay (1% admin to your bank) or debit-order file from Finance',
+      'Website embed, marketplace, shared SKUs with Inventory',
     ],
     doesNot: [
-      'Does not surcharge members — 1% admin fee is taken from your card / Apple Pay settlement',
-      'Does not publish without website settings enabled',
+      'Does not surcharge members — 1% admin is taken from card / Apple Pay settlement',
+      'Does not keep a second ledger — CRM invoices and Finance journals are the same fee',
     ],
   },
   {
@@ -77,16 +77,16 @@ export const ROLE_CARDS = [
     title: 'Member / customer',
     subtitle: 'Portal · book · family · feedback',
     does: [
-      'Pay for a membership or programme first (Paystack / Apple Pay)',
-      'Accept invite; book classes or join waitlist on portal / embed',
+      'Subscribe to the classes they train; fee follows those classes',
+      'Submit debit-order bank details on the profile when the gym collects them',
+      'Pay card / Apple Pay where offered, or wait for the owner debit file',
+      'Accept invite; book covered classes or join waitlist on SA Member / embed',
       'Book household family members; identity verify when asked',
-      'Add class to phone calendar (.ics / Google)',
       'In-app messages once on SupplierAdvisor (system user ID)',
-      'After class: feedback on feel, intensity, enjoyment',
     ],
     doesNot: [
       'Does not see private / unpublished sessions',
-      'Does not book public classes without paying first when the gym requires a membership',
+      'Does not book a class they have not subscribed to when the gym uses class plans',
     ],
   },
 ] as const;
@@ -94,7 +94,7 @@ export const ROLE_CARDS = [
 export const PROCESS_PHASES: ProcessPhase[] = [
   {
     title: '1 · People (coaches & members)',
-    subtitle: 'Who trains · who attends · People dual-write · POPIA',
+    subtitle: 'Workforce book · Customers 360 · identity · POPIA',
     steps: [
       {
         n: '1a',
@@ -106,43 +106,43 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '1b',
         title: 'Coach register · People',
         who: 'Owner',
-        desc: 'Bio, photo, specialties, portal; permanent coaches dual-write to People.',
+        desc: 'Employed on payroll; contractors as a workforce type. Source badge + diary. People leave blocks assign.',
       },
       {
         n: '1c',
         title: 'Engagement · rates · contracts',
         who: 'Owner',
-        desc: 'Start/end dates, ZAR rate, PDF agreements; history on rehire.',
+        desc: 'Start/end dates, ZAR rate (session pay), PDF agreements; history on rehire.',
       },
       {
         n: '1d',
-        title: 'Members · invite · family',
+        title: 'Members · 360 · family',
         who: 'Owner / desk',
-        desc: 'Member book or bulk .xlsx; email invite & portal; family; POPIA-aware desk.',
+        desc: 'Member book dual-writes CRM; open Customers 360 for classes, debit bank, invoices, household.',
       },
     ],
   },
   {
     title: '2 · Memberships & subscriptions',
-    subtitle: 'Plans sell · subs track entitlement · freeze',
+    subtitle: 'Class plans · debit bank · VAT invoices',
     steps: [
       {
         n: '2a',
-        title: 'Membership plans',
+        title: 'Class memberships',
         who: 'Owner',
-        desc: 'Unlimited, packs, drop-in; public pricing flag (fees collected outside SA).',
+        desc: 'Slot-specific plans (e.g. VUKA 5am FSF); members subscribe; fee follows the classes they pick.',
       },
       {
         n: '2b',
-        title: 'Subscriptions · freeze',
-        who: 'Owner',
-        desc: 'Active / trial / paused / cancelled; remaining credits; freeze periods.',
+        title: 'Debit-order bank',
+        who: 'Member / desk',
+        desc: 'Bank details on the member profile complete membership when the owner runs debit orders.',
       },
       {
         n: '2c',
-        title: 'PT & class packs',
+        title: 'Invoices · VAT · debit file',
         who: 'Owner',
-        desc: 'Session packs / care pack ledger; expiry and remaining sessions.',
+        desc: 'Fees post AR + revenue + VAT (incl.) on Finance. Export the debit-order CSV and match on bank rec.',
       },
     ],
   },
@@ -172,7 +172,7 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '4a',
         title: 'Rooms & schedule',
         who: 'Owner',
-        desc: 'Named studios/rooms under Website; schedule date, time, room, class; assign coach.',
+        desc: 'Schedule date, time, room, class; assign coach. People leave blocks that coach. Company calendar overlays the week.',
       },
       {
         n: '4b',
@@ -208,7 +208,7 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '5c',
         title: 'Feedback · outcomes · recalls',
         who: 'Member · coach · owner',
-        desc: 'Class feedback; outcomes board; re-engage overdue members.',
+        desc: 'Class feedback; outcomes; recalls. Attendance and recalls write CRM activity and an Intelligence pulse.',
       },
       {
         n: '5d',
@@ -260,9 +260,9 @@ export const PROCESS_PHASES: ProcessPhase[] = [
       },
       {
         n: '7c',
-        title: 'Reports (slice & dice)',
+        title: 'Reports · One OS',
         who: 'Owner',
-        desc: 'Date/coach/class filters; plan vs actual, feedback, utilisation CSV.',
+        desc: 'Fill and utilisation; Customers 360; debit file; shared SKUs with Inventory.',
       },
     ],
   },
@@ -294,12 +294,12 @@ export const GUARDRAILS = [
     desc: 'Once the member is on SupplierAdvisor, care threads deliver in-app by platform user ID.',
   },
   {
-    title: 'SA does not bill members',
-    desc: 'SupplierAdvisor only bills the company platform subscription; gym fees stay off-platform.',
+    title: 'One money book',
+    desc: 'Gym fees post CRM + Finance (AR, revenue, VAT incl.). Card / Apple Pay 1% admin; debit orders export a file.',
   },
   {
-    title: 'Permanent coaches → People',
-    desc: 'Permanent coaches dual-write into People; casuals stay on the GymAdvisor book only.',
+    title: 'Workforce book',
+    desc: 'Employed coaches on payroll; contractors as a People workforce type. Leave on People blocks the diary.',
   },
   {
     title: 'Tokenised portals',
@@ -333,8 +333,12 @@ export const SYSTEM_BENEFITS = [
     desc: 'Opt-in listing on /marketplace/advisors with city and blurb.',
   },
   {
-    title: 'Membership freeze & packs',
-    desc: 'Pause entitlement cleanly; track remaining sessions on packs.',
+    title: 'Class subscriptions & debit bank',
+    desc: 'Members pick classes; fees follow the plan; debit-order bank completes membership.',
+  },
+  {
+    title: 'One OS with Core',
+    desc: 'Customers 360, People leave, Finance VAT / debit file, company calendar, shared SKUs.',
   },
   {
     title: 'Staff Today PWA',
@@ -347,7 +351,7 @@ export const SYSTEM_BENEFITS = [
 ];
 
 export const ONE_SENTENCE =
-  'Register coaches and members (People dual-write · invites · family) → memberships, freezes and packs → class types → calendar with rooms and publish/join links → book, waitlist, remind, attend, feedback and recalls → in-app messages by system user ID → website embed, marketplace listing and utilisation reports — SA only bills the gym’s platform subscription.';
+  'Register coaches (People workforce · leave blocks diary) and members (Customers 360 · debit bank) → class subscriptions set the fee → calendar and company week view → book, waitlist, attend (CRM + Intelligence) → messages by system user ID → website, marketplace, VAT journals and debit-order file — one OS with People, Customers, Finance and Inventory.';
 
 
 // ── PDF (VUKA yellow brand) ─────────────────────────────────────────────
@@ -452,9 +456,9 @@ function drawHero(doc: PdfDoc, g: Geo): number {
   const orientLabel = g.isLandscape ? 'A4 LANDSCAPE · 2 PAGES' : 'A4 PORTRAIT · 2 PAGES';
   return drawProcessGuideHero(doc, g, {
     eyebrow: 'GymAdvisor® · end-to-end process · ' + orientLabel,
-    title: 'Coaches → Plans → Calendar → Floor → Messages → Website',
-    subtitle: g.isLandscape ? undefined : 'Tertiary / services fitness OS — people, calendar, plan vs actual, feedback, website & reports.',
-    sideNote: g.isLandscape ? 'End-to-end gym services OS on SupplierAdvisor® — schedule, subscriptions, coach portal, website embed.' : undefined,
+    title: 'Coaches → Class plans → Floor → One OS',
+    subtitle: g.isLandscape ? undefined : 'Gym OS on SupplierAdvisor® — workforce, Customers 360, class subscriptions, debit bank, VAT books, company calendar.',
+    sideNote: g.isLandscape ? 'One OS: People workforce + leave, Customers 360, Finance VAT / debit file, company calendar, shared SKUs.' : undefined,
     landscape: g.isLandscape,
   });
 }
@@ -704,7 +708,7 @@ export async function buildFitgraphProcessGuidePdf(opts?: {
       margins: { top: 0, bottom: 28, left: g.mx, right: g.mx },
       info: {
         Title:
-          'GymAdvisor® Process Design — Coaches → Calendar → Messages → Website',
+          'GymAdvisor® Process Design — Coaches → Class plans → Floor → One OS',
         Author: 'SupplierAdvisor®',
         Subject: `GymAdvisor gym services end-to-end process (A4 ${orientation})`,
         Keywords: 'GymAdvisor, gym, coaches, calendar, subscriptions, process guide',
@@ -738,7 +742,7 @@ export async function buildFitgraphProcessGuidePdf(opts?: {
     doc.addPage({ size: 'A4', layout });
     y = drawProcessGuidePageHeader(doc, g, {
       eyebrow: 'GymAdvisor® · end-to-end process · continued',
-      title: 'Process continued · Floor · Messages · Website · Guardrails',
+      title: 'Process continued · Floor · Messages · One OS · Guardrails',
       landscape: g.isLandscape,
     });
     drawProcessPageWash(doc, g, Math.max(0, y - 8));
