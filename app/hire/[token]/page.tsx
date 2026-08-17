@@ -24,6 +24,13 @@ import {
 import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
 import { B2cAutoLinkBanner } from '@/components/b2c/B2cAutoLinkBanner';
 import { AdvisorAnnouncementFeed } from '@/components/services/AdvisorAnnouncementFeed';
+import { B2cHireHowItWorks } from '@/components/b2c/B2cHireJourney';
+import { B2cDiaryView, type MemberCalEvent } from '@/components/b2c/B2cMemberCalendar';
+import {
+  downloadMemberEventIcs,
+  googleCalendarUrl,
+  outlookCalendarUrl,
+} from '@/lib/b2c/calendar-links';
 
 const PORTAL_TOKEN_KEY = 'sa_hiregraph_customer_token';
 
@@ -50,6 +57,21 @@ type CatalogueItem = {
   requirements_ready: boolean;
   examples?: string[];
   busy_dates?: string[];
+  includes?: string;
+  excludes?: string;
+  specs?: string;
+  min_units?: number | null;
+  fulfillment_label?: string;
+  delivery_fee_zar?: number | null;
+  collect_hours?: string;
+  replacement_value_zar?: number | null;
+  fuel_or_power?: string;
+  age_or_weight_limit?: string;
+  operator_included?: boolean;
+  cancellation_note?: string;
+  condition_notes?: string;
+  delivery_radius_km?: number | null;
+  setup_minutes?: number | null;
 };
 
 type MyBooking = {
@@ -552,6 +574,7 @@ export default function HireCustomerPortalPage() {
         {/* ── Browse ───────────────────────────────────────────── */}
         {tab === 'browse' && (
           <div className="space-y-3">
+            <B2cHireHowItWorks compact />
             <div className="rounded-2xl border border-cyan-100 bg-white p-3">
               <p className="flex items-start gap-2 text-[11px] text-slate-600">
                 <Percent className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-700" />
@@ -648,6 +671,11 @@ export default function HireCustomerPortalPage() {
                           {item.description}
                         </p>
                       ) : null}
+                      {item.includes ? (
+                        <p className="mt-1 line-clamp-1 text-[11px] text-slate-500">
+                          Includes {item.includes}
+                        </p>
+                      ) : null}
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         {item.requirements_ready ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
@@ -658,9 +686,18 @@ export default function HireCustomerPortalPage() {
                             {item.requirements_pending.length} docs needed
                           </span>
                         )}
-                        {item.needs_delivery ? (
+                        {item.fulfillment_label ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                            <Truck className="h-3 w-3" /> {item.fulfillment_label}
+                          </span>
+                        ) : item.needs_delivery ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
                             <Truck className="h-3 w-3" /> Delivery
+                          </span>
+                        ) : null}
+                        {item.deposit_zar != null ? (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                            {zar(item.deposit_zar)} deposit
                           </span>
                         ) : null}
                         <span className="ml-auto text-[10px] font-bold text-cyan-700">
@@ -876,6 +913,65 @@ export default function HireCustomerPortalPage() {
                             </ul>
                           </div>
                         ) : null}
+                        {b.start_date ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            <a
+                              href={googleCalendarUrl({
+                                id: `hire-${b.id}`,
+                                title: `${b.item_title} hire`,
+                                date: String(b.start_date).slice(0, 10),
+                                end_date: String(
+                                  b.end_date || b.start_date
+                                ).slice(0, 10),
+                                all_day: true,
+                                location: b.delivery_address || portal.brand,
+                                description: `${portal.brand} · ${b.status_label}`,
+                              })}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="rounded-full border border-slate-200 px-2.5 py-1 text-[10px] font-bold text-slate-700"
+                            >
+                              Google
+                            </a>
+                            <a
+                              href={outlookCalendarUrl({
+                                id: `hire-${b.id}`,
+                                title: `${b.item_title} hire`,
+                                date: String(b.start_date).slice(0, 10),
+                                end_date: String(
+                                  b.end_date || b.start_date
+                                ).slice(0, 10),
+                                all_day: true,
+                                location: b.delivery_address || portal.brand,
+                                description: `${portal.brand} · ${b.status_label}`,
+                              })}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="rounded-full border border-slate-200 px-2.5 py-1 text-[10px] font-bold text-slate-700"
+                            >
+                              Outlook
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                downloadMemberEventIcs({
+                                  id: `hire-${b.id}`,
+                                  title: `${b.item_title} hire`,
+                                  date: String(b.start_date).slice(0, 10),
+                                  end_date: String(
+                                    b.end_date || b.start_date
+                                  ).slice(0, 10),
+                                  all_day: true,
+                                  location: b.delivery_address || portal.brand,
+                                  description: `${portal.brand} · ${b.status_label}`,
+                                })
+                              }
+                              className="rounded-full border border-slate-200 px-2.5 py-1 text-[10px] font-bold text-slate-700"
+                            >
+                              Apple / .ics
+                            </button>
+                          </div>
+                        ) : null}
                         {b.can_cancel ? (
                           <button
                             type="button"
@@ -898,8 +994,9 @@ export default function HireCustomerPortalPage() {
         {tab === 'calendar' && (
           <div className="space-y-3">
             <p className="text-xs text-slate-600">
-              Your hires on the calendar. Category chips filter the list — tap a
-              hire to see duration and extend if the extra days are free.
+              Your hire dates. Add them to Google, Outlook or Apple Calendar.
+              Filter by category, then open My hires to extend if the extra days
+              are free.
             </p>
             <div className="flex flex-wrap gap-1.5">
               <button
@@ -928,27 +1025,35 @@ export default function HireCustomerPortalPage() {
                 </button>
               ))}
             </div>
-            <ul className="space-y-2">
-              {portal.my_bookings
+            <B2cDiaryView
+              events={portal.my_bookings
                 .filter(
                   (b) =>
-                    !categoryFilter || b.category_id === categoryFilter
+                    Boolean(b.start_date) &&
+                    b.status !== 'cancelled' &&
+                    (!categoryFilter || b.category_id === categoryFilter)
                 )
-                .map((b) => (
-                  <li
-                    key={b.id}
-                    className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                  >
-                    <p className="font-black">{b.item_title}</p>
-                    <p className="text-[11px] text-slate-500">
-                      {b.duration_label ||
-                        `${b.start_date || '—'} → ${b.end_date || '—'}`}
-                      {' · '}
-                      {b.status_label}
-                    </p>
-                  </li>
-                ))}
-            </ul>
+                .map((b) => {
+                  const ev = {
+                    id: `hire-${b.id}`,
+                    source: 'hire' as const,
+                    brand: portal.brand,
+                    title: b.item_title,
+                    date: String(b.start_date).slice(0, 10),
+                    end_date: String(b.end_date || b.start_date).slice(0, 10),
+                    all_day: true,
+                    location: b.delivery_address || portal.city || portal.brand,
+                    href: `?tab=hires`,
+                    status: b.status_label,
+                    description: `${portal.brand} · ${b.status_label}`,
+                  };
+                  return {
+                    ...ev,
+                    google_url: googleCalendarUrl(ev),
+                    outlook_url: outlookCalendarUrl(ev),
+                  } satisfies MemberCalEvent;
+                })}
+            />
           </div>
         )}
 
@@ -1121,6 +1226,128 @@ export default function HireCustomerPortalPage() {
             {selectedItem.description ? (
               <p className="mb-3 text-sm text-slate-600">
                 {selectedItem.description}
+              </p>
+            ) : null}
+
+            <dl className="mb-3 grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-2xl bg-slate-50 px-3 py-2 text-[11px] text-slate-700">
+              {selectedItem.location ? (
+                <>
+                  <dt className="text-slate-500">Where</dt>
+                  <dd className="text-right font-bold">
+                    {selectedItem.location}
+                  </dd>
+                </>
+              ) : null}
+              {selectedItem.fulfillment_label ? (
+                <>
+                  <dt className="text-slate-500">How you get it</dt>
+                  <dd className="text-right font-bold">
+                    {selectedItem.fulfillment_label}
+                  </dd>
+                </>
+              ) : null}
+              {selectedItem.collect_hours ? (
+                <>
+                  <dt className="text-slate-500">Collect hours</dt>
+                  <dd className="text-right font-bold">
+                    {selectedItem.collect_hours}
+                  </dd>
+                </>
+              ) : null}
+              {selectedItem.delivery_fee_zar != null ? (
+                <>
+                  <dt className="text-slate-500">Delivery</dt>
+                  <dd className="text-right font-bold">
+                    {zar(selectedItem.delivery_fee_zar)}
+                    {selectedItem.delivery_radius_km
+                      ? ` · ${selectedItem.delivery_radius_km} km`
+                      : ''}
+                  </dd>
+                </>
+              ) : null}
+              {selectedItem.min_units && selectedItem.min_units > 1 ? (
+                <>
+                  <dt className="text-slate-500">Minimum</dt>
+                  <dd className="text-right font-bold">
+                    {selectedItem.min_units} {selectedItem.rate_unit}s
+                  </dd>
+                </>
+              ) : null}
+              {selectedItem.deposit_zar != null ? (
+                <>
+                  <dt className="text-slate-500">Deposit</dt>
+                  <dd className="text-right font-bold">
+                    {zar(selectedItem.deposit_zar)} refundable
+                  </dd>
+                </>
+              ) : null}
+              {selectedItem.replacement_value_zar != null ? (
+                <>
+                  <dt className="text-slate-500">If lost / written off</dt>
+                  <dd className="text-right font-bold">
+                    {zar(selectedItem.replacement_value_zar)}
+                  </dd>
+                </>
+              ) : null}
+              {selectedItem.operator_included ? (
+                <>
+                  <dt className="text-slate-500">Operator</dt>
+                  <dd className="text-right font-bold">Included</dd>
+                </>
+              ) : null}
+              {selectedItem.setup_minutes ? (
+                <>
+                  <dt className="text-slate-500">Setup time</dt>
+                  <dd className="text-right font-bold">
+                    {selectedItem.setup_minutes} min
+                  </dd>
+                </>
+              ) : null}
+              {selectedItem.fuel_or_power ? (
+                <>
+                  <dt className="text-slate-500">Power / fuel</dt>
+                  <dd className="text-right font-bold">
+                    {selectedItem.fuel_or_power}
+                  </dd>
+                </>
+              ) : null}
+              {selectedItem.age_or_weight_limit ? (
+                <>
+                  <dt className="text-slate-500">Age / weight</dt>
+                  <dd className="text-right font-bold">
+                    {selectedItem.age_or_weight_limit}
+                  </dd>
+                </>
+              ) : null}
+            </dl>
+            {selectedItem.includes ? (
+              <p className="mb-1 text-[12px] text-slate-600">
+                <span className="font-black text-slate-800">Included: </span>
+                {selectedItem.includes}
+              </p>
+            ) : null}
+            {selectedItem.excludes ? (
+              <p className="mb-1 text-[12px] text-slate-600">
+                <span className="font-black text-slate-800">Bring yourself: </span>
+                {selectedItem.excludes}
+              </p>
+            ) : null}
+            {selectedItem.specs ? (
+              <p className="mb-1 text-[12px] text-slate-600">
+                <span className="font-black text-slate-800">Specs: </span>
+                {selectedItem.specs}
+              </p>
+            ) : null}
+            {selectedItem.condition_notes ? (
+              <p className="mb-1 text-[12px] text-slate-600">
+                <span className="font-black text-slate-800">Condition: </span>
+                {selectedItem.condition_notes}
+              </p>
+            ) : null}
+            {selectedItem.cancellation_note ? (
+              <p className="mb-3 text-[12px] text-slate-600">
+                <span className="font-black text-slate-800">Cancel: </span>
+                {selectedItem.cancellation_note}
               </p>
             ) : null}
 

@@ -29,6 +29,9 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
+import { useCompanyRole } from '@/lib/business/useCompanyRole';
+import { advisorLandingPath } from '@/lib/brand/advisor-skins';
+import { useRouter } from 'next/navigation';
 import FeatureHealthBanner from '@/components/chrome/FeatureHealthBanner';
 import {
   AlertBanner,
@@ -242,6 +245,32 @@ function toneClass(tone?: Metric['tone']) {
 
 export default function DashboardCommandCenter() {
   const companyId = getSelectedCompanyId();
+  const router = useRouter();
+  const {
+    loading: membershipLoading,
+    enabledModules,
+    packaging,
+    sidebarModuleOrder,
+    role,
+  } = useCompanyRole();
+  const advisorHome = advisorLandingPath({
+    enabledModules,
+    packIds: packaging?.packIds,
+    sidebarOrder: sidebarModuleOrder,
+  });
+  const sendToAdvisor =
+    Boolean(companyId) &&
+    !membershipLoading &&
+    role !== 'sales_contractor' &&
+    role !== 'finance' &&
+    Boolean(advisorHome) &&
+    advisorHome !== '/dashboard';
+
+  useEffect(() => {
+    if (!sendToAdvisor || !advisorHome) return;
+    router.replace(advisorHome);
+  }, [sendToAdvisor, advisorHome, router]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [company, setCompany] = useState<CompanyData | null>(null);
@@ -663,6 +692,16 @@ export default function DashboardCommandCenter() {
           <Link href="/dashboard/select-company" className="btn-primary !py-3 !px-8">
             Select company
           </Link>
+        </div>
+      </RelationshipPage>
+    );
+  }
+
+  if (sendToAdvisor) {
+    return (
+      <RelationshipPage>
+        <div className="flex justify-center py-24">
+          <Loader2 className="h-8 w-8 animate-spin text-[#00b4d8]" />
         </div>
       </RelationshipPage>
     );

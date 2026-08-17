@@ -7,7 +7,6 @@ import { toast } from 'sonner';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { usePrivy } from '@privy-io/react-auth';
 import { setSelectedCompanyId } from '@/lib/containers/company';
-import { defaultHomePathForRole } from '@/lib/business/permissions';
 
 type BrandHit = {
   company_id: number;
@@ -75,7 +74,7 @@ export function B2cLinkBusiness({
     } catch {
       /* private mode */
     }
-    router.push(defaultHomePathForRole(null));
+    router.push('/dashboard');
   };
 
   const link = async (hit: BrandHit) => {

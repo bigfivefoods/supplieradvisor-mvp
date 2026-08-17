@@ -18,6 +18,7 @@ import {
   normalizeEnabledModules,
   type EnabledModulesMap,
 } from '@/lib/business/company-modules';
+import { advisorLandingPath } from '@/lib/brand/advisor-skins';
 import type { PackagingSelection } from '@/lib/product/architecture';
 import {
   fetchCompanyMembership,
@@ -184,7 +185,17 @@ export function useCompanyRole(): CompanyRoleState {
     [enabledModules]
   );
 
-  const homePath = useMemo(() => defaultHomePathForRole(role), [role]);
+  const homePath = useMemo(() => {
+    if (role === 'sales_contractor') return '/sales';
+    if (role === 'finance') return '/dashboard/accounting';
+    return (
+      advisorLandingPath({
+        enabledModules,
+        packIds: packaging?.packIds,
+        sidebarOrder: sidebarModuleOrder,
+      }) || defaultHomePathForRole(role)
+    );
+  }, [role, enabledModules, packaging?.packIds, sidebarModuleOrder]);
 
   const saveSidebarModuleOrder = useCallback(
     async (order: string[]) => {

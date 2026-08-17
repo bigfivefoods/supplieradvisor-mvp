@@ -9,6 +9,7 @@ import {
   type B2cProfile,
 } from '@/lib/b2c/types';
 import { normalizeFamilyList } from '@/lib/services/family-members';
+import { parseMemberPassport } from '@/lib/b2c/member-passport';
 
 function emptyProfile(userId: string, email?: string | null): B2cProfile {
   return {
@@ -137,6 +138,7 @@ export async function saveB2cProfile(profile: B2cProfile): Promise<void> {
       ...(profile.metadata || {}),
       ...(profile.city != null ? { city: profile.city } : {}),
       ...(profile.id_number != null ? { id_number: profile.id_number } : {}),
+      passport: parseMemberPassport((profile.metadata || {}).passport),
       family: normalizeFamilyList(
         profile.family ?? (profile.metadata || {}).family
       ),

@@ -20,6 +20,10 @@ import type {
 } from '@/lib/b2c/care-types';
 import { publishedAnnouncements } from '@/lib/services/member-announcements';
 
+function isClinicKindHref(kind: string) {
+  return ['physio', 'dental', 'medical', 'psychiatry'].includes(kind);
+}
+
 export type { B2cCareAnnouncement, B2cCareBooking, B2cCareClinic, B2cCareRecord };
 
 export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
@@ -38,13 +42,13 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
   for (const mem of memberships.filter((m) => m.active !== false)) {
     const brand = mem.brand || mem.company_name;
     const q = mem.portal_path.includes('?') ? '&' : '?';
-    const bookHref = `${mem.portal_path}${q}tab=open`;
+    const bookHref = isClinicKindHref(mem.kind)
+      ? `/me?tab=book&company=${mem.company_id}&kind=${encodeURIComponent(mem.kind)}`
+      : `${mem.portal_path}${q}tab=open`;
     const careHref = `${mem.portal_path}${q}tab=profile`;
     const classesHref = `${mem.portal_path}${q}tab=mine`;
     const progressHref = `${mem.portal_path}${q}tab=progress`;
-    const isClinic = ['physio', 'dental', 'medical', 'psychiatry'].includes(
-      mem.kind
-    );
+    const isClinic = isClinicKindHref(mem.kind);
     const isGym = mem.kind === 'gym';
     if (isClinic || isGym) {
       clinics.push({

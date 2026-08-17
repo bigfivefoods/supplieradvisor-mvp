@@ -67,6 +67,7 @@ const snap: WalletHouseholdSnapshot = {
   city: 'Johannesburg',
   id_number: '8001015009087',
   family: vuka,
+  passport: { city: 'Johannesburg', country: 'South Africa' },
 };
 
 const stamped = applySnapshotToPerson(

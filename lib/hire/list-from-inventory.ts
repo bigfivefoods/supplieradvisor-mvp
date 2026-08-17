@@ -69,6 +69,7 @@ export async function listInventoryProductForHire(
   const unit = input.rateUnit || existing?.rate_unit || cat?.unit || 'day';
 
   let next = upsertEntity(store, 'items', {
+    ...(existing || {}),
     id: existing?.id,
     code: existing?.code || String(product.sku || `INV-${product.id}`),
     title: String(product.name || existing?.title || 'Hire item'),

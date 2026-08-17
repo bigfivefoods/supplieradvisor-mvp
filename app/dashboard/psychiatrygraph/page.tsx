@@ -27,6 +27,7 @@ import { RelationshipHeader } from '@/components/relationship/RelationshipChrome
 import { AdvisorOutcomesPanel } from '@/components/services/AdvisorOutcomesPanel';
 import { AdvisorRecallPanel } from '@/components/services/AdvisorRecallPanel';
 import { AdvisorTodayBoard } from '@/components/services/AdvisorTodayBoard';
+import { AdvisorMemberJoinInbox } from '@/components/advisors/AdvisorMemberJoinInbox';
 import {
   HubModuleGrid,
   HubTelemetryGrid,
@@ -338,6 +339,12 @@ function Inner() {
             </button>
           </div>
         }
+      />
+
+      <AdvisorMemberJoinInbox
+        companyId={companyId}
+        module="psychiatrygraph"
+        patientsHref="/dashboard/psychiatrygraph/patients"
       />
 
       {loading ? (

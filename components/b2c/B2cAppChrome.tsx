@@ -13,7 +13,14 @@ import {
   WalletCards,
 } from 'lucide-react';
 
-export type B2cTab = 'home' | 'shop' | 'memberships' | 'checkin' | 'account';
+export type B2cTab =
+  | 'home'
+  | 'shop'
+  | 'memberships'
+  | 'checkin'
+  | 'account'
+  | 'calendar'
+  | 'book';
 
 const TABS: Array<{
   id: B2cTab;
@@ -21,10 +28,10 @@ const TABS: Array<{
   icon: typeof Home;
 }> = [
   { id: 'home', label: 'Home', icon: Home },
-  { id: 'shop', label: 'Shop', icon: Store },
-  { id: 'memberships', label: 'Wallet', icon: WalletCards },
+  { id: 'memberships', label: 'Places', icon: WalletCards },
   { id: 'checkin', label: 'Check-in', icon: QrCode },
-  { id: 'account', label: 'Account', icon: UserRound },
+  { id: 'shop', label: 'Shop', icon: Store },
+  { id: 'account', label: 'Me', icon: UserRound },
 ];
 
 export function B2cAppHeader({

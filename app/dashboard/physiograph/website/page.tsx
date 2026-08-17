@@ -13,6 +13,7 @@ import { AdvisorRoomsCard } from '@/components/services/AdvisorRoomsCard';
 import { PracticeProfilePdfButton } from '@/components/schedule/PracticeProfilePdfButton';
 import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
 import { AdvisorDeskInviteCard } from '@/components/advisors/AdvisorDeskInviteCard';
+import { AdvisorMemberCalendarShareCard } from '@/components/advisors/AdvisorMemberCalendarShareCard';
 import { AdvisorEmbedSnippet } from '@/components/services/AdvisorEmbedSnippet';
 
 export default function WebsitePage() {
@@ -90,6 +91,16 @@ export default function WebsitePage() {
             audience="patients"
           />
           <AdvisorDeskInviteCard module="physiograph" />
+          <AdvisorMemberCalendarShareCard
+            shareMemberCalendar={store.settings?.share_member_calendar !== false}
+            generateMemberSlots={store.settings?.generate_member_slots !== false}
+            requireAcceptJoin={store.settings?.require_accept_join === true}
+            memberSlotMinutes={store.settings?.member_slot_minutes}
+            saving={saving}
+            onSave={async (patch) => {
+              await post({ action: 'update_settings', settings: patch });
+            }}
+          />
           {token ? (
             <AdvisorEmbedSnippet
               embedPath={`/embed/advisor/physiograph/${encodeURIComponent(token)}`}

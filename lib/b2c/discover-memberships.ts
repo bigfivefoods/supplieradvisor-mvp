@@ -30,7 +30,11 @@ import {
   indexBrandPerson,
   membershipFromDirectory,
 } from '@/lib/b2c/directory';
-import { hasMetaModule, isPersonalWalletKind } from '@/lib/b2c/company-modules';
+import {
+  hasMetaModule,
+  isHiddenPersonalWalletCompany,
+  isPersonalWalletKind,
+} from '@/lib/b2c/company-modules';
 import { shopHref } from '@/lib/b2c/wallet-accounts';
 import {
   loadWalletCompany,
@@ -127,6 +131,14 @@ export async function discoverAndAttachMemberships(
   for (const companyId of companyIds) {
     const company = await loadCompany(companyId);
     if (!company) continue;
+    if (
+      isHiddenPersonalWalletCompany({
+        company_id: companyId,
+        name: company.name,
+      })
+    ) {
+      continue;
+    }
     const theyOperate = operated.has(companyId);
 
     // CRM customer → wallet account. Skip if they operate this company
@@ -343,6 +355,14 @@ export async function discoverAndAttachMemberships(
         m.active !== false
     );
     if (already || !entry.portal_path) continue;
+    if (
+      isHiddenPersonalWalletCompany({
+        company_id: entry.company_id,
+        name: entry.company_name || entry.brand,
+      })
+    ) {
+      continue;
+    }
     if (
       operated.has(entry.company_id) &&
       !isPersonalWalletKind(entry.kind)

@@ -44,6 +44,15 @@ import {
 import { identityFromProfile } from '@/lib/b2c/identity';
 import { linkPlatformUserId } from '@/lib/messaging/link-platform-user';
 import type { PersonIdentityVerification } from '@/lib/identity/person-verification';
+import {
+  formatAddress,
+  formatEmergencyContact,
+  healthFromPassport,
+  parseMemberPassport,
+  passportFromProfileMeta,
+  type MemberPassport,
+} from '@/lib/b2c/member-passport';
+import { emptyMedicalRecord } from '@/lib/clinic/patient-medical';
 
 export type WalletHouseholdSnapshot = {
   full_name: string | null;
@@ -54,6 +63,7 @@ export type WalletHouseholdSnapshot = {
   id_number: string | null;
   family: FamilyMember[];
   identity?: PersonIdentityVerification | null;
+  passport: MemberPassport;
 };
 
 export type DeskPerson = {
@@ -66,6 +76,10 @@ export type DeskPerson = {
   family?: FamilyMember[];
   medical?: { id_number?: string; [k: string]: unknown } | null;
   identity?: PersonIdentityVerification | null;
+  emergency_contact?: string;
+  notes?: string;
+  health?: import('@/lib/health/body-map').PersonHealthProfile;
+  popia_consent_at?: string | null;
   platform_user_id?: string | null;
   updated_at?: string;
 };
@@ -187,6 +201,9 @@ export function snapshotFromProfile(
     id_number: profile.id_number || null,
     family,
     identity: identityFromProfile(profile),
+    passport: passportFromProfileMeta(profile.metadata, {
+      city: profile.city,
+    }),
   };
 }
 
@@ -250,6 +267,62 @@ export function applySnapshotToPerson<T extends DeskPerson>(
     next.family = nextFamily;
     changed = true;
   }
+
+  const pass = snap.passport || parseMemberPassport(null);
+  const emergency = formatEmergencyContact(pass);
+  if (emergency && next.emergency_contact !== emergency) {
+    next.emergency_contact = emergency;
+    changed = true;
+  }
+  if (pass.share_health_with_advisors !== false) {
+    const health = healthFromPassport(pass);
+    const prevHealth = JSON.stringify(next.health || {});
+    const nextHealth = JSON.stringify({ ...(next.health || {}), ...health });
+    if (prevHealth !== nextHealth) {
+      next.health = { ...(next.health || {}), ...health };
+      changed = true;
+    }
+    const medical = {
+      ...(emptyMedicalRecord() as Record<string, unknown>),
+      ...(next.medical && typeof next.medical === 'object'
+        ? next.medical
+        : {}),
+    };
+    if (snap.id_number) medical.id_number = snap.id_number;
+    if (pass.date_of_birth) medical.date_of_birth = pass.date_of_birth;
+    if (pass.sex) medical.gender = pass.sex;
+    const addr = formatAddress(pass);
+    if (addr) medical.address = addr;
+    if (pass.emergency_name) medical.next_of_kin = pass.emergency_name;
+    if (pass.emergency_phone) medical.next_of_kin_phone = pass.emergency_phone;
+    if (pass.gp_name) medical.gp_name = pass.gp_name;
+    if (pass.gp_phone) medical.gp_phone = pass.gp_phone;
+    if (pass.allergies) medical.allergies = pass.allergies;
+    if (pass.chronic_conditions) medical.chronic_conditions = pass.chronic_conditions;
+    if (pass.medications) medical.current_meds = pass.medications;
+    medical.medical_aid = {
+      ...((medical.medical_aid as object) || {}),
+      ...(pass.medical_aid_scheme
+        ? { scheme_name: pass.medical_aid_scheme }
+        : {}),
+      ...(pass.medical_aid_plan ? { plan_name: pass.medical_aid_plan } : {}),
+      ...(pass.medical_aid_number
+        ? { membership_number: pass.medical_aid_number }
+        : {}),
+      ...(pass.medical_aid_dependent
+        ? { dependent_code: pass.medical_aid_dependent }
+        : {}),
+    };
+    if (JSON.stringify(next.medical || {}) !== JSON.stringify(medical)) {
+      next.medical = medical;
+      changed = true;
+    }
+  }
+  if (pass.popia_consent && !next.popia_consent_at) {
+    next.popia_consent_at = new Date().toISOString();
+    changed = true;
+  }
+
   if (changed) next.updated_at = new Date().toISOString();
   return { person: next, changed };
 }
@@ -286,6 +359,7 @@ export function applySnapshotToProfile(
   metadata.family = snap.family;
   if (snap.city != null) metadata.city = snap.city;
   if (snap.id_number != null) metadata.id_number = snap.id_number;
+  if (snap.passport) metadata.passport = snap.passport;
   return {
     ...profile,
     full_name: snap.full_name ?? profile.full_name,

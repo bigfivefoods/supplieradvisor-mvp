@@ -85,11 +85,47 @@ export function hasPersonalWalletDesk(
   return detectCompanyModules(meta).some((k) => isPersonalWalletKind(k));
 }
 
+/**
+ * Operator shops that must never appear on the personal SA Member wallet,
+ * even if CRM email matches (e.g. craig@ on Big Five Direct).
+ */
+export const HIDDEN_PERSONAL_WALLET_COMPANY_IDS = [120, 124] as const;
+
+const HIDDEN_PERSONAL_WALLET_NAME = /big\s*five\s*direct/i;
+
+export function isHiddenPersonalWalletCompany(opts: {
+  company_id?: number | null;
+  name?: string | null;
+}): boolean {
+  const id = Number(opts.company_id);
+  if (
+    Number.isFinite(id) &&
+    (HIDDEN_PERSONAL_WALLET_COMPANY_IDS as readonly number[]).includes(id)
+  ) {
+    return true;
+  }
+  return HIDDEN_PERSONAL_WALLET_NAME.test(String(opts.name || ''));
+}
+
 export function isWalletVisibleMembership(
-  m: { kind: string; company_id: number; active?: boolean },
+  m: {
+    kind: string;
+    company_id: number;
+    active?: boolean;
+    company_name?: string | null;
+    brand?: string | null;
+  },
   operatedCompanyIds: Iterable<number>
 ): boolean {
   if (m.active === false) return false;
+  if (
+    isHiddenPersonalWalletCompany({
+      company_id: m.company_id,
+      name: m.brand || m.company_name,
+    })
+  ) {
+    return false;
+  }
   const owned = new Set(
     [...operatedCompanyIds].filter((id) => Number.isFinite(id) && id > 0)
   );

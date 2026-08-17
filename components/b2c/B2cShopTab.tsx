@@ -142,6 +142,13 @@ export function B2cShopTab({
     if (item.channel === 'hire' && item.company_id) {
       return portalByCompany.get(`hire:${item.company_id}`) || item.href;
     }
+    if (item.channel === 'advisor' && item.company_id && item.kind) {
+      const linked = portalByCompany.get(`${item.kind}:${item.company_id}`);
+      if (linked && item.kind === 'gym') {
+        return `${linked}${linked.includes('?') ? '&' : '?'}tab=open`;
+      }
+      return `/me?tab=book&company=${item.company_id}&kind=${encodeURIComponent(item.kind)}`;
+    }
     return item.href;
   };
 

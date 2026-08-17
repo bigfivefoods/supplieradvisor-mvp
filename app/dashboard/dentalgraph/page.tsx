@@ -25,6 +25,7 @@ import { RelationshipHeader } from '@/components/relationship/RelationshipChrome
 import { AdvisorOutcomesPanel } from '@/components/services/AdvisorOutcomesPanel';
 import { AdvisorRecallPanel } from '@/components/services/AdvisorRecallPanel';
 import { AdvisorTodayBoard } from '@/components/services/AdvisorTodayBoard';
+import { AdvisorMemberJoinInbox } from '@/components/advisors/AdvisorMemberJoinInbox';
 import { AdvisorBillingClarityCard } from '@/components/services/AdvisorBillingClarityCard';
 import {
   HubModuleGrid,
@@ -337,6 +338,12 @@ function Inner() {
             </button>
           </div>
         }
+      />
+
+      <AdvisorMemberJoinInbox
+        companyId={companyId}
+        module="dentalgraph"
+        patientsHref="/dashboard/dentalgraph/patients"
       />
 
       {loading ? (

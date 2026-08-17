@@ -301,6 +301,18 @@ async function loadHireAndAdvisors(opts: {
         const brand = s.brand_name || companyName;
         const hay = `${brand} ${s.public_bio || ''} ${city || ''} ${pack.label}`.toLowerCase();
         if (opts.q && !hay.includes(opts.q)) continue;
+        const kind =
+          pack.key === 'fitgraph'
+            ? 'gym'
+            : pack.key === 'physiograph'
+              ? 'physio'
+              : pack.key === 'dentalgraph'
+                ? 'dental'
+                : pack.key === 'medicalgraph'
+                  ? 'medical'
+                  : pack.key === 'psychiatrygraph'
+                    ? 'psychiatry'
+                    : 'account';
         advisor.push({
           id: `adv_${companyId}_${pack.key}`,
           channel: 'advisor',
@@ -308,10 +320,14 @@ async function loadHireAndAdvisors(opts: {
           subtitle: [pack.label, city].filter(Boolean).join(' · ') || null,
           price_label: 'Book',
           image_url: null,
-          href: pack.book(s.public_token),
+          href:
+            kind === 'gym'
+              ? pack.book(s.public_token)
+              : `/me?tab=book&company=${companyId}&kind=${kind}&join=1&book=1`,
           city,
           brand,
           company_id: companyId,
+          kind,
           verified,
           badge: pack.label,
         });

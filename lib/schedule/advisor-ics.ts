@@ -8,6 +8,8 @@ export type IcsEvent = {
   description?: string;
   location?: string;
   date: string;
+  /** Inclusive end date when the event spans more than one day */
+  end_date?: string | null;
   start_time: string;
   end_time?: string | null;
   duration_min?: number | null;
@@ -83,7 +85,7 @@ export function buildIcsCalendar(
     const uid = `${ev.id}@supplieradvisor`;
     const dtStart = toIcsLocal(ev.date, ev.start_time);
     const dtEnd = endFromStart(
-      ev.date,
+      ev.end_date || ev.date,
       ev.start_time,
       ev.end_time,
       ev.duration_min

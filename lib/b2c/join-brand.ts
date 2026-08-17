@@ -17,6 +17,7 @@ import {
   detectCompanyModules,
   hasPersonalWalletDesk,
   hasMetaModule,
+  isHiddenPersonalWalletCompany,
   walletModulesForCompany,
 } from '@/lib/b2c/company-modules';
 import { shopHref } from '@/lib/b2c/wallet-accounts';
@@ -75,6 +76,11 @@ import {
   readPsychiatrygraphFromMetadata,
   writePsychiatrygraphToMetadata,
 } from '@/lib/clinic/psychiatrygraph';
+import {
+  markPatientJoined,
+  newDeskNotice,
+  pushDeskNotice,
+} from '@/lib/services/advisor-member-calendar';
 
 export type JoinKind = B2cMembershipKind;
 
@@ -184,6 +190,16 @@ export async function acceptBrandJoin(opts: {
   const theyOperate = Boolean(
     workspace && isOperatorCompany(workspace, company.id)
   );
+  if (
+    isHiddenPersonalWalletCompany({
+      company_id: company.id,
+      name: company.name,
+    })
+  ) {
+    throw new Error(
+      `${company.name} is a company you operate. Open it from Switch to business — it is not added to your personal member app.`
+    );
+  }
   if (theyOperate && !hasPersonalWalletDesk(company.meta)) {
     throw new Error(
       `${company.name} is a company you operate. Open it from Switch to business. Link it here only if you also use it as a member (gym, clinic or hire).`
@@ -458,6 +474,9 @@ type ClinicPerson = {
   portal_token?: string | null;
   platform_user_id?: string | null;
   active?: boolean;
+  source?: string;
+  joined_via?: string;
+  desk_join_status?: string | null;
 };
 
 function upsertClinicPatient<T extends ClinicPerson>(
@@ -470,13 +489,14 @@ function upsertClinicPatient<T extends ClinicPerson>(
     newId: () => string;
     issueToken: () => string;
   }
-): { patients: T[]; person: T } {
+): { patients: T[]; person: T; created: boolean; newlyLinked: boolean } {
   const now = new Date().toISOString();
   let person = patients.find(
     (p) =>
       p.active !== false &&
       personMatch(p, opts.email, opts.phone, opts.userId)
   );
+  const created = !person;
   if (!person) {
     person = {
       id: opts.newId(),
@@ -491,13 +511,45 @@ function upsertClinicPatient<T extends ClinicPerson>(
     } as unknown as T;
     patients = [...patients, person];
   }
+  const newlyLinked = !person.platform_user_id;
   if (!person.portal_token) person.portal_token = opts.issueToken();
   linkPlatformUserId(person, opts.userId);
   if (opts.email && !person.email) person.email = opts.email;
   if (opts.phone && !person.phone) person.phone = opts.phone;
   const pi = patients.findIndex((p) => p.id === person!.id);
   if (pi >= 0) patients[pi] = person;
-  return { patients, person };
+  return { patients, person, created, newlyLinked };
+}
+
+function recordClinicJoin<T extends {
+  patients: ClinicPerson[];
+  desk_notices?: import('@/lib/services/advisor-member-calendar').DeskMemberNotice[];
+  settings?: { require_accept_join?: boolean } | null;
+}>(
+  store: T,
+  person: ClinicPerson,
+  flags: { created: boolean; newlyLinked: boolean }
+): T {
+  if (!flags.created && !flags.newlyLinked) return store;
+  markPatientJoined(person, store.settings?.require_accept_join === true);
+  store.patients = store.patients.map((p) =>
+    p.id === person.id ? person : p
+  );
+  store.desk_notices = pushDeskNotice(
+    store.desk_notices,
+    newDeskNotice({
+      kind: 'member_joined',
+      person_id: person.id,
+      person_name: person.name,
+      email: person.email,
+      phone: person.phone,
+      source: 'pwa',
+      note: flags.created
+        ? 'New patient from SA Member — accept them on Patients'
+        : 'Linked their SA Member wallet',
+    })
+  );
+  return store;
 }
 
 async function finishClinicJoin(opts: {
@@ -571,13 +623,17 @@ async function joinClinic(opts: {
 
   if (opts.kind === 'physio') {
     const store = readPhysiographFromMetadata(opts.company.meta);
-    const { patients, person } = upsertClinicPatient(store.patients || [], {
-      ...shared,
-      newId: () => newPhysioId('pat'),
-      issueToken: () => issuePhysioToken(opts.company.id),
-    });
+    const { patients, person, created, newlyLinked } = upsertClinicPatient(
+      store.patients || [],
+      {
+        ...shared,
+        newId: () => newPhysioId('pat'),
+        issueToken: () => issuePhysioToken(opts.company.id),
+      }
+    );
     const stamped = await stampSnapshotOnPerson(person, opts.profile);
     store.patients = patients.map((p) => (p.id === stamped.id ? stamped : p));
+    recordClinicJoin(store, stamped, { created, newlyLinked });
     await saveMeta(
       opts.company.id,
       writePhysiographToMetadata(opts.company.meta, store)
@@ -596,13 +652,17 @@ async function joinClinic(opts: {
 
   if (opts.kind === 'dental') {
     const store = readDentalgraphFromMetadata(opts.company.meta);
-    const { patients, person } = upsertClinicPatient(store.patients || [], {
-      ...shared,
-      newId: () => newDentalId('pat'),
-      issueToken: () => issueDentalPatientPortalToken(opts.company.id),
-    });
+    const { patients, person, created, newlyLinked } = upsertClinicPatient(
+      store.patients || [],
+      {
+        ...shared,
+        newId: () => newDentalId('pat'),
+        issueToken: () => issueDentalPatientPortalToken(opts.company.id),
+      }
+    );
     const stamped = await stampSnapshotOnPerson(person, opts.profile);
     store.patients = patients.map((p) => (p.id === stamped.id ? stamped : p));
+    recordClinicJoin(store, stamped, { created, newlyLinked });
     await saveMeta(
       opts.company.id,
       writeDentalgraphToMetadata(opts.company.meta, store)
@@ -621,13 +681,17 @@ async function joinClinic(opts: {
 
   if (opts.kind === 'medical') {
     const store = readMedicalgraphFromMetadata(opts.company.meta);
-    const { patients, person } = upsertClinicPatient(store.patients || [], {
-      ...shared,
-      newId: () => newMedicalId('pat'),
-      issueToken: () => issueMedicalToken(opts.company.id),
-    });
+    const { patients, person, created, newlyLinked } = upsertClinicPatient(
+      store.patients || [],
+      {
+        ...shared,
+        newId: () => newMedicalId('pat'),
+        issueToken: () => issueMedicalToken(opts.company.id),
+      }
+    );
     const stamped = await stampSnapshotOnPerson(person, opts.profile);
     store.patients = patients.map((p) => (p.id === stamped.id ? stamped : p));
+    recordClinicJoin(store, stamped, { created, newlyLinked });
     await saveMeta(
       opts.company.id,
       writeMedicalgraphToMetadata(opts.company.meta, store)
@@ -645,13 +709,17 @@ async function joinClinic(opts: {
   }
 
   const store = readPsychiatrygraphFromMetadata(opts.company.meta);
-  const { patients, person } = upsertClinicPatient(store.patients || [], {
-    ...shared,
-    newId: () => newPsychiatryId('pat'),
-    issueToken: () => issuePsychiatryToken(opts.company.id),
-  });
+  const { patients, person, created, newlyLinked } = upsertClinicPatient(
+    store.patients || [],
+    {
+      ...shared,
+      newId: () => newPsychiatryId('pat'),
+      issueToken: () => issuePsychiatryToken(opts.company.id),
+    }
+  );
   const stamped = await stampSnapshotOnPerson(person, opts.profile);
   store.patients = patients.map((p) => (p.id === stamped.id ? stamped : p));
+  recordClinicJoin(store, stamped, { created, newlyLinked });
   await saveMeta(
     opts.company.id,
     writePsychiatrygraphToMetadata(opts.company.meta, store)

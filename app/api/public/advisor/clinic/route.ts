@@ -13,25 +13,21 @@ import {
   readDentalgraphFromMetadata,
   writeDentalgraphToMetadata,
   newId as dentalNewId,
-  appointmentBookingCount as dentalBookingCount,
 } from '@/lib/dental/dentalgraph';
 import {
   readPhysiographFromMetadata,
   writePhysiographToMetadata,
   newId as physioNewId,
-  appointmentBookingCount as physioBookingCount,
 } from '@/lib/clinic/physiograph';
 import {
   readMedicalgraphFromMetadata,
   writeMedicalgraphToMetadata,
   newId as medicalNewId,
-  appointmentBookingCount as medicalBookingCount,
 } from '@/lib/clinic/medicalgraph';
 import {
   readPsychiatrygraphFromMetadata,
   writePsychiatrygraphToMetadata,
   newId as psychNewId,
-  appointmentBookingCount as psychBookingCount,
 } from '@/lib/clinic/psychiatrygraph';
 
 export const runtime = 'nodejs';
@@ -219,22 +215,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const appt = store.appointments.find((a) => a.id === appointmentId);
-  if (!appt || appt.status !== 'scheduled' || appt.public !== true) {
-    return NextResponse.json(
-      { error: 'Slot not available' },
-      { status: 400 }
-    );
-  }
-
-  const countFn =
-    module === 'dentalgraph'
-      ? dentalBookingCount
-      : module === 'physiograph'
-        ? physioBookingCount
-        : module === 'medicalgraph'
-          ? medicalBookingCount
-          : psychBookingCount;
   const newId =
     module === 'dentalgraph'
       ? dentalNewId
@@ -244,8 +224,6 @@ export async function POST(req: NextRequest) {
           ? medicalNewId
           : psychNewId;
 
-  const booked = countFn(store as never, appointmentId);
-  const full = booked >= 1;
   const now = new Date().toISOString();
 
   let patient = email
@@ -257,7 +235,9 @@ export async function POST(req: NextRequest) {
       )
     : undefined;
 
+  let createdPatient = false;
   if (!patient) {
+    createdPatient = true;
     patient = {
       id: newId('pat'),
       code: `WEB-${Date.now().toString(36).toUpperCase().slice(-6)}`,
@@ -276,40 +256,49 @@ export async function POST(req: NextRequest) {
     patient.updated_at = now;
   }
 
-  const dup = store.bookings.find(
-    (b) =>
-      b.appointment_id === appointmentId &&
-      b.patient_id === patient!.id &&
-      b.status !== 'cancelled'
+  const { bookAdvisorMemberSlot, newDeskNotice, pushDeskNotice } = await import(
+    '@/lib/services/advisor-member-calendar'
   );
-  if (dup) {
-    return NextResponse.json({
-      success: true,
-      status: dup.status,
-      booking_id: dup.id,
-      message: 'Already on this slot',
-    });
+  if (createdPatient) {
+    const s = store as {
+      desk_notices?: import('@/lib/services/advisor-member-calendar').DeskMemberNotice[];
+    };
+    s.desk_notices = pushDeskNotice(
+      s.desk_notices,
+      newDeskNotice({
+        kind: 'member_joined',
+        person_id: patient.id,
+        person_name: patient.name,
+        email: patient.email,
+        phone: patient.phone,
+        source: 'embed',
+        note: 'New patient from the public booking page',
+      })
+    );
   }
-
-  const status = full ? 'waitlist' : 'booked';
-  const booking = {
-    id: newId('bk'),
-    appointment_id: appointmentId,
-    patient_id: patient.id,
-    status,
-    booked_at: now,
-    source: 'website',
-    notes: 'Public website / embed booking',
-  };
-  store.bookings.push(booking as never);
-  await saveModule(module, resolved.companyId, resolved.meta, store);
+  const bookedSlot = bookAdvisorMemberSlot({
+    store: store as never,
+    module,
+    patientId: patient.id,
+    slotId: appointmentId,
+    newId,
+    source: 'embed',
+    now,
+  });
+  if (!bookedSlot.ok) {
+    return NextResponse.json(
+      { error: bookedSlot.error, code: bookedSlot.code },
+      { status: bookedSlot.status }
+    );
+  }
+  await saveModule(module, resolved.companyId, resolved.meta, bookedSlot.store);
 
   return NextResponse.json({
     success: true,
-    status,
-    booking_id: booking.id,
+    status: bookedSlot.status,
+    booking_id: bookedSlot.bookingId,
     message:
-      status === 'waitlist'
+      bookedSlot.status === 'waitlist'
         ? 'Added to waitlist — the practice will contact you'
         : 'Booked successfully',
   });

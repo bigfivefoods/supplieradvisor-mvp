@@ -437,27 +437,6 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      const appt = store.appointments.find((a) => a.id === appointmentId);
-      if (!appt || appt.status !== 'scheduled' || appt.public !== true) {
-        return NextResponse.json(
-          { error: 'Slot not available for booking' },
-          { status: 404 }
-        );
-      }
-      const dup = store.bookings.find(
-        (b) =>
-          b.appointment_id === appointmentId &&
-          b.patient_id === patient.id &&
-          (b.status === 'booked' || b.status === 'waitlist' || b.status === 'attended')
-      );
-      if (dup) {
-        return NextResponse.json(
-          { error: 'Already booked on this slot', booking_id: dup.id, status: dup.status },
-          { status: 409 }
-        );
-      }
-      const booked = appointmentBookingCount(store, appointmentId);
-      const full = booked >= 1;
       const famId = body.family_member_id
         ? String(body.family_member_id)
         : body.familyMemberId
@@ -473,42 +452,40 @@ export async function POST(request: NextRequest) {
           famName = `${m.name}${m.relationship ? ` (${m.relationship})` : ''}`;
         }
       }
-      // Patients may book any public clinician — not only their regular dentist
-      const finalStatus: DentalBooking['status'] = full ? 'waitlist' : 'booked';
-      const preferOther =
-        patient.staff_id &&
-        appt.staff_id &&
-        patient.staff_id !== appt.staff_id;
-      const row: DentalBooking = {
-        id: newId('bk'),
-        appointment_id: appointmentId,
-        patient_id: patient.id,
-        status: finalStatus,
-        booked_at: now,
-        source: 'patient_portal',
-        notes: [
-          finalStatus === 'waitlist'
-            ? 'Patient portal — waitlist / join request'
-            : 'Patient portal booking',
-          preferOther ? 'Booked another clinician (regular unavailable / preferred alternative)' : null,
-        ]
-          .filter(Boolean)
-          .join(' · '),
-        family_member_id: famName ? famId : null,
-        family_member_name: famName,
-      };
-      store.bookings.push(row);
+      const { bookAdvisorMemberSlot } = await import(
+        '@/lib/services/advisor-member-calendar'
+      );
+      const bookedSlot = bookAdvisorMemberSlot({
+        store,
+        module: 'dentalgraph',
+        patientId: patient.id,
+        slotId: appointmentId,
+        newId,
+        source: 'portal',
+        familyMemberId: famName ? famId : null,
+        familyMemberName: famName,
+        now,
+      });
+      if (!bookedSlot.ok) {
+        return NextResponse.json(
+          { error: bookedSlot.error, code: bookedSlot.code },
+          { status: bookedSlot.status }
+        );
+      }
+      const row = store.bookings.find((b) => b.id === bookedSlot.bookingId)!;
+      const appt = store.appointments.find(
+        (a) => a.id === bookedSlot.appointmentId
+      );
 
       let waitlistPosition: number | null = null;
-      if (finalStatus === 'waitlist') {
+      if (bookedSlot.status === 'waitlist' && appt) {
         const { waitlistPositionOnSlot, notifyPracticeWaitlist } =
           await import('@/lib/services/clinic-waitlist');
         waitlistPosition = waitlistPositionOnSlot(
           store.bookings,
-          appointmentId,
+          bookedSlot.appointmentId,
           row.id
         );
-        const svc = store.services.find((s) => s.id === appt.service_id);
         const staff = store.staff.find((s) => s.id === appt.staff_id);
         await notifyPracticeWaitlist({
           to: store.settings?.contact_email,
@@ -518,7 +495,7 @@ export async function POST(request: NextRequest) {
           patientEmail: patient.email,
           kind: 'slot',
           position: waitlistPosition,
-          eventTitle: svc?.name || 'Appointment',
+          eventTitle: bookedSlot.slot.service_name,
           date: appt.date,
           start_time: appt.start_time,
           clinicianName: staff?.name,
@@ -527,13 +504,12 @@ export async function POST(request: NextRequest) {
       }
 
       await saveStore(companyId, meta, store);
-      const bookedSvc = store.services.find((s) => s.id === appt.service_id);
       await notifyPatientBookingPush({
         platformUserId: patient.platform_user_id,
         brand: store.settings?.brand_name,
-        title: bookedSvc?.name || 'Appointment',
-        date: appt.date,
-        start_time: appt.start_time,
+        title: bookedSlot.slot.service_name,
+        date: bookedSlot.slot.date,
+        start_time: bookedSlot.slot.start_time,
         status: row.status,
         portalPath: patient.portal_token
           ? `/member/dentalgraph/${patient.portal_token}?tab=mine`
@@ -548,9 +524,7 @@ export async function POST(request: NextRequest) {
           message:
             row.status === 'waitlist'
               ? `Slot is full — you are #${waitlistPosition} on the waitlist. The practice has been notified.`
-              : preferOther
-                ? 'You are booked with another clinician for this slot'
-                : 'You are booked into this appointment',
+              : 'You are booked into this appointment',
         },
         portal: buildDentalPatientPortalPayload(store, store.patients[pi]),
       });

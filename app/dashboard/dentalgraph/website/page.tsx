@@ -14,6 +14,7 @@ import { AdvisorEmbedSnippet } from '@/components/services/AdvisorEmbedSnippet';
 import { PracticeProfilePdfButton } from '@/components/schedule/PracticeProfilePdfButton';
 import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
 import { AdvisorDeskInviteCard } from '@/components/advisors/AdvisorDeskInviteCard';
+import { AdvisorMemberCalendarShareCard } from '@/components/advisors/AdvisorMemberCalendarShareCard';
 
 export default function WebsitePage() {
   const { companyId, store, loading, saving, post, summary } =
@@ -90,6 +91,16 @@ export default function WebsitePage() {
             audience="patients"
           />
           <AdvisorDeskInviteCard module="dentalgraph" />
+          <AdvisorMemberCalendarShareCard
+            shareMemberCalendar={store.settings?.share_member_calendar !== false}
+            generateMemberSlots={store.settings?.generate_member_slots !== false}
+            requireAcceptJoin={store.settings?.require_accept_join === true}
+            memberSlotMinutes={store.settings?.member_slot_minutes}
+            saving={saving}
+            onSave={async (patch) => {
+              await post({ action: 'update_settings', settings: patch });
+            }}
+          />
           <div className="flex flex-wrap items-center gap-2">
             <PracticeProfilePdfButton
               companyId={companyId}

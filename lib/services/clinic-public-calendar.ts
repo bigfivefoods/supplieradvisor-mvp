@@ -2,6 +2,7 @@
  * Public website diary for clinic Advisors (token = practice public_token).
  * Guest book creates/finds patient by email and books open slots.
  */
+import { generateAdvisorMemberSlots } from '@/lib/services/advisor-member-calendar';
 
 export type ClinicPublicSlot = {
   id: string;
@@ -127,41 +128,20 @@ export function buildClinicPublicCalendar(opts: {
       disciplines: p.disciplines,
     }));
 
-  const slots: ClinicPublicSlot[] = store.appointments
-    .filter(
-      (a) =>
-        a.status === 'scheduled' &&
-        a.public === true &&
-        String(a.appointment_kind || '') !== 'personal' &&
-        a.date >= start &&
-        a.date <= end
-    )
-    .sort((a, b) =>
-      a.date === b.date
-        ? a.start_time.localeCompare(b.start_time)
-        : a.date.localeCompare(b.date)
-    )
-    .map((a) => {
-      const svc = store.services.find((s) => s.id === a.service_id);
-      const clinId = a.staff_id || a.practitioner_id;
-      const clin = clinId
-        ? clinicians.find((c) => c.id === clinId)
-        : undefined;
-      const open = appointmentOpen(store, a);
-      return {
-        id: a.id,
-        date: a.date,
-        start_time: a.start_time,
-        end_time: a.end_time,
-        duration_min: a.duration_min,
-        service_name: svc?.name || 'Appointment',
-        clinician_name: clin?.name,
-        location: a.location,
-        spots_left: open ? 1 : 0,
-        full: !open,
-        public_notes: a.public_notes,
-      };
-    });
+  const generated = generateAdvisorMemberSlots(store, { from: start, to: end });
+  const slots: ClinicPublicSlot[] = generated.map((s) => ({
+    id: s.id,
+    date: s.date,
+    start_time: s.start_time,
+    end_time: s.end_time,
+    duration_min: s.duration_min,
+    service_name: s.service_name,
+    clinician_name: s.practitioner_name || undefined,
+    location: s.location,
+    spots_left: s.spots_left,
+    full: s.full,
+    public_notes: s.public_notes,
+  }));
 
   return {
     module: opts.module,

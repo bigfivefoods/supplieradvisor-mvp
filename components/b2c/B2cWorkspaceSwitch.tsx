@@ -20,7 +20,11 @@ function openCompany(biz: B2cBusinessCard, router: ReturnType<typeof useRouter>)
   } catch {
     /* private mode */
   }
-  router.push(defaultHomePathForRole(biz.role));
+  router.push(
+    biz.role === 'sales_contractor' || biz.role === 'finance'
+      ? defaultHomePathForRole(biz.role)
+      : '/dashboard'
+  );
 }
 
 export function B2cWorkspaceSwitch({

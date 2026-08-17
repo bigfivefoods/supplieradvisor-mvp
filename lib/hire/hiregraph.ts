@@ -404,6 +404,23 @@ export type HireItem = {
   location?: string;
   photo_url?: string;
   notes?: string;
+  /** What the hirer receives (kit contents) */
+  includes?: string;
+  /** Not included / hirer must supply */
+  excludes?: string;
+  specs?: string;
+  condition_notes?: string;
+  min_units?: number | null;
+  fulfillment?: 'collect' | 'delivery' | 'both' | string;
+  delivery_fee_zar?: number | null;
+  delivery_radius_km?: number | null;
+  collect_hours?: string;
+  replacement_value_zar?: number | null;
+  setup_minutes?: number | null;
+  fuel_or_power?: string;
+  age_or_weight_limit?: string;
+  operator_included?: boolean;
+  cancellation_note?: string;
   /** Core inventory product this hire SKU is drawn from */
   inventory_product_id?: number | null;
   /** marketplace_listings.id when published for hire */
@@ -868,6 +885,7 @@ export function buildHireCustomerPortalPayload(
         requirements_ready: pending.length === 0,
         examples: cat?.examples || [],
         busy_dates: busyDatesForItem(store, item.id),
+        ...hireListingDetails(item),
       };
     })
     .sort((a, b) => a.title.localeCompare(b.title));
@@ -1350,6 +1368,8 @@ export function buildHirePublicWebsitePayload(
         deposit_zar: item.deposit_zar != null ? Number(item.deposit_zar) : null,
         location: item.location || '',
         photo_url: item.photo_url || null,
+        qty_available: item.qty_available ?? null,
+        ...hireListingDetails(item),
       };
     })
     .sort((a, b) => a.title.localeCompare(b.title));
@@ -1365,6 +1385,43 @@ export function buildHirePublicWebsitePayload(
     enabled: settings.enabled === true,
     announcements: publishedAnnouncements(store.announcements),
     catalogue,
+  };
+}
+
+/** Public listing facts a hirer needs before requesting an item. */
+export function hireListingDetails(item: HireItem) {
+  const cat = getHireCategory(item.category_id);
+  const fulfillment =
+    item.fulfillment ||
+    (cat?.needsDelivery ? 'delivery' : 'collect');
+  return {
+    includes: item.includes || '',
+    excludes: item.excludes || '',
+    specs: item.specs || '',
+    condition_notes: item.condition_notes || '',
+    min_units: item.min_units != null ? Number(item.min_units) : 1,
+    fulfillment,
+    fulfillment_label:
+      fulfillment === 'delivery'
+        ? 'Delivered to you'
+        : fulfillment === 'both'
+          ? 'Collect or delivery'
+          : 'Collect from desk',
+    delivery_fee_zar:
+      item.delivery_fee_zar != null ? Number(item.delivery_fee_zar) : null,
+    delivery_radius_km:
+      item.delivery_radius_km != null ? Number(item.delivery_radius_km) : null,
+    collect_hours: item.collect_hours || '',
+    replacement_value_zar:
+      item.replacement_value_zar != null
+        ? Number(item.replacement_value_zar)
+        : null,
+    setup_minutes:
+      item.setup_minutes != null ? Number(item.setup_minutes) : null,
+    fuel_or_power: item.fuel_or_power || '',
+    age_or_weight_limit: item.age_or_weight_limit || '',
+    operator_included: item.operator_included === true,
+    cancellation_note: item.cancellation_note || '',
   };
 }
 

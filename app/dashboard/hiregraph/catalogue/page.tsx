@@ -15,9 +15,42 @@ import {
   StatRow,
   fieldClass,
 } from '@/components/hire/SimpleEntityForm';
-import { HIRE_CATEGORIES, ITEM_STATUSES, getHireCategory } from '@/lib/hire/hiregraph';
+import {
+  HIRE_CATEGORIES,
+  ITEM_STATUSES,
+  getHireCategory,
+  type HireItem,
+} from '@/lib/hire/hiregraph';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import type { ProductRecord } from '@/lib/inventory/types';
+
+const BLANK_ITEM_FORM = {
+  code: '',
+  title: '',
+  category_id: 'kids_party',
+  srm_supplier_id: '',
+  rate_zar: '',
+  rate_unit: 'day',
+  qty_available: '1',
+  deposit_zar: '',
+  location: '',
+  status: 'listed',
+  description: '',
+  includes: '',
+  excludes: '',
+  specs: '',
+  condition_notes: '',
+  min_units: '1',
+  fulfillment: 'collect',
+  delivery_fee_zar: '',
+  delivery_radius_km: '',
+  collect_hours: '',
+  replacement_value_zar: '',
+  fuel_or_power: '',
+  age_or_weight_limit: '',
+  operator_included: false,
+  cancellation_note: '',
+};
 
 export default function HireCataloguePage() {
   const { store, coreSuppliers, loading, saving, post, summary } =
@@ -33,19 +66,8 @@ export default function HireCataloguePage() {
     srm_supplier_id: '',
     location: '',
   });
-  const [form, setForm] = useState({
-    code: '',
-    title: '',
-    category_id: 'kids_party',
-    srm_supplier_id: '',
-    rate_zar: '',
-    rate_unit: 'day',
-    qty_available: '1',
-    deposit_zar: '',
-    location: '',
-    status: 'listed',
-    description: '',
-  });
+  const [form, setForm] = useState(BLANK_ITEM_FORM);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const selectedCat = getHireCategory(form.category_id);
   const invCat = getHireCategory(invForm.category_id);
@@ -102,6 +124,43 @@ export default function HireCataloguePage() {
     setInvForm((f) => ({ ...f, productId: '', rate_zar: '', deposit_zar: '' }));
   };
 
+  const loadItem = (item: HireItem) => {
+    setEditingId(item.id);
+    setForm({
+      code: item.code || '',
+      title: item.title || '',
+      category_id: item.category_id || 'kids_party',
+      srm_supplier_id: item.srm_supplier_id ? String(item.srm_supplier_id) : '',
+      rate_zar: item.rate_zar != null ? String(item.rate_zar) : '',
+      rate_unit: item.rate_unit || 'day',
+      qty_available:
+        item.qty_available != null ? String(item.qty_available) : '1',
+      deposit_zar: item.deposit_zar != null ? String(item.deposit_zar) : '',
+      location: item.location || '',
+      status: String(item.status || 'listed'),
+      description: item.description || '',
+      includes: item.includes || '',
+      excludes: item.excludes || '',
+      specs: item.specs || '',
+      condition_notes: item.condition_notes || '',
+      min_units: item.min_units != null ? String(item.min_units) : '1',
+      fulfillment: item.fulfillment || 'collect',
+      delivery_fee_zar:
+        item.delivery_fee_zar != null ? String(item.delivery_fee_zar) : '',
+      delivery_radius_km:
+        item.delivery_radius_km != null ? String(item.delivery_radius_km) : '',
+      collect_hours: item.collect_hours || '',
+      replacement_value_zar:
+        item.replacement_value_zar != null
+          ? String(item.replacement_value_zar)
+          : '',
+      fuel_or_power: item.fuel_or_power || '',
+      age_or_weight_limit: item.age_or_weight_limit || '',
+      operator_included: item.operator_included === true,
+      cancellation_note: item.cancellation_note || '',
+    });
+  };
+
   const add = async () => {
     if (!form.code.trim() || !form.title.trim()) {
       toast.error('Code and title required');
@@ -118,6 +177,7 @@ export default function HireCataloguePage() {
       entity: 'items',
       action: 'upsert',
       record: {
+        ...(editingId ? { id: editingId } : {}),
         code: form.code,
         title: form.title,
         category_id: form.category_id,
@@ -131,18 +191,34 @@ export default function HireCataloguePage() {
         location: form.location,
         status: form.status,
         description: form.description,
+        includes: form.includes,
+        excludes: form.excludes,
+        specs: form.specs,
+        condition_notes: form.condition_notes,
+        min_units: Number(form.min_units) || 1,
+        fulfillment: form.fulfillment,
+        delivery_fee_zar: form.delivery_fee_zar
+          ? Number(form.delivery_fee_zar)
+          : null,
+        delivery_radius_km: form.delivery_radius_km
+          ? Number(form.delivery_radius_km)
+          : null,
+        collect_hours: form.collect_hours,
+        replacement_value_zar: form.replacement_value_zar
+          ? Number(form.replacement_value_zar)
+          : null,
+        fuel_or_power: form.fuel_or_power,
+        age_or_weight_limit: form.age_or_weight_limit,
+        operator_included: form.operator_included,
+        cancellation_note: form.cancellation_note,
         active: true,
       },
     });
-    toast.success('Item listed against core supplier');
-    setForm((f) => ({
-      ...f,
-      code: '',
-      title: '',
-      rate_zar: '',
-      deposit_zar: '',
-      description: '',
-    }));
+    toast.success(
+      editingId ? 'Hire listing updated' : 'Item listed against core supplier'
+    );
+    setEditingId(null);
+    setForm(BLANK_ITEM_FORM);
   };
 
   return (
@@ -337,11 +413,28 @@ export default function HireCataloguePage() {
           </FormCard>
 
           <FormCard
-            title="List hire item"
+            title={
+              editingId
+                ? 'Edit hire listing — what the hirer needs to know'
+                : 'List hire item — include everything the hirer needs'
+            }
             tone="hg-client"
             saving={saving}
+            submitLabel={editingId ? 'Save listing' : 'List item'}
             onSubmit={() => void add()}
           >
+            {editingId ? (
+              <button
+                type="button"
+                className="mb-2 text-[11px] font-bold text-slate-500 underline"
+                onClick={() => {
+                  setEditingId(null);
+                  setForm(BLANK_ITEM_FORM);
+                }}
+              >
+                Cancel edit — list a new item
+              </button>
+            ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-xs font-bold">
                 Code
@@ -497,6 +590,167 @@ export default function HireCataloguePage() {
                   }
                 />
               </label>
+              <label className="text-xs font-bold sm:col-span-2">
+                Description (what they are hiring)
+                <textarea
+                  className={fieldClass()}
+                  rows={2}
+                  value={form.description}
+                  onChange={(e) =>
+                    setForm({ ...form, description: e.target.value })
+                  }
+                  placeholder="What it is, size, typical use"
+                />
+              </label>
+              <label className="text-xs font-bold">
+                Included
+                <input
+                  className={fieldClass()}
+                  value={form.includes}
+                  onChange={(e) =>
+                    setForm({ ...form, includes: e.target.value })
+                  }
+                  placeholder="Blower, pegs, safety mat…"
+                />
+              </label>
+              <label className="text-xs font-bold">
+                Not included
+                <input
+                  className={fieldClass()}
+                  value={form.excludes}
+                  onChange={(e) =>
+                    setForm({ ...form, excludes: e.target.value })
+                  }
+                  placeholder="Extension lead, operator…"
+                />
+              </label>
+              <label className="text-xs font-bold sm:col-span-2">
+                Specs / size
+                <input
+                  className={fieldClass()}
+                  value={form.specs}
+                  onChange={(e) => setForm({ ...form, specs: e.target.value })}
+                  placeholder="4×5 m castle · 5 kVA · bakkie 1-ton"
+                />
+              </label>
+              <label className="text-xs font-bold sm:col-span-2">
+                Condition notes
+                <input
+                  className={fieldClass()}
+                  value={form.condition_notes}
+                  onChange={(e) =>
+                    setForm({ ...form, condition_notes: e.target.value })
+                  }
+                  placeholder="Scratches on lid · recently serviced"
+                />
+              </label>
+              <label className="text-xs font-bold">
+                Min hire
+                <input
+                  className={fieldClass()}
+                  value={form.min_units}
+                  onChange={(e) =>
+                    setForm({ ...form, min_units: e.target.value })
+                  }
+                />
+              </label>
+              <label className="text-xs font-bold">
+                Collect or deliver
+                <select
+                  className={fieldClass()}
+                  value={form.fulfillment}
+                  onChange={(e) =>
+                    setForm({ ...form, fulfillment: e.target.value })
+                  }
+                >
+                  <option value="collect">Collect</option>
+                  <option value="delivery">Delivery</option>
+                  <option value="both">Collect or delivery</option>
+                </select>
+              </label>
+              <label className="text-xs font-bold">
+                Delivery fee (R)
+                <input
+                  className={fieldClass()}
+                  value={form.delivery_fee_zar}
+                  onChange={(e) =>
+                    setForm({ ...form, delivery_fee_zar: e.target.value })
+                  }
+                />
+              </label>
+              <label className="text-xs font-bold">
+                Delivery radius (km)
+                <input
+                  className={fieldClass()}
+                  value={form.delivery_radius_km}
+                  onChange={(e) =>
+                    setForm({ ...form, delivery_radius_km: e.target.value })
+                  }
+                />
+              </label>
+              <label className="text-xs font-bold">
+                Collect hours
+                <input
+                  className={fieldClass()}
+                  value={form.collect_hours}
+                  onChange={(e) =>
+                    setForm({ ...form, collect_hours: e.target.value })
+                  }
+                  placeholder="Mon–Sat 08:00–16:00"
+                />
+              </label>
+              <label className="text-xs font-bold">
+                Replacement value (R)
+                <input
+                  className={fieldClass()}
+                  value={form.replacement_value_zar}
+                  onChange={(e) =>
+                    setForm({ ...form, replacement_value_zar: e.target.value })
+                  }
+                />
+              </label>
+              <label className="text-xs font-bold">
+                Power / fuel
+                <input
+                  className={fieldClass()}
+                  value={form.fuel_or_power}
+                  onChange={(e) =>
+                    setForm({ ...form, fuel_or_power: e.target.value })
+                  }
+                  placeholder="220V / petrol / full-to-full"
+                />
+              </label>
+              <label className="text-xs font-bold">
+                Age / weight limit
+                <input
+                  className={fieldClass()}
+                  value={form.age_or_weight_limit}
+                  onChange={(e) =>
+                    setForm({ ...form, age_or_weight_limit: e.target.value })
+                  }
+                />
+              </label>
+              <label className="flex items-center gap-2 text-xs font-bold sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={form.operator_included}
+                  onChange={(e) =>
+                    setForm({ ...form, operator_included: e.target.checked })
+                  }
+                />
+                Operator included
+              </label>
+              <label className="text-xs font-bold sm:col-span-2">
+                Cancellation
+                <input
+                  className={fieldClass()}
+                  value={form.cancellation_note}
+                  onChange={(e) =>
+                    setForm({ ...form, cancellation_note: e.target.value })
+                  }
+                  placeholder="48h notice or deposit held"
+                />
+              </label>
             </div>
           </FormCard>
           <DataTable
@@ -513,7 +767,14 @@ export default function HireCataloguePage() {
               id: i.id,
               cells: [
                 i.code,
-                i.title,
+                <button
+                  key={`${i.id}-edit`}
+                  type="button"
+                  className="text-left font-semibold text-cyan-800 underline"
+                  onClick={() => loadItem(i)}
+                >
+                  {i.title}
+                </button>,
                 i.inventory_product_id
                   ? `Inventory #${i.inventory_product_id}`
                   : i.supplier_name ||

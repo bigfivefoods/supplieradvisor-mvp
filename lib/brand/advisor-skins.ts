@@ -220,6 +220,48 @@ export function enabledAdvisorSkins(opts: {
 }
 
 /**
+ * Advisors that are actually switched on for landing (explicit module
+ * flags and/or industry packs). Unlike subscribedAdvisorSkins this
+ * does not ignore a single vertical when other Advisors are unset.
+ */
+export function landingAdvisorSkins(opts: {
+  enabledModules?: Record<string, boolean> | null;
+  packIds?: string[] | null;
+}): AdvisorSkin[] {
+  const mods = opts.enabledModules || {};
+  const packs = new Set((opts.packIds || []).map(String));
+  const fromPacks = ADVISOR_SKINS.filter((s) =>
+    s.packIds.some((id) => packs.has(id))
+  );
+  if (fromPacks.length > 0) return fromPacks;
+  return ADVISOR_SKINS.filter((s) =>
+    s.moduleIds.some((id) => mods[id] === true)
+  );
+}
+
+/**
+ * First screen after login / company pick: the Advisor hub, not Control Tower.
+ * Honours the user's sidenav order when several Advisors are on.
+ */
+export function advisorLandingPath(opts: {
+  enabledModules?: Record<string, boolean> | null;
+  packIds?: string[] | null;
+  sidebarOrder?: string[] | null;
+}): string | null {
+  const skins = landingAdvisorSkins(opts);
+  if (!skins.length) return null;
+  for (const id of opts.sidebarOrder || []) {
+    const key = String(id || '').trim();
+    if (!key) continue;
+    const match = skins.find(
+      (s) => s.moduleIds.includes(key) || s.id === key || s.homeHref === key
+    );
+    if (match) return match.homeHref;
+  }
+  return skins[0].homeHref;
+}
+
+/**
  * Advisor skins this company is actually subscribed to.
  * Packs win. If no packs, only modules that are on while at least one
  * Advisor is off (owner customised). Default “all modules on” does not

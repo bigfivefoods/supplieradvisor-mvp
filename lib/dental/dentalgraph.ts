@@ -16,6 +16,7 @@ import {
 import { publishedAnnouncements } from '@/lib/services/member-announcements';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { ensureSystemPersonalService } from '@/lib/clinic/appointment-kind';
+import { toPortalOpenSlots } from '@/lib/services/advisor-member-calendar';
 
 export const DENTALGRAPH_MODULE_ID = 'dentalgraph' as const;
 export const DENTALGRAPH_META_KEY = 'dentalgraph';
@@ -347,6 +348,9 @@ export type DentalPatient = {
   attended_count?: number;
   booking_soft_block?: boolean;
   popia_consent_at?: string | null;
+  source?: string;
+  joined_via?: string;
+  desk_join_status?: 'pending' | 'accepted' | 'dismissed' | string | null;
   /** VerifyNow (SA) or Didit (international) self-serve identity check */
   identity?: import('@/lib/identity/person-verification').PersonIdentityVerification;
   start_date?: string | null;
@@ -426,6 +430,10 @@ export type DentalPublicSettings = {
   website_url?: string;
   public_bio?: string;
   allow_public_booking: boolean;
+  share_member_calendar?: boolean;
+  generate_member_slots?: boolean;
+  member_slot_minutes?: number;
+  require_accept_join?: boolean;
   show_staff: boolean;
   show_pricing: boolean;
   timezone?: string;
@@ -481,6 +489,7 @@ export type DentalgraphStore = {
   /** Patient post-visit feedback */
   appointment_feedback?: import('@/lib/services/booking-feedback').ServiceFeedback[];
   announcements?: import('@/lib/services/member-announcements').MemberAnnouncement[];
+  desk_notices?: import('@/lib/services/advisor-member-calendar').DeskMemberNotice[];
   settings?: DentalPublicSettings;
   updated_at?: string;
 };
@@ -497,6 +506,9 @@ export function defaultDentalPublicSettings(companyId?: number): DentalPublicSet
         ? `dg_${companyId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
         : `dg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
     allow_public_booking: true,
+    share_member_calendar: true,
+    generate_member_slots: true,
+    require_accept_join: false,
     show_staff: true,
     show_pricing: true,
     timezone: 'Africa/Johannesburg',
@@ -516,6 +528,7 @@ export function emptyDentalgraphStore(): DentalgraphStore {
     threads: [],
     appointment_feedback: [],
     announcements: [],
+    desk_notices: [],
     settings: defaultDentalPublicSettings(),
   };
 }
@@ -610,74 +623,12 @@ export function buildDentalPatientPortalPayload(
   const shareMedical = patient.share_medical !== false;
 
   const open_slots = shareSchedule
-    ? store.appointments
-        .filter(
-          (a) =>
-            a.public === true &&
-            a.status === 'scheduled' &&
-            a.date >= start &&
-            a.date <= end
-        )
-        .map((a) => {
-          const svc = store.services.find((s) => s.id === a.service_id);
-          const staff = store.staff.find((p) => p.id === a.staff_id);
-          const booked = appointmentBookingCount(store, a.id);
-          const capacity = 1;
-          const full = booked >= capacity;
-          const myBooking = store.bookings.find(
-            (b) =>
-              b.appointment_id === a.id &&
-              b.patient_id === patient.id &&
-              (b.status === 'booked' ||
-                b.status === 'waitlist' ||
-                b.status === 'attended')
-          );
-          const isPreferred =
-            Boolean(patient.staff_id) &&
-            Boolean(a.staff_id) &&
-            patient.staff_id === a.staff_id;
-          let waitlist_position: number | null = null;
-          if (myBooking?.status === 'waitlist') {
-            const wl = store.bookings
-              .filter(
-                (b) =>
-                  b.appointment_id === a.id && b.status === 'waitlist'
-              )
-              .sort((x, y) =>
-                String(x.booked_at || '').localeCompare(String(y.booked_at || ''))
-              );
-            const wi = wl.findIndex((b) => b.id === myBooking.id);
-            waitlist_position = wi >= 0 ? wi + 1 : wl.length;
-          }
-          return {
-            id: a.id,
-            date: a.date,
-            start_time: a.start_time,
-            end_time: a.end_time,
-            duration_min: a.duration_min ?? svc?.default_duration_min ?? 30,
-            service_name: svc?.name || 'Appointment',
-            clinician_id: a.staff_id || null,
-            clinician_name: staff?.name,
-            is_preferred_clinician: isPreferred,
-            location: a.location,
-            capacity,
-            spots_left: Math.max(0, capacity - booked),
-            full,
-            public_notes: a.public_notes,
-            my_status: myBooking?.status || null,
-            my_booking_id: myBooking?.id || null,
-            waitlist_position,
-          };
-        })
-        // Prefer patient's regular clinician first, then soonest
-        .sort((a, b) => {
-          if (a.is_preferred_clinician !== b.is_preferred_clinician) {
-            return a.is_preferred_clinician ? -1 : 1;
-          }
-          return a.date === b.date
-            ? a.start_time.localeCompare(b.start_time)
-            : a.date.localeCompare(b.date);
-        })
+    ? toPortalOpenSlots(store, {
+        patientId: patient.id,
+        preferredClinicianId: patient.staff_id,
+        from: start,
+        to: end,
+      })
     : [];
 
   const my_bookings = shareSchedule

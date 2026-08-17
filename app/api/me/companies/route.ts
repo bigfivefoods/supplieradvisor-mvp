@@ -6,6 +6,10 @@ import {
   homePathForEntity,
   resolveEntityKind,
 } from '@/lib/entities/entity-kinds';
+import { advisorLandingPath } from '@/lib/brand/advisor-skins';
+import { extractEnabledModulesFromMetadata } from '@/lib/business/company-modules';
+import { extractSidebarModuleOrder } from '@/lib/business/member-modules';
+import { readPackagingFromMetadata } from '@/lib/product/architecture';
 import {
   ensurePlatformCompany,
   isPlatformCompanyProfile,
@@ -145,7 +149,9 @@ export async function POST(request: NextRequest) {
     // 1) Memberships by user_id variants
     const { data: byUser, error: byUserError } = await supabase
       .from('business_users')
-      .select('id, role, profile_id, status, user_id, email, invited_email, name')
+      .select(
+        'id, role, profile_id, status, user_id, email, invited_email, name, permissions'
+      )
       .in('user_id', variants)
       .eq('status', 'active');
 
@@ -168,7 +174,7 @@ export async function POST(request: NextRequest) {
         const { data: byEmailRows, error: emailError } = await supabase
           .from('business_users')
           .select(
-            'id, role, profile_id, status, user_id, email, invited_email, name'
+            'id, role, profile_id, status, user_id, email, invited_email, name, permissions'
           )
           .eq('status', 'active')
           .or(`email.eq.${em},invited_email.eq.${em}`)
@@ -183,7 +189,7 @@ export async function POST(request: NextRequest) {
         const { data: allActive } = await supabase
           .from('business_users')
           .select(
-            'id, role, profile_id, status, user_id, email, invited_email, name'
+            'id, role, profile_id, status, user_id, email, invited_email, name, permissions'
           )
           .eq('status', 'active')
           .limit(3000);
@@ -224,7 +230,7 @@ export async function POST(request: NextRequest) {
       const { data: platMem } = await supabase
         .from('business_users')
         .select(
-          'id, role, profile_id, status, user_id, email, invited_email, name'
+          'id, role, profile_id, status, user_id, email, invited_email, name, permissions'
         )
         .eq('profile_id', platformBootstrap.companyId)
         .eq('status', 'active')
@@ -260,7 +266,7 @@ export async function POST(request: NextRequest) {
     let profilesQuery = supabase
       .from('profiles')
       .select(
-        'id, trading_name, legal_name, supplier_status, verification_status, deleted_at, business_type, org_type'
+        'id, trading_name, legal_name, supplier_status, verification_status, deleted_at, business_type, org_type, metadata'
       )
       .in('id', profileIds);
 
@@ -271,7 +277,7 @@ export async function POST(request: NextRequest) {
       const retry = await supabase
         .from('profiles')
         .select(
-          'id, trading_name, legal_name, supplier_status, verification_status, business_type, org_type'
+          'id, trading_name, legal_name, supplier_status, verification_status, business_type, org_type, metadata'
         )
         .in('id', profileIds);
       profiles = retry.data as typeof profiles;
@@ -311,12 +317,25 @@ export async function POST(request: NextRequest) {
           verification_status?: string | null;
           business_type?: string | null;
           org_type?: string | null;
+          metadata?: Record<string, unknown> | null;
         };
         const ent = resolveEntityKind(p.org_type || p.business_type);
         const isPlatform =
           String(p.org_type || '').toLowerCase() === 'platform' ||
           String(p.business_type || '').toLowerCase() === 'platform' ||
           /^supplier\s*advisor$/i.test(String(p.trading_name || '').trim());
+        const meta =
+          p.metadata && typeof p.metadata === 'object' ? p.metadata : {};
+        const enabledModules = extractEnabledModulesFromMetadata(meta);
+        const packIds = readPackagingFromMetadata(meta)?.packIds || [];
+        const sidebarOrder = extractSidebarModuleOrder(
+          (bu as { permissions?: unknown } | undefined)?.permissions
+        );
+        const advisorHome = advisorLandingPath({
+          enabledModules,
+          packIds,
+          sidebarOrder,
+        });
         return {
           id: String(p.id),
           trading_name: p.trading_name,
@@ -329,7 +348,7 @@ export async function POST(request: NextRequest) {
           entity_badge: isPlatform ? 'Platform' : ent.shortLabel,
           home_path: isPlatform
             ? '/dashboard/platform'
-            : homePathForEntity(p.business_type, p.org_type),
+            : advisorHome || homePathForEntity(p.business_type, p.org_type),
           role: bu?.role || 'member',
         };
       });

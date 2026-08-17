@@ -38,6 +38,7 @@ import {
   DeskUseMyWalletButton,
   DeskWalletInviteToggle,
 } from '@/components/b2c/DeskWalletPatientFields';
+import { AdvisorMemberJoinInbox } from '@/components/advisors/AdvisorMemberJoinInbox';
 
 type PatientForm = {
   id?: string;
@@ -246,6 +247,11 @@ export default function PatientsPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
+          <AdvisorMemberJoinInbox
+            companyId={companyId}
+            module="psychiatrygraph"
+            patientsHref="/dashboard/psychiatrygraph/patients"
+          />
           <AdvisorMemberAppInvite
             kind="psychiatry"
             companyId={companyId}

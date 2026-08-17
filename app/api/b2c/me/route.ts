@@ -99,17 +99,14 @@ export async function GET(request: NextRequest) {
     // Companies you operate stay in Switch to business. Keep a wallet card
     // only when you are also a gym / clinic / hire customer there.
     const ownedSet = new Set(ownedIds);
-    const hadOwnerShopCard = (profile.memberships || []).some(
-      (m) =>
-        m.active !== false &&
-        ownedSet.has(m.company_id) &&
-        !isWalletVisibleMembership(m, ownedSet)
+    const hadHiddenCard = (profile.memberships || []).some(
+      (m) => m.active !== false && !isWalletVisibleMembership(m, ownedSet)
     );
-    if (hadOwnerShopCard) {
+    if (hadHiddenCard) {
       profile = {
         ...profile,
         memberships: (profile.memberships || []).map((m) =>
-          ownedSet.has(m.company_id) && !isWalletVisibleMembership(m, ownedSet)
+          !isWalletVisibleMembership(m, ownedSet)
             ? { ...m, active: false }
             : m
         ),
@@ -172,6 +169,7 @@ export async function GET(request: NextRequest) {
         city: profile.city || null,
         id_number: profile.id_number || null,
         family: portalFamilyView(profile.family),
+        passport: verification.passport,
       },
       verification,
       journeys,
@@ -323,6 +321,15 @@ export async function POST(request: NextRequest) {
     }
     if (body.photo_url != null) {
       profile.photo_url = String(body.photo_url).trim() || null;
+    }
+    if (body.passport != null && typeof body.passport === 'object') {
+      const { parseMemberPassport } = await import('@/lib/b2c/member-passport');
+      const nextPass = parseMemberPassport(body.passport);
+      profile.metadata = {
+        ...(profile.metadata || {}),
+        passport: nextPass,
+      };
+      if (nextPass.city && !profile.city) profile.city = nextPass.city;
     }
     await saveB2cProfile(profile);
     try {

@@ -15,6 +15,7 @@ export type B2cMarketItem = {
   city?: string | null;
   brand?: string | null;
   company_id?: number;
+  kind?: string;
   verified?: boolean;
   badge: string;
 };

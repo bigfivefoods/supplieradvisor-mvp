@@ -30,6 +30,19 @@ type Site = {
     rate_zar: number;
     rate_unit: string;
     location?: string;
+    includes?: string;
+    excludes?: string;
+    specs?: string;
+    fulfillment_label?: string;
+    deposit_zar?: number | null;
+    collect_hours?: string;
+    delivery_fee_zar?: number | null;
+    min_units?: number | null;
+    cancellation_note?: string;
+    condition_notes?: string;
+    operator_included?: boolean;
+    fuel_or_power?: string;
+    age_or_weight_limit?: string;
   }>;
 };
 
@@ -104,6 +117,82 @@ export default function HirePublicEmbedPage() {
               </div>
               {item.description ? (
                 <p className="mt-1 text-sm text-slate-600">{item.description}</p>
+              ) : null}
+              <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-slate-600">
+                {item.fulfillment_label ? (
+                  <>
+                    <dt>Get it</dt>
+                    <dd className="text-right font-bold">{item.fulfillment_label}</dd>
+                  </>
+                ) : null}
+                {item.deposit_zar != null ? (
+                  <>
+                    <dt>Deposit</dt>
+                    <dd className="text-right font-bold">
+                      {formatZar(item.deposit_zar)} refundable
+                    </dd>
+                  </>
+                ) : null}
+                {item.collect_hours ? (
+                  <>
+                    <dt>Hours</dt>
+                    <dd className="text-right font-bold">{item.collect_hours}</dd>
+                  </>
+                ) : null}
+                {item.delivery_fee_zar != null ? (
+                  <>
+                    <dt>Delivery</dt>
+                    <dd className="text-right font-bold">
+                      {formatZar(item.delivery_fee_zar)}
+                    </dd>
+                  </>
+                ) : null}
+              </dl>
+              {item.includes ? (
+                <p className="mt-1 text-[12px] text-slate-600">
+                  <span className="font-bold">Included: </span>
+                  {item.includes}
+                </p>
+              ) : null}
+              {item.excludes ? (
+                <p className="mt-1 text-[12px] text-slate-600">
+                  <span className="font-bold">Not included: </span>
+                  {item.excludes}
+                </p>
+              ) : null}
+              {item.specs ? (
+                <p className="mt-1 text-[12px] text-slate-600">
+                  <span className="font-bold">Specs: </span>
+                  {item.specs}
+                </p>
+              ) : null}
+              {item.condition_notes ? (
+                <p className="mt-1 text-[12px] text-slate-600">
+                  <span className="font-bold">Condition: </span>
+                  {item.condition_notes}
+                </p>
+              ) : null}
+              {item.operator_included ? (
+                <p className="mt-1 text-[12px] text-slate-600">
+                  Operator included
+                </p>
+              ) : null}
+              {item.fuel_or_power ? (
+                <p className="mt-1 text-[12px] text-slate-600">
+                  <span className="font-bold">Power / fuel: </span>
+                  {item.fuel_or_power}
+                </p>
+              ) : null}
+              {item.age_or_weight_limit ? (
+                <p className="mt-1 text-[12px] text-slate-600">
+                  <span className="font-bold">Age / weight: </span>
+                  {item.age_or_weight_limit}
+                </p>
+              ) : null}
+              {item.cancellation_note ? (
+                <p className="mt-1 text-[12px] text-slate-500">
+                  Cancel: {item.cancellation_note}
+                </p>
               ) : null}
             </li>
           ))}

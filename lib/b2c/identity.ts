@@ -8,6 +8,10 @@ import {
   type PersonIdentityVerification,
 } from '@/lib/identity/person-verification';
 import type { B2cProfile } from '@/lib/b2c/types';
+import {
+  passportCompleteness,
+  passportFromProfileMeta,
+} from '@/lib/b2c/member-passport';
 
 export function identityFromProfile(
   profile: B2cProfile
@@ -45,11 +49,20 @@ export function profileCompleteness(profile: B2cProfile): {
 } {
   const identity = identityFromProfile(profile);
   const verified = identity.status === 'verified';
+  const passport = passportFromProfileMeta(profile.metadata, {
+    city: profile.city,
+  });
+  const extra = passportCompleteness(passport);
   const checks: Array<{ ok: boolean; label: string }> = [
     { ok: Boolean(profile.full_name?.trim()), label: 'Name' },
     { ok: Boolean(profile.email?.trim()), label: 'Email' },
     { ok: Boolean(profile.phone?.trim()), label: 'Phone' },
     { ok: verified, label: 'Verified ID' },
+    { ok: Boolean(profile.city?.trim() || passport.city), label: 'City' },
+    {
+      ok: extra.missing.every((m) => m !== 'Emergency contact'),
+      label: 'Emergency contact',
+    },
   ];
   const missing = checks.filter((c) => !c.ok).map((c) => c.label);
   return {
@@ -66,6 +79,9 @@ export function verificationView(profile: B2cProfile) {
     id_number: profile.id_number || identityFromProfile(profile).id_number || null,
     city: profile.city || null,
     completeness: profileCompleteness(profile),
+    passport: passportFromProfileMeta(profile.metadata, {
+      city: profile.city,
+    }),
   };
 }
 
