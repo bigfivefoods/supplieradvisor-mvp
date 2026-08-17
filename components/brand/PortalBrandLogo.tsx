@@ -1,8 +1,7 @@
 'use client';
 
-import Image from 'next/image';
 import { useState } from 'react';
-import { SA_LOGO_SRC } from '@/lib/brand/assets';
+import { SaMonogram } from '@/components/brand/SaMonogram';
 
 /**
  * Portal mark: company logo when set, otherwise the SupplierAdvisor logo.
@@ -12,7 +11,6 @@ export function PortalBrandLogo({
   name,
   className = 'h-8 w-auto max-w-[8rem] object-contain',
   fallbackClassName,
-  priority,
 }: {
   logoUrl?: string | null;
   name?: string | null;
@@ -36,13 +34,9 @@ export function PortalBrandLogo({
   }
 
   return (
-    <Image
-      src={SA_LOGO_SRC}
-      alt={name || 'SupplierAdvisor'}
-      width={64}
-      height={28}
+    <SaMonogram
+      title={name || 'SupplierAdvisor'}
       className={fallbackClassName || className}
-      priority={priority}
     />
   );
 }

@@ -360,7 +360,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     return (
       <div className="flex h-full flex-col bg-white">
         <div className="flex flex-col items-center p-3">
-          <Link href={skin.homeHref || homePath || '/dashboard'} title={companyName || skin.name} className="block">
+          <Link href={skin.homeHref || homePath || '/dashboard'} title={companyName || skin.name} className="sa-brand-lockup block">
             <PortalBrandLogo
               logoUrl={logoUrl}
               name={companyName || skin.registered}
@@ -411,7 +411,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
         {!forceExpanded && (
           <Link
             href={skin.homeHref || homePath || '/dashboard'}
-            className="flex min-w-0 items-center gap-2.5"
+            className="sa-brand-lockup flex min-w-0 items-center gap-2.5"
           >
             <PortalBrandLogo
               logoUrl={logoUrl}

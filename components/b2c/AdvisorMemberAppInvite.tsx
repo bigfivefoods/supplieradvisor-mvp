@@ -83,19 +83,19 @@ export function AdvisorMemberAppInvite({
   };
 
   return (
-    <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-5 dark:border-sky-800 dark:from-sky-950/40 dark:to-neutral-950">
-      <div className="flex flex-wrap items-start gap-6">
-        <div className="shrink-0 rounded-2xl border border-sky-100 bg-white p-3 shadow-sm dark:border-sky-900">
+    <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-4 sm:p-5 dark:border-sky-800 dark:from-sky-950/40 dark:to-neutral-950">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
+        <div className="mx-auto shrink-0 rounded-2xl border border-sky-100 bg-white p-2.5 shadow-sm dark:border-sky-900 sm:mx-0 sm:p-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={qrSrc}
             alt="SA Member app QR"
             width={200}
             height={200}
-            className="h-[200px] w-[200px]"
+            className="h-40 w-40 sm:h-[200px] sm:w-[200px]"
           />
         </div>
-        <div className="min-w-0 flex-1 space-y-2">
+        <div className="min-w-0 w-full space-y-2 sm:flex-1">
           <p className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-[#0077b6]">
             <Smartphone className="h-3.5 w-3.5" /> SA Member · {KIND_LABEL[kind] || kind}
           </p>

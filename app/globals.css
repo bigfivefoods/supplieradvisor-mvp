@@ -55,17 +55,7 @@
 }
 
 /* Advisor product skins (HireAdvisor, GymAdvisor, …) set --sa-brand via JS.
-   html[data-advisor] lets us tune chrome without rewriting every component.
-   ® inherits the same Advisor colour as the wordmark (not SA cyan). */
-html[data-advisor]:not([data-advisor='supplier']) .sa-wordmark {
-  color: var(--sa-brand-deep);
-}
-html.dark[data-advisor]:not([data-advisor='supplier']) .sa-wordmark {
-  color: var(--sa-brand);
-}
-html[data-advisor]:not([data-advisor='supplier']) .sa-wordmark .sa-wordmark-mark {
-  color: inherit;
-}
+   Letters stay black in light and dark. Tick in the SA mark and ® use brand. */
 
 html.dark {
   color-scheme: dark;
@@ -1234,9 +1224,24 @@ html.dark img[src*='sa-icon'] {
 }
 
 /*
- * Wordmark matches SA monogram navy from the logo (#203878).
- * ® is SA cyan on Core OS; Advisor skins inherit the wordmark colour above.
+ * Wordmark + monogram letters match SA navy (#203878).
+ * Tick and ® are SA cyan on Core OS; Advisor skins override above.
  */
+.sa-monogram {
+  color: #203878;
+  display: block;
+  flex-shrink: 0;
+  overflow: visible;
+}
+.sa-monogram-tick {
+  fill: #00b4d8;
+}
+html.dark .sa-monogram {
+  color: #ffffff;
+}
+html.dark .sa-monogram-tick {
+  fill: #00b4d8;
+}
 .sa-wordmark {
   color: #203878;
   white-space: nowrap;
@@ -1246,6 +1251,26 @@ html.dark .sa-wordmark {
 }
 .sa-wordmark .sa-wordmark-mark {
   color: #00b4d8;
+}
+
+html[data-advisor]:not([data-advisor='supplier']) .sa-wordmark,
+html[data-advisor]:not([data-advisor='supplier']) .sa-monogram,
+html.dark[data-advisor]:not([data-advisor='supplier']) .sa-wordmark,
+html.dark[data-advisor]:not([data-advisor='supplier']) .sa-monogram {
+  color: #111827;
+}
+html[data-advisor]:not([data-advisor='supplier']) .sa-wordmark .sa-wordmark-mark,
+html.dark[data-advisor]:not([data-advisor='supplier']) .sa-wordmark .sa-wordmark-mark {
+  color: var(--sa-brand);
+}
+html[data-advisor]:not([data-advisor='supplier']) .sa-monogram-tick,
+html.dark[data-advisor]:not([data-advisor='supplier']) .sa-monogram-tick {
+  fill: var(--sa-brand);
+}
+html.dark[data-advisor]:not([data-advisor='supplier']) .sa-brand-lockup {
+  background: #ffffff;
+  border-radius: 0.75rem;
+  padding: 0.2rem 0.45rem;
 }
 
 /* Sonner / toast dark polish */

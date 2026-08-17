@@ -124,7 +124,7 @@ function AppShellInner({
               <Link
                 href={skin.homeHref}
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="flex items-center gap-2.5 min-w-0"
+                className="sa-brand-lockup flex items-center gap-2.5 min-w-0"
                 aria-label={`${skin.name} home`}
               >
                 <PortalBrandLogo

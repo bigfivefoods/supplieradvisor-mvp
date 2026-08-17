@@ -123,7 +123,7 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
 
           <Link
             href={skin.homeHref}
-            className="md:hidden flex items-center gap-1.5 sm:gap-2 shrink-0"
+            className="sa-brand-lockup md:hidden flex items-center gap-1.5 sm:gap-2 shrink-0"
             aria-label={`${skin.name} home`}
           >
             <PortalBrandLogo
