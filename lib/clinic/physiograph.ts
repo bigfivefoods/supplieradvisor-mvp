@@ -15,6 +15,7 @@ import {
 } from '@/lib/clinic/medical-share';
 import { publishedAnnouncements } from '@/lib/services/member-announcements';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
+import { ensureSystemPersonalService } from '@/lib/clinic/appointment-kind';
 
 export const PHYSIOGRAPH_MODULE_ID = 'physiograph' as const;
 export const PHYSIOGRAPH_META_KEY = 'physiograph';
@@ -129,7 +130,7 @@ export type PhysioPractitioner = {
   /** Can manage own diary slots */
   can_manage?: boolean;
   created_at: string;
-};
+} & import('@/lib/services/advisor-workforce').AdvisorPersonInviteFields;
 
 export function formatPractitionerRate(
   rateZar?: number | null,
@@ -375,6 +376,8 @@ export type PhysioAppointment = {
   public?: boolean;
   notes?: string;
   public_notes?: string;
+  appointment_kind?: import('@/lib/clinic/appointment-kind').ClinicAppointmentKind;
+  personal_reason?: import('@/lib/clinic/appointment-kind').ClinicPersonalReason | null;
   /** Links occurrences created as a repeating series */
   series_id?: string | null;
   created_at: string;
@@ -431,6 +434,14 @@ export type PhysioPublicSettings = {
     blurb?: string;
     specialties?: string[];
   };
+  has_front_desk?: boolean;
+  desk_name?: string;
+  desk_email?: string | null;
+  desk_invite_status?: string | null;
+  desk_invite_sent_at?: string | null;
+  desk_invite_accepted_at?: string | null;
+  desk_team_member_id?: number | null;
+  desk_last_invited_email?: string | null;
 };
 
 export type PhysiographStore = {
@@ -509,6 +520,7 @@ export function readPhysiographFromMetadata(
   if (!e.settings.public_token) {
     e.settings.public_token = defaultPublicSettings().public_token;
   }
+  e.services = ensureSystemPersonalService(e.services);
   e.updated_at = s.updated_at ? String(s.updated_at) : undefined;
   return e;
 }

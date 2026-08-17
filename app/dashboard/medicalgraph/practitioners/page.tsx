@@ -23,6 +23,7 @@ import {
 } from '@/lib/clinic/medicalgraph';
 import { FitContractDocsPanel } from '@/components/fitness/FitContractDocs';
 import { PersonQualificationsEditor } from '@/components/services/PersonQualificationsEditor';
+import { AdvisorPersonInviteRow } from '@/components/advisors/AdvisorPersonInviteRow';
 import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
 import type { PersonQualification } from '@/lib/services/person-qualifications';
 import {
@@ -128,7 +129,7 @@ function toggleInList(list: string[], s: string): string[] {
 }
 
 export default function PractitionersPage() {
-  const { companyId, store, loading, saving, post, summary } = useMedicalgraph();
+  const { companyId, store, loading, saving, post, summary, load } = useMedicalgraph();
   const [form, setForm] = useState(emptyForm);
   const [dateDrafts, setDateDrafts] = useState<Record<string, DateDraft>>({});
   const [profileDrafts, setProfileDrafts] = useState<
@@ -900,6 +901,14 @@ export default function PractitionersPage() {
                         <Link2 className="w-3.5 h-3.5" />
                         {p.portal_token ? 'Re-issue portal' : 'Issue portal'}
                       </button>
+                      <AdvisorPersonInviteRow
+                        module="medicalgraph"
+                        personId={p.id}
+                        email={p.email}
+                        engagement={p.engagement}
+                        inviteStatus={p.work_invite_status}
+                        onChanged={() => void load()}
+                      />
                       <button
                         type="button"
                         className="text-rose-600 dark:text-rose-400 text-xs font-bold"

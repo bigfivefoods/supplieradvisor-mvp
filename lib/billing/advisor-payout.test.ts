@@ -104,13 +104,14 @@ const saasBody = buildPaystackInitializeBody({
 assert.equal(saasBody.subaccount, undefined);
 assert.equal(saasBody.bearer, undefined);
 assert.deepEqual(saasBody.channels, [
+  'apple_pay',
   'card',
   'bank',
   'ussd',
   'qr',
   'mobile_money',
   'bank_transfer',
-  'apple_pay',
+  'eft',
 ]);
 
 const memberBody = buildPaystackInitializeBody({

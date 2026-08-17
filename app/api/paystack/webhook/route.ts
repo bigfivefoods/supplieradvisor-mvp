@@ -403,6 +403,55 @@ export async function POST(request: NextRequest) {
       }
 
       try {
+        const { isGymSalePaystack, applyGymSalePaystack } = await import(
+          '@/lib/b2c/gym-sale-apply-paystack'
+        );
+        if (isGymSalePaystack(data) || String(reference).startsWith('gym-sale-')) {
+          const { verifyPaystackTransaction } = await import(
+            '@/lib/billing/paystack'
+          );
+          const v = await verifyPaystackTransaction(reference, {
+            expectedCurrency: 'ZAR',
+          });
+          if (!v.ok && process.env.NODE_ENV === 'production') {
+            void recordPaystackWebhookPulse({
+              event: eventName,
+              reference,
+              handled: 'gym_sale_verify_failed',
+              summary: v.error,
+            });
+            return NextResponse.json({
+              received: true,
+              handled: 'gym_sale_verify_failed',
+              reason: v.error,
+              reference,
+            });
+          }
+          const applied = await applyGymSalePaystack({
+            data,
+            reference,
+          });
+          void recordPaystackWebhookPulse({
+            event: eventName,
+            reference,
+            companyId: applied.ok ? applied.companyId : undefined,
+            handled: applied.ok ? 'gym_sale_paid' : 'gym_sale_failed',
+            summary: applied.ok
+              ? `Gym sale ${applied.saleId}`
+              : applied.error,
+          });
+          return NextResponse.json({
+            received: true,
+            handled: applied.ok ? 'gym_sale_paid' : 'gym_sale_failed',
+            reference,
+            ...applied,
+          });
+        }
+      } catch (e) {
+        console.warn('[paystack webhook] gym-sale soft-fail', e);
+      }
+
+      try {
         const { isMemberAccountPaystack } = await import(
           '@/lib/b2c/member-account-pay'
         );

@@ -9,12 +9,18 @@ import {
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
   ensureRetailPublicToken,
+  issueRetailPublicToken,
   newRetailId,
   readRetailgraphFromMetadata,
   summariseRetailgraph,
   writeRetailgraphToMetadata,
+  type RetailPublicSettings,
   type RetailSku,
 } from '@/lib/retail/retailgraph';
+import {
+  applyAnnouncementAction,
+  isAnnouncementAction,
+} from '@/lib/services/member-announcements';
 import { expireSession, readTillSessions } from '@/lib/till/sessions';
 
 export const runtime = 'nodejs';
@@ -31,7 +37,10 @@ async function load(companyId: number) {
     prof?.metadata && typeof prof.metadata === 'object'
       ? { ...(prof.metadata as Record<string, unknown>) }
       : {};
-  const store = ensureRetailPublicToken(readRetailgraphFromMetadata(meta));
+  const store = ensureRetailPublicToken(
+    readRetailgraphFromMetadata(meta),
+    companyId
+  );
   return {
     supabase,
     meta,
@@ -83,6 +92,7 @@ export async function POST(request: NextRequest) {
     if (!gate.ok) return gate.response;
     const { supabase, meta, store } = await load(companyId);
     const action = String(body.action || '');
+    let message = 'Saved';
 
     if (action === 'upsert_sku') {
       const name = String(body.name || '').trim();
@@ -139,6 +149,31 @@ export async function POST(request: NextRequest) {
         till_token: body.till_token ? String(body.till_token) : null,
       });
       store.sales = store.sales.slice(0, 200);
+    } else if (action === 'update_settings') {
+      const patch =
+        body.settings && typeof body.settings === 'object'
+          ? (body.settings as RetailPublicSettings)
+          : {};
+      store.settings = {
+        ...store.settings,
+        ...patch,
+      };
+      const next = ensureRetailPublicToken(store, companyId);
+      if (body.rotate_token === true) {
+        next.settings.public_token = issueRetailPublicToken(companyId);
+      }
+      Object.assign(store, next);
+    } else if (isAnnouncementAction(action)) {
+      try {
+        const result = applyAnnouncementAction(store.announcements, action, body);
+        store.announcements = result.list;
+        message = result.message;
+      } catch (e: unknown) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : 'Announcement failed' },
+          { status: 400 }
+        );
+      }
     } else {
       return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
     }
@@ -152,6 +187,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       store,
+      message,
       summary: summariseRetailgraph(store, readTillSessions(nextMeta)),
     });
   } catch (e: unknown) {

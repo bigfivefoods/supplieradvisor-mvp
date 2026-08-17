@@ -18,6 +18,10 @@ export default function MembershipsPage() {
     billing: 'monthly',
     class_credits: '',
     pt_credits: '',
+    description: '',
+    public: true,
+    access: 'classes',
+    programme_id: '',
   });
   const [pt, setPt] = useState({
     client_id: '',
@@ -39,6 +43,10 @@ export default function MembershipsPage() {
         price_zar: Number(form.price_zar) || 0,
         class_credits: form.class_credits ? Number(form.class_credits) : null,
         pt_credits: form.pt_credits ? Number(form.pt_credits) : null,
+        description: form.description.trim() || undefined,
+        public: form.public,
+        access: form.access,
+        programme_id: form.programme_id || null,
       },
     });
     toast.success('Plan saved');
@@ -67,7 +75,7 @@ export default function MembershipsPage() {
     <FitgraphWorkbench
       title="Membership plans"
       titleAccent="& PT packs"
-      description="Sellable memberships (monthly, packs) shown on your website pricing. Assign plans to members via Subscriptions; issue PT session packs here."
+      description="Sellable memberships shown on your website. Members must pay first (Paystack / Apple Pay) before they can book classes. Assign desk-issued plans on Subscriptions."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -109,6 +117,51 @@ export default function MembershipsPage() {
             </select>
             <input className={fc()} type="number" placeholder="Class credits (blank = unlimited)" value={form.class_credits} onChange={(e) => setForm((f) => ({ ...f, class_credits: e.target.value }))} />
             <input className={fc()} type="number" placeholder="PT credits" value={form.pt_credits} onChange={(e) => setForm((f) => ({ ...f, pt_credits: e.target.value }))} />
+            <textarea
+              className={fc() + ' min-h-[3rem] resize-y sm:col-span-2'}
+              placeholder="What this membership includes (shown on the public shop)"
+              value={form.description}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, description: e.target.value }))
+              }
+            />
+            <select
+              className={fc()}
+              value={form.access}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, access: e.target.value }))
+              }
+            >
+              <option value="classes">Unlocks classes</option>
+              <option value="programme">Unlocks a programme</option>
+              <option value="both">Classes + programme</option>
+            </select>
+            <select
+              className={fc()}
+              value={form.programme_id}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, programme_id: e.target.value }))
+              }
+            >
+              <option value="">Include programme (optional)…</option>
+              {(store.programmes || [])
+                .filter((p) => p.active !== false && p.personal_for_coach !== true)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+            </select>
+            <label className="flex items-center gap-2 text-sm font-medium col-span-full">
+              <input
+                type="checkbox"
+                checked={form.public}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, public: e.target.checked }))
+                }
+              />
+              Sell on website (public priced plans require Paystack / Apple Pay first)
+            </label>
           </FormCard>
           <DataTable tone="owner"
             headers={['Code', 'Name', 'Price', 'Billing', 'Class cr.', 'PT cr.', 'Web']}

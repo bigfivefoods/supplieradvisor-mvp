@@ -26,6 +26,8 @@ export type AppointmentSeriesTemplate = {
   notes?: string;
   public_notes?: string;
   status?: string;
+  appointment_kind?: string;
+  personal_reason?: string | null;
 };
 
 export type SeriesConflict = {
@@ -56,6 +58,8 @@ export function planAppointmentSeries(opts: {
       public?: boolean;
       notes?: string;
       public_notes?: string;
+      appointment_kind?: string;
+      personal_reason?: string | null;
       series_id?: string | null;
       created_at: string;
       staff_id?: string | null;
@@ -104,6 +108,8 @@ export function planAppointmentSeries(opts: {
       public: opts.template.public === true,
       notes: opts.template.notes,
       public_notes: opts.template.public_notes,
+      appointment_kind: opts.template.appointment_kind,
+      personal_reason: opts.template.personal_reason ?? null,
       series_id: seriesId,
       created_at: opts.nowIso,
       staff_id:

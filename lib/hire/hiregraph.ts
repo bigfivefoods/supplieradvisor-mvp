@@ -16,6 +16,11 @@ import {
   HIRE_SUPPLIER_COMMISSION_PCT,
 } from '@/lib/hire/commercial';
 import { applyDateUnits, busyDatesForItem } from '@/lib/hire/availability';
+import {
+  normalizeAnnouncements,
+  publishedAnnouncements,
+} from '@/lib/services/member-announcements';
+import type { MemberAnnouncement } from '@/lib/services/member-announcements';
 
 export const HIREGRAPH_MODULE_ID = 'hiregraph' as const;
 export const HIREGRAPH_META_KEY = 'hiregraph';
@@ -493,10 +498,23 @@ export type HirePublicSettings = {
   contact_email?: string;
   contact_phone?: string;
   city?: string;
+  website_url?: string;
+  /** Publish the public catalogue embed */
+  enabled?: boolean;
+  /** Company-wide website token (not a customer portal token) */
+  public_token?: string;
   /** Allow customers to request hire from portal (default true) */
   allow_portal_booking?: boolean;
   primary_color?: string;
   timezone?: string;
+  has_front_desk?: boolean;
+  desk_name?: string;
+  desk_email?: string | null;
+  desk_invite_status?: string | null;
+  desk_invite_sent_at?: string | null;
+  desk_invite_accepted_at?: string | null;
+  desk_team_member_id?: number | null;
+  desk_last_invited_email?: string | null;
 };
 
 export type HiregraphStore = {
@@ -513,6 +531,7 @@ export type HiregraphStore = {
    */
   customer_portals: Record<string, HireCustomerPortal>;
   settings?: HirePublicSettings;
+  announcements?: MemberAnnouncement[];
   items: HireItem[];
   bookings: HireBooking[];
   handovers: HireHandover[];
@@ -525,6 +544,7 @@ export function emptyHiregraphStore(): HiregraphStore {
     customer_kyc: {},
     customer_portals: {},
     settings: defaultHirePublicSettings(),
+    announcements: [],
     items: [],
     bookings: [],
     handovers: [],
@@ -578,6 +598,7 @@ export function readHiregraphFromMetadata(
     customer_kyc,
     customer_portals,
     settings,
+    announcements: normalizeAnnouncements(s.announcements),
     items: Array.isArray(s.items) ? (s.items as HireItem[]) : [],
     bookings: Array.isArray(s.bookings) ? (s.bookings as HireBooking[]) : [],
     handovers: Array.isArray(s.handovers) ? (s.handovers as HireHandover[]) : [],
@@ -586,6 +607,8 @@ export function readHiregraphFromMetadata(
 
 /** Root metadata index: portal_token → CRM customer id (fast public resolve) */
 export const HIREGRAPH_CUSTOMER_TOKENS_KEY = 'hiregraph_customer_tokens';
+/** Root metadata index for the public catalogue embed */
+export const HIREGRAPH_PUBLIC_TOKEN_KEY = 'hiregraph_public_token';
 
 export function writeHiregraphToMetadata(
   meta: Record<string, unknown>,
@@ -606,6 +629,7 @@ export function writeHiregraphToMetadata(
       customer_kyc: store.customer_kyc || {},
       customer_portals: store.customer_portals || {},
       settings: store.settings || defaultHirePublicSettings(),
+      announcements: normalizeAnnouncements(store.announcements),
       items: store.items,
       bookings: store.bookings,
       handovers: store.handovers,
@@ -615,7 +639,42 @@ export function writeHiregraphToMetadata(
       },
     },
     [HIREGRAPH_CUSTOMER_TOKENS_KEY]: customerTokens,
+    [HIREGRAPH_PUBLIC_TOKEN_KEY]: store.settings?.public_token || null,
   };
+}
+
+export function issueHirePublicToken(companyId: number): string {
+  return `hire_pub_${companyId}_${Date.now().toString(36)}_${Math.random()
+    .toString(36)
+    .slice(2, 10)}`;
+}
+
+export function parseCompanyIdFromHirePublicToken(
+  token: string
+): number | null {
+  const m = /^hire_pub_(\d+)_/.exec(String(token || '').trim());
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+export function ensureHirePublicToken(
+  store: HiregraphStore,
+  companyId: number
+): HiregraphStore {
+  if (store.settings?.public_token) return store;
+  return {
+    ...store,
+    settings: {
+      ...defaultHirePublicSettings(),
+      ...(store.settings || {}),
+      public_token: issueHirePublicToken(companyId),
+    },
+  };
+}
+
+export function hirePublicEmbedPath(token: string): string {
+  return `/embed/hire/${encodeURIComponent(token)}`;
 }
 
 /** Issue B2C portal token (embeds company id for fast resolve). */
@@ -952,6 +1011,7 @@ export function buildHireCustomerPortalPayload(
         met: kycSet.has(r),
       })),
     },
+    announcements: publishedAnnouncements(store.announcements),
     categories,
     catalogue,
     catalogue_count: catalogue.length,
@@ -1253,9 +1313,58 @@ export function summariseHiregraph(
     customerPortalCount: Object.values(store.customer_portals || {}).filter(
       (p) => p?.active !== false && p?.portal_token
     ).length,
+    websiteEnabled: store.settings?.enabled === true,
+    publicTokenIssued: Boolean(store.settings?.public_token),
+    liveAnnouncements: publishedAnnouncements(store.announcements).length,
     inventoryProductIds: store.items
       .map((i) => Number(i.inventory_product_id))
       .filter((n) => Number.isFinite(n) && n > 0),
+  };
+}
+
+export function buildHirePublicWebsitePayload(
+  store: HiregraphStore,
+  opts?: { companyName?: string | null }
+) {
+  const settings = {
+    ...defaultHirePublicSettings(),
+    ...(store.settings || {}),
+  };
+  const brand =
+    settings.brand_name || opts?.companyName || 'Hire marketplace';
+  const catalogue = (store.items || [])
+    .filter(
+      (i) =>
+        i.active !== false &&
+        (i.status === 'listed' || i.status === 'hired_out' || !i.status)
+    )
+    .map((item) => {
+      const cat = getHireCategory(item.category_id);
+      return {
+        id: item.id,
+        title: item.title,
+        description: item.description || '',
+        category_name: item.category_name || cat?.name || item.category_id,
+        rate_zar: Number(item.rate_zar) || 0,
+        rate_unit: item.rate_unit || cat?.unit || 'day',
+        deposit_zar: item.deposit_zar != null ? Number(item.deposit_zar) : null,
+        location: item.location || '',
+        photo_url: item.photo_url || null,
+      };
+    })
+    .sort((a, b) => a.title.localeCompare(b.title));
+  return {
+    brand,
+    bio: settings.public_bio || '',
+    contact_email: settings.contact_email || null,
+    contact_phone: settings.contact_phone || null,
+    city: settings.city || null,
+    website_url: settings.website_url || null,
+    primary_color: settings.primary_color || '#0891b2',
+    allow_booking: settings.allow_portal_booking !== false,
+    enabled: settings.enabled === true,
+    announcements: publishedAnnouncements(store.announcements),
+    catalogue,
   };
 }
 

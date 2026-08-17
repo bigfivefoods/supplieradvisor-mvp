@@ -234,8 +234,9 @@ export const TEAM_ROLE_OPTIONS: ReadonlyArray<{
   {
     value: 'operations',
     label: 'Operations',
-    description: 'Inventory, containers, production, and logistics.',
-    rights: 'Write ops · view rest',
+    description:
+      'Inventory, production, logistics, and Advisor front desk (calendar, bookings, check-in).',
+    rights: 'Write ops · Advisor desk · view rest',
   },
   {
     value: 'sales',

@@ -151,8 +151,8 @@ function resolvePeopleEmploymentType(
   if (source === 'fieldgraph_gang' || source === 'quarrygraph_crew') {
     return null;
   }
-  // Coaches / clinicians without a type → permanent full time
-  return 'full_time';
+  // Coaches / clinicians without a type default to contractors (B2C work app)
+  return null;
 }
 
 /**

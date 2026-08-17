@@ -43,12 +43,13 @@ export const ROLE_CARDS = [
     title: 'Gym owner / manager',
     subtitle: 'Brand · people · floor · marketplace',
     does: [
-      'Register coaches; permanent staff dual-write to People (HR)',
+      'Register coaches; employed staff join B2B workspace; contractors get the work app',
       'Members with invites, family, POPIA-aware desk; membership freeze',
       'Schedule with rooms/studios; concurrent coaches when floor allows',
       'Waitlist, reminders, outcomes; staff Today PWA',
       'In-app messages by system user ID; delivery status',
       'Website embed, marketplace listing, reschedule policy, ops',
+      'Sell memberships and programmes — members pay first (Paystack / Apple Pay)',
     ],
     doesNot: [
       'Does not surcharge members — 1% admin fee is taken from your card / Apple Pay settlement',
@@ -76,6 +77,7 @@ export const ROLE_CARDS = [
     title: 'Member / customer',
     subtitle: 'Portal · book · family · feedback',
     does: [
+      'Pay for a membership or programme first (Paystack / Apple Pay)',
       'Accept invite; book classes or join waitlist on portal / embed',
       'Book household family members; identity verify when asked',
       'Add class to phone calendar (.ics / Google)',
@@ -84,7 +86,7 @@ export const ROLE_CARDS = [
     ],
     doesNot: [
       'Does not see private / unpublished sessions',
-      'Does not pay gym fees through the SA platform (gym bills separately)',
+      'Does not book public classes without paying first when the gym requires a membership',
     ],
   },
 ] as const;

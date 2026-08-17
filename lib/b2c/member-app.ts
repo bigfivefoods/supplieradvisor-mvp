@@ -17,6 +17,7 @@ export type MemberAppJoinKind =
   | 'dental'
   | 'medical'
   | 'psychiatry'
+  | 'retail'
   | 'customer'
   | 'supplier';
 
@@ -79,6 +80,9 @@ export function memberAppJoinWhatsAppText(opts: {
   }
   if (opts.kind === 'hire') {
     return `${opts.brand} — get the free SA Member app and link this hire desk to your wallet.\n\nOpen: ${opts.appLink}`;
+  }
+  if (opts.kind === 'retail') {
+    return `${opts.brand} — get the free SA Member app and pay at this shop from your wallet.\n\nOpen: ${opts.appLink}`;
   }
   return `${opts.brand} — get the free SA Member app, create your profile, and link this business to your wallet.\n\nOpen: ${opts.appLink}`;
 }

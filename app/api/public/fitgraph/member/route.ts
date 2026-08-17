@@ -27,6 +27,23 @@ import {
   applyCompanyLogoToSettings,
   pickCompanyLogoUrl,
 } from '@/lib/business/company-logo';
+import { verifyPaystackTransaction } from '@/lib/billing/paystack';
+import {
+  isAdvisorPayoutReady,
+  readAdvisorPayout,
+} from '@/lib/billing/advisor-payout';
+import {
+  applyPaidGymSale,
+  clientHasPaidAccess,
+  findGymSaleByRef,
+  gymRequiresPaidMembership,
+  gymShopCatalog,
+} from '@/lib/fitness/gym-shop';
+import {
+  parseGymSaleKind,
+  startGymShopCheckout,
+} from '@/lib/fitness/gym-sale-checkout';
+import { applyGymSalePaystack } from '@/lib/b2c/gym-sale-apply-paystack';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -174,7 +191,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      portal,
+      portal: {
+        ...portal,
+        shop: gymShopCatalog(resolved.store),
+        require_paid_membership: gymRequiresPaidMembership(resolved.store),
+        paid_access: clientHasPaidAccess(resolved.store, resolved.client),
+        payout_ready: isAdvisorPayoutReady(readAdvisorPayout(resolved.meta)),
+      },
       companyId: resolved.companyId,
       platform_user_linked: Boolean(resolved.client.platform_user_id),
     });
@@ -224,6 +247,94 @@ export async function POST(request: NextRequest) {
     const ci = store.clients.findIndex((c) => c.id === client.id);
     if (ci < 0) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+    }
+
+    if (action === 'checkout' || action === 'buy') {
+      const started = await startGymShopCheckout({
+        store,
+        meta,
+        companyId,
+        token,
+        kind: parseGymSaleKind(body.kind),
+        itemId: String(body.plan_id || body.programme_id || body.item_id || ''),
+        name: String(body.name || client.name || '').trim(),
+        email: String(body.email || client.email || '').trim().toLowerCase(),
+        phone: body.phone
+          ? String(body.phone)
+          : client.phone || null,
+        sessionId: body.session_id ? String(body.session_id) : null,
+        clientId: client.id,
+        callbackPath: `/member/fitgraph/${encodeURIComponent(token)}`,
+      });
+      if (!started.ok) {
+        return NextResponse.json(
+          { error: started.error },
+          { status: started.status }
+        );
+      }
+      await saveStore(companyId, meta, started.store);
+      return NextResponse.json({
+        success: true,
+        authorization_url: started.authorizationUrl,
+        access_code: started.accessCode,
+        reference: started.reference,
+        amount_zar: started.amount_zar,
+        item: started.item,
+      });
+    }
+
+    if (action === 'verify_sale' || action === 'verify') {
+      const reference = String(body.reference || '').trim();
+      if (!reference) {
+        return NextResponse.json({ error: 'reference required' }, { status: 400 });
+      }
+      const v = await verifyPaystackTransaction(reference);
+      if (!v.ok) {
+        return NextResponse.json({ error: v.error }, { status: 400 });
+      }
+      const applied = await applyGymSalePaystack({
+        data: { reference, metadata: v.metadata || { company_id: companyId } },
+        reference,
+      });
+      if (!applied.ok) {
+        const local = findGymSaleByRef(store, reference);
+        if (local && local.status !== 'paid') {
+          const paid = applyPaidGymSale(store, local, { companyId });
+          await saveStore(companyId, meta, paid.store);
+          const nextClient =
+            paid.store.clients.find((c) => c.id === client.id) || paid.client;
+          return NextResponse.json({
+            success: true,
+            sale: paid.sale,
+            portal: {
+              ...buildMemberPortalPayload(paid.store, nextClient),
+              shop: gymShopCatalog(paid.store),
+              require_paid_membership: gymRequiresPaidMembership(paid.store),
+              paid_access: clientHasPaidAccess(paid.store, nextClient),
+            },
+            message: 'Payment recorded — membership is active',
+          });
+        }
+        return NextResponse.json({ error: applied.error }, { status: 400 });
+      }
+      const { loadWalletCompany } = await import('@/lib/b2c/load-company');
+      const freshMeta = (await loadWalletCompany(companyId))?.meta || meta;
+      const fresh = readFitgraphFromMetadata(freshMeta);
+      const nextClient =
+        fresh.clients.find((c) => c.id === client.id) ||
+        fresh.clients.find((c) => c.id === applied.clientId) ||
+        client;
+      return NextResponse.json({
+        success: true,
+        sale: findGymSaleByRef(fresh, reference),
+        portal: {
+          ...buildMemberPortalPayload(fresh, nextClient),
+          shop: gymShopCatalog(fresh),
+          require_paid_membership: gymRequiresPaidMembership(fresh),
+          paid_access: clientHasPaidAccess(fresh, nextClient),
+        },
+        message: 'Payment recorded — membership is active',
+      });
     }
 
     /**
@@ -534,6 +645,21 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { error: 'Online booking is disabled by the gym' },
           { status: 403 }
+        );
+      }
+
+      if (
+        gymRequiresPaidMembership(store) &&
+        !clientHasPaidAccess(store, store.clients[ci])
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'Buy a membership first — payment is required before class booking',
+            need_membership: true,
+            shop: gymShopCatalog(store),
+          },
+          { status: 402 }
         );
       }
 

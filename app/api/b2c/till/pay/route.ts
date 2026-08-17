@@ -198,7 +198,8 @@ export async function POST(request: NextRequest) {
 
       if (session.kind === 'sale') {
         const retail = ensureRetailPublicToken(
-          readRetailgraphFromMetadata(nextMeta)
+          readRetailgraphFromMetadata(nextMeta),
+          session.company_id
         );
         retail.sales = [
           {

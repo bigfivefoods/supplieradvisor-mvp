@@ -3,6 +3,10 @@
  * Mirrors GymAdvisor coach portal: token auth, week diary, edit/delete, attendance.
  */
 import { promoteNextWaitlist } from '@/lib/services/advisor-booking';
+import {
+  applyAppointmentKindRules,
+  ensureSystemPersonalService,
+} from '@/lib/clinic/appointment-kind';
 
 function newId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -87,12 +91,15 @@ export type ClinicianAppointment = {
   practitioner_id?: string | null;
   date: string;
   start_time: string;
+  end_time?: string | null;
   duration_min?: number | null;
   location?: string;
   status: string;
   public?: boolean;
   notes?: string;
   public_notes?: string;
+  appointment_kind?: string;
+  personal_reason?: string | null;
   series_id?: string | null;
   created_at?: string;
 };
@@ -367,21 +374,27 @@ export function createClinicianAppointment(
     service_id: string;
     date: string;
     start_time: string;
+    end_time?: string | null;
     duration_min?: number;
     location?: string;
     public?: boolean;
     notes?: string;
     public_notes?: string;
+    appointment_kind?: string;
+    personal_reason?: string | null;
     series_id?: string | null;
   },
   now = new Date().toISOString()
 ): ClinicianAppointment {
+  store.services = ensureSystemPersonalService(store.services);
   const svc = (store.services || []).find((s) => s.id === input.service_id);
-  const appt: ClinicianAppointment = {
+  const appt: ClinicianAppointment = applyAppointmentKindRules(
+    {
     id: newId('apt'),
     service_id: input.service_id,
     date: input.date.slice(0, 10),
     start_time: String(input.start_time).slice(0, 5),
+    end_time: input.end_time ?? null,
     duration_min:
       input.duration_min ??
       svc?.default_duration_min ??
@@ -392,9 +405,14 @@ export function createClinicianAppointment(
     public: input.public === true,
     notes: input.notes,
     public_notes: input.public_notes,
+    appointment_kind: input.appointment_kind,
+    personal_reason: input.personal_reason ?? null,
     series_id: input.series_id ?? null,
     created_at: now,
-  };
+  },
+    store.services,
+    input.appointment_kind
+  );
   if (module === 'dentalgraph') {
     appt.staff_id = clinicianId;
   } else {

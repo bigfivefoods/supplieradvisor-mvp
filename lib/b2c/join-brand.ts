@@ -47,6 +47,11 @@ import {
   writeHiregraphToMetadata,
 } from '@/lib/hire/hiregraph';
 import {
+  newRetailId,
+  readRetailgraphFromMetadata,
+  writeRetailgraphToMetadata,
+} from '@/lib/retail/retailgraph';
+import {
   issuePatientPortalToken as issuePhysioToken,
   newId as newPhysioId,
   readPhysiographFromMetadata,
@@ -98,6 +103,12 @@ function brandFromCompany(company: CompanyRow, hint?: string | null): string {
   if (kind === 'hire' || hasMetaModule(company.meta, 'hiregraph')) {
     return (
       readHiregraphFromMetadata(company.meta).settings?.brand_name || company.name
+    );
+  }
+  if (kind === 'retail' || hasMetaModule(company.meta, 'retailgraph')) {
+    return (
+      readRetailgraphFromMetadata(company.meta).settings?.brand_name ||
+      company.name
     );
   }
   if (kind === 'physio' || hasMetaModule(company.meta, 'physiograph')) {
@@ -222,6 +233,10 @@ export async function acceptBrandJoin(opts: {
   }
   if (modules.includes('hire')) {
     const r = await joinHire({ ...ctx, profile });
+    profile = r.profile;
+  }
+  if (modules.includes('retail')) {
+    const r = await joinRetail({ ...ctx, profile });
     profile = r.profile;
   }
   for (const clinic of ['physio', 'dental', 'medical', 'psychiatry'] as const) {
@@ -752,6 +767,68 @@ async function joinHire(opts: {
       (m) => m.company_id === opts.company.id && m.kind === 'hire'
     ) || next.memberships[0],
     already: false,
+    brand,
+    profile: next,
+  };
+}
+
+async function joinRetail(opts: {
+  company: CompanyRow;
+  profile: Awaited<ReturnType<typeof ensureB2cProfile>>;
+  userId: string;
+  email: string | null;
+  phone: string | null;
+  displayName: string;
+}) {
+  let store = readRetailgraphFromMetadata(opts.company.meta);
+  const existing = store.customers.find(
+    (c) =>
+      (opts.email &&
+        String(c.email || '').toLowerCase() === opts.email.toLowerCase()) ||
+      (opts.phone && c.phone && c.phone === opts.phone)
+  );
+  const customer = existing || {
+    id: newRetailId('cus'),
+    name: opts.displayName,
+    email: opts.email,
+    phone: opts.phone,
+  };
+  if (!existing) {
+    store = {
+      ...store,
+      customers: [customer, ...store.customers],
+    };
+    await saveMeta(
+      opts.company.id,
+      writeRetailgraphToMetadata(opts.company.meta, store)
+    );
+  }
+  const brand = store.settings?.brand_name || opts.company.name;
+  const caps: B2cCapability[] = ['order', 'review'];
+  const membership = {
+    kind: 'retail' as const,
+    company_id: opts.company.id,
+    company_name: opts.company.name,
+    brand,
+    portal_token: store.settings?.public_token || null,
+    portal_path: store.settings?.public_token
+      ? `/embed/retail/${encodeURIComponent(store.settings.public_token)}`
+      : '/me',
+    checkin_path: null,
+    ref_id: customer.id,
+    ref_label: opts.displayName,
+    email: opts.email,
+    capabilities: caps,
+    active: true,
+  };
+  const next = upsertMembership(opts.profile, membership);
+  await saveB2cProfile(next);
+  return {
+    membership:
+      next.memberships.find(
+        (m) => m.company_id === opts.company.id && m.kind === 'retail'
+      ) || next.memberships[0],
+    already: Boolean(existing),
     brand,
     profile: next,
   };

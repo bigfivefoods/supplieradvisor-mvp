@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Loader2, RefreshCw, Smartphone } from 'lucide-react';
+import { B2cInstallPrompt } from '@/components/b2c/B2cInstallPrompt';
 
 type Row = {
   booking_id: string | null;
@@ -270,6 +271,7 @@ export default function StaffAdvisorTodayPage() {
           </ul>
         )}
       </main>
+      <B2cInstallPrompt />
     </div>
   );
 }

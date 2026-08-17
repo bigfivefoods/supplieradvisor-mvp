@@ -18,6 +18,7 @@ const KIND_LABEL: Record<string, string> = {
   dental: 'DentalAdvisor®',
   medical: 'MedicalAdvisor®',
   psychiatry: 'PsychiatryAdvisor®',
+  retail: 'RetailAdvisor®',
   customer: 'Customers',
   supplier: 'Suppliers',
 };

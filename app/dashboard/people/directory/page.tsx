@@ -236,6 +236,34 @@ function DirectoryInner() {
     }
   }
 
+  async function inviteWorkspace(e: HrEmployee) {
+    const email = String(e.email || '').trim().toLowerCase();
+    if (!email.includes('@')) {
+      toast.error('Add an email on this employee first');
+      return;
+    }
+    try {
+      const res = await fetch('/api/invite-team-member', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          email,
+          name: e.full_name,
+          role: 'operations',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok && !(res.status === 502 && data.inviteLink)) {
+        throw new Error(data.error || 'Invite failed');
+      }
+      toast.success(data.message || `Workspace invite sent to ${email}`);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Invite failed');
+    }
+  }
+
   async function terminate(id: number) {
     if (!confirm('Mark this employee as terminated?')) return;
     try {
@@ -398,6 +426,15 @@ function DirectoryInner() {
                       >
                         Edit
                       </button>
+                      {e.email ? (
+                        <button
+                          type="button"
+                          onClick={() => void inviteWorkspace(e)}
+                          className="text-xs font-bold text-slate-700 mr-3"
+                        >
+                          Invite
+                        </button>
+                      ) : null}
                       {e.status !== 'terminated' && (
                         <button
                           type="button"

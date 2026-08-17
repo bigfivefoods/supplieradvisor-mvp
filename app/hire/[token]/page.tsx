@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
 import { B2cAutoLinkBanner } from '@/components/b2c/B2cAutoLinkBanner';
+import { AdvisorAnnouncementFeed } from '@/components/services/AdvisorAnnouncementFeed';
 
 const PORTAL_TOKEN_KEY = 'sa_hiregraph_customer_token';
 
@@ -129,6 +130,14 @@ type Portal = {
     needs_docs: number;
     kyc_met: number;
   };
+  announcements?: Array<{
+    id: string;
+    title: string;
+    body: string;
+    pinned?: boolean;
+    cta_label?: string | null;
+    cta_href?: string | null;
+  }>;
 };
 
 type Quote = {
@@ -490,6 +499,7 @@ export default function HireCustomerPortalPage() {
       <main className="mx-auto max-w-lg space-y-4 px-4 py-4">
         <PopiaConsentNotice brand={portal.brand} />
         <B2cAutoLinkBanner token={token} tone="cyan" />
+        <AdvisorAnnouncementFeed items={portal.announcements} />
 
         {(msg || error) && (
           <div

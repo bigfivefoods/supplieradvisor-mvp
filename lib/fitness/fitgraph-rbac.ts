@@ -4,7 +4,8 @@
  * Architecture decision (B2C PWA):
  * - The gym **Owner** (company that subscribes to GymAdvisor) owns the tenant
  *   and pays the platform subscription.
- * - **Coaches** are independent contractors: scoped access only (own classes,
+ * - **Employed staff / desk** join the B2B workspace (operations role).
+ * - **Contracted coaches** use the B2C work PWA: scoped access only (own classes,
  *   assigned clients, roster, feedback). They do NOT get owner-level admin.
  * - **Members** use the PWA / portal for personal schedule, booking, feedback.
  * - Optional **Desk** persona when has_front_desk is true (front-desk ops).

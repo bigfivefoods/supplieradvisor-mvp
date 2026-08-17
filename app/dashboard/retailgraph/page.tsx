@@ -4,7 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Banknote,
+  Globe,
   Loader2,
+  Megaphone,
   Nfc,
   Package,
   ShoppingBag,
@@ -97,6 +99,18 @@ export default function RetailgraphHubPage() {
             icon={Banknote}
             title="Accounts"
             desc="Store credit and bills — present at till like other Advisors."
+          />
+          <HubCard
+            href="/dashboard/retailgraph/comms"
+            icon={Megaphone}
+            title="Comms"
+            desc="Ads and notices to shoppers on SA Member."
+          />
+          <HubCard
+            href="/dashboard/retailgraph/website"
+            icon={Globe}
+            title="Website"
+            desc="SA Member QR, public shop page, and embed for your site."
           />
           <HubCard
             href="/me"

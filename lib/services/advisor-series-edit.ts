@@ -42,6 +42,8 @@ export type SeriesPatch = {
   capacity?: number | null;
   class_type_id?: string;
   session_kind?: string;
+  appointment_kind?: string;
+  personal_reason?: string | null;
   programme_id?: string | null;
   service_id?: string;
   public?: boolean;
@@ -64,6 +66,8 @@ export function applySeriesPatch<T extends object>(
     capacity?: number | null;
     class_type_id?: string;
     session_kind?: string;
+    appointment_kind?: string;
+    personal_reason?: string | null;
     programme_id?: string | null;
     service_id?: string;
     public?: boolean;
@@ -83,6 +87,12 @@ export function applySeriesPatch<T extends object>(
   }
   if (patch.session_kind) {
     next.session_kind = String(patch.session_kind);
+  }
+  if (patch.appointment_kind) {
+    next.appointment_kind = String(patch.appointment_kind);
+  }
+  if (patch.personal_reason !== undefined) {
+    next.personal_reason = patch.personal_reason;
   }
   if (patch.programme_id !== undefined) {
     next.programme_id = patch.programme_id

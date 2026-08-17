@@ -27,6 +27,9 @@ const blank = () => ({
   session_ids: [] as string[],
   personal_for_coach: false,
   items: [] as FitProgrammeItem[],
+  price_zar: '',
+  public: false,
+  billing: 'once' as 'once' | 'monthly' | 'pack',
   active: true,
 });
 
@@ -56,6 +59,9 @@ export default function ProgrammesPage() {
       session_ids: [...(p.session_ids || [])],
       personal_for_coach: p.personal_for_coach === true,
       items: [...(p.items || [])],
+      price_zar: p.price_zar != null ? String(p.price_zar) : '',
+      public: p.public === true,
+      billing: p.billing || 'once',
       active: p.active !== false,
     });
     requestAnimationFrame(() =>
@@ -115,6 +121,9 @@ export default function ProgrammesPage() {
         personal_for_coach:
           form.kind !== 'class' && form.personal_for_coach,
         items: form.items.map((it, i) => ({ ...it, sort: i })),
+        price_zar: form.price_zar ? Number(form.price_zar) : null,
+        public: form.public,
+        billing: form.billing,
         active: form.active,
       },
     });
@@ -159,7 +168,7 @@ export default function ProgrammesPage() {
     <FitgraphWorkbench
       title="Programmes"
       titleAccent="class · PT"
-      description="Build a session from the movement library, then allocate it to a class type, a specific class, and/or a coach’s own personal training."
+      description="Build a session from the movement library, allocate it to a class or coach PT, and optionally sell it on the website (pay first via Paystack / Apple Pay)."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -458,6 +467,41 @@ export default function ProgrammesPage() {
                 </label>
               ) : null}
 
+              <input
+                className={fc()}
+                type="number"
+                min={0}
+                placeholder="Sell price ZAR (blank = not for sale)"
+                value={form.price_zar}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, price_zar: e.target.value }))
+                }
+              />
+              <select
+                className={fc()}
+                value={form.billing}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    billing: e.target.value as 'once' | 'monthly' | 'pack',
+                  }))
+                }
+              >
+                <option value="once">Once-off</option>
+                <option value="monthly">Monthly</option>
+                <option value="pack">Pack</option>
+              </select>
+              <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={form.public}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, public: e.target.checked }))
+                  }
+                />
+                Sell on website (members pay first via Paystack / Apple Pay)
+              </label>
+
               {form.items.length ? <ProgrammeView programme={preview} /> : null}
 
               {editingId ? (
@@ -477,15 +521,9 @@ export default function ProgrammesPage() {
 
           <DataTable
             tone="owner"
-            headers={['Programme', 'Kind', 'Coach', 'Moves', 'Allocated']}
+            headers={['Programme', 'Kind', 'Coach', 'Moves', 'Price', 'Shop']}
             rows={programmes.map((p) => {
               const coach = store.coaches.find((c) => c.id === p.coach_id);
-              const types = (p.class_type_ids || [])
-                .map(
-                  (id) =>
-                    store.class_types.find((c) => c.id === id)?.name || id
-                )
-                .join(', ');
               return {
                 id: p.id,
                 cells: [
@@ -494,10 +532,10 @@ export default function ProgrammesPage() {
                     (p.personal_for_coach ? ' · own PT' : ''),
                   coach?.name || '—',
                   (p.items || []).length,
-                  types ||
-                    ((p.session_ids || []).length
-                      ? `${p.session_ids!.length} session(s)`
-                      : '—'),
+                  p.price_zar != null ? `R${p.price_zar}` : '—',
+                  p.public === true && Number(p.price_zar) > 0
+                    ? 'Public'
+                    : 'Hidden',
                 ],
               };
             })}

@@ -6,6 +6,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
+import { verifyPaystackTransaction } from '@/lib/billing/paystack';
+import {
+  isAdvisorPayoutReady,
+  readAdvisorPayout,
+} from '@/lib/billing/advisor-payout';
+import {
+  applyPaidGymSale,
+  clientHasPaidAccess,
+  findGymSaleByRef,
+  gymRequiresPaidMembership,
+  gymShopCatalog,
+} from '@/lib/fitness/gym-shop';
+import {
+  parseGymSaleKind,
+  startGymShopCheckout,
+} from '@/lib/fitness/gym-sale-checkout';
+import { applyGymSalePaystack } from '@/lib/b2c/gym-sale-apply-paystack';
 import {
   FITGRAPH_PUBLIC_TOKEN_KEY,
   buildClassJoinPayload,
@@ -195,6 +212,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       calendar,
+      shop: gymShopCatalog(resolved.store),
+      payout_ready: isAdvisorPayoutReady(readAdvisorPayout(resolved.meta)),
       companyId: resolved.companyId,
     });
   } catch (e: unknown) {
@@ -238,7 +257,81 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { companyId, meta, store } = resolved;
+    const { companyId, meta } = resolved;
+    let store = resolved.store;
+
+    if (action === 'checkout' || action === 'buy') {
+      const started = await startGymShopCheckout({
+        store,
+        meta,
+        companyId,
+        token,
+        kind: parseGymSaleKind(body.kind),
+        itemId: String(body.plan_id || body.programme_id || body.item_id || ''),
+        name: String(body.name || '').trim(),
+        email: String(body.email || '').trim().toLowerCase(),
+        phone: body.phone ? String(body.phone) : null,
+        sessionId: body.session_id ? String(body.session_id) : null,
+      });
+      if (!started.ok) {
+        return NextResponse.json(
+          { error: started.error },
+          { status: started.status }
+        );
+      }
+      await saveStore(companyId, meta, started.store);
+      return NextResponse.json({
+        success: true,
+        authorization_url: started.authorizationUrl,
+        access_code: started.accessCode,
+        reference: started.reference,
+        amount_zar: started.amount_zar,
+        item: started.item,
+      });
+    }
+
+    if (action === 'verify_sale' || action === 'verify') {
+      const reference = String(body.reference || '').trim();
+      if (!reference) {
+        return NextResponse.json({ error: 'reference required' }, { status: 400 });
+      }
+      const v = await verifyPaystackTransaction(reference);
+      if (!v.ok) {
+        return NextResponse.json({ error: v.error }, { status: 400 });
+      }
+      const applied = await applyGymSalePaystack({
+        data: { reference, metadata: v.metadata || { company_id: companyId } },
+        reference,
+      });
+      if (!applied.ok) {
+        const local = findGymSaleByRef(store, reference);
+        if (local && local.status !== 'paid') {
+          const paid = applyPaidGymSale(store, local, { companyId });
+          await saveStore(companyId, meta, paid.store);
+          return NextResponse.json({
+            success: true,
+            sale: paid.sale,
+            portal_token: paid.client.portal_token,
+            message: 'Payment recorded — membership is active',
+          });
+        }
+        return NextResponse.json({ error: applied.error }, { status: 400 });
+      }
+      const fresh = readFitgraphFromMetadata(
+        (await (async () => {
+          const { loadWalletCompany } = await import('@/lib/b2c/load-company');
+          return (await loadWalletCompany(companyId))?.meta || meta;
+        })())
+      );
+      const sale = findGymSaleByRef(fresh, reference);
+      const client = fresh.clients.find((c) => c.id === applied.clientId);
+      return NextResponse.json({
+        success: true,
+        sale,
+        portal_token: client?.portal_token,
+        message: 'Payment recorded — membership is active',
+      });
+    }
 
     const shareCode = String(body.share_code || body.shareCode || '').trim();
     let sessionId = String(body.session_id || body.sessionId || '');
@@ -417,6 +510,7 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString();
     // Match existing client by email if possible
     let clientId = '';
+    let existingClient = null as FitClient | null;
     if (email) {
       const existing = store.clients.find(
         (c) =>
@@ -424,7 +518,21 @@ export async function POST(request: NextRequest) {
           c.email.toLowerCase() === email.toLowerCase() &&
           c.active !== false
       );
-      if (existing) clientId = existing.id;
+      if (existing) {
+        clientId = existing.id;
+        existingClient = existing;
+      }
+    }
+
+    if (gymRequiresPaidMembership(store) && !clientHasPaidAccess(store, existingClient)) {
+      return NextResponse.json(
+        {
+          error: 'Buy a membership first — payment is required before class booking',
+          need_membership: true,
+          shop: gymShopCatalog(store),
+        },
+        { status: 402 }
+      );
     }
 
     if (!clientId) {

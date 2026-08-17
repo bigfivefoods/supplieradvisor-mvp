@@ -365,23 +365,37 @@ export async function POST(req: NextRequest) {
     const field = clinicianField(mod);
 
     if (action === 'create_appointment' || action === 'create_session') {
-      const serviceId = String(body.service_id || '');
+      const { clinicAppointmentSaveFields, ensureSystemPersonalService } =
+        await import('@/lib/clinic/appointment-kind');
+      store.services = ensureSystemPersonalService(store.services);
+      const fields = clinicAppointmentSaveFields({
+        kind: body.appointment_kind,
+        reason: body.personal_reason,
+        notes: body.notes != null ? String(body.notes) : undefined,
+        start_time: String(body.start_time || '09:00'),
+        end_time: body.end_time != null ? String(body.end_time) : null,
+        duration_min: body.duration_min,
+        service_id: String(body.service_id || ''),
+        public: body.public === true,
+        services: store.services,
+      });
+      const serviceId = String(fields.service_id || '');
       const date = String(body.date || now.slice(0, 10));
-      const startTime = String(body.start_time || '09:00').slice(0, 5);
+      const startTime = fields.start_time;
       if (!serviceId) {
         return NextResponse.json(
           { error: 'service_id required' },
           { status: 400 }
         );
       }
-      const duration =
-        body.duration_min != null ? Number(body.duration_min) : 45;
+      const duration = fields.duration_min ?? 45;
       const conflict = findClinicianDiaryConflict({
         appointments: store.appointments as never[],
         clinicianId: clinician.id,
         clinicianField: field,
         date,
         start_time: startTime,
+        end_time: fields.end_time,
         duration_min: duration,
       });
       if (conflict.conflict) {
@@ -395,17 +409,20 @@ export async function POST(req: NextRequest) {
           service_id: serviceId,
           date,
           start_time: startTime,
-          duration_min: duration,
+          end_time: fields.end_time,
+          duration_min: fields.duration_min,
           location: body.location != null ? String(body.location) : undefined,
-          public: body.public === true,
-          notes: body.notes != null ? String(body.notes) : undefined,
+          public: fields.public === true,
+          notes: fields.notes,
           public_notes:
             body.public_notes != null ? String(body.public_notes) : undefined,
+          appointment_kind: fields.appointment_kind,
+          personal_reason: fields.personal_reason ?? null,
         },
         now
       );
       const patientId = String(body.patient_id || '');
-      if (patientId) {
+      if (patientId && appt.appointment_kind !== 'personal') {
         const patient = store.patients.find((p) => p.id === patientId);
         if (patient) {
           store.bookings.push({

@@ -808,6 +808,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Handover', href: '/dashboard/hiregraph/handover', desc: 'Out · return · condition', section: 'Ops' },
       { name: 'Settlements', href: '/dashboard/hiregraph/settlements', desc: '2.5% on the business · members free', section: 'Money' },
       { name: 'Accounts', href: '/dashboard/hiregraph/accounts', desc: 'Hirer fees · pay · proof', section: 'Money' },
+      { name: 'Comms', href: '/dashboard/hiregraph/comms', desc: 'Ads · notices to all hirers', section: 'Grow' },
+      { name: 'Website', href: '/dashboard/hiregraph/website', desc: 'Member app QR · catalogue embed', section: 'Grow' },
       { name: 'Management report', href: '/dashboard/hiregraph/management', desc: 'A4 landscape PDF · GMV', section: 'Insights' },
       { name: 'Messages', href: '/dashboard/messages?from=hiregraph&channel=connection', desc: 'Supplier · renter threads', section: 'Ops', rail: false },
     ],
@@ -829,6 +831,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Sales', href: '/dashboard/retailgraph/sales', desc: 'Paid baskets', section: 'Money' },
       { name: 'Customers', href: '/dashboard/retailgraph/customers', desc: 'Walk-in book', section: 'People' },
       { name: 'Accounts', href: '/dashboard/retailgraph/accounts', desc: 'Bills · present at till', section: 'Money' },
+      { name: 'Comms', href: '/dashboard/retailgraph/comms', desc: 'Ads · notices to shoppers', section: 'Grow' },
+      { name: 'Website', href: '/dashboard/retailgraph/website', desc: 'Member app QR · shop embed', section: 'Grow' },
     ],
   },
   {

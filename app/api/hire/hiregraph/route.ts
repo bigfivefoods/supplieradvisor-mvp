@@ -15,6 +15,8 @@ import {
   summariseHiregraph,
   upsertEntity,
   writeHiregraphToMetadata,
+  ensureHirePublicToken,
+  issueHirePublicToken,
   type HireCorePartyRef,
   type HireEntity,
   type HiregraphStore,
@@ -38,6 +40,10 @@ import {
 } from '@/lib/b2c/hire-invite-email';
 import { getAppUrl, getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import { listInventoryProductForHire } from '@/lib/hire/list-from-inventory';
+import {
+  applyAnnouncementAction,
+  isAnnouncementAction,
+} from '@/lib/services/member-announcements';
 
 export const runtime = 'nodejs';
 
@@ -174,7 +180,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
-    const { store } = await loadStore(companyId);
+    const loaded = await loadStore(companyId);
+    let store = ensureHirePublicToken(loaded.store, companyId);
+    if (!loaded.store.settings?.public_token) {
+      await saveStore(companyId, loaded.meta, store);
+    }
     const { coreSuppliers, coreCustomers } = await loadCoreBooks(companyId);
     denormaliseNames(store, coreSuppliers, coreCustomers);
 
@@ -340,19 +350,56 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    if (isAnnouncementAction(action)) {
+      try {
+        const result = applyAnnouncementAction(store.announcements, action, body);
+        next = { ...store, announcements: result.list };
+        await saveStore(companyId, meta, next);
+        denormaliseNames(next, coreSuppliers, coreCustomers);
+        return NextResponse.json({
+          success: true,
+          store: next,
+          coreSuppliers,
+          coreCustomers,
+          summary: summariseHiregraph(next, {
+            coreSupplierCount: coreSuppliers.length,
+            coreCustomerCount: coreCustomers.length,
+          }),
+          message: result.message,
+        });
+      } catch (e: unknown) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : 'Announcement failed' },
+          { status: 400 }
+        );
+      }
+    }
+
     // B2C portal brand settings
     if (action === 'update_settings') {
       const patch =
         body.settings && typeof body.settings === 'object'
           ? (body.settings as HirePublicSettings)
           : {};
-      next = {
-        ...store,
-        settings: {
-          ...(store.settings || {}),
-          ...patch,
+      next = ensureHirePublicToken(
+        {
+          ...store,
+          settings: {
+            ...(store.settings || {}),
+            ...patch,
+          },
         },
-      };
+        companyId
+      );
+      if (body.rotate_token === true) {
+        next = {
+          ...next,
+          settings: {
+            ...(next.settings || {}),
+            public_token: issueHirePublicToken(companyId),
+          },
+        };
+      }
       await saveStore(companyId, meta, next);
       denormaliseNames(next, coreSuppliers, coreCustomers);
       return NextResponse.json({

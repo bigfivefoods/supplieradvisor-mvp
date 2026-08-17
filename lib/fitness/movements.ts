@@ -70,6 +70,10 @@ export type FitProgramme = {
   /** Coach’s own training plan (personal time / self PT) */
   personal_for_coach?: boolean;
   items: FitProgrammeItem[];
+  /** When set and public, members can buy this programme */
+  price_zar?: number | null;
+  public?: boolean;
+  billing?: 'once' | 'monthly' | 'pack';
   active?: boolean;
   created_at: string;
   updated_at?: string;
@@ -355,6 +359,18 @@ export function upsertProgramme(
       rec.personal_for_coach !== undefined
         ? rec.personal_for_coach === true
         : prev?.personal_for_coach === true,
+    price_zar:
+      rec.price_zar !== undefined
+        ? rec.price_zar == null || rec.price_zar === ''
+          ? null
+          : Number(rec.price_zar)
+        : prev?.price_zar ?? null,
+    public:
+      rec.public !== undefined ? rec.public === true : prev?.public === true,
+    billing:
+      rec.billing != null
+        ? (String(rec.billing) as FitProgramme['billing'])
+        : prev?.billing || 'once',
     items:
       rec.items !== undefined
         ? parseProgrammeItems(rec.items)

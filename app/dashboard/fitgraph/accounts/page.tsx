@@ -2,6 +2,7 @@
 
 import { FitgraphWorkbench } from '@/components/fitness/FitgraphWorkbench';
 import { AdvisorMemberAccounts } from '@/components/advisors/AdvisorMemberAccounts';
+import { AdvisorApplePaySetup } from '@/components/advisors/AdvisorApplePaySetup';
 
 export default function FitgraphAccountsPage() {
   return (
@@ -10,7 +11,10 @@ export default function FitgraphAccountsPage() {
       titleAccent="pay & proof"
       description="Charge members, collect card / Apple Pay (settles to your bank, 1% admin) or proof of payment, and post receipts to Customers invoices."
     >
-      <AdvisorMemberAccounts module="fitgraph" />
+      <div className="space-y-5">
+        <AdvisorApplePaySetup />
+        <AdvisorMemberAccounts module="fitgraph" />
+      </div>
     </FitgraphWorkbench>
   );
 }

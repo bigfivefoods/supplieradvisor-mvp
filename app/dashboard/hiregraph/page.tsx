@@ -10,8 +10,10 @@ import {
   Building2,
   CalendarDays,
   ClipboardList,
+  Globe,
   Handshake,
   Loader2,
+  Megaphone,
   MessageSquare,
   Package,
   Percent,
@@ -98,6 +100,25 @@ const DEMAND: HubModule[] = [
     title: 'Handover',
     desc: 'OUT and RETURN with condition notes and deposit release.',
     accent: 'from-amber-50 to-white border-amber-100',
+  },
+];
+
+const GROW: HubModule[] = [
+  {
+    href: '/dashboard/hiregraph/comms',
+    icon: Megaphone,
+    code: '09',
+    title: 'Comms',
+    desc: 'Ads and notices to every hirer on the portal and SA Member.',
+    accent: 'from-fuchsia-50 to-white border-fuchsia-100',
+  },
+  {
+    href: '/dashboard/hiregraph/website',
+    icon: Globe,
+    code: '10',
+    title: 'Website',
+    desc: 'SA Member QR, public catalogue, and embed for your own site.',
+    accent: 'from-cyan-50 to-white border-cyan-100',
   },
 ];
 
@@ -217,6 +238,12 @@ export default function HiregraphHubPage() {
               <Handshake className="h-3.5 w-3.5" /> Dual commission
             </p>
             <HubModuleGrid modules={MONEY} />
+          </div>
+          <div>
+            <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-fuchsia-700 dark:text-fuchsia-300">
+              Grow
+            </p>
+            <HubModuleGrid modules={GROW} />
           </div>
         </div>
       </HiregraphPage>

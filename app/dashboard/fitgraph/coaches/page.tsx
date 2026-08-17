@@ -33,6 +33,7 @@ import {
   type FitContractDoc,
 } from '@/lib/fitness/fitgraph';
 import { FitContractDocsPanel } from '@/components/fitness/FitContractDocs';
+import { AdvisorPersonInviteRow } from '@/components/advisors/AdvisorPersonInviteRow';
 import { PersonQualificationsEditor } from '@/components/services/PersonQualificationsEditor';
 import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
 import type { PersonQualification } from '@/lib/services/person-qualifications';
@@ -124,7 +125,7 @@ function toggleInSpecialties(list: string[], s: string): string[] {
 }
 
 export default function CoachesPage() {
-  const { companyId, store, loading, saving, post, summary } = useFitgraph();
+  const { companyId, store, loading, saving, post, summary, load } = useFitgraph();
   const [form, setForm] = useState(emptyForm);
   /** coachId → draft engagement + rate for inline edit */
   const [dateDrafts, setDateDrafts] = useState<Record<string, CoachDraft>>({});
@@ -1001,6 +1002,14 @@ export default function CoachesPage() {
                         <Link2 className="w-3.5 h-3.5" />
                         {c.portal_token ? 'Re-issue portal' : 'Issue portal'}
                       </button>
+                      <AdvisorPersonInviteRow
+                        module="fitgraph"
+                        personId={c.id}
+                        email={c.email}
+                        engagement={c.engagement}
+                        inviteStatus={c.work_invite_status}
+                        onChanged={() => void load()}
+                      />
                       <button
                         type="button"
                         className="text-rose-600 dark:text-rose-400 text-xs font-bold"

@@ -48,6 +48,10 @@ import {
 } from '@/components/health/InjuryProfileFields';
 import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
 import { CoachMovementStudio } from '@/components/fitness/CoachMovementStudio';
+import {
+  AdvisorWorkPwaChrome,
+  type AdvisorWorkTab,
+} from '@/components/services/AdvisorWorkPwaChrome';
 import { ProgrammeView } from '@/components/fitness/ProgrammeView';
 import type {
   FitHydratedProgramme,
@@ -298,6 +302,7 @@ export default function CoachFitgraphPortalPage() {
     notes: string;
     health: InjuryFormState;
   } | null>(null);
+  const [workTab, setWorkTab] = useState<AdvisorWorkTab>('today');
   const [showMessages, setShowMessages] = useState(false);
   const [msgThreadId, setMsgThreadId] = useState<string | null>(null);
   const [msgReply, setMsgReply] = useState('');
@@ -547,12 +552,89 @@ export default function CoachFitgraphPortalPage() {
 
   if (!portal) return null;
 
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayCards = portal.sessions.filter((s) => s.session.date === todayIso);
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-24">
-      <header className="border-b border-slate-800 px-4 py-4 sm:px-6 sticky top-0 z-20 bg-slate-950/95 backdrop-blur">
+    <AdvisorWorkPwaChrome
+      brand={brand}
+      name={portal.coach.name}
+      photoUrl={portal.coach.photo_url}
+      eyebrow={`Coach · ${brand}`}
+      unread={portal.messages_unread || 0}
+      tab={workTab}
+      onTab={(t) => {
+        setWorkTab(t);
+        if (t === 'inbox') {
+          setShowMessages(true);
+          setMsgCompose(false);
+        }
+        if (t === 'me') setShowProfile(true);
+      }}
+    >
+      {workTab === 'today' ? (
+        <div className="space-y-3">
+          <p className="text-sm text-slate-400">
+            {todayCards.length
+              ? `${todayCards.length} session${todayCards.length === 1 ? '' : 's'} today`
+              : 'Nothing on the floor today. Open Diary to plan.'}
+          </p>
+          {todayCards.map((card) => (
+            <button
+              key={card.session.id}
+              type="button"
+              onClick={() => setOpenId(card.session.id)}
+              className="w-full rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-left"
+            >
+              <div className="text-lg font-black">
+                {String(card.session.start_time).slice(0, 5)} ·{' '}
+                {card.class_name || 'Session'}
+              </div>
+              <div className="mt-1 text-xs text-slate-400">
+                {card.planned} booked
+                {card.waitlist ? ` · ${card.waitlist} waitlist` : ''}
+                {card.attended ? ` · ${card.attended} in` : ''}
+              </div>
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setShowCreate(true)}
+            className="w-full rounded-2xl bg-[#E8E830] py-3 text-sm font-black text-slate-950"
+          >
+            Add class / PT / block
+          </button>
+        </div>
+      ) : null}
+
+      {workTab === 'people' ? (
+        <div className="space-y-2">
+          {portal.members.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => openMemberEdit(m)}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left"
+            >
+              <div className="font-bold">{m.name}</div>
+              <div className="text-[11px] text-slate-400">
+                {m.membership_status || 'Member'}
+                {m.health?.injured ? ' · injured' : ''}
+              </div>
+            </button>
+          ))}
+          {!portal.members.length ? (
+            <p className="text-sm text-slate-500">No assigned members yet.</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {workTab === 'diary' ? (
+      <div>
+      <header className="mb-3">
         <div className="max-w-3xl mx-auto">
           <div className="text-[10px] font-black uppercase tracking-widest text-amber-400">
-            Coach calendar · {brand}
+            Week diary
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 mt-1">
             <div className="flex items-center gap-2 min-w-0">
@@ -767,6 +849,8 @@ export default function CoachFitgraphPortalPage() {
           </p>
         )}
       </main>
+      </div>
+      ) : null}
 
       {/* Session detail */}
       {openCard && (
@@ -2269,6 +2353,6 @@ export default function CoachFitgraphPortalPage() {
           onChanged={() => void load()}
         />
       ) : null}
-    </div>
+    </AdvisorWorkPwaChrome>
   );
 }

@@ -941,6 +941,8 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       { name: 'Calendar', href: '/dashboard/hiregraph/calendar', desc: 'Hired items · categories' },
       { name: 'Settlements', href: '/dashboard/hiregraph/settlements', desc: '2.5% on the business · members free' },
       { name: 'Handover', href: '/dashboard/hiregraph/handover', desc: 'Out · return' },
+      { name: 'Comms', href: '/dashboard/hiregraph/comms', desc: 'Ads · notices to hirers' },
+      { name: 'Website', href: '/dashboard/hiregraph/website', desc: 'Catalogue QR · embed' },
     ],
   },
   {
@@ -980,6 +982,8 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       { name: 'Catalogue', href: '/dashboard/retailgraph/catalogue', desc: 'SKUs' },
       { name: 'Sales', href: '/dashboard/retailgraph/sales', desc: 'Takings' },
       { name: 'Accounts', href: '/dashboard/retailgraph/accounts', desc: 'Bills' },
+      { name: 'Comms', href: '/dashboard/retailgraph/comms', desc: 'Ads · notices' },
+      { name: 'Website', href: '/dashboard/retailgraph/website', desc: 'Shop QR · embed' },
     ],
   },
   {

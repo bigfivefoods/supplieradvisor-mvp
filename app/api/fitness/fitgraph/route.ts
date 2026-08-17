@@ -9,6 +9,7 @@ import {
   resolveFamilyAttendee,
 } from '@/lib/services/advisor-booking';
 import { findRoomDiaryConflict } from '@/lib/services/clinic-public-calendar';
+import { mergePersonInviteFromRecord } from '@/lib/services/advisor-workforce';
 import {
   attendanceByClass,
   buildClassJoinPath,
@@ -1900,7 +1901,11 @@ export async function POST(request: NextRequest) {
         peopleSync = await syncStoreStaffPersonToHr({
           companyId,
           source: 'fitgraph_coach',
-          person: coach,
+          person: {
+            ...coach,
+            employment_type:
+              coach.engagement === 'employed' ? 'full_time' : 'contract',
+          },
         });
       }
     }
@@ -2062,6 +2067,7 @@ function upsert(
         ? (rec.contracts as FitCoach['contracts'])
         : prev?.contracts || [],
       history,
+      ...mergePersonInviteFromRecord(prev, rec),
       active:
         activeExplicit !== undefined
           ? activeExplicit
@@ -2208,6 +2214,14 @@ function upsert(
       description:
         rec.description != null ? String(rec.description) : undefined,
       public: rec.public !== false,
+      access:
+        rec.access === 'programme' || rec.access === 'both'
+          ? rec.access
+          : 'classes',
+      programme_id:
+        rec.programme_id != null && String(rec.programme_id)
+          ? String(rec.programme_id)
+          : null,
       active: rec.active !== false,
       created_at: i >= 0 ? store.membership_plans[i].created_at : now,
     };

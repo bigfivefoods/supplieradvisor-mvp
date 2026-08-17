@@ -19,6 +19,9 @@ import {
 import { AdvisorRoomsCard } from '@/components/services/AdvisorRoomsCard';
 import { PracticeProfilePdfButton } from '@/components/schedule/PracticeProfilePdfButton';
 import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
+import { AdvisorApplePaySetup } from '@/components/advisors/AdvisorApplePaySetup';
+import { AdvisorDeskInviteCard } from '@/components/advisors/AdvisorDeskInviteCard';
+import { gymRequiresPaidMembership } from '@/lib/fitness/gym-shop';
 
 export default function FitgraphWebsitePage() {
   const { companyId, store, loading, saving, post, summary } = useFitgraph();
@@ -36,6 +39,7 @@ export default function FitgraphWebsitePage() {
     contact_phone: '',
     embed_primary_color: '#E8E830',
     timezone: 'Africa/Johannesburg',
+    require_paid_membership: true,
   });
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -56,6 +60,7 @@ export default function FitgraphWebsitePage() {
       contact_phone: s.contact_phone || '',
       embed_primary_color: gymBrandColor(s.embed_primary_color),
       timezone: s.timezone || 'Africa/Johannesburg',
+      require_paid_membership: gymRequiresPaidMembership(store),
     });
   }, [store]);
 
@@ -160,6 +165,9 @@ export default function FitgraphWebsitePage() {
             brand={form.brand_name || store.settings?.brand_name}
             audience="members"
           />
+
+          <AdvisorApplePaySetup />
+          <AdvisorDeskInviteCard module="fitgraph" />
 
           {token ? (
             <div className="rounded-2xl border border-yellow-200 bg-gradient-to-br from-yellow-50 to-white p-5 dark:border-yellow-500/30 dark:from-yellow-950/50 dark:to-slate-950">
@@ -329,6 +337,19 @@ export default function FitgraphWebsitePage() {
                 }
               />
               Allow online booking
+            </label>
+            <label className="flex items-center gap-2 text-sm font-medium col-span-full">
+              <input
+                type="checkbox"
+                checked={form.require_paid_membership}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    require_paid_membership: e.target.checked,
+                  }))
+                }
+              />
+              Require paid membership before class booking
             </label>
             <label className="flex items-center gap-2 text-sm font-medium">
               <input

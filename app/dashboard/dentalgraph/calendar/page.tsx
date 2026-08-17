@@ -31,6 +31,16 @@ import {
   buildDeskQueueRows,
   buildDeskSlotWaitlist,
 } from '@/lib/services/advisor-waitlist-desk';
+import { ClinicDiaryKindFields } from '@/components/clinic/ClinicDiaryKindFields';
+import {
+  appointmentKindLabel,
+  appointmentKindOf,
+  clinicAppointmentSaveFields,
+  consultServices,
+  patchFormForAppointmentKind,
+  type ClinicAppointmentKind,
+  type ClinicPersonalReason,
+} from '@/lib/clinic/appointment-kind';
 
 export default function CalendarPage() {
   const { companyId, store, loading, saving, post, summary, load } =
@@ -41,10 +51,14 @@ export default function CalendarPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [form, setForm] = useState({
+    appointment_kind: 'consult' as ClinicAppointmentKind,
+    personal_reason: 'personal' as ClinicPersonalReason,
+    notes: '',
     service_id: '',
     staff_id: '',
     date: new Date().toISOString().slice(0, 10),
     start_time: '09:00',
+    end_time: '09:45',
     duration_min: '45',
     location: '',
     public: true,
@@ -68,18 +82,23 @@ export default function CalendarPage() {
       return;
     }
     const svc = store?.services.find((s) => s.id === a.service_id);
+    const kind = appointmentKindOf(a, store?.services || []);
     setSelectedId(a.id);
     setRecurrence(emptyRecurrenceForm());
     setForm({
+      appointment_kind: kind,
+      personal_reason: (a.personal_reason as ClinicPersonalReason) || 'personal',
+      notes: a.notes || '',
       service_id: a.service_id || '',
       staff_id: a.staff_id || '',
       date: a.date,
       start_time: String(a.start_time || '09:00').slice(0, 5),
+      end_time: String(a.end_time || '').slice(0, 5),
       duration_min: String(
         a.duration_min ?? svc?.default_duration_min ?? 45
       ),
       location: a.location || '',
-      public: a.public === true,
+      public: kind === 'personal' ? false : a.public === true,
       status: a.status || 'scheduled',
       patient_id: '',
       family_member_id: '',
@@ -96,11 +115,15 @@ export default function CalendarPage() {
     setRecurrence(emptyRecurrenceForm());
     setForm((f) => ({
       ...f,
+      appointment_kind: 'consult',
+      personal_reason: 'personal',
+      notes: '',
       service_id: f.service_id,
       staff_id:
         partial?.staff_id || personFilter || f.staff_id || '',
       date: partial?.date || f.date,
       start_time: partial?.start_time || '09:00',
+      end_time: f.end_time || '09:45',
       duration_min: f.duration_min || '45',
       location: '',
       public: true,
@@ -114,6 +137,7 @@ export default function CalendarPage() {
   const events: ScheduleEvent[] = useMemo(() => {
     if (!store) return [];
     return store.appointments.map((a) => {
+      const kind = appointmentKindOf(a, store.services);
       const svc = store.services.find((s) => s.id === a.service_id);
       const prac = store.staff.find((p) => p.id === a.staff_id);
       const booked = store.bookings.filter(
@@ -126,24 +150,31 @@ export default function CalendarPage() {
         .map((b) => store.patients.find((p) => p.id === b.patient_id)?.name)
         .filter(Boolean)
         .join(', ');
+      const personalTitle = appointmentKindLabel(kind, a.personal_reason);
       return {
         id: a.id,
         date: a.date,
         start_time: a.start_time,
         end_time: a.end_time,
         duration_min: a.duration_min ?? svc?.default_duration_min ?? 45,
-        title: svc?.name || 'Appointment',
+        title:
+          kind === 'personal'
+            ? a.notes?.split('\n')[0] || personalTitle
+            : svc?.name || 'Appointment',
         subtitle: a.location || undefined,
         person_id: a.staff_id || null,
         person_name: prac?.name,
         status: a.status,
         public: a.public === true,
-        meta: patients
-          ? patients
-          : a.public
-            ? 'Open public slot'
-            : undefined,
-        tone: 'sky' as const,
+        meta:
+          kind === 'personal'
+            ? personalTitle
+            : patients
+              ? patients
+              : a.public
+                ? 'Open public slot'
+                : undefined,
+        tone: kind === 'personal' ? ('indigo' as const) : ('sky' as const),
       };
     });
   }, [store]);
@@ -259,7 +290,8 @@ export default function CalendarPage() {
   };
 
   const save = async (editScope: 'one' | 'future' = 'one') => {
-    if (!form.service_id) {
+    const personal = form.appointment_kind === 'personal';
+    if (!personal && !form.service_id) {
       toast.error('Pick a service');
       return;
     }
@@ -267,6 +299,17 @@ export default function CalendarPage() {
       toast.error('Assign a clinician');
       return;
     }
+    const fields = clinicAppointmentSaveFields({
+      kind: form.appointment_kind,
+      reason: form.personal_reason,
+      notes: form.notes,
+      start_time: form.start_time,
+      end_time: form.end_time,
+      duration_min: form.duration_min,
+      service_id: form.service_id,
+      public: form.public,
+      services: store?.services || [],
+    });
 
     // Create mode + repeat → series API (conflict-aware expansion server-side)
     if (!selectedId && recurrence.frequency !== 'none') {
@@ -279,15 +322,19 @@ export default function CalendarPage() {
       try {
         const data = await post({
           action: 'create_appointment_series',
-          service_id: form.service_id,
+          service_id: fields.service_id,
           staff_id: form.staff_id,
           date: form.date,
-          start_time: form.start_time,
-          duration_min: Number(form.duration_min) || 45,
+          start_time: fields.start_time,
+          end_time: fields.end_time,
+          duration_min: fields.duration_min,
           location: form.location || undefined,
-          public: form.public,
-          patient_id: form.patient_id || undefined,
-          family_member_id: form.family_member_id || null,
+          public: fields.public,
+          appointment_kind: fields.appointment_kind,
+          personal_reason: fields.personal_reason,
+          notes: fields.notes,
+          patient_id: personal ? undefined : form.patient_id || undefined,
+          family_member_id: personal ? null : form.family_member_id || null,
           ...payload,
         });
         const appointments = (data.appointments || []) as Array<{ id: string }>;
@@ -319,8 +366,9 @@ export default function CalendarPage() {
       clinicianId: form.staff_id,
       clinicianField: 'staff_id',
       date: form.date,
-      start_time: form.start_time,
-      duration_min: Number(form.duration_min) || 45,
+      start_time: fields.start_time,
+      end_time: fields.end_time,
+      duration_min: fields.duration_min,
       excludeId: selectedId || undefined,
     });
     if (conflict.conflict) {
@@ -350,11 +398,15 @@ export default function CalendarPage() {
         'future'
       );
       const patch = {
-        start_time: form.start_time,
+        start_time: fields.start_time,
+        end_time: fields.end_time,
         location: form.location,
-        duration_min: Number(form.duration_min) || 45,
-        service_id: form.service_id,
-        public: form.public,
+        duration_min: fields.duration_min,
+        service_id: fields.service_id,
+        public: fields.public,
+        appointment_kind: fields.appointment_kind,
+        personal_reason: fields.personal_reason,
+        notes: fields.notes,
         status: form.status || 'scheduled',
       };
       try {
@@ -393,13 +445,17 @@ export default function CalendarPage() {
         record: {
           ...(prev || {}),
           id: appointmentId,
-          service_id: form.service_id,
+          service_id: fields.service_id,
           staff_id: form.staff_id,
           date: form.date,
-          start_time: form.start_time,
-          duration_min: Number(form.duration_min) || 45,
+          start_time: fields.start_time,
+          end_time: fields.end_time,
+          duration_min: fields.duration_min,
           location: form.location,
-          public: form.public,
+          public: fields.public,
+          appointment_kind: fields.appointment_kind,
+          personal_reason: fields.personal_reason,
+          notes: fields.notes,
           status: form.status || 'scheduled',
         },
       });
@@ -408,7 +464,7 @@ export default function CalendarPage() {
       return;
     }
 
-    if (form.patient_id) {
+    if (!personal && form.patient_id) {
       const patient = store?.patients.find((p) => p.id === form.patient_id);
       if (patient?.booking_soft_block) {
         toast.warning(
@@ -666,6 +722,31 @@ export default function CalendarPage() {
                     : 'Schedule'
               }
             >
+              <ClinicDiaryKindFields
+                kind={form.appointment_kind}
+                reason={form.personal_reason}
+                notes={form.notes}
+                endTime={form.end_time}
+                inputClass={fc()}
+                peopleWord="clinician"
+                onKind={(kind) =>
+                  setForm((f) =>
+                    patchFormForAppointmentKind(f, kind, store.services)
+                  )
+                }
+                onReason={(reason) =>
+                  setForm((f) =>
+                    patchFormForAppointmentKind(
+                      { ...f, personal_reason: reason },
+                      'personal',
+                      store.services
+                    )
+                  )
+                }
+                onNotes={(notes) => setForm((f) => ({ ...f, notes }))}
+                onEndTime={(end_time) => setForm((f) => ({ ...f, end_time }))}
+              />
+              {form.appointment_kind !== 'personal' ? (
               <select
                 className={fc()}
                 value={form.service_id}
@@ -674,12 +755,13 @@ export default function CalendarPage() {
                 }
               >
                 <option value="">Service…</option>
-                {store.services.map((s) => (
+                {consultServices(store.services).map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.code} · {s.name}
                   </option>
                 ))}
               </select>
+              ) : null}
               <select
                 className={fc()}
                 value={form.staff_id}
@@ -771,6 +853,8 @@ export default function CalendarPage() {
                   unitLabel="appointments"
                 />
               )}
+              {form.appointment_kind !== 'personal' ? (
+              <>
               <select
                 className={fc()}
                 value={form.patient_id}
@@ -818,6 +902,8 @@ export default function CalendarPage() {
                   ))}
                 </select>
               ) : null}
+              </>
+              ) : null}
               {form.date && form.start_time ? (
                 <a
                   className="text-xs font-bold text-sky-700 underline"
@@ -826,6 +912,7 @@ export default function CalendarPage() {
                   Download .ics (add to calendar)
                 </a>
               ) : null}
+              {form.appointment_kind !== 'personal' ? (
               <label className="flex items-center gap-2 text-sm font-medium">
                 <input
                   type="checkbox"
@@ -836,6 +923,7 @@ export default function CalendarPage() {
                 />
                 Public slot
               </label>
+              ) : null}
               {selectedId && rosterOnSelected.length > 0 ? (
                 <p className="sm:col-span-2 lg:col-span-3 text-[11px] text-slate-600 rounded-xl border border-sky-100 bg-sky-50/50 px-3 py-2">
                   <strong>Booked on this slot:</strong>{' '}

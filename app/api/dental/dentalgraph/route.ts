@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { mergePersonInviteFromRecord } from '@/lib/services/advisor-workforce';
 import {
   requireCompanyAccess,
   legacyPrivyFrom,
@@ -42,6 +43,13 @@ import {
   applyAnnouncementAction,
   isAnnouncementAction,
 } from '@/lib/services/member-announcements';
+import {
+  applyAppointmentKindRules,
+  assertAppointmentBookable,
+  clinicAppointmentSaveFields,
+  ensureSystemPersonalService,
+  normalizeAppointmentKind,
+} from '@/lib/clinic/appointment-kind';
 import {
   addMedicalDocument,
   mergeMedicalRecord,
@@ -1152,10 +1160,23 @@ export async function POST(request: NextRequest) {
       action === 'create_appointment_series' ||
       action === 'create_session_series'
     ) {
-      const serviceId = String(body.service_id || '');
+      store.services = ensureSystemPersonalService(store.services);
+      const kind = normalizeAppointmentKind(body.appointment_kind);
+      const fields = clinicAppointmentSaveFields({
+        kind,
+        reason: body.personal_reason,
+        notes: body.notes != null ? String(body.notes) : undefined,
+        start_time: String(body.start_time || '09:00'),
+        end_time: body.end_time != null ? String(body.end_time) : null,
+        duration_min: body.duration_min,
+        service_id: String(body.service_id || ''),
+        public: body.public === true,
+        services: store.services,
+      });
+      const serviceId = String(fields.service_id || '');
       const staffId = String(body.staff_id || body.clinician_id || '');
       const date = String(body.date || now.slice(0, 10)).slice(0, 10);
-      const startTime = String(body.start_time || '09:00').slice(0, 5);
+      const startTime = fields.start_time;
       if (!serviceId) {
         return NextResponse.json(
           { error: 'service_id required' },
@@ -1193,14 +1214,15 @@ export async function POST(request: NextRequest) {
           clinician_id: staffId,
           date,
           start_time: startTime,
-          duration_min:
-            body.duration_min != null ? Number(body.duration_min) : 45,
-          end_time: body.end_time != null ? String(body.end_time) : null,
+          duration_min: fields.duration_min ?? 45,
+          end_time: fields.end_time ?? null,
           location: body.location != null ? String(body.location) : undefined,
-          public: body.public === true,
-          notes: body.notes != null ? String(body.notes) : undefined,
+          public: fields.public === true,
+          notes: fields.notes,
           public_notes:
             body.public_notes != null ? String(body.public_notes) : undefined,
+          appointment_kind: fields.appointment_kind,
+          personal_reason: fields.personal_reason ?? null,
         },
         recurrence,
         clinicianField: 'staff_id',
@@ -1234,6 +1256,11 @@ export async function POST(request: NextRequest) {
         public: r.public === true,
         notes: r.notes,
         public_notes: r.public_notes,
+        appointment_kind: normalizeAppointmentKind(r.appointment_kind || kind),
+        personal_reason:
+          (r.personal_reason as DentalAppointment['personal_reason']) ??
+          fields.personal_reason ??
+          null,
         series_id: r.series_id ?? null,
         created_at: r.created_at,
       }));
@@ -1244,7 +1271,11 @@ export async function POST(request: NextRequest) {
         ? String(body.family_member_id)
         : null;
       const bookingsCreated: DentalBooking[] = [];
-      if (patientId && store.patients.find((p) => p.id === patientId)) {
+      if (
+        kind !== 'personal' &&
+        patientId &&
+        store.patients.find((p) => p.id === patientId)
+      ) {
         let famName: string | null = null;
         if (famId) {
           const patient = store.patients.find((p) => p.id === patientId);
@@ -1448,7 +1479,11 @@ export async function POST(request: NextRequest) {
           peopleSync = await syncStoreStaffPersonToHr({
             companyId,
             source: 'dentalgraph_staff',
-            person,
+            person: {
+              ...person,
+              employment_type:
+                person.engagement === 'employed' ? 'full_time' : 'contract',
+            },
           });
         }
       }
@@ -1600,6 +1635,7 @@ function upsert(
         rec.can_manage !== undefined
           ? rec.can_manage !== false
           : prev?.can_manage !== false,
+      ...mergePersonInviteFromRecord(prev, rec),
       active:
         activeExplicit !== undefined
           ? activeExplicit
@@ -1793,7 +1829,9 @@ function upsert(
     const id = String(rec.id || newId('apt'));
     const i = store.appointments.findIndex((a) => a.id === id);
     const prev = i >= 0 ? store.appointments[i] : null;
-    const row: DentalAppointment = {
+    store.services = ensureSystemPersonalService(store.services);
+    const row: DentalAppointment = applyAppointmentKindRules(
+      {
       id,
       service_id: String(rec.service_id || prev?.service_id || ''),
       staff_id:
@@ -1814,6 +1852,11 @@ function upsert(
       notes: rec.notes != null ? String(rec.notes) : prev?.notes,
       public_notes:
         rec.public_notes != null ? String(rec.public_notes) : prev?.public_notes,
+      appointment_kind: rec.appointment_kind || prev?.appointment_kind,
+      personal_reason:
+        rec.personal_reason !== undefined
+          ? rec.personal_reason
+          : prev?.personal_reason ?? null,
       series_id:
         rec.series_id !== undefined
           ? rec.series_id
@@ -1821,13 +1864,28 @@ function upsert(
             : null
           : prev?.series_id ?? null,
       created_at: prev?.created_at || now,
-    };
+    },
+      store.services,
+      rec.appointment_kind
+    );
     if (i >= 0) store.appointments[i] = row;
     else store.appointments.push(row);
   } else if (entity === 'bookings') {
     const id = String(rec.id || newId('bkg'));
     const i = store.bookings.findIndex((b) => b.id === id);
     const prev = i >= 0 ? store.bookings[i] : null;
+    const bookApt = store.appointments.find(
+      (a) =>
+        a.id === String(rec.appointment_id || prev?.appointment_id || '')
+    );
+    try {
+      assertAppointmentBookable(bookApt, store.services);
+    } catch (e: unknown) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : 'Cannot book this slot' },
+        { status: 400 }
+      );
+    }
     let famId =
       rec.family_member_id !== undefined
         ? rec.family_member_id

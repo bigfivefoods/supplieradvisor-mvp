@@ -332,7 +332,7 @@ export type FitCoach = {
   /** Closed past engagements (keep history when coach returns) */
   history?: FitCoachEngagement[];
   created_at: string;
-};
+} & import('@/lib/services/advisor-workforce').AdvisorPersonInviteFields;
 
 export function formatCoachRate(
   rateZar?: number | null,
@@ -454,6 +454,8 @@ export type FitClient = {
   share_feedback?: boolean;
   membership_plan_id?: string | null;
   membership_status?: (typeof MEMBERSHIP_STATUSES)[number] | string;
+  /** Programmes this member paid for / was allocated */
+  purchased_programme_ids?: string[];
   start_date?: string | null;
   end_date?: string | null;
   /**
@@ -483,6 +485,10 @@ export type FitMembershipPlan = {
   description?: string;
   /** Show on public website pricing */
   public?: boolean;
+  /** What buying this plan unlocks */
+  access?: 'classes' | 'programme' | 'both';
+  /** Optional programme included with the membership */
+  programme_id?: string | null;
   active?: boolean;
   created_at: string;
 };
@@ -606,6 +612,11 @@ export type FitPublicSettings = {
   /** Internal owner notes for the gym profile */
   bio?: string;
   allow_public_booking: boolean;
+  /**
+   * When true, guests must buy a membership before booking a class.
+   * Default: true if the gym has priced public memberships.
+   */
+  require_paid_membership?: boolean;
   show_coaches: boolean;
   show_pricing: boolean;
   /** Show PDF contracts on the public gym page */
@@ -630,6 +641,13 @@ export type FitPublicSettings = {
    * When false, ops and messaging are coach–member led (owner-coach studio).
    */
   has_front_desk?: boolean;
+  desk_name?: string;
+  desk_email?: string | null;
+  desk_invite_status?: string | null;
+  desk_invite_sent_at?: string | null;
+  desk_invite_accepted_at?: string | null;
+  desk_team_member_id?: number | null;
+  desk_last_invited_email?: string | null;
   /** Gym open days & hours for schedule calendar */
   working_hours?: import('@/lib/schedule/working-hours').WorkingHours;
   /**
@@ -1193,6 +1211,8 @@ export interface FitgraphStore {
   movements?: FitMovement[];
   /** Class and personal-training programmes built from movements */
   programmes?: FitProgramme[];
+  /** Paid membership / programme checkouts */
+  gym_sales?: import('@/lib/fitness/gym-shop').GymSale[];
   settings?: FitPublicSettings;
   updated_at?: string;
 }
@@ -1353,6 +1373,7 @@ export function emptyFitgraphStore(): FitgraphStore {
     announcements: [],
     movements: [],
     programmes: [],
+    gym_sales: [],
     settings: defaultPublicSettings(),
   };
 }
@@ -2027,14 +2048,33 @@ export function buildPublicCalendarPayload(
     ? store.membership_plans
         .filter((p) => p.active !== false && p.public !== false)
         .map((p) => ({
+          id: p.id,
           code: p.code,
           name: p.name,
           price_zar: p.price_zar,
           billing: p.billing,
           description: p.description,
           class_credits: p.class_credits,
+          access: p.access || 'classes',
+          programme_id: p.programme_id || null,
         }))
     : [];
+  const shopProgrammes = (store.programmes || [])
+    .filter(
+      (p) =>
+        p.active !== false &&
+        p.public === true &&
+        p.personal_for_coach !== true &&
+        Number(p.price_zar) > 0
+    )
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      price_zar: Number(p.price_zar) || 0,
+      billing: p.billing || 'once',
+      kind: p.kind,
+    }));
 
   const contracts =
     store.settings?.show_contracts !== false
@@ -2060,6 +2100,13 @@ export function buildPublicCalendarPayload(
     sessions,
     coaches,
     plans,
+    programmes: shopProgrammes,
+    require_paid_membership:
+      store.settings?.require_paid_membership === false
+        ? false
+        : store.settings?.require_paid_membership === true
+          ? true
+          : plans.some((p) => Number(p.price_zar) > 0),
     contracts,
   };
 }

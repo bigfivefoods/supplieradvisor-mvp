@@ -12,6 +12,8 @@ import { AdvisorOpsPoliciesCard } from '@/components/services/AdvisorOpsPolicies
 import { AdvisorRoomsCard } from '@/components/services/AdvisorRoomsCard';
 import { PracticeProfilePdfButton } from '@/components/schedule/PracticeProfilePdfButton';
 import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
+import { AdvisorDeskInviteCard } from '@/components/advisors/AdvisorDeskInviteCard';
+import { AdvisorEmbedSnippet } from '@/components/services/AdvisorEmbedSnippet';
 
 export default function WebsitePage() {
   const { companyId, store, loading, saving, post, summary } =
@@ -87,6 +89,13 @@ export default function WebsitePage() {
             brand={form.brand_name || store.settings?.brand_name}
             audience="patients"
           />
+          <AdvisorDeskInviteCard module="physiograph" />
+          {token ? (
+            <AdvisorEmbedSnippet
+              embedPath={`/embed/advisor/physiograph/${encodeURIComponent(token)}`}
+              title="Public booking embed"
+            />
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             <PracticeProfilePdfButton
               companyId={companyId}

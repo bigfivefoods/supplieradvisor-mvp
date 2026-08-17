@@ -12,6 +12,7 @@ import {
   CalendarDays,
   Check,
   CheckCircle2,
+  CreditCard,
   Loader2,
   MapPin,
   MessageSquare,
@@ -22,6 +23,8 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { GymShopPay } from '@/components/fitness/GymShopPay';
+import type { GymShopItem } from '@/lib/fitness/gym-shop';
 import { MemberRelationshipSection } from '@/components/services/MemberRelationshipSection';
 import { ProgrammeView } from '@/components/fitness/ProgrammeView';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
@@ -181,6 +184,10 @@ type Portal = {
     alert: string | null;
     member_message: string;
   };
+  shop?: GymShopItem[];
+  require_paid_membership?: boolean;
+  paid_access?: boolean;
+  payout_ready?: boolean;
   threads?: Array<{
     id: string;
     title?: string;
@@ -208,8 +215,15 @@ export default function MemberFitgraphPortalPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [tab, setTab] = useState<
-    'checkin' | 'open' | 'mine' | 'progress' | 'messages' | 'profile'
+    | 'checkin'
+    | 'join'
+    | 'open'
+    | 'mine'
+    | 'progress'
+    | 'messages'
+    | 'profile'
   >('open');
+  const [buyingId, setBuyingId] = useState<string | null>(null);
   const [checkinBusy, setCheckinBusy] = useState(false);
   const [checkinScan, setCheckinScan] = useState('');
   const [name, setName] = useState('');
@@ -234,6 +248,12 @@ export default function MemberFitgraphPortalPage() {
       if (!res.ok) throw new Error(data.error || 'Portal not found');
       setPortal(data.portal);
       setCompanyId(data.companyId ?? null);
+      if (
+        data.portal?.require_paid_membership &&
+        data.portal?.paid_access === false
+      ) {
+        setTab((t) => (t === 'open' ? 'join' : t));
+      }
       const c = data.portal?.client;
       if (c) {
         setName(c.name || '');
@@ -257,6 +277,7 @@ export default function MemberFitgraphPortalPage() {
     const raw = new URLSearchParams(window.location.search).get('tab');
     if (
       raw === 'checkin' ||
+      raw === 'join' ||
       raw === 'open' ||
       raw === 'mine' ||
       raw === 'progress' ||
@@ -267,8 +288,65 @@ export default function MemberFitgraphPortalPage() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!token) return;
+    const q = new URLSearchParams(window.location.search);
+    const ref = q.get('ref') || q.get('reference') || q.get('trxref');
+    if (
+      !ref ||
+      (q.get('pay') !== '1' && !String(ref).startsWith('gym-sale-'))
+    ) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/public/fitgraph/member', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            action: 'verify_sale',
+            reference: ref,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not confirm payment');
+        if (cancelled) return;
+        if (data.portal) setPortal(data.portal);
+        setMsg(data.message || 'Payment recorded — membership is active');
+        setTab('join');
+        try {
+          const u = new URL(window.location.href);
+          u.searchParams.delete('pay');
+          u.searchParams.delete('ref');
+          u.searchParams.delete('reference');
+          u.searchParams.delete('trxref');
+          u.searchParams.set('tab', 'join');
+          window.history.replaceState({}, '', `${u.pathname}${u.search}`);
+        } catch {
+          /* ignore */
+        }
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : 'Payment check failed');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
   const selectTab = (
-    id: 'checkin' | 'open' | 'mine' | 'progress' | 'messages' | 'profile'
+    id:
+      | 'checkin'
+      | 'join'
+      | 'open'
+      | 'mine'
+      | 'progress'
+      | 'messages'
+      | 'profile'
   ) => {
     setTab(id);
     setError(null);
@@ -299,7 +377,15 @@ export default function MemberFitgraphPortalPage() {
       body: JSON.stringify({ token, ...body }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Request failed');
+    if (!res.ok) {
+      if (data.need_membership) {
+        if (Array.isArray(data.shop) && portal) {
+          setPortal({ ...portal, shop: data.shop });
+        }
+        selectTab('join');
+      }
+      throw new Error(data.error || 'Request failed');
+    }
     if (data.portal) setPortal(data.portal);
     return data;
   };
@@ -319,6 +405,31 @@ export default function MemberFitgraphPortalPage() {
       setError(e instanceof Error ? e.message : 'Booking failed');
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const buy = async (item: GymShopItem) => {
+    setBuyingId(`${item.kind}:${item.id}`);
+    setMsg(null);
+    setError(null);
+    try {
+      const data = await post({
+        action: 'checkout',
+        kind: item.kind,
+        item_id: item.id,
+        name: name.trim() || portal?.client.name,
+        email: email.trim() || portal?.client.email,
+        phone: phone.trim() || portal?.client.phone,
+      });
+      if (data.authorization_url) {
+        window.location.href = String(data.authorization_url);
+        return;
+      }
+      throw new Error('Paystack did not return a checkout link');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Checkout failed');
+    } finally {
+      setBuyingId(null);
     }
   };
 
@@ -526,6 +637,7 @@ export default function MemberFitgraphPortalPage() {
           {(
             [
               ['checkin', 'Check in'],
+              ['join', 'Join & pay'],
               ['open', 'Book'],
               ['mine', 'My classes'],
               ['progress', 'Progress'],
@@ -550,6 +662,42 @@ export default function MemberFitgraphPortalPage() {
             </button>
           ))}
         </div>
+
+        {tab === 'join' && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-yellow-800">
+              <CreditCard className="h-4 w-4" />
+              <h2 className="text-sm font-black">Memberships & programmes</h2>
+            </div>
+            {portal.paid_access ? (
+              <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">
+                You have paid access
+                {portal.access?.plan_name
+                  ? ` · ${portal.access.plan_name}`
+                  : ''}
+                . Renew or add a programme below.
+              </p>
+            ) : portal.require_paid_membership ? (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-950">
+                Pay for a membership before booking classes.
+              </p>
+            ) : null}
+            <GymShopPay
+              items={portal.shop || []}
+              color={color}
+              payoutReady={portal.payout_ready !== false}
+              requirePaid={portal.require_paid_membership}
+              name={name}
+              email={email}
+              phone={phone}
+              onName={setName}
+              onEmail={setEmail}
+              onPhone={setPhone}
+              onBuy={(item) => void buy(item)}
+              buyingId={buyingId}
+            />
+          </div>
+        )}
 
         {tab === 'checkin' && (
           <div className="space-y-3">

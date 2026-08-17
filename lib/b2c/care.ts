@@ -8,6 +8,8 @@ import { readPhysiographFromMetadata } from '@/lib/clinic/physiograph';
 import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
 import { readPsychiatrygraphFromMetadata } from '@/lib/clinic/psychiatrygraph';
 import { readFitgraphFromMetadata } from '@/lib/fitness/fitgraph';
+import { readHiregraphFromMetadata } from '@/lib/hire/hiregraph';
+import { readRetailgraphFromMetadata } from '@/lib/retail/retailgraph';
 import { buildPatientMedicalShare } from '@/lib/clinic/medical-share';
 import type { B2cMembership } from '@/lib/b2c/types';
 import type {
@@ -98,6 +100,42 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
           when: `${ses.date} ${ses.start_time || ''}`.trim(),
           status: String(b.status),
           href: `${mem.portal_path}${mem.portal_path.includes('?') ? '&' : '?'}tab=mine`,
+        });
+      }
+      continue;
+    }
+
+    if (mem.kind === 'hire') {
+      const store = readHiregraphFromMetadata(meta);
+      for (const a of publishedAnnouncements(store.announcements, 4)) {
+        announcements.push({
+          id: a.id,
+          kind: 'hire',
+          brand,
+          title: a.title,
+          body: a.body,
+          href: mem.portal_path,
+          pinned: a.pinned,
+          cta_label: a.cta_label,
+          cta_href: a.cta_href,
+        });
+      }
+      continue;
+    }
+
+    if (mem.kind === 'retail') {
+      const store = readRetailgraphFromMetadata(meta);
+      for (const a of publishedAnnouncements(store.announcements, 4)) {
+        announcements.push({
+          id: a.id,
+          kind: 'retail',
+          brand,
+          title: a.title,
+          body: a.body,
+          href: mem.portal_path,
+          pinned: a.pinned,
+          cta_label: a.cta_label,
+          cta_href: a.cta_href,
         });
       }
       continue;

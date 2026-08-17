@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { CalendarDays, Check, Loader2, Users } from 'lucide-react';
 import { gymBrandColor } from '@/lib/fitness/fitgraph';
+import { GymShopPay } from '@/components/fitness/GymShopPay';
+import type { GymShopItem } from '@/lib/fitness/gym-shop';
 
 type PublicSession = {
   id: string;
@@ -47,12 +49,21 @@ type PublicCalendar = {
     }>;
   }>;
   plans: Array<{
+    id?: string;
     code: string;
     name: string;
     price_zar: number;
     billing: string;
     description?: string;
   }>;
+  programmes?: Array<{
+    id: string;
+    name: string;
+    price_zar: number;
+    billing: string;
+    description?: string;
+  }>;
+  require_paid_membership?: boolean;
   contracts?: Array<{
     id: string;
     title: string;
@@ -73,6 +84,12 @@ export default function EmbedFitgraphPage() {
   const [phone, setPhone] = useState('');
   const [saving, setSaving] = useState(false);
   const [doneMsg, setDoneMsg] = useState<string | null>(null);
+  const [shop, setShop] = useState<GymShopItem[]>([]);
+  const [payoutReady, setPayoutReady] = useState(true);
+  const [requirePaid, setRequirePaid] = useState(false);
+  const [buyingId, setBuyingId] = useState<string | null>(null);
+  const [pendingSession, setPendingSession] = useState<string | null>(null);
+  const [portalToken, setPortalToken] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -86,6 +103,14 @@ export default function EmbedFitgraphPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load');
       setCalendar(data.calendar);
+      const catalog = Array.isArray(data.shop)
+        ? (data.shop as GymShopItem[])
+        : [];
+      setShop(catalog);
+      setPayoutReady(data.payout_ready !== false);
+      setRequirePaid(
+        data.calendar?.require_paid_membership === true || catalog.length > 0
+      );
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load');
     } finally {
@@ -96,6 +121,57 @@ export default function EmbedFitgraphPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!token) return;
+    const q = new URLSearchParams(window.location.search);
+    const ref = q.get('ref') || q.get('reference') || q.get('trxref');
+    if (
+      !ref ||
+      (q.get('pay') !== '1' && !String(ref).startsWith('gym-sale-'))
+    ) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      setSaving(true);
+      try {
+        const res = await fetch('/api/public/fitgraph', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            action: 'verify_sale',
+            reference: ref,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not confirm payment');
+        if (cancelled) return;
+        setDoneMsg(data.message || 'Payment recorded — membership is active');
+        if (data.portal_token) setPortalToken(String(data.portal_token));
+        try {
+          const u = new URL(window.location.href);
+          u.searchParams.delete('pay');
+          u.searchParams.delete('ref');
+          u.searchParams.delete('reference');
+          u.searchParams.delete('trxref');
+          window.history.replaceState({}, '', `${u.pathname}${u.search}`);
+        } catch {
+          /* ignore */
+        }
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : 'Payment check failed');
+        }
+      } finally {
+        if (!cancelled) setSaving(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const book = async () => {
     if (!bookingId || !name.trim()) return;
@@ -115,7 +191,18 @@ export default function EmbedFitgraphPage() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Booking failed');
+      if (!res.ok) {
+        if (data.need_membership) {
+          setShop((data.shop as GymShopItem[]) || shop);
+          setPendingSession(bookingId);
+          setRequirePaid(true);
+          setBookingId(null);
+          throw new Error(
+            data.error || 'Buy a membership first — then we can book this class'
+          );
+        }
+        throw new Error(data.error || 'Booking failed');
+      }
       setDoneMsg(data.booking?.message || 'Booked');
       if (data.calendar) setCalendar(data.calendar);
       setBookingId(null);
@@ -129,7 +216,68 @@ export default function EmbedFitgraphPage() {
     }
   };
 
+  const buy = async (item: GymShopItem) => {
+    if (!name.trim() || !email.includes('@')) {
+      setError('Name and email are required to pay');
+      return;
+    }
+    setBuyingId(`${item.kind}:${item.id}`);
+    setError(null);
+    setDoneMsg(null);
+    try {
+      const res = await fetch('/api/public/fitgraph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          action: 'checkout',
+          kind: item.kind,
+          item_id: item.id,
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim() || undefined,
+          session_id: pendingSession || bookingId || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Checkout failed');
+      if (data.authorization_url) {
+        window.location.href = data.authorization_url;
+        return;
+      }
+      throw new Error('Paystack did not return a checkout link');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Checkout failed');
+    } finally {
+      setBuyingId(null);
+    }
+  };
+
   const color = gymBrandColor(calendar?.primary_color);
+  const shopItems: GymShopItem[] =
+    shop.length > 0
+      ? shop
+      : [
+          ...(calendar?.plans || [])
+            .filter((p) => Number(p.price_zar) > 0)
+            .map((p) => ({
+              kind: 'membership' as const,
+              id: p.id || p.code,
+              code: p.code,
+              name: p.name,
+              description: p.description,
+              price_zar: p.price_zar,
+              billing: p.billing,
+            })),
+          ...(calendar?.programmes || []).map((p) => ({
+            kind: 'programme' as const,
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            price_zar: p.price_zar,
+            billing: p.billing,
+          })),
+        ];
 
   if (loading) {
     return (
@@ -196,6 +344,14 @@ export default function EmbedFitgraphPage() {
             <Check className="w-4 h-4" /> {doneMsg}
           </div>
         )}
+        {portalToken ? (
+          <a
+            href={`/member/fitgraph/${encodeURIComponent(portalToken)}`}
+            className="block rounded-2xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm font-bold text-yellow-950"
+          >
+            Open your member portal to book classes
+          </a>
+        ) : null}
         {error && calendar && (
           <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
@@ -317,32 +473,25 @@ export default function EmbedFitgraphPage() {
           </section>
         )}
 
-        {calendar.plans.length > 0 && (
+        {shopItems.length > 0 && (
           <section>
             <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">
-              Memberships
+              Join & pay
             </h2>
-            <div className="grid sm:grid-cols-2 gap-2">
-              {calendar.plans.map((p) => (
-                <div
-                  key={p.code}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3"
-                >
-                  <div className="font-bold text-sm">{p.name}</div>
-                  <div className="text-lg font-black tabular-nums" style={{ color }}>
-                    R{p.price_zar}
-                    <span className="text-[11px] font-bold text-slate-400 ml-1">
-                      / {p.billing}
-                    </span>
-                  </div>
-                  {p.description && (
-                    <p className="text-[12px] text-slate-600 mt-1">
-                      {p.description}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
+            <GymShopPay
+              items={shopItems}
+              color={color}
+              payoutReady={payoutReady}
+              requirePaid={requirePaid || calendar.require_paid_membership}
+              name={name}
+              email={email}
+              phone={phone}
+              onName={setName}
+              onEmail={setEmail}
+              onPhone={setPhone}
+              onBuy={(item) => void buy(item)}
+              buyingId={buyingId}
+            />
           </section>
         )}
 
@@ -384,7 +533,9 @@ export default function EmbedFitgraphPage() {
           <div className="bg-white rounded-3xl w-full max-w-md p-5 space-y-3 shadow-xl">
             <h3 className="font-black text-lg">Book class</h3>
             <p className="text-xs text-slate-500">
-              We&apos;ll reserve your spot (or waitlist if full).
+              {requirePaid
+                ? 'If you are not a paid member yet, we will send you to Paystack first (card / Apple Pay).'
+                : 'We will reserve your spot (or waitlist if full).'}
             </p>
             <input
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"

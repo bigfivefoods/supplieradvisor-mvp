@@ -58,13 +58,14 @@ export function buildPaystackInitializeBody(
     reference: opts.reference,
     metadata: opts.metadata || {},
     channels: opts.channels || [
+      'apple_pay',
       'card',
       'bank',
       'ussd',
       'qr',
       'mobile_money',
       'bank_transfer',
-      'apple_pay',
+      'eft',
     ],
   };
   if (opts.callbackUrl) body.callback_url = opts.callbackUrl;

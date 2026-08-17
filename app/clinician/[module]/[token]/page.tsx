@@ -138,9 +138,13 @@ export default function ClinicianPortalPage() {
     edit_scope: 'one' as 'one' | 'future',
   });
   const [create, setCreate] = useState({
+    appointment_kind: 'consult' as 'consult' | 'personal',
+    personal_reason: 'personal',
+    notes: '',
     service_id: '',
     date: new Date().toISOString().slice(0, 10),
     start_time: '09:00',
+    end_time: '10:00',
     duration_min: '45',
     location: '',
     patient_id: '',
@@ -810,18 +814,66 @@ export default function ClinicianPortalPage() {
             </div>
             <select
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              value={create.appointment_kind}
+              onChange={(e) =>
+                setCreate((f) => ({
+                  ...f,
+                  appointment_kind: e.target.value as 'consult' | 'personal',
+                  public: e.target.value === 'personal' ? false : f.public,
+                }))
+              }
+            >
+              <option value="consult">Patient appointment</option>
+              <option value="personal">Own time / leave</option>
+            </select>
+            {create.appointment_kind === 'personal' ? (
+              <>
+                <select
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                  value={create.personal_reason}
+                  onChange={(e) =>
+                    setCreate((f) => ({
+                      ...f,
+                      personal_reason: e.target.value,
+                      start_time:
+                        e.target.value === 'leave' ? '08:00' : f.start_time,
+                      end_time:
+                        e.target.value === 'leave' ? '17:00' : f.end_time,
+                    }))
+                  }
+                >
+                  <option value="personal">Personal</option>
+                  <option value="leave">Leave</option>
+                  <option value="admin">Admin / paperwork</option>
+                  <option value="other">Other</option>
+                </select>
+                <input
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                  placeholder="Note (optional)"
+                  value={create.notes}
+                  onChange={(e) =>
+                    setCreate((f) => ({ ...f, notes: e.target.value }))
+                  }
+                />
+              </>
+            ) : (
+            <select
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
               value={create.service_id}
               onChange={(e) =>
                 setCreate((f) => ({ ...f, service_id: e.target.value }))
               }
             >
               <option value="">Service…</option>
-              {portal.services.map((s) => (
+              {portal.services
+                .filter((s) => s.code !== 'SYS_PERSONAL')
+                .map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>
               ))}
             </select>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <input
                 type="date"
@@ -839,6 +891,14 @@ export default function ClinicianPortalPage() {
                   setCreate((f) => ({ ...f, start_time: e.target.value }))
                 }
               />
+              <input
+                type="time"
+                className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm col-span-2"
+                value={create.end_time}
+                onChange={(e) =>
+                  setCreate((f) => ({ ...f, end_time: e.target.value }))
+                }
+              />
             </div>
             <input
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
@@ -848,6 +908,7 @@ export default function ClinicianPortalPage() {
                 setCreate((f) => ({ ...f, location: e.target.value }))
               }
             />
+            {create.appointment_kind !== 'personal' ? (
             <select
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
               value={create.patient_id}
@@ -862,19 +923,34 @@ export default function ClinicianPortalPage() {
                 </option>
               ))}
             </select>
+            ) : (
+              <p className="text-[11px] text-slate-400">
+                Blocks your diary. Patients cannot book this time.
+              </p>
+            )}
             <button
               type="button"
-              disabled={busy || !create.service_id}
+              disabled={
+                busy ||
+                (create.appointment_kind !== 'personal' && !create.service_id)
+              }
               className="w-full rounded-xl bg-sky-500 text-sky-950 py-2.5 text-sm font-black disabled:opacity-50"
               onClick={() =>
                 void post({
                   action: 'create_appointment',
+                  appointment_kind: create.appointment_kind,
+                  personal_reason: create.personal_reason,
+                  notes: create.notes || undefined,
                   service_id: create.service_id,
                   date: create.date,
                   start_time: create.start_time,
+                  end_time: create.end_time,
                   duration_min: Number(create.duration_min) || 45,
                   location: create.location || undefined,
-                  patient_id: create.patient_id || undefined,
+                  patient_id:
+                    create.appointment_kind === 'personal'
+                      ? undefined
+                      : create.patient_id || undefined,
                   public: create.public,
                 }).then(() => setShowCreate(false))
               }

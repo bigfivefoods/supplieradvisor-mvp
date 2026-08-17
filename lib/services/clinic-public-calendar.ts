@@ -55,6 +55,7 @@ type Appt = {
   status: string;
   public?: boolean;
   public_notes?: string;
+  appointment_kind?: string;
   staff_id?: string | null;
   practitioner_id?: string | null;
 };
@@ -65,11 +66,12 @@ type Booking = {
 };
 
 function appointmentOpen(
-  store: { appointments: Appt[]; bookings: Booking[]; services: Array<{ id: string; name: string }> },
+  store: { appointments: Appt[]; bookings: Booking[]; services: Array<{ id: string; name: string; code?: string }> },
   a: Appt
 ): boolean {
   if (a.status !== 'scheduled') return false;
   if (a.public !== true) return false;
+  if (String(a.appointment_kind || '') === 'personal') return false;
   const booked = store.bookings.filter(
     (b) =>
       b.appointment_id === a.id &&
@@ -130,6 +132,7 @@ export function buildClinicPublicCalendar(opts: {
       (a) =>
         a.status === 'scheduled' &&
         a.public === true &&
+        String(a.appointment_kind || '') !== 'personal' &&
         a.date >= start &&
         a.date <= end
     )
