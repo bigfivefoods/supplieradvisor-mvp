@@ -8,6 +8,7 @@
  */
 import { MODULE_NAV, type ModuleNav } from '@/lib/chrome/module-nav';
 import { applySidebarModuleOrder } from '@/lib/chrome/sidebar-order';
+import { ADVISOR_CORE_COMPANIONS } from '@/lib/product/advisor-core-unlocks';
 import {
   INDUSTRY_PACKS,
   readPackagingFromMetadata,
@@ -238,9 +239,17 @@ export function functionalSidebarModules(opts: {
   const out: SidebarModuleShape[] = [];
   const seen = new Set<string>();
   const pinnedAdvisors = advisorModulesForCompany(opts);
+  const companionCore = pinnedAdvisors.length
+    ? ADVISOR_CORE_COMPANIONS.filter(
+        (id) => opts.isModuleEnabled(id) && !pinnedAdvisors.includes(id)
+      )
+    : [];
   const moduleOrder = [
     ...pinnedAdvisors,
-    ...FUNCTIONAL_MODULE_ORDER.filter((id) => !pinnedAdvisors.includes(id)),
+    ...companionCore,
+    ...FUNCTIONAL_MODULE_ORDER.filter(
+      (id) => !pinnedAdvisors.includes(id) && !companionCore.includes(id)
+    ),
   ];
 
   const shouldShowModule = (id: string): boolean => {

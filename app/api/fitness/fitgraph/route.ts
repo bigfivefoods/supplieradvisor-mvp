@@ -1884,6 +1884,24 @@ export async function POST(request: NextRequest) {
         });
         const ci = store.clients.findIndex((c) => c.id === person.id);
         if (ci >= 0) store.clients[ci] = linked.person;
+        try {
+          const { ensureAdvisorCrmCustomer } = await import(
+            '@/lib/b2c/member-account-ar'
+          );
+          const crm = await ensureAdvisorCrmCustomer({
+            companyId,
+            name: linked.person.name,
+            email: linked.person.email || null,
+            kind: 'gym',
+            refId: linked.person.id,
+          });
+          if (crm?.id) {
+            const next = { ...linked.person, crm_customer_id: crm.id };
+            if (ci >= 0) store.clients[ci] = next;
+          }
+        } catch {
+          /* CRM dual-write is best-effort */
+        }
         walletInvite = {
           email_sent: linked.invite?.email_sent,
           warning: linked.invite?.warning,
@@ -2183,6 +2201,12 @@ function upsert(
             ? String(rec.membership_plan_id)
             : null
           : prev?.membership_plan_id ?? null,
+      crm_customer_id:
+        rec.crm_customer_id !== undefined
+          ? rec.crm_customer_id
+            ? Number(rec.crm_customer_id)
+            : null
+          : prev?.crm_customer_id ?? null,
       membership_status: String(
         rec.membership_status || prev?.membership_status || 'active'
       ),

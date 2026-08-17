@@ -192,19 +192,22 @@ type VukaPlanDraft = Omit<FitMembershipPlan, 'created_at'> & {
 };
 
 function plan(
-  partial: VukaPlanDraft & {
+  partial: Omit<
+    VukaPlanDraft,
+    'billing' | 'public' | 'active' | 'access' | 'catalog' | 'class_credits'
+  > & {
     series_ids: string[];
     schedule_label: string;
   }
 ): VukaPlanDraft {
   return {
+    ...partial,
     billing: 'monthly',
     public: true,
     active: true,
     access: 'classes',
     catalog: 'vuka',
     class_credits: null,
-    ...partial,
   };
 }
 

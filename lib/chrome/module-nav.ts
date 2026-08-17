@@ -319,7 +319,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     href: '/dashboard/customers',
     resource: 'customers',
     steps: [
-      { name: 'Overview', href: '/dashboard/customers', exact: true, desc: 'CRM command tower', section: 'Home' },
+      { name: 'Overview', href: '/dashboard/customers', exact: true, desc: 'CRM command · Advisor members', section: 'Home' },
       { name: 'Source', href: '/dashboard/customers/leads', desc: 'Leads & pipeline', section: 'Source' },
       { name: 'Book', href: '/dashboard/customers/profiles', desc: 'Customer accounts', section: 'Source' },
       { name: 'Invite', href: '/dashboard/customers/invites', desc: 'Invite buyers to platform', section: 'Source' },
@@ -451,7 +451,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     href: '/dashboard/accounting',
     resource: 'accounting',
     steps: [
-      { name: 'Overview', href: '/dashboard/accounting', exact: true, section: 'Home' },
+      { name: 'Overview', href: '/dashboard/accounting', exact: true, desc: 'Books · Advisor fees', section: 'Home' },
       { name: 'Chart', href: '/dashboard/accounting/chart-of-accounts', section: 'Books' },
       { name: 'Journals', href: '/dashboard/accounting/journal-entries', section: 'Books' },
       { name: 'AR', href: '/dashboard/accounting/accounts-receivable', desc: 'Collect', section: 'Trade' },
@@ -488,7 +488,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     href: '/dashboard/people',
     resource: 'people',
     steps: [
-      { name: 'Overview', href: '/dashboard/people', exact: true, section: 'Home' },
+      { name: 'Overview', href: '/dashboard/people', exact: true, desc: 'HR · Advisor staff', section: 'Home' },
       { name: 'Directory', href: '/dashboard/people/directory', section: 'Book' },
       { name: 'Org', href: '/dashboard/people/org-chart', desc: 'BU organogram + reporting lines', section: 'Book' },
       { name: 'Rate', href: '/dashboard/people/performance', section: 'Rate' },
@@ -659,7 +659,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
      * website embed, coach portal, bookings, check-ins).
      */
     steps: [
-      { name: 'Command', href: '/dashboard/fitgraph', exact: true, desc: 'Gym services home', section: 'Home' },
+      { name: 'Command', href: '/dashboard/fitgraph', exact: true, desc: 'Gym OS · People · CRM · Finance', section: 'Home' },
       { name: 'Coaches', href: '/dashboard/fitgraph/coaches', desc: 'Trainers · portal links', section: 'People' },
       { name: 'Coach calendar', href: '/dashboard/fitgraph/coach-calendar', desc: 'Plan · actual · series', section: 'People' },
       { name: 'Clients', href: '/dashboard/fitgraph/clients', desc: 'Members & status', section: 'People' },

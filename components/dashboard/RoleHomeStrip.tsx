@@ -15,6 +15,10 @@ import {
 } from 'lucide-react';
 import { useCompanyRole } from '@/lib/business/useCompanyRole';
 import type { TeamRole } from '@/lib/business/permissions';
+import {
+  ADVISOR_MODULE_CORE_HREF,
+  enabledAdvisorModules,
+} from '@/lib/product/advisor-core-unlocks';
 
 type Action = {
   label: string;
@@ -139,9 +143,41 @@ function actionsForRole(role: TeamRole | null): Action[] {
 }
 
 export default function RoleHomeStrip() {
-  const { role, roleLabel, loading } = useCompanyRole();
+  const { role, roleLabel, loading, isCompanyModuleEnabled } = useCompanyRole();
   if (loading) return null;
-  const actions = actionsForRole(role);
+  const advisors = enabledAdvisorModules(isCompanyModuleEnabled);
+  const advisorActions: Action[] = advisors.slice(0, 1).flatMap((id) => {
+    const hrefs = ADVISOR_MODULE_CORE_HREF[id];
+    return [
+      {
+        label: hrefs.label,
+        href: hrefs.book.replace(/\/(clients|patients|customers)$/, ''),
+        desc: 'Advisor command',
+        icon: Users,
+      },
+      {
+        label: 'People',
+        href: '/dashboard/people',
+        desc: 'Staff · coaches',
+        icon: Users,
+      },
+      {
+        label: 'Customers',
+        href: '/dashboard/customers',
+        desc: 'Members on CRM',
+        icon: ShoppingCart,
+      },
+      {
+        label: 'Finance',
+        href: '/dashboard/accounting',
+        desc: 'Fees · invoices',
+        icon: Wallet,
+      },
+    ];
+  });
+  const actions = advisorActions.length
+    ? advisorActions
+    : actionsForRole(role);
 
   return (
     <section className="mb-4 rounded-2xl border border-cyan-100 bg-gradient-to-r from-white via-sky-50/40 to-white px-4 py-3.5 shadow-sm">

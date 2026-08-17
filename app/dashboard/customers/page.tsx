@@ -35,6 +35,7 @@ import {
   type HubModule,
 } from '@/components/chrome/CommandHubChrome';
 import RatingPromptBanner from '@/components/ratings/RatingPromptBanner';
+import { AdvisorCoreBridge } from '@/components/advisors/AdvisorCoreBridge';
 
 type Summary = {
   customers: number;
@@ -215,7 +216,7 @@ function HubInner() {
         eyebrow="Customer relationship management"
         title="Customers"
         titleAccent="Selling"
-        description="Source leads → book & invite buyers → quote, order, invoice, collect → rate → report. One clean sell path (no duplicate search/connect/money tabs)."
+        description="Source leads → book & invite buyers → quote, order, invoice, collect → rate → report. Advisor members, patients and hirers land on this book so the Advisor OS and Core CRM stay one system."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -235,6 +236,8 @@ function HubInner() {
           </div>
         }
       />
+
+      <AdvisorCoreBridge surface="customers" />
 
       <Suspense fallback={null}>
         <RatingPromptBanner />

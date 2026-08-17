@@ -2,6 +2,7 @@
  * Core OS → Sector → Industry Pack → Modules → Bespoke
  * Single source of truth for packaging (brief 2026-08-09).
  */
+import { addAdvisorPackUnlocks } from '@/lib/product/advisor-core-unlocks';
 
 /**
  * South African national government departments (Cabinet / gov.za aligned).
@@ -1277,6 +1278,8 @@ export function enabledModulesMapFromPacks(
     unlocked.add('intelligence');
   }
 
+  addAdvisorPackUnlocks(unlocked, packIds);
+
   const map: Record<string, boolean> = {};
   for (const id of allModuleIds) {
     if (id === 'home' || id === 'my-business' || id === 'guide') {
@@ -1597,6 +1600,7 @@ export function appModulesUnlockedByPack(pack: IndustryPackDef): string[] {
   if (pack.id === 'public_procurement') {
     ids.add('schools');
   }
+  addAdvisorPackUnlocks(ids, [pack.id]);
   return [...ids];
 }
 

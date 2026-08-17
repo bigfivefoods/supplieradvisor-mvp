@@ -30,6 +30,7 @@ import {
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { formatMoney } from '@/lib/accounting/types';
 import { statusBadgeClass } from '@/lib/hr/types';
+import { AdvisorCoreBridge } from '@/components/advisors/AdvisorCoreBridge';
 
 type Summary = {
   migration_required?: boolean;
@@ -158,7 +159,7 @@ export default function PeopleHubPage() {
       <RelationshipHeader
         title="People"
         titleAccent="HR"
-        description="Permanent staff only — organogram by business unit, reporting lines, performance, disciplinary, leave, payroll, and training. Temporary / gang labour stays in CropAdvisor and QuarryAdvisor."
+        description="Permanent staff — organogram, reporting lines, leave and payroll. Employed Advisor coaches and clinicians dual-write here so HR and the Advisor book stay one system."
         action={
           <Link
             href="/dashboard/people/directory?new=1"
@@ -168,6 +169,8 @@ export default function PeopleHubPage() {
           </Link>
         }
       />
+
+      <AdvisorCoreBridge surface="people" />
 
       {summary?.migration_required && (
         <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">

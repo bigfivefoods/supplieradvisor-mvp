@@ -162,6 +162,30 @@ function hubModules(hasFrontDesk: boolean): HubModule[] {
     desc: 'Insights · A4 landscape key metrics PDF · slice & dice.',
     accent: 'from-slate-50 to-white border-slate-200',
   },
+  {
+    href: '/dashboard/people',
+    icon: UserRound,
+    code: '12',
+    title: 'People (HR)',
+    desc: 'Employed coaches dual-write into the Core People directory.',
+    accent: 'from-violet-50 to-white border-violet-100',
+  },
+  {
+    href: '/dashboard/customers',
+    icon: Users,
+    code: '13',
+    title: 'Customers (CRM)',
+    desc: 'Members land on the Core customer book for invoices and AR.',
+    accent: 'from-sky-50 to-white border-sky-100',
+  },
+  {
+    href: '/dashboard/accounting',
+    icon: CreditCard,
+    code: '14',
+    title: 'Finance',
+    desc: 'Membership fees post as customer invoices — collect here or on Accounts.',
+    accent: 'from-emerald-50 to-white border-emerald-100',
+  },
 ];
 }
 

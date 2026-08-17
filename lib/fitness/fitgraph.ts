@@ -465,6 +465,8 @@ export type FitClient = {
   share_schedule?: boolean;
   share_feedback?: boolean;
   membership_plan_id?: string | null;
+  /** Linked Core CRM customer (Customers module) */
+  crm_customer_id?: number | null;
   membership_status?: (typeof MEMBERSHIP_STATUSES)[number] | string;
   /** Programmes this member paid for / was allocated */
   purchased_programme_ids?: string[];

@@ -6,6 +6,35 @@ import { recordArPayment } from '@/lib/customers/ar-ledger';
 import { docNumber } from '@/lib/customers/documents';
 import type { MemberAccountCharge } from '@/lib/b2c/member-account-types';
 
+/** Dual-write an Advisor member / patient onto Core Customers. */
+export async function attachCrmToAdvisorPerson(opts: {
+  companyId: number;
+  kind: string;
+  person: {
+    id: string;
+    name: string;
+    email?: string | null;
+    crm_customer_id?: number | null;
+  };
+}): Promise<number | null> {
+  try {
+    const crm = await ensureAdvisorCrmCustomer({
+      companyId: opts.companyId,
+      name: opts.person.name,
+      email: opts.person.email || null,
+      kind: opts.kind,
+      refId: opts.person.id,
+    });
+    if (crm?.id) {
+      opts.person.crm_customer_id = crm.id;
+      return crm.id;
+    }
+  } catch {
+    /* best-effort */
+  }
+  return null;
+}
+
 export async function ensureAdvisorCrmCustomer(opts: {
   companyId: number;
   name: string;

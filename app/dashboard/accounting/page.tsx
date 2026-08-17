@@ -29,6 +29,7 @@ import {
   AlertBanner,
   RelationshipHeader,
 } from '@/components/relationship/RelationshipChrome';
+import { AdvisorCoreBridge } from '@/components/advisors/AdvisorCoreBridge';
 import {
   HubHero,
   HubModuleGrid,
@@ -263,7 +264,7 @@ function HubInner() {
         eyebrow="Financial control"
         title="Accounting"
         titleAccent="Command"
-        description="Full finance OS: CoA, journals, AR/AP, payments, bank balances & allocation, budgets, management accounts, annual financial statements, VAT, assets, multi-entity group, and reports."
+        description="Full finance OS: CoA, journals, AR/AP, payments, bank, VAT and reports. Advisor membership and clinic fees post onto Customers invoices so Finance and the Advisor book stay one system."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -289,6 +290,8 @@ function HubInner() {
           </div>
         }
       />
+
+      <AdvisorCoreBridge surface="accounting" />
 
       {warning && (
         <AlertBanner>

@@ -1450,6 +1450,15 @@ export async function POST(request: NextRequest) {
           });
           const pi = store.patients.findIndex((p) => p.id === person.id);
           if (pi >= 0) store.patients[pi] = linked.person;
+          const { attachCrmToAdvisorPerson } = await import(
+            '@/lib/b2c/member-account-ar'
+          );
+          await attachCrmToAdvisorPerson({
+            companyId,
+            kind: 'dental',
+            person: linked.person,
+          });
+          if (pi >= 0) store.patients[pi] = linked.person;
           walletInvite = {
             email_sent: linked.invite?.email_sent,
             warning: linked.invite?.warning,

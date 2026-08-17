@@ -12,6 +12,7 @@ import {
   getIndustryPack,
 } from '@/lib/product/architecture';
 import { getIndustry } from '@/lib/product/business-catalogue';
+import { applyAdvisorCoreCompanions } from '@/lib/product/advisor-core-unlocks';
 
 /** Always visible — cannot be turned off in company profile */
 export const ALWAYS_ON_MODULE_IDS = ['home', 'my-business', 'guide'] as const;
@@ -30,14 +31,14 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   'sales-portal': 'Sales contractor portal, pipeline, quotes & earnings',
   network: 'Connections, pricing agreements, marketplace, invites',
   suppliers: 'SRM: source, connect, procure, rate & report suppliers',
-  customers: 'CRM: source, connect, quote, invoice, rate & report buyers',
+  customers: 'CRM: source, connect, quote, invoice, rate & report buyers — includes Advisor members',
   containers: 'Container outlets, resellers, contractors & impact',
   inventory: 'Products, stock, lots, transfers & counts',
   operations: 'Inbound, warehouse, production, outbound control tower',
   manufacturing: 'MPS, MRP, BOM, production orders & work centres',
   distribution: 'Inbound/outbound logistics, tracking & carriers',
-  accounting: 'Books, bank recon, journals, tax & reports',
-  people: 'HR directory, payroll, leave, org chart & training',
+  accounting: 'Books, bank recon, journals, tax & reports — Advisor fees post here',
+  people: 'HR directory, payroll, leave, org chart & training — includes employed Advisor staff',
   sheq: 'OH&S, NCR/CAPA, safety incidents',
   quality: 'Inspections, holds, quality assurance',
   projects: 'Portfolio, kanban, milestones & timesheets',
@@ -620,7 +621,7 @@ export function normalizeEnabledModules(
           : true;
     }
   }
-  return map;
+  return applyAdvisorCoreCompanions(map);
 }
 
 export function extractEnabledModulesFromMetadata(
