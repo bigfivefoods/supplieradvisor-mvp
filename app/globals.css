@@ -1222,25 +1222,49 @@ html.dark img[src*='sa-logo'],
 html.dark img[src*='sa-icon'] {
   filter: brightness(0) invert(1);
 }
+html.dark .sa-official-logo .sa-logo-base,
+html.dark img.sa-logo-base {
+  filter: none;
+}
 
 /*
- * Wordmark + monogram letters match SA navy (#203878).
- * Tick and ® are SA cyan on Core OS; Advisor skins override above.
+ * Official SA lockup: real artwork + tick mask.
+ * Core OS keeps navy letters / cyan tick. Advisor skins: black letters, brand tick.
  */
-.sa-monogram {
-  color: #203878;
-  display: block;
+.sa-official-logo {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
   flex-shrink: 0;
-  overflow: visible;
+  height: 2rem;
+  width: auto;
 }
-.sa-monogram-tick {
-  fill: #00b4d8;
+.sa-official-logo.sa-logo,
+.sa-official-logo.h-6 {
+  height: 1.5rem;
 }
-html.dark .sa-monogram {
-  color: #ffffff;
+.sa-official-logo.h-7 {
+  height: 1.75rem;
 }
-html.dark .sa-monogram-tick {
-  fill: #00b4d8;
+.sa-official-logo.h-8 {
+  height: 2rem;
+}
+.sa-logo-base {
+  display: block;
+  height: 100%;
+  width: auto;
+}
+.sa-logo-tick {
+  position: absolute;
+  inset: 0;
+  background-color: #00b4d8;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  pointer-events: none;
 }
 .sa-wordmark {
   color: #203878;
@@ -1254,18 +1278,20 @@ html.dark .sa-wordmark {
 }
 
 html[data-advisor]:not([data-advisor='supplier']) .sa-wordmark,
-html[data-advisor]:not([data-advisor='supplier']) .sa-monogram,
-html.dark[data-advisor]:not([data-advisor='supplier']) .sa-wordmark,
-html.dark[data-advisor]:not([data-advisor='supplier']) .sa-monogram {
+html.dark[data-advisor]:not([data-advisor='supplier']) .sa-wordmark {
   color: #111827;
 }
 html[data-advisor]:not([data-advisor='supplier']) .sa-wordmark .sa-wordmark-mark,
 html.dark[data-advisor]:not([data-advisor='supplier']) .sa-wordmark .sa-wordmark-mark {
   color: var(--sa-brand);
 }
-html[data-advisor]:not([data-advisor='supplier']) .sa-monogram-tick,
-html.dark[data-advisor]:not([data-advisor='supplier']) .sa-monogram-tick {
-  fill: var(--sa-brand);
+html[data-advisor]:not([data-advisor='supplier']) .sa-official-logo .sa-logo-base,
+html.dark[data-advisor]:not([data-advisor='supplier']) .sa-official-logo .sa-logo-base {
+  filter: brightness(0);
+}
+html[data-advisor]:not([data-advisor='supplier']) .sa-logo-tick,
+html.dark[data-advisor]:not([data-advisor='supplier']) .sa-logo-tick {
+  background-color: var(--sa-brand);
 }
 html.dark[data-advisor]:not([data-advisor='supplier']) .sa-brand-lockup {
   background: #ffffff;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { SaMonogram } from '@/components/brand/SaMonogram';
+import { SaOfficialLogo } from '@/components/brand/SaOfficialLogo';
 
 /**
  * Portal mark: company logo when set, otherwise the SupplierAdvisor logo.
@@ -34,7 +34,7 @@ export function PortalBrandLogo({
   }
 
   return (
-    <SaMonogram
+    <SaOfficialLogo
       title={name || 'SupplierAdvisor'}
       className={fallbackClassName || className}
     />
