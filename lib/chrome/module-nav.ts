@@ -91,6 +91,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     href: '/dashboard',
     steps: [
       { name: 'Messages', href: '/dashboard/messages?from=home', desc: 'Team · trade · care inbox', section: 'Home', rail: false },
+      { name: 'Calendar', href: '/dashboard/calendar', desc: 'Company week · leave · deliveries', section: 'Home', rail: false },
     ],
     resource: 'dashboard',
   },
@@ -320,6 +321,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     resource: 'customers',
     steps: [
       { name: 'Overview', href: '/dashboard/customers', exact: true, desc: 'CRM command · Advisor members', section: 'Home' },
+      { name: '360', href: '/dashboard/customers/360', desc: 'Member · patient · hirer · debit · invoices', section: 'Home' },
       { name: 'Source', href: '/dashboard/customers/leads', desc: 'Leads & pipeline', section: 'Source' },
       { name: 'Book', href: '/dashboard/customers/profiles', desc: 'Customer accounts', section: 'Source' },
       { name: 'Invite', href: '/dashboard/customers/invites', desc: 'Invite buyers to platform', section: 'Source' },
@@ -371,6 +373,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     steps: [
       { name: 'Overview', href: '/dashboard/inventory', exact: true, section: 'Home' },
       { name: 'Catalog', href: '/dashboard/inventory/products', section: 'Catalog' },
+      { name: 'Shared SKUs', href: '/dashboard/inventory/shared', desc: 'Gym · retail · hire · clinic', section: 'Catalog' },
       { name: 'Stock', href: '/dashboard/inventory/stock', section: 'Stock' },
       {
         name: 'Report',
@@ -394,6 +397,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     resource: 'operations',
     steps: [
       { name: 'Overview', href: '/dashboard/operations', exact: true, section: 'Home' },
+      { name: 'Calendar', href: '/dashboard/calendar', desc: 'Advisor · leave · deliveries', section: 'Home' },
       { name: 'Inbound', href: '/dashboard/operations/inbound', section: 'Flow' },
       { name: 'Store', href: '/dashboard/operations/warehouse', section: 'Flow' },
       { name: 'Make', href: '/dashboard/operations/production', section: 'Flow' },
@@ -452,6 +456,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     resource: 'accounting',
     steps: [
       { name: 'Overview', href: '/dashboard/accounting', exact: true, desc: 'Books · Advisor fees', section: 'Home' },
+      { name: 'Debit orders', href: '/dashboard/accounting/debit-orders', desc: 'Member debit file · VAT incl.', section: 'Home' },
       { name: 'Chart', href: '/dashboard/accounting/chart-of-accounts', section: 'Books' },
       { name: 'Journals', href: '/dashboard/accounting/journal-entries', section: 'Books' },
       { name: 'AR', href: '/dashboard/accounting/accounts-receivable', desc: 'Collect', section: 'Trade' },
@@ -490,6 +495,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     steps: [
       { name: 'Overview', href: '/dashboard/people', exact: true, desc: 'HR · Advisor staff', section: 'Home' },
       { name: 'Directory', href: '/dashboard/people/directory', section: 'Book' },
+      { name: 'Calendar', href: '/dashboard/calendar', desc: 'Leave blocks Advisor diaries', section: 'Book' },
       { name: 'Org', href: '/dashboard/people/org-chart', desc: 'BU organogram + reporting lines', section: 'Book' },
       { name: 'Rate', href: '/dashboard/people/performance', section: 'Rate' },
       { name: 'Discipline', href: '/dashboard/people/disciplinary', section: 'Rate' },

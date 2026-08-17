@@ -15,6 +15,7 @@ import {
   ShoppingCart,
   Truck,
   Warehouse,
+  CalendarDays,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
@@ -61,6 +62,14 @@ type Summary = {
 };
 
 const MODULES = [
+  {
+    href: '/dashboard/calendar',
+    icon: CalendarDays,
+    code: '00',
+    title: 'Company calendar',
+    desc: 'Advisor sessions, staff leave and supplier deliveries on one week.',
+    accent: 'from-sky-50 to-white border-sky-100',
+  },
   {
     href: '/dashboard/operations/supplier-orders',
     icon: Truck,
@@ -317,7 +326,8 @@ function CommandInner() {
           <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
             {MODULES.map((m) => {
               const Icon = m.icon;
-              const metric = s ? s[m.metricKey] : '—';
+              const metric =
+                'metricKey' in m && m.metricKey && s ? s[m.metricKey] : '—';
               return (
                 <Link
                   key={m.href}

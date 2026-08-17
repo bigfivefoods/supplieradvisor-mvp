@@ -11,6 +11,7 @@ import {
 /** Secondary pill nav — mirrors process rail (no duplicate settle/AR/reviews paths) */
 export const CUSTOMERS_NAV: readonly NavItem[] = [
   { href: '/dashboard/customers', label: 'Overview', exact: true },
+  { href: '/dashboard/customers/360', label: '360' },
   { href: '/dashboard/customers/leads', label: 'Source' },
   { href: '/dashboard/customers/profiles', label: 'Book' },
   { href: '/dashboard/customers/invites', label: 'Invite' },

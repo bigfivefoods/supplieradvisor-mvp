@@ -48,6 +48,9 @@ export default function PayrollPage() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [selected, setSelected] = useState<Run | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
+  const [sessionPay, setSessionPay] = useState<
+    Array<{ name: string; sessions: number; amount_zar: number; basis: string }>
+  >([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -58,6 +61,13 @@ export default function PayrollPage() {
       const data = await res.json();
       setRuns(data.runs || []);
       if (data.warning) toast.message(data.warning, { description: data.hint });
+      try {
+        const p = await fetch(`/api/core/people-360?companyId=${companyId}`);
+        const pj = await p.json();
+        setSessionPay(pj.pay || []);
+      } catch {
+        setSessionPay([]);
+      }
     } catch {
       setRuns([]);
     } finally {
@@ -178,6 +188,26 @@ export default function PayrollPage() {
           </Link>
         }
       />
+
+      {sessionPay.length ? (
+        <Panel className="mb-6">
+          <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+            Advisor session pay this month
+          </p>
+          <ul className="mt-2 space-y-1 text-sm">
+            {sessionPay.map((p) => (
+              <li key={p.name} className="flex justify-between">
+                <span>
+                  {p.name} · {p.sessions} session{p.sessions === 1 ? '' : 's'} · {p.basis}
+                </span>
+                <span className="font-bold tabular-nums">
+                  {formatMoney(p.amount_zar)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      ) : null}
 
       <div className="mb-6 flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4">
         <label className="text-xs font-semibold text-neutral-600">

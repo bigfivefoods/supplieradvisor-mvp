@@ -5,6 +5,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { recordArPayment } from '@/lib/customers/ar-ledger';
 import { docNumber } from '@/lib/customers/documents';
 import type { MemberAccountCharge } from '@/lib/b2c/member-account-types';
+import { splitInclusiveVat, SA_VAT_PCT } from '@/lib/core-os/finance';
 
 /** Dual-write an Advisor member / patient onto Core Customers. */
 export async function attachCrmToAdvisorPerson(opts: {
@@ -57,6 +58,17 @@ export async function ensureAdvisorCrmCustomer(opts: {
       .limit(5);
     const match = (hits || [])[0];
     if (match?.id) {
+      const notes = String(match.notes || '');
+      if (!notes.includes(tag)) {
+        await supabase
+          .from('customers')
+          .update({
+            notes: notes ? `${notes}\n${tag}` : tag,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', match.id)
+          .eq('profile_id', opts.companyId);
+      }
       return {
         id: Number(match.id),
         name: String(match.trading_name || opts.name),
@@ -129,29 +141,31 @@ export async function createInvoiceForCharge(opts: {
   const supabase = getSupabaseServer();
   const amount = Math.round(Number(opts.charge.amount_zar) * 100) / 100;
   if (!(amount > 0)) return null;
+  const vat = splitInclusiveVat(amount, SA_VAT_PCT);
   const invoiceNumber = docNumber('INV');
   const now = new Date().toISOString();
+  const periodNote = `period:${now.slice(0, 7)}:member:${opts.charge.ref_id}`;
   const payload: Record<string, unknown> = {
     profile_id: opts.companyId,
     customer_id: opts.customerId,
     invoice_number: invoiceNumber,
     status: 'sent',
     currency: 'ZAR',
-    subtotal: amount,
-    tax_rate: 0,
-    tax_amount: 0,
-    total_amount: amount,
+    subtotal: vat.exclusive,
+    tax_rate: SA_VAT_PCT,
+    tax_amount: vat.vat,
+    total_amount: vat.inclusive,
     amount_paid: 0,
     customer_name: opts.customerName,
     contact_name: opts.customerName,
     contact_email: opts.customerEmail || null,
-    notes: `Member account ${opts.charge.id} · ${opts.charge.kind}/${opts.charge.ref_id}`,
+    notes: `Member account ${opts.charge.id} · ${opts.charge.kind}/${opts.charge.ref_id} · ${periodNote}`,
     items: [
       {
         name: opts.charge.description,
         quantity: 1,
-        unit_price: amount,
-        line_total: amount,
+        unit_price: vat.exclusive,
+        line_total: vat.exclusive,
         uom: 'account',
       },
     ],
@@ -180,10 +194,99 @@ export async function createInvoiceForCharge(opts: {
     console.warn('[member-account] invoice', error?.message);
     return null;
   }
+  try {
+    const glId = await postAdvisorFeeToGl({
+      companyId: opts.companyId,
+      customerId: opts.customerId,
+      customerName: opts.customerName,
+      customerEmail: opts.customerEmail || null,
+      invoiceNumber,
+      exclusive: vat.exclusive,
+      vat: vat.vat,
+      inclusive: vat.inclusive,
+      description: opts.charge.description,
+      notes: String(payload.notes || ''),
+      dueDate: String(payload.due_date || now.slice(0, 10)),
+    });
+    if (glId) {
+      const stamped = await supabase
+        .from('customer_invoices')
+        .update({
+          metadata: { finance_invoice_id: glId, advisor_fee: true },
+        })
+        .eq('id', data.id);
+      if (stamped.error && /column|schema cache|metadata/i.test(stamped.error.message || '')) {
+        /* CRM metadata optional */
+      }
+    }
+  } catch (e) {
+    console.warn('[member-account] GL invoice', e);
+  }
   return {
     invoice_id: Number(data.id),
     invoice_number: String(data.invoice_number || invoiceNumber),
   };
+}
+
+async function postAdvisorFeeToGl(opts: {
+  companyId: number;
+  customerId: number;
+  customerName: string;
+  customerEmail: string | null;
+  invoiceNumber: string;
+  exclusive: number;
+  vat: number;
+  inclusive: number;
+  description: string;
+  notes: string;
+  dueDate: string;
+}): Promise<number | null> {
+  const supabase = getSupabaseServer();
+  const { data: existing } = await supabase
+    .from('invoices')
+    .select('id')
+    .eq('profile_id', opts.companyId)
+    .eq('invoice_number', opts.invoiceNumber)
+    .maybeSingle();
+  if (existing?.id) return Number(existing.id);
+  const { data, error } = await supabase
+    .from('invoices')
+    .insert({
+      profile_id: opts.companyId,
+      direction: 'receivable',
+      customer_id: opts.customerId,
+      counterparty_name: opts.customerName,
+      invoice_number: opts.invoiceNumber,
+      status: 'sent',
+      currency: 'ZAR',
+      subtotal: opts.exclusive,
+      tax_rate: SA_VAT_PCT,
+      tax_amount: opts.vat,
+      total_amount: opts.inclusive,
+      amount_paid: 0,
+      issue_date: new Date().toISOString().slice(0, 10),
+      due_date: opts.dueDate,
+      bill_to_email: opts.customerEmail,
+      notes: opts.notes,
+      items: [
+        {
+          name: opts.description,
+          quantity: 1,
+          unit_price: opts.exclusive,
+          line_total: opts.exclusive,
+        },
+      ],
+      metadata: { advisor_fee: true, crm_invoice_number: opts.invoiceNumber },
+    })
+    .select('*')
+    .maybeSingle();
+  if (error || !data) return null;
+  const { recognizeInvoiceIfNeeded } = await import('@/lib/accounting/invoice-gl');
+  await recognizeInvoiceIfNeeded({
+    profileId: opts.companyId,
+    invoice: data as Record<string, unknown>,
+  });
+  return Number(data.id);
 }
 
 export async function applyInvoicePayment(opts: {
@@ -200,7 +303,7 @@ export async function applyInvoicePayment(opts: {
   const supabase = getSupabaseServer();
   const { data: inv, error: invErr } = await supabase
     .from('customer_invoices')
-    .select('id, total_amount, amount_paid, status, currency, customer_id')
+    .select('id, total_amount, amount_paid, status, currency, customer_id, invoice_number, metadata')
     .eq('id', opts.invoiceId)
     .eq('profile_id', opts.companyId)
     .maybeSingle();
@@ -256,6 +359,57 @@ export async function applyInvoicePayment(opts: {
     upErr = retry.error;
   }
   if (upErr) return { ok: false, error: upErr.message };
+  try {
+    const meta =
+      inv.metadata && typeof inv.metadata === 'object'
+        ? (inv.metadata as Record<string, unknown>)
+        : {};
+    let financeId = Number(meta.finance_invoice_id || 0);
+    if (!financeId && inv.invoice_number) {
+      const { data: twin } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('profile_id', opts.companyId)
+        .eq('invoice_number', String(inv.invoice_number))
+        .maybeSingle();
+      if (twin?.id) financeId = Number(twin.id);
+      if (twin) {
+        const { settleInvoicePayment } = await import(
+          '@/lib/accounting/invoice-gl'
+        );
+        await settleInvoicePayment({
+          profileId: opts.companyId,
+          invoice: twin as Record<string, unknown>,
+          paymentId: Date.now(),
+          amount,
+          paidAt: now,
+          createdBy: opts.actorUserId || null,
+        });
+      }
+    } else if (financeId) {
+      const { data: twin } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('id', financeId)
+        .eq('profile_id', opts.companyId)
+        .maybeSingle();
+      if (twin) {
+        const { settleInvoicePayment } = await import(
+          '@/lib/accounting/invoice-gl'
+        );
+        await settleInvoicePayment({
+          profileId: opts.companyId,
+          invoice: twin as Record<string, unknown>,
+          paymentId: Date.now(),
+          amount,
+          paidAt: now,
+          createdBy: opts.actorUserId || null,
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('[member-account] GL settle', e);
+  }
   return { ok: true };
 }
 

@@ -81,6 +81,9 @@ function DirectoryInner() {
   const [wcs, setWcs] = useState<CostOpt[]>([]);
   const [wss, setWss] = useState<CostOpt[]>([]);
   const [assets, setAssets] = useState<CostOpt[]>([]);
+  const [unsynced, setUnsynced] = useState<
+    Array<{ id: string; name: string; module: string }>
+  >([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -92,6 +95,13 @@ function DirectoryInner() {
       const data = await res.json();
       setEmployees(data.employees || []);
       if (data.warning) toast.message(data.warning, { description: data.hint });
+      try {
+        const p = await fetch(`/api/core/people-360?companyId=${companyId}`);
+        const pj = await p.json();
+        setUnsynced(pj.unsynced || []);
+      } catch {
+        setUnsynced([]);
+      }
     } catch {
       setEmployees([]);
     } finally {
@@ -294,7 +304,7 @@ function DirectoryInner() {
       <RelationshipHeader
         title="Employee"
         titleAccent="directory"
-        description="Permanent employees only — personal details, job, banking, tax, and cost-centre placement. Temporary, contract and gang labour stay in operational modules (CropAdvisor, Quarry, etc.)."
+        description="Permanent employees and Advisor contractors. Source badge opens the diary. Crop/Quarry gangs stay in their operational books."
         action={
           <button
             type="button"
@@ -344,6 +354,18 @@ function DirectoryInner() {
         </Link>
       </div>
 
+      {unsynced.length ? (
+        <div className="mb-4 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          {unsynced.length} Advisor contractor{unsynced.length === 1 ? '' : 's'} not
+          yet on this book:{' '}
+          {unsynced
+            .slice(0, 6)
+            .map((s) => s.name)
+            .join(', ')}
+          . Save them in the Advisor staff list to dual-write as contractors.
+        </div>
+      ) : null}
+
       <Panel>
         {loading ? (
           <div className="flex justify-center py-16">
@@ -384,6 +406,33 @@ function DirectoryInner() {
                         {e.employee_number || `#${e.id}`}
                         {e.email ? ` · ${e.email}` : ''}
                       </div>
+                      {e.metadata?.service_source_label ? (
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-black uppercase text-cyan-900">
+                            {String(e.metadata.service_source_label)}
+                          </span>
+                          {e.employment_type === 'contract' ? (
+                            <span className="text-[10px] font-bold uppercase text-slate-500">
+                              Contractor
+                            </span>
+                          ) : null}
+                          {e.metadata.service_module === 'fitgraph' ? (
+                            <Link
+                              href="/dashboard/fitgraph/coach-calendar"
+                              className="text-[10px] font-bold text-[#0077b6]"
+                            >
+                              Diary
+                            </Link>
+                          ) : e.metadata.service_module ? (
+                            <Link
+                              href={`/dashboard/${String(e.metadata.service_module)}/calendar`}
+                              className="text-[10px] font-bold text-[#0077b6]"
+                            >
+                              Diary
+                            </Link>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3 text-neutral-600">
                       <div>{e.job_title || '—'}</div>

@@ -14,6 +14,7 @@ import {
   UserRound,
   WalletCards,
 } from 'lucide-react';
+import { SaOfficialLogo } from '@/components/brand/SaOfficialLogo';
 
 export type B2cTab =
   | 'home'
@@ -132,18 +133,24 @@ export function B2cAppHeader({
       style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
     >
       <div className="mx-auto flex max-w-lg items-center justify-between gap-3 px-4 pb-3 pt-1 md:max-w-none md:px-8 md:pb-4 md:pt-3">
-        <div className="min-w-0">
-          <p className="text-[9px] font-black uppercase tracking-[0.18em] text-white/70 md:hidden">
-            SA Member
-          </p>
-          <h1 className="truncate text-lg font-black tracking-tight md:text-2xl">
-            {title}
-          </h1>
-          {subtitle ? (
-            <p className="truncate text-[11px] text-white/85 md:text-sm md:text-slate-500 dark:md:text-slate-400">
-              {subtitle}
+        <div className="flex min-w-0 items-center gap-2.5">
+          <SaOfficialLogo
+            title="SA Member"
+            className="sa-logo-member-header h-8 w-auto shrink-0 md:h-9"
+          />
+          <div className="min-w-0">
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-white/70 md:hidden">
+              SA Member
             </p>
-          ) : null}
+            <h1 className="truncate text-lg font-black tracking-tight md:text-2xl">
+              {title}
+            </h1>
+            {subtitle ? (
+              <p className="truncate text-[11px] text-white/85 md:text-sm md:text-slate-500 dark:md:text-slate-400">
+                {subtitle}
+              </p>
+            ) : null}
+          </div>
         </div>
         {right}
       </div>
@@ -204,7 +211,11 @@ export function B2cAppShell({
     <div className="b2c-app min-h-[100dvh] overscroll-none bg-[#f0f9ff] text-slate-900 dark:bg-black dark:text-neutral-50 md:flex">
       <aside className="sticky top-0 hidden h-[100dvh] w-56 shrink-0 flex-col bg-gradient-to-b from-[#0077b6] via-[#0369a1] to-[#0c4a6e] px-3 py-5 text-white dark:from-[#082f49] dark:via-[#0c4a6e] dark:to-black lg:w-64 md:flex">
         <div className="mb-6 px-2">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-sky-100/80">
+          <SaOfficialLogo
+            title="SA Member"
+            className="sa-logo-on-dark h-10 w-auto"
+          />
+          <p className="mt-3 text-[10px] font-black uppercase tracking-[0.2em] text-sky-100/80">
             Personal · free
           </p>
           <p className="mt-1 text-xl font-black tracking-tight">SA Member</p>

@@ -68,8 +68,16 @@ const MODULES: HubModule[] = [
     icon: Users,
     code: '01',
     title: 'Directory',
-    desc: 'Full employee master — every person must sit on a business unit.',
+    desc: 'Employees and Advisor contractors — source badge and diary link.',
     accent: 'from-violet-50 to-white border-violet-100',
+  },
+  {
+    href: '/dashboard/calendar',
+    icon: CalendarDays,
+    code: '01b',
+    title: 'Company calendar',
+    desc: 'Advisor sessions, leave and supplier deliveries on one week.',
+    accent: 'from-sky-50 to-white border-sky-100',
   },
   {
     href: '/dashboard/people/org-chart',
@@ -108,7 +116,7 @@ const MODULES: HubModule[] = [
     icon: CalendarDays,
     code: '06',
     title: 'Leave',
-    desc: 'Annual, sick, family leave with approval and balances.',
+    desc: 'Approved leave blocks the Advisor calendar for that person.',
     accent: 'from-sky-50 to-white border-sky-100',
   },
   {

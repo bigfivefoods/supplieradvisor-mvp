@@ -25,10 +25,10 @@ export function AdvisorCoreBridge({
         : 'Advisor fees land here';
   const blurb =
     surface === 'people'
-      ? 'Employed coaches and clinicians dual-write into this People directory. Open the Advisor book to manage their diary and rates.'
+      ? 'Coaches and clinicians land here — employed on payroll, contractors as a workforce type. Leave on this book blocks their Advisor diary.'
       : surface === 'customers'
-        ? 'Members, patients and hirers are written into Customers so quotes, invoices and AR stay on the same book.'
-        : 'Membership, clinic and hire charges post to Customers invoices. Collect from Advisor Accounts or this Finance hub.';
+        ? 'Members, patients and hirers open as a 360: classes, debit bank, invoices and household on the same CRM row.'
+        : 'Membership and clinic fees post AR + revenue + VAT. Export the debit-order file and match it on bank rec.';
 
   return (
     <div className="mb-4 rounded-2xl border border-cyan-100 bg-gradient-to-r from-sky-50/80 to-white px-4 py-3">

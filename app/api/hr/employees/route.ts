@@ -4,9 +4,9 @@ import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 import {
   defaultOnboardingChecklist,
   fullNameFromParts,
-  isPermanentEmploymentType,
-  toPeopleEmploymentType,
+  isWorkforceDirectoryType,
 } from '@/lib/hr/types';
+import { toWorkforceEmploymentType } from '@/lib/core-os/people';
 
 const HINT = 'Run supabase/migrations/20260723_hr_people_module.sql';
 
@@ -54,10 +54,10 @@ export async function GET(request: NextRequest) {
     }
 
     let rows = data || [];
-    // People module: only permanent (full_time / part_time) unless employmentType=all
+    // People module: permanent + Advisor contractors unless employmentType=all
     if (employmentScope !== 'all') {
       rows = rows.filter((r) =>
-        isPermanentEmploymentType(
+        isWorkforceDirectoryType(
           (r as { employment_type?: string }).employment_type || 'full_time'
         )
       );
@@ -148,15 +148,15 @@ export async function POST(request: NextRequest) {
       employee_number = `E${String((count || 0) + 1).padStart(4, '0')}`;
     }
 
-    const peopleType = toPeopleEmploymentType(
+    const peopleType = toWorkforceEmploymentType(
       body.employment_type || 'full_time'
     );
     if (!peopleType) {
       return NextResponse.json(
         {
           error:
-            'People only holds permanent employees (full time or part time). Temporary, contract, casual and intern labour belong in operational modules.',
-          code: 'PERMANENT_ONLY',
+            'People holds permanent staff and Advisor contractors. Gangs and casual labour stay in operational modules.',
+          code: 'WORKFORCE_TYPE',
         },
         { status: 400 }
       );
@@ -386,13 +386,13 @@ export async function PATCH(request: NextRequest) {
       if (body[k] !== undefined) patch[k] = body[k];
     }
     if (body.employment_type !== undefined) {
-      const peopleType = toPeopleEmploymentType(body.employment_type);
+      const peopleType = toWorkforceEmploymentType(body.employment_type);
       if (!peopleType) {
         return NextResponse.json(
           {
             error:
-              'People only holds permanent employees (full time or part time). Temporary, contract, casual and intern labour belong in operational modules.',
-            code: 'PERMANENT_ONLY',
+              'People holds permanent staff and Advisor contractors. Gangs and casual labour stay in operational modules.',
+            code: 'WORKFORCE_TYPE',
           },
           { status: 400 }
         );

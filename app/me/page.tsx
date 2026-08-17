@@ -37,6 +37,7 @@ import {
   getCanonicalUserId,
 } from '@/lib/auth/identity';
 import { AuthLoginActions } from '@/components/auth/AuthLoginActions';
+import { SaOfficialLogo } from '@/components/brand/SaOfficialLogo';
 import {
   B2cAppShell,
   B2cInstallChip,
@@ -583,10 +584,11 @@ function MeAppInner() {
   if (!ready || (authenticated && loading)) {
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#0c4a6e] text-white">
-        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-white/15 shadow-lg">
-          <Sparkles className="h-8 w-8" />
-        </div>
-        <p className="text-sm font-black tracking-wide">SA Member</p>
+        <SaOfficialLogo
+          title="SA Member"
+          className="sa-logo-on-dark h-16 w-auto"
+        />
+        <p className="mt-4 text-sm font-black tracking-wide">SA Member</p>
         <Loader2 className="mt-4 h-6 w-6 animate-spin text-sky-200" />
       </div>
     );
@@ -603,7 +605,11 @@ function MeAppInner() {
           <B2cThemeToggle compact />
         </div>
         <div className="hidden flex-col justify-center bg-gradient-to-br from-[#0c4a6e] via-[#0077b6] to-[#38bdf8] px-12 py-16 text-white dark:from-black dark:via-[#082f49] dark:to-[#0c4a6e] lg:flex">
-          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-sky-100">
+          <SaOfficialLogo
+            title="SA Member"
+            className="sa-logo-on-dark h-16 w-auto"
+          />
+          <p className="mt-8 text-[11px] font-black uppercase tracking-[0.2em] text-sky-100">
             Personal app · always free
           </p>
           <h1 className="mt-3 text-5xl font-black leading-[1.05] tracking-tight">
@@ -619,12 +625,10 @@ function MeAppInner() {
           style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}
         >
           <div className="mx-auto w-full max-w-md lg:max-w-lg">
-            <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-white shadow-2xl shadow-sky-900/40">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/sa-icon-192.png"
-                alt=""
-                className="h-14 w-14 rounded-2xl"
+            <div className="mb-6">
+              <SaOfficialLogo
+                title="SA Member"
+                className="sa-logo-member-login h-16 w-auto"
               />
             </div>
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-sky-100 lg:hidden">

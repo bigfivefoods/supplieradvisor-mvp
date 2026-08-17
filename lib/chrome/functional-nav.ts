@@ -239,7 +239,7 @@ export function functionalSidebarModules(opts: {
   const out: SidebarModuleShape[] = [];
   const seen = new Set<string>();
   const pinnedAdvisors = advisorModulesForCompany(opts);
-  const companionCore = pinnedAdvisors.length
+  const companionCore: string[] = pinnedAdvisors.length
     ? ADVISOR_CORE_COMPANIONS.filter(
         (id) => opts.isModuleEnabled(id) && !pinnedAdvisors.includes(id)
       )

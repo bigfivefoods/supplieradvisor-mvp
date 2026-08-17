@@ -338,6 +338,7 @@ export type MedicalPatient = {
   /** VerifyNow (SA) or Didit (international) self-serve identity check */
   identity?: import('@/lib/identity/person-verification').PersonIdentityVerification;
   start_date?: string | null;
+  crm_customer_id?: number | null;
   active?: boolean;
   created_at: string;
   updated_at: string;

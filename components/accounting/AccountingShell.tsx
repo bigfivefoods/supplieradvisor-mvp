@@ -10,6 +10,7 @@ import {
 
 export const ACCOUNTING_NAV: readonly NavItem[] = [
   { href: '/dashboard/accounting', label: 'Command', exact: true },
+  { href: '/dashboard/accounting/debit-orders', label: 'Debit' },
   { href: '/dashboard/accounting/chart-of-accounts', label: 'CoA' },
   { href: '/dashboard/accounting/journal-entries', label: 'Journals' },
   { href: '/dashboard/accounting/accounts-receivable', label: 'AR' },

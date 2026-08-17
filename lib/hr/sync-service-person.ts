@@ -9,9 +9,8 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
   defaultOnboardingChecklist,
   fullNameFromParts,
-  isPermanentEmploymentType,
-  toPeopleEmploymentType,
 } from '@/lib/hr/types';
+import { resolveWorkforceEmployment } from '@/lib/core-os/people';
 
 export type ServicePersonSource =
   | 'fitgraph_coach'
@@ -132,27 +131,14 @@ function jobTitleDefault(
 }
 
 /**
- * People only accepts permanent staff.
- * - Explicit permanent / full_time / part_time → allowed
- * - Explicit temporary / contractor / gang / casual → not synced
- * - Missing type on professional service staff (coach, clinician) → treat as permanent
- * - Missing type on field/quarry labour → not permanent (gangs/crews default temporary)
+ * Permanent staff land as full/part time. Advisor coaches/clinicians
+ * without a type land as contractors. Gangs/crews stay operational-only.
  */
 function resolvePeopleEmploymentType(
   source: ServicePersonSource,
   raw?: string | null
-): 'full_time' | 'part_time' | null {
-  const trimmed = String(raw || '').trim();
-  if (trimmed) {
-    if (!isPermanentEmploymentType(trimmed)) return null;
-    return toPeopleEmploymentType(trimmed);
-  }
-  // Labour modules default non-permanent when type omitted
-  if (source === 'fieldgraph_gang' || source === 'quarrygraph_crew') {
-    return null;
-  }
-  // Coaches / clinicians without a type default to contractors (B2C work app)
-  return null;
+): 'full_time' | 'part_time' | 'contract' | null {
+  return resolveWorkforceEmployment(source, raw);
 }
 
 /**
@@ -237,7 +223,7 @@ export async function syncServicePersonToHr(
         created: false,
         updated: false,
         error:
-          'People only holds permanent employees — temporary, contract, casual and gang labour stay in the operational module',
+          'Crop / quarry gangs stay in the operational book unless marked as staff or contractor',
       };
     }
 
@@ -321,6 +307,8 @@ export async function syncServicePersonToHr(
       service_person_id: input.personId,
       service_synced_at: now,
       service_source_label: sourceLabel(input.source),
+      workforce_kind:
+        peopleEmployment === 'contract' ? 'contractor' : 'employee',
     };
 
     const department =

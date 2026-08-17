@@ -236,6 +236,46 @@ export async function PATCH(request: NextRequest) {
       String(prev.status) !== 'approved' &&
       prev.employee_id
     ) {
+      try {
+        const { loadWalletCompany, saveWalletCompanyMeta } = await import(
+          '@/lib/b2c/load-company'
+        );
+        const { readLeaveBlocksFromMeta, upsertLeaveBlock, writeLeaveBlocksToMeta } =
+          await import('@/lib/core-os/leave');
+        const company = await loadWalletCompany(companyId);
+        if (company) {
+          const { data: empRow } = await supabase
+            .from('employees')
+            .select('id, metadata')
+            .eq('id', prev.employee_id)
+            .maybeSingle();
+          const empMeta =
+            empRow?.metadata && typeof empRow.metadata === 'object'
+              ? (empRow.metadata as Record<string, unknown>)
+              : {};
+          const next = upsertLeaveBlock(readLeaveBlocksFromMeta(company.meta), {
+            id: data.id,
+            employee_id: Number(prev.employee_id),
+            person_id: empMeta.service_person_id
+              ? String(empMeta.service_person_id)
+              : null,
+            module: empMeta.service_module
+              ? String(empMeta.service_module)
+              : null,
+            start_date: String(prev.start_date || data.start_date).slice(0, 10),
+            end_date: String(prev.end_date || data.end_date).slice(0, 10),
+            status: 'approved',
+            reason: prev.reason || data.reason || null,
+            leave_type: prev.leave_type_code || data.leave_type_code || null,
+          });
+          await saveWalletCompanyMeta(
+            companyId,
+            writeLeaveBlocksToMeta(company.meta, next)
+          );
+        }
+      } catch {
+        /* leave block mirror is best-effort */
+      }
       const days = Number(prev.days || data.days || 0);
       const code = String(prev.leave_type_code || data.leave_type_code || '')
         .toUpperCase();

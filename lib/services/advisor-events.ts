@@ -77,12 +77,19 @@ export async function dispatchAdvisorEventSideEffects(
 ): Promise<{ crm?: string }> {
   const out: { crm?: string } = {};
   try {
-    if (
-      event.type === 'booking.created' ||
-      event.type === 'attendance.marked' ||
-      event.type === 'recall.due'
-    ) {
-      out.crm = 'queued'; // stub — activity feed later
+    const { crmActivityFromEvent } = await import('@/lib/core-os/events');
+    const draft = crmActivityFromEvent(event);
+    if (draft) {
+      const { logActivity } = await import('@/lib/customers/access');
+      await logActivity({
+        profile_id: event.company_id,
+        action: draft.action,
+        entity_type: draft.entity_type,
+        entity_id: draft.entity_id || String(event.person_id || ''),
+        summary: draft.summary,
+        metadata: draft.metadata,
+      });
+      out.crm = 'logged';
     }
   } catch {
     /* soft */

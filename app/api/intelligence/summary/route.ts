@@ -530,7 +530,13 @@ async function buildSummary(request: NextRequest, companyId: number, legacyPrivy
   const health = computeHealth(pulse);
   const rawInsights = buildInsights(pulse);
   // Server-side auto-close: drop issues whose metrics have healed
-  const insights = filterHealedInsights(rawInsights, pulse);
+  let insights = filterHealedInsights(rawInsights, pulse);
+  try {
+    const { loadAdvisorInsights } = await import('@/lib/core-os/server');
+    insights = [...insights, ...(await loadAdvisorInsights(companyId))];
+  } catch {
+    /* Advisor pulse is additive */
+  }
   const scorecards = buildScorecards(health, pulse);
 
   const forecastPoNext30 =

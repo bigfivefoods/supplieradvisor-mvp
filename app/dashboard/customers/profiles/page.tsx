@@ -414,6 +414,13 @@ function ProfilesInner() {
                           return null;
                         })()}
                         <Link
+                          href={`/dashboard/customers/360`}
+                          className="text-[10px] font-bold text-[#0077b6] px-2"
+                          title="Customer 360"
+                        >
+                          360
+                        </Link>
+                        <Link
                           href={`/dashboard/customers/onboard?id=${c.id}`}
                           className="p-2 inline-flex rounded-xl hover:bg-neutral-100 text-neutral-600"
                           title="Edit"

@@ -49,9 +49,8 @@ export const EMPLOYMENT_TYPES: { value: EmploymentType; label: string }[] = [
 ];
 
 /**
- * People module is permanent staff only (indefinite employment).
- * Temporary, contract, casual, intern labour stay in operational modules
- * (CropAdvisor gangs, Quarry crews, etc.) and are not dual-written here.
+ * People directory: permanent payroll plus Advisor contractors.
+ * Crop/Quarry gangs stay in their operational books unless typed explicitly.
  */
 export const PEOPLE_EMPLOYMENT_TYPES: {
   value: EmploymentType;
@@ -59,7 +58,23 @@ export const PEOPLE_EMPLOYMENT_TYPES: {
 }[] = [
   { value: 'full_time', label: 'Permanent · full time' },
   { value: 'part_time', label: 'Permanent · part time' },
+  { value: 'contract', label: 'Advisor contractor · not payroll' },
 ];
+
+/** Permanent / indefinite employment eligible for the People directory */
+export function isWorkforceDirectoryType(
+  raw?: string | null
+): boolean {
+  const t = String(raw || '')
+    .toLowerCase()
+    .trim()
+    .replace(/-/g, '_');
+  return (
+    isPermanentEmploymentType(t) ||
+    t === 'contract' ||
+    t === 'contractor'
+  );
+}
 
 /** Permanent / indefinite employment eligible for the People directory */
 export function isPermanentEmploymentType(
@@ -152,6 +167,7 @@ export type HrEmployee = {
   sick_balance_days?: number | null;
   onboarding_status?: string | null;
   notes?: string | null;
+  metadata?: Record<string, unknown> | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -187,7 +203,7 @@ export function monthlyBasicFromEmployee(emp: {
   const freq = String(emp.pay_frequency || 'monthly').toLowerCase();
   const basic = Number(emp.salary_basic || 0);
   const hourly = Number(emp.hourly_rate || 0);
-  if (freq === 'hourly' && hourly > 0) {
+  if ((freq === 'hourly' || !(basic > 0)) && hourly > 0) {
     return Math.round(hourly * 160 * 100) / 100; // ~160h month proxy
   }
   if (freq === 'weekly' && basic > 0) {

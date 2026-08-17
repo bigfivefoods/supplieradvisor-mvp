@@ -89,6 +89,14 @@ function HubInner() {
   /** Sell journey (matches process rail): Source → Book → Invite → Quote → Order → Invoice → Money → Rate → Report */
   const modules: HubModule[] = [
     {
+      href: '/dashboard/customers/360',
+      icon: Users,
+      code: '00',
+      title: '360 — member / patient / hirer',
+      desc: 'Classes, debit bank, invoices and household on the CRM row.',
+      accent: 'from-cyan-50 to-white border-cyan-100',
+    },
+    {
       href: '/dashboard/customers/leads',
       icon: Target,
       code: '01',

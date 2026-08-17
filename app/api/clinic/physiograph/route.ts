@@ -1126,6 +1126,29 @@ export async function POST(request: NextRequest) {
           { status: 404 }
         );
       }
+      try {
+        const { readLeaveBlocksFromMeta, leaveBlocksAssignment } = await import(
+          '@/lib/core-os/leave'
+        );
+        const prac = store.practitioners.find((p) => p.id === pracId);
+        const gate = leaveBlocksAssignment(
+          readLeaveBlocksFromMeta(meta),
+          pracId,
+          date,
+          prac && 'hr_employee_id' in prac
+            ? (prac as { hr_employee_id?: number | null }).hr_employee_id
+            : null
+        );
+        if (gate.blocked) {
+          return NextResponse.json(
+            { error: `Practitioner ${gate.reason}` },
+            { status: 409 }
+          );
+        }
+      } catch {
+        /* leave gate is best-effort */
+      }
+      }
 
       const { planAppointmentSeries, recurrenceFromRequestBody } =
         await import('@/lib/schedule/appointment-series');

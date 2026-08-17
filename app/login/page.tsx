@@ -1,7 +1,6 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
@@ -9,6 +8,7 @@ import { Loader2, ShieldCheck, Smartphone, Sparkles } from 'lucide-react';
 import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
 import ThemeToggle from '@/components/theme/ThemeToggle';
 import { AuthLoginActions } from '@/components/auth/AuthLoginActions';
+import { SaOfficialLogo } from '@/components/brand/SaOfficialLogo';
 
 function LoginForm() {
   const router = useRouter();
@@ -97,15 +97,11 @@ function LoginForm() {
     <div className="w-full max-w-md">
       <div className="text-center mb-8 sm:mb-10">
         <Link href="/" className="inline-flex items-center gap-3 mb-6 sm:mb-8">
-          <Image
-            src="/sa-logo.png"
-            alt="SupplierAdvisor"
-            width={140}
-            height={60}
-            className="h-12 w-auto object-contain"
-            priority
+          <SaOfficialLogo
+            title="SupplierAdvisor"
+            className="h-12 w-auto"
           />
-          <span className="font-black text-2xl tracking-[-1px] text-slate-900">
+          <span className="sa-wordmark font-black text-2xl tracking-[-1px]">
             SupplierAdvisor®
           </span>
         </Link>

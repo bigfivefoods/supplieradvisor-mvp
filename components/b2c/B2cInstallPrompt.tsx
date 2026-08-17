@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Download, Share, Smartphone, SquarePlus, X } from 'lucide-react';
+import { SaOfficialLogo } from '@/components/brand/SaOfficialLogo';
 
 const STORAGE_KEY = 'sa_member_pwa_install';
 
@@ -130,12 +131,9 @@ export function B2cInstallPrompt() {
         <div className="bg-gradient-to-br from-[#0077b6] via-[#0284c7] to-[#0c4a6e] px-5 pb-5 pt-4 text-white">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/sa-icon-192.png"
-                alt=""
-                className="h-14 w-14 rounded-2xl bg-white shadow-lg"
-              />
+              <span className="flex h-14 items-center rounded-2xl bg-white px-2 shadow-lg">
+                <SaOfficialLogo title="SA Member" className="h-10 w-auto" />
+              </span>
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-100">
                   First open

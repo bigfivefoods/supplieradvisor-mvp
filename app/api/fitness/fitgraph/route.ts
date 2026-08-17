@@ -745,6 +745,28 @@ export async function POST(request: NextRequest) {
       if (coachId && !store.coaches.find((c) => c.id === coachId)) {
         return NextResponse.json({ error: 'Coach not found' }, { status: 404 });
       }
+      if (coachId) {
+        try {
+          const { readLeaveBlocksFromMeta, leaveBlocksAssignment } = await import(
+            '@/lib/core-os/leave'
+          );
+          const coach = store.coaches.find((c) => c.id === coachId);
+          const gate = leaveBlocksAssignment(
+            readLeaveBlocksFromMeta(meta),
+            coachId,
+            date,
+            coach?.hr_employee_id
+          );
+          if (gate.blocked) {
+            return NextResponse.json(
+              { error: `Coach ${gate.reason}` },
+              { status: 409 }
+            );
+          }
+        } catch {
+          /* leave gate is best-effort */
+        }
+      }
       if (!store.class_types.find((c) => c.id === resolved.class_type_id)) {
         return NextResponse.json(
           { error: 'Class type not found' },
