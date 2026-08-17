@@ -595,18 +595,30 @@ function MeAppInner() {
   // ── Login wall (app store style) ─────────────────────────────────
   if (!authenticated) {
     return (
-      <div className="flex min-h-[100dvh] flex-col bg-gradient-to-b from-[#0c4a6e] via-[#0077b6] to-[#38bdf8] dark:from-black dark:via-[#082f49] dark:to-[#0c4a6e]">
+      <div className="flex min-h-[100dvh] flex-col bg-gradient-to-b from-[#0c4a6e] via-[#0077b6] to-[#38bdf8] dark:from-black dark:via-[#082f49] dark:to-[#0c4a6e] lg:grid lg:grid-cols-2 lg:bg-none lg:from-transparent">
         <div
-          className="absolute right-4 z-10"
+          className="absolute right-4 z-10 lg:text-slate-700"
           style={{ top: 'max(0.75rem, env(safe-area-inset-top))' }}
         >
           <B2cThemeToggle compact />
         </div>
+        <div className="hidden flex-col justify-center bg-gradient-to-br from-[#0c4a6e] via-[#0077b6] to-[#38bdf8] px-12 py-16 text-white dark:from-black dark:via-[#082f49] dark:to-[#0c4a6e] lg:flex">
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-sky-100">
+            Personal app · always free
+          </p>
+          <h1 className="mt-3 text-5xl font-black leading-[1.05] tracking-tight">
+            SA Member
+          </h1>
+          <p className="mt-4 max-w-md text-lg text-sky-50/95">
+            One wallet for gyms, clinics, hire and shops. Book, check in, pay
+            and keep records — same login on your phone or this computer.
+          </p>
+        </div>
         <div
-          className="flex flex-1 flex-col justify-end px-5 pb-8 pt-16 text-white"
+          className="flex flex-1 flex-col justify-end px-5 pb-8 pt-16 text-white lg:justify-center lg:bg-[#f0f9ff] lg:px-12 lg:text-slate-900 dark:lg:bg-black dark:lg:text-neutral-50"
           style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}
         >
-          <div className="mx-auto w-full max-w-md">
+          <div className="mx-auto w-full max-w-md lg:max-w-lg">
             <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-white shadow-2xl shadow-sky-900/40">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -615,19 +627,19 @@ function MeAppInner() {
                 className="h-14 w-14 rounded-2xl"
               />
             </div>
-            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-sky-100">
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-sky-100 lg:hidden">
               Personal app · always free
             </p>
-            <h1 className="mt-2 text-4xl font-black leading-[1.05] tracking-tight">
+            <h1 className="mt-2 text-4xl font-black leading-[1.05] tracking-tight lg:hidden">
               SA Member
             </h1>
-            <p className="mt-3 text-base text-sky-50/95">
+            <p className="mt-3 text-base text-sky-50/95 lg:text-slate-600 dark:lg:text-slate-300">
               {isJoin && (joinBrand || joinPreviewBrand)
                 ? `${joinBrand || joinPreviewBrand} invited you to link your SA Member wallet. Sign in, then tap Accept.`
                 : 'One personal wallet: link any business on this platform to manage that account — book, shop, subscriptions, records and hire. If you also run a company, switch to it after you sign in — same login.'}
             </p>
 
-            <div className="mt-8 space-y-2">
+            <div className="mt-8 space-y-2 lg:grid lg:grid-cols-2 lg:gap-2 lg:space-y-0">
               {[
                 {
                   icon: Package,
@@ -662,31 +674,31 @@ function MeAppInner() {
               ].map(({ icon: Icon, t, d }) => (
                 <div
                   key={t}
-                  className="flex items-center gap-3 rounded-2xl bg-white/12 px-3 py-3 backdrop-blur"
+                  className="flex items-center gap-3 rounded-2xl bg-white/12 px-3 py-3 backdrop-blur lg:bg-white lg:shadow-sm lg:text-slate-900 dark:lg:bg-slate-900 dark:lg:text-neutral-50"
                 >
                   <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
                     <Icon className="h-5 w-5" />
                   </span>
                   <div>
                     <p className="text-sm font-black">{t}</p>
-                    <p className="text-[11px] text-sky-100/90">{d}</p>
+                    <p className="text-[11px] text-sky-100/90 lg:text-slate-500">{d}</p>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="mt-8">
+            <div className="mt-8 lg:rounded-3xl lg:border lg:border-slate-200 lg:bg-white lg:p-6 lg:shadow-sm dark:lg:border-slate-800 dark:lg:bg-slate-900">
               <AuthLoginActions
-                variant="onBrand"
+                variant="default"
                 emailLabel="Continue with email"
               />
             </div>
-            <p className="mt-3 text-center text-[11px] text-sky-100/80">
+            <p className="mt-3 text-center text-[11px] text-sky-100/80 lg:text-slate-500">
               Free · email or Google · first time creates your wallet · already
               have an account? Same button signs you in
             </p>
-            <p className="mt-4 text-center text-[11px] text-sky-100/70">
-              Same login opens any company you operate. After sign-in, tap
+            <p className="mt-4 text-center text-[11px] text-sky-100/70 lg:text-slate-500">
+              Same login opens any company you operate. After sign-in, use
               the building icon or Account → Switch to business.{' '}
               <Link href="/dashboard/select-company" className="font-bold underline">
                 Workspaces
@@ -762,7 +774,7 @@ function MeAppInner() {
           <button
             type="button"
             onClick={() => void logout().then(() => router.refresh())}
-            className="rounded-full bg-white/15 p-2"
+            className="rounded-full bg-white/15 p-2 md:bg-slate-100 md:text-slate-700 dark:md:bg-slate-800 dark:md:text-slate-100"
             aria-label="Log out"
           >
             <LogOut className="h-4 w-4" />
@@ -776,7 +788,8 @@ function MeAppInner() {
     >
       {/* ── HOME ─────────────────────────────────────────────── */}
       {tab === 'home' && (
-        <div className="space-y-4">
+        <div className="space-y-4 lg:grid lg:grid-cols-12 lg:items-start lg:gap-6 lg:space-y-0">
+          <div className="space-y-4 lg:col-span-7">
           {isJoin && !joinDone ? (
             <div className="rounded-3xl border border-sky-200 bg-white p-4 shadow-sm">
               <p className="text-[10px] font-black uppercase tracking-wide text-[#0077b6]">
@@ -860,8 +873,8 @@ function MeAppInner() {
                 </p>
               </button>
             ) : (
-              <ul className="space-y-2">
-                {accounts.slice(0, 3).map((a) => {
+              <ul className="space-y-2 md:grid md:grid-cols-2 md:gap-3 md:space-y-0 lg:grid-cols-1 xl:grid-cols-2">
+                {accounts.slice(0, 6).map((a) => {
                   const lead =
                     a.cards.find((c) => c.kind !== 'account') || a.cards[0];
                   const Icon = kindIcon(lead?.kind || 'account');
@@ -897,7 +910,7 @@ function MeAppInner() {
             <h2 className="mb-2 text-sm font-black text-slate-900">
               Do this now
             </h2>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
               <button
                 type="button"
                 onClick={() => goTab('checkin')}
@@ -968,7 +981,9 @@ function MeAppInner() {
               </button>
             </div>
           </section>
+          </div>
 
+          <div className="space-y-4 lg:col-span-5">
           {authenticated ? (
             <B2cMemberCalendar
               preview
@@ -979,7 +994,9 @@ function MeAppInner() {
           {journeys.length > 0 || hasHire ? (
             <B2cHireJourneyList journeys={journeys} showHow={hasHire} />
           ) : null}
+          </div>
 
+          <div className="space-y-4 lg:col-span-12">
           <B2cCarePanel />
 
           <B2cProfileShares />
@@ -989,7 +1006,7 @@ function MeAppInner() {
               <h2 className="mb-2 text-sm font-black text-slate-900">
                 Up next
               </h2>
-              <ul className="space-y-2">
+              <ul className="space-y-2 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
                 {activity.slice(0, 8).map((a) => (
                   <li key={a.id}>
                     <Link
@@ -1064,7 +1081,7 @@ function MeAppInner() {
               onClick={() =>
                 window.dispatchEvent(new Event('sa-open-install'))
               }
-              className="flex w-full items-center gap-3 rounded-2xl border border-sky-200 bg-white p-3 text-left shadow-sm"
+              className="flex w-full items-center gap-3 rounded-2xl border border-sky-200 bg-white p-3 text-left shadow-sm md:hidden"
             >
               <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-100 text-[#0077b6]">
                 <Download className="h-5 w-5" />
@@ -1080,6 +1097,7 @@ function MeAppInner() {
               <ChevronRight className="h-4 w-4 text-slate-400" />
             </button>
           ) : null}
+          </div>
         </div>
       )}
 
@@ -1156,7 +1174,7 @@ function MeAppInner() {
               </p>
             </div>
           ) : (
-            <ul className="space-y-3">
+            <ul className="space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
               {accounts.map((a) => {
                 const lead =
                   a.cards.find((c) => c.kind !== 'account') || a.cards[0];
@@ -1296,7 +1314,7 @@ function MeAppInner() {
 
       {/* ── CHECK-IN + LINK ──────────────────────────────────── */}
       {tab === 'checkin' && (
-        <div className="space-y-4">
+        <div className="space-y-4 md:grid md:grid-cols-2 md:items-start md:gap-6 md:space-y-0">
           <section className="rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-sm">
             <div className="flex items-center gap-2 text-emerald-900">
               <QrCode className="h-5 w-5" />
@@ -1365,7 +1383,8 @@ function MeAppInner() {
 
       {/* ── ACCOUNT ──────────────────────────────────────────── */}
       {tab === 'account' && (
-        <div className="space-y-4">
+        <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6 lg:space-y-0">
+          <div className="space-y-4">
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-[12px] font-semibold text-emerald-950">
             This is you as a member. Companies you run (including shop
             brands) open from the building icon — they are not listed as
@@ -1486,7 +1505,9 @@ function MeAppInner() {
               Save changes
             </button>
           </section>
+          </div>
 
+          <div className="space-y-4">
           <B2cPassportForm
             value={passport}
             city={city}
@@ -1563,7 +1584,9 @@ function MeAppInner() {
               }}
             />
           </section>
+          </div>
 
+          <div className="space-y-4 lg:col-span-2">
           {installHint ? (
             <button
               type="button"
@@ -1604,6 +1627,7 @@ function MeAppInner() {
             </Link>
             .
           </p>
+          </div>
         </div>
       )}
     </B2cAppShell>

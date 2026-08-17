@@ -213,7 +213,7 @@ export function B2cShopTab({
           </p>
         </div>
       ) : (
-        <ul className="space-y-2.5">
+        <ul className="space-y-2.5 md:grid md:grid-cols-2 md:gap-3 md:space-y-0 xl:grid-cols-3">
           {items.map((item) => {
             const href = hrefFor(item);
             return (

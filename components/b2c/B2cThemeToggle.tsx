@@ -18,7 +18,7 @@ export function B2cThemeToggle({ compact = false }: { compact?: boolean }) {
       <button
         type="button"
         onClick={() => toggle()}
-        className="rounded-full bg-white/15 p-2 text-white"
+        className="rounded-full bg-white/15 p-2 text-white md:bg-slate-100 md:text-slate-700 dark:md:bg-slate-800 dark:md:text-slate-100"
         aria-label={resolved === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
         title={resolved === 'dark' ? 'Light theme' : 'Dark theme'}
       >
@@ -35,7 +35,7 @@ export function B2cThemeToggle({ compact = false }: { compact?: boolean }) {
     <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
       <h2 className="text-sm font-black text-slate-900 dark:text-white">Appearance</h2>
       <p className="mt-1 text-xs text-slate-500 dark:text-neutral-400">
-        Light or dark for this phone. Applies to SA Member and stays when you
+        Light or dark for this device. Applies to SA Member and stays when you
         open a company workspace.
       </p>
       <div className="mt-3 grid grid-cols-3 gap-2">
