@@ -27,6 +27,7 @@ import { RelationshipHeader } from '@/components/relationship/RelationshipChrome
 import { AdvisorOutcomesPanel } from '@/components/services/AdvisorOutcomesPanel';
 import { AdvisorRecallPanel } from '@/components/services/AdvisorRecallPanel';
 import { AdvisorTodayBoard } from '@/components/services/AdvisorTodayBoard';
+import { AdvisorBillingClarityCard } from '@/components/services/AdvisorBillingClarityCard';
 import { AdvisorMemberJoinInbox } from '@/components/advisors/AdvisorMemberJoinInbox';
 import {
   HubModuleGrid,
@@ -354,6 +355,15 @@ function Inner() {
       ) : (
         <>
           <div className="space-y-4 mb-6">
+            <AdvisorBillingClarityCard
+              brand={
+                (store as { settings?: { brand_name?: string } } | null)?.settings
+                  ?.brand_name || 'your practice'
+              }
+              moduleLabel="MedicalAdvisor®"
+              accountsHref="/dashboard/medicalgraph/accounts"
+              accentClass="border-emerald-200 bg-emerald-50/70 dark:border-emerald-800 dark:bg-emerald-950/30"
+            />
             <AdvisorOutcomesPanel
               outcomes={outcomes}
               accent="emerald"

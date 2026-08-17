@@ -27,6 +27,7 @@ import { RelationshipHeader } from '@/components/relationship/RelationshipChrome
 import { AdvisorOutcomesPanel } from '@/components/services/AdvisorOutcomesPanel';
 import { AdvisorRecallPanel } from '@/components/services/AdvisorRecallPanel';
 import { AdvisorTodayBoard } from '@/components/services/AdvisorTodayBoard';
+import { AdvisorBillingClarityCard } from '@/components/services/AdvisorBillingClarityCard';
 import { AdvisorMemberJoinInbox } from '@/components/advisors/AdvisorMemberJoinInbox';
 import {
   HubModuleGrid,
@@ -354,6 +355,15 @@ function Inner() {
       ) : (
         <>
           <div className="space-y-4 mb-6">
+            <AdvisorBillingClarityCard
+              brand={
+                (store as { settings?: { brand_name?: string } } | null)?.settings
+                  ?.brand_name || 'your practice'
+              }
+              moduleLabel="PsychiatryAdvisor®"
+              accountsHref="/dashboard/psychiatrygraph/accounts"
+              accentClass="border-rose-200 bg-rose-50/70 dark:border-rose-800 dark:bg-rose-950/30"
+            />
             <AdvisorOutcomesPanel
               outcomes={outcomes}
               accent="indigo"

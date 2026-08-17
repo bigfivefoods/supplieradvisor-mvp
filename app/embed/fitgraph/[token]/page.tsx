@@ -335,6 +335,11 @@ export default function EmbedFitgraphPage() {
               {calendar.bio}
             </p>
           )}
+          {payoutReady ? (
+            <p className="mt-3 text-xs font-semibold text-slate-600">
+              Card and Apple Pay accepted on this site.
+            </p>
+          ) : null}
         </div>
       </header>
 

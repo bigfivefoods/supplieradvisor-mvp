@@ -38,6 +38,7 @@ import {
 import {
   HIRE_SUPPLIER_COMMISSION_PCT,
 } from '@/lib/hire/commercial';
+import { AdvisorBillingClarityCard } from '@/components/services/AdvisorBillingClarityCard';
 
 type Summary = Record<string, number | string | null | undefined>;
 
@@ -219,6 +220,15 @@ export default function HiregraphHubPage() {
             />
           </HubTelemetryGrid>
         )}
+
+        <div className="mt-6 mb-6">
+          <AdvisorBillingClarityCard
+            brand="your hire desk"
+            moduleLabel="HireAdvisor®"
+            accountsHref="/dashboard/hiregraph/accounts"
+            accentClass="border-cyan-200 bg-cyan-50/70 dark:border-cyan-800 dark:bg-cyan-950/30"
+          />
+        </div>
 
         <div className="mt-8 space-y-6">
           <div>

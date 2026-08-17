@@ -29,6 +29,10 @@ import {
   writePsychiatrygraphToMetadata,
   newId as psychNewId,
 } from '@/lib/clinic/psychiatrygraph';
+import {
+  isAdvisorPayoutReady,
+  readAdvisorPayout,
+} from '@/lib/billing/advisor-payout';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -128,6 +132,7 @@ export async function GET(req: NextRequest) {
   }
   return NextResponse.json({
     success: true,
+    payout_ready: isAdvisorPayoutReady(readAdvisorPayout(resolved.meta)),
     calendar: {
       ...calendar,
       brand:

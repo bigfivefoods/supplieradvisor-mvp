@@ -359,6 +359,7 @@ function Inner() {
                   ?.brand_name || 'your practice'
               }
               moduleLabel="DentalAdvisor®"
+              accountsHref="/dashboard/dentalgraph/accounts"
               accentClass="border-sky-200 bg-sky-50/70 dark:border-sky-800 dark:bg-sky-950/30"
             />
             <AdvisorOutcomesPanel

@@ -56,6 +56,7 @@ export default function EmbedClinicAdvisorPage() {
     token: string;
   };
   const [calendar, setCalendar] = useState<Calendar | null>(null);
+  const [payoutReady, setPayoutReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [bookingId, setBookingId] = useState<string | null>(null);
@@ -77,6 +78,7 @@ export default function EmbedClinicAdvisorPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load');
       setCalendar(data.calendar);
+      setPayoutReady(data.payout_ready === true);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load');
     } finally {
@@ -166,6 +168,11 @@ export default function EmbedClinicAdvisorPage() {
                 .join(' · ')}
             </p>
           )}
+          {payoutReady ? (
+            <p className="mt-2 text-xs font-semibold text-slate-600">
+              Card and Apple Pay accepted on this site.
+            </p>
+          ) : null}
         </div>
       </header>
 

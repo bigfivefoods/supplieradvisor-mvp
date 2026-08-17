@@ -20,6 +20,7 @@ import {
   RetailgraphRequired,
 } from '@/components/retail/RetailgraphShell';
 import { formatZar } from '@/lib/b2c/member-account-types';
+import { AdvisorBillingClarityCard } from '@/components/services/AdvisorBillingClarityCard';
 
 type Summary = {
   skuCount: number;
@@ -68,6 +69,15 @@ export default function RetailgraphHubPage() {
             <Stat label="Open tills" value={String(summary?.openTills || 0)} />
           </div>
         )}
+
+        <div className="mb-6">
+          <AdvisorBillingClarityCard
+            brand="your store"
+            moduleLabel="RetailAdvisor®"
+            accountsHref="/dashboard/retailgraph/accounts"
+            accentClass="border-orange-200 bg-orange-50/70 dark:border-orange-800 dark:bg-orange-950/30"
+          />
+        </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <HubCard

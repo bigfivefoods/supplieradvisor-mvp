@@ -10,6 +10,10 @@ import {
   parseCompanyIdFromHirePublicToken,
   readHiregraphFromMetadata,
 } from '@/lib/hire/hiregraph';
+import {
+  isAdvisorPayoutReady,
+  readAdvisorPayout,
+} from '@/lib/billing/advisor-payout';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -32,6 +36,7 @@ async function resolve(token: string) {
     if (store.settings?.public_token === clean) {
       return {
         store,
+        meta,
         name: String(byIndex.trading_name || byIndex.legal_name || ''),
       };
     }
@@ -52,6 +57,7 @@ async function resolve(token: string) {
   if (store.settings?.public_token !== clean) return null;
   return {
     store,
+    meta,
     name: String(prof.trading_name || prof.legal_name || ''),
   };
 }
@@ -65,6 +71,7 @@ export async function GET(request: NextRequest) {
     }
     return NextResponse.json({
       success: true,
+      payout_ready: isAdvisorPayoutReady(readAdvisorPayout(hit.meta)),
       site: buildHirePublicWebsitePayload(hit.store, { companyName: hit.name }),
     });
   } catch (e: unknown) {

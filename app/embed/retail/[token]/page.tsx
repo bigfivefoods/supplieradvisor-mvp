@@ -27,6 +27,7 @@ type Site = {
 export default function RetailPublicEmbedPage() {
   const { token } = useParams<{ token: string }>();
   const [site, setSite] = useState<Site | null>(null);
+  const [payoutReady, setPayoutReady] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -40,6 +41,7 @@ export default function RetailPublicEmbedPage() {
           return;
         }
         setSite(data.site);
+        setPayoutReady(data.payout_ready === true);
       })
       .catch(() => {
         if (!cancelled) setError('Could not load shop');
@@ -72,6 +74,11 @@ export default function RetailPublicEmbedPage() {
         <p className="mt-2 text-xs text-white/80">
           {[site.contact_phone, site.contact_email].filter(Boolean).join(' · ')}
         </p>
+        {payoutReady ? (
+          <p className="mt-2 text-xs font-semibold text-white/90">
+            Card and Apple Pay accepted on this site.
+          </p>
+        ) : null}
       </header>
       <main className="mx-auto max-w-3xl space-y-5 px-4 py-6">
         <AdvisorAnnouncementFeed items={site.announcements} />
