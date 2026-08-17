@@ -154,22 +154,33 @@ export function consultServices<T extends { code?: string; active?: boolean }>(
   );
 }
 
-export function applyAppointmentKindRules<
-  T extends {
-    service_id?: string;
-    appointment_kind?: string;
-    personal_reason?: string | null;
-    public?: boolean;
-    notes?: string;
-    start_time?: string;
-    end_time?: string | null;
-    duration_min?: number | null;
-  },
->(
+/** kind/reason stay unknown so upserts from Record<string, unknown> still infer T. */
+type AppointmentKindRuleInput = {
+  service_id?: string;
+  appointment_kind?: unknown;
+  personal_reason?: unknown;
+  public?: boolean;
+  notes?: string;
+  start_time?: string;
+  end_time?: string | null;
+  duration_min?: number | null;
+};
+
+/** Keeps caller fields (id, date, status, …) and narrows kind / reason. */
+export type AppointmentKindRuleResult<T> = T & {
+  appointment_kind: ClinicAppointmentKind;
+  personal_reason: ClinicPersonalReason | null;
+  public: boolean;
+  start_time: string;
+  end_time: string | null;
+  duration_min: number;
+};
+
+export function applyAppointmentKindRules<T extends AppointmentKindRuleInput>(
   row: T,
   services: Array<{ id: string; code?: string }>,
   kindRaw?: unknown
-): T {
+): AppointmentKindRuleResult<T> {
   const kind = normalizeAppointmentKind(
     kindRaw != null ? kindRaw : row.appointment_kind,
     appointmentKindOf(row, services)
@@ -196,7 +207,7 @@ export function applyAppointmentKindRules<
     start_time: times.start_time,
     end_time: times.end_time,
     duration_min: times.duration_min,
-  };
+  } as AppointmentKindRuleResult<T>;
 }
 
 export function clinicAppointmentSaveFields(opts: {

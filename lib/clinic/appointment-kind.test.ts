@@ -45,6 +45,30 @@ assert.equal(personal.public, false);
 assert.equal(personal.service_id, services[0].id);
 assert.equal(personal.duration_min, 540);
 
+const upsertShaped = applyAppointmentKindRules(
+  {
+    id: 'apt_1',
+    date: '2026-08-17',
+    status: 'scheduled' as const,
+    created_at: '2026-08-17T00:00:00.000Z',
+    service_id: 'svc_other',
+    start_time: '09:00',
+    personal_reason: 'leave',
+  },
+  services,
+  'personal'
+);
+const asAppointment: {
+  id: string;
+  date: string;
+  status: 'scheduled';
+  created_at: string;
+} = upsertShaped;
+assert.equal(asAppointment.id, 'apt_1');
+assert.equal(asAppointment.date, '2026-08-17');
+assert.equal(asAppointment.status, 'scheduled');
+assert.equal(asAppointment.created_at, '2026-08-17T00:00:00.000Z');
+
 assert.equal(
   appointmentKindOf({ service_id: services[0].id }, services),
   'personal'
