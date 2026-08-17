@@ -17,6 +17,10 @@ import {
   gymRequiresDebitBank,
   memberDebitBankComplete,
 } from '@/lib/fitness/member-debit-bank';
+import {
+  SYS_COACH_TIME_CODE,
+  SYS_PT_CODE,
+} from '@/lib/fitness/session-times';
 
 export const VUKA_COMPANY_ID = 110;
 
@@ -980,8 +984,6 @@ export function ensureVukaClassCatalog(
     return { store, changed: false, applied: false };
   }
   const now = opts.now || new Date().toISOString();
-  const today = now.slice(0, 10);
-  const weeks = opts.weeks ?? 8;
   let changed = false;
 
   if (!store.settings) {
@@ -1030,6 +1032,9 @@ export function ensureVukaClassCatalog(
     store.settings.require_debit_bank = true;
     changed = true;
   }
+
+  const catalogClassIds = new Set(VUKA_CLASS_TYPES.map((c) => c.id));
+  const catalogClassCodes = new Set(VUKA_CLASS_TYPES.map((c) => c.code));
 
   for (const ct of VUKA_CLASS_TYPES) {
     const i = store.class_types.findIndex(
@@ -1095,49 +1100,47 @@ export function ensureVukaClassCatalog(
     }
   }
 
-  const coachId =
-    store.coaches.find((c) => c.active !== false && !c.end_date)?.id || null;
+  const protectedClass = (c: { id: string; code?: string }) =>
+    catalogClassIds.has(c.id) ||
+    catalogClassCodes.has(String(c.code || '')) ||
+    c.code === SYS_PT_CODE ||
+    c.code === SYS_COACH_TIME_CODE;
 
-  for (const slot of VUKA_TIMETABLE) {
-    const dates = upcomingDatesForWeekdays(slot.weekdays, weeks, today);
-    for (const date of dates) {
-      const existing = store.sessions.find(
-        (s) =>
-          s.series_id === slot.series_id &&
-          s.date === date &&
-          s.status !== 'cancelled'
-      );
-      if (existing) {
-        if (existing.class_type_id !== slot.class_type_id) {
-          existing.class_type_id = slot.class_type_id;
-          changed = true;
-        }
-        if (!existing.coach_id && coachId) {
-          existing.coach_id = coachId;
-          changed = true;
-        }
-        continue;
+  const dropClassIds = new Set(
+    store.class_types.filter((c) => !protectedClass(c)).map((c) => c.id)
+  );
+  if (dropClassIds.size) {
+    for (const s of store.sessions) {
+      if (dropClassIds.has(s.class_type_id) && s.status !== 'cancelled') {
+        s.status = 'cancelled';
+        changed = true;
       }
-      store.sessions.push({
-        id: `vuka_ses_${slot.series_id}_${date.replace(/-/g, '')}`,
-        class_type_id: slot.class_type_id,
-        coach_id: coachId,
-        date,
-        start_time: slot.start_time,
-        end_time: endTimeFrom(slot.start_time, slot.duration_min),
-        duration_min: slot.duration_min,
-        session_kind: 'class',
-        capacity: slot.capacity,
-        location: slot.location,
-        status: 'scheduled',
-        public: slot.public,
-        public_notes: slot.public_notes,
-        series_id: slot.series_id,
-        origin: 'series',
-        created_at: now,
-      });
+    }
+    store.class_types = store.class_types.filter((c) => !dropClassIds.has(c.id));
+    changed = true;
+  }
+
+  // Owner builds the diary. Clear auto-seeded series once, then leave calendar alone.
+  if (store.settings.vuka_calendar_manual !== true) {
+    const autoSessionIds = new Set(
+      store.sessions
+        .filter(
+          (s) =>
+            String(s.id).startsWith('vuka_ses_') ||
+            (s.origin === 'series' &&
+              String(s.series_id || '').startsWith('vuka_ser_'))
+        )
+        .map((s) => s.id)
+    );
+    if (autoSessionIds.size) {
+      store.bookings = (store.bookings || []).filter(
+        (b) => !autoSessionIds.has(b.session_id)
+      );
+      store.sessions = store.sessions.filter((s) => !autoSessionIds.has(s.id));
       changed = true;
     }
+    store.settings.vuka_calendar_manual = true;
+    changed = true;
   }
 
   return { store, changed, applied: true };

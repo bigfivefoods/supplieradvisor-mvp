@@ -925,9 +925,10 @@ export default function CalendarPage() {
                 </option>
                 {store.class_types
                   .filter((c) =>
-                    form.session_kind === 'private_pt'
+                    c.active !== false &&
+                    (form.session_kind === 'private_pt'
                       ? c.code !== SYS_COACH_TIME_CODE
-                      : c.code !== SYS_PT_CODE && c.code !== SYS_COACH_TIME_CODE
+                      : c.code !== SYS_PT_CODE && c.code !== SYS_COACH_TIME_CODE)
                   )
                   .map((c) => (
                     <option key={c.id} value={c.id}>

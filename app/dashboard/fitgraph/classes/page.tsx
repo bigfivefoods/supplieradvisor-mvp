@@ -100,7 +100,7 @@ export default function ClassesPage() {
       titleAccent={classSubscribe ? 'subscribe' : 'catalogue'}
       description={
         classSubscribe
-          ? 'These are the VUKA classes members subscribe to. Their monthly fee is the sum of the classes they pick. Then you or a coach book them into each session.'
+          ? 'These class types match the memberships (one class per programme — FSF, kettlebell, bootcamp, pilates…). Add each to Calendar, then put members on those sessions from their membership.'
           : 'Step 1 of the floor flow: define class types first (HIIT, strength, yoga…). Edit any type below, then Calendar → create a class → assign coach → add members.'
       }
     >
@@ -260,7 +260,9 @@ export default function ClassesPage() {
               'Capacity',
               'Status',
             ]}
-            rows={store.class_types.map((c) => ({
+            rows={store.class_types
+              .filter((c) => c.active !== false)
+              .map((c) => ({
               id: c.id,
               cells: [
                 c.code,

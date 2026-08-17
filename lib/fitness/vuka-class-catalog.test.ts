@@ -39,7 +39,13 @@ assert.ok(vuka.membership_plans.some((p) => p.code === 'VUKA_UNLIM'));
 assert.ok(vuka.membership_plans.some((p) => p.price_zar === 910));
 assert.ok(vuka.membership_plans.some((p) => p.price_zar === 1140));
 assert.ok(vuka.class_types.some((c) => c.code === 'VUKA_FSF'));
-assert.ok(vuka.sessions.length > 0);
+assert.equal(vuka.sessions.length, 0);
+assert.equal(vuka.settings?.vuka_calendar_manual, true);
+assert.equal(
+  vuka.class_types.filter((c) => String(c.code || '').startsWith('VUKA_'))
+    .length,
+  10
+);
 assert.equal(vuka.settings?.joining_fee_zar, 600);
 assert.equal(vuka.settings?.joining_fee_waived, true);
 assert.equal(vuka.settings?.class_subscribe, true);
@@ -77,6 +83,38 @@ const hidden = ensureVukaClassCatalog(vuka, {
 });
 assert.equal(hidden.changed, true);
 assert.equal(vuka.membership_plans.find((p) => p.id === 'pln_old')?.public, false);
+
+vuka.class_types.push({
+  id: 'cls_owner_extra',
+  code: 'HIIT',
+  name: 'HIIT I added',
+  category: 'HIIT',
+  default_duration_min: 45,
+  capacity: 16,
+  active: true,
+  created_at: '2026-08-01T00:00:00.000Z',
+});
+vuka.sessions.push({
+  id: 'ses_owner_extra',
+  class_type_id: 'cls_owner_extra',
+  date: '2026-08-20',
+  start_time: '06:00',
+  status: 'scheduled',
+  created_at: '2026-08-01T00:00:00.000Z',
+});
+const pruned = ensureVukaClassCatalog(vuka, {
+  companyId: VUKA_COMPANY_ID,
+  now: '2026-08-17T10:00:00.000Z',
+});
+assert.equal(pruned.changed, true);
+assert.equal(
+  vuka.class_types.some((c) => c.id === 'cls_owner_extra'),
+  false
+);
+assert.equal(
+  vuka.sessions.find((s) => s.id === 'ses_owner_extra')?.status,
+  'cancelled'
+);
 
 const unlim = VUKA_MEMBERSHIP_PLANS.find((p) => p.code === 'VUKA_UNLIM')!;
 const kidsPlan = VUKA_MEMBERSHIP_PLANS.find((p) => p.code === 'VUKA_KIDS')!;

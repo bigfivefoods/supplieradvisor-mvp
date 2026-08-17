@@ -656,6 +656,11 @@ export type FitPublicSettings = {
   joining_fee_note?: string;
   /** Members subscribe to priced classes (VUKA). Fees = sum of those classes. */
   class_subscribe?: boolean;
+  /**
+   * Owner schedules VUKA classes on the calendar (no auto timetable).
+   * Set once after clearing seeded series sessions.
+   */
+  vuka_calendar_manual?: boolean;
   /** Collect debit-order bank details on the member profile. */
   collect_debit_bank?: boolean;
   /** Membership is incomplete until bank details are submitted. */
