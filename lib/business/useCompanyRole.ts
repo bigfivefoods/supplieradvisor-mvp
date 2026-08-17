@@ -157,7 +157,7 @@ export function useCompanyRole(): CompanyRoleState {
   // Re-fetch when profile module toggles save (same company)
   useEffect(() => {
     const onModules = () => {
-      invalidateCompanyMembership(companyId ?? undefined, privyUserId);
+      invalidateCompanyMembership(companyId, privyUserId);
       void refresh(true);
     };
     window.addEventListener('sa:company-changed', onModules);

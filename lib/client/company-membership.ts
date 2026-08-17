@@ -37,8 +37,8 @@ function cacheKey(companyId: number, privyUserId: string): string {
 }
 
 export function invalidateCompanyMembership(
-  companyId?: number,
-  privyUserId?: string
+  companyId?: number | null,
+  privyUserId?: string | null
 ): void {
   if (companyId && privyUserId) {
     cache.delete(cacheKey(companyId, privyUserId));
