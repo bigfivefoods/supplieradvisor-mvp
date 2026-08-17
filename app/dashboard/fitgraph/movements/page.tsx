@@ -113,7 +113,7 @@ export default function MovementsPage() {
     <FitgraphWorkbench
       title="Movement library"
       titleAccent="catalog + your own"
-      description="Every movement has an instructional image plus overview and coaching details. Open a card to replace the photo — or restore the catalog plate. Add your own movements on top."
+      description="Every movement has a 3D instructional photo plus overview and coaching details. Open a card to replace the photo — or restore the catalog plate. Add your own movements on top."
     >
       {loading || !store ? (
         <LoadingBlock />

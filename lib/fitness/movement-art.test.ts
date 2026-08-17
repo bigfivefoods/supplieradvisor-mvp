@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   figurePaths,
   movementDisplayDescription,
+  movementPoseImageSrc,
   resolveMovementPose,
 } from './movement-art';
 
@@ -16,6 +17,8 @@ assert.equal(resolveMovementPose('Farmer carry', 'Carry'), 'carry');
 assert.equal(resolveMovementPose('Box jump', 'Plyometric'), 'jump');
 assert.ok(figurePaths('squat', 1).length > 10);
 assert.ok(figurePaths('bike', 2).length > 10);
+assert.equal(movementPoseImageSrc('squat'), '/images/movements/squat.jpg');
+assert.equal(movementPoseImageSrc('pullup'), '/images/movements/pullup.jpg');
 
 const copy = movementDisplayDescription({
   overview: 'Short overview of the lift for coaches.',

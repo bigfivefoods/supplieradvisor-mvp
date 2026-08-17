@@ -123,21 +123,21 @@ export default function RetailgraphWebsitePage() {
             <AdvisorDeskInviteCard module="retailgraph" />
 
             {token ? (
-              <div className="rounded-2xl border border-orange-200 bg-gradient-to-br from-orange-50 to-white p-5">
-                <div className="flex flex-wrap items-start gap-6">
+              <div className="rounded-2xl border border-orange-200 bg-gradient-to-br from-orange-50 to-white p-4 sm:p-5">
+                <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-6">
                   {qrImg ? (
-                    <div className="shrink-0 rounded-2xl border border-orange-100 bg-white p-3 shadow-sm">
+                    <div className="shrink-0 rounded-2xl border border-orange-100 bg-white p-2.5 shadow-sm sm:p-3">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={qrImg}
                         alt="Shop QR"
                         width={200}
                         height={200}
-                        className="h-[200px] w-[200px]"
+                        className="h-40 w-40 sm:h-[200px] sm:w-[200px]"
                       />
                     </div>
                   ) : null}
-                  <div className="min-w-0 flex-1 space-y-2">
+                  <div className="min-w-0 w-full space-y-2 sm:flex-1">
                     <p className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-orange-700">
                       <QrCode className="h-3.5 w-3.5" /> Public shop QR
                     </p>

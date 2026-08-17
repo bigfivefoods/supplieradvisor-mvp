@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Landmark, Loader2 } from 'lucide-react';
+import { AdvisorPayAccepted } from '@/components/billing/ApplePayAccepted';
 import { toast } from 'sonner';
 import { useApiAuth } from '@/lib/client/use-api-auth';
 import { formatZar } from '@/lib/b2c/member-account-types';
@@ -198,9 +199,12 @@ export function AdvisorPayoutSettings({
           </p>
         </div>
         {ready ? (
-          <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white">
-            Connected
-          </span>
+          <div className="flex flex-col items-end gap-1.5">
+            <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white">
+              Connected
+            </span>
+            <AdvisorPayAccepted tone="onLight" size="sm" label="Shown on your site" />
+          </div>
         ) : (
           <span className="rounded-full bg-amber-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white">
             Required for cards

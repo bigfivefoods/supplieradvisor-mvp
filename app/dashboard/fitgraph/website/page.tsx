@@ -170,19 +170,19 @@ export default function FitgraphWebsitePage() {
           <AdvisorDeskInviteCard module="fitgraph" />
 
           {token ? (
-            <div className="rounded-2xl border border-yellow-200 bg-gradient-to-br from-yellow-50 to-white p-5 dark:border-yellow-500/30 dark:from-yellow-950/50 dark:to-slate-950">
-              <div className="flex flex-wrap items-start gap-6">
-                <div className="shrink-0 rounded-2xl border border-yellow-100 bg-white p-3 shadow-sm dark:border-yellow-500/20">
+            <div className="rounded-2xl border border-yellow-200 bg-gradient-to-br from-yellow-50 to-white p-4 sm:p-5 dark:border-yellow-500/30 dark:from-yellow-950/50 dark:to-slate-950">
+              <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-6">
+                <div className="shrink-0 rounded-2xl border border-yellow-100 bg-white p-2.5 shadow-sm dark:border-yellow-500/20 sm:p-3">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={links.qrImg}
                     alt="Gym check-in QR"
                     width={200}
                     height={200}
-                    className="h-[200px] w-[200px]"
+                    className="h-40 w-40 sm:h-[200px] sm:w-[200px]"
                   />
                 </div>
-                <div className="min-w-0 flex-1 space-y-2">
+                <div className="min-w-0 w-full space-y-2 sm:flex-1">
                   <p className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-yellow-700 dark:text-yellow-300">
                     <QrCode className="h-3.5 w-3.5" /> Unique gym check-in QR
                   </p>

@@ -2,15 +2,23 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { Store } from 'lucide-react';
 import { AdvisorAnnouncementFeed } from '@/components/services/AdvisorAnnouncementFeed';
 import { formatZar } from '@/lib/b2c/member-account-types';
+import {
+  AdvisorPublicSection,
+  AdvisorPublicSite,
+  AdvisorPublicStatus,
+} from '@/components/advisors/AdvisorPublicSite';
+import { AdvisorPayAccepted } from '@/components/billing/ApplePayAccepted';
 
 type Site = {
   brand: string;
   bio?: string;
   contact_email?: string | null;
   contact_phone?: string | null;
+  website_url?: string | null;
+  logo_url?: string | null;
   primary_color?: string;
   enabled?: boolean;
   announcements?: Array<{
@@ -52,55 +60,112 @@ export default function RetailPublicEmbedPage() {
   }, [token]);
 
   if (!site && !error) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-orange-600" />
-      </div>
-    );
+    return <AdvisorPublicStatus color="#ea580c" />;
   }
   if (error || !site) {
-    return <p className="p-6 text-sm text-rose-700">{error || 'Not found'}</p>;
+    return <AdvisorPublicStatus error={error || 'Not found'} />;
   }
 
   const color = site.primary_color || '#ea580c';
+  const skus = site.skus || [];
+  const nav = [
+    ...(site.announcements?.length ? [{ id: 'news', label: 'News' }] : []),
+    { id: 'shop', label: 'Shop' },
+    ...(site.contact_phone || site.contact_email
+      ? [{ id: 'contact', label: 'Contact' }]
+      : []),
+  ];
+
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="px-5 py-8 text-white" style={{ background: color }}>
-        <p className="text-[10px] font-black uppercase tracking-widest text-white/80">
-          RetailAdvisor®
-        </p>
-        <h1 className="mt-1 text-2xl font-black">{site.brand}</h1>
-        {site.bio ? <p className="mt-2 max-w-2xl text-sm text-white/90">{site.bio}</p> : null}
-        <p className="mt-2 text-xs text-white/80">
-          {[site.contact_phone, site.contact_email].filter(Boolean).join(' · ')}
-        </p>
-        {payoutReady ? (
-          <p className="mt-2 text-xs font-semibold text-white/90">
-            Card and Apple Pay accepted on this site.
+    <AdvisorPublicSite
+      eyebrow="RetailAdvisor®"
+      brand={site.brand}
+      bio={site.bio}
+      phone={site.contact_phone}
+      email={site.contact_email}
+      websiteUrl={site.website_url}
+      logoUrl={site.logo_url}
+      color={color}
+      payoutReady={payoutReady}
+      nav={nav}
+      cta={{ href: '#shop', label: 'Shop' }}
+      footerNote="Powered by RetailAdvisor® · SupplierAdvisor"
+    >
+      {site.announcements?.length ? (
+        <AdvisorPublicSection id="news" title="From the desk">
+          <AdvisorAnnouncementFeed items={site.announcements} title="" />
+        </AdvisorPublicSection>
+      ) : null}
+
+      <AdvisorPublicSection
+        id="shop"
+        title="On the shelf"
+        icon={<Store className="h-5 w-5" style={{ color }} />}
+        aside={
+          <p className="text-sm text-slate-500">
+            {skus.length} item{skus.length === 1 ? '' : 's'}
           </p>
+        }
+      >
+        {skus.length === 0 ? (
+          <p className="rounded-3xl border border-dashed border-slate-200 bg-white py-12 text-center text-sm text-slate-500">
+            No products published yet.
+          </p>
+        ) : (
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {skus.map((sku) => (
+              <li
+                key={sku.id}
+                className="flex flex-col justify-between rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
+              >
+                <div>
+                  <p className="font-black text-slate-900">{sku.name}</p>
+                  {sku.sku ? (
+                    <p className="mt-0.5 text-[11px] text-slate-500">{sku.sku}</p>
+                  ) : null}
+                </div>
+                <p className="mt-4 text-lg font-black tabular-nums" style={{ color }}>
+                  {formatZar(sku.price_zar)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+        {payoutReady ? (
+          <div className="mt-5">
+            <AdvisorPayAccepted tone="onLight" label="Accepted in store" />
+          </div>
         ) : null}
-      </header>
-      <main className="mx-auto max-w-3xl space-y-5 px-4 py-6">
-        <AdvisorAnnouncementFeed items={site.announcements} />
-        <ul className="space-y-2">
-          {(site.skus || []).map((sku) => (
-            <li
-              key={sku.id}
-              className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3"
-            >
-              <div>
-                <p className="font-black text-slate-900">{sku.name}</p>
-                {sku.sku ? (
-                  <p className="text-[11px] text-slate-500">{sku.sku}</p>
-                ) : null}
-              </div>
-              <p className="text-sm font-black tabular-nums text-orange-800">
-                {formatZar(sku.price_zar)}
-              </p>
-            </li>
-          ))}
-        </ul>
-      </main>
-    </div>
+      </AdvisorPublicSection>
+
+      {site.contact_phone || site.contact_email ? (
+        <AdvisorPublicSection id="contact" title="Contact">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {site.contact_phone ? (
+              <a
+                href={`tel:${site.contact_phone.replace(/\s+/g, '')}`}
+                className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm hover:border-slate-300"
+              >
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  Phone
+                </p>
+                <p className="mt-1 font-bold">{site.contact_phone}</p>
+              </a>
+            ) : null}
+            {site.contact_email ? (
+              <a
+                href={`mailto:${site.contact_email}`}
+                className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm hover:border-slate-300"
+              >
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  Email
+                </p>
+                <p className="mt-1 break-all font-bold">{site.contact_email}</p>
+              </a>
+            ) : null}
+          </div>
+        </AdvisorPublicSection>
+      ) : null}
+    </AdvisorPublicSite>
   );
 }

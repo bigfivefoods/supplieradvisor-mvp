@@ -51,15 +51,65 @@ function isModule(m: string): m is ModuleKey {
   return (MODULES as readonly string[]).includes(m);
 }
 
+const CLINIC_TOKEN_RE: Record<ModuleKey, RegExp> = {
+  physiograph: /^pg_(\d+)_/,
+  dentalgraph: /^dg_(\d+)_/,
+  medicalgraph: /^medg_(\d+)_/,
+  psychiatrygraph: /^psyg_(\d+)_/,
+};
+
+function parseClinicCompanyId(module: ModuleKey, token: string): number | null {
+  const m = CLINIC_TOKEN_RE[module].exec(token);
+  if (!m) return null;
+  const id = Number(m[1]);
+  return Number.isFinite(id) ? id : null;
+}
+
+function storeFromMeta(
+  module: ModuleKey,
+  meta: Record<string, unknown>
+): {
+  settings?: { public_token?: string; enabled?: boolean } | null;
+} | null {
+  if (module === 'dentalgraph') return readDentalgraphFromMetadata(meta);
+  if (module === 'physiograph') return readPhysiographFromMetadata(meta);
+  if (module === 'medicalgraph') return readMedicalgraphFromMetadata(meta);
+  return readPsychiatrygraphFromMetadata(meta);
+}
+
 async function resolveClinic(module: ModuleKey, token: string) {
   const clean = token.trim();
   if (!clean || clean.length < 8) return null;
   const supabase = getSupabaseServer();
+  const parsed = parseClinicCompanyId(module, clean);
+  if (parsed != null) {
+    const { data: row } = await supabase
+      .from('profiles')
+      .select('id, metadata, trading_name, legal_name')
+      .eq('id', parsed)
+      .maybeSingle();
+    if (row) {
+      const meta =
+        row.metadata && typeof row.metadata === 'object'
+          ? { ...(row.metadata as Record<string, unknown>) }
+          : {};
+      const store = storeFromMeta(module, meta);
+      if (store?.settings?.public_token === clean) {
+        return {
+          companyId: Number(row.id),
+          meta,
+          store,
+          companyName: row.trading_name || row.legal_name || '',
+        };
+      }
+    }
+  }
+
   const { data: rows } = await supabase
     .from('profiles')
-    .select('id, metadata, company_name, name')
+    .select('id, metadata, trading_name, legal_name')
     .order('updated_at', { ascending: false })
-    .limit(300);
+    .limit(400);
 
   for (const row of rows || []) {
     const meta =
@@ -67,22 +117,13 @@ async function resolveClinic(module: ModuleKey, token: string) {
         ? { ...(row.metadata as Record<string, unknown>) }
         : {};
     if (!meta[module]) continue;
-
-    let store: {
-      settings?: { public_token?: string; enabled?: boolean } | null;
-    } | null = null;
-    if (module === 'dentalgraph') store = readDentalgraphFromMetadata(meta);
-    else if (module === 'physiograph') store = readPhysiographFromMetadata(meta);
-    else if (module === 'medicalgraph')
-      store = readMedicalgraphFromMetadata(meta);
-    else store = readPsychiatrygraphFromMetadata(meta);
-
+    const store = storeFromMeta(module, meta);
     if (store?.settings?.public_token === clean) {
       return {
         companyId: Number(row.id),
         meta,
         store,
-        companyName: row.company_name || row.name,
+        companyName: row.trading_name || row.legal_name || '',
       };
     }
   }

@@ -3,6 +3,8 @@
  * Guest book creates/finds patient by email and books open slots.
  */
 import { generateAdvisorMemberSlots } from '@/lib/services/advisor-member-calendar';
+import { logoUrlFromSettings } from '@/lib/business/company-logo';
+import { compactWorkingHours } from '@/lib/schedule/working-hours';
 
 export type ClinicPublicSlot = {
   id: string;
@@ -26,6 +28,9 @@ export type ClinicPublicCalendar = {
   allow_booking: boolean;
   contact_email?: string;
   contact_phone?: string;
+  website_url?: string;
+  logo_url?: string | null;
+  hours?: Array<{ days: string; hours: string }>;
   primary_color?: string;
   city?: string;
   from: string;
@@ -33,6 +38,7 @@ export type ClinicPublicCalendar = {
   slots: ClinicPublicSlot[];
   clinicians: Array<{
     name: string;
+    photo_url?: string;
     disciplines?: string[];
     bio?: string;
     qualifications?: Array<{
@@ -111,6 +117,8 @@ export function buildClinicPublicCalendar(opts: {
       working_hours?: import('@/lib/schedule/working-hours').WorkingHours;
       contact_email?: string;
       contact_phone?: string;
+      website_url?: string;
+      company_logo_url?: string | null;
       embed_primary_color?: string;
       marketplace?: { city?: string };
       enabled?: boolean;
@@ -155,6 +163,11 @@ export function buildClinicPublicCalendar(opts: {
     allow_booking: store.settings?.allow_public_booking !== false,
     contact_email: store.settings?.contact_email,
     contact_phone: store.settings?.contact_phone,
+    website_url: store.settings?.website_url,
+    logo_url: logoUrlFromSettings(store.settings),
+    hours: store.settings?.working_hours
+      ? compactWorkingHours(store.settings.working_hours)
+      : undefined,
     primary_color: store.settings?.embed_primary_color || '#0d9488',
     city: store.settings?.marketplace?.city,
     from: start,
@@ -165,6 +178,7 @@ export function buildClinicPublicCalendar(opts: {
       .map((c) => {
         const person = c as {
           name: string;
+          photo_url?: string;
           disciplines?: string[];
           roles?: string[];
           public_bio?: string;
@@ -184,6 +198,7 @@ export function buildClinicPublicCalendar(opts: {
         }>;
         return {
           name: person.name,
+          photo_url: person.photo_url,
           disciplines: person.disciplines || person.roles,
           bio: person.public_bio || person.bio,
           qualifications: quals

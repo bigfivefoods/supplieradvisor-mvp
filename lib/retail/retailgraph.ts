@@ -8,6 +8,7 @@ import {
   publishedAnnouncements,
 } from '@/lib/services/member-announcements';
 import type { MemberAnnouncement } from '@/lib/services/member-announcements';
+import { logoUrlFromSettings } from '@/lib/business/company-logo';
 
 export const RETAILGRAPH_MODULE_ID = 'retailgraph' as const;
 export const RETAILGRAPH_META_KEY = 'retailgraph';
@@ -149,6 +150,9 @@ export function buildRetailPublicWebsitePayload(
     contact_email: store.settings.contact_email || null,
     contact_phone: store.settings.contact_phone || null,
     website_url: store.settings.website_url || null,
+    logo_url: logoUrlFromSettings(
+      store.settings as { company_logo_url?: string | null }
+    ),
     primary_color: store.settings.embed_primary_color || '#ea580c',
     enabled: store.settings.enabled === true,
     announcements: publishedAnnouncements(store.announcements),

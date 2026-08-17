@@ -209,3 +209,25 @@ export function summarizeWorkingHours(hours: WorkingHours | null | undefined): s
   }
   return parts.join(' · ');
 }
+
+/** Group consecutive weekdays that share the same hours (website footer / visit card). */
+export function compactWorkingHours(
+  hours: WorkingHours | null | undefined
+): Array<{ days: string; hours: string }> {
+  const h = normalizeWorkingHours(hours);
+  const groups: Array<{ shorts: string[]; hours: string }> = [];
+  for (const { day, short } of WEEKDAY_LABELS) {
+    const d = dayHours(h, day);
+    const label = d.closed ? 'Closed' : `${d.open}–${d.close}`;
+    const last = groups[groups.length - 1];
+    if (last && last.hours === label) last.shorts.push(short);
+    else groups.push({ shorts: [short], hours: label });
+  }
+  return groups.map((g) => ({
+    days:
+      g.shorts.length === 1
+        ? g.shorts[0]
+        : `${g.shorts[0]}–${g.shorts[g.shorts.length - 1]}`,
+    hours: g.hours,
+  }));
+}

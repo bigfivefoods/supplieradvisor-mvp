@@ -21,6 +21,7 @@ import { healthSummaryLabel } from '@/lib/health/body-map';
 import { buildRelationshipSummary } from '@/lib/fitness/fitgraph-relationship';
 import { publishedAnnouncements } from '@/lib/services/member-announcements';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
+import { compactWorkingHours } from '@/lib/schedule/working-hours';
 import {
   SYS_COACH_TIME_CODE,
   SYS_PT_CODE,
@@ -2101,6 +2102,14 @@ export function buildPublicCalendarPayload(
     allow_booking: store.settings?.allow_public_booking !== false,
     contact_email: store.settings?.contact_email,
     contact_phone: store.settings?.contact_phone,
+    website_url: store.settings?.website_url,
+    logo_url: logoUrlFromSettings(
+      store.settings as { company_logo_url?: string | null } | undefined
+    ),
+    hours: store.settings?.working_hours
+      ? compactWorkingHours(store.settings.working_hours)
+      : undefined,
+    city: store.settings?.marketplace?.city,
     primary_color: gymBrandColor(store.settings?.embed_primary_color),
     from,
     to,

@@ -23,14 +23,16 @@ export function AdvisorAnnouncementFeed({
   if (!rows.length) return null;
   return (
     <section className="space-y-2">
+      {title ? (
       <p className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">
         <Megaphone className="h-3.5 w-3.5" /> {title}
       </p>
-      <ul className="space-y-2">
+      ) : null}
+      <ul className="grid gap-3 md:grid-cols-2">
         {rows.map((row) => (
           <li
             key={row.id}
-            className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
+            className="rounded-3xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm"
           >
             <div className="flex items-start justify-between gap-2">
               <p className="text-sm font-black text-slate-900">{row.title}</p>

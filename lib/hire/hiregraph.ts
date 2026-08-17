@@ -21,6 +21,7 @@ import {
   publishedAnnouncements,
 } from '@/lib/services/member-announcements';
 import type { MemberAnnouncement } from '@/lib/services/member-announcements';
+import { logoUrlFromSettings } from '@/lib/business/company-logo';
 
 export const HIREGRAPH_MODULE_ID = 'hiregraph' as const;
 export const HIREGRAPH_META_KEY = 'hiregraph';
@@ -1380,6 +1381,9 @@ export function buildHirePublicWebsitePayload(
     contact_phone: settings.contact_phone || null,
     city: settings.city || null,
     website_url: settings.website_url || null,
+    logo_url: logoUrlFromSettings(
+      settings as { company_logo_url?: string | null }
+    ),
     primary_color: settings.primary_color || '#0891b2',
     allow_booking: settings.allow_portal_booking !== false,
     enabled: settings.enabled === true,

@@ -1,6 +1,7 @@
 /**
- * Unique instructional plate for each catalog movement.
- * Used when no custom photo is set. Deterministic from name + category.
+ * Instructional plates for catalog movements.
+ * 3D human pose photos live in /public/images/movements/{pose}.jpg.
+ * Stick-figure paths remain as a fallback if a photo is missing.
  */
 
 export type MovementArtPose =
@@ -115,6 +116,10 @@ export const CATEGORY_COLORS: Record<string, { bg: string; ink: string; accent: 
     Isolation: { bg: '#FDF2F8', ink: '#500724', accent: '#EC4899' },
     Other: { bg: '#F8FAFC', ink: '#1E293B', accent: '#E8E830' },
   };
+
+export function movementPoseImageSrc(pose: MovementArtPose): string {
+  return `/images/movements/${pose}.jpg`;
+}
 
 export function resolveMovementPose(
   name: string,

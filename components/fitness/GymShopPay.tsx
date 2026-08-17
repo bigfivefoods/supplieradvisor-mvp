@@ -2,6 +2,7 @@
 
 import { Loader2 } from 'lucide-react';
 import type { GymShopItem } from '@/lib/fitness/gym-shop';
+import { AdvisorPayAccepted } from '@/components/billing/ApplePayAccepted';
 
 export function GymShopPay({
   items,
@@ -43,17 +44,20 @@ export function GymShopPay({
 
   return (
     <div className="space-y-4">
-      {requirePaid ? (
-        <p className="text-sm text-slate-600">
-          Pay first — then you can book classes. Card, Apple Pay (Safari /
-          iPhone), EFT and other Paystack methods.
-        </p>
-      ) : (
-        <p className="text-sm text-slate-600">
-          Buy a membership or programme. Pay with card, Apple Pay (Safari /
-          iPhone) or EFT.
-        </p>
-      )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {requirePaid ? (
+          <p className="text-sm text-slate-600">
+            Pay first — then you can book classes. Card, Apple Pay (Safari /
+            iPhone), EFT and other Paystack methods.
+          </p>
+        ) : (
+          <p className="text-sm text-slate-600">
+            Buy a membership or programme. Pay with card, Apple Pay (Safari /
+            iPhone) or EFT.
+          </p>
+        )}
+        {payoutReady ? <AdvisorPayAccepted tone="onLight" size="sm" /> : null}
+      </div>
       {!payoutReady ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-950">
           This gym has not connected card / Apple Pay yet. You can still leave
@@ -83,13 +87,13 @@ export function GymShopPay({
           />
         </div>
       ) : null}
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {items.map((item) => {
           const busy = buyingId === `${item.kind}:${item.id}`;
           return (
             <div
               key={`${item.kind}:${item.id}`}
-              className="flex flex-col rounded-2xl border border-slate-200 bg-white px-4 py-3"
+              className="flex flex-col rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm"
             >
               <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                 {item.kind === 'programme' ? 'Programme' : 'Membership'}
