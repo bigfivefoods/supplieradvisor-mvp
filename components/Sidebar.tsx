@@ -292,86 +292,96 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     return pathname === base || pathname.startsWith(base + '/');
   };
 
-  /** Switch company + expand/collapse — always under brand (same row, expanded & collapsed) */
-  const switchCompanyRow = !forceExpanded && (
-    <div className={isCollapsed ? 'mt-2' : 'mt-4'}>
-      <div
-        className={`flex items-center gap-1 ${
-          isCollapsed ? 'flex-col' : ''
-        }`}
-      >
+  const showChromeLabels = forceExpanded || !isCollapsed;
+  const chromeRow =
+    'flex h-9 w-full min-w-0 items-center rounded-xl text-neutral-500 transition-colors hover:bg-neutral-100';
+  const chromeIconSlot =
+    'inline-flex h-9 w-9 shrink-0 items-center justify-center';
+  const chromeLabel = showChromeLabels
+    ? 'min-w-0 truncate pr-2 text-sm font-medium'
+    : 'sr-only';
+
+  const brandAndChrome = (
+    <div className="px-3 pt-4 pb-1">
+      {!forceExpanded && (
+        <Link
+          href={skin.homeHref || homePath || '/dashboard'}
+          title={companyName || skin.name}
+          className="sa-brand-lockup flex h-8 min-w-0 items-center gap-2.5"
+        >
+          <PortalBrandLogo
+            logoUrl={logoUrl}
+            name={companyName || skin.registered}
+            className={`sa-logo h-8 shrink-0 object-contain ${
+              isCollapsed ? 'w-8' : 'w-auto max-w-[5.5rem]'
+            }`}
+            fallbackClassName="sa-logo h-8 w-auto shrink-0 object-contain"
+            priority
+          />
+          {!isCollapsed ? (
+            <AdvisorWordmark className="sa-wordmark block min-w-0 truncate text-base font-black leading-none tracking-[-1px] sm:text-lg" />
+          ) : null}
+        </Link>
+      )}
+
+      {/* Same 3-row icon column open or closed — labels clip, icons do not move */}
+      <div className={forceExpanded ? 'mt-0 flex flex-col' : 'mt-3 flex flex-col'}>
         <Link
           href="/dashboard/select-company"
           title="Switch company"
-          className={
-            isCollapsed
-              ? 'flex h-11 w-11 items-center justify-center rounded-2xl text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-[var(--sa-brand)]'
-              : 'flex min-w-0 flex-1 items-center gap-2 rounded-xl py-1.5 text-sm text-neutral-500 transition-colors hover:text-[var(--sa-brand)]'
-          }
+          className={`${chromeRow} hover:text-[var(--sa-brand)]`}
         >
-          <ArrowLeftRight className="h-4 w-4 shrink-0" />
-          {!isCollapsed && (
-            <span className="truncate font-medium">Switch company</span>
-          )}
+          <span className={chromeIconSlot} aria-hidden>
+            <ArrowLeftRight className="h-4 w-4" />
+          </span>
+          <span className={chromeLabel}>Switch company</span>
         </Link>
-        {isCollapsed ? (
-          <Link
-            href="/me"
-            title="SA Member — personal wallet"
-            className="flex h-11 w-11 items-center justify-center rounded-2xl text-neutral-500 transition-colors hover:bg-sky-50 hover:text-[#0077b6]"
+        {!forceExpanded ? (
+          <button
+            type="button"
+            onClick={toggle}
+            className={`${chromeRow} hover:text-[var(--sa-brand)]`}
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!isCollapsed}
           >
-            <Smartphone className="h-4 w-4" />
-            <span className="sr-only">SA Member</span>
-          </Link>
+            <span className={chromeIconSlot} aria-hidden>
+              {isCollapsed ? (
+                <PanelLeftOpen className="h-4 w-4" />
+              ) : (
+                <PanelLeftClose className="h-4 w-4" />
+              )}
+            </span>
+            <span className={chromeLabel}>
+              {isCollapsed ? 'Expand' : 'Collapse'}
+            </span>
+          </button>
         ) : null}
-        <button
-          type="button"
-          onClick={toggle}
-          className={
-            isCollapsed
-              ? 'flex h-11 w-11 items-center justify-center rounded-2xl border border-neutral-200 text-neutral-500 transition-colors hover:border-[var(--sa-brand)] hover:text-[var(--sa-brand)]'
-              : 'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-neutral-200 text-neutral-500 transition-colors hover:border-[var(--sa-brand)] hover:text-[var(--sa-brand)]'
-          }
-          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          aria-expanded={!isCollapsed}
-        >
-          {isCollapsed ? (
-            <PanelLeftOpen className="h-4 w-4" />
-          ) : (
-            <PanelLeftClose className="h-4 w-4" />
-          )}
-        </button>
-      </div>
-      {!isCollapsed ? (
         <Link
           href="/me"
-          className="mt-1 flex items-center gap-2 rounded-xl py-1.5 text-sm text-neutral-500 transition-colors hover:text-[#0077b6]"
+          title="SA Member — personal wallet"
+          className={`${chromeRow} hover:text-[#0077b6]`}
         >
-          <Smartphone className="h-4 w-4 shrink-0" />
-          <span className="truncate font-medium">SA Member</span>
+          <span className={chromeIconSlot} aria-hidden>
+            <Smartphone className="h-4 w-4" />
+          </span>
+          <span className={chromeLabel}>SA Member</span>
         </Link>
+      </div>
+
+      {!forceExpanded && !isCollapsed && !loading && role ? (
+        <p className="mt-3 hidden text-[10px] font-semibold uppercase tracking-wide text-neutral-400 md:block">
+          {roleLabel || role}
+          {rights ? ` · ${rights}` : ''}
+        </p>
       ) : null}
     </div>
   );
 
-  /** Icon-only rail (desktop collapsed) */
   if (isCollapsed) {
     return (
       <div className="flex h-full flex-col bg-white">
-        <div className="flex flex-col items-center p-3">
-          <Link href={skin.homeHref || homePath || '/dashboard'} title={companyName || skin.name} className="sa-brand-lockup block">
-            <PortalBrandLogo
-              logoUrl={logoUrl}
-              name={companyName || skin.registered}
-              className="sa-logo h-8 w-8 object-contain"
-              fallbackClassName="sa-logo h-8 w-auto object-contain"
-              priority
-            />
-          </Link>
-          {switchCompanyRow}
-        </div>
-
+        {brandAndChrome}
         <nav className="flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto p-2 scrollbar-none">
           {visibleModules.map((mod) => {
             const Icon = mod.icon;
@@ -404,60 +414,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
 
   return (
     <div className="flex h-full flex-col bg-white">
-      {/* Brand + switch company under logo/wordmark; mobile drawer has no toggle */}
-      <div
-        className={forceExpanded ? 'p-4' : 'p-5'}
-      >
-        {!forceExpanded && (
-          <Link
-            href={skin.homeHref || homePath || '/dashboard'}
-            className="sa-brand-lockup flex min-w-0 items-center gap-2.5"
-          >
-            <PortalBrandLogo
-              logoUrl={logoUrl}
-              name={companyName || skin.registered}
-              className="sa-logo h-8 w-auto max-w-[5.5rem] shrink-0 object-contain"
-              fallbackClassName="sa-logo h-8 w-auto shrink-0 object-contain"
-              priority
-            />
-            <div>
-              <AdvisorWordmark className="sa-wordmark block text-base font-black leading-none tracking-[-1px] sm:text-lg" />
-              {skin.id !== 'supplier' ? (
-                <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-neutral-400">
-                  {skin.tagline}
-                </p>
-              ) : null}
-            </div>
-          </Link>
-        )}
-        {forceExpanded ? (
-          <div className="mt-0 flex flex-col gap-1">
-            <Link
-              href="/dashboard/select-company"
-              className="flex items-center gap-2 text-sm text-neutral-500 transition-colors hover:text-[var(--sa-brand)]"
-            >
-              <ArrowLeftRight className="h-4 w-4" />
-              Switch company
-            </Link>
-            <Link
-              href="/me"
-              className="flex items-center gap-2 text-sm text-neutral-500 transition-colors hover:text-[#0077b6]"
-            >
-              <Smartphone className="h-4 w-4" />
-              SA Member
-            </Link>
-          </div>
-        ) : (
-          switchCompanyRow
-        )}
-        {/* Desktop only — hides on mobile drawer to avoid bounce when role/rights load */}
-        {!forceExpanded && !loading && role && (
-          <p className="mt-3 hidden text-[10px] font-semibold uppercase tracking-wide text-neutral-400 md:block">
-            {roleLabel || role}
-            {rights ? ` · ${rights}` : ''}
-          </p>
-        )}
-      </div>
+      {brandAndChrome}
 
       <nav className="flex-1 overflow-y-auto p-3 scrollbar-none">
         {role !== 'sales_contractor' ? (
