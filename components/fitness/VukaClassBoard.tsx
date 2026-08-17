@@ -4,10 +4,12 @@ export function VukaClassBoard({
   classes,
   joining,
   tone = 'owner',
+  onEdit,
 }: {
   classes: SubscribeClass[];
   joining?: { fee_zar: number; waived?: boolean; note?: string } | null;
   tone?: 'owner' | 'member';
+  onEdit?: (planId: string) => void;
 }) {
   const card =
     tone === 'member'
@@ -54,6 +56,9 @@ export function VukaClassBoard({
               {tone === 'owner' ? (
                 <th className="py-1 font-black uppercase text-[10px]">Subs</th>
               ) : null}
+              {tone === 'owner' && onEdit ? (
+                <th className="py-1 font-black uppercase text-[10px]" />
+              ) : null}
             </tr>
           </thead>
           <tbody>
@@ -83,6 +88,17 @@ export function VukaClassBoard({
                 </td>
                 {tone === 'owner' ? (
                   <td className="py-1.5 tabular-nums">{c.subscribers}</td>
+                ) : null}
+                {tone === 'owner' && onEdit ? (
+                  <td className="py-1.5 text-right">
+                    <button
+                      type="button"
+                      onClick={() => onEdit(c.plan_id)}
+                      className="text-[11px] font-bold text-yellow-700 underline dark:text-yellow-300"
+                    >
+                      Edit
+                    </button>
+                  </td>
                 ) : null}
               </tr>
             ))}

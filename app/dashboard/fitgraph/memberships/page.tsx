@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   FitgraphWorkbench,
@@ -15,28 +15,73 @@ import {
   VUKA_JOINING,
 } from '@/lib/fitness/vuka-class-catalog';
 
+const blankForm = () => ({
+  code: '',
+  name: '',
+  price_zar: '',
+  billing: 'monthly',
+  class_credits: '',
+  pt_credits: '',
+  description: '',
+  public: true,
+  access: 'classes',
+  programme_id: '',
+});
+
 export default function MembershipsPage() {
   const { store, loading, saving, post, summary } = useFitgraph();
   const classSubscribe = store ? storeUsesClassSubscribe(store) : false;
   const subscribeClasses = store ? listSubscribeClasses(store) : [];
-  const [form, setForm] = useState({
-    code: '',
-    name: '',
-    price_zar: '',
-    billing: 'monthly',
-    class_credits: '',
-    pt_credits: '',
-    description: '',
-    public: true,
-    access: 'classes',
-    programme_id: '',
-  });
+  const formAnchorRef = useRef<HTMLDivElement>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState(blankForm);
   const [pt, setPt] = useState({
     client_id: '',
     coach_id: '',
     sessions_total: '10',
     price_zar: '',
   });
+
+  const editing = useMemo(
+    () =>
+      editingId && store
+        ? store.membership_plans.find((p) => p.id === editingId) || null
+        : null,
+    [store, editingId]
+  );
+
+  const startEdit = (id: string) => {
+    const p = store?.membership_plans.find((x) => x.id === id);
+    if (!p) {
+      toast.error('Membership not found');
+      return;
+    }
+    setEditingId(p.id);
+    setForm({
+      code: p.code || '',
+      name: p.name || '',
+      price_zar: p.price_zar != null ? String(p.price_zar) : '',
+      billing: p.billing || 'monthly',
+      class_credits:
+        p.class_credits != null ? String(p.class_credits) : '',
+      pt_credits: p.pt_credits != null ? String(p.pt_credits) : '',
+      description: p.description || '',
+      public: p.public !== false,
+      access: p.access || 'classes',
+      programme_id: p.programme_id || '',
+    });
+    requestAnimationFrame(() => {
+      formAnchorRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setForm(blankForm());
+  };
 
   const add = async () => {
     if (!form.name.trim()) {
@@ -47,6 +92,7 @@ export default function MembershipsPage() {
       entity: 'membership_plans',
       action: 'upsert',
       record: {
+        ...(editingId ? { id: editingId } : {}),
         ...form,
         price_zar: Number(form.price_zar) || 0,
         class_credits: form.class_credits ? Number(form.class_credits) : null,
@@ -57,7 +103,8 @@ export default function MembershipsPage() {
         programme_id: form.programme_id || null,
       },
     });
-    toast.success('Plan saved');
+    toast.success(editingId ? 'Plan updated' : 'Plan saved');
+    cancelEdit();
   };
 
   const addPt = async () => {
@@ -118,6 +165,7 @@ export default function MembershipsPage() {
                     }
                   : null
               }
+              onEdit={startEdit}
             />
           ) : null}
           {store.settings?.joining_fee_zar != null && !classSubscribe ? (
@@ -139,7 +187,37 @@ export default function MembershipsPage() {
             </a>
             .
           </p>
-          <FormCard tone="owner" title="Add plan" onSubmit={() => void add()} saving={saving}>
+          <div ref={formAnchorRef}>
+          <FormCard
+            tone="owner"
+            title={
+              editingId
+                ? `Edit plan · ${editing?.name || form.name || '…'}`
+                : 'Add plan'
+            }
+            description={
+              editingId
+                ? 'Update this membership. Existing subscriptions stay on this plan; price and credits apply from the next save.'
+                : undefined
+            }
+            onSubmit={() => void add()}
+            saving={saving}
+            submitLabel={editingId ? 'Save changes' : 'Add plan'}
+          >
+            {editingId ? (
+              <p className="sm:col-span-2 lg:col-span-3 text-xs text-yellow-700 dark:text-yellow-300 font-medium rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50/80 dark:bg-yellow-950/40 px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  Editing <strong>{editing?.code || editingId}</strong>
+                </span>
+                <button
+                  type="button"
+                  className="text-xs font-bold underline"
+                  onClick={cancelEdit}
+                >
+                  Cancel · new plan
+                </button>
+              </p>
+            ) : null}
             <input className={fc()} placeholder="Code" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} />
             <input className={fc()} placeholder="Name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
             <input className={fc()} type="number" placeholder="Price ZAR" value={form.price_zar} onChange={(e) => setForm((f) => ({ ...f, price_zar: e.target.value }))} />
@@ -198,6 +276,7 @@ export default function MembershipsPage() {
               Sell on website (public priced plans require Paystack / Apple Pay first)
             </label>
           </FormCard>
+          </div>
           <DataTable tone="owner"
             headers={['Code', 'Name', 'When', 'Price', 'Billing', 'Web']}
             rows={[...store.membership_plans]
@@ -213,7 +292,11 @@ export default function MembershipsPage() {
                 p.public !== false ? 'Public' : 'Hidden',
               ],
             }))}
-            onDelete={(id) => void post({ entity: 'membership_plans', action: 'delete', id })}
+            onEdit={(id) => startEdit(id)}
+            onDelete={(id) => {
+              if (editingId === id) cancelEdit();
+              void post({ entity: 'membership_plans', action: 'delete', id });
+            }}
           />
 
           <FormCard tone="owner" title="Issue PT pack" onSubmit={() => void addPt()} saving={saving} submitLabel="Issue pack">
