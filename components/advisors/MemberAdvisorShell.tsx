@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { AdvisorPortalThemeToggle } from '@/components/advisors/AdvisorPortalThemeToggle';
 
 export type MemberAdvisorTab<T extends string = string> = {
   id: T;
@@ -26,7 +27,9 @@ export function MemberAdvisorShell<T extends string = string>({
   fromClass?: string;
 }) {
   return (
-    <div className={`min-h-[100dvh] bg-gradient-to-b ${fromClass} to-slate-50`}>
+    <div
+      className={`advisor-portal min-h-[100dvh] bg-gradient-to-b ${fromClass} to-slate-50 dark:from-slate-950 dark:to-black`}
+    >
       <header
         className="text-white"
         style={{
@@ -34,13 +37,16 @@ export function MemberAdvisorShell<T extends string = string>({
         }}
       >
         <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-10">
-          {header}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">{header}</div>
+            <AdvisorPortalThemeToggle />
+          </div>
         </div>
       </header>
 
       <div className="mx-auto grid max-w-6xl gap-6 px-4 py-5 md:grid-cols-[220px_minmax(0,1fr)] md:gap-8 md:px-8 md:py-8 lg:grid-cols-[240px_minmax(0,1fr)]">
         <aside className="hidden md:block">
-          <nav className="sticky top-6 space-y-1 rounded-3xl border border-slate-200 bg-white p-2 shadow-sm">
+          <nav className="sticky top-6 space-y-1 rounded-3xl border border-slate-200 bg-white p-2 shadow-sm dark:border-white/10 dark:bg-neutral-900">
             {tabs.map((t) => {
               const on = tab === t.id;
               return (
@@ -49,7 +55,9 @@ export function MemberAdvisorShell<T extends string = string>({
                   type="button"
                   onClick={() => onTab(t.id)}
                   className={`flex w-full items-center justify-between rounded-2xl px-3 py-2.5 text-left text-sm font-bold ${
-                    on ? 'text-white' : 'text-slate-600 hover:bg-slate-50'
+                    on
+                      ? 'text-white'
+                      : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-white/10'
                   }`}
                   style={on ? { backgroundColor: color } : undefined}
                 >
@@ -57,7 +65,7 @@ export function MemberAdvisorShell<T extends string = string>({
                   {t.badge ? (
                     <span
                       className={`rounded-full px-1.5 text-[10px] ${
-                        on ? 'bg-white/20' : 'bg-slate-100 text-slate-500'
+                        on ? 'bg-white/20' : 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-400'
                       }`}
                     >
                       {t.badge}
@@ -70,7 +78,7 @@ export function MemberAdvisorShell<T extends string = string>({
         </aside>
 
         <div className="min-w-0 space-y-4">
-          <nav className="flex flex-wrap gap-1 rounded-2xl border border-slate-200 bg-white p-1 md:hidden">
+          <nav className="flex flex-wrap gap-1 rounded-2xl border border-slate-200 bg-white p-1 dark:border-white/10 dark:bg-neutral-900 md:hidden">
             {tabs.map((t) => {
               const on = tab === t.id;
               return (
@@ -79,7 +87,9 @@ export function MemberAdvisorShell<T extends string = string>({
                   type="button"
                   onClick={() => onTab(t.id)}
                   className={`min-w-[4rem] flex-1 rounded-xl py-2 text-xs font-bold ${
-                    on ? 'text-white' : 'text-slate-600 hover:bg-slate-50'
+                    on
+                      ? 'text-white'
+                      : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-white/10'
                   }`}
                   style={on ? { backgroundColor: color } : undefined}
                 >

@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { Globe, Loader2, Mail, MapPin, Phone } from 'lucide-react';
 import { AdvisorPayAccepted } from '@/components/billing/ApplePayAccepted';
+import { AdvisorPortalThemeToggle } from '@/components/advisors/AdvisorPortalThemeToggle';
 
 export type AdvisorPublicNavItem = { id: string; label: string };
 
@@ -41,15 +42,15 @@ export function AdvisorPublicStatus({
 }) {
   if (error) {
     return (
-      <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 p-6">
-        <div className="max-w-md rounded-3xl border border-rose-100 bg-white px-6 py-8 text-center shadow-sm">
-          <p className="text-sm font-semibold text-rose-700">{error}</p>
+      <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 p-6 dark:bg-black">
+        <div className="max-w-md rounded-3xl border border-rose-100 bg-white px-6 py-8 text-center shadow-sm dark:border-rose-900/50 dark:bg-neutral-900">
+          <p className="text-sm font-semibold text-rose-700 dark:text-rose-300">{error}</p>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 dark:bg-black">
       <Loader2
         className="h-8 w-8 animate-spin"
         style={{ color: color || '#64748b' }}
@@ -109,7 +110,7 @@ export function AdvisorPublicSite({
   const hairline = light ? 'border-black/10' : 'border-white/20';
 
   return (
-    <div className="min-h-[100dvh] bg-slate-50 text-slate-900">
+    <div className="advisor-portal min-h-[100dvh] bg-slate-50 text-slate-900 dark:bg-black dark:text-neutral-50">
       <header
         className={`sticky top-0 z-40 border-b backdrop-blur-md ${ink} ${light ? 'border-black/10' : 'border-white/10'}`}
         style={{ backgroundColor: color }}
@@ -144,7 +145,11 @@ export function AdvisorPublicSite({
               ))}
             </nav>
           ) : null}
+          <div className="flex shrink-0 items-center gap-2 md:hidden">
+            <AdvisorPortalThemeToggle onLightBrand={light} />
+          </div>
           <div className="hidden shrink-0 items-center gap-2 md:flex">
+            <AdvisorPortalThemeToggle onLightBrand={light} />
             {phone ? (
               <a
                 href={`tel:${tel}`}
@@ -309,13 +314,13 @@ export function AdvisorPublicSite({
         {children}
       </main>
 
-      <footer className="border-t border-slate-200 bg-white">
+      <footer className="border-t border-slate-200 bg-white dark:border-white/10 dark:bg-neutral-950">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 md:grid-cols-3 md:px-8">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
               {eyebrow}
             </p>
-            <p className="mt-1 text-base font-black text-slate-900">{brand}</p>
+            <p className="mt-1 text-base font-black text-slate-900 dark:text-white">{brand}</p>
             {bio ? (
               <p className="mt-2 line-clamp-3 text-sm text-slate-500">{bio}</p>
             ) : null}
@@ -329,7 +334,7 @@ export function AdvisorPublicSite({
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
               Contact
             </p>
-            <ul className="mt-2 space-y-1 text-sm text-slate-600">
+            <ul className="mt-2 space-y-1 text-sm text-slate-600 dark:text-slate-300">
               {city ? <li>{city}</li> : null}
               {phone ? (
                 <li>
@@ -355,7 +360,7 @@ export function AdvisorPublicSite({
               Hours
             </p>
             {hourRows.length ? (
-              <dl className="mt-2 space-y-1 text-sm text-slate-600">
+              <dl className="mt-2 space-y-1 text-sm text-slate-600 dark:text-slate-300">
                 {hourRows.map((row) => (
                   <div key={row.days} className="flex justify-between gap-3">
                     <dt>{row.days}</dt>
@@ -392,7 +397,7 @@ export function AdvisorPublicSection({
   return (
     <section id={id} className="scroll-mt-28">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-lg font-black text-slate-900 md:text-2xl">
+        <h2 className="flex items-center gap-2 text-lg font-black text-slate-900 dark:text-white md:text-2xl">
           {icon}
           {title}
         </h2>
@@ -411,7 +416,7 @@ export function AdvisorPublicDayJump({ dates }: { dates: string[] }) {
         <a
           key={d}
           href={`#day-${d}`}
-          className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+          className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-white/15 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15"
         >
           {prettyPublicDate(d)}
         </a>
