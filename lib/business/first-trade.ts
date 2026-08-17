@@ -332,6 +332,28 @@ export async function sendFirstTradeInvoice(opts: {
     };
   }
 
+  try {
+    const { data: issued } = await supabase
+      .from('customer_invoices')
+      .select('*')
+      .eq('id', invoiceId)
+      .eq('profile_id', opts.companyId)
+      .maybeSingle();
+    const { syncCrmInvoiceToBooks } = await import(
+      '@/lib/accounting/crm-invoice-gl'
+    );
+    await syncCrmInvoiceToBooks({
+      profileId: opts.companyId,
+      crmInvoice: (issued || { ...inv, status: nextStatus }) as Record<
+        string,
+        unknown
+      >,
+      createdBy: opts.actorUserId || null,
+    });
+  } catch (e) {
+    console.warn('first-trade books', e);
+  }
+
   // Share reliability checklist (visibility + buyer notify when linked)
   try {
     const { ensureInvoiceSharedForBuyer } = await import(

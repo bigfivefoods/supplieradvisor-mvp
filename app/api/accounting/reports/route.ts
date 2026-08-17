@@ -140,6 +140,24 @@ export async function GET(request: NextRequest) {
     }
 
     if (report === 'management_accounts') {
+      // Accrue issued CRM invoices that are not yet on the GL
+      let crmBooksNote: string | undefined;
+      try {
+        const { recognizeIssuedCrmInvoices } = await import(
+          '@/lib/accounting/crm-invoice-gl'
+        );
+        const sync = await recognizeIssuedCrmInvoices({
+          profileId: companyId,
+          from: from || null,
+          to: to || null,
+        });
+        if (sync.errors.length) {
+          crmBooksNote = `Invoice books: ${sync.errors[0]}`;
+        }
+      } catch (e) {
+        crmBooksNote = e instanceof Error ? e.message : 'Invoice books sync failed';
+      }
+
       // P&L from posted journals + bank allocation pulse
       // Prefer active accounts; fall back if is_active column filter is empty/mis-set
       let accounts: Array<Record<string, unknown>> = [];
@@ -462,7 +480,7 @@ export async function GET(request: NextRequest) {
         success: true,
         report,
         period: { from, to },
-        warning: accWarning || emptyPeriod || undefined,
+        warning: accWarning || crmBooksNote || emptyPeriod || undefined,
         summary: {
           revenue,
           cogs,

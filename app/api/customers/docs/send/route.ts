@@ -338,6 +338,25 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      if (type === 'invoice') {
+        try {
+          const { syncCrmInvoiceToBooks } = await import(
+            '@/lib/accounting/crm-invoice-gl'
+          );
+          await syncCrmInvoiceToBooks({
+            profileId: companyId,
+            crmInvoice: {
+              ...(doc as Record<string, unknown>),
+              status: nextStatus || 'sent',
+              contact_email: to,
+            },
+            createdBy: gate.userId || null,
+          });
+        } catch (e) {
+          console.warn('crm invoice books on send', e);
+        }
+      }
+
       void supabase.from('activity_log').insert({
         profile_id: companyId,
         actor_user_id: gate.userId,

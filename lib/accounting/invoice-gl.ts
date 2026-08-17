@@ -18,7 +18,15 @@ import {
 import { isPeriodLocked } from '@/lib/accounting/period-lock';
 import { round2 } from '@/lib/accounting/server';
 
-const ISSUED = new Set(['sent', 'partial', 'paid', 'overdue']);
+const ISSUED = new Set([
+  'sent',
+  'partial',
+  'paid',
+  'overdue',
+  'issued',
+  'viewed',
+  'unpaid',
+]);
 
 export function isIssuedInvoiceStatus(status: string | null | undefined): boolean {
   return ISSUED.has(String(status || '').toLowerCase());

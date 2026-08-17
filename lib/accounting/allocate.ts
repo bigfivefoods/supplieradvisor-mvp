@@ -584,6 +584,51 @@ async function matchBankToCrmInvoice(
     })
     .eq('id', inv.id);
 
+  try {
+    const { syncCrmInvoiceToBooks } = await import(
+      '@/lib/accounting/crm-invoice-gl'
+    );
+    const books = await syncCrmInvoiceToBooks({
+      profileId: params.profileId,
+      crmInvoice: {
+        ...(inv as Record<string, unknown>),
+        amount_paid: nextPaid,
+        status: nextStatus,
+      },
+      createdBy: params.privyUserId || null,
+    });
+    if (books.ok && books.financeInvoiceId) {
+      const { data: twin } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('id', books.financeInvoiceId)
+        .eq('profile_id', params.profileId)
+        .maybeSingle();
+      if (twin) {
+        const { settleInvoicePayment } = await import(
+          '@/lib/accounting/invoice-gl'
+        );
+        await settleInvoicePayment({
+          profileId: params.profileId,
+          invoice: twin as Record<string, unknown>,
+          paymentId: ledger.entry?.id
+            ? Number(ledger.entry.id)
+            : Number(inv.id),
+          amount,
+          paidAt: txnDate,
+          bankAccountId: txn.bank_account_id
+            ? Number(txn.bank_account_id)
+            : null,
+          createdBy: params.privyUserId || null,
+        });
+      }
+    } else if (!books.ok) {
+      console.warn('CRM invoice books on bank match', books.error);
+    }
+  } catch (e) {
+    console.warn('CRM invoice books on bank match', e);
+  }
+
   // Soft: mark bank line reconciled (matched_invoice_id may be CRM id)
   try {
     await supabase

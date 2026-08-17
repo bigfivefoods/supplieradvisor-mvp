@@ -15,6 +15,27 @@ import {
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import { promptAfterInvoicePaid } from '@/lib/ratings/create-prompt';
 
+async function booksFromCrm(
+  companyId: number,
+  row: Record<string, unknown> | null | undefined,
+  createdBy?: string | null
+) {
+  if (!row?.id) return;
+  try {
+    const { syncCrmInvoiceToBooks } = await import(
+      '@/lib/accounting/crm-invoice-gl'
+    );
+    const gl = await syncCrmInvoiceToBooks({
+      profileId: companyId,
+      crmInvoice: row,
+      createdBy,
+    });
+    if (!gl.ok) console.warn('crm invoice books', gl.error);
+  } catch (e) {
+    console.warn('crm invoice books', e);
+  }
+}
+
 type DocKind = 'quote' | 'order' | 'invoice';
 
 const TABLES: Record<DocKind, string> = {
@@ -569,6 +590,11 @@ export async function POST(request: NextRequest) {
       if (uErr) {
         return NextResponse.json({ error: uErr.message }, { status: 500 });
       }
+      await booksFromCrm(
+        companyId,
+        updated as Record<string, unknown>,
+        _gate.userId || null
+      );
       return NextResponse.json({
         success: true,
         action: 'mark_installment_paid',
@@ -891,6 +917,11 @@ export async function POST(request: NextRequest) {
         );
       }
       const invoice = invIns.data;
+      await booksFromCrm(
+        companyId,
+        invoice,
+        _gate.userId || null
+      );
 
       await supabase
         .from('sales_orders')
@@ -1396,6 +1427,15 @@ export async function POST(request: NextRequest) {
         })();
       }
 
+      await booksFromCrm(
+        companyId,
+        (updated || { ...inv, status: nextStatus, amount_paid: paid }) as Record<
+          string,
+          unknown
+        >,
+        _gate.userId || null
+      );
+
       return NextResponse.json({
         success: true,
         invoice: updated,
@@ -1575,6 +1615,12 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', originalId)
         .eq('profile_id', companyId);
+      await booksFromCrm(
+        companyId,
+        { ...original, status: 'void' } as Record<string, unknown>,
+        _gate.userId || null
+      );
+      await booksFromCrm(companyId, revision, _gate.userId || null);
 
       // Soft activity
       try {
@@ -1899,6 +1945,14 @@ export async function POST(request: NextRequest) {
           /* soft */
         }
       }
+    }
+
+    if (kind === 'invoice') {
+      await booksFromCrm(
+        companyId,
+        documentOut,
+        _gate.userId || null
+      );
     }
 
     return NextResponse.json({
@@ -2263,6 +2317,14 @@ export async function PATCH(request: NextRequest) {
 
     const { data, error } = await q.select('*').single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    if (kind === 'invoice' && data) {
+      await booksFromCrm(
+        Number(data.profile_id || body.companyId),
+        data as Record<string, unknown>,
+        null
+      );
+    }
 
     let shareChecklist: unknown = null;
     if (runShareChecklist) {
