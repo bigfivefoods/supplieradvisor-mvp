@@ -583,10 +583,10 @@ function MeAppInner() {
   // ── Loading ──────────────────────────────────────────────────────
   if (!ready || (authenticated && loading)) {
     return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#0c4a6e] text-white">
+      <div className="sa-member-lockup flex min-h-[100dvh] flex-col items-center justify-center bg-[#0c4a6e] text-white">
         <SaOfficialLogo
           title="SA Member"
-          className="sa-logo-on-dark h-16 w-auto"
+          className="sa-logo-on-dark sa-logo-member-login h-16 w-auto"
         />
         <p className="mt-4 text-sm font-black tracking-wide">SA Member</p>
         <Loader2 className="mt-4 h-6 w-6 animate-spin text-sky-200" />
@@ -597,7 +597,7 @@ function MeAppInner() {
   // ── Login wall (app store style) ─────────────────────────────────
   if (!authenticated) {
     return (
-      <div className="flex min-h-[100dvh] flex-col bg-gradient-to-b from-[#0c4a6e] via-[#0077b6] to-[#38bdf8] dark:from-black dark:via-[#082f49] dark:to-[#0c4a6e] lg:grid lg:grid-cols-2">
+      <div className="sa-member-lockup flex min-h-[100dvh] flex-col bg-gradient-to-b from-[#0c4a6e] via-[#0077b6] to-[#38bdf8] dark:from-black dark:via-[#082f49] dark:to-[#0c4a6e] lg:grid lg:grid-cols-2">
         <div
           className="absolute right-4 z-10 text-white"
           style={{ top: 'max(0.75rem, env(safe-area-inset-top))' }}
@@ -607,7 +607,7 @@ function MeAppInner() {
         <div className="hidden flex-col justify-center bg-gradient-to-br from-[#0c4a6e] via-[#0077b6] to-[#38bdf8] px-12 py-16 text-white dark:from-black dark:via-[#082f49] dark:to-[#0c4a6e] lg:flex">
           <SaOfficialLogo
             title="SA Member"
-            className="sa-logo-on-dark h-16 w-auto"
+            className="sa-logo-on-dark sa-logo-member-login h-16 w-auto"
           />
           <p className="mt-8 text-[11px] font-black uppercase tracking-[0.2em] text-sky-100">
             Personal app · always free
@@ -628,7 +628,7 @@ function MeAppInner() {
             <div className="mb-6">
               <SaOfficialLogo
                 title="SA Member"
-                className="sa-logo-on-dark h-16 w-auto"
+                className="sa-logo-on-dark sa-logo-member-login h-16 w-auto"
               />
             </div>
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-sky-100 lg:hidden">

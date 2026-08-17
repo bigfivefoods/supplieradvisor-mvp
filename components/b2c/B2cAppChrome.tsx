@@ -208,7 +208,7 @@ export function B2cAppShell({
   badge?: Partial<Record<B2cTab, number>>;
 }) {
   return (
-    <div className="b2c-app min-h-[100dvh] overscroll-none bg-[#f0f9ff] text-slate-900 dark:bg-black dark:text-neutral-50 md:flex">
+    <div className="b2c-app sa-member-lockup min-h-[100dvh] overscroll-none bg-[#f0f9ff] text-slate-900 dark:bg-black dark:text-neutral-50 md:flex">
       <aside className="sticky top-0 hidden h-[100dvh] w-56 shrink-0 flex-col bg-gradient-to-b from-[#0077b6] via-[#0369a1] to-[#0c4a6e] px-3 py-5 text-white dark:from-[#082f49] dark:via-[#0c4a6e] dark:to-black lg:w-64 md:flex">
         <div className="mb-6 px-2">
           <SaOfficialLogo

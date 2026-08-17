@@ -1273,6 +1273,30 @@ html.dark img.sa-logo-base {
 .sa-official-logo.sa-logo-member-login .sa-logo-base {
   filter: brightness(0) invert(1);
 }
+/* Member lockup stays white + brand tick in light and dark (beats Advisor black-on-light). */
+html .sa-official-logo.sa-logo-on-dark .sa-logo-base,
+html.dark .sa-official-logo.sa-logo-on-dark .sa-logo-base,
+html[data-advisor] .sa-official-logo.sa-logo-on-dark .sa-logo-base,
+html.dark[data-advisor] .sa-official-logo.sa-logo-on-dark .sa-logo-base,
+html[data-advisor]:not([data-advisor='supplier']) .sa-official-logo.sa-logo-on-dark .sa-logo-base,
+html.dark[data-advisor]:not([data-advisor='supplier']) .sa-official-logo.sa-logo-on-dark .sa-logo-base,
+html[data-advisor]:not([data-advisor='supplier']) .sa-official-logo.sa-logo-member-header .sa-logo-base,
+html[data-advisor]:not([data-advisor='supplier']) .sa-official-logo.sa-logo-member-login .sa-logo-base {
+  filter: brightness(0) invert(1);
+}
+html .sa-official-logo.sa-logo-on-dark .sa-logo-tick,
+html[data-advisor] .sa-official-logo.sa-logo-on-dark .sa-logo-tick,
+html[data-advisor]:not([data-advisor='supplier']) .sa-official-logo.sa-logo-on-dark .sa-logo-tick,
+html.dark[data-advisor]:not([data-advisor='supplier']) .sa-official-logo.sa-logo-on-dark .sa-logo-tick,
+.sa-member-lockup .sa-official-logo .sa-logo-tick,
+html[data-advisor] .sa-member-lockup .sa-official-logo .sa-logo-tick {
+  background-color: var(--sa-brand, #00b4d8);
+}
+.sa-member-lockup .sa-official-logo .sa-logo-base,
+html[data-advisor]:not([data-advisor='supplier']) .sa-member-lockup .sa-official-logo .sa-logo-base,
+html.dark[data-advisor]:not([data-advisor='supplier']) .sa-member-lockup .sa-official-logo .sa-logo-base {
+  filter: brightness(0) invert(1);
+}
 .sa-logo-base {
   display: block;
   height: 100%;
