@@ -36,8 +36,11 @@ import { AdvisorRecallPanel } from '@/components/services/AdvisorRecallPanel';
 import { AdvisorTodayBoard } from '@/components/services/AdvisorTodayBoard';
 import { AdvisorBillingClarityCard } from '@/components/services/AdvisorBillingClarityCard';
 
-function hubModules(hasFrontDesk: boolean): HubModule[] {
-  return [
+function hubModules(
+  hasFrontDesk: boolean,
+  classSubscribe = false
+): HubModule[] {
+  const all: HubModule[] = [
   {
     href: '/dashboard/fitgraph/coaches',
     icon: UserRound,
@@ -66,8 +69,10 @@ function hubModules(hasFrontDesk: boolean): HubModule[] {
     href: '/dashboard/fitgraph/memberships',
     icon: CreditCard,
     code: '03',
-    title: 'Membership plans',
-    desc: 'Unlimited, packs, pricing and class/PT credits.',
+    title: classSubscribe ? 'Classes' : 'Membership plans',
+    desc: classSubscribe
+      ? 'The class is the membership — rate, then calendar, then members.'
+      : 'Unlimited, packs, pricing and class/PT credits.',
     accent: 'from-emerald-50 to-white border-emerald-100',
   },
   {
@@ -186,7 +191,10 @@ function hubModules(hasFrontDesk: boolean): HubModule[] {
     desc: 'Membership fees post as customer invoices — collect here or on Accounts.',
     accent: 'from-emerald-50 to-white border-emerald-100',
   },
-];
+  ];
+  return classSubscribe
+    ? all.filter((m) => m.href !== '/dashboard/fitgraph/classes')
+    : all;
 }
 
 export default function FitgraphHubPage() {
@@ -222,7 +230,7 @@ function Inner() {
     clients?: Array<{ id: string; name: string }>;
     coaches?: Array<{ id: string; name: string }>;
     class_types?: Array<{ id: string; name: string }>;
-    settings?: { brand_name?: string } | null;
+    settings?: { brand_name?: string; class_subscribe?: boolean } | null;
   } | null>(null);
   const [outcomes, setOutcomes] = useState<import('@/lib/services/advisor-outcomes').OutcomesSnapshot | null>(null);
   const [recalls, setRecalls] = useState<
@@ -541,7 +549,10 @@ function Inner() {
           Workbenches
         </h2>
         <HubModuleGrid
-          modules={hubModules(summary?.hasFrontDesk !== false)}
+          modules={hubModules(
+            summary?.hasFrontDesk !== false,
+            store?.settings?.class_subscribe === true
+          )}
           uniformDark
         />
       </div>

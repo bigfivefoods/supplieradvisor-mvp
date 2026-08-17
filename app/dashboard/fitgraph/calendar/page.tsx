@@ -36,6 +36,7 @@ import {
   sessionKindTone,
   type FitSessionKind,
 } from '@/lib/fitness/session-times';
+import { storeUsesClassSubscribe } from '@/lib/fitness/vuka-class-catalog';
 import {
   PracticeScheduleCalendar,
   type DiaryScope,
@@ -55,6 +56,10 @@ import { normalizeWorkingHours } from '@/lib/schedule/working-hours';
 
 export default function CalendarPage() {
   const { companyId, store, loading, saving, post, summary } = useFitgraph();
+  const classSubscribe = store ? storeUsesClassSubscribe(store) : false;
+  const classCatalogueHref = classSubscribe
+    ? '/dashboard/fitgraph/memberships'
+    : '/dashboard/fitgraph/classes';
   const [day, setDay] = useState(new Date().toISOString().slice(0, 10));
   const [editorOpen, setEditorOpen] = useState(false);
   const [personFilter, setPersonFilter] = useState('');
@@ -857,16 +862,17 @@ export default function CalendarPage() {
             ) : (
               <p className="sm:col-span-2 lg:col-span-3 text-xs text-slate-500">
                 <strong>Click a class</strong> on the calendar to open it, or click empty
-                time to create. Catalogue first under Classes if needed.
+                time to create. Catalogue first under{' '}
+                {classSubscribe ? 'Classes' : 'Class types'} if needed.
                 {!store.class_types.length ? (
                   <>
                     {' '}
-                    No class types yet —{' '}
+                    No classes yet —{' '}
                     <Link
-                      href="/dashboard/fitgraph/classes"
+                      href={classCatalogueHref}
                       className="font-bold text-yellow-700 underline"
                     >
-                      add class types
+                      add {classSubscribe ? 'a class' : 'class types'}
                     </Link>{' '}
                     first.
                   </>
@@ -1278,10 +1284,10 @@ export default function CalendarPage() {
             Private PT and coach personal time use start and end times. Join
             links work for classes and PT.{' '}
             <Link
-              href="/dashboard/fitgraph/classes"
+              href={classCatalogueHref}
               className="font-bold text-yellow-700 underline"
             >
-              Class types
+              {classSubscribe ? 'Classes' : 'Class types'}
             </Link>{' '}
             ·{' '}
             <Link

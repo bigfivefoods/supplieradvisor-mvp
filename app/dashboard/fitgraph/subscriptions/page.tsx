@@ -236,7 +236,9 @@ export default function SubscriptionsPage() {
               <p className="text-sm text-slate-500 py-8 text-center border border-dashed border-slate-200 rounded-2xl">
                 {classSubscribe
                   ? 'No class subscriptions yet. Open Classes to see the timetable, then subscribe a member here.'
-                  : 'No subscriptions yet. Create plans under Memberships, then start a sub for a client.'}
+                  : classSubscribe
+                    ? 'No subscriptions yet. Add a class, then subscribe a member here.'
+                    : 'No subscriptions yet. Create plans under Memberships, then start a sub for a client.'}
               </p>
             ) : (
               subs.map((s) => {

@@ -8,12 +8,7 @@ import {
   useFitgraph,
 } from '@/components/fitness/FitgraphWorkbench';
 import { DataTable, FormCard, StatRow, fc } from '@/components/fitness/FitForm';
-import { VukaClassBoard } from '@/components/fitness/VukaClassBoard';
-import {
-  listSubscribeClasses,
-  storeUsesClassSubscribe,
-  VUKA_JOINING,
-} from '@/lib/fitness/vuka-class-catalog';
+import { storeUsesClassSubscribe } from '@/lib/fitness/vuka-class-catalog';
 
 const blankForm = () => ({
   code: '',
@@ -26,12 +21,12 @@ const blankForm = () => ({
   public: true,
   access: 'classes',
   programme_id: '',
+  schedule_label: '',
 });
 
 export default function MembershipsPage() {
   const { store, loading, saving, post, summary } = useFitgraph();
   const classSubscribe = store ? storeUsesClassSubscribe(store) : false;
-  const subscribeClasses = store ? listSubscribeClasses(store) : [];
   const formAnchorRef = useRef<HTMLDivElement>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(blankForm);
@@ -69,6 +64,7 @@ export default function MembershipsPage() {
       public: p.public !== false,
       access: p.access || 'classes',
       programme_id: p.programme_id || '',
+      schedule_label: p.schedule_label || '',
     });
     requestAnimationFrame(() => {
       formAnchorRef.current?.scrollIntoView({
@@ -101,6 +97,7 @@ export default function MembershipsPage() {
         public: form.public,
         access: form.access,
         programme_id: form.programme_id || null,
+        schedule_label: form.schedule_label.trim() || undefined,
       },
     });
     toast.success(editingId ? 'Plan updated' : 'Plan saved');
@@ -128,11 +125,11 @@ export default function MembershipsPage() {
 
   return (
     <FitgraphWorkbench
-      title={classSubscribe ? 'Class subscriptions' : 'Membership plans'}
-      titleAccent={classSubscribe ? '& PT packs' : '& PT packs'}
+      title={classSubscribe ? 'Classes' : 'Membership plans'}
+      titleAccent={classSubscribe ? 'rates · subscribe' : '& PT packs'}
       description={
         classSubscribe
-          ? 'Members subscribe to one or more of these classes. Their fee is the total of those classes. Assign a member on Subscriptions, or they pay on the member portal / website.'
+          ? 'A class is the membership. Set the rate here, put it on Calendar, then subscribe members. Their fee is the sum of the classes they pick.'
           : 'Sellable memberships shown on your website. Members must pay first (Paystack / Apple Pay) before they can book classes. Assign desk-issued plans on Subscriptions.'
       }
     >
@@ -142,7 +139,10 @@ export default function MembershipsPage() {
         <div className="space-y-6">
           <StatRow tone="owner"
             items={[
-              { label: 'Plans', value: Number(summary?.planCount) || 0 },
+              {
+                label: classSubscribe ? 'Classes' : 'Plans',
+                value: Number(summary?.planCount) || store.membership_plans.length,
+              },
               {
                 label: 'Active subs',
                 value: Number(summary?.activeSubscriptions) || 0,
@@ -153,22 +153,7 @@ export default function MembershipsPage() {
               },
             ]}
           />
-          {classSubscribe ? (
-            <VukaClassBoard
-              classes={subscribeClasses}
-              joining={
-                store.settings?.joining_fee_zar != null
-                  ? {
-                      fee_zar: store.settings.joining_fee_zar,
-                      waived: store.settings.joining_fee_waived,
-                      note: store.settings.joining_fee_note || VUKA_JOINING.note,
-                    }
-                  : null
-              }
-              onEdit={startEdit}
-            />
-          ) : null}
-          {store.settings?.joining_fee_zar != null && !classSubscribe ? (
+          {store.settings?.joining_fee_zar != null ? (
             <p className="rounded-xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-950 dark:border-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-100">
               Once-off joining R{store.settings.joining_fee_zar}
               {store.settings.joining_fee_waived
@@ -177,32 +162,64 @@ export default function MembershipsPage() {
               {store.settings.joining_fee_note || ''}
             </p>
           ) : null}
-          <p className="text-xs text-slate-600">
-            Manage member billing status on{' '}
-            <a
-              href="/dashboard/fitgraph/subscriptions"
-              className="font-bold text-yellow-700 underline dark:text-yellow-300"
-            >
-              Subscriptions
-            </a>
-            .
+          <p className="text-xs text-slate-600 dark:text-slate-300">
+            {classSubscribe ? (
+              <>
+                Next:{' '}
+                <a
+                  href="/dashboard/fitgraph/calendar"
+                  className="font-bold text-yellow-700 underline dark:text-yellow-300"
+                >
+                  Calendar
+                </a>{' '}
+                to put a class on the diary, then{' '}
+                <a
+                  href="/dashboard/fitgraph/subscriptions"
+                  className="font-bold text-yellow-700 underline dark:text-yellow-300"
+                >
+                  Subscriptions
+                </a>{' '}
+                to attach members.
+              </>
+            ) : (
+              <>
+                Manage member billing status on{' '}
+                <a
+                  href="/dashboard/fitgraph/subscriptions"
+                  className="font-bold text-yellow-700 underline dark:text-yellow-300"
+                >
+                  Subscriptions
+                </a>
+                .
+              </>
+            )}
           </p>
           <div ref={formAnchorRef}>
           <FormCard
             tone="owner"
             title={
               editingId
-                ? `Edit plan · ${editing?.name || form.name || '…'}`
-                : 'Add plan'
+                ? `Edit ${classSubscribe ? 'class' : 'plan'} · ${editing?.name || form.name || '…'}`
+                : classSubscribe
+                  ? 'Add class'
+                  : 'Add plan'
             }
             description={
               editingId
-                ? 'Update this membership. Existing subscriptions stay on this plan; price and credits apply from the next save.'
+                ? classSubscribe
+                  ? 'Update this class. Members already subscribed stay on it; the new rate applies from save.'
+                  : 'Update this membership. Existing subscriptions stay on this plan; price and credits apply from the next save.'
                 : undefined
             }
             onSubmit={() => void add()}
             saving={saving}
-            submitLabel={editingId ? 'Save changes' : 'Add plan'}
+            submitLabel={
+              editingId
+                ? 'Save changes'
+                : classSubscribe
+                  ? 'Add class'
+                  : 'Add plan'
+            }
           >
             {editingId ? (
               <p className="sm:col-span-2 lg:col-span-3 text-xs text-yellow-700 dark:text-yellow-300 font-medium rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50/80 dark:bg-yellow-950/40 px-3 py-2 flex flex-wrap items-center justify-between gap-2">
@@ -214,7 +231,7 @@ export default function MembershipsPage() {
                   className="text-xs font-bold underline"
                   onClick={cancelEdit}
                 >
-                  Cancel · new plan
+                  Cancel · new {classSubscribe ? 'class' : 'plan'}
                 </button>
               </p>
             ) : null}
@@ -228,16 +245,35 @@ export default function MembershipsPage() {
               <option value="pack">Pack</option>
               <option value="drop_in">Drop-in</option>
             </select>
-            <input className={fc()} type="number" placeholder="Class credits (blank = unlimited)" value={form.class_credits} onChange={(e) => setForm((f) => ({ ...f, class_credits: e.target.value }))} />
-            <input className={fc()} type="number" placeholder="PT credits" value={form.pt_credits} onChange={(e) => setForm((f) => ({ ...f, pt_credits: e.target.value }))} />
+            {classSubscribe ? (
+              <input
+                className={fc()}
+                placeholder="When (e.g. 5:00am Mon / Wed / Fri)"
+                value={form.schedule_label}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, schedule_label: e.target.value }))
+                }
+              />
+            ) : (
+              <>
+                <input className={fc()} type="number" placeholder="Class credits (blank = unlimited)" value={form.class_credits} onChange={(e) => setForm((f) => ({ ...f, class_credits: e.target.value }))} />
+                <input className={fc()} type="number" placeholder="PT credits" value={form.pt_credits} onChange={(e) => setForm((f) => ({ ...f, pt_credits: e.target.value }))} />
+              </>
+            )}
             <textarea
               className={fc() + ' min-h-[3rem] resize-y sm:col-span-2'}
-              placeholder="What this membership includes (shown on the public shop)"
+              placeholder={
+                classSubscribe
+                  ? 'What this class includes (shown on the public shop)'
+                  : 'What this membership includes (shown on the public shop)'
+              }
               value={form.description}
               onChange={(e) =>
                 setForm((f) => ({ ...f, description: e.target.value }))
               }
             />
+            {!classSubscribe ? (
+              <>
             <select
               className={fc()}
               value={form.access}
@@ -265,6 +301,8 @@ export default function MembershipsPage() {
                   </option>
                 ))}
             </select>
+              </>
+            ) : null}
             <label className="flex items-center gap-2 text-sm font-medium col-span-full">
               <input
                 type="checkbox"
@@ -273,7 +311,9 @@ export default function MembershipsPage() {
                   setForm((f) => ({ ...f, public: e.target.checked }))
                 }
               />
-              Sell on website (public priced plans require Paystack / Apple Pay first)
+              {classSubscribe
+                ? 'Sell on website / member portal'
+                : 'Sell on website (public priced plans require Paystack / Apple Pay first)'}
             </label>
           </FormCard>
           </div>

@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   FitgraphWorkbench,
@@ -26,9 +27,16 @@ const blankForm = () => ({
 });
 
 export default function ClassesPage() {
+  const router = useRouter();
   const { store, loading, saving, post, summary } = useFitgraph();
   const classSubscribe = store ? storeUsesClassSubscribe(store) : false;
   const subscribeClasses = store ? listSubscribeClasses(store) : [];
+
+  useEffect(() => {
+    if (store && classSubscribe) {
+      router.replace('/dashboard/fitgraph/memberships');
+    }
+  }, [store, classSubscribe, router]);
   const formAnchorRef = useRef<HTMLDivElement>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(blankForm);
@@ -104,7 +112,7 @@ export default function ClassesPage() {
           : 'Step 1 of the floor flow: define class types first (HIIT, strength, yoga…). Edit any type below, then Calendar → create a class → assign coach → add members.'
       }
     >
-      {loading || !store ? (
+      {loading || !store || classSubscribe ? (
         <LoadingBlock />
       ) : (
         <div className="space-y-6">

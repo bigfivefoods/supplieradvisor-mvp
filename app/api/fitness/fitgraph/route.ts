@@ -2354,10 +2354,48 @@ function upsert(
       catalog:
         rec.catalog != null
           ? String(rec.catalog)
-          : store.membership_plans[i]?.catalog,
+          : store.membership_plans[i]?.catalog ||
+            (store.settings?.class_subscribe === true ? 'vuka' : undefined),
       active: rec.active !== false,
       created_at: i >= 0 ? store.membership_plans[i].created_at : now,
     };
+    if (
+      store.settings?.class_subscribe === true &&
+      row.unlocks_all_classes !== true
+    ) {
+      let typeIds = row.class_type_ids || [];
+      if (!typeIds.length) {
+        const code = String(row.code || 'CLASS').toUpperCase();
+        const existing = store.class_types.find(
+          (c) => c.code === code || c.id === `cls_${id}`
+        );
+        const clsId = existing?.id || newId('cls');
+        const cls: FitClassType = {
+          id: clsId,
+          code,
+          name: String(row.name || 'Class'),
+          category: existing?.category || 'Class',
+          default_duration_min: existing?.default_duration_min ?? 60,
+          capacity: existing?.capacity ?? 16,
+          description: row.description,
+          active: true,
+          created_at: existing?.created_at || now,
+        };
+        const ci = store.class_types.findIndex((c) => c.id === clsId);
+        if (ci >= 0) store.class_types[ci] = { ...store.class_types[ci], ...cls };
+        else store.class_types.push(cls);
+        typeIds = [clsId];
+        row.class_type_ids = typeIds;
+      } else if (typeIds.length === 1) {
+        const ct = store.class_types.find((c) => c.id === typeIds[0]);
+        if (ct) {
+          const stem =
+            String(row.name || '').split(' · ')[0]?.trim() || row.name;
+          if (stem) ct.name = stem;
+          if (row.description) ct.description = row.description;
+        }
+      }
+    }
     if (i >= 0) store.membership_plans[i] = row;
     else store.membership_plans.push(row);
   } else if (entity === 'subscriptions') {
