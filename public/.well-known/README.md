@@ -41,9 +41,10 @@ Expected:
 - `content-type: application/text`
 - Body matches `APPLE_PAY_DOMAIN_ASSOCIATION_BODY` exactly (no extra newline)
 
-**Current file (Paystack hex, createdOn 2026-08-12):** 114-byte JSON
-`{"version":1,"pspId":"4BE8…","createdOn":1786546082458}`. After deploy,
-register both domains via `POST https://api.paystack.co/apple-pay/domain`.
+**Current file:** Paystack dashboard hex (same payload AuPairly hosts). Do not
+decode to JSON — registration compares the hex bytes.
+
+After deploy, register both domains via `POST https://api.paystack.co/apple-pay/domain`.
 
 ### Do not
 

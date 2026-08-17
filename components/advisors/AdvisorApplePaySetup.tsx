@@ -71,11 +71,7 @@ export function AdvisorApplePaySetup() {
       if (data.applePayReady) {
         toast.success('Apple Pay domain registered');
       } else {
-        toast.message(
-          data.cert?.expired
-            ? 'Hosting is fine — Paystack must renew the Apple certificate'
-            : 'Register attempted. Check the steps below.'
-        );
+        toast.message('Register attempted. Check the steps below.');
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Register failed');

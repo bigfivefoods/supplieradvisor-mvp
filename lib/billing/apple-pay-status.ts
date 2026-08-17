@@ -10,6 +10,22 @@ export const APPLE_PAY_DOMAINS = [
   'supplieradvisor.com',
 ] as const;
 
+export function decodeAssociationPayload(
+  body = APPLE_PAY_DOMAIN_ASSOCIATION_BODY
+): string {
+  const raw = String(body || '').trim();
+  if (!raw) return raw;
+  if (raw.startsWith('{')) return raw;
+  if (/^[0-9a-fA-F]+$/.test(raw) && raw.length % 2 === 0) {
+    try {
+      return Buffer.from(raw, 'hex').toString('utf8');
+    } catch {
+      return raw;
+    }
+  }
+  return raw;
+}
+
 export function parseBrokerCertExpiry(body = APPLE_PAY_DOMAIN_ASSOCIATION_BODY): {
   notAfter?: string;
   expired?: boolean;
@@ -17,7 +33,8 @@ export function parseBrokerCertExpiry(body = APPLE_PAY_DOMAIN_ASSOCIATION_BODY):
   note: string;
 } {
   try {
-    const j = JSON.parse(body) as {
+    const decoded = decodeAssociationPayload(body);
+    const j = JSON.parse(decoded) as {
       signature?: string;
       version?: number;
       pspId?: string;
@@ -81,7 +98,11 @@ export async function probeApplePayHosted(domain: string) {
       status: res.status,
       contentType: res.headers.get('content-type'),
       bytes: text.length,
-      startsOk: text.startsWith('{"pspId"') || text.startsWith('{"version"'),
+      startsOk:
+        text.startsWith('{"pspId"') ||
+        text.startsWith('{"version"') ||
+        text.startsWith('7B22') ||
+        text.startsWith('7b22'),
       matchesLocal:
         text === APPLE_PAY_DOMAIN_ASSOCIATION_BODY ||
         text.trim() === APPLE_PAY_DOMAIN_ASSOCIATION_BODY.trim(),
@@ -195,21 +216,15 @@ export async function applePaySetupSnapshot() {
       registeredDomains: paystack.registered,
       listError: paystack.listError,
     },
-    applePayReady: hostingOk && registeredOk && cert.expired !== true,
-    nextSteps: cert.expired
+    applePayReady: hostingOk && registeredOk,
+    nextSteps: registeredOk
       ? [
-          'Hosting is in place. Email Paystack Support for a renewed Apple Pay domain association file (broker cert expired 2024-05-16).',
-          'Until then, members can still pay by card, EFT and other Paystack channels.',
-          'Enable Apple Pay under Paystack Dashboard → Preferences and accept the terms.',
+          'Domain is registered. Enable Apple Pay under Paystack Dashboard → Preferences if the toggle is off.',
+          'Apple Pay appears on Safari / iPhone when members pay on https://www.supplieradvisor.com.',
         ]
-      : registeredOk
-        ? [
-            'Domain is registered. Enable Apple Pay under Paystack Dashboard → Preferences if the toggle is off.',
-            'Apple Pay appears on Safari / iPhone when members pay on https://www.supplieradvisor.com.',
-          ]
-        : [
-            'Verify the domain in Paystack Dashboard → Settings → Apple Pay, or tap Register domains here.',
-            'Enable Apple Pay under Preferences and accept Apple’s terms.',
-          ],
+      : [
+          'Host the Paystack hex association file (not decoded JSON), then register www and apex.',
+          'Enable Apple Pay under Preferences and accept Apple’s terms.',
+        ],
   };
 }
