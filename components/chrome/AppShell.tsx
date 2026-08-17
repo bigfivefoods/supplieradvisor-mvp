@@ -51,7 +51,7 @@ function AppShellInner({
   const pathname = usePathname();
   const { collapsed } = useSidebarChrome();
   const skin = useAdvisorSkin();
-  const { logoUrl, companyName } = useCompanyRole();
+  const { logoUrl, companyName, selectedCompanyId } = useCompanyRole();
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -128,9 +128,10 @@ function AppShellInner({
                 aria-label={`${skin.name} home`}
               >
                 <PortalBrandLogo
+                  key={`${selectedCompanyId || 'none'}:${logoUrl || 'sa'}`}
                   logoUrl={logoUrl}
                   name={companyName || skin.registered}
-                  className="sa-logo h-7 w-auto max-w-[5.5rem] object-contain shrink-0"
+                  className="h-7 w-auto max-w-[5.5rem] object-contain shrink-0"
                   fallbackClassName="sa-logo h-7 w-auto object-contain shrink-0"
                   priority
                 />

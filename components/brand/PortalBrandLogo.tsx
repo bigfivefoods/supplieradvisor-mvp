@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SaOfficialLogo } from '@/components/brand/SaOfficialLogo';
 
 /**
@@ -19,7 +19,11 @@ export function PortalBrandLogo({
   priority?: boolean;
 }) {
   const [broken, setBroken] = useState(false);
-  const src = logoUrl && String(logoUrl).trim() && !broken ? String(logoUrl).trim() : null;
+  const raw = logoUrl && String(logoUrl).trim() ? String(logoUrl).trim() : '';
+  useEffect(() => {
+    setBroken(false);
+  }, [raw]);
+  const src = raw && !broken ? raw : null;
 
   if (src) {
     const companyClass = className

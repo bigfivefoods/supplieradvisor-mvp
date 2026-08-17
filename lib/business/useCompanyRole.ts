@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
@@ -48,6 +48,8 @@ export type CompanyRoleState = {
   /** Core OS packaging (entity, sector, packs) */
   packaging: PackagingSelection | null;
   businessType: string | null;
+  /** Selected company id from local storage (null before pick) */
+  selectedCompanyId: number | null;
   logoUrl: string | null;
   companyName: string | null;
   /** Period lock, hard finance close */
@@ -78,18 +80,6 @@ export function useCompanyRole(): CompanyRoleState {
     typeof window !== 'undefined' ? getSelectedCompanyId() : null
   );
 
-  // Stay in sync when user switches company or updates module prefs
-  useEffect(() => {
-    const sync = () => setCompanyId(getSelectedCompanyId());
-    sync();
-    window.addEventListener('sa:company-changed', sync);
-    window.addEventListener('storage', sync);
-    return () => {
-      window.removeEventListener('sa:company-changed', sync);
-      window.removeEventListener('storage', sync);
-    };
-  }, []);
-
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<TeamRole | null>(null);
   const [roleLabel, setRoleLabel] = useState('');
@@ -104,24 +94,40 @@ export function useCompanyRole(): CompanyRoleState {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState<string | null>(null);
   const [sidebarModuleOrder, setSidebarModuleOrder] = useState<string[]>([]);
+  const fetchGen = useRef(0);
+
+  const clearCompanyChrome = useCallback(() => {
+    setRole(null);
+    setEnabledModules(normalizeEnabledModules(null));
+    setPackaging(null);
+    setBusinessType(null);
+    setLogoUrl(null);
+    setCompanyName(null);
+    setSidebarModuleOrder([]);
+  }, []);
 
   const refresh = useCallback(async (force = false) => {
-    if (!companyId || !privyUserId) {
-      setRole(null);
-      setEnabledModules(normalizeEnabledModules(null));
-      setPackaging(null);
-      setBusinessType(null);
-      setLogoUrl(null);
-      setCompanyName(null);
-      setSidebarModuleOrder([]);
+    const selectedId = getSelectedCompanyId();
+    if (!selectedId || !privyUserId) {
+      fetchGen.current += 1;
+      clearCompanyChrome();
       setLoading(false);
       return;
     }
+    const gen = ++fetchGen.current;
     setLoading(true);
     try {
-      const data = await fetchCompanyMembership(companyId, privyUserId, {
+      const data = await fetchCompanyMembership(selectedId, privyUserId, {
         force,
       });
+      if (gen !== fetchGen.current) return;
+      if (getSelectedCompanyId() !== selectedId) return;
+      const payloadCompany = Number(
+        (data as { companyId?: unknown }).companyId
+      );
+      if (Number.isFinite(payloadCompany) && payloadCompany !== selectedId) {
+        return;
+      }
       const mem = data.membership || {};
       setRole(normalizeTeamRole(mem.role));
       setRoleLabel(String(mem.roleLabel || mem.role || ''));
@@ -145,25 +151,37 @@ export function useCompanyRole(): CompanyRoleState {
           : []
       );
     } catch {
+      if (gen !== fetchGen.current) return;
       setRole(null);
     } finally {
-      setLoading(false);
+      if (gen === fetchGen.current) setLoading(false);
     }
-  }, [companyId, privyUserId]);
+  }, [privyUserId, clearCompanyChrome]);
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+  }, [companyId, refresh]);
 
-  // Re-fetch when profile module toggles save (same company)
   useEffect(() => {
-    const onModules = () => {
-      invalidateCompanyMembership(companyId, privyUserId);
-      void refresh(true);
+    const onCompanyEvent = () => {
+      const id = getSelectedCompanyId();
+      const switched = id !== companyId;
+      if (switched) {
+        fetchGen.current += 1;
+        setLogoUrl(null);
+        setCompanyName(null);
+      }
+      setCompanyId(id);
+      if (id && privyUserId) invalidateCompanyMembership(id, privyUserId);
+      if (!switched) void refresh(true);
     };
-    window.addEventListener('sa:company-changed', onModules);
-    return () => window.removeEventListener('sa:company-changed', onModules);
-  }, [refresh]);
+    window.addEventListener('sa:company-changed', onCompanyEvent);
+    window.addEventListener('storage', onCompanyEvent);
+    return () => {
+      window.removeEventListener('sa:company-changed', onCompanyEvent);
+      window.removeEventListener('storage', onCompanyEvent);
+    };
+  }, [companyId, privyUserId, refresh]);
 
   const ready = !loading && (!companyId || role != null || !privyUserId);
 
@@ -244,6 +262,7 @@ export function useCompanyRole(): CompanyRoleState {
     isCompanyModuleEnabled,
     packaging,
     businessType,
+    selectedCompanyId: companyId,
     logoUrl,
     companyName,
     canFinanceCritical,

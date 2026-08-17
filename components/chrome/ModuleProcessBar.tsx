@@ -40,7 +40,7 @@ const GROUP_PILL: Record<string, string> = {
 export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
   const pathname = usePathname() || '';
   const skin = useAdvisorSkin();
-  const { logoUrl, companyName } = useCompanyRole();
+  const { logoUrl, companyName, selectedCompanyId } = useCompanyRole();
   const life = lifecycleForPath(pathname);
   const programme = useProgrammeRole();
   const healthProgramme = useHealthProgrammeRole();
@@ -127,9 +127,10 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
             aria-label={`${skin.name} home`}
           >
             <PortalBrandLogo
+              key={`${selectedCompanyId || 'none'}:${logoUrl || 'sa'}`}
               logoUrl={logoUrl}
               name={companyName || skin.registered}
-              className="sa-logo h-6 w-auto max-w-[4.5rem] object-contain shrink-0"
+              className="h-6 w-auto max-w-[4.5rem] object-contain shrink-0"
               fallbackClassName="sa-logo h-6 w-auto object-contain shrink-0"
               priority
             />

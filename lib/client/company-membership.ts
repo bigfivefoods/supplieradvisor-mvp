@@ -8,6 +8,7 @@
 export type CompanyMembershipPayload = {
   success?: boolean;
   error?: string;
+  companyId?: number;
   membership?: {
     role?: string;
     roleLabel?: string;

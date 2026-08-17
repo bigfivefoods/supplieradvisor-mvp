@@ -106,6 +106,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      companyId,
       membership: {
         memberId: mem.memberId,
         userId: mem.userId,

@@ -69,6 +69,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     businessType,
     logoUrl,
     companyName,
+    selectedCompanyId,
     sidebarModuleOrder,
     saveSidebarModuleOrder,
   } = useCompanyRole();
@@ -310,9 +311,10 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
           className="sa-brand-lockup flex h-8 min-w-0 items-center gap-2.5"
         >
           <PortalBrandLogo
+            key={`${selectedCompanyId || 'none'}:${logoUrl || 'sa'}`}
             logoUrl={logoUrl}
             name={companyName || skin.registered}
-            className={`sa-logo h-8 shrink-0 object-contain ${
+            className={`h-8 shrink-0 object-contain ${
               isCollapsed ? 'w-8' : 'w-auto max-w-[5.5rem]'
             }`}
             fallbackClassName="sa-logo h-8 w-auto shrink-0 object-contain"
