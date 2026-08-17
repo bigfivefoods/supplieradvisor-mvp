@@ -22,6 +22,7 @@ import {
   seedDemoDentalgraph,
   summariseDentalgraph,
   writeDentalgraphToMetadata,
+  DENTALGRAPH_META_KEY,
   type DentalAppointment,
   type DentalBooking,
   type DentalPackage,
@@ -31,6 +32,10 @@ import {
   type DentalService,
   type DentalgraphStore,
 } from '@/lib/dental/dentalgraph';
+import {
+  loadAdvisorModuleStore,
+  saveAdvisorModuleStore,
+} from '@/lib/business/company-data';
 import { parseQualifications } from '@/lib/services/person-qualifications';
 import { mergeHealthProfile } from '@/lib/health/body-map';
 import {
@@ -83,34 +88,24 @@ type Entity =
   | 'bookings';
 
 async function loadStore(companyId: number) {
-  const supabase = getSupabaseServer();
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('metadata')
-    .eq('id', companyId)
-    .maybeSingle();
-  const meta =
-    prof?.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
-      : {};
-  return { meta, store: readDentalgraphFromMetadata(meta) };
+  return loadAdvisorModuleStore(
+    companyId,
+    DENTALGRAPH_META_KEY,
+    readDentalgraphFromMetadata
+  );
 }
 
 async function saveStore(
   companyId: number,
-  meta: Record<string, unknown>,
+  _meta: Record<string, unknown>,
   store: DentalgraphStore
 ) {
-  const supabase = getSupabaseServer();
-  const nextMeta = writeDentalgraphToMetadata(meta, store);
-  const { error } = await supabase
-    .from('profiles')
-    .update({
-      metadata: nextMeta,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', companyId);
-  if (error) throw new Error(error.message);
+  await saveAdvisorModuleStore(
+    companyId,
+    DENTALGRAPH_META_KEY,
+    store,
+    writeDentalgraphToMetadata
+  );
 }
 
 function analysis(store: DentalgraphStore) {

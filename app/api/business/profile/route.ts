@@ -484,6 +484,24 @@ export async function PATCH(request: NextRequest) {
 
     const profile = normalizeProfileRow((data || {}) as Record<string, unknown>);
 
+    if (safe.metadata && typeof safe.metadata === 'object') {
+      try {
+        const { COMPANY_CHROME_META_KEYS, putCompanyChrome } = await import(
+          '@/lib/business/company-data'
+        );
+        const src = safe.metadata as Record<string, unknown>;
+        const chrome: Record<string, unknown> = {};
+        for (const k of COMPANY_CHROME_META_KEYS) {
+          if (k in src) chrome[k] = src[k];
+        }
+        if (Object.keys(chrome).length) {
+          await putCompanyChrome(companyId, chrome);
+        }
+      } catch {
+        /* workspace table optional until migration */
+      }
+    }
+
     await logActivity({
       profile_id: companyId,
       actor_user_id: mem.userId,

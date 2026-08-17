@@ -39,6 +39,7 @@ import {
   renameCoachSpecialty,
   getCoachSpecialtyOptions,
   writeFitgraphToMetadata,
+  FITGRAPH_META_KEY,
   gymCheckinPath,
   type FitBooking,
   type FitCheckIn,
@@ -86,6 +87,10 @@ import {
   serviceMemberInviteEmailHtml,
   serviceMemberInviteEmailText,
 } from '@/lib/services/member-invite';
+import {
+  loadAdvisorModuleStore,
+  saveAdvisorModuleStore,
+} from '@/lib/business/company-data';
 
 export const runtime = 'nodejs';
 
@@ -103,34 +108,24 @@ type Entity =
   | 'programmes';
 
 async function loadStore(companyId: number) {
-  const supabase = getSupabaseServer();
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('metadata')
-    .eq('id', companyId)
-    .maybeSingle();
-  const meta =
-    prof?.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
-      : {};
-  return { meta, store: readFitgraphFromMetadata(meta) };
+  return loadAdvisorModuleStore(
+    companyId,
+    FITGRAPH_META_KEY,
+    readFitgraphFromMetadata
+  );
 }
 
 async function saveStore(
   companyId: number,
-  meta: Record<string, unknown>,
+  _meta: Record<string, unknown>,
   store: FitgraphStore
 ) {
-  const supabase = getSupabaseServer();
-  const nextMeta = writeFitgraphToMetadata(meta, store);
-  const { error } = await supabase
-    .from('profiles')
-    .update({
-      metadata: nextMeta,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', companyId);
-  if (error) throw new Error(error.message);
+  await saveAdvisorModuleStore(
+    companyId,
+    FITGRAPH_META_KEY,
+    store,
+    writeFitgraphToMetadata
+  );
 }
 
 function analysis(store: FitgraphStore) {

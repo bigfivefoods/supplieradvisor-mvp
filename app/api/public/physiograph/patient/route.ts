@@ -83,18 +83,17 @@ async function resolvePatient(token: string): Promise<{
 
 async function saveStore(
   companyId: number,
-  meta: Record<string, unknown>,
+  _meta: Record<string, unknown>,
   store: PhysiographStore
 ) {
-  const supabase = getSupabaseServer();
-  const { error } = await supabase
-    .from('profiles')
-    .update({
-      metadata: writePhysiographToMetadata(meta, store),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', companyId);
-  if (error) throw new Error(error.message);
+  const { saveAdvisorModuleStore } = await import('@/lib/business/company-data');
+  const { PHYSIOGRAPH_META_KEY } = await import('@/lib/clinic/physiograph');
+  await saveAdvisorModuleStore(
+    companyId,
+    PHYSIOGRAPH_META_KEY,
+    store,
+    writePhysiographToMetadata
+  );
 }
 
 export async function GET(request: NextRequest) {

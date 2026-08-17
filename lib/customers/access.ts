@@ -1,7 +1,7 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { getCanonicalUserId, userIdMatchVariants } from '@/lib/auth/identity';
 import {
   assertCompanyPermission,
+  getCompanyMembership,
   type MembershipFail,
   type MembershipOk,
 } from '@/lib/business/access';
@@ -15,49 +15,9 @@ export async function assertCompanyMember(
   privyUserId: string | null | undefined,
   companyId: number
 ): Promise<{ ok: true; userId: string } | { ok: false; error: string; status: number }> {
-  const userId = getCanonicalUserId(privyUserId);
-  if (!userId) {
-    return { ok: false, error: 'Authentication required (privyUserId)', status: 401 };
-  }
-  if (!Number.isFinite(companyId) || companyId <= 0) {
-    return { ok: false, error: 'Valid companyId is required', status: 400 };
-  }
-
-  const supabase = getSupabaseServer();
-  const variants = userIdMatchVariants(userId);
-
-  const { data, error } = await supabase
-    .from('business_users')
-    .select('id, user_id, profile_id, status')
-    .eq('profile_id', companyId)
-    .eq('status', 'active')
-    .in('user_id', variants)
-    .limit(1);
-
-  if (error) {
-    console.error('assertCompanyMember query error:', error);
-    return { ok: false, error: 'Failed to verify company membership', status: 500 };
-  }
-
-  if (!data || data.length === 0) {
-    return { ok: false, error: 'You are not an active member of this company', status: 403 };
-  }
-
-  // Soft-deleted companies are inaccessible
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('deleted_at')
-    .eq('id', companyId)
-    .maybeSingle();
-  if (prof?.deleted_at) {
-    return {
-      ok: false,
-      error: 'This company has been deleted',
-      status: 410,
-    };
-  }
-
-  return { ok: true, userId };
+  const mem = await getCompanyMembership(privyUserId, companyId);
+  if (!mem.ok) return mem;
+  return { ok: true, userId: mem.userId };
 }
 
 /**

@@ -15,6 +15,7 @@ import {
   summariseHiregraph,
   upsertEntity,
   writeHiregraphToMetadata,
+  HIREGRAPH_META_KEY,
   ensureHirePublicToken,
   issueHirePublicToken,
   type HireCorePartyRef,
@@ -23,6 +24,10 @@ import {
   type HirePublicSettings,
   type HireRequirementKey,
 } from '@/lib/hire/hiregraph';
+import {
+  loadAdvisorModuleStore,
+  saveAdvisorModuleStore,
+} from '@/lib/business/company-data';
 import {
   HIRE_COMMERCIAL_COPY,
   HIRE_CUSTOMER_COMMISSION_PCT,
@@ -55,21 +60,24 @@ function isEntity(v: unknown): v is HireEntity {
 
 async function loadStore(companyId: number) {
   const supabase = getSupabaseServer();
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('metadata, trading_name, legal_name')
-    .eq('id', companyId)
-    .maybeSingle();
-  const meta =
-    prof?.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
-      : {};
+  const [{ meta, store }, { data: prof }] = await Promise.all([
+    loadAdvisorModuleStore(
+      companyId,
+      HIREGRAPH_META_KEY,
+      readHiregraphFromMetadata
+    ),
+    supabase
+      .from('profiles')
+      .select('trading_name, legal_name')
+      .eq('id', companyId)
+      .maybeSingle(),
+  ]);
   const companyName = String(
     prof?.trading_name || prof?.legal_name || `Company #${companyId}`
   );
   return {
     meta,
-    store: readHiregraphFromMetadata(meta),
+    store,
     supabase,
     companyName,
   };
@@ -127,20 +135,15 @@ async function loadCoreBooks(companyId: number) {
 
 async function saveStore(
   companyId: number,
-  meta: Record<string, unknown>,
+  _meta: Record<string, unknown>,
   store: HiregraphStore
 ) {
-  const supabase = getSupabaseServer();
-  const nextMeta = writeHiregraphToMetadata(meta, store);
-  const { error } = await supabase
-    .from('profiles')
-    .update({
-      metadata: nextMeta,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', companyId);
-  if (error) throw new Error(error.message);
-  return nextMeta;
+  await saveAdvisorModuleStore(
+    companyId,
+    HIREGRAPH_META_KEY,
+    store,
+    writeHiregraphToMetadata
+  );
 }
 
 function denormaliseNames(

@@ -37,10 +37,12 @@ import {
   sessionKindOf,
   upsertClassFeedback,
   writeFitgraphToMetadata,
+  FITGRAPH_META_KEY,
   type FitBooking,
   type FitClient,
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
+import { saveAdvisorModuleStore } from '@/lib/business/company-data';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -97,19 +99,15 @@ async function resolveByToken(
 
 async function saveStore(
   companyId: number,
-  meta: Record<string, unknown>,
+  _meta: Record<string, unknown>,
   store: FitgraphStore
 ) {
-  const supabase = getSupabaseServer();
-  const nextMeta = writeFitgraphToMetadata(meta, store);
-  const { error } = await supabase
-    .from('profiles')
-    .update({
-      metadata: nextMeta,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', companyId);
-  if (error) throw new Error(error.message);
+  await saveAdvisorModuleStore(
+    companyId,
+    FITGRAPH_META_KEY,
+    store,
+    writeFitgraphToMetadata
+  );
 }
 
 export async function GET(request: NextRequest) {

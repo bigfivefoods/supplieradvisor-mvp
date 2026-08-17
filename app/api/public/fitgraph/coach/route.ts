@@ -108,19 +108,19 @@ async function resolveCoach(
 
 async function saveStore(
   companyId: number,
-  meta: Record<string, unknown>,
+  _meta: Record<string, unknown>,
   store: FitgraphStore
 ) {
-  const supabase = getSupabaseServer();
-  const nextMeta = writeFitgraphToMetadata(meta, store);
-  const { error } = await supabase
-    .from('profiles')
-    .update({
-      metadata: nextMeta,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', companyId);
-  if (error) throw new Error(error.message);
+  const { saveAdvisorModuleStore } = await import('@/lib/business/company-data');
+  const { FITGRAPH_META_KEY, writeFitgraphToMetadata } = await import(
+    '@/lib/fitness/fitgraph'
+  );
+  await saveAdvisorModuleStore(
+    companyId,
+    FITGRAPH_META_KEY,
+    store,
+    writeFitgraphToMetadata
+  );
 }
 
 export async function GET(request: NextRequest) {

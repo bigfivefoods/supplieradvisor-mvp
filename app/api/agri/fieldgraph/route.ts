@@ -15,6 +15,7 @@ import {
   summariseFieldgraph,
   vehicleUtilisation,
   writeFieldgraphToMetadata,
+  FIELDGRAPH_META_KEY,
   yieldQualityBySeason,
   type AgriApplication,
   type AgriEstimate,
@@ -30,6 +31,10 @@ import {
   type LabourEmploymentType,
   type LabourRateUnit,
 } from '@/lib/agri/fieldgraph';
+import {
+  loadAdvisorModuleStore,
+  saveAdvisorModuleStore,
+} from '@/lib/business/company-data';
 
 export const runtime = 'nodejs';
 
@@ -58,35 +63,24 @@ async function loadStore(companyId: number): Promise<{
   meta: Record<string, unknown>;
   store: FieldgraphStore;
 }> {
-  const supabase = getSupabaseServer();
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('metadata')
-    .eq('id', companyId)
-    .maybeSingle();
-  const meta =
-    prof?.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
-      : {};
-  return { meta, store: readFieldgraphFromMetadata(meta) };
+  return loadAdvisorModuleStore(
+    companyId,
+    FIELDGRAPH_META_KEY,
+    readFieldgraphFromMetadata
+  );
 }
 
 async function saveStore(
   companyId: number,
-  meta: Record<string, unknown>,
+  _meta: Record<string, unknown>,
   store: FieldgraphStore
 ) {
-  const supabase = getSupabaseServer();
-  const nextMeta = writeFieldgraphToMetadata(meta, store);
-  const { error } = await supabase
-    .from('profiles')
-    .update({
-      metadata: nextMeta,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', companyId);
-  if (error) throw new Error(error.message);
-  return nextMeta;
+  await saveAdvisorModuleStore(
+    companyId,
+    FIELDGRAPH_META_KEY,
+    store,
+    writeFieldgraphToMetadata
+  );
 }
 
 /**

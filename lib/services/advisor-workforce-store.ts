@@ -3,43 +3,56 @@
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
+  defaultPublicSettings as defaultFitPublicSettings,
   readFitgraphFromMetadata,
   writeFitgraphToMetadata,
+  FITGRAPH_META_KEY,
   type FitCoach,
-  type FitgraphStore,
+  type FitPublicSettings,
 } from '@/lib/fitness/fitgraph';
 import {
+  PHYSIOGRAPH_META_KEY,
   readPhysiographFromMetadata,
   writePhysiographToMetadata,
   type PhysioPractitioner,
   type PhysiographStore,
 } from '@/lib/clinic/physiograph';
 import {
+  MEDICALGRAPH_META_KEY,
   readMedicalgraphFromMetadata,
   writeMedicalgraphToMetadata,
   type MedicalPractitioner,
   type MedicalgraphStore,
 } from '@/lib/clinic/medicalgraph';
 import {
+  PSYCHIATRYGRAPH_META_KEY,
   readPsychiatrygraphFromMetadata,
   writePsychiatrygraphToMetadata,
   type PsychiatryPractitioner,
   type PsychiatrygraphStore,
 } from '@/lib/clinic/psychiatrygraph';
 import {
+  DENTALGRAPH_META_KEY,
+  defaultDentalPublicSettings,
   readDentalgraphFromMetadata,
   writeDentalgraphToMetadata,
+  type DentalPublicSettings,
   type DentalStaff,
   type DentalgraphStore,
 } from '@/lib/dental/dentalgraph';
 import {
+  HIREGRAPH_META_KEY,
+  defaultHirePublicSettings,
   readHiregraphFromMetadata,
   writeHiregraphToMetadata,
+  type HirePublicSettings,
   type HiregraphStore,
 } from '@/lib/hire/hiregraph';
 import {
+  RETAILGRAPH_META_KEY,
   readRetailgraphFromMetadata,
   writeRetailgraphToMetadata,
+  type RetailPublicSettings,
   type RetailgraphStore,
 } from '@/lib/retail/retailgraph';
 import type {
@@ -47,6 +60,19 @@ import type {
   AdvisorPersonInviteFields,
   AdvisorWorkforceModule,
 } from '@/lib/services/advisor-workforce';
+import {
+  loadAdvisorModuleStore,
+  saveAdvisorModuleStore,
+} from '@/lib/business/company-data';
+
+/** Desk invites carry a partial settings blob; pin required fields from defaults. */
+function mergeAdvisorSettings<T extends object>(
+  current: T | undefined,
+  next: AdvisorDeskInviteFields & Record<string, unknown>,
+  fallback: T
+): T {
+  return { ...fallback, ...current, ...next } as T;
+}
 
 export type AdvisorPersonRow = AdvisorPersonInviteFields & {
   id: string;
@@ -77,94 +103,141 @@ export async function loadAdvisorWorkforce(
   const supabase = getSupabaseServer();
   const { data: prof } = await supabase
     .from('profiles')
-    .select('id, metadata, trading_name, legal_name')
+    .select('id, trading_name, legal_name')
     .eq('id', companyId)
     .maybeSingle();
   if (!prof) return null;
-  const meta =
-    prof.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
-      : {};
   const brand = String(prof.trading_name || prof.legal_name || 'Advisor');
 
   if (module === 'fitgraph') {
-    const store = readFitgraphFromMetadata(meta);
+    const { store } = await loadAdvisorModuleStore(
+      companyId,
+      FITGRAPH_META_KEY,
+      readFitgraphFromMetadata
+    );
     return wrap({
       companyId,
-      meta,
       module,
       brand: store.settings?.brand_name || brand,
       settings: store.settings || {},
       people: (store.coaches || []).map(coachToPerson),
-      write: (nextSettings, people) => {
-        store.settings = { ...(store.settings || {}), ...nextSettings };
+      write: async (nextSettings, people) => {
+        store.settings = mergeAdvisorSettings<FitPublicSettings>(
+          store.settings,
+          nextSettings,
+          defaultFitPublicSettings()
+        );
         for (const p of people) {
           const i = store.coaches.findIndex((c) => c.id === p.id);
           if (i >= 0) store.coaches[i] = personToCoach(store.coaches[i], p);
         }
-        return writeFitgraphToMetadata(meta, store);
+        await saveAdvisorModuleStore(
+          companyId,
+          FITGRAPH_META_KEY,
+          store,
+          writeFitgraphToMetadata
+        );
       },
     });
   }
 
   if (module === 'physiograph') {
-    const store = readPhysiographFromMetadata(meta);
-    return wrapClinic(companyId, meta, module, brand, store, {
-      read: readPhysiographFromMetadata,
+    const { store } = await loadAdvisorModuleStore(
+      companyId,
+      PHYSIOGRAPH_META_KEY,
+      readPhysiographFromMetadata
+    );
+    return wrapClinic(companyId, module, brand, store, {
+      key: PHYSIOGRAPH_META_KEY,
       write: writePhysiographToMetadata,
     });
   }
   if (module === 'medicalgraph') {
-    const store = readMedicalgraphFromMetadata(meta);
-    return wrapClinic(companyId, meta, module, brand, store, {
-      read: readMedicalgraphFromMetadata,
+    const { store } = await loadAdvisorModuleStore(
+      companyId,
+      MEDICALGRAPH_META_KEY,
+      readMedicalgraphFromMetadata
+    );
+    return wrapClinic(companyId, module, brand, store, {
+      key: MEDICALGRAPH_META_KEY,
       write: writeMedicalgraphToMetadata,
     });
   }
   if (module === 'psychiatrygraph') {
-    const store = readPsychiatrygraphFromMetadata(meta);
-    return wrapClinic(companyId, meta, module, brand, store, {
-      read: readPsychiatrygraphFromMetadata,
+    const { store } = await loadAdvisorModuleStore(
+      companyId,
+      PSYCHIATRYGRAPH_META_KEY,
+      readPsychiatrygraphFromMetadata
+    );
+    return wrapClinic(companyId, module, brand, store, {
+      key: PSYCHIATRYGRAPH_META_KEY,
       write: writePsychiatrygraphToMetadata,
     });
   }
   if (module === 'dentalgraph') {
-    const store = readDentalgraphFromMetadata(meta);
-    return wrapDental(companyId, meta, brand, store);
+    const { store } = await loadAdvisorModuleStore(
+      companyId,
+      DENTALGRAPH_META_KEY,
+      readDentalgraphFromMetadata
+    );
+    return wrapDental(companyId, brand, store);
   }
   if (module === 'hiregraph') {
-    const store = readHiregraphFromMetadata(meta);
+    const { store } = await loadAdvisorModuleStore(
+      companyId,
+      HIREGRAPH_META_KEY,
+      readHiregraphFromMetadata
+    );
     return wrap({
       companyId,
-      meta,
       module,
       brand: store.settings?.brand_name || brand,
       settings: store.settings || {},
       people: [],
-      write: (nextSettings) => {
-        store.settings = { ...(store.settings || {}), ...nextSettings };
-        return writeHiregraphToMetadata(meta, store);
+      write: async (nextSettings) => {
+        store.settings = mergeAdvisorSettings<HirePublicSettings>(
+          store.settings,
+          nextSettings,
+          defaultHirePublicSettings()
+        );
+        await saveAdvisorModuleStore(
+          companyId,
+          HIREGRAPH_META_KEY,
+          store,
+          writeHiregraphToMetadata
+        );
       },
     });
   }
-  const store = readRetailgraphFromMetadata(meta);
+  const { store } = await loadAdvisorModuleStore(
+    companyId,
+    RETAILGRAPH_META_KEY,
+    readRetailgraphFromMetadata
+  );
   return wrap({
     companyId,
-    meta,
     module,
     brand: store.settings?.brand_name || brand,
     settings: store.settings || {},
     people: [],
-    write: (nextSettings) => {
-      store.settings = { ...(store.settings || {}), ...nextSettings };
-      return writeRetailgraphToMetadata(meta, store);
+    write: async (nextSettings) => {
+      store.settings = mergeAdvisorSettings<RetailPublicSettings>(
+        store.settings,
+        nextSettings,
+        {}
+      );
+      await saveAdvisorModuleStore(
+        companyId,
+        RETAILGRAPH_META_KEY,
+        store,
+        writeRetailgraphToMetadata
+      );
     },
   });
 }
 
 function wrap(opts: {
   companyId: number;
-  meta: Record<string, unknown>;
   module: AdvisorWorkforceModule;
   brand: string;
   settings: AdvisorDeskInviteFields & Record<string, unknown>;
@@ -172,14 +245,13 @@ function wrap(opts: {
   write: (
     settings: AdvisorDeskInviteFields & Record<string, unknown>,
     people: AdvisorPersonRow[]
-  ) => Record<string, unknown>;
+  ) => Promise<void>;
 }): AdvisorWorkforceBundle {
   let settings = { ...opts.settings };
   let people = [...opts.people];
-  let meta = opts.meta;
   return {
     companyId: opts.companyId,
-    meta,
+    meta: {},
     module: opts.module,
     brand: opts.brand,
     get settings() {
@@ -198,20 +270,13 @@ function wrap(opts: {
       return people[i];
     },
     async persist() {
-      meta = opts.write(settings, people);
-      const supabase = getSupabaseServer();
-      const { error } = await supabase
-        .from('profiles')
-        .update({ metadata: meta, updated_at: new Date().toISOString() })
-        .eq('id', opts.companyId);
-      if (error) throw new Error(error.message);
+      await opts.write(settings, people);
     },
   };
 }
 
 function wrapClinic(
   companyId: number,
-  meta: Record<string, unknown>,
   module: AdvisorWorkforceModule,
   brand: string,
   store:
@@ -219,6 +284,7 @@ function wrapClinic(
     | MedicalgraphStore
     | PsychiatrygraphStore,
   io: {
+    key: string;
     write: (
       meta: Record<string, unknown>,
       store:
@@ -226,49 +292,64 @@ function wrapClinic(
         | MedicalgraphStore
         | PsychiatrygraphStore
     ) => Record<string, unknown>;
-    read: (meta: Record<string, unknown>) => typeof store;
   }
 ): AdvisorWorkforceBundle {
   return wrap({
     companyId,
-    meta,
     module,
     brand: store.settings?.brand_name || brand,
     settings: store.settings || {},
     people: (store.practitioners || []).map(pracToPerson),
-    write: (nextSettings, people) => {
-      store.settings = { ...(store.settings || {}), ...nextSettings };
+    write: async (nextSettings, people) => {
+      store.settings = mergeAdvisorSettings(
+        store.settings,
+        nextSettings,
+        (store.settings || {
+          enabled: false,
+          public_token: '',
+          allow_public_booking: true,
+          show_practitioners: true,
+          show_pricing: true,
+        }) as NonNullable<typeof store.settings>
+      );
       for (const p of people) {
         const i = store.practitioners.findIndex((c) => c.id === p.id);
         if (i >= 0) {
           store.practitioners[i] = personToPrac(store.practitioners[i], p);
         }
       }
-      return io.write(meta, store);
+      await saveAdvisorModuleStore(companyId, io.key, store, io.write);
     },
   });
 }
 
 function wrapDental(
   companyId: number,
-  meta: Record<string, unknown>,
   brand: string,
   store: DentalgraphStore
 ): AdvisorWorkforceBundle {
   return wrap({
     companyId,
-    meta,
     module: 'dentalgraph',
     brand: store.settings?.brand_name || brand,
     settings: store.settings || {},
     people: (store.staff || []).map(staffToPerson),
-    write: (nextSettings, people) => {
-      store.settings = { ...(store.settings || {}), ...nextSettings };
+    write: async (nextSettings, people) => {
+      store.settings = mergeAdvisorSettings<DentalPublicSettings>(
+        store.settings,
+        nextSettings,
+        defaultDentalPublicSettings()
+      );
       for (const p of people) {
         const i = store.staff.findIndex((c) => c.id === p.id);
         if (i >= 0) store.staff[i] = personToStaff(store.staff[i], p);
       }
-      return writeDentalgraphToMetadata(meta, store);
+      await saveAdvisorModuleStore(
+        companyId,
+        DENTALGRAPH_META_KEY,
+        store,
+        writeDentalgraphToMetadata
+      );
     },
   });
 }

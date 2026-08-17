@@ -22,6 +22,7 @@ import {
   seedDemoMedicalgraph,
   summariseMedicalgraph,
   writeMedicalgraphToMetadata,
+  MEDICALGRAPH_META_KEY,
   type MedicalAppointment,
   type MedicalBooking,
   type MedicalPackage,
@@ -31,6 +32,10 @@ import {
   type MedicalService,
   type MedicalgraphStore,
 } from '@/lib/clinic/medicalgraph';
+import {
+  loadAdvisorModuleStore,
+  saveAdvisorModuleStore,
+} from '@/lib/business/company-data';
 import { parseQualifications } from '@/lib/services/person-qualifications';
 import { mergeHealthProfile } from '@/lib/health/body-map';
 import {
@@ -73,34 +78,24 @@ type Entity =
   | 'bookings';
 
 async function loadStore(companyId: number) {
-  const supabase = getSupabaseServer();
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('metadata')
-    .eq('id', companyId)
-    .maybeSingle();
-  const meta =
-    prof?.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
-      : {};
-  return { meta, store: readMedicalgraphFromMetadata(meta) };
+  return loadAdvisorModuleStore(
+    companyId,
+    MEDICALGRAPH_META_KEY,
+    readMedicalgraphFromMetadata
+  );
 }
 
 async function saveStore(
   companyId: number,
-  meta: Record<string, unknown>,
+  _meta: Record<string, unknown>,
   store: MedicalgraphStore
 ) {
-  const supabase = getSupabaseServer();
-  const nextMeta = writeMedicalgraphToMetadata(meta, store);
-  const { error } = await supabase
-    .from('profiles')
-    .update({
-      metadata: nextMeta,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', companyId);
-  if (error) throw new Error(error.message);
+  await saveAdvisorModuleStore(
+    companyId,
+    MEDICALGRAPH_META_KEY,
+    store,
+    writeMedicalgraphToMetadata
+  );
 }
 
 function analysis(store: MedicalgraphStore) {

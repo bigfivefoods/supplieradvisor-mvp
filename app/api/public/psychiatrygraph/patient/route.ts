@@ -83,18 +83,19 @@ async function resolvePatient(token: string): Promise<{
 
 async function saveStore(
   companyId: number,
-  meta: Record<string, unknown>,
+  _meta: Record<string, unknown>,
   store: PsychiatrygraphStore
 ) {
-  const supabase = getSupabaseServer();
-  const { error } = await supabase
-    .from('profiles')
-    .update({
-      metadata: writePsychiatrygraphToMetadata(meta, store),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', companyId);
-  if (error) throw new Error(error.message);
+  const { saveAdvisorModuleStore } = await import('@/lib/business/company-data');
+  const { PSYCHIATRYGRAPH_META_KEY } = await import(
+    '@/lib/clinic/psychiatrygraph'
+  );
+  await saveAdvisorModuleStore(
+    companyId,
+    PSYCHIATRYGRAPH_META_KEY,
+    store,
+    writePsychiatrygraphToMetadata
+  );
 }
 
 export async function GET(request: NextRequest) {

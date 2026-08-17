@@ -83,18 +83,17 @@ async function resolvePatient(token: string): Promise<{
 
 async function saveStore(
   companyId: number,
-  meta: Record<string, unknown>,
+  _meta: Record<string, unknown>,
   store: DentalgraphStore
 ) {
-  const supabase = getSupabaseServer();
-  const { error } = await supabase
-    .from('profiles')
-    .update({
-      metadata: writeDentalgraphToMetadata(meta, store),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', companyId);
-  if (error) throw new Error(error.message);
+  const { saveAdvisorModuleStore } = await import('@/lib/business/company-data');
+  const { DENTALGRAPH_META_KEY } = await import('@/lib/dental/dentalgraph');
+  await saveAdvisorModuleStore(
+    companyId,
+    DENTALGRAPH_META_KEY,
+    store,
+    writeDentalgraphToMetadata
+  );
 }
 
 export async function GET(request: NextRequest) {

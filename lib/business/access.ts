@@ -27,6 +27,12 @@ export type MembershipFail = {
   status: number;
 };
 
+const MEMBERSHIP_TTL_MS = 4_000;
+const membershipMemo = new Map<
+  string,
+  { at: number; value: Promise<MembershipOk | MembershipFail> }
+>();
+
 /**
  * Active company membership with role (for permission checks).
  */
@@ -42,6 +48,20 @@ export async function getCompanyMembership(
     return { ok: false, error: 'Valid companyId is required', status: 400 };
   }
 
+  const memoKey = `${userId}:${companyId}`;
+  const hit = membershipMemo.get(memoKey);
+  if (hit && Date.now() - hit.at < MEMBERSHIP_TTL_MS) {
+    return hit.value;
+  }
+  const value = loadCompanyMembership(userId, companyId);
+  membershipMemo.set(memoKey, { at: Date.now(), value });
+  return value;
+}
+
+async function loadCompanyMembership(
+  userId: string,
+  companyId: number
+): Promise<MembershipOk | MembershipFail> {
   const supabase = getSupabaseServer();
   const variants = userIdMatchVariants(userId);
 

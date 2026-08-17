@@ -30,6 +30,10 @@ import {
   parseSidebarModuleOrder,
   readUserSidebarOrderFromCompanyMeta,
 } from '@/lib/chrome/sidebar-order';
+import {
+  loadCompanyProfileChrome,
+  putCompanyChrome,
+} from '@/lib/business/company-data';
 
 /**
  * GET ?companyId=&privyUserId=
@@ -61,7 +65,7 @@ export async function GET(request: NextRequest) {
 
     const roleMeta = TEAM_ROLE_OPTIONS.find((r) => r.value === mem.role);
 
-    // Company module enablement (sidebar) — default all selected
+    // Slim chrome only — do not pull Advisor module blobs for sidenav.
     let companyModules = normalizeEnabledModules(null);
     let packaging: Record<string, unknown> | null = null;
     let businessType: string | null = null;
@@ -69,32 +73,19 @@ export async function GET(request: NextRequest) {
     let companyName: string | null = null;
     let companyMeta: Record<string, unknown> = {};
     try {
-      const supabase = getSupabaseServer();
-      const { data: prof } = await supabase
-        .from('profiles')
-        .select('metadata, business_type, logo_url, trading_name, legal_name')
-        .eq('id', companyId)
-        .maybeSingle();
-      companyModules = extractEnabledModulesFromMetadata(prof?.metadata);
-      businessType =
-        prof?.business_type != null ? String(prof.business_type) : null;
-      logoUrl = String(prof?.logo_url || '').trim() || null;
-      companyName =
-        String(prof?.trading_name || prof?.legal_name || '').trim() || null;
-      const meta =
-        prof?.metadata && typeof prof.metadata === 'object'
-          ? (prof.metadata as Record<string, unknown>)
-          : null;
-      if (meta) {
-        companyMeta = meta;
-        const { readPackagingFromMetadata } = await import(
-          '@/lib/product/architecture'
-        );
-        packaging = readPackagingFromMetadata(meta) as unknown as Record<
-          string,
-          unknown
-        > | null;
-      }
+      const profile = await loadCompanyProfileChrome(companyId);
+      companyMeta = profile.chrome;
+      companyModules = extractEnabledModulesFromMetadata(profile.chrome);
+      businessType = profile.businessType;
+      logoUrl = profile.logoUrl;
+      companyName = profile.companyName;
+      const { readPackagingFromMetadata } = await import(
+        '@/lib/product/architecture'
+      );
+      packaging = readPackagingFromMetadata(profile.chrome) as unknown as Record<
+        string,
+        unknown
+      > | null;
     } catch {
       /* soft — fail open all modules */
     }
@@ -186,30 +177,15 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: memErr.message }, { status: 500 });
     }
 
-    const { data: prof } = await supabase
-      .from('profiles')
-      .select('metadata')
-      .eq('id', companyId)
-      .maybeSingle();
-    const meta =
-      prof?.metadata && typeof prof.metadata === 'object'
-        ? { ...(prof.metadata as Record<string, unknown>) }
-        : {};
-    const nextMeta = mergeUserSidebarOrderIntoCompanyMeta(
-      meta,
+    const chrome = await loadCompanyProfileChrome(companyId);
+    const nextChrome = mergeUserSidebarOrderIntoCompanyMeta(
+      chrome.chrome,
       mem.userId,
       order
     );
-    const { error: profErr } = await supabase
-      .from('profiles')
-      .update({
-        metadata: nextMeta,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', companyId);
-    if (profErr) {
-      return NextResponse.json({ error: profErr.message }, { status: 500 });
-    }
+    await putCompanyChrome(companyId, {
+      user_sidebar_orders: nextChrome.user_sidebar_orders,
+    });
 
     return NextResponse.json({
       success: true,

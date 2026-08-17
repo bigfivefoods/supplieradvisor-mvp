@@ -8,6 +8,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { normalizeTeamRole } from '@/lib/business/permissions';
+import { fetchCompanyMembership } from '@/lib/client/company-membership';
 
 /**
  * Dashboard shell — collapsible sidebar + process rail.
@@ -37,13 +38,8 @@ function SalesContractorGuard({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
-        const params = new URLSearchParams({
-          companyId: String(companyId),
-          privyUserId,
-        });
-        const res = await fetch(`/api/business/membership?${params}`);
-        const data = await res.json();
-        if (cancelled || !res.ok) return;
+        const data = await fetchCompanyMembership(companyId, privyUserId);
+        if (cancelled) return;
         if (normalizeTeamRole(data.membership?.role) === 'sales_contractor') {
           router.replace('/sales');
         }

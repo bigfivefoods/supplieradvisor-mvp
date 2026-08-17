@@ -49,6 +49,16 @@ export const OPTIONAL_COMMERCIAL_COLUMNS: Array<{
     column: 'verified_at',
     migrationHint: '20260717_verification_payment_ref.sql',
   },
+  {
+    table: 'company_module_stores',
+    column: 'data',
+    migrationHint: '20260817_company_stores.sql',
+  },
+  {
+    table: 'company_workspace',
+    column: 'chrome',
+    migrationHint: '20260817_company_stores.sql',
+  },
 ];
 
 export type ColumnProbe = {

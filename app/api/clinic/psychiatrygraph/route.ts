@@ -22,6 +22,7 @@ import {
   seedDemoPsychiatrygraph,
   summarisePsychiatrygraph,
   writePsychiatrygraphToMetadata,
+  PSYCHIATRYGRAPH_META_KEY,
   type PsychiatryAppointment,
   type PsychiatryBooking,
   type PsychiatryPackage,
@@ -31,6 +32,10 @@ import {
   type PsychiatryService,
   type PsychiatrygraphStore,
 } from '@/lib/clinic/psychiatrygraph';
+import {
+  loadAdvisorModuleStore,
+  saveAdvisorModuleStore,
+} from '@/lib/business/company-data';
 import { parseQualifications } from '@/lib/services/person-qualifications';
 import { mergeHealthProfile } from '@/lib/health/body-map';
 import {
@@ -73,34 +78,24 @@ type Entity =
   | 'bookings';
 
 async function loadStore(companyId: number) {
-  const supabase = getSupabaseServer();
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('metadata')
-    .eq('id', companyId)
-    .maybeSingle();
-  const meta =
-    prof?.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
-      : {};
-  return { meta, store: readPsychiatrygraphFromMetadata(meta) };
+  return loadAdvisorModuleStore(
+    companyId,
+    PSYCHIATRYGRAPH_META_KEY,
+    readPsychiatrygraphFromMetadata
+  );
 }
 
 async function saveStore(
   companyId: number,
-  meta: Record<string, unknown>,
+  _meta: Record<string, unknown>,
   store: PsychiatrygraphStore
 ) {
-  const supabase = getSupabaseServer();
-  const nextMeta = writePsychiatrygraphToMetadata(meta, store);
-  const { error } = await supabase
-    .from('profiles')
-    .update({
-      metadata: nextMeta,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', companyId);
-  if (error) throw new Error(error.message);
+  await saveAdvisorModuleStore(
+    companyId,
+    PSYCHIATRYGRAPH_META_KEY,
+    store,
+    writePsychiatrygraphToMetadata
+  );
 }
 
 function analysis(store: PsychiatrygraphStore) {

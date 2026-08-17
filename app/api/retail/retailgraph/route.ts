@@ -14,9 +14,14 @@ import {
   readRetailgraphFromMetadata,
   summariseRetailgraph,
   writeRetailgraphToMetadata,
+  RETAILGRAPH_META_KEY,
   type RetailPublicSettings,
   type RetailSku,
 } from '@/lib/retail/retailgraph';
+import {
+  loadAdvisorModuleStore,
+  saveAdvisorModuleStore,
+} from '@/lib/business/company-data';
 import {
   applyAnnouncementAction,
   isAnnouncementAction,
@@ -28,19 +33,20 @@ export const dynamic = 'force-dynamic';
 
 async function load(companyId: number) {
   const supabase = getSupabaseServer();
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('metadata, trading_name, legal_name')
-    .eq('id', companyId)
-    .maybeSingle();
-  const meta =
-    prof?.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
-      : {};
-  const store = ensureRetailPublicToken(
-    readRetailgraphFromMetadata(meta),
-    companyId
-  );
+  const [{ meta, store: raw }, { data: prof }] = await Promise.all([
+    loadAdvisorModuleStore(
+      companyId,
+      RETAILGRAPH_META_KEY,
+      readRetailgraphFromMetadata,
+      ['till_sessions']
+    ),
+    supabase
+      .from('profiles')
+      .select('trading_name, legal_name')
+      .eq('id', companyId)
+      .maybeSingle(),
+  ]);
+  const store = ensureRetailPublicToken(raw, companyId);
   return {
     supabase,
     meta,
@@ -59,12 +65,16 @@ export async function GET(request: NextRequest) {
       legacyPrivyUserId: legacyPrivyFrom(request),
     });
     if (!gate.ok) return gate.response;
-    const { supabase, meta, store, brand } = await load(companyId);
-    const nextMeta = writeRetailgraphToMetadata(meta, store);
+    const { meta, store, brand } = await load(companyId);
     if (!readRetailgraphFromMetadata(meta).settings.public_token) {
-      await supabase.from('profiles').update({ metadata: nextMeta }).eq('id', companyId);
+      await saveAdvisorModuleStore(
+        companyId,
+        RETAILGRAPH_META_KEY,
+        store,
+        writeRetailgraphToMetadata
+      );
     }
-    const sessions = readTillSessions(nextMeta).map((s) => expireSession(s));
+    const sessions = readTillSessions(meta).map((s) => expireSession(s));
     return NextResponse.json({
       success: true,
       store,
@@ -178,17 +188,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
     }
 
-    const nextMeta = writeRetailgraphToMetadata(meta, store);
-    const { error } = await supabase
-      .from('profiles')
-      .update({ metadata: nextMeta })
-      .eq('id', companyId);
-    if (error) throw new Error(error.message);
+    await saveAdvisorModuleStore(
+      companyId,
+      RETAILGRAPH_META_KEY,
+      store,
+      writeRetailgraphToMetadata
+    );
     return NextResponse.json({
       success: true,
       store,
       message,
-      summary: summariseRetailgraph(store, readTillSessions(nextMeta)),
+      summary: summariseRetailgraph(store, readTillSessions(meta)),
     });
   } catch (e: unknown) {
     return NextResponse.json(

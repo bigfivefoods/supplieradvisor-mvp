@@ -12,6 +12,7 @@ import {
   readQuarrygraphFromMetadata,
   summariseQuarrygraph,
   writeQuarrygraphToMetadata,
+  QUARRYGRAPH_META_KEY,
   type AggregateProduct,
   type BlastLog,
   type CompliancePermit,
@@ -32,6 +33,10 @@ import {
   type LabourEmploymentType,
   type LabourRateUnit,
 } from '@/lib/quarry/quarrygraph';
+import {
+  loadAdvisorModuleStore,
+  saveAdvisorModuleStore,
+} from '@/lib/business/company-data';
 
 export const runtime = 'nodejs';
 
@@ -54,35 +59,24 @@ type Entity =
   | 'allocations';
 
 async function loadStore(companyId: number) {
-  const supabase = getSupabaseServer();
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('metadata')
-    .eq('id', companyId)
-    .maybeSingle();
-  const meta =
-    prof?.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
-      : {};
-  return { meta, store: readQuarrygraphFromMetadata(meta) };
+  return loadAdvisorModuleStore(
+    companyId,
+    QUARRYGRAPH_META_KEY,
+    readQuarrygraphFromMetadata
+  );
 }
 
 async function saveStore(
   companyId: number,
-  meta: Record<string, unknown>,
+  _meta: Record<string, unknown>,
   store: QuarrygraphStore
 ) {
-  const supabase = getSupabaseServer();
-  const nextMeta = writeQuarrygraphToMetadata(meta, store);
-  const { error } = await supabase
-    .from('profiles')
-    .update({
-      metadata: nextMeta,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', companyId);
-  if (error) throw new Error(error.message);
-  return nextMeta;
+  await saveAdvisorModuleStore(
+    companyId,
+    QUARRYGRAPH_META_KEY,
+    store,
+    writeQuarrygraphToMetadata
+  );
 }
 
 function analysisPayload(store: QuarrygraphStore) {

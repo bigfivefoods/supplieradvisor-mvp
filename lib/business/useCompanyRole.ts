@@ -19,6 +19,10 @@ import {
   type EnabledModulesMap,
 } from '@/lib/business/company-modules';
 import type { PackagingSelection } from '@/lib/product/architecture';
+import {
+  fetchCompanyMembership,
+  invalidateCompanyMembership,
+} from '@/lib/client/company-membership';
 
 /** Who may open Finance / period-lock critical UI — owner + finance only */
 const FINANCE_CRITICAL: TeamRole[] = ['owner', 'finance'];
@@ -100,7 +104,7 @@ export function useCompanyRole(): CompanyRoleState {
   const [companyName, setCompanyName] = useState<string | null>(null);
   const [sidebarModuleOrder, setSidebarModuleOrder] = useState<string[]>([]);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (force = false) => {
     if (!companyId || !privyUserId) {
       setRole(null);
       setEnabledModules(normalizeEnabledModules(null));
@@ -114,16 +118,9 @@ export function useCompanyRole(): CompanyRoleState {
     }
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        companyId: String(companyId),
-        privyUserId,
+      const data = await fetchCompanyMembership(companyId, privyUserId, {
+        force,
       });
-      const res = await fetch(`/api/business/membership?${params}`);
-      const data = await res.json();
-      if (!res.ok) {
-        setRole(null);
-        return;
-      }
       const mem = data.membership || {};
       setRole(normalizeTeamRole(mem.role));
       setRoleLabel(String(mem.roleLabel || mem.role || ''));
@@ -160,7 +157,8 @@ export function useCompanyRole(): CompanyRoleState {
   // Re-fetch when profile module toggles save (same company)
   useEffect(() => {
     const onModules = () => {
-      void refresh();
+      invalidateCompanyMembership(companyId ?? undefined, privyUserId);
+      void refresh(true);
     };
     window.addEventListener('sa:company-changed', onModules);
     return () => window.removeEventListener('sa:company-changed', onModules);
@@ -209,6 +207,7 @@ export function useCompanyRole(): CompanyRoleState {
       if (Array.isArray(data.sidebarModuleOrder)) {
         setSidebarModuleOrder(data.sidebarModuleOrder.map(String));
       }
+      invalidateCompanyMembership(companyId, privyUserId);
     },
     [companyId, privyUserId]
   );
