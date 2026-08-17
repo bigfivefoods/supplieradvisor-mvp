@@ -317,7 +317,7 @@ export default function MemberDentalgraphPortalPage() {
       fromClass="from-sky-50"
       tab={tab}
       onTab={(id) => {
-        setTab(id);
+        setTab(id as typeof tab);
         setError(null);
         setMsg(null);
       }}

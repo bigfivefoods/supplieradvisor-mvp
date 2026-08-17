@@ -39,6 +39,10 @@ import {
   resolveProgrammeForSession,
 } from '@/lib/fitness/movements';
 import { ensureSystemMovements } from '@/lib/fitness/movement-catalog';
+import {
+  gymRequiresDebitBank,
+  memberDebitBankComplete,
+} from '@/lib/fitness/member-debit-bank';
 
 export {
   SYS_COACH_TIME_CODE,
@@ -474,6 +478,11 @@ export type FitClient = {
   coach_id?: string | null;
   emergency_contact?: string;
   notes?: string;
+  /**
+   * Bank account for the gym owner to set up a debit order.
+   * Not used for Paystack / Apple Pay charges.
+   */
+  debit_bank?: import('@/lib/fitness/member-debit-bank').FitMemberDebitBank;
   /** Injury, pain, modifications & goals for coach awareness */
   health?: FitClientHealth;
   active?: boolean;
@@ -645,6 +654,10 @@ export type FitPublicSettings = {
   joining_fee_note?: string;
   /** Members subscribe to priced classes (VUKA). Fees = sum of those classes. */
   class_subscribe?: boolean;
+  /** Collect debit-order bank details on the member profile. */
+  collect_debit_bank?: boolean;
+  /** Membership is incomplete until bank details are submitted. */
+  require_debit_bank?: boolean;
   show_coaches: boolean;
   show_pricing: boolean;
   /** Show PDF contracts on the public gym page */
@@ -914,6 +927,7 @@ export type FitMemberAccess = {
   member_message: string;
   frozen: boolean;
   period_end: string | null;
+  bank_ok?: boolean;
 };
 
 /**
@@ -946,6 +960,9 @@ export function evaluateMemberAccess(
       ? store.membership_plans.find((p) => p.id === preferred.plan_id)
       : null;
   const periodEnd = preferred?.current_period_end || client.end_date || null;
+  const bankOk = gymRequiresDebitBank(store)
+    ? memberDebitBankComplete(client)
+    : true;
 
   if (client.active === false) {
     return {
@@ -958,6 +975,7 @@ export function evaluateMemberAccess(
       member_message: 'Your membership is inactive. Please speak to reception.',
       frozen: false,
       period_end: periodEnd,
+      bank_ok: bankOk,
     };
   }
 
@@ -976,6 +994,7 @@ export function evaluateMemberAccess(
       member_message: 'Your membership is frozen. Please speak to reception.',
       frozen: true,
       period_end: periodEnd,
+      bank_ok: bankOk,
     };
   }
 
@@ -990,6 +1009,7 @@ export function evaluateMemberAccess(
       member_message: `Your membership is ${membership}. Please renew at reception.`,
       frozen: false,
       period_end: periodEnd,
+      bank_ok: bankOk,
     };
   }
 
@@ -1005,6 +1025,7 @@ export function evaluateMemberAccess(
         'Checked in — please settle outstanding membership fees with reception.',
       frozen: false,
       period_end: periodEnd,
+      bank_ok: bankOk,
     };
   }
 
@@ -1020,6 +1041,7 @@ export function evaluateMemberAccess(
         'Checked in — your subscription needs attention at reception.',
       frozen: false,
       period_end: periodEnd,
+      bank_ok: bankOk,
     };
   }
 
@@ -1034,6 +1056,7 @@ export function evaluateMemberAccess(
       member_message: 'Checked in — subscription is paused; speak to reception.',
       frozen: false,
       period_end: periodEnd,
+      bank_ok: bankOk,
     };
   }
 
@@ -1043,6 +1066,22 @@ export function evaluateMemberAccess(
     (subStatus == null ||
       subStatus === 'active' ||
       subStatus === 'trialing');
+
+  if (!bankOk) {
+    return {
+      level: 'allowed_with_warning',
+      payment_ok: paymentOk,
+      membership_status: membership,
+      subscription_status: subStatus,
+      plan_name: plan?.name || null,
+      alert: 'Debit-order bank details missing',
+      member_message:
+        'Add your bank details on your profile so the gym can set up your debit order.',
+      frozen: false,
+      period_end: periodEnd,
+      bank_ok: false,
+    };
+  }
 
   return {
     level: 'allowed',
@@ -1054,6 +1093,7 @@ export function evaluateMemberAccess(
     member_message: 'You are checked in. Have a great session!',
     frozen: false,
     period_end: periodEnd,
+    bank_ok: true,
   };
 }
 

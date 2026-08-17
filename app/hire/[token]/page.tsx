@@ -471,7 +471,7 @@ export default function HireCustomerPortalPage() {
       fromClass="from-cyan-50"
       tab={tab}
       onTab={(id) => {
-        setTab(id);
+        setTab(id as typeof tab);
         setError(null);
         setMsg(null);
       }}

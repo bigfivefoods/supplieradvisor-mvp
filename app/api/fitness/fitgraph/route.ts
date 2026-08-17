@@ -92,6 +92,7 @@ import {
   saveAdvisorModuleStore,
 } from '@/lib/business/company-data';
 import { persistVukaCatalogIfNeeded } from '@/lib/fitness/vuka-class-catalog';
+import { applyMemberDebitBank } from '@/lib/fitness/member-debit-bank';
 
 export const runtime = 'nodejs';
 
@@ -2105,6 +2106,26 @@ function upsert(
       rec.training_modifications !== undefined ||
       rec.goals !== undefined ||
       rec.pain_score !== undefined;
+    let debitBank = prev?.debit_bank;
+    if (rec.debit_bank !== undefined) {
+      if (!rec.debit_bank) {
+        debitBank = undefined;
+      } else {
+        const scratch: FitClient = {
+          id: id,
+          code: 'tmp',
+          name: 'tmp',
+          created_at: now,
+          updated_at: now,
+          debit_bank: prev?.debit_bank,
+        };
+        const applied = applyMemberDebitBank(scratch, rec.debit_bank, now);
+        if (!applied.ok) {
+          throw new Error(applied.error);
+        }
+        debitBank = scratch.debit_bank;
+      }
+    }
     const row: FitClient = {
       id,
       code: String(rec.code || prev?.code || `M-${store.clients.length + 1}`),
@@ -2199,6 +2220,7 @@ function upsert(
             ? String(rec.notes)
             : undefined
           : prev?.notes,
+      debit_bank: debitBank,
       health: healthPatch
         ? mergeHealthProfile(prev?.health, rec, {
             now,

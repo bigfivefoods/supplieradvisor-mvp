@@ -2,13 +2,13 @@
 
 import type { ReactNode } from 'react';
 
-export type MemberAdvisorTab = {
-  id: string;
+export type MemberAdvisorTab<T extends string = string> = {
+  id: T;
   label: string;
   badge?: number | string;
 };
 
-export function MemberAdvisorShell({
+export function MemberAdvisorShell<T extends string = string>({
   color,
   header,
   tabs,
@@ -19,9 +19,9 @@ export function MemberAdvisorShell({
 }: {
   color: string;
   header: ReactNode;
-  tabs: MemberAdvisorTab[];
-  tab: string;
-  onTab: (id: string) => void;
+  tabs: MemberAdvisorTab<T>[];
+  tab: T;
+  onTab: (id: T) => void;
   children: ReactNode;
   fromClass?: string;
 }) {

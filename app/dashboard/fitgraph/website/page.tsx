@@ -42,6 +42,8 @@ export default function FitgraphWebsitePage() {
     embed_primary_color: '#E8E830',
     timezone: 'Africa/Johannesburg',
     require_paid_membership: true,
+    collect_debit_bank: false,
+    require_debit_bank: false,
     city: '',
   });
   const [copied, setCopied] = useState<string | null>(null);
@@ -64,6 +66,8 @@ export default function FitgraphWebsitePage() {
       embed_primary_color: gymBrandColor(s.embed_primary_color),
       timezone: s.timezone || 'Africa/Johannesburg',
       require_paid_membership: gymRequiresPaidMembership(store),
+      collect_debit_bank: s.collect_debit_bank === true,
+      require_debit_bank: s.require_debit_bank === true,
       city: s.marketplace?.city || '',
     });
   }, [store]);
@@ -414,6 +418,40 @@ export default function FitgraphWebsitePage() {
                 }
               />
               Require paid membership before class booking
+            </label>
+            <label className="flex items-center gap-2 text-sm font-medium col-span-full">
+              <input
+                type="checkbox"
+                checked={form.collect_debit_bank || form.require_debit_bank}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    collect_debit_bank: e.target.checked,
+                    require_debit_bank: e.target.checked
+                      ? f.require_debit_bank
+                      : false,
+                  }))
+                }
+              />
+              Collect bank details on the member profile (for owner debit
+              orders)
+            </label>
+            <label className="flex items-center gap-2 text-sm font-medium col-span-full">
+              <input
+                type="checkbox"
+                checked={form.require_debit_bank}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    require_debit_bank: e.target.checked,
+                    collect_debit_bank: e.target.checked
+                      ? true
+                      : f.collect_debit_bank,
+                  }))
+                }
+              />
+              Require bank details to complete membership (needed to book
+              classes)
             </label>
             <label className="flex items-center gap-2 text-sm font-medium">
               <input

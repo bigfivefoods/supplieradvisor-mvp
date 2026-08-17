@@ -25,6 +25,11 @@ import {
 } from 'lucide-react';
 import { GymShopPay } from '@/components/fitness/GymShopPay';
 import { ClassSubscriptionReport } from '@/components/fitness/ClassSubscriptionReport';
+import {
+  emptyDebitBankForm,
+  MemberDebitBankFields,
+  type DebitBankForm,
+} from '@/components/fitness/MemberDebitBankFields';
 import type { GymShopItem } from '@/lib/fitness/gym-shop';
 import { MemberRelationshipSection } from '@/components/services/MemberRelationshipSection';
 import { ProgrammeView } from '@/components/fitness/ProgrammeView';
@@ -61,6 +66,7 @@ type OpenClass = {
   programme?: import('@/lib/fitness/movements').FitHydratedProgramme | null;
   can_book?: boolean;
   need_plan?: boolean;
+  need_debit_bank?: boolean;
   book_hint?: string | null;
 };
 
@@ -207,6 +213,18 @@ type Portal = {
   class_report?: import('@/lib/fitness/vuka-class-catalog').ClassSubscriptionReport;
   joining?: { fee_zar: number; waived?: boolean; note?: string } | null;
   class_subscribe?: boolean;
+  collect_debit_bank?: boolean;
+  require_debit_bank?: boolean;
+  bank?: {
+    complete: boolean;
+    account_holder: string;
+    bank_name: string;
+    account_number: string;
+    account_number_masked: string;
+    branch_code: string;
+    account_type: string;
+    debit_order_authorised: boolean;
+  } | null;
   threads?: Array<{
     id: string;
     title?: string;
@@ -254,6 +272,7 @@ export default function MemberFitgraphPortalPage() {
   const [bookForFamilyId, setBookForFamilyId] = useState('');
   const [msgThreadId, setMsgThreadId] = useState<string | null>(null);
   const [msgReply, setMsgReply] = useState('');
+  const [debitBank, setDebitBank] = useState<DebitBankForm>(emptyDebitBankForm);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -273,6 +292,14 @@ export default function MemberFitgraphPortalPage() {
         data.portal?.paid_access === false
       ) {
         setTab((t) => (t === 'open' ? 'join' : t));
+      } else if (
+        data.portal?.require_debit_bank &&
+        data.portal?.bank &&
+        !data.portal.bank.complete &&
+        (data.portal.paid_access ||
+          (data.portal.subscriptions || []).length > 0)
+      ) {
+        setTab((t) => (t === 'open' ? 'profile' : t));
       }
       const c = data.portal?.client;
       if (c) {
@@ -281,6 +308,17 @@ export default function MemberFitgraphPortalPage() {
         setPhone(c.phone || '');
         setIdNumber(c.id_number || '');
         setPhotoUrl(c.photo_url || '');
+      }
+      const bank = data.portal?.bank;
+      if (bank) {
+        setDebitBank({
+          account_holder: bank.account_holder || '',
+          bank_name: bank.bank_name || '',
+          account_number: bank.account_number || '',
+          branch_code: bank.branch_code || '',
+          account_type: bank.account_type || 'cheque',
+          debit_order_authorised: bank.debit_order_authorised === true,
+        });
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load');
@@ -405,6 +443,8 @@ export default function MemberFitgraphPortalPage() {
           setPortal({ ...portal, shop: data.shop });
         }
         selectTab('join');
+      } else if (data.need_debit_bank) {
+        selectTab('profile');
       }
       throw new Error(data.error || 'Request failed');
     }
@@ -485,6 +525,14 @@ export default function MemberFitgraphPortalPage() {
         phone,
         id_number: idNumber,
         photo_url: photoUrl,
+        ...(portal?.collect_debit_bank
+          ? {
+              debit_bank: {
+                ...debitBank,
+                debit_order_authorised: debitBank.debit_order_authorised,
+              },
+            }
+          : {}),
       });
       setMsg(data.message || 'Profile saved');
       const c = data.portal?.client;
@@ -576,7 +624,14 @@ export default function MemberFitgraphPortalPage() {
           label: 'Messages',
           badge: portal.messages_unread || undefined,
         },
-        { id: 'profile', label: 'Profile' },
+        {
+          id: 'profile',
+          label: 'Profile',
+          badge:
+            portal.require_debit_bank && !portal.bank?.complete
+              ? 1
+              : undefined,
+        },
       ]}
       header={
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
@@ -659,6 +714,16 @@ export default function MemberFitgraphPortalPage() {
           brand={portal.brand}
           tone="yellow"
         />
+        {portal.require_debit_bank && !portal.bank?.complete ? (
+          <button
+            type="button"
+            onClick={() => selectTab('profile')}
+            className="w-full rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs font-bold text-amber-950"
+          >
+            Complete your membership: add bank details for the gym debit
+            order.
+          </button>
+        ) : null}
         {(msg || error) && (
           <div
             className={`rounded-xl border px-3 py-2 text-sm ${
@@ -1103,10 +1168,14 @@ export default function MemberFitgraphPortalPage() {
                     ) : portal.allow_booking && c.can_book === false ? (
                       <button
                         type="button"
-                        onClick={() => selectTab('join')}
+                        onClick={() =>
+                          selectTab(c.need_debit_bank ? 'profile' : 'join')
+                        }
                         className="rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-bold text-white"
                       >
-                        {c.book_hint || 'Subscribe to this class'}
+                        {c.need_debit_bank
+                          ? 'Add bank details'
+                          : c.book_hint || 'Subscribe to this class'}
                       </button>
                     ) : portal.allow_booking ? (
                       c.full ? (
@@ -1444,6 +1513,14 @@ export default function MemberFitgraphPortalPage() {
               </div>
             ) : null}
 
+            {portal.collect_debit_bank &&
+            portal.require_debit_bank &&
+            !portal.bank?.complete ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-950">
+                Add your bank account below to complete your membership. The
+                gym sets up a debit order from these details.
+              </div>
+            ) : null}
             <p className="text-sm font-black text-slate-900">Your profile</p>
             <p className="text-xs text-slate-500">
               Changes sync to the gym desk. Email is usually the parent/guardian
@@ -1513,6 +1590,14 @@ export default function MemberFitgraphPortalPage() {
                 Saved on your gym member record for desk staff.
               </span>
             </label>
+            {portal.collect_debit_bank ? (
+              <MemberDebitBankFields
+                value={debitBank}
+                onChange={setDebitBank}
+                required={portal.require_debit_bank}
+                complete={portal.bank?.complete}
+              />
+            ) : null}
             <PortalFamilyMembers
               family={portal.client.family || []}
               busy={busyId === 'family'}

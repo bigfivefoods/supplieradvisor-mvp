@@ -15,6 +15,16 @@ import {
   fc,
 } from '@/components/fitness/FitForm';
 import { MEMBERSHIP_STATUSES, type FitClient } from '@/lib/fitness/fitgraph';
+import {
+  gymCollectsDebitBank,
+  gymRequiresDebitBank,
+  memberDebitBankComplete,
+} from '@/lib/fitness/member-debit-bank';
+import {
+  emptyDebitBankForm,
+  MemberDebitBankFields,
+  type DebitBankForm,
+} from '@/components/fitness/MemberDebitBankFields';
 import { healthSummaryLabel, isInjured } from '@/lib/health/body-map';
 import {
   InjuryProfileFields,
@@ -66,6 +76,7 @@ type ClientForm = {
   emergency_contact: string;
   notes: string;
   health: InjuryFormState;
+  debit_bank: DebitBankForm;
 };
 
 const blankForm = (): ClientForm => ({
@@ -83,6 +94,7 @@ const blankForm = (): ClientForm => ({
   emergency_contact: '',
   notes: '',
   health: emptyInjuryForm(),
+  debit_bank: emptyDebitBankForm(),
 });
 
 export default function ClientsPage() {
@@ -113,6 +125,17 @@ export default function ClientsPage() {
       emergency_contact: c.emergency_contact || '',
       notes: c.notes || '',
       health: healthToForm(c.health),
+      debit_bank: c.debit_bank
+        ? {
+            account_holder: c.debit_bank.account_holder || '',
+            bank_name: c.debit_bank.bank_name || '',
+            account_number: c.debit_bank.account_number || '',
+            branch_code: c.debit_bank.branch_code || '',
+            account_type: c.debit_bank.account_type || 'cheque',
+            debit_order_authorised:
+              c.debit_bank.debit_order_authorised === true,
+          }
+        : emptyDebitBankForm(),
     });
     setEditing(true);
   };
@@ -145,6 +168,9 @@ export default function ClientsPage() {
         start_date: form.start_date,
         emergency_contact: form.emergency_contact,
         notes: form.notes,
+        debit_bank: form.debit_bank.account_number
+          ? form.debit_bank
+          : undefined,
         health,
         health_updated_by: 'desk',
       },
@@ -593,6 +619,22 @@ export default function ClientsPage() {
                 }))
               }
             />
+            {store && gymCollectsDebitBank(store) ? (
+              <div className="sm:col-span-2 lg:col-span-3">
+                <MemberDebitBankFields
+                  value={form.debit_bank}
+                  onChange={(debit_bank) =>
+                    setForm((f) => ({ ...f, debit_bank }))
+                  }
+                  required={gymRequiresDebitBank(store)}
+                  complete={
+                    form.debit_bank.account_number.length >= 6 &&
+                    form.debit_bank.debit_order_authorised
+                  }
+                  inputClass={fc() + ' mt-1'}
+                />
+              </div>
+            ) : null}
             <input
               className={fc() + ' sm:col-span-2'}
               placeholder="Desk notes"
@@ -691,6 +733,7 @@ export default function ClientsPage() {
               'Type',
               'Plan',
               'Status',
+              ...(store && gymCollectsDebitBank(store) ? ['Debit'] : []),
               'Coach',
               'Injury / recovery',
               'Portal',
@@ -872,6 +915,27 @@ export default function ClientsPage() {
                       </button>
                     </span>
                   ),
+                  ...(store && gymCollectsDebitBank(store)
+                    ? [
+                        memberDebitBankComplete(c) ? (
+                          <span
+                            key="bank"
+                            className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-800"
+                          >
+                            On file
+                          </span>
+                        ) : (
+                          <span
+                            key="bank"
+                            className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase text-amber-900"
+                          >
+                            {gymRequiresDebitBank(store)
+                              ? 'Needed'
+                              : 'Missing'}
+                          </span>
+                        ),
+                      ]
+                    : []),
                   rowEditing ? (
                     <InlineSelect
                       key="coach"

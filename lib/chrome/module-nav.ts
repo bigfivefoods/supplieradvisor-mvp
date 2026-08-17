@@ -671,7 +671,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Calendar', href: '/dashboard/fitgraph/calendar', desc: 'Schedule coaches · public', section: 'Floor' },
       { name: 'Bookings', href: '/dashboard/fitgraph/bookings', desc: 'Class bookings', section: 'Floor' },
       { name: 'Check-ins', href: '/dashboard/fitgraph/checkins', desc: 'Phone QR · paid/unpaid alerts', section: 'Floor' },
-      { name: 'Accounts', href: '/dashboard/fitgraph/accounts', desc: 'Member fees · pay · proof', section: 'Money' },
+      { name: 'Accounts', href: '/dashboard/fitgraph/accounts', desc: 'Member fees · debit banks · proof', section: 'Money' },
       { name: 'Messages', href: '/dashboard/fitgraph/messages', desc: 'Desk · coaches · members', section: 'Floor' },
       { name: 'Comms', href: '/dashboard/fitgraph/comms', desc: 'Ads · notices to all members', section: 'Grow' },
       { name: 'Website', href: '/dashboard/fitgraph/website', desc: 'Portal setup · member app QR · door QR', section: 'Grow' },

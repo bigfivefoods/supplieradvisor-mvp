@@ -14,6 +14,7 @@ import {
   VUKA_COMPANY_ID,
   VUKA_MEMBERSHIP_PLANS,
 } from './vuka-class-catalog';
+import { applyMemberDebitBank } from './member-debit-bank';
 
 assert.equal(isVukaFitnessCompany({ companyId: VUKA_COMPANY_ID }), true);
 assert.equal(isVukaFitnessCompany({ tradingName: 'VUKA Fitness' }), true);
@@ -42,6 +43,8 @@ assert.ok(vuka.sessions.length > 0);
 assert.equal(vuka.settings?.joining_fee_zar, 600);
 assert.equal(vuka.settings?.joining_fee_waived, true);
 assert.equal(vuka.settings?.class_subscribe, true);
+assert.equal(vuka.settings?.collect_debit_bank, true);
+assert.equal(vuka.settings?.require_debit_bank, true);
 assert.equal(gymHasClassSpecificPlans(vuka), true);
 assert.equal(storeUsesClassSubscribe(vuka), true);
 const offer = listSubscribeClasses(vuka);
@@ -133,6 +136,18 @@ vuka.subscriptions.push({
   created_at: '2026-08-01T00:00:00.000Z',
   updated_at: '2026-08-01T00:00:00.000Z',
 });
+assert.equal(memberMayBookSession(vuka, client, fsfSession).need_debit_bank, true);
+assert.equal(
+  applyMemberDebitBank(client, {
+    account_holder: 'Ada Lovelace',
+    bank_name: 'FNB',
+    account_number: '62123456789',
+    branch_code: '250655',
+    account_type: 'cheque',
+    debit_order_authorised: true,
+  }).ok,
+  true
+);
 assert.equal(memberMayBookSession(vuka, client, fsfSession).ok, true);
 assert.equal(memberMayBookSession(vuka, client, kbEvening).ok, false);
 

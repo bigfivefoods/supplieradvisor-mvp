@@ -52,6 +52,12 @@ import {
   storeUsesClassSubscribe,
   VUKA_JOINING,
 } from '@/lib/fitness/vuka-class-catalog';
+import {
+  applyMemberDebitBank,
+  gymCollectsDebitBank,
+  gymRequiresDebitBank,
+  memberDebitBankPublic,
+} from '@/lib/fitness/member-debit-bank';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -146,6 +152,7 @@ function decorateMemberPortal(
       ...c,
       can_book: gate.ok,
       need_plan: gate.need_plan === true,
+      need_debit_bank: gate.need_debit_bank === true,
       book_hint: gate.ok ? null : gate.error || null,
     };
   });
@@ -172,6 +179,11 @@ function decorateMemberPortal(
           }
         : null,
     class_subscribe: storeUsesClassSubscribe(store),
+    collect_debit_bank: gymCollectsDebitBank(store),
+    require_debit_bank: gymRequiresDebitBank(store),
+    bank: gymCollectsDebitBank(store)
+      ? memberDebitBankPublic(client)
+      : null,
   };
 }
 
@@ -544,6 +556,12 @@ export async function POST(request: NextRequest) {
       });
       if (!result.ok) {
         return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      if (body.debit_bank !== undefined) {
+        const bank = applyMemberDebitBank(c, body.debit_bank, now);
+        if (!bank.ok) {
+          return NextResponse.json({ error: bank.error }, { status: 400 });
+        }
       }
       store.clients[ci] = c;
       await saveStore(companyId, meta, store);

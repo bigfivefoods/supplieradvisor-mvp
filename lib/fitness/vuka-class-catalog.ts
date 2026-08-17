@@ -13,6 +13,10 @@ import {
   type FitClient,
   type FitBooking,
 } from '@/lib/fitness/fitgraph';
+import {
+  gymRequiresDebitBank,
+  memberDebitBankComplete,
+} from '@/lib/fitness/member-debit-bank';
 
 export const VUKA_COMPANY_ID = 110;
 
@@ -738,10 +742,26 @@ export type ClassBookDecision = {
   ok: boolean;
   error?: string;
   need_plan?: boolean;
+  need_debit_bank?: boolean;
   plan_name?: string | null;
   weekly_used?: number;
   weekly_limit?: number | null;
 };
+
+function debitBankGate(
+  store: FitgraphStore,
+  client: FitClient
+): ClassBookDecision | null {
+  if (!gymRequiresDebitBank(store) || memberDebitBankComplete(client)) {
+    return null;
+  }
+  return {
+    ok: false,
+    need_debit_bank: true,
+    error:
+      'Add your bank details on your profile so the gym can set up your debit order',
+  };
+}
 
 export function memberMayBookSession(
   store: FitgraphStore,
@@ -760,7 +780,7 @@ export function memberMayBookSession(
   );
   if (!covering.length) {
     if (!gymHasClassSpecificPlans(store)) {
-      return { ok: true };
+      return debitBankGate(store, client) || { ok: true };
     }
     return {
       ok: false,
@@ -791,6 +811,8 @@ export function memberMayBookSession(
         weekly_limit: limited.weekly_class_limit,
       };
     }
+    const bank = debitBankGate(store, client);
+    if (bank) return bank;
     return {
       ok: true,
       plan_name: limited.name,
@@ -798,6 +820,8 @@ export function memberMayBookSession(
       weekly_limit: limited.weekly_class_limit,
     };
   }
+  const bank = debitBankGate(store, client);
+  if (bank) return bank;
   return { ok: true, plan_name: covering[0].plan.name };
 }
 
@@ -993,6 +1017,14 @@ export function ensureVukaClassCatalog(
   }
   if (store.settings.class_subscribe !== true) {
     store.settings.class_subscribe = true;
+    changed = true;
+  }
+  if (store.settings.collect_debit_bank !== true) {
+    store.settings.collect_debit_bank = true;
+    changed = true;
+  }
+  if (store.settings.require_debit_bank !== true) {
+    store.settings.require_debit_bank = true;
     changed = true;
   }
 
