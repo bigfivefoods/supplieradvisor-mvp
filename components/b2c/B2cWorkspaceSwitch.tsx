@@ -44,7 +44,7 @@ export function B2cWorkspaceSwitch({
     return (
       <Link
         href="/dashboard/select-company"
-        className="rounded-full bg-white/15 p-2 text-white md:bg-slate-100 md:text-slate-700 dark:md:bg-slate-800 dark:md:text-slate-100"
+        className="rounded-full bg-white/15 p-2 text-white"
         aria-label="Switch to a company workspace"
         title="Switch to business"
       >

@@ -18,7 +18,7 @@ export function B2cThemeToggle({ compact = false }: { compact?: boolean }) {
       <button
         type="button"
         onClick={() => toggle()}
-        className="rounded-full bg-white/15 p-2 text-white md:bg-slate-100 md:text-slate-700 dark:md:bg-slate-800 dark:md:text-slate-100"
+        className="rounded-full bg-white/15 p-2 text-white"
         aria-label={resolved === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
         title={resolved === 'dark' ? 'Light theme' : 'Dark theme'}
       >

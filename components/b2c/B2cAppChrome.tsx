@@ -129,24 +129,24 @@ export function B2cAppHeader({
 }) {
   return (
     <header
-      className="sticky top-0 z-30 border-b border-white/10 bg-gradient-to-br from-[#0077b6] via-[#0284c7] to-[#0c4a6e] text-white dark:from-[#082f49] dark:via-[#0c4a6e] dark:to-black md:border-slate-200 md:bg-white/90 md:from-white md:via-white md:to-white md:text-slate-900 md:backdrop-blur-xl dark:md:border-slate-800 dark:md:bg-slate-950/90 dark:md:from-slate-950 dark:md:via-slate-950 dark:md:to-slate-950 dark:md:text-neutral-50"
+      className="sticky top-0 z-30 border-b border-white/10 bg-gradient-to-br from-[#0077b6] via-[#0284c7] to-[#0c4a6e] text-white dark:from-[#082f49] dark:via-[#0c4a6e] dark:to-black"
       style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
     >
       <div className="mx-auto flex max-w-lg items-center justify-between gap-3 px-4 pb-3 pt-1 md:max-w-none md:px-8 md:pb-4 md:pt-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <SaOfficialLogo
             title="SA Member"
-            className="sa-logo-member-header h-8 w-auto shrink-0 md:h-9"
+            className="sa-logo-on-dark h-8 w-auto shrink-0 md:h-9"
           />
           <div className="min-w-0">
-            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-white/70 md:hidden">
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-white/70">
               SA Member
             </p>
             <h1 className="truncate text-lg font-black tracking-tight md:text-2xl">
               {title}
             </h1>
             {subtitle ? (
-              <p className="truncate text-[11px] text-white/85 md:text-sm md:text-slate-500 dark:md:text-slate-400">
+              <p className="truncate text-[11px] text-white/85 md:text-sm">
                 {subtitle}
               </p>
             ) : null}

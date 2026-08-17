@@ -597,9 +597,9 @@ function MeAppInner() {
   // ── Login wall (app store style) ─────────────────────────────────
   if (!authenticated) {
     return (
-      <div className="flex min-h-[100dvh] flex-col bg-gradient-to-b from-[#0c4a6e] via-[#0077b6] to-[#38bdf8] dark:from-black dark:via-[#082f49] dark:to-[#0c4a6e] lg:grid lg:grid-cols-2 lg:bg-none lg:from-transparent">
+      <div className="flex min-h-[100dvh] flex-col bg-gradient-to-b from-[#0c4a6e] via-[#0077b6] to-[#38bdf8] dark:from-black dark:via-[#082f49] dark:to-[#0c4a6e] lg:grid lg:grid-cols-2">
         <div
-          className="absolute right-4 z-10 lg:text-slate-700"
+          className="absolute right-4 z-10 text-white"
           style={{ top: 'max(0.75rem, env(safe-area-inset-top))' }}
         >
           <B2cThemeToggle compact />
@@ -621,14 +621,14 @@ function MeAppInner() {
           </p>
         </div>
         <div
-          className="flex flex-1 flex-col justify-end px-5 pb-8 pt-16 text-white lg:justify-center lg:bg-[#f0f9ff] lg:px-12 lg:text-slate-900 dark:lg:bg-black dark:lg:text-neutral-50"
+          className="flex flex-1 flex-col justify-end px-5 pb-8 pt-16 text-white lg:justify-center lg:px-12"
           style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}
         >
           <div className="mx-auto w-full max-w-md lg:max-w-lg">
             <div className="mb-6">
               <SaOfficialLogo
                 title="SA Member"
-                className="sa-logo-member-login h-16 w-auto"
+                className="sa-logo-on-dark h-16 w-auto"
               />
             </div>
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-sky-100 lg:hidden">
@@ -637,7 +637,7 @@ function MeAppInner() {
             <h1 className="mt-2 text-4xl font-black leading-[1.05] tracking-tight lg:hidden">
               SA Member
             </h1>
-            <p className="mt-3 text-base text-sky-50/95 lg:text-slate-600 dark:lg:text-slate-300">
+            <p className="mt-3 text-base text-sky-50/95">
               {isJoin && (joinBrand || joinPreviewBrand)
                 ? `${joinBrand || joinPreviewBrand} invited you to link your SA Member wallet. Sign in, then tap Accept.`
                 : 'One personal wallet: link any business on this platform to manage that account — book, shop, subscriptions, records and hire. If you also run a company, switch to it after you sign in — same login.'}
@@ -678,30 +678,30 @@ function MeAppInner() {
               ].map(({ icon: Icon, t, d }) => (
                 <div
                   key={t}
-                  className="flex items-center gap-3 rounded-2xl bg-white/12 px-3 py-3 backdrop-blur lg:bg-white lg:shadow-sm lg:text-slate-900 dark:lg:bg-slate-900 dark:lg:text-neutral-50"
+                  className="flex items-center gap-3 rounded-2xl bg-white/12 px-3 py-3 text-white backdrop-blur"
                 >
                   <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
                     <Icon className="h-5 w-5" />
                   </span>
                   <div>
                     <p className="text-sm font-black">{t}</p>
-                    <p className="text-[11px] text-sky-100/90 lg:text-slate-500">{d}</p>
+                    <p className="text-[11px] text-sky-100/90">{d}</p>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="mt-8 lg:rounded-3xl lg:border lg:border-slate-200 lg:bg-white lg:p-6 lg:shadow-sm dark:lg:border-slate-800 dark:lg:bg-slate-900">
+            <div className="mt-8 lg:rounded-3xl lg:border lg:border-white/20 lg:bg-white/10 lg:p-6">
               <AuthLoginActions
-                variant="default"
+                variant="onBrand"
                 emailLabel="Continue with email"
               />
             </div>
-            <p className="mt-3 text-center text-[11px] text-sky-100/80 lg:text-slate-500">
+            <p className="mt-3 text-center text-[11px] text-sky-100/80">
               Free · email or Google · first time creates your wallet · already
               have an account? Same button signs you in
             </p>
-            <p className="mt-4 text-center text-[11px] text-sky-100/70 lg:text-slate-500">
+            <p className="mt-4 text-center text-[11px] text-sky-100/70">
               Same login opens any company you operate. After sign-in, use
               the building icon or Account → Switch to business.{' '}
               <Link href="/dashboard/select-company" className="font-bold underline">
@@ -778,7 +778,7 @@ function MeAppInner() {
           <button
             type="button"
             onClick={() => void logout().then(() => router.refresh())}
-            className="rounded-full bg-white/15 p-2 md:bg-slate-100 md:text-slate-700 dark:md:bg-slate-800 dark:md:text-slate-100"
+            className="rounded-full bg-white/15 p-2 text-white"
             aria-label="Log out"
           >
             <LogOut className="h-4 w-4" />

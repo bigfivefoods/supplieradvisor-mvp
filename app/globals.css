@@ -1268,32 +1268,10 @@ html.dark img.sa-logo-base {
 .sa-official-logo.h-20 {
   height: 5rem;
 }
-.sa-official-logo.sa-logo-on-dark .sa-logo-base {
-  filter: brightness(0) invert(1);
-}
-/* Phone header is on the blue bar; tablet+ header is light (invert again in dark). */
-.sa-official-logo.sa-logo-member-header .sa-logo-base {
-  filter: brightness(0) invert(1);
-}
-@media (min-width: 768px) {
-  .sa-official-logo.sa-logo-member-header .sa-logo-base {
-    filter: none;
-  }
-  html.dark .sa-official-logo.sa-logo-member-header .sa-logo-base {
-    filter: brightness(0) invert(1);
-  }
-}
-/* Login form: white lockup on the blue phone wall, official mark on the light desktop pane. */
+.sa-official-logo.sa-logo-on-dark .sa-logo-base,
+.sa-official-logo.sa-logo-member-header .sa-logo-base,
 .sa-official-logo.sa-logo-member-login .sa-logo-base {
   filter: brightness(0) invert(1);
-}
-@media (min-width: 1024px) {
-  .sa-official-logo.sa-logo-member-login .sa-logo-base {
-    filter: none;
-  }
-  html.dark .sa-official-logo.sa-logo-member-login .sa-logo-base {
-    filter: brightness(0) invert(1);
-  }
 }
 .sa-logo-base {
   display: block;
