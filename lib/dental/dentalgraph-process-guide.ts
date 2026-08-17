@@ -43,7 +43,7 @@ export const ROLE_CARDS = [
     subtitle: 'Team · diary · waitlist · marketplace',
     does: [
       'Register clinicians; employed + contractors dual-write to People; leave blocks the diary',
-      'Patients land on Customers 360 (visits, invoices, household); POPIA + invites'
+      'Patients land on Customers 360 (visits, invoices, household); POPIA + invites',
       'Services, care packs, treatment plans; one-click book next session',
       'Practice diary (parallel clinicians) + exclusive clinician books; rooms',
       'Waitlist desk, 24h reminders, outcomes & recalls, staff Today PWA',

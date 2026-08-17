@@ -55,7 +55,7 @@ const PHASES: Phase[] = [
   {
     id: 'people',
     title: '1 · People (clinicians & patients)',
-    subtitle: 'Workforce book · Customers 360 · POPIA · invite'
+    subtitle: 'Workforce book · Customers 360 · POPIA · invite',
     steps: [
       {
         id: 'staff',
@@ -274,7 +274,7 @@ const ROLE_CARDS = [
     title: 'Practice owner / manager',
     subtitle: 'Team · diary · waitlist · marketplace',
     does: [
-      'Register clinicians; employed + contractors dual-write to People; leave blocks the diary'
+      'Register clinicians; employed + contractors dual-write to People; leave blocks the diary',
       'Patients with POPIA consent; invites, portals, family',
       'Services, care packs, treatment plans; one-click book next',
       'Practice + exclusive clinician diaries; rooms as resources',
@@ -283,7 +283,7 @@ const ROLE_CARDS = [
     ],
     doesNot: [
       'Does not double-book the same clinician diary',
-      'Does not keep a second ledger — CRM and Finance show the same fee'
+      'Does not keep a second ledger — CRM and Finance show the same fee',
     ],
     href: '/dashboard/dentalgraph/calendar',
   },

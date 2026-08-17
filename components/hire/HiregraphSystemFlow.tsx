@@ -115,7 +115,7 @@ const PHASES = [
         n: '3b',
         title: 'Settle supplier commission',
         who: 'Platform',
-        desc: `${HIRE_SUPPLIER_COMMISSION_PCT}% on the listing business. Rental posts AR + VAT. Members pay no platform fee.`}
+        desc: `${HIRE_SUPPLIER_COMMISSION_PCT}% on the listing business. Rental posts AR + VAT. Members pay no platform fee.`,
         href: '/dashboard/hiregraph/settlements',
         icon: Percent,
       },
