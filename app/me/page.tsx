@@ -10,7 +10,6 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import {
-  ArrowRight,
   Brain,
   CalendarDays,
   CheckCircle2,
@@ -37,6 +36,7 @@ import {
   extractEmailFromPrivyUser,
   getCanonicalUserId,
 } from '@/lib/auth/identity';
+import { AuthLoginActions } from '@/components/auth/AuthLoginActions';
 import {
   B2cAppShell,
   B2cInstallChip,
@@ -178,7 +178,7 @@ function membershipProgressHref(m: Membership) {
 function MeAppInner() {
   const router = useRouter();
   const search = useSearchParams();
-  const { ready, authenticated, user, login, logout } = usePrivy();
+  const { ready, authenticated, user, logout } = usePrivy();
   const [tab, setTab] = useState<B2cTab>('home');
   const [profile, setProfile] = useState<Profile | null>(null);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
@@ -650,16 +650,12 @@ function MeAppInner() {
               ))}
             </div>
 
-            <button
-              type="button"
-              onClick={() =>
-                void login({ loginMethods: ['email', 'google', 'apple'] })
-              }
-              className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-4 text-base font-black text-[#0077b6] shadow-xl"
-            >
-              Create free account
-              <ArrowRight className="h-5 w-5" />
-            </button>
+            <div className="mt-8">
+              <AuthLoginActions
+                variant="onBrand"
+                emailLabel="Continue with email"
+              />
+            </div>
             <p className="mt-3 text-center text-[11px] text-sky-100/80">
               Free · email or Google · first time creates your wallet · already
               have an account? Same button signs you in

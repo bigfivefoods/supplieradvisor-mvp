@@ -167,7 +167,7 @@ function InviteContent() {
     try {
       // Email / social only — no wallet. Wallet creation was breaking contractor login.
       await login({
-        loginMethods: ['email', 'google', 'apple'],
+        loginMethods: ['email'],
         ...(invite?.email
           ? { prefill: { type: 'email' as const, value: invite.email } }
           : {}),

@@ -78,7 +78,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             logo: '/sa-logo.png',
             showWalletLoginFirst: false,
             landingHeader: 'Sign in to SupplierAdvisor',
-            loginMessage: 'Use the email address your invitation was sent to.',
+            loginMessage: 'Google, Apple, or the email on your invitation.',
           },
           // Do NOT auto-create embedded wallets on email login.
           // Wallet creation failures surface as "Something went wrong / Try again later"

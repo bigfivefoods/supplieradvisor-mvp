@@ -5,9 +5,10 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
-import { ArrowRight, Loader2, ShieldCheck, Smartphone, Sparkles } from 'lucide-react';
+import { Loader2, ShieldCheck, Smartphone, Sparkles } from 'lucide-react';
 import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
 import ThemeToggle from '@/components/theme/ThemeToggle';
+import { AuthLoginActions } from '@/components/auth/AuthLoginActions';
 
 function LoginForm() {
   const router = useRouter();
@@ -17,9 +18,8 @@ function LoginForm() {
   const prefillEmail = searchParams.get('email') || '';
   const isContractorFlow =
     next.startsWith('/contractor') || next.includes('contractor');
-  const { login, ready, authenticated, user } = usePrivy();
+  const { ready, authenticated, user } = usePrivy();
   const [navigating, setNavigating] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!ready || !authenticated || !user) return;
@@ -83,36 +83,6 @@ function LoginForm() {
     return () => clearTimeout(t);
   }, [ready, authenticated, user, router, next]);
 
-  const handleLogin = async () => {
-    if (!ready) return;
-    setLoginError(null);
-    try {
-      // Contractors / invite flows: email + social only (no wallet) for reliability
-      if (isContractorFlow) {
-        await login({
-          loginMethods: ['email', 'google', 'apple'],
-          ...(prefillEmail
-            ? { prefill: { type: 'email' as const, value: prefillEmail } }
-            : {}),
-        });
-      } else {
-        await login({
-          loginMethods: ['email', 'google', 'apple'],
-          ...(prefillEmail
-            ? { prefill: { type: 'email' as const, value: prefillEmail } }
-            : {}),
-        });
-      }
-    } catch (e: unknown) {
-      console.error('Privy login error:', e);
-      setLoginError(
-        e instanceof Error
-          ? e.message
-          : 'Sign-in failed. Check that this site is allowed in Privy (www.supplieradvisor.com) and try email one-time code again.'
-      );
-    }
-  };
-
   if (authenticated || navigating) {
     return (
       <div className="w-full max-w-md text-center">
@@ -163,17 +133,11 @@ function LoginForm() {
         </div>
       )}
 
-      {loginError && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-sm">
-          {loginError}
-        </div>
-      )}
-
       <div className="bg-white rounded-3xl border border-neutral-200 p-6 sm:p-8 shadow-sm space-y-5 sm:space-y-6">
         <ul className="space-y-3 text-sm text-neutral-700">
           <li className="flex gap-3 items-start">
             <Sparkles className="w-4 h-4 text-[#00b4d8] mt-0.5 flex-shrink-0" />
-            Email one-time code — works great on mobile
+            Google, Apple, or email one-time code
           </li>
           <li className="flex gap-3 items-start">
             <Smartphone className="w-4 h-4 text-[#00b4d8] mt-0.5 flex-shrink-0" />
@@ -185,20 +149,13 @@ function LoginForm() {
           </li>
         </ul>
 
-        <button
-          type="button"
-          onClick={() => void handleLogin()}
-          disabled={!ready}
-          className="w-full min-h-[52px] py-4 bg-[#00b4d8] hover:bg-[#0099b8] active:bg-[#0088a6] text-white text-lg font-semibold rounded-2xl disabled:bg-neutral-400 flex items-center justify-center gap-2 transition-colors touch-manipulation"
-        >
-          {!ready ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
-            <>
-              Continue securely <ArrowRight className="w-5 h-5" />
-            </>
-          )}
-        </button>
+        {!ready ? (
+          <div className="flex min-h-[52px] items-center justify-center text-neutral-500">
+            <Loader2 className="h-5 w-5 animate-spin" />
+          </div>
+        ) : (
+          <AuthLoginActions prefillEmail={prefillEmail || undefined} />
+        )}
 
         <p className="text-center text-xs sm:text-sm text-neutral-500 leading-relaxed">
           Contractors: use the email from your invitation. Customers and members: the same login
