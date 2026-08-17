@@ -31,4 +31,7 @@ assert.equal(
 );
 assert.ok(formatAddress(filled)?.includes('12 Main Rd'));
 
+const midType = parseMemberPassport({ address_line1: '12 ' });
+assert.equal(midType.address_line1, '12');
+
 console.log('member-passport.test.ts ok');

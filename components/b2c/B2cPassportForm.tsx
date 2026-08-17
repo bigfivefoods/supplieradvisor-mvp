@@ -10,7 +10,6 @@ import {
   PASSPORT_TITLES,
   SA_PROVINCES,
   emptyMemberPassport,
-  parseMemberPassport,
   passportCompleteness,
   type MemberPassport,
 } from '@/lib/b2c/member-passport';
@@ -50,15 +49,19 @@ export function B2cPassportForm({
   onChange: (next: MemberPassport) => void;
 }) {
   const passport = useMemo(
-    () => parseMemberPassport({ ...emptyMemberPassport(), ...value, city }),
+    (): MemberPassport => ({
+      ...emptyMemberPassport(),
+      ...value,
+      city: city || value?.city || '',
+    }),
     [value, city]
   );
   const [open, setOpen] = useState<string>('about');
   const done = passportCompleteness(passport);
 
   const set = (patch: Partial<MemberPassport>) => {
-    const next = parseMemberPassport({ ...passport, ...patch });
-    if (patch.city != null) onCity(String(patch.city || ''));
+    const next: MemberPassport = { ...passport, ...patch };
+    if (patch.city != null) onCity(String(patch.city));
     onChange(next);
   };
 
@@ -213,6 +216,8 @@ export function B2cPassportForm({
                     <>
                       <Field label="Street">
                         <input
+                          type="text"
+                          autoComplete="street-address"
                           className={inputClass}
                           value={passport.address_line1 || ''}
                           onChange={(e) =>
