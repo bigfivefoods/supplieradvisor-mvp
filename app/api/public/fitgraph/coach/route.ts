@@ -1046,6 +1046,83 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (action === 'schedule_member' || action === 'book_with_member') {
+      const clientId = String(body.client_id || '');
+      const client = store.clients.find(
+        (c) => c.id === clientId && c.active !== false
+      );
+      if (!client) {
+        return NextResponse.json({ error: 'Member not found' }, { status: 404 });
+      }
+      const date = String(body.date || now.slice(0, 10)).slice(0, 10);
+      const startTime = String(body.start_time || '09:00').slice(0, 5);
+      const resolved = resolveClassTypeForSession(store, {
+        class_type_id: String(body.class_type_id || ''),
+        session_kind: 'private_pt',
+      });
+      if (!resolved.class_type_id) {
+        return NextResponse.json(
+          { error: 'Could not resolve a personal-training session type' },
+          { status: 400 }
+        );
+      }
+      const created = createSessionsFromTemplate(
+        store,
+        {
+          class_type_id: resolved.class_type_id,
+          coach_id: coach.id,
+          date,
+          start_time: startTime,
+          end_time: body.end_time != null ? String(body.end_time) : null,
+          duration_min:
+            body.duration_min != null ? Number(body.duration_min) : 60,
+          session_kind: 'private_pt',
+          capacity: 1,
+          location: body.location != null ? String(body.location) : undefined,
+          public: false,
+          notes: body.notes != null ? String(body.notes) : `PT with ${client.name}`,
+          origin: 'coach',
+        },
+        { frequency: 'none' },
+        now
+      );
+      store.sessions.push(...created);
+      const session = created[0];
+      if (!session) {
+        return NextResponse.json(
+          { error: 'Could not create the appointment' },
+          { status: 500 }
+        );
+      }
+      const booking: FitBooking = {
+        id: newId('bkg'),
+        session_id: session.id,
+        client_id: client.id,
+        status: 'booked',
+        booked_at: now,
+        source: 'coach',
+      };
+      store.bookings.push(booking);
+      if (!client.coach_id) {
+        const ci = store.clients.findIndex((c) => c.id === client.id);
+        if (ci >= 0) {
+          store.clients[ci] = {
+            ...store.clients[ci],
+            coach_id: coach.id,
+            updated_at: now,
+          };
+        }
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        session_id: session.id,
+        booking: { id: booking.id, status: booking.status },
+        portal: buildCoachPortalPayload(store, coach),
+        message: `Booked ${client.name} with you on ${date} at ${startTime}`,
+      });
+    }
+
     if (action === 'book_member') {
       const session = store.sessions.find(
         (s) => s.id === sessionId && s.coach_id === coach.id

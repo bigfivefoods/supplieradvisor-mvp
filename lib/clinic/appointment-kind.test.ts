@@ -13,10 +13,15 @@ import {
   ensureSystemPersonalService,
   normalizeAppointmentKind,
   patchFormForAppointmentKind,
+  personalReasonOrNull,
 } from './appointment-kind';
 
 assert.equal(normalizeAppointmentKind('leave'), 'personal');
 assert.equal(normalizeAppointmentKind('consult'), 'consult');
+assert.equal(personalReasonOrNull(null), null);
+assert.equal(personalReasonOrNull(''), null);
+assert.equal(personalReasonOrNull('leave'), 'leave');
+assert.equal(personalReasonOrNull('unknown'), 'personal');
 assert.equal(appointmentKindLabel('personal', 'leave'), 'Leave');
 assert.equal(appointmentKindLabel('consult'), 'Appointment');
 

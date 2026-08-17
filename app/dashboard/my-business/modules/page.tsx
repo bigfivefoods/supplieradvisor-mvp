@@ -34,10 +34,9 @@ import {
 } from '@/components/business/BusinessShell';
 import { SectionLabel } from '@/components/relationship/RelationshipChrome';
 import {
-  MODULE_BANDS,
-  MODULE_CATEGORIES,
   countEnabledOptionalModules,
   extractEnabledModulesFromMetadata,
+  groupWorkspaceModules,
   hasModulesConfigured,
   isAlwaysOnModule,
   listCompanyModuleOptions,
@@ -290,6 +289,32 @@ function ModulesInner() {
     const m = new Map(listCompanyModuleOptions().map((o) => [o.id, o]));
     return m;
   }, []);
+
+  const workspaceGroups = useMemo(
+    () =>
+      groupWorkspaceModules({
+        sectorId: yourSectorId,
+        industryIds: companyIndustries.map((i) => i.id),
+        knownModuleIds: [...optionsById.keys()],
+      }),
+    [yourSectorId, companyIndustries, optionsById]
+  );
+
+  const selectedHubs = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Array<{ id: string; name: string; layer: string }> = [];
+    for (const g of workspaceGroups) {
+      for (const id of g.moduleIds) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        if (enabled[id] === false) continue;
+        const opt = optionsById.get(id);
+        if (!opt) continue;
+        out.push({ id, name: opt.name, layer: g.layer });
+      }
+    }
+    return out;
+  }, [workspaceGroups, enabled, optionsById]);
 
   const persist = async (map: EnabledModulesMap, silent?: boolean) => {
     if (!privyUserId) {
@@ -1128,90 +1153,108 @@ function ModulesInner() {
         </div>
       )}
 
-      {/* Workspace modules — Core first, then sector & industry */}
+      {/* Workspace modules — Core · Sector · Industry (each hub once) */}
       <div className="mb-2 flex items-center gap-2">
         <Layers className="w-4 h-4 text-[#0077b6]" />
         <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">
           Workspace modules
         </h3>
         <span className="text-[11px] text-neutral-500">
-          Core OS · R{CORE_OS_MONTHLY_ZAR}/mo
+          Core · sector · industry
         </span>
       </div>
-      <p className="text-xs text-neutral-500 mb-5 max-w-2xl">
-        Core platform hubs first, then industry verticals. Toggle what appears in
-        the sidebar. Pack-unlocked hubs show a green badge when subscribed.
+      <p className="text-xs text-neutral-500 mb-4 max-w-2xl">
+        Pick the hubs this company can open. Each module is listed once. Selected
+        hubs appear in the sidebar — each person can rearrange that list.
       </p>
 
-      {MODULE_BANDS.map((band) => {
-        const cats = MODULE_CATEGORIES.filter((c) => c.band === band.id);
-        const bandOn = cats.reduce((n, cat) => {
-          return (
-            n +
-            cat.moduleIds.filter(
-              (id) => optionsById.get(id) && enabled[id] !== false
-            ).length
-          );
-        }, 0);
-        const bandTotal = cats.reduce((n, cat) => {
-          return n + cat.moduleIds.filter((id) => optionsById.get(id)).length;
-        }, 0);
+      <div className="mb-6 rounded-3xl border border-emerald-200 bg-emerald-50/70 p-4">
+        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-800">
+          Selected · {selectedHubs.length} on
+        </p>
+        {selectedHubs.length ? (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {selectedHubs.map((h) => (
+              <button
+                key={h.id}
+                type="button"
+                disabled={isAlwaysOnModule(h.id) || saving || govLocked}
+                onClick={() => {
+                  if (isAlwaysOnModule(h.id)) return;
+                  toggle(h.id, false);
+                }}
+                className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-white px-2.5 py-1 text-[11px] font-bold text-emerald-950 disabled:opacity-70"
+                title={
+                  isAlwaysOnModule(h.id)
+                    ? 'Always on'
+                    : `Turn off ${h.name}`
+                }
+              >
+                <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                {h.name}
+                <span className="text-[9px] font-black uppercase tracking-wide text-emerald-700/70">
+                  {h.layer}
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-emerald-900">
+            No optional hubs selected yet.
+          </p>
+        )}
+      </div>
+
+      {workspaceGroups.map((group, idx) => {
+        const ids = group.moduleIds.filter((id) => optionsById.get(id));
+        const onCount = ids.filter((id) => enabled[id] !== false).length;
+        const header =
+          group.layer === 'core'
+            ? 'bg-slate-900 text-white'
+            : group.layer === 'sector'
+              ? 'bg-[#0077b6] text-white'
+              : 'bg-violet-800 text-white';
         return (
-          <div key={band.id} className="mb-8">
+          <div key={group.layer} className="mb-8">
             <div
-              className={`rounded-2xl px-4 py-3 mb-4 flex flex-wrap items-center justify-between gap-2 ${
-                band.id === 'core'
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-[#0077b6] text-white'
-              }`}
+              className={`mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl px-4 py-3 ${header}`}
             >
               <div>
                 <div className="text-[10px] font-black uppercase tracking-widest text-white/70">
-                  {band.id === 'core' ? '01 · Platform' : '02 · Verticals'}
+                  {String(idx + 1).padStart(2, '0')} · {group.layer}
                 </div>
                 <div className="text-lg font-black tracking-tight">
-                  {band.title}
+                  {group.title}
                 </div>
-                <p className="text-xs text-white/80 mt-0.5 max-w-xl">
-                  {band.blurb}
+                <p className="mt-0.5 max-w-xl text-xs text-white/80">
+                  {group.blurb}
                 </p>
               </div>
-              <div className="text-right shrink-0">
+              <div className="shrink-0 text-right">
                 <div className="text-xl font-black tabular-nums">
-                  {bandOn}
+                  {onCount}
                   <span className="text-sm font-bold text-white/60">
-                    /{bandTotal}
+                    /{ids.length}
                   </span>
                 </div>
                 <div className="text-[10px] font-bold uppercase tracking-wide text-white/60">
-                  on
+                  selected
                 </div>
               </div>
             </div>
-
-            <div className="space-y-5">
-              {cats.map((cat) => {
-                const ids = cat.moduleIds.filter((id) => optionsById.get(id));
-                if (!ids.length) return null;
-                return (
-                  <div key={cat.id}>
-                    <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2 px-0.5">
-                      <div>
-                        <h4 className="text-sm font-black text-slate-900">
-                          {cat.title}
-                        </h4>
-                        <p className="text-[11px] text-slate-500 leading-snug">
-                          {cat.blurb}
-                        </p>
-                      </div>
-                    </div>
-                    <ul className="grid sm:grid-cols-2 xl:grid-cols-3 gap-2">
-                      {ids.map((id) => renderModuleToggle(id, true))}
-                    </ul>
-                  </div>
-                );
-              })}
-            </div>
+            {ids.length ? (
+              <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {ids.map((id) => renderModuleToggle(id, true))}
+              </ul>
+            ) : (
+              <p className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">
+                {group.layer === 'industry'
+                  ? 'Select industries at the top of this page to list industry hubs here.'
+                  : group.layer === 'sector'
+                    ? 'Set a sector to see remaining sector verticals.'
+                    : 'No core hubs available.'}
+              </p>
+            )}
           </div>
         );
       })}
@@ -1458,11 +1501,25 @@ function ModulesInner() {
                                   ))}
                                 </div>
                               </div>
-                              <ul className="grid sm:grid-cols-2 xl:grid-cols-3 gap-2 mt-3">
-                                {prog.moduleIds.map((id) =>
-                                  renderModuleToggle(id, true)
-                                )}
-                              </ul>
+                              <div className="mt-3 flex flex-wrap gap-1.5">
+                                {prog.moduleIds.map((id) => {
+                                  const opt = optionsById.get(id);
+                                  const on = enabled[id] !== false;
+                                  return (
+                                    <span
+                                      key={id}
+                                      className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                                        on
+                                          ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                                          : 'border-neutral-200 bg-white text-neutral-500'
+                                      }`}
+                                    >
+                                      {opt?.name || id}
+                                      {on ? ' · on' : ''}
+                                    </span>
+                                  );
+                                })}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1622,19 +1679,32 @@ function ModulesInner() {
                       </div>
                     </div>
 
-                    {/* App hubs unlocked */}
                     <div className="p-4 sm:p-5">
                       <div className="text-[10px] font-black uppercase tracking-widest text-neutral-400 mb-2">
-                        Workspace hubs unlocked
-                        {!subscribed ? (
-                          <span className="ml-2 font-semibold normal-case tracking-normal text-amber-700">
-                            — subscribe to activate recommended hubs
-                          </span>
-                        ) : null}
+                        Unlocks hubs
+                        <span className="ml-2 font-semibold normal-case tracking-normal text-neutral-500">
+                          — toggle them once under Core / Sector / Industry
+                        </span>
                       </div>
-                      <ul className="grid sm:grid-cols-2 xl:grid-cols-3 gap-2">
-                        {unlockIds.map((id) => renderModuleToggle(id, false))}
-                      </ul>
+                      <div className="flex flex-wrap gap-1.5">
+                        {unlockIds.map((id) => {
+                          const opt = optionsById.get(id);
+                          const on = enabled[id] !== false;
+                          return (
+                            <span
+                              key={id}
+                              className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                                on
+                                  ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                                  : 'border-neutral-200 bg-white text-neutral-500'
+                              }`}
+                            >
+                              {opt?.name || id}
+                              {on ? ' · on' : ''}
+                            </span>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 );

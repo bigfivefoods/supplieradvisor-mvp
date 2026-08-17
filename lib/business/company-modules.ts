@@ -6,6 +6,12 @@
 
 import type { ModuleNav } from '@/lib/chrome/module-nav';
 import { MODULE_NAV } from '@/lib/chrome/module-nav';
+import {
+  OS_SECTORS,
+  appModulesUnlockedByPack,
+  getIndustryPack,
+} from '@/lib/product/architecture';
+import { getIndustry } from '@/lib/product/business-catalogue';
 
 /** Always visible — cannot be turned off in company profile */
 export const ALWAYS_ON_MODULE_IDS = ['home', 'my-business', 'guide'] as const;
@@ -322,6 +328,183 @@ export type CompanyModuleOption = {
   alwaysOn: boolean;
   category: ModuleCategoryId;
 };
+
+/** Platform hubs that are not a sector/industry vertical. */
+export const CORE_WORKSPACE_MODULE_IDS = [
+  'home',
+  'my-business',
+  'guide',
+  'platform',
+  'network',
+  'suppliers',
+  'customers',
+  'sales-portal',
+  'inventory',
+  'operations',
+  'manufacturing',
+  'distribution',
+  'accounting',
+  'people',
+  'sheq',
+  'quality',
+  'projects',
+  'intelligence',
+  'sustainability',
+] as const;
+
+/** Vertical OS hubs — belong to a sector / industry, not Core OS. */
+export const VERTICAL_MODULE_IDS = [
+  'fieldgraph',
+  'quarrygraph',
+  'fitgraph',
+  'physiograph',
+  'dentalgraph',
+  'psychiatrygraph',
+  'medicalgraph',
+  'hiregraph',
+  'retailgraph',
+  'containers',
+  'schools',
+  'health',
+] as const;
+
+export const SECTOR_VERTICAL_MODULE_IDS: Record<string, readonly string[]> = {
+  primary: ['fieldgraph', 'quarrygraph'],
+  secondary: ['containers'],
+  tertiary: [
+    'fitgraph',
+    'physiograph',
+    'dentalgraph',
+    'psychiatrygraph',
+    'medicalgraph',
+    'hiregraph',
+    'retailgraph',
+  ],
+  public_sector: ['schools', 'health'],
+};
+
+export type WorkspaceModuleLayer = 'core' | 'sector' | 'industry';
+
+export type WorkspaceModuleGroup = {
+  layer: WorkspaceModuleLayer;
+  title: string;
+  blurb: string;
+  moduleIds: string[];
+};
+
+const CORE_ID_SET = new Set<string>(CORE_WORKSPACE_MODULE_IDS);
+const VERTICAL_ID_SET = new Set<string>(VERTICAL_MODULE_IDS);
+
+function uniqueExistingIds(
+  ids: readonly string[],
+  known: Set<string>
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const id of ids) {
+    if (!known.has(id) || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+/** Vertical hubs unlocked by industry packs (never core hubs). */
+export function verticalModuleIdsForPacks(packIds: readonly string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const pid of packIds) {
+    const pack = getIndustryPack(pid);
+    if (!pack) continue;
+    for (const id of appModulesUnlockedByPack(pack)) {
+      if (!VERTICAL_ID_SET.has(id) || seen.has(id)) continue;
+      seen.add(id);
+      out.push(id);
+    }
+  }
+  return out;
+}
+
+/**
+ * Group workspace hubs: Core → Sector → Industry.
+ * Each module id appears in at most one group.
+ * Industry (selected) wins over sector so the company's industries are explicit.
+ */
+export function groupWorkspaceModules(opts: {
+  sectorId?: string | null;
+  industryIds?: string[];
+  knownModuleIds?: string[];
+}): WorkspaceModuleGroup[] {
+  const known = new Set(
+    opts.knownModuleIds?.length
+      ? opts.knownModuleIds
+      : MODULE_NAV.map((m) => m.id)
+  );
+  const industryPackIds = [
+    ...new Set(
+      (opts.industryIds || []).flatMap((id) => getIndustry(id)?.packIds || [])
+    ),
+  ];
+  const industryIds = uniqueExistingIds(
+    verticalModuleIdsForPacks(industryPackIds),
+    known
+  );
+  const industrySet = new Set(industryIds);
+
+  const sectorVerticals = SECTOR_VERTICAL_MODULE_IDS[String(opts.sectorId || '')] || [];
+  const sectorIds = uniqueExistingIds(
+    sectorVerticals.filter((id) => !industrySet.has(id)),
+    known
+  );
+  const placed = new Set<string>([...industryIds, ...sectorIds]);
+
+  const coreIds = uniqueExistingIds(
+    CORE_WORKSPACE_MODULE_IDS.filter((id) => !placed.has(id)),
+    known
+  );
+  for (const id of coreIds) placed.add(id);
+
+  // Leftover nav hubs (future modules) — never duplicate
+  for (const m of MODULE_NAV) {
+    if (placed.has(m.id) || !known.has(m.id)) continue;
+    if (CORE_ID_SET.has(m.id)) coreIds.push(m.id);
+    else if (VERTICAL_ID_SET.has(m.id)) sectorIds.push(m.id);
+    else coreIds.push(m.id);
+    placed.add(m.id);
+  }
+
+  const sectorMeta = OS_SECTORS.find((s) => s.id === opts.sectorId);
+  const industryLabels = (opts.industryIds || [])
+    .map((id) => getIndustry(id)?.label)
+    .filter(Boolean) as string[];
+
+  return [
+    {
+      layer: 'core',
+      title: 'Core',
+      blurb: 'Platform hubs every company can turn on — trade, ops, finance, people.',
+      moduleIds: coreIds,
+    },
+    {
+      layer: 'sector',
+      title: sectorMeta ? `Sector · ${sectorMeta.label}` : 'Sector',
+      blurb: sectorMeta
+        ? `Other ${sectorMeta.label.toLowerCase()} verticals you can enable (not already listed under your industries).`
+        : 'Set a sector above to see sector verticals.',
+      moduleIds: sectorIds,
+    },
+    {
+      layer: 'industry',
+      title: industryLabels.length
+        ? `Industry · ${industryLabels.join(' · ')}`
+        : 'Industry',
+      blurb: industryLabels.length
+        ? 'Hubs for the industries you selected.'
+        : 'Select industries above to pin industry hubs here.',
+      moduleIds: industryIds,
+    },
+  ];
+}
 
 export function listCompanyModuleOptions(): CompanyModuleOption[] {
   const catById = new Map<string, ModuleCategoryId>();

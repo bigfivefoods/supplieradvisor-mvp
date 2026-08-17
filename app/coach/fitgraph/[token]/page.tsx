@@ -74,6 +74,7 @@ type RosterRow = {
 };
 
 type PortalSession = {
+  scheduled_by?: 'owner' | 'coach';
   session: {
     id: string;
     class_type_id?: string;
@@ -87,6 +88,7 @@ type PortalSession = {
     status: string;
     series_id?: string | null;
     session_kind?: import('@/lib/fitness/session-times').FitSessionKind;
+    origin?: string | null;
     notes?: string;
     class_plan?: string;
     public_notes?: string;
@@ -157,6 +159,7 @@ type Portal = {
     qualifications?: import('@/lib/services/person-qualifications').PersonQualification[];
     color?: string;
     can_manage_classes?: boolean;
+    engagement?: string;
     start_date?: string;
     end_date?: string;
     rate_zar?: number | null;
@@ -303,6 +306,14 @@ export default function CoachFitgraphPortalPage() {
     health: InjuryFormState;
   } | null>(null);
   const [workTab, setWorkTab] = useState<AdvisorWorkTab>('today');
+  const [calFilter, setCalFilter] = useState<'all' | 'owner' | 'mine'>('all');
+  const [bookWith, setBookWith] = useState<{
+    client_id: string;
+    date: string;
+    start_time: string;
+    end_time: string;
+    notes: string;
+  } | null>(null);
   const [showMessages, setShowMessages] = useState(false);
   const [msgThreadId, setMsgThreadId] = useState<string | null>(null);
   const [msgReply, setMsgReply] = useState('');
@@ -553,7 +564,23 @@ export default function CoachFitgraphPortalPage() {
   if (!portal) return null;
 
   const todayIso = new Date().toISOString().slice(0, 10);
-  const todayCards = portal.sessions.filter((s) => s.session.date === todayIso);
+  const slotSource = (card: PortalSession) =>
+    card.scheduled_by === 'coach' || card.session.origin === 'coach'
+      ? 'mine'
+      : 'owner';
+  const matchesCal = (card: PortalSession) =>
+    calFilter === 'all' ||
+    (calFilter === 'owner' && slotSource(card) === 'owner') ||
+    (calFilter === 'mine' && slotSource(card) === 'mine');
+  const todayCards = portal.sessions.filter(
+    (s) => s.session.date === todayIso && matchesCal(s)
+  );
+  const slotBadge = (card: PortalSession) => {
+    if (card.session.session_kind === 'coach_personal') return 'Personal';
+    if (slotSource(card) === 'owner') return 'Gym booked';
+    if (card.session.session_kind === 'private_pt') return 'Your PT';
+    return 'Your class';
+  };
 
   return (
     <AdvisorWorkPwaChrome
@@ -574,10 +601,32 @@ export default function CoachFitgraphPortalPage() {
     >
       {workTab === 'today' ? (
         <div className="space-y-3">
+          <div className="flex gap-1">
+            {(
+              [
+                ['all', 'All'],
+                ['owner', 'Gym booked'],
+                ['mine', 'My private'],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setCalFilter(id)}
+                className={`rounded-full px-3 py-1 text-[11px] font-black ${
+                  calFilter === id
+                    ? 'bg-[#E8E830] text-slate-950'
+                    : 'bg-white/5 text-slate-400'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <p className="text-sm text-slate-400">
             {todayCards.length
               ? `${todayCards.length} session${todayCards.length === 1 ? '' : 's'} today`
-              : 'Nothing on the floor today. Open Diary to plan.'}
+              : 'Nothing on the floor today. Book a member or open Diary.'}
           </p>
           {todayCards.map((card) => (
             <button
@@ -586,9 +635,14 @@ export default function CoachFitgraphPortalPage() {
               onClick={() => setOpenId(card.session.id)}
               className="w-full rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-left"
             >
-              <div className="text-lg font-black">
-                {String(card.session.start_time).slice(0, 5)} ·{' '}
-                {card.class_name || 'Session'}
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-lg font-black">
+                  {String(card.session.start_time).slice(0, 5)} ·{' '}
+                  {card.class_name || 'Session'}
+                </div>
+                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-200">
+                  {slotBadge(card)}
+                </span>
               </div>
               <div className="mt-1 text-xs text-slate-400">
                 {card.planned} booked
@@ -599,10 +653,25 @@ export default function CoachFitgraphPortalPage() {
           ))}
           <button
             type="button"
-            onClick={() => setShowCreate(true)}
+            onClick={() =>
+              setBookWith({
+                client_id: '',
+                date: todayIso,
+                start_time: '09:00',
+                end_time: '10:00',
+                notes: '',
+              })
+            }
             className="w-full rounded-2xl bg-[#E8E830] py-3 text-sm font-black text-slate-950"
           >
-            Add class / PT / block
+            Book a member with me
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowCreate(true)}
+            className="w-full rounded-2xl border border-white/20 py-3 text-sm font-black"
+          >
+            Add class / PT / personal time
           </button>
         </div>
       ) : null}
@@ -610,21 +679,40 @@ export default function CoachFitgraphPortalPage() {
       {workTab === 'people' ? (
         <div className="space-y-2">
           {portal.members.map((m) => (
-            <button
+            <div
               key={m.id}
-              type="button"
-              onClick={() => openMemberEdit(m)}
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left"
+              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
             >
-              <div className="font-bold">{m.name}</div>
-              <div className="text-[11px] text-slate-400">
-                {m.membership_status || 'Member'}
-                {m.health?.injured ? ' · injured' : ''}
-              </div>
-            </button>
+              <button
+                type="button"
+                onClick={() => openMemberEdit(m)}
+                className="w-full text-left"
+              >
+                <div className="font-bold">{m.name}</div>
+                <div className="text-[11px] text-slate-400">
+                  {m.membership_status || 'Member'}
+                  {m.health?.injured ? ' · injured' : ''}
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setBookWith({
+                    client_id: m.id,
+                    date: todayIso,
+                    start_time: '09:00',
+                    end_time: '10:00',
+                    notes: '',
+                  })
+                }
+                className="mt-2 w-full rounded-xl bg-[#E8E830] py-2 text-[11px] font-black text-slate-950"
+              >
+                Schedule with me
+              </button>
+            </div>
           ))}
           {!portal.members.length ? (
-            <p className="text-sm text-slate-500">No assigned members yet.</p>
+            <p className="text-sm text-slate-500">No gym members yet.</p>
           ) : null}
         </div>
       ) : null}
@@ -635,6 +723,28 @@ export default function CoachFitgraphPortalPage() {
         <div className="max-w-3xl mx-auto">
           <div className="text-[10px] font-black uppercase tracking-widest text-amber-400">
             Week diary
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {(
+              [
+                ['all', 'All'],
+                ['owner', 'Gym booked'],
+                ['mine', 'My private'],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setCalFilter(id)}
+                className={`rounded-full px-2.5 py-1 text-[10px] font-black ${
+                  calFilter === id
+                    ? 'bg-amber-500 text-amber-950'
+                    : 'border border-slate-600 text-slate-400'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 mt-1">
             <div className="flex items-center gap-2 min-w-0">
@@ -781,7 +891,7 @@ export default function CoachFitgraphPortalPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-7 gap-2">
           {days.map((d) => {
-            const list = portal.by_date?.[d] || [];
+            const list = (portal.by_date?.[d] || []).filter(matchesCal);
             const label = new Date(d + 'T12:00:00').toLocaleDateString(
               undefined,
               { weekday: 'short', day: 'numeric' }
@@ -818,6 +928,9 @@ export default function CoachFitgraphPortalPage() {
                             : card.session.session_kind === 'private_pt'
                               ? `PT · ${card.class_name || 'PT'}`
                               : card.class_name || 'Class'}
+                        </div>
+                        <div className="text-[8px] font-black uppercase tracking-wide text-amber-400/80">
+                          {slotBadge(card)}
                         </div>
                         <div className="text-[9px] text-slate-500 flex gap-1 items-center">
                           <span>
@@ -1409,8 +1522,13 @@ export default function CoachFitgraphPortalPage() {
             </div>
             <p className="text-[11px] text-slate-400">
               Members see your public bio and specialties on the gym calendar.
-              Keep contact details up to date. Engagement dates are set by the
-              gym owner.
+              Keep contact details up to date. Engagement dates and contractor /
+              employed are set by the gym owner.
+            </p>
+            <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+              {portal.coach.engagement === 'employed'
+                ? 'Employed — you also have the company workspace.'
+                : 'Contractor — this work app is your diary. Gym-booked slots and your private PT live here.'}
             </p>
             {(portal.coach.start_date ||
               portal.coach.end_date ||
@@ -2295,6 +2413,103 @@ export default function CoachFitgraphPortalPage() {
               ) : null}{' '}
               Create
             </button>
+          </div>
+        </div>
+      )}
+
+      {bookWith && (
+        <div className="fixed inset-0 z-[60] bg-black/70 flex items-end sm:items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-md p-5 space-y-3">
+            <h3 className="font-black">Book a member with you</h3>
+            <p className="text-[11px] text-slate-400">
+              Creates a private PT slot on your diary and puts the member on it.
+            </p>
+            <select
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              value={bookWith.client_id}
+              onChange={(e) =>
+                setBookWith((f) =>
+                  f ? { ...f, client_id: e.target.value } : f
+                )
+              }
+            >
+              <option value="">Gym member…</option>
+              {portal.members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.code} · {m.name}
+                </option>
+              ))}
+            </select>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="date"
+                className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                value={bookWith.date}
+                onChange={(e) =>
+                  setBookWith((f) => (f ? { ...f, date: e.target.value } : f))
+                }
+              />
+              <input
+                type="time"
+                className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                value={bookWith.start_time}
+                onChange={(e) =>
+                  setBookWith((f) =>
+                    f ? { ...f, start_time: e.target.value } : f
+                  )
+                }
+              />
+            </div>
+            <input
+              type="time"
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              value={bookWith.end_time}
+              onChange={(e) =>
+                setBookWith((f) => (f ? { ...f, end_time: e.target.value } : f))
+              }
+            />
+            <input
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              placeholder="Notes (optional)"
+              value={bookWith.notes}
+              onChange={(e) =>
+                setBookWith((f) => (f ? { ...f, notes: e.target.value } : f))
+              }
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="flex-1 rounded-xl border border-slate-700 py-2.5 text-sm font-bold"
+                onClick={() => setBookWith(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={busy || !bookWith.client_id}
+                className="flex-1 rounded-xl bg-[#E8E830] py-2.5 text-sm font-black text-slate-950 disabled:opacity-50"
+                onClick={() => {
+                  const times = resolveSessionTimes({
+                    start_time: bookWith.start_time,
+                    end_time: bookWith.end_time,
+                  });
+                  void post({
+                    action: 'schedule_member',
+                    client_id: bookWith.client_id,
+                    date: bookWith.date,
+                    start_time: times.start_time,
+                    end_time: times.end_time,
+                    duration_min: times.duration_min,
+                    notes: bookWith.notes.trim() || undefined,
+                  }).then(() => {
+                    setBookWith(null);
+                    setWorkTab('diary');
+                  });
+                }}
+              >
+                Book
+              </button>
+            </div>
           </div>
         </div>
       )}

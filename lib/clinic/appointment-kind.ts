@@ -69,6 +69,13 @@ export function normalizePersonalReason(
   return 'personal';
 }
 
+export function personalReasonOrNull(
+  raw: unknown
+): ClinicPersonalReason | null {
+  if (raw == null || String(raw).trim() === '') return null;
+  return normalizePersonalReason(raw);
+}
+
 export function appointmentKindLabel(
   kind: ClinicAppointmentKind,
   reason?: ClinicPersonalReason | null

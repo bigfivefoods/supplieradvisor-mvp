@@ -49,6 +49,7 @@ import {
   clinicAppointmentSaveFields,
   ensureSystemPersonalService,
   normalizeAppointmentKind,
+  personalReasonOrNull,
 } from '@/lib/clinic/appointment-kind';
 import {
   addMedicalDocument,
@@ -1093,10 +1094,9 @@ export async function POST(request: NextRequest) {
         notes: r.notes,
         public_notes: r.public_notes,
         appointment_kind: normalizeAppointmentKind(r.appointment_kind || kind),
-        personal_reason:
-          (r.personal_reason as PsychiatryAppointment['personal_reason']) ??
-          fields.personal_reason ??
-          null,
+        personal_reason: personalReasonOrNull(
+          r.personal_reason ?? fields.personal_reason
+        ),
         series_id: r.series_id ?? null,
         created_at: r.created_at,
       }));
@@ -1308,6 +1308,15 @@ export async function POST(request: NextRequest) {
         );
         const person = store.practitioners.find((s) => s.id === pracId);
         if (person) {
+          if (person.engagement !== 'employed' && !person.portal_token) {
+            const { issueClinicianPortalToken } = await import(
+              '@/lib/services/clinician-portal'
+            );
+            person.portal_token = issueClinicianPortalToken(
+              companyId,
+              'psychiatrygraph'
+            );
+          }
           const { syncStoreStaffPersonToHr } = await import(
             '@/lib/hr/sync-service-person'
           );
@@ -1685,7 +1694,7 @@ function upsert(
       appointment_kind: rec.appointment_kind || prev?.appointment_kind,
       personal_reason:
         rec.personal_reason !== undefined
-          ? rec.personal_reason
+          ? personalReasonOrNull(rec.personal_reason)
           : prev?.personal_reason ?? null,
       series_id:
         rec.series_id !== undefined

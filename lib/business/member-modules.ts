@@ -20,8 +20,38 @@ import { normalizeTeamRole, type TeamRole } from '@/lib/business/permissions';
 
 export type MemberPermissionsBlob = {
   allowed_modules?: EnabledModulesMap | null;
+  sidebar_module_order?: string[] | null;
   [key: string]: unknown;
 };
+
+export function extractSidebarModuleOrder(
+  permissions: unknown
+): string[] {
+  const p = parseMemberPermissions(permissions);
+  if (!Array.isArray(p.sidebar_module_order)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of p.sidebar_module_order) {
+    const id = String(item || '').trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+export function mergeSidebarOrderIntoPermissions(
+  existing: unknown,
+  order: string[]
+): MemberPermissionsBlob {
+  const base = parseMemberPermissions(existing);
+  return {
+    ...base,
+    sidebar_module_order: extractSidebarModuleOrder({
+      sidebar_module_order: order,
+    }),
+  };
+}
 
 export function parseMemberPermissions(raw: unknown): MemberPermissionsBlob {
   if (!raw) return {};

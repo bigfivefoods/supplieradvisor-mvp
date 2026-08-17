@@ -1895,6 +1895,13 @@ export async function POST(request: NextRequest) {
       );
       const coach = store.coaches.find((c) => c.id === coachId);
       if (coach) {
+        if (
+          (coach.engagement === 'contractor' || !coach.engagement) &&
+          !coach.portal_token
+        ) {
+          coach.portal_token = issueCoachPortalToken(companyId);
+          coach.can_manage_classes = coach.can_manage_classes !== false;
+        }
         const { syncStoreStaffPersonToHr } = await import(
           '@/lib/hr/sync-service-person'
         );

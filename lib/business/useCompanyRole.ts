@@ -56,6 +56,9 @@ export type CompanyRoleState = {
   /** Accounting journals / bank allocate */
   canAccountingWrite: boolean;
   homePath: string;
+  /** This user's sidenav module order for the selected company */
+  sidebarModuleOrder: string[];
+  saveSidebarModuleOrder: (order: string[]) => Promise<void>;
   refresh: () => Promise<void>;
 };
 
@@ -95,6 +98,7 @@ export function useCompanyRole(): CompanyRoleState {
   const [businessType, setBusinessType] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState<string | null>(null);
+  const [sidebarModuleOrder, setSidebarModuleOrder] = useState<string[]>([]);
 
   const refresh = useCallback(async () => {
     if (!companyId || !privyUserId) {
@@ -104,6 +108,7 @@ export function useCompanyRole(): CompanyRoleState {
       setBusinessType(null);
       setLogoUrl(null);
       setCompanyName(null);
+      setSidebarModuleOrder([]);
       setLoading(false);
       return;
     }
@@ -136,6 +141,11 @@ export function useCompanyRole(): CompanyRoleState {
       );
       setLogoUrl(data.logoUrl ? String(data.logoUrl) : null);
       setCompanyName(data.companyName ? String(data.companyName) : null);
+      setSidebarModuleOrder(
+        Array.isArray(data.sidebarModuleOrder)
+          ? data.sidebarModuleOrder.map(String)
+          : []
+      );
     } catch {
       setRole(null);
     } finally {
@@ -178,6 +188,31 @@ export function useCompanyRole(): CompanyRoleState {
 
   const homePath = useMemo(() => defaultHomePathForRole(role), [role]);
 
+  const saveSidebarModuleOrder = useCallback(
+    async (order: string[]) => {
+      if (!companyId || !privyUserId) return;
+      setSidebarModuleOrder(order);
+      const res = await fetch('/api/business/membership', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          sidebarModuleOrder: order,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Could not save sidebar order');
+      }
+      if (Array.isArray(data.sidebarModuleOrder)) {
+        setSidebarModuleOrder(data.sidebarModuleOrder.map(String));
+      }
+    },
+    [companyId, privyUserId]
+  );
+
   const canFinanceCritical = Boolean(role && FINANCE_CRITICAL.includes(role));
   const canOpsWrite = Boolean(role && canWrite(role, 'operations'));
   const canQaOverride = Boolean(role && QA_OVERRIDE_ROLES.includes(role));
@@ -207,6 +242,8 @@ export function useCompanyRole(): CompanyRoleState {
     canMoneyOrOps,
     canAccountingWrite,
     homePath,
+    sidebarModuleOrder,
+    saveSidebarModuleOrder,
     refresh,
   };
 }

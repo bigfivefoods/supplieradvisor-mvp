@@ -6,10 +6,13 @@ import { usePathname } from 'next/navigation';
 import {
   ChevronDown,
   ArrowLeftRight,
+  GripVertical,
   PanelLeftClose,
   PanelLeftOpen,
   Smartphone,
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { moveSidebarModule } from '@/lib/chrome/sidebar-order';
 import { useCompanyRole } from '@/lib/business/useCompanyRole';
 import { SIDEBAR_MODULE_RESOURCE } from '@/lib/business/permissions';
 import SystemHealthBadge from '@/components/system/SystemHealthBadge';
@@ -66,7 +69,12 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     businessType,
     logoUrl,
     companyName,
+    sidebarModuleOrder,
+    saveSidebarModuleOrder,
   } = useCompanyRole();
+  const [arranging, setArranging] = useState(false);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [savingOrder, setSavingOrder] = useState(false);
   const programme = useProgrammeRole();
   const healthProgramme = useHealthProgrammeRole();
 
@@ -79,8 +87,15 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
       isModuleEnabled: isCompanyModuleEnabled,
       packaging,
       simplifiedSchool,
+      moduleOrder: sidebarModuleOrder,
     });
-  }, [isCompanyModuleEnabled, packaging, businessType, programme.role]);
+  }, [
+    isCompanyModuleEnabled,
+    packaging,
+    businessType,
+    programme.role,
+    sidebarModuleOrder,
+  ]);
 
   const visibleModules = useMemo(() => {
     // sales_contractor must only see Sales (enforced in /sales SalesShell;
@@ -167,7 +182,24 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     isCompanyModuleEnabled,
     programme.role,
     healthProgramme.role,
+    modules,
   ]);
+
+  const persistOrder = async (fromId: string, toId: string) => {
+    const visibleIds = visibleModules.map((m) => m.id);
+    const base = visibleIds;
+    const nextVisible = moveSidebarModule(base, fromId, toId);
+    const hidden = sidebarModuleOrder.filter((id) => !visibleIds.includes(id));
+    const next = [...nextVisible, ...hidden];
+    setSavingOrder(true);
+    try {
+      await saveSidebarModuleOrder(next);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not save order');
+    } finally {
+      setSavingOrder(false);
+    }
+  };
 
   const toggleModule = (id: string) => {
     setExpandedModules((prev) => {
@@ -428,22 +460,81 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
       </div>
 
       <nav className="flex-1 overflow-y-auto p-3 scrollbar-none">
+        {role !== 'sales_contractor' ? (
+          <div className="mb-2 flex items-center justify-between px-1">
+            <button
+              type="button"
+              onClick={() => setArranging((v) => !v)}
+              className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${
+                arranging
+                  ? 'bg-[var(--sa-brand)] text-[var(--sa-brand-ink,#0f172a)]'
+                  : 'text-neutral-400 hover:bg-neutral-100 hover:text-slate-700'
+              }`}
+            >
+              {arranging ? 'Done arranging' : 'Arrange sidebar'}
+            </button>
+            {savingOrder ? (
+              <span className="text-[10px] font-bold text-neutral-400">
+                Saving…
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+        {arranging ? (
+          <p className="mb-2 px-1 text-[10px] leading-snug text-neutral-500">
+            Drag modules to set your order. Saved to your profile for this
+            company.
+          </p>
+        ) : null}
         {visibleModules.map((mod) => {
           const Icon = mod.icon;
           const isActive = isModuleActive(mod.href);
-          const isExpanded = expandedModules[mod.id] ?? false;
+          const isExpanded = arranging ? false : expandedModules[mod.id] ?? false;
 
           return (
-            <div key={mod.id} className="mb-1">
+            <div
+              key={mod.id}
+              className="mb-1"
+              draggable={arranging}
+              onDragStart={(e) => {
+                setDragId(mod.id);
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', mod.id);
+              }}
+              onDragOver={(e) => {
+                if (!arranging || !dragId || dragId === mod.id) return;
+                e.preventDefault();
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (!arranging || !dragId || dragId === mod.id) return;
+                void persistOrder(dragId, mod.id);
+                setDragId(null);
+              }}
+              onDragEnd={() => setDragId(null)}
+            >
               <div
                 className={`flex items-center justify-between px-3 py-2.5 rounded-2xl transition-all ${
-                  isActive ? 'bg-[var(--sa-brand)] text-[var(--sa-brand-ink,#fff)]' : 'hover:bg-neutral-100 text-slate-800'
-                }`}
+                  dragId === mod.id
+                    ? 'opacity-50'
+                    : isActive
+                      ? 'bg-[var(--sa-brand)] text-[var(--sa-brand-ink,#fff)]'
+                      : 'hover:bg-neutral-100 text-slate-800'
+                } ${arranging ? 'cursor-grab' : ''}`}
               >
+                {arranging ? (
+                  <span className="mr-2 text-neutral-400" aria-hidden>
+                    <GripVertical className="h-4 w-4" />
+                  </span>
+                ) : null}
                 <Link
                   href={mod.href}
                   className="flex items-center gap-3 flex-1 min-w-0"
-                  onClick={() => {
+                  onClick={(e) => {
+                    if (arranging) {
+                      e.preventDefault();
+                      return;
+                    }
                     // Keep submenu open when selecting a module with children
                     if (mod.sub.length > 0) {
                       setExpandedModules((prev) => {

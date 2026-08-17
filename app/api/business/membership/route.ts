@@ -11,7 +11,7 @@ import {
   canView,
   type PermissionResource,
 } from '@/lib/business/permissions';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
   extractEnabledModulesFromMetadata,
@@ -21,8 +21,15 @@ import {
 import {
   effectiveModulesForMember,
   extractAllowedModules,
+  extractSidebarModuleOrder,
   hasCustomModuleAccess,
+  mergeSidebarOrderIntoPermissions,
 } from '@/lib/business/member-modules';
+import {
+  mergeUserSidebarOrderIntoCompanyMeta,
+  parseSidebarModuleOrder,
+  readUserSidebarOrderFromCompanyMeta,
+} from '@/lib/chrome/sidebar-order';
 
 /**
  * GET ?companyId=&privyUserId=
@@ -60,6 +67,7 @@ export async function GET(request: NextRequest) {
     let businessType: string | null = null;
     let logoUrl: string | null = null;
     let companyName: string | null = null;
+    let companyMeta: Record<string, unknown> = {};
     try {
       const supabase = getSupabaseServer();
       const { data: prof } = await supabase
@@ -78,6 +86,7 @@ export async function GET(request: NextRequest) {
           ? (prof.metadata as Record<string, unknown>)
           : null;
       if (meta) {
+        companyMeta = meta;
         const { readPackagingFromMetadata } = await import(
           '@/lib/product/architecture'
         );
@@ -97,6 +106,12 @@ export async function GET(request: NextRequest) {
       permissions: mem.permissions,
       role: mem.role,
     });
+    const fromMember = extractSidebarModuleOrder(mem.permissions);
+    const fromProfile = readUserSidebarOrderFromCompanyMeta(
+      companyMeta,
+      mem.userId
+    );
+    const sidebarModuleOrder = fromMember.length ? fromMember : fromProfile;
 
     return NextResponse.json({
       success: true,
@@ -127,6 +142,79 @@ export async function GET(request: NextRequest) {
       logoUrl,
       companyName,
       moduleOptions: listCompanyModuleOptions(),
+      sidebarModuleOrder,
+    });
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Error' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH { companyId, sidebarModuleOrder }
+ * Save this user's sidenav order onto the company profile and their membership.
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const companyId = Number(body.companyId);
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
+    const mem = await getCompanyMembership(gate.userId, companyId);
+    if (!mem.ok) {
+      return NextResponse.json({ error: mem.error }, { status: mem.status });
+    }
+    const order = parseSidebarModuleOrder(body.sidebarModuleOrder);
+    const supabase = getSupabaseServer();
+    const nextPerms = mergeSidebarOrderIntoPermissions(mem.permissions, order);
+    const { error: memErr } = await supabase
+      .from('business_users')
+      .update({
+        permissions: nextPerms,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', mem.memberId)
+      .eq('profile_id', companyId);
+    if (memErr) {
+      return NextResponse.json({ error: memErr.message }, { status: 500 });
+    }
+
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('metadata')
+      .eq('id', companyId)
+      .maybeSingle();
+    const meta =
+      prof?.metadata && typeof prof.metadata === 'object'
+        ? { ...(prof.metadata as Record<string, unknown>) }
+        : {};
+    const nextMeta = mergeUserSidebarOrderIntoCompanyMeta(
+      meta,
+      mem.userId,
+      order
+    );
+    const { error: profErr } = await supabase
+      .from('profiles')
+      .update({
+        metadata: nextMeta,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', companyId);
+    if (profErr) {
+      return NextResponse.json({ error: profErr.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      sidebarModuleOrder: order,
+      message: 'Sidebar order saved',
     });
   } catch (e: unknown) {
     return NextResponse.json(

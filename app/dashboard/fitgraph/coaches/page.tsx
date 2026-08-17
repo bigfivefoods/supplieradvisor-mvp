@@ -34,6 +34,7 @@ import {
 } from '@/lib/fitness/fitgraph';
 import { FitContractDocsPanel } from '@/components/fitness/FitContractDocs';
 import { AdvisorPersonInviteRow } from '@/components/advisors/AdvisorPersonInviteRow';
+import { AdvisorEngagementField } from '@/components/advisors/AdvisorEngagementField';
 import { PersonQualificationsEditor } from '@/components/services/PersonQualificationsEditor';
 import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
 import type { PersonQualification } from '@/lib/services/person-qualifications';
@@ -76,6 +77,7 @@ type ProfileDraft = {
   color: string;
   can_manage_classes: boolean;
   active: boolean;
+  engagement: 'employed' | 'contractor';
 };
 
 function emptyForm() {
@@ -94,6 +96,7 @@ function emptyForm() {
     rate_zar: '',
     rate_basis: 'per_class',
     rate_note: '',
+    engagement: 'contractor' as 'employed' | 'contractor',
   };
 }
 
@@ -112,6 +115,8 @@ function profileFromCoach(c: FitCoach): ProfileDraft {
     color: c.color || '#d97706',
     can_manage_classes: c.can_manage_classes !== false,
     active: c.active !== false && !c.end_date,
+    engagement:
+      c.engagement === 'employed' ? 'employed' : 'contractor',
   };
 }
 
@@ -266,6 +271,7 @@ export default function CoachesPage() {
         rate_zar: form.rate_zar === '' ? null : Number(form.rate_zar),
         rate_basis: form.rate_basis || 'per_class',
         rate_note: form.rate_note || undefined,
+        engagement: form.engagement || 'contractor',
       },
     });
     toast.success(
@@ -429,6 +435,7 @@ export default function CoachesPage() {
         photo_url: p.photo_url.trim() || '',
         color: p.color || undefined,
         can_manage_classes: p.can_manage_classes,
+        engagement: p.engagement || 'contractor',
         // Only force active when ending is not already set via end_date
         active: p.active,
         // Preserve engagement fields (don't wipe when editing profile)
@@ -545,7 +552,7 @@ export default function CoachesPage() {
     <FitgraphWorkbench
       title="Coaches"
       titleAccent="trainers"
-      description="Add and edit coaches: name, contact, specialties (create your own catalogue), bios, photo, PDF contracts, pay rates, and engagement dates. Issue portal links so coaches can also update their own profile and classes."
+      description="Add coaches and choose Contractor (work app diary) or Employed (company workspace). Contractors see gym-booked slots and can book members with them on their phone."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -755,6 +762,13 @@ export default function CoachesPage() {
               onChange={(e) =>
                 setForm((f) => ({ ...f, phone: e.target.value }))
               }
+            />
+            <AdvisorEngagementField
+              value={form.engagement}
+              onChange={(engagement) =>
+                setForm((f) => ({ ...f, engagement }))
+              }
+              disabled={saving}
             />
             <label className="block">
               <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
@@ -1126,6 +1140,13 @@ export default function CoachesPage() {
                                 }
                               />
                             </label>
+                            <AdvisorEngagementField
+                              value={profile.engagement}
+                              onChange={(engagement) =>
+                                setProfile(c.id, { engagement })
+                              }
+                              disabled={saving}
+                            />
                             <div className="sm:col-span-2">
                               <ProfilePhotoField
                                 companyId={companyId}

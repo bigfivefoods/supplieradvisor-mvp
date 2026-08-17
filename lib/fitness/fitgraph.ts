@@ -334,6 +334,13 @@ export type FitCoach = {
   created_at: string;
 } & import('@/lib/services/advisor-workforce').AdvisorPersonInviteFields;
 
+/** Who put this session on the coach diary. */
+export function sessionScheduledBy(session: {
+  origin?: string | null;
+}): 'owner' | 'coach' {
+  return String(session.origin || '') === 'coach' ? 'coach' : 'owner';
+}
+
 export function formatCoachRate(
   rateZar?: number | null,
   basis?: FitCoachRateBasis | null
@@ -2319,6 +2326,7 @@ export function buildCoachPortalPayload(
       );
       return {
         session: s,
+        scheduled_by: sessionScheduledBy(s),
         programme: programmeForSessionPayload(store, s),
         class_name: ct?.name,
         class_code: ct?.code,
@@ -2417,6 +2425,7 @@ export function buildCoachPortalPayload(
       history: coach.history || [],
       active: coach.active !== false,
       can_manage_classes: coach.can_manage_classes !== false,
+      engagement: coach.engagement || (coach.hr_employee_id ? 'employed' : 'contractor'),
       identity: {
         status: String(coach.identity?.status || 'unverified'),
         provider: coach.identity?.provider || null,

@@ -24,6 +24,7 @@ import {
 import { FitContractDocsPanel } from '@/components/fitness/FitContractDocs';
 import { PersonQualificationsEditor } from '@/components/services/PersonQualificationsEditor';
 import { AdvisorPersonInviteRow } from '@/components/advisors/AdvisorPersonInviteRow';
+import { AdvisorEngagementField } from '@/components/advisors/AdvisorEngagementField';
 import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
 import type { PersonQualification } from '@/lib/services/person-qualifications';
 import {
@@ -97,6 +98,7 @@ function emptyForm() {
     rate_zar: '',
     rate_basis: 'per_session',
     rate_note: '',
+    engagement: 'contractor' as 'employed' | 'contractor',
   };
 }
 
@@ -265,6 +267,7 @@ export default function StaffPage() {
         rate_zar: form.rate_zar === '' ? null : Number(form.rate_zar),
         rate_basis: form.rate_basis || 'per_session',
         rate_note: form.rate_note || undefined,
+        engagement: form.engagement || 'contractor',
       },
     });
     toast.success('Staff member saved — synced to People directory');
@@ -686,6 +689,13 @@ export default function StaffPage() {
               placeholder="Phone"
               value={form.phone}
               onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+            />
+            <AdvisorEngagementField
+              value={form.engagement}
+              onChange={(engagement) =>
+                setForm((f) => ({ ...f, engagement }))
+              }
+              disabled={saving}
             />
             <label className="block">
               <span className="text-[10px] font-black uppercase tracking-wider text-sky-800 dark:text-sky-300">

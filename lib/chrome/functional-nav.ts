@@ -7,6 +7,7 @@
  * Industry Tools is additive when packs are active.
  */
 import { MODULE_NAV, type ModuleNav } from '@/lib/chrome/module-nav';
+import { applySidebarModuleOrder } from '@/lib/chrome/sidebar-order';
 import {
   INDUSTRY_PACKS,
   readPackagingFromMetadata,
@@ -230,6 +231,7 @@ export function functionalSidebarModules(opts: {
   isModuleEnabled: (id: string) => boolean;
   packaging?: PackagingSelection | null;
   simplifiedSchool?: boolean;
+  moduleOrder?: string[] | null;
 }): SidebarModuleShape[] {
   const packIds = opts.packaging?.packIds || [];
   const hasPacks = packIds.length > 0;
@@ -361,7 +363,7 @@ export function functionalSidebarModules(opts: {
     else out.push(multi);
   }
 
-  return out;
+  return applySidebarModuleOrder(out, opts.moduleOrder);
 }
 
 /** Collect pack tool links + preserve entry points into full modules */
