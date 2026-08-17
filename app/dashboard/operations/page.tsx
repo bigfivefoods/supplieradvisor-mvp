@@ -346,7 +346,7 @@ function CommandInner() {
                         {metric}
                       </div>
                       <div className="text-[9px] font-bold uppercase text-neutral-400">
-                        {m.metricLabel}
+                        {'metricLabel' in m ? m.metricLabel : 'week'}
                       </div>
                     </div>
                   </div>
