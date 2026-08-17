@@ -53,12 +53,23 @@ type MgmtSummary = {
   allocatedCount: number;
 };
 
+type AccountPosting = {
+  journalId: number;
+  date: string;
+  documentNumber: string | null;
+  memo: string | null;
+  source: string;
+  counterparty: string | null;
+  amount: number;
+};
+
 type LineRow = {
   id: number;
   code: string;
   name: string;
   account_type: string;
   amount: number;
+  postings?: AccountPosting[];
 };
 
 type PeriodJournal = {
@@ -71,6 +82,29 @@ type PeriodJournal = {
   status?: string | null;
   total_debit?: number;
   total_credit?: number;
+};
+
+type SalesOriginKind = 'invoice' | 'bank' | 'manual' | 'other';
+
+type SalesOrigin = {
+  total: number;
+  buckets: Array<{
+    kind: SalesOriginKind;
+    label: string;
+    amount: number;
+    count: number;
+  }>;
+  lines: Array<{
+    journalId: number;
+    date: string;
+    kind: SalesOriginKind;
+    source: string;
+    label: string;
+    counterparty: string | null;
+    accountCode: string;
+    accountName: string;
+    amount: number;
+  }>;
 };
 
 export default function ManagementAccountsPage() {
@@ -127,6 +161,7 @@ function Inner() {
   const [cogs, setCogs] = useState<LineRow[]>([]);
   const [expenses, setExpenses] = useState<LineRow[]>([]);
   const [journals, setJournals] = useState<PeriodJournal[]>([]);
+  const [sales, setSales] = useState<SalesOrigin | null>(null);
   /** Collapsed by default — expand to browse period journal lines */
   const [journalsOpen, setJournalsOpen] = useState(false);
   const [trendLabels, setTrendLabels] = useState<string[]>([]);
@@ -199,6 +234,9 @@ function Inner() {
       setCogs(data.cogs || []);
       setExpenses(data.expenses || []);
       setJournals(Array.isArray(data.journals) ? data.journals : []);
+      setSales(
+        data.sales && typeof data.sales === 'object' ? (data.sales as SalesOrigin) : null
+      );
       setBudgetVsActual(
         data.budgetVsActual && typeof data.budgetVsActual === 'object'
           ? data.budgetVsActual
@@ -271,7 +309,7 @@ function Inner() {
       <AccountingHeader
         title="Management"
         titleAccent="accounts"
-        description="Period P&L from posted journals (including bank allocations), with budget (plan) vs actual when a 12-month COA budget exists. Download a one-page PDF for review meetings, or open AFS for the formal pack."
+        description="Period P&L from posted journals. Sales lists the exclusive value and whether it came from issued invoices, bank coded to income, or journals. Budget vs actual appears when a 12-month COA budget exists."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -348,6 +386,12 @@ function Inner() {
               tone={(summary?.operatingProfit ?? 0) >= 0 ? 'emerald' : 'amber'}
             />
           </div>
+
+          <SalesOriginSection
+            sales={sales}
+            periodLabel={periodLabel}
+            fallbackTotal={summary?.revenue ?? 0}
+          />
 
           <div className="grid lg:grid-cols-3 gap-3 mb-6">
             <Kpi label="Bank in (period)" value={formatMoney(summary?.bankIn ?? 0)} />
@@ -713,18 +757,21 @@ function Inner() {
             Account lines
           </SectionLabel>
 
-          <SectionLabel>Income</SectionLabel>
-          <AccountTable rows={income} empty="No income posted in this period" />
+          <AccountSection
+            title="Income"
+            rows={income}
+            empty="No income posted in this period"
+          />
 
           {cogs.length > 0 && (
-            <>
-              <SectionLabel>Cost of sales</SectionLabel>
-              <AccountTable rows={cogs} empty="" />
-            </>
+            <AccountSection title="Cost of sales" rows={cogs} empty="" />
           )}
 
-          <SectionLabel>Operating expenses</SectionLabel>
-          <AccountTable rows={expenses} empty="No expenses posted in this period" />
+          <AccountSection
+            title="Operating expenses"
+            rows={expenses}
+            empty="No expenses posted in this period"
+          />
 
           <Panel className="mt-6">
             <div className="px-5 py-5 space-y-2 text-sm">
@@ -747,12 +794,186 @@ function Inner() {
           </Panel>
 
           <p className="mt-6 text-[11px] text-neutral-400 text-center max-w-xl mx-auto">
-            Financial year: 1 March – 28/29 February. Built from posted double-entry journals.
-            Import bank PDF → mass-allocate to GL → figures update here.
+            Financial year: 1 March – 28/29 February. Sales come from issued invoices and
+            any bank lines coded to revenue. Import bank PDF → allocate or match invoices →
+            figures update here.
           </p>
         </>
       )}
     </AccountingPage>
+  );
+}
+
+function SalesOriginSection({
+  sales,
+  periodLabel,
+  fallbackTotal,
+}: {
+  sales: SalesOrigin | null;
+  periodLabel: string;
+  fallbackTotal: number;
+}) {
+  const [open, setOpen] = useState(true);
+  const [kindFilter, setKindFilter] = useState<SalesOriginKind | null>(null);
+  const total = sales?.total ?? fallbackTotal;
+  const buckets =
+    sales?.buckets?.length
+      ? sales.buckets
+      : ([
+          { kind: 'invoice', label: 'Issued invoices', amount: 0, count: 0 },
+          { kind: 'bank', label: 'Bank coded to sales', amount: 0, count: 0 },
+          { kind: 'manual', label: 'Manual journals', amount: 0, count: 0 },
+          { kind: 'other', label: 'Other journals', amount: 0, count: 0 },
+        ] satisfies SalesOrigin['buckets']);
+  const lines = sales?.lines || [];
+  const visibleLines = kindFilter
+    ? lines.filter((l) => l.kind === kindFilter)
+    : lines;
+  const hasLines = lines.length > 0;
+
+  return (
+    <Panel className="mb-8 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full flex-wrap items-start justify-between gap-3 border-b border-emerald-100 bg-emerald-50/50 px-4 py-4 text-left sm:px-5"
+        aria-expanded={open}
+      >
+        <div className="flex min-w-0 items-start gap-2">
+          {open ? (
+            <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
+          ) : (
+            <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+          )}
+          <div className="min-w-0">
+            <h2 className="text-sm font-black text-slate-900">Sales</h2>
+            <p className="mt-0.5 text-[11px] leading-snug text-neutral-500">
+              Exclusive of VAT · {periodLabel} · posted to revenue accounts
+              {open ? '' : ' — expand for sources and journals'}
+            </p>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800/70">
+            Sales value
+          </div>
+          <div className="text-2xl font-black tabular-nums text-emerald-900">
+            {formatMoney(total)}
+          </div>
+        </div>
+      </button>
+
+      {open && (
+        <>
+
+      <div className="grid grid-cols-2 gap-3 p-4 lg:grid-cols-4 sm:p-5">
+        {buckets.map((b) => {
+          const live = b.count > 0 || Math.abs(b.amount) >= 0.005;
+          const active = kindFilter === b.kind;
+          return (
+            <button
+              type="button"
+              key={b.kind}
+              onClick={() => setKindFilter((k) => (k === b.kind ? null : b.kind))}
+              className={`rounded-2xl border px-3 py-3 text-left transition-colors ${
+                active
+                  ? 'border-[#00b4d8] bg-sky-50'
+                  : live
+                    ? 'border-emerald-100 bg-white hover:border-[#00b4d8]/40'
+                    : 'border-neutral-100 bg-slate-50/70'
+              }`}
+            >
+              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                {b.label}
+              </div>
+              <div className="mt-1 text-lg font-black tabular-nums text-slate-900">
+                {formatMoney(b.amount)}
+              </div>
+              <div className="mt-0.5 text-[11px] text-neutral-500">
+                {b.count === 0
+                  ? 'None this period'
+                  : `${b.count} ${b.count === 1 ? 'posting' : 'postings'}${
+                      active ? ' · showing' : ''
+                    }`}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {!hasLines ? (
+        <div className="border-t border-neutral-100 px-4 py-8 text-center text-sm text-neutral-500 sm:px-5">
+          No sales posted in this period. Issue a customer invoice (Sent) or allocate a
+          bank receipt to a sales account.
+        </div>
+      ) : (
+        <div className="border-t border-neutral-100">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead>
+                <tr className="border-b border-neutral-100 bg-white text-left text-[10px] uppercase tracking-wider text-neutral-400">
+                  <th className="px-4 py-2.5 font-semibold sm:px-5">Date</th>
+                  <th className="px-3 py-2.5 font-semibold">From</th>
+                  <th className="px-3 py-2.5 font-semibold">Detail</th>
+                  <th className="px-3 py-2.5 font-semibold">Customer</th>
+                  <th className="px-3 py-2.5 font-semibold">Account</th>
+                  <th className="px-4 py-2.5 text-right font-semibold sm:px-5">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {visibleLines.slice(0, 40).map((r, i) => (
+                  <tr key={`${r.journalId}-${r.accountCode}-${i}`} className="hover:bg-slate-50/80">
+                    <td className="whitespace-nowrap px-4 py-2.5 text-slate-700 sm:px-5">
+                      {r.date
+                        ? new Date(r.date).toLocaleDateString('en-ZA')
+                        : '—'}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                        {r.kind === 'invoice'
+                          ? 'Invoice'
+                          : r.kind === 'bank'
+                            ? 'Bank'
+                            : r.kind === 'manual'
+                              ? 'Manual'
+                              : 'Other'}
+                      </span>
+                    </td>
+                    <td className="max-w-[14rem] truncate px-3 py-2.5 font-medium text-slate-800">
+                      {r.label}
+                    </td>
+                    <td className="max-w-[10rem] truncate px-3 py-2.5 text-slate-600">
+                      {r.counterparty || '—'}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs text-neutral-500">
+                      {r.accountCode} {r.accountName}
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-900 sm:px-5">
+                      {formatMoney(r.amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="border-t border-neutral-100 px-4 py-3 text-[11px] leading-relaxed text-neutral-500 sm:px-5">
+            Issued invoices book Sales on the issue date (accrual). Bank coded to sales is
+            cash-basis — do not also match that receipt to the invoice. Settlement of an
+            invoice (Dr bank · Cr AR) is not a second sale.
+            {kindFilter
+              ? ` Showing ${visibleLines.length} ${kindFilter} posting${
+                  visibleLines.length === 1 ? '' : 's'
+                }.`
+              : ''}
+            {visibleLines.length > 40
+              ? ` Showing first 40 of ${visibleLines.length} postings.`
+              : ''}
+          </p>
+        </div>
+      )}
+        </>
+      )}
+    </Panel>
   );
 }
 
@@ -790,49 +1011,196 @@ function Kpi({
   );
 }
 
-function AccountTable({ rows, empty }: { rows: LineRow[]; empty: string }) {
-  if (rows.length === 0) {
-    return (
-      <Panel className="mb-6">
-        <div className="px-6 py-8 text-center text-sm text-neutral-500">{empty}</div>
-      </Panel>
-    );
+function AccountSection({
+  title,
+  rows,
+  empty,
+}: {
+  title: string;
+  rows: LineRow[];
+  empty: string;
+}) {
+  const [open, setOpen] = useState(true);
+  const [openIds, setOpenIds] = useState<Record<number, boolean>>({});
+  const total = rows.reduce((s, r) => s + Number(r.amount), 0);
+  const postingCount = rows.reduce((s, r) => s + (r.postings?.length || 0), 0);
+
+  function toggleRow(id: number) {
+    setOpenIds((prev) => ({ ...prev, [id]: !prev[id] }));
   }
+
   return (
-    <Panel className="mb-6">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-400 border-b border-neutral-100">
-              <th className="px-4 py-3 font-semibold">Code</th>
-              <th className="px-4 py-3 font-semibold">Account</th>
-              <th className="px-4 py-3 font-semibold text-right">Amount</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-neutral-50">
-            {rows.map((r) => (
-              <tr key={r.id} className="hover:bg-neutral-50/80">
-                <td className="px-4 py-2.5 font-mono text-xs font-semibold text-slate-700">
-                  {r.code}
-                </td>
-                <td className="px-4 py-2.5 text-slate-800">{r.name}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums font-semibold">
-                  {formatMoney(r.amount)}
-                </td>
-              </tr>
-            ))}
-            <tr className="bg-neutral-50/80">
-              <td colSpan={2} className="px-4 py-2.5 font-bold text-slate-900">
-                Total
-              </td>
-              <td className="px-4 py-2.5 text-right tabular-nums font-black">
-                {formatMoney(rows.reduce((s, r) => s + Number(r.amount), 0))}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+    <Panel className="mb-6 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-3 border-b border-neutral-100 bg-slate-50/80 px-4 py-3 text-left"
+        aria-expanded={open}
+      >
+        <span className="inline-flex min-w-0 items-center gap-2">
+          {open ? (
+            <ChevronDown className="h-4 w-4 shrink-0 text-[#00b4d8]" />
+          ) : (
+            <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+          )}
+          <span className="text-sm font-black text-slate-900">{title}</span>
+          <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-bold tabular-nums text-slate-600">
+            {rows.length}
+          </span>
+          {!open && (
+            <span className="hidden text-[11px] text-slate-500 sm:inline">
+              Expand for accounts and journals
+            </span>
+          )}
+        </span>
+        <span className="shrink-0 text-sm font-black tabular-nums text-slate-900">
+          {formatMoney(total)}
+        </span>
+      </button>
+
+      {open &&
+        (rows.length === 0 ? (
+          <div className="px-6 py-8 text-center text-sm text-neutral-500">{empty}</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[520px] text-sm">
+              <thead>
+                <tr className="border-b border-neutral-100 text-left text-[11px] uppercase tracking-wider text-neutral-400">
+                  <th className="w-8 px-3 py-3 font-semibold" />
+                  <th className="px-3 py-3 font-semibold">Code</th>
+                  <th className="px-3 py-3 font-semibold">Account</th>
+                  <th className="px-4 py-3 text-right font-semibold">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-50">
+                {rows.map((r) => {
+                  const expanded = Boolean(openIds[r.id]);
+                  const posts = r.postings || [];
+                  return (
+                    <AccountRow
+                      key={r.id}
+                      row={r}
+                      expanded={expanded}
+                      postings={posts}
+                      onToggle={() => toggleRow(r.id)}
+                    />
+                  );
+                })}
+                <tr className="bg-neutral-50/80">
+                  <td className="px-3 py-2.5" />
+                  <td colSpan={2} className="px-3 py-2.5 font-bold text-slate-900">
+                    Total
+                    {postingCount > 0 && (
+                      <span className="ml-2 text-[11px] font-semibold text-neutral-500">
+                        {postingCount} journal {postingCount === 1 ? 'line' : 'lines'}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums font-black">
+                    {formatMoney(total)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        ))}
     </Panel>
+  );
+}
+
+function AccountRow({
+  row,
+  expanded,
+  postings,
+  onToggle,
+}: {
+  row: LineRow;
+  expanded: boolean;
+  postings: AccountPosting[];
+  onToggle: () => void;
+}) {
+  return (
+    <>
+      <tr className="hover:bg-neutral-50/80">
+        <td className="px-3 py-2.5">
+          <button
+            type="button"
+            onClick={onToggle}
+            className="inline-flex items-center text-slate-400 hover:text-[#00b4d8]"
+            aria-expanded={expanded}
+            aria-label={`${expanded ? 'Hide' : 'Show'} journals for ${row.name}`}
+          >
+            {expanded ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </button>
+        </td>
+        <td className="px-3 py-2.5 font-mono text-xs font-semibold text-slate-700">
+          {row.code}
+        </td>
+        <td className="px-3 py-2.5 text-slate-800">
+          <button type="button" onClick={onToggle} className="text-left font-medium">
+            {row.name}
+          </button>
+          <span className="ml-2 text-[11px] text-neutral-400">
+            {postings.length} {postings.length === 1 ? 'journal' : 'journals'}
+          </span>
+        </td>
+        <td className="px-4 py-2.5 text-right tabular-nums font-semibold">
+          {formatMoney(row.amount)}
+        </td>
+      </tr>
+      {expanded && (
+        <tr className="bg-sky-50/40">
+          <td colSpan={4} className="px-4 py-3 sm:px-6">
+            {postings.length === 0 ? (
+              <p className="text-xs text-neutral-500">No journal lines on this account.</p>
+            ) : (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-[10px] uppercase tracking-wider text-neutral-400">
+                    <th className="py-1.5 pr-3 font-semibold">Date</th>
+                    <th className="py-1.5 pr-3 font-semibold">Ref</th>
+                    <th className="py-1.5 pr-3 font-semibold">Memo</th>
+                    <th className="py-1.5 pr-3 font-semibold">Source</th>
+                    <th className="py-1.5 pr-3 font-semibold">Customer</th>
+                    <th className="py-1.5 text-right font-semibold">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {postings.map((p, i) => (
+                    <tr key={`${p.journalId}-${i}`} className="border-t border-sky-100/80">
+                      <td className="whitespace-nowrap py-1.5 pr-3 text-slate-700">
+                        {p.date
+                          ? new Date(p.date).toLocaleDateString('en-ZA')
+                          : '—'}
+                      </td>
+                      <td className="py-1.5 pr-3 font-mono text-slate-600">
+                        {p.documentNumber || `#${p.journalId}`}
+                      </td>
+                      <td className="max-w-[16rem] truncate py-1.5 pr-3 text-slate-800">
+                        {p.memo || '—'}
+                      </td>
+                      <td className="py-1.5 pr-3 capitalize text-neutral-500">
+                        {String(p.source || 'manual').replace(/_/g, ' ')}
+                      </td>
+                      <td className="max-w-[10rem] truncate py-1.5 pr-3 text-slate-600">
+                        {p.counterparty || '—'}
+                      </td>
+                      <td className="py-1.5 text-right tabular-nums font-semibold text-slate-900">
+                        {formatMoney(p.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 

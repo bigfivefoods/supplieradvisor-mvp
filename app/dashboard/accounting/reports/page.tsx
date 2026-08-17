@@ -1875,6 +1875,26 @@ function MgmtSnapshot({ data }: { data: Record<string, unknown> }) {
   const summary = data.summary as Record<string, number> | undefined;
   const income = (data.income as Array<Record<string, unknown>>) || [];
   const expenses = (data.expenses as Array<Record<string, unknown>>) || [];
+  const sales = data.sales as
+    | {
+        total?: number;
+        buckets?: Array<{
+          kind: string;
+          label: string;
+          amount: number;
+          count: number;
+        }>;
+        lines?: Array<{
+          date: string;
+          kind: string;
+          label: string;
+          counterparty: string | null;
+          accountCode: string;
+          accountName: string;
+          amount: number;
+        }>;
+      }
+    | undefined;
   const bva = data.budgetVsActual as
     | {
         summary?: {
@@ -1970,6 +1990,65 @@ function MgmtSnapshot({ data }: { data: Record<string, unknown> }) {
           </p>
         </>
       )}
+      {sales && (
+        <Panel className="mb-6 overflow-hidden">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-emerald-100 bg-emerald-50/50 px-4 py-3">
+            <div>
+              <h2 className="text-sm font-black text-slate-900">Sales</h2>
+              <p className="text-[11px] text-neutral-500">
+                Exclusive of VAT · where the period revenue was booked
+              </p>
+            </div>
+            <div className="text-right text-xl font-black tabular-nums text-emerald-900">
+              {formatMoney(Number(sales.total || summary.revenue || 0))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 p-4 lg:grid-cols-4">
+            {(sales.buckets || []).map((b) => (
+              <div key={b.kind} className="rounded-2xl border border-neutral-100 bg-white px-3 py-2.5">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                  {b.label}
+                </div>
+                <div className="mt-1 font-black tabular-nums text-slate-900">
+                  {formatMoney(b.amount)}
+                </div>
+                <div className="text-[11px] text-neutral-500">
+                  {b.count} {b.count === 1 ? 'posting' : 'postings'}
+                </div>
+              </div>
+            ))}
+          </div>
+          {(sales.lines || []).length > 0 && (
+            <div className="overflow-x-auto border-t border-neutral-100">
+              <table className="w-full min-w-[560px] text-sm">
+                <thead>
+                  <tr className="border-b border-neutral-100 text-left text-[10px] uppercase tracking-wider text-neutral-400">
+                    <th className="px-4 py-2.5 font-semibold">Date</th>
+                    <th className="px-3 py-2.5 font-semibold">From</th>
+                    <th className="px-3 py-2.5 font-semibold">Detail</th>
+                    <th className="px-3 py-2.5 font-semibold">Customer</th>
+                    <th className="px-4 py-2.5 text-right font-semibold">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {(sales.lines || []).slice(0, 25).map((r, i) => (
+                    <tr key={`${r.date}-${r.label}-${i}`}>
+                      <td className="px-4 py-2.5 whitespace-nowrap">{r.date || '—'}</td>
+                      <td className="px-3 py-2.5 capitalize">{r.kind}</td>
+                      <td className="px-3 py-2.5">{r.label}</td>
+                      <td className="px-3 py-2.5">{r.counterparty || '—'}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">
+                        {formatMoney(r.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Panel>
+      )}
+
       <div className="grid lg:grid-cols-2 gap-4 mb-6">
         <ChartCard title="Period bridge" height={280}>
           <PeriodWaterfall

@@ -205,7 +205,9 @@ export async function GET(request: NextRequest) {
       // Safe column list only — `reference` does NOT exist on journal_entries in prod
       let jeQ = supabase
         .from('journal_entries')
-        .select('id, entry_date, status, source, memo, entry_number, currency, posted_at, created_at')
+        .select(
+          'id, entry_date, status, source, source_id, memo, entry_number, currency, posted_at, created_at, metadata'
+        )
         .eq('profile_id', companyId)
         .eq('status', 'posted')
         .order('entry_date', { ascending: false })
@@ -275,16 +277,28 @@ export async function GET(request: NextRequest) {
         debit: number;
         credit: number;
         journal_entry_id?: number;
+        memo?: string | null;
+        counterparty?: string | null;
       }> = [];
       // Chunk .in() for large periods (PostgREST URL limits)
       if (entryIds.length) {
         const chunkSize = 150;
+        let lineSelect = 'account_id, debit, credit, journal_entry_id, memo, counterparty';
         for (let i = 0; i < entryIds.length; i += chunkSize) {
           const chunk = entryIds.slice(i, i + chunkSize);
-          const { data: lineRows, error: lineErr } = await supabase
+          let { data: lineRows, error: lineErr } = await supabase
             .from('journal_lines')
-            .select('account_id, debit, credit, journal_entry_id')
+            .select(lineSelect)
             .in('journal_entry_id', chunk);
+          if (lineErr && /column|42703|memo|counterparty/i.test(lineErr.message || '')) {
+            lineSelect = 'account_id, debit, credit, journal_entry_id';
+            const retry = await supabase
+              .from('journal_lines')
+              .select(lineSelect)
+              .in('journal_entry_id', chunk);
+            lineRows = retry.data;
+            lineErr = retry.error;
+          }
           if (lineErr) {
             return NextResponse.json({
               success: true,
@@ -324,11 +338,15 @@ export async function GET(request: NextRequest) {
             });
           }
           for (const l of lineRows || []) {
+            const row = l as Record<string, unknown>;
             lines.push({
-              account_id: Number(l.account_id),
-              debit: Number(l.debit || 0),
-              credit: Number(l.credit || 0),
-              journal_entry_id: Number(l.journal_entry_id),
+              account_id: Number(row.account_id),
+              debit: Number(row.debit || 0),
+              credit: Number(row.credit || 0),
+              journal_entry_id: Number(row.journal_entry_id),
+              memo: row.memo != null ? String(row.memo) : null,
+              counterparty:
+                row.counterparty != null ? String(row.counterparty) : null,
             });
           }
         }
@@ -368,6 +386,10 @@ export async function GET(request: NextRequest) {
       const income: Array<Record<string, unknown>> = [];
       const expenses: Array<Record<string, unknown>> = [];
       const cogsRows: Array<Record<string, unknown>> = [];
+      const { collectAccountPostings } = await import(
+        '@/lib/accounting/sales-origin'
+      );
+      const entryRecords = (entries || []) as Array<Record<string, unknown>>;
 
       for (const a of accounts || []) {
         if (a.is_header) continue;
@@ -387,6 +409,12 @@ export async function GET(request: NextRequest) {
               name: a.name,
               account_type: 'revenue',
               amount,
+              postings: collectAccountPostings({
+                accountId: aid,
+                polarity: 'revenue',
+                entries: entryRecords,
+                lines,
+              }),
             });
           }
         } else if (isCogs) {
@@ -398,6 +426,12 @@ export async function GET(request: NextRequest) {
               name: a.name,
               account_type: 'cogs',
               amount,
+              postings: collectAccountPostings({
+                accountId: aid,
+                polarity: 'expense',
+                entries: entryRecords,
+                lines,
+              }),
             });
           }
         } else if (isExpense) {
@@ -409,6 +443,12 @@ export async function GET(request: NextRequest) {
               name: a.name,
               account_type: 'expense',
               amount,
+              postings: collectAccountPostings({
+                accountId: aid,
+                polarity: 'expense',
+                entries: entryRecords,
+                lines,
+              }),
             });
           }
         }
@@ -419,6 +459,19 @@ export async function GET(request: NextRequest) {
       const expenseTotal = round2(expenses.reduce((s, r) => s + Number(r.amount), 0));
       const grossProfit = round2(revenue - cogs);
       const operatingProfit = round2(grossProfit - expenseTotal);
+
+      const { buildSalesOrigin } = await import('@/lib/accounting/sales-origin');
+      const sales = buildSalesOrigin({
+        entries: (entries || []) as Array<Record<string, unknown>>,
+        lines,
+        accounts: (accounts || []).map((a) => ({
+          id: Number(a.id),
+          code: String(a.code || ''),
+          name: String(a.name || ''),
+          account_type: String(a.account_type || ''),
+          is_header: Boolean(a.is_header),
+        })),
+      });
 
       // Bank allocation progress
       let bankQ = supabase
@@ -508,6 +561,7 @@ export async function GET(request: NextRequest) {
         income,
         cogs: cogsRows,
         expenses,
+        sales,
         journals,
         bank: {
           unallocated,
