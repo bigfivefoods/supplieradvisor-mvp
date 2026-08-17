@@ -22,6 +22,7 @@ import {
 } from '@/lib/fitness/fitgraph-reports';
 import { getCoachSpecialtyOptions } from '@/lib/fitness/fitgraph';
 import ManagementReportPanel from '@/components/advisors/ManagementReportPanel';
+import { ClassSubscriptionReport } from '@/components/fitness/ClassSubscriptionReport';
 
 type TabId =
   | 'overview'
@@ -30,6 +31,7 @@ type TabId =
   | 'plan_actual'
   | 'feedback'
   | 'members'
+  | 'subscriptions'
   | 'daily';
 
 const TABS: { id: TabId; label: string }[] = [
@@ -39,6 +41,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'plan_actual', label: 'Plan vs actual' },
   { id: 'feedback', label: 'Feedback' },
   { id: 'members', label: 'Member · classes' },
+  { id: 'subscriptions', label: 'Subscriptions' },
   { id: 'daily', label: 'By day' },
 ];
 
@@ -318,6 +321,22 @@ export default function FitReportPage() {
               r.no_show_in_range,
               r.check_ins_in_range,
               r.feedback_in_range,
+            ])
+          )
+        );
+      } else if (tab === 'subscriptions' && report.subscriptions) {
+        downloadCsv(
+          `fitgraph_subscriptions_${stamp}.csv`,
+          toCsv(
+            ['Member', 'Email', 'Plans', 'Monthly ZAR', 'Booked', 'Attended', 'No-show'],
+            report.subscriptions.members.map((r) => [
+              r.name,
+              r.email || '',
+              r.plans.join('; '),
+              r.monthly_zar,
+              r.booked,
+              r.attended,
+              r.no_show,
             ])
           )
         );
@@ -1184,6 +1203,14 @@ export default function FitReportPage() {
                 );
               })()}
             </div>
+          )}
+
+          {tab === 'subscriptions' && (
+            <ClassSubscriptionReport
+              report={report.subscriptions}
+              tone="owner"
+              title="Class subscriptions · rates & attendance"
+            />
           )}
 
           {/* DAILY */}

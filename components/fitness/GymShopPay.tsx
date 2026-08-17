@@ -18,6 +18,9 @@ export function GymShopPay({
   onBuy,
   buyingId,
   hideIdentity,
+  joining,
+  subscribedIds,
+  classSubscribe,
 }: {
   items: GymShopItem[];
   color: string;
@@ -32,12 +35,20 @@ export function GymShopPay({
   onBuy: (item: GymShopItem) => void;
   buyingId?: string | null;
   hideIdentity?: boolean;
+  joining?: { fee_zar: number; waived?: boolean; note?: string } | null;
+  subscribedIds?: string[];
+  classSubscribe?: boolean;
 }) {
+  const already = new Set(subscribedIds || []);
+  const classMode =
+    classSubscribe === true ||
+    items.some((i) => i.kind === 'membership' && Boolean(i.schedule_label));
   if (!items.length) {
     return (
       <p className="text-sm text-slate-500">
-        No memberships or programmes are for sale yet. Ask the gym to publish a
-        priced plan.
+        {classMode
+          ? 'No classes are open for subscription yet. Ask the gym to publish the timetable.'
+          : 'No memberships or programmes are for sale yet. Ask the gym to publish a priced plan.'}
       </p>
     );
   }
@@ -45,7 +56,14 @@ export function GymShopPay({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {requirePaid ? (
+        {classMode ? (
+          <p className="text-sm text-slate-600">
+            Subscribe to the class or classes you train. Your monthly fee is
+            the total of those classes
+            {requirePaid ? ' — then you or a coach book each session' : ''}.
+            Card, Apple Pay (Safari / iPhone) or EFT.
+          </p>
+        ) : requirePaid ? (
           <p className="text-sm text-slate-600">
             Pay first — then you can book classes. Card, Apple Pay (Safari /
             iPhone), EFT and other Paystack methods.
@@ -58,6 +76,14 @@ export function GymShopPay({
         )}
         {payoutReady ? <AdvisorPayAccepted tone="onLight" size="sm" /> : null}
       </div>
+      {joining ? (
+        <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+          {joining.note ||
+            `Once-off joining R${joining.fee_zar}${
+              joining.waived ? ' — currently waived' : ''
+            }`}
+        </p>
+      ) : null}
       {!payoutReady ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-950">
           This gym has not connected card / Apple Pay yet. You can still leave
@@ -90,15 +116,41 @@ export function GymShopPay({
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {items.map((item) => {
           const busy = buyingId === `${item.kind}:${item.id}`;
+          const subscribed =
+            item.kind === 'membership' && already.has(item.id);
           return (
             <div
               key={`${item.kind}:${item.id}`}
               className="flex flex-col rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm"
             >
               <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                {item.kind === 'programme' ? 'Programme' : 'Membership'}
+                {item.kind === 'programme'
+                  ? 'Programme'
+                  : item.addon
+                    ? 'Add-on'
+                    : item.unlocks_all || item.code === 'VUKA_UNLIM'
+                      ? 'Unlimited'
+                      : classMode
+                        ? 'Class'
+                        : 'Membership'}
               </p>
               <div className="font-bold text-sm">{item.name}</div>
+              {item.schedule_label ? (
+                <p className="text-[11px] font-bold text-slate-500">
+                  {item.schedule_label}
+                </p>
+              ) : null}
+              {item.audience && item.audience !== 'all' ? (
+                <p className="text-[10px] font-black uppercase text-amber-700">
+                  {item.audience === 'gents'
+                    ? 'Gents only'
+                    : item.audience === 'women'
+                      ? 'Women only'
+                      : item.audience === 'kids'
+                        ? 'Kids'
+                        : item.audience}
+                </p>
+              ) : null}
               <div className="text-lg font-black tabular-nums" style={{ color }}>
                 R{item.price_zar}
                 <span className="ml-1 text-[11px] font-bold text-slate-400">
@@ -126,6 +178,10 @@ export function GymShopPay({
                   <span className="inline-flex items-center gap-1">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" /> Opening Paystack…
                   </span>
+                ) : subscribed ? (
+                  'Subscribed · renew'
+                ) : classMode && item.kind === 'membership' ? (
+                  `Subscribe · R${item.price_zar}/pm`
                 ) : (
                   'Pay & join'
                 )}

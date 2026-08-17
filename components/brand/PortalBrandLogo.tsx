@@ -74,7 +74,7 @@ export function MemberPortalBrandLockup({
         <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">
           {eyebrow}
         </p>
-        <h1 className="text-xl font-black mt-1 truncate">{brand}</h1>
+        <h1 className="mt-1 truncate text-xl font-black md:text-3xl">{brand}</h1>
       </div>
     </div>
   );

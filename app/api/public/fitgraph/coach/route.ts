@@ -10,7 +10,7 @@ import {
   FITGRAPH_COACH_TOKENS_KEY,
   applySessionKindRules,
   buildClassJoinPath,
-  buildCoachPortalPayload,
+  buildCoachPortalPayload as buildCoachPortalPayloadBase,
   coachPersonalBookingError,
   createSessionsFromTemplate,
   ensureSessionShareCode,
@@ -31,6 +31,13 @@ import {
 } from '@/lib/fitness/fitgraph';
 import { mergeHealthProfile } from '@/lib/health/body-map';
 import {
+  activeClassSubscriptions,
+  buildClassSubscriptionReport,
+  memberMayBookSession,
+  persistVukaCatalogIfNeeded,
+  subscribersForSession,
+} from '@/lib/fitness/vuka-class-catalog';
+import {
   applyMessageAction,
   threadsForParticipant,
   totalUnread,
@@ -43,6 +50,49 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+function buildCoachPortalPayload(
+  store: FitgraphStore,
+  coach: FitCoach,
+  from?: string,
+  to?: string
+) {
+  const portal = buildCoachPortalPayloadBase(store, coach, from, to);
+  const sessions = (portal.sessions || []).map((card) => {
+    const session = store.sessions.find((s) => s.id === card.session.id);
+    if (!session) return { ...card, subscribed: [], subscribed_not_booked: [] };
+    const subscribed = subscribersForSession(store, session).map((r) => ({
+      client_id: r.client.id,
+      name: r.client.name,
+      code: r.client.code,
+      plan_name: r.plan_name,
+      booked: r.booked,
+    }));
+    return {
+      ...card,
+      subscribed,
+      subscribed_not_booked: subscribed.filter((s) => !s.booked),
+    };
+  });
+  const members = (portal.members || []).map((m) => {
+    const subs = activeClassSubscriptions(store, m.id);
+    return {
+      ...m,
+      plan_names: subs.map((x) => x.plan.name),
+      monthly_zar: subs.reduce((n, x) => n + (Number(x.plan.price_zar) || 0), 0),
+    };
+  });
+  return {
+    ...portal,
+    sessions,
+    members,
+    class_report: buildClassSubscriptionReport(store, {
+      coachId: coach.id,
+      from: portal.from,
+      to: portal.to,
+    }),
+  };
+}
 
 async function resolveCoach(
   token: string
@@ -99,7 +149,10 @@ async function resolveCoach(
     prof.metadata && typeof prof.metadata === 'object'
       ? { ...(prof.metadata as Record<string, unknown>) }
       : {};
-  const store = readFitgraphFromMetadata(meta);
+  let store = readFitgraphFromMetadata(meta);
+  store = await persistVukaCatalogIfNeeded(Number(prof.id), store, (s) =>
+    saveStore(Number(prof.id), meta, s)
+  );
   const coach = store.coaches.find((c) => c.portal_token === clean);
   if (!coach || coach.active === false) return null;
 
@@ -1149,6 +1202,18 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { error: 'Already on this class', booking: existing },
           { status: 409 }
+        );
+      }
+      const classGate = memberMayBookSession(store, client, session);
+      if (!classGate.ok) {
+        return NextResponse.json(
+          {
+            error:
+              classGate.error ||
+              'This member needs to subscribe to this class first',
+            need_membership: classGate.need_plan === true,
+          },
+          { status: classGate.need_plan ? 402 : 400 }
         );
       }
       const cap = session.capacity ?? 999;

@@ -49,6 +49,12 @@ export type GymShopItem = {
   billing: string;
   class_credits?: number | null;
   programme_id?: string | null;
+  schedule_label?: string;
+  audience?: string;
+  addon?: boolean;
+  location?: string;
+  weekly_class_limit?: number | null;
+  unlocks_all?: boolean;
 };
 
 export function gymPeriodEnd(
@@ -76,6 +82,7 @@ export function publicMembershipShop(
         p.public !== false &&
         Number(p.price_zar) > 0
     )
+    .sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
     .map((p) => ({
       kind: 'membership' as const,
       id: p.id,
@@ -86,6 +93,12 @@ export function publicMembershipShop(
       billing: p.billing,
       class_credits: p.class_credits,
       programme_id: p.programme_id || null,
+      schedule_label: p.schedule_label,
+      audience: p.audience,
+      addon: p.addon === true,
+      location: p.location,
+      weekly_class_limit: p.weekly_class_limit ?? null,
+      unlocks_all: p.unlocks_all_classes === true,
     }));
 }
 
@@ -240,25 +253,54 @@ export function applyPaidGymSale(
   if (sale.kind === 'membership' && sale.plan_id) {
     const plan = next.membership_plans.find((p) => p.id === sale.plan_id);
     const periodEnd = plan ? gymPeriodEnd(plan.billing) : gymPeriodEnd('monthly');
-    const sub: FitSubscription = {
-      id: newId('sub'),
-      client_id: client.id,
-      plan_id: sale.plan_id,
-      status: 'active',
-      started_at: today,
-      current_period_end: periodEnd,
-      class_credits_remaining: plan?.class_credits ?? null,
-      auto_renew: plan?.billing === 'monthly' || plan?.billing === 'annual',
-      notes: `Paid ${sale.paystack_ref}`,
-      created_at: now,
-      updated_at: now,
-    };
-    next = { ...next, subscriptions: [sub, ...(next.subscriptions || [])] };
+    const existingSame = (next.subscriptions || []).find(
+      (s) =>
+        s.client_id === client.id &&
+        s.plan_id === sale.plan_id &&
+        (s.status === 'active' || s.status === 'trialing')
+    );
+    let subscriptions = [...(next.subscriptions || [])];
+    if (existingSame) {
+      subscriptions = subscriptions.map((s) =>
+        s.id === existingSame.id
+          ? {
+              ...s,
+              status: 'active' as const,
+              current_period_end: periodEnd,
+              class_credits_remaining: plan?.class_credits ?? s.class_credits_remaining,
+              updated_at: now,
+              notes: s.notes
+                ? `${s.notes}; renewed ${sale.paystack_ref}`
+                : `Paid ${sale.paystack_ref}`,
+            }
+          : s
+      );
+    } else {
+      const sub: FitSubscription = {
+        id: newId('sub'),
+        client_id: client.id,
+        plan_id: sale.plan_id,
+        status: 'active',
+        started_at: today,
+        current_period_end: periodEnd,
+        class_credits_remaining: plan?.class_credits ?? null,
+        auto_renew: plan?.billing === 'monthly' || plan?.billing === 'annual',
+        notes: `Paid ${sale.paystack_ref}`,
+        created_at: now,
+        updated_at: now,
+      };
+      subscriptions = [sub, ...subscriptions];
+    }
+    next = { ...next, subscriptions };
     const programmes = new Set(client.purchased_programme_ids || []);
     if (plan?.programme_id) programmes.add(plan.programme_id);
+    const keepPrimary =
+      plan?.addon === true &&
+      client.membership_plan_id &&
+      client.membership_plan_id !== sale.plan_id;
     client = {
       ...client,
-      membership_plan_id: sale.plan_id,
+      membership_plan_id: keepPrimary ? client.membership_plan_id : sale.plan_id,
       membership_status: 'active',
       end_date: periodEnd,
       purchased_programme_ids: [...programmes],

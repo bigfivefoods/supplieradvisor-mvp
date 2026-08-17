@@ -91,6 +91,7 @@ import {
   loadAdvisorModuleStore,
   saveAdvisorModuleStore,
 } from '@/lib/business/company-data';
+import { persistVukaCatalogIfNeeded } from '@/lib/fitness/vuka-class-catalog';
 
 export const runtime = 'nodejs';
 
@@ -108,11 +109,17 @@ type Entity =
   | 'programmes';
 
 async function loadStore(companyId: number) {
-  return loadAdvisorModuleStore(
+  const loaded = await loadAdvisorModuleStore(
     companyId,
     FITGRAPH_META_KEY,
     readFitgraphFromMetadata
   );
+  const store = await persistVukaCatalogIfNeeded(
+    companyId,
+    loaded.store,
+    (next) => saveStore(companyId, loaded.meta, next)
+  );
+  return { ...loaded, store };
 }
 
 async function saveStore(
@@ -219,12 +226,17 @@ export async function POST(request: NextRequest) {
 
     if (action === 'seed_demo') {
       const demo = seedDemo(now, companyId);
-      await saveStore(companyId, meta, demo);
+      const withCatalog = await persistVukaCatalogIfNeeded(
+        companyId,
+        demo,
+        async () => undefined
+      );
+      await saveStore(companyId, meta, withCatalog);
       return NextResponse.json({
         success: true,
-        store: demo,
-        summary: summariseFitgraph(demo),
-        analysis: analysis(demo),
+        store: withCatalog,
+        summary: summariseFitgraph(withCatalog),
+        analysis: analysis(withCatalog),
         message: 'Demo gym loaded',
       });
     }
@@ -2224,6 +2236,57 @@ function upsert(
         rec.programme_id != null && String(rec.programme_id)
           ? String(rec.programme_id)
           : null,
+      class_type_ids: Array.isArray(rec.class_type_ids)
+        ? rec.class_type_ids.map(String)
+        : rec.class_type_ids === undefined
+          ? store.membership_plans[i]?.class_type_ids
+          : [],
+      series_ids: Array.isArray(rec.series_ids)
+        ? rec.series_ids.map(String)
+        : rec.series_ids === undefined
+          ? store.membership_plans[i]?.series_ids
+          : [],
+      unlocks_all_classes:
+        rec.unlocks_all_classes != null
+          ? rec.unlocks_all_classes === true
+          : store.membership_plans[i]?.unlocks_all_classes,
+      excluded_class_type_ids: Array.isArray(rec.excluded_class_type_ids)
+        ? rec.excluded_class_type_ids.map(String)
+        : rec.excluded_class_type_ids === undefined
+          ? store.membership_plans[i]?.excluded_class_type_ids
+          : [],
+      weekly_class_limit:
+        rec.weekly_class_limit != null
+          ? Number(rec.weekly_class_limit)
+          : store.membership_plans[i]?.weekly_class_limit ?? null,
+      addon:
+        rec.addon != null
+          ? rec.addon === true
+          : store.membership_plans[i]?.addon,
+      audience:
+        rec.audience != null
+          ? String(rec.audience)
+          : store.membership_plans[i]?.audience,
+      schedule_label:
+        rec.schedule_label != null
+          ? String(rec.schedule_label)
+          : store.membership_plans[i]?.schedule_label,
+      location:
+        rec.location != null
+          ? String(rec.location)
+          : store.membership_plans[i]?.location,
+      sibling_discount_pct:
+        rec.sibling_discount_pct != null
+          ? Number(rec.sibling_discount_pct)
+          : store.membership_plans[i]?.sibling_discount_pct,
+      sort_order:
+        rec.sort_order != null
+          ? Number(rec.sort_order)
+          : store.membership_plans[i]?.sort_order,
+      catalog:
+        rec.catalog != null
+          ? String(rec.catalog)
+          : store.membership_plans[i]?.catalog,
       active: rec.active !== false,
       created_at: i >= 0 ? store.membership_plans[i].created_at : now,
     };

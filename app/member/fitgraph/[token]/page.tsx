@@ -24,6 +24,7 @@ import {
   X,
 } from 'lucide-react';
 import { GymShopPay } from '@/components/fitness/GymShopPay';
+import { ClassSubscriptionReport } from '@/components/fitness/ClassSubscriptionReport';
 import type { GymShopItem } from '@/lib/fitness/gym-shop';
 import { MemberRelationshipSection } from '@/components/services/MemberRelationshipSection';
 import { ProgrammeView } from '@/components/fitness/ProgrammeView';
@@ -35,6 +36,7 @@ import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
 import { B2cAutoLinkBanner } from '@/components/b2c/B2cAutoLinkBanner';
 import { MemberAnnouncementsFeed } from '@/components/services/MemberAnnouncementsFeed';
 import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
+import { MemberAdvisorShell } from '@/components/advisors/MemberAdvisorShell';
 import { gymBrandColor } from '@/lib/fitness/fitgraph';
 import type { MemberAnnouncementPublic } from '@/lib/services/member-announcements';
 
@@ -57,6 +59,9 @@ type OpenClass = {
   my_status?: string | null;
   my_booking_id?: string | null;
   programme?: import('@/lib/fitness/movements').FitHydratedProgramme | null;
+  can_book?: boolean;
+  need_plan?: boolean;
+  book_hint?: string | null;
 };
 
 type MyBooking = {
@@ -188,6 +193,20 @@ type Portal = {
   require_paid_membership?: boolean;
   paid_access?: boolean;
   payout_ready?: boolean;
+  subscriptions?: Array<{
+    id: string;
+    plan_id?: string;
+    plan_name: string;
+    price_zar: number;
+    billing: string;
+    schedule_label?: string;
+    addon?: boolean;
+    status: string;
+    current_period_end?: string | null;
+  }>;
+  class_report?: import('@/lib/fitness/vuka-class-catalog').ClassSubscriptionReport;
+  joining?: { fee_zar: number; waived?: boolean; note?: string } | null;
+  class_subscribe?: boolean;
   threads?: Array<{
     id: string;
     title?: string;
@@ -217,6 +236,7 @@ export default function MemberFitgraphPortalPage() {
   const [tab, setTab] = useState<
     | 'checkin'
     | 'join'
+    | 'plans'
     | 'open'
     | 'mine'
     | 'progress'
@@ -278,6 +298,7 @@ export default function MemberFitgraphPortalPage() {
     if (
       raw === 'checkin' ||
       raw === 'join' ||
+      raw === 'plans' ||
       raw === 'open' ||
       raw === 'mine' ||
       raw === 'progress' ||
@@ -342,6 +363,7 @@ export default function MemberFitgraphPortalPage() {
     id:
       | 'checkin'
       | 'join'
+      | 'plans'
       | 'open'
       | 'mine'
       | 'progress'
@@ -537,20 +559,34 @@ export default function MemberFitgraphPortalPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-yellow-50 to-slate-50">
-      <header
-        className="px-4 py-6 text-white"
-        style={{
-          background: `linear-gradient(135deg, ${color}, #4c1d95)`,
-        }}
-      >
-        <div className="max-w-lg mx-auto">
+    <MemberAdvisorShell
+      color={color}
+      fromClass="from-yellow-50"
+      tab={tab}
+      onTab={(id) => selectTab(id as typeof tab)}
+      tabs={[
+        { id: 'checkin', label: 'Check in' },
+        { id: 'join', label: portal.class_subscribe ? 'Subscribe' : 'Join & pay' },
+        { id: 'plans', label: portal.class_subscribe ? 'My classes' : 'My plans' },
+        { id: 'open', label: 'Book' },
+        { id: 'mine', label: 'My classes' },
+        { id: 'progress', label: 'Progress' },
+        {
+          id: 'messages',
+          label: 'Messages',
+          badge: portal.messages_unread || undefined,
+        },
+        { id: 'profile', label: 'Profile' },
+      ]}
+      header={
+        <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+          <div>
           <MemberPortalBrandLockup
             logoUrl={portal.logo_url}
             brand={portal.brand}
             eyebrow="Member portal · GymAdvisor®"
           />
-          <div className="mt-3 flex items-center gap-3">
+          <div className="mt-4 flex items-center gap-3">
             {portal.client.photo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -574,9 +610,11 @@ export default function MemberFitgraphPortalPage() {
                 />
               </p>
               <p className="text-xs text-white/85">
-                {[portal.client.plan_name, portal.client.membership_status]
-                  .filter(Boolean)
-                  .join(' · ') || 'Member'}
+                {(portal.subscriptions || []).length
+                  ? portal.subscriptions!.map((s) => s.plan_name).join(' · ')
+                  : [portal.client.plan_name, portal.client.membership_status]
+                      .filter(Boolean)
+                      .join(' · ') || 'Member'}
                 {portal.client.coach_name
                   ? ` · Coach ${portal.client.coach_name}`
                   : ''}
@@ -610,10 +648,10 @@ export default function MemberFitgraphPortalPage() {
               </span>
             ) : null}
           </div>
+          </div>
         </div>
-      </header>
-
-      <main className="max-w-lg mx-auto px-4 py-5 space-y-4">
+      }
+    >
         <PopiaConsentNotice brand={portal.brand} />
         <B2cAutoLinkBanner token={token} tone="yellow" />
         <MemberAnnouncementsFeed
@@ -633,43 +671,34 @@ export default function MemberFitgraphPortalPage() {
           </div>
         )}
 
-        <div className="flex gap-1 rounded-2xl bg-white border border-slate-200 p-1 flex-wrap">
-          {(
-            [
-              ['checkin', 'Check in'],
-              ['join', 'Join & pay'],
-              ['open', 'Book'],
-              ['mine', 'My classes'],
-              ['progress', 'Progress'],
-              ['messages', 'Messages'],
-              ['profile', 'Profile'],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => selectTab(id)}
-              className={`flex-1 min-w-[4rem] rounded-xl py-2 text-xs font-bold ${
-                tab === id
-                  ? 'bg-[#E8E830] text-slate-900'
-                  : 'text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {label}
-              {id === 'messages' && (portal.messages_unread || 0) > 0
-                ? ` (${portal.messages_unread})`
-                : ''}
-            </button>
-          ))}
-        </div>
-
         {tab === 'join' && (
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-yellow-800">
               <CreditCard className="h-4 w-4" />
-              <h2 className="text-sm font-black">Memberships & programmes</h2>
+              <h2 className="text-sm font-black">
+                {portal.class_subscribe
+                  ? 'Subscribe to classes'
+                  : 'Memberships & programmes'}
+              </h2>
             </div>
-            {portal.paid_access ? (
+            {portal.class_subscribe && (portal.subscriptions || []).length ? (
+              <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">
+                You are subscribed to{' '}
+                {portal.subscriptions!.map((s) => s.plan_name).join(' · ')}.
+                Monthly total R
+                {portal.subscriptions!.reduce(
+                  (n, s) => n + (Number(s.price_zar) || 0),
+                  0
+                )}
+                . Add another class below if you train more than one.
+              </p>
+            ) : portal.class_subscribe && portal.require_paid_membership ? (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-950">
+                Subscribe to a class first — your fee is based on the class or
+                classes you pick. Then you or a coach book you into that
+                session.
+              </p>
+            ) : portal.paid_access ? (
               <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">
                 You have paid access
                 {portal.access?.plan_name
@@ -695,7 +724,60 @@ export default function MemberFitgraphPortalPage() {
               onPhone={setPhone}
               onBuy={(item) => void buy(item)}
               buyingId={buyingId}
+              joining={portal.joining}
+              classSubscribe={portal.class_subscribe === true}
+              subscribedIds={(portal.subscriptions || [])
+                .map((s) => s.plan_id)
+                .filter((id): id is string => Boolean(id))}
             />
+          </div>
+        )}
+
+        {tab === 'plans' && (
+          <div className="space-y-3">
+            <h2 className="text-sm font-black">Classes I subscribe to</h2>
+            {(portal.subscriptions || []).length ? (
+              <ul className="space-y-2">
+                {portal.subscriptions!.map((s) => (
+                  <li
+                    key={s.id}
+                    className="rounded-2xl border border-yellow-200 bg-white p-4"
+                  >
+                    <p className="font-black text-sm">{s.plan_name}</p>
+                    {s.schedule_label ? (
+                      <p className="text-[11px] text-slate-500">
+                        {s.schedule_label}
+                      </p>
+                    ) : null}
+                    <p className="text-xs text-slate-600 mt-1">
+                      R{s.price_zar}/{s.billing}
+                      {s.addon ? ' · add-on' : ''}
+                      {s.current_period_end
+                        ? ` · paid to ${s.current_period_end}`
+                        : ''}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
+                No class subscriptions yet.{' '}
+                <button
+                  type="button"
+                  className="font-bold text-yellow-800 underline"
+                  onClick={() => selectTab('join')}
+                >
+                  Subscribe to a class
+                </button>
+              </p>
+            )}
+            {portal.class_report ? (
+              <ClassSubscriptionReport
+                report={portal.class_report}
+                tone="member"
+                title="My attendance this period"
+              />
+            ) : null}
           </div>
         )}
 
@@ -943,7 +1025,8 @@ export default function MemberFitgraphPortalPage() {
                 No public classes in the next 4 weeks yet.
               </div>
             ) : (
-              portal.open_classes.map((c) => (
+              <div className="grid gap-3 md:grid-cols-2">
+              {portal.open_classes.map((c) => (
                 <div
                   key={c.id}
                   className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
@@ -1017,6 +1100,14 @@ export default function MemberFitgraphPortalPage() {
                           </button>
                         ) : null}
                       </>
+                    ) : portal.allow_booking && c.can_book === false ? (
+                      <button
+                        type="button"
+                        onClick={() => selectTab('join')}
+                        className="rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-bold text-white"
+                      >
+                        {c.book_hint || 'Subscribe to this class'}
+                      </button>
                     ) : portal.allow_booking ? (
                       c.full ? (
                         <button
@@ -1048,7 +1139,8 @@ export default function MemberFitgraphPortalPage() {
                     ) : null}
                   </div>
                 </div>
-              ))
+              ))}
+              </div>
             )}
           </div>
         )}
@@ -1488,7 +1580,6 @@ export default function MemberFitgraphPortalPage() {
         <p className="text-center text-[10px] text-slate-400 pb-8">
           Powered by GymAdvisor® · SupplierAdvisor
         </p>
-      </main>
-    </div>
+    </MemberAdvisorShell>
   );
 }

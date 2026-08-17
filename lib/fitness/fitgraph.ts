@@ -497,6 +497,20 @@ export type FitMembershipPlan = {
   access?: 'classes' | 'programme' | 'both';
   /** Optional programme included with the membership */
   programme_id?: string | null;
+  /** Class types this plan unlocks (empty + unlocks_all_classes = all) */
+  class_type_ids?: string[];
+  /** Recurring series this plan unlocks (VUKA slot-specific rates) */
+  series_ids?: string[];
+  unlocks_all_classes?: boolean;
+  excluded_class_type_ids?: string[];
+  weekly_class_limit?: number | null;
+  addon?: boolean;
+  audience?: 'all' | 'gents' | 'women' | 'kids' | string;
+  schedule_label?: string;
+  location?: string;
+  sibling_discount_pct?: number;
+  sort_order?: number;
+  catalog?: string;
   active?: boolean;
   created_at: string;
 };
@@ -625,6 +639,12 @@ export type FitPublicSettings = {
    * Default: true if the gym has priced public memberships.
    */
   require_paid_membership?: boolean;
+  /** Once-off joining fee (ZAR). VUKA lists R600, currently waived. */
+  joining_fee_zar?: number | null;
+  joining_fee_waived?: boolean;
+  joining_fee_note?: string;
+  /** Members subscribe to priced classes (VUKA). Fees = sum of those classes. */
+  class_subscribe?: boolean;
   show_coaches: boolean;
   show_pricing: boolean;
   /** Show PDF contracts on the public gym page */
@@ -2065,6 +2085,9 @@ export function buildPublicCalendarPayload(
           class_credits: p.class_credits,
           access: p.access || 'classes',
           programme_id: p.programme_id || null,
+          schedule_label: p.schedule_label,
+          audience: p.audience,
+          addon: p.addon === true,
         }))
     : [];
   const shopProgrammes = (store.programmes || [])
@@ -2123,6 +2146,15 @@ export function buildPublicCalendarPayload(
         : store.settings?.require_paid_membership === true
           ? true
           : plans.some((p) => Number(p.price_zar) > 0),
+    joining:
+      store.settings?.joining_fee_zar != null
+        ? {
+            fee_zar: Number(store.settings.joining_fee_zar) || 0,
+            waived: store.settings.joining_fee_waived === true,
+            note: store.settings.joining_fee_note || '',
+          }
+        : null,
+    class_subscribe: store.settings?.class_subscribe === true,
     contracts,
   };
 }

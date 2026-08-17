@@ -26,6 +26,7 @@ import { B2cAutoLinkBanner } from '@/components/b2c/B2cAutoLinkBanner';
 import { AdvisorAnnouncementFeed } from '@/components/services/AdvisorAnnouncementFeed';
 import { B2cHireHowItWorks } from '@/components/b2c/B2cHireJourney';
 import { B2cDiaryView, type MemberCalEvent } from '@/components/b2c/B2cMemberCalendar';
+import { MemberAdvisorShell } from '@/components/advisors/MemberAdvisorShell';
 import {
   downloadMemberEventIcs,
   googleCalendarUrl,
@@ -465,22 +466,42 @@ export default function HireCustomerPortalPage() {
   if (!portal) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-cyan-50 to-slate-50 pb-24">
-      <header
-        className="px-4 pb-5 pt-6 text-white"
-        style={{
-          background: `linear-gradient(135deg, ${color}, #0e7490 55%, #164e63)`,
-        }}
-      >
-        <div className="mx-auto max-w-lg">
+    <MemberAdvisorShell
+      color={color}
+      fromClass="from-cyan-50"
+      tab={tab}
+      onTab={(id) => {
+        setTab(id);
+        setError(null);
+        setMsg(null);
+      }}
+      tabs={[
+        { id: 'browse', label: 'Browse' },
+        {
+          id: 'hires',
+          label: 'My hires',
+          badge: portal.stats.open || undefined,
+        },
+        { id: 'calendar', label: 'Calendar' },
+        {
+          id: 'requirements',
+          label: 'Docs',
+          badge: portal.stats.needs_docs || undefined,
+        },
+        { id: 'account', label: 'Account' },
+      ]}
+      header={
+        <div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">
             HireAdvisor® · customer portal
           </p>
-          <h1 className="mt-1 text-xl font-black">{portal.brand}</h1>
+          <h1 className="mt-1 text-xl font-black md:text-3xl">{portal.brand}</h1>
           {portal.bio ? (
-            <p className="mt-1 line-clamp-2 text-sm text-white/90">{portal.bio}</p>
+            <p className="mt-1 max-w-2xl text-sm text-white/90 md:line-clamp-3 line-clamp-2">
+              {portal.bio}
+            </p>
           ) : null}
-          <div className="mt-3 flex items-center gap-3">
+          <div className="mt-4 flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/20">
               <User className="h-5 w-5" />
             </div>
@@ -516,9 +537,8 @@ export default function HireCustomerPortalPage() {
             )}
           </div>
         </div>
-      </header>
-
-      <main className="mx-auto max-w-lg space-y-4 px-4 py-4">
+      }
+    >
         <PopiaConsentNotice brand={portal.brand} />
         <B2cAutoLinkBanner token={token} tone="cyan" />
         <AdvisorAnnouncementFeed items={portal.announcements} />
@@ -534,42 +554,6 @@ export default function HireCustomerPortalPage() {
             {error || msg}
           </div>
         )}
-
-        <div className="sticky top-0 z-10 -mx-1 flex gap-1 rounded-2xl border border-slate-200 bg-white/95 p-1 shadow-sm backdrop-blur">
-          {(
-            [
-              ['browse', 'Browse', Package],
-              ['hires', 'My hires', ClipboardList],
-              ['calendar', 'Calendar', CalendarDays],
-              ['requirements', 'Docs', Shield],
-              ['account', 'Account', User],
-            ] as const
-          ).map(([id, label, Icon]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => {
-                setTab(id);
-                setError(null);
-                setMsg(null);
-              }}
-              className={`flex flex-1 flex-col items-center gap-0.5 rounded-xl py-2 text-[10px] font-bold ${
-                tab === id
-                  ? 'bg-cyan-600 text-white'
-                  : 'text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-              {id === 'hires' && portal.stats.open
-                ? ` (${portal.stats.open})`
-                : ''}
-              {id === 'requirements' && portal.stats.needs_docs
-                ? ` (${portal.stats.needs_docs})`
-                : ''}
-            </button>
-          ))}
-        </div>
 
         {/* ── Browse ───────────────────────────────────────────── */}
         {tab === 'browse' && (
@@ -628,7 +612,7 @@ export default function HireCustomerPortalPage() {
                 No hire items listed yet. Check back soon.
               </div>
             ) : (
-              <ul className="space-y-2">
+              <ul className="grid gap-3 sm:grid-cols-2">
                 {filteredCatalogue.map((item) => (
                   <li key={item.id}>
                     <button
@@ -1196,7 +1180,6 @@ export default function HireCustomerPortalPage() {
             </p>
           </div>
         )}
-      </main>
 
       {/* ── Request hire sheet ─────────────────────────────────── */}
       {selectedItem ? (
@@ -1525,6 +1508,6 @@ export default function HireCustomerPortalPage() {
           </div>
         </div>
       ) : null}
-    </div>
+    </MemberAdvisorShell>
   );
 }

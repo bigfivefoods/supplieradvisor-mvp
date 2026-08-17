@@ -14,6 +14,7 @@ import { AdvisorDeskInviteCard } from '@/components/advisors/AdvisorDeskInviteCa
 import { AdvisorPayoutSettings } from '@/components/advisors/AdvisorPayoutSettings';
 import { AdvisorEmbedSnippet } from '@/components/services/AdvisorEmbedSnippet';
 import { hirePublicEmbedPath } from '@/lib/hire/hiregraph';
+import { AdvisorPortalManager } from '@/components/advisors/AdvisorPortalManager';
 
 export default function HiregraphWebsitePage() {
   const { companyId, store, loading, saving, post, summary } = useHiregraph();
@@ -93,6 +94,39 @@ export default function HiregraphWebsitePage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
+          <AdvisorPortalManager
+            eyebrow="HireAdvisor®"
+            values={{
+              enabled: form.enabled,
+              brand_name: form.brand_name,
+              public_bio: form.public_bio,
+              website_url: form.website_url,
+              contact_email: form.contact_email,
+              contact_phone: form.contact_phone,
+              city: form.city,
+              color: form.primary_color,
+              allow_booking: form.allow_portal_booking,
+            }}
+            onChange={(next) =>
+              setForm((f) => ({
+                ...f,
+                enabled: next.enabled,
+                brand_name: next.brand_name,
+                public_bio: next.public_bio,
+                website_url: next.website_url,
+                contact_email: next.contact_email,
+                contact_phone: next.contact_phone,
+                city: next.city || '',
+                primary_color: next.color,
+                allow_portal_booking: next.allow_booking !== false,
+              }))
+            }
+            onSave={() => void save()}
+            saving={saving}
+            portalPath={token ? hirePublicEmbedPath(token) : ''}
+            bookingLabel="Allow hire requests from the portal"
+          />
+
           <StatRow
             items={[
               { label: 'Published', value: form.enabled ? 'Yes' : 'No' },

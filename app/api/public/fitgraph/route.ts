@@ -43,6 +43,10 @@ import {
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
 import { saveAdvisorModuleStore } from '@/lib/business/company-data';
+import {
+  memberMayBookSession,
+  persistVukaCatalogIfNeeded,
+} from '@/lib/fitness/vuka-class-catalog';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -70,7 +74,19 @@ async function resolveByToken(
     const store = readFitgraphFromMetadata(meta);
     // Accept token even if website toggle is off — join links still work
     if (store.settings?.public_token === clean) {
-      return { companyId: Number(byIndex.id), meta, store };
+      const companyId = Number(byIndex.id);
+      const next = await persistVukaCatalogIfNeeded(
+        companyId,
+        store,
+        (s) =>
+          saveAdvisorModuleStore(
+            companyId,
+            FITGRAPH_META_KEY,
+            s,
+            writeFitgraphToMetadata
+          )
+      );
+      return { companyId, meta, store: next };
     }
   }
 
@@ -89,7 +105,16 @@ async function resolveByToken(
           : {};
       const store = readFitgraphFromMetadata(meta);
       if (store.settings?.public_token === clean) {
-        return { companyId: Number(prof.id), meta, store };
+        const companyId = Number(prof.id);
+        const next = await persistVukaCatalogIfNeeded(companyId, store, (s) =>
+          saveAdvisorModuleStore(
+            companyId,
+            FITGRAPH_META_KEY,
+            s,
+            writeFitgraphToMetadata
+          )
+        );
+        return { companyId, meta, store: next };
       }
     }
   }
@@ -531,6 +556,19 @@ export async function POST(request: NextRequest) {
         },
         { status: 402 }
       );
+    }
+    if (existingClient) {
+      const classGate = memberMayBookSession(store, existingClient, session);
+      if (!classGate.ok) {
+        return NextResponse.json(
+          {
+            error: classGate.error,
+            need_membership: classGate.need_plan === true,
+            shop: gymShopCatalog(store),
+          },
+          { status: classGate.need_plan ? 402 : 400 }
+        );
+      }
     }
 
     if (!clientId) {

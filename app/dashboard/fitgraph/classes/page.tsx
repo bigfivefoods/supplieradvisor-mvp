@@ -8,6 +8,12 @@ import {
   useFitgraph,
 } from '@/components/fitness/FitgraphWorkbench';
 import { DataTable, FormCard, StatRow, fc } from '@/components/fitness/FitForm';
+import { VukaClassBoard } from '@/components/fitness/VukaClassBoard';
+import {
+  listSubscribeClasses,
+  storeUsesClassSubscribe,
+  VUKA_JOINING,
+} from '@/lib/fitness/vuka-class-catalog';
 
 const blankForm = () => ({
   code: '',
@@ -21,6 +27,8 @@ const blankForm = () => ({
 
 export default function ClassesPage() {
   const { store, loading, saving, post, summary } = useFitgraph();
+  const classSubscribe = store ? storeUsesClassSubscribe(store) : false;
+  const subscribeClasses = store ? listSubscribeClasses(store) : [];
   const formAnchorRef = useRef<HTMLDivElement>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(blankForm);
@@ -88,9 +96,13 @@ export default function ClassesPage() {
 
   return (
     <FitgraphWorkbench
-      title="Class types"
-      titleAccent="catalogue"
-      description="Step 1 of the floor flow: define class types first (HIIT, strength, yoga…). Edit any type below, then Calendar → create a class → assign coach → add members."
+      title={classSubscribe ? 'Classes' : 'Class types'}
+      titleAccent={classSubscribe ? 'subscribe' : 'catalogue'}
+      description={
+        classSubscribe
+          ? 'These are the VUKA classes members subscribe to. Their monthly fee is the sum of the classes they pick. Then you or a coach book them into each session.'
+          : 'Step 1 of the floor flow: define class types first (HIIT, strength, yoga…). Edit any type below, then Calendar → create a class → assign coach → add members.'
+      }
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -100,17 +112,44 @@ export default function ClassesPage() {
             tone="owner"
             items={[
               {
-                label: 'Class types',
-                value:
-                  Number(summary?.classTypeCount) || store.class_types.length,
+                label: classSubscribe ? 'Subscribe classes' : 'Class types',
+                value: classSubscribe
+                  ? subscribeClasses.length
+                  : Number(summary?.classTypeCount) || store.class_types.length,
               },
               {
-                label: 'Active',
+                label: 'Active types',
                 value: store.class_types.filter((c) => c.active !== false)
                   .length,
               },
+              ...(classSubscribe
+                ? [
+                    {
+                      label: 'Class subscribers',
+                      value: subscribeClasses.reduce(
+                        (n, c) => n + c.subscribers,
+                        0
+                      ),
+                    },
+                  ]
+                : []),
             ]}
           />
+
+          {classSubscribe ? (
+            <VukaClassBoard
+              classes={subscribeClasses}
+              joining={
+                store.settings?.joining_fee_zar != null
+                  ? {
+                      fee_zar: store.settings.joining_fee_zar,
+                      waived: store.settings.joining_fee_waived,
+                      note: store.settings.joining_fee_note || VUKA_JOINING.note,
+                    }
+                  : null
+              }
+            />
+          ) : null}
 
           <div ref={formAnchorRef}>
             <FormCard

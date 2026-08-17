@@ -13,6 +13,7 @@ import {
   type FitgraphStore,
   type FitSession,
 } from '@/lib/fitness/fitgraph';
+import { buildClassSubscriptionReport } from '@/lib/fitness/vuka-class-catalog';
 
 export type ReportDatePreset = '7d' | '30d' | '90d' | 'ytd' | 'all' | 'custom';
 
@@ -728,6 +729,11 @@ export function buildFullReport(store: FitgraphStore, f: ReportFilters) {
     const ct = store.class_types.find((c) => c.id === r.class_type_id);
     return { ...r, category: ct?.category || '—' };
   });
+  const subscriptions = buildClassSubscriptionReport(store, {
+    from: f.from,
+    to: f.to,
+    coachId: f.coachId || null,
+  });
   return {
     filters: f,
     overview: buildOverview(store, f, facts),
@@ -738,6 +744,7 @@ export function buildFullReport(store: FitgraphStore, f: ReportFilters) {
     feedback: buildFeedbackReport(store, f),
     members: buildMemberReport(store, f, facts),
     daily: buildDailySeries(facts),
+    subscriptions,
   };
 }
 

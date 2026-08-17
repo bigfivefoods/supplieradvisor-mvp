@@ -24,6 +24,7 @@ import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
 import { B2cAutoLinkBanner } from '@/components/b2c/B2cAutoLinkBanner';
 import { MemberAnnouncementsFeed } from '@/components/services/MemberAnnouncementsFeed';
 import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
+import { MemberAdvisorShell } from '@/components/advisors/MemberAdvisorShell';
 import { MemberMedicalShare } from '@/components/services/MemberMedicalShare';
 import type {
   SharedAdviceNote,
@@ -311,18 +312,32 @@ export default function MemberDentalgraphPortalPage() {
   if (!portal) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-sky-50 to-slate-50">
-      <header
-        className="px-4 py-6 text-white"
-        style={{ background: `linear-gradient(135deg, ${color}, #0c4a6e)` }}
-      >
-        <div className="max-w-lg mx-auto">
+    <MemberAdvisorShell
+      color={color}
+      fromClass="from-sky-50"
+      tab={tab}
+      onTab={(id) => {
+        setTab(id);
+        setError(null);
+        setMsg(null);
+      }}
+      tabs={[
+        { id: 'open', label: 'Open diary' },
+        { id: 'mine', label: 'My bookings' },
+        { id: 'messages', label: 'Messages' },
+        ...(portal.shares?.medical !== false
+          ? [{ id: 'care', label: 'My care' }]
+          : []),
+        { id: 'profile', label: 'My profile' },
+      ]}
+      header={
+        <div>
           <MemberPortalBrandLockup
             logoUrl={portal.logo_url}
             brand={portal.brand}
             eyebrow="Patient portal · DentalAdvisor®"
           />
-          <div className="mt-3 flex items-center gap-3">
+          <div className="mt-4 flex items-center gap-3">
             {portal.patient.photo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -350,9 +365,8 @@ export default function MemberDentalgraphPortalPage() {
             </div>
           </div>
         </div>
-      </header>
-
-      <main className="max-w-lg mx-auto px-4 py-5 space-y-4">
+      }
+    >
         <PopiaConsentNotice brand={portal.brand} />
         <B2cAutoLinkBanner token={token} tone="cyan" />
         <MemberAnnouncementsFeed
@@ -372,36 +386,6 @@ export default function MemberDentalgraphPortalPage() {
           </div>
         )}
 
-        <div className="flex gap-1 rounded-2xl bg-white border border-slate-200 p-1 flex-wrap">
-          {(
-            [
-              ['open', 'Open diary'],
-              ['mine', 'My bookings'],
-              ['messages', 'Messages'],
-              ...(portal.shares?.medical !== false
-                ? ([['care', 'My care']] as const)
-                : []),
-              ['profile', 'My profile'],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => {
-                setTab(id);
-                setError(null);
-                setMsg(null);
-              }}
-              className={`flex-1 min-w-[4.5rem] rounded-xl py-2 text-xs font-bold ${
-                tab === id
-                  ? 'bg-sky-600 text-white'
-                  : 'text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
 
         {tab === 'care' && (
           <MemberMedicalShare
@@ -534,7 +518,9 @@ export default function MemberDentalgraphPortalPage() {
                   </div>
                 );
               }
-              return slots.map((s) => (
+              return (
+                <div className="grid gap-3 md:grid-cols-2">
+                {slots.map((s) => (
                 <div
                   key={s.id}
                   className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
@@ -609,7 +595,9 @@ export default function MemberDentalgraphPortalPage() {
                     ) : null}
                   </div>
                 </div>
-              ));
+                ))}
+                </div>
+              );
             })()}
           </div>
         )}
@@ -846,7 +834,6 @@ export default function MemberDentalgraphPortalPage() {
         <p className="text-center text-[10px] text-slate-400 pb-8">
           Powered by DentalAdvisor® · SupplierAdvisor
         </p>
-      </main>
-    </div>
+    </MemberAdvisorShell>
   );
 }

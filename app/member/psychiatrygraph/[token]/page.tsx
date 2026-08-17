@@ -23,6 +23,7 @@ import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
 import { B2cAutoLinkBanner } from '@/components/b2c/B2cAutoLinkBanner';
 import { MemberAnnouncementsFeed } from '@/components/services/MemberAnnouncementsFeed';
 import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
+import { MemberAdvisorShell } from '@/components/advisors/MemberAdvisorShell';
 import { MemberMedicalShare } from '@/components/services/MemberMedicalShare';
 import type {
   SharedAdviceNote,
@@ -281,18 +282,30 @@ export default function MemberPsychiatrygraphPortalPage() {
   if (!portal) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-slate-50">
-      <header
-        className="px-4 py-6 text-white"
-        style={{ background: `linear-gradient(135deg, ${color}, #312e81)` }}
-      >
-        <div className="max-w-lg mx-auto">
+    <MemberAdvisorShell
+      color={color}
+      fromClass="from-indigo-50"
+      tab={tab}
+      onTab={(id) => {
+        setTab(id);
+        setError(null);
+        setMsg(null);
+      }}
+      tabs={[
+        { id: 'open', label: 'Book' },
+        { id: 'mine', label: 'My bookings' },
+        { id: 'care', label: 'My records' },
+        { id: 'messages', label: 'Messages' },
+        { id: 'profile', label: 'My profile' },
+      ]}
+      header={
+        <div>
           <MemberPortalBrandLockup
             logoUrl={portal.logo_url}
             brand={portal.brand}
             eyebrow="Patient portal · PsychiatryAdvisor®"
           />
-          <div className="mt-3 flex items-center gap-3">
+          <div className="mt-4 flex items-center gap-3">
             {portal.patient.photo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -320,9 +333,8 @@ export default function MemberPsychiatrygraphPortalPage() {
             </div>
           </div>
         </div>
-      </header>
-
-      <main className="max-w-lg mx-auto px-4 py-5 space-y-4">
+      }
+    >
         <PopiaConsentNotice brand={portal.brand} />
         <B2cAutoLinkBanner token={token} tone="rose" />
         <MemberAnnouncementsFeed
@@ -342,34 +354,6 @@ export default function MemberPsychiatrygraphPortalPage() {
           </div>
         )}
 
-        <div className="flex gap-1 rounded-2xl bg-white border border-slate-200 p-1">
-          {(
-            [
-              ['open', 'Book'],
-              ['mine', 'My bookings'],
-              ['care', 'My records'],
-              ['messages', 'Messages'],
-              ['profile', 'My profile'],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => {
-                setTab(id);
-                setError(null);
-                setMsg(null);
-              }}
-              className={`flex-1 rounded-xl py-2 text-xs font-bold ${
-                tab === id
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
 
         {(portal.patient?.family || []).filter((m: { active?: boolean }) => m.active !== false).length >
           0 && tab === 'open' ? (
@@ -428,7 +412,8 @@ export default function MemberPsychiatrygraphPortalPage() {
                 publish open slots.
               </div>
             ) : (
-              portal.open_slots.map((s) => (
+              <div className="grid gap-3 md:grid-cols-2">
+              {portal.open_slots.map((s) => (
                 <div
                   key={s.id}
                   className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
@@ -485,7 +470,8 @@ export default function MemberPsychiatrygraphPortalPage() {
                     ) : null}
                   </div>
                 </div>
-              ))
+              ))}
+              </div>
             )}
           </div>
         )}
@@ -728,7 +714,6 @@ export default function MemberPsychiatrygraphPortalPage() {
         <p className="text-center text-[10px] text-slate-400 pb-8">
           Powered by PsychiatryAdvisor® · SupplierAdvisor
         </p>
-      </main>
-    </div>
+    </MemberAdvisorShell>
   );
 }

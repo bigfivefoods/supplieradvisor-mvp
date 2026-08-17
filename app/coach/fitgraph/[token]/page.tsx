@@ -53,6 +53,7 @@ import {
   type AdvisorWorkTab,
 } from '@/components/services/AdvisorWorkPwaChrome';
 import { ProgrammeView } from '@/components/fitness/ProgrammeView';
+import { ClassSubscriptionReport } from '@/components/fitness/ClassSubscriptionReport';
 import type {
   FitHydratedProgramme,
   FitMovement,
@@ -127,6 +128,20 @@ type PortalSession = {
     enjoyment?: number;
     comment?: string;
   }>;
+  subscribed?: Array<{
+    client_id: string;
+    name: string;
+    code: string;
+    plan_name: string;
+    booked: boolean;
+  }>;
+  subscribed_not_booked?: Array<{
+    client_id: string;
+    name: string;
+    code: string;
+    plan_name: string;
+    booked: boolean;
+  }>;
 };
 
 type SessionEditForm = {
@@ -200,7 +215,10 @@ type Portal = {
     membership_status?: string;
     coach_id?: string | null;
     health?: PersonHealthProfile;
+    plan_names?: string[];
+    monthly_zar?: number;
   }>;
+  class_report?: import('@/lib/fitness/vuka-class-catalog').ClassSubscriptionReport;
   class_types: Array<{
     id: string;
     code: string;
@@ -678,6 +696,13 @@ export default function CoachFitgraphPortalPage() {
 
       {workTab === 'people' ? (
         <div className="space-y-2">
+          {portal.class_report ? (
+            <ClassSubscriptionReport
+              report={portal.class_report}
+              tone="coach"
+              title="Your class subscriptions"
+            />
+          ) : null}
           {portal.members.map((m) => (
             <div
               key={m.id}
@@ -690,7 +715,12 @@ export default function CoachFitgraphPortalPage() {
               >
                 <div className="font-bold">{m.name}</div>
                 <div className="text-[11px] text-slate-400">
-                  {m.membership_status || 'Member'}
+                  {m.plan_names?.length
+                    ? m.plan_names.join(' · ')
+                    : m.membership_status || 'Member'}
+                  {m.monthly_zar
+                    ? ` · R${m.monthly_zar.toLocaleString('en-ZA')}/pm`
+                    : ''}
                   {m.health?.injured ? ' · injured' : ''}
                 </div>
               </button>
@@ -1473,18 +1503,63 @@ export default function CoachFitgraphPortalPage() {
             </div>
 
             {sessionEdit?.session_kind !== 'coach_personal' ? (
-            <div className="flex flex-wrap gap-2 items-end border-t border-slate-800 pt-3">
+            <div className="space-y-2 border-t border-slate-800 pt-3">
+              {(openCard.subscribed_not_booked || []).length ? (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+                  <p className="font-black uppercase tracking-wider text-[10px] text-amber-300">
+                    Subscribed — book in
+                  </p>
+                  <ul className="mt-1 space-y-1">
+                    {openCard.subscribed_not_booked!.map((s) => (
+                      <li
+                        key={s.client_id}
+                        className="flex items-center justify-between gap-2"
+                      >
+                        <span>
+                          {s.name}
+                          <span className="text-amber-200/70">
+                            {' '}
+                            · {s.plan_name}
+                          </span>
+                        </span>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          className="rounded-lg bg-amber-500 px-2 py-1 text-[10px] font-black text-amber-950"
+                          onClick={() =>
+                            void post({
+                              action: 'book_member',
+                              session_id: openCard.session.id,
+                              client_id: s.client_id,
+                            })
+                          }
+                        >
+                          Book in
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              <div className="flex flex-wrap gap-2 items-end">
               <select
                 className="flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
                 value={memberFor}
                 onChange={(e) => setMemberFor(e.target.value)}
               >
-                <option value="">Add member to plan…</option>
-                {portal.members.map((m) => (
-                  <option key={m.id} value={m.id}>
+                <option value="">Add subscribed member…</option>
+                {(openCard.subscribed_not_booked || []).map((m) => (
+                  <option key={m.client_id} value={m.client_id}>
                     {m.code} · {m.name}
                   </option>
                 ))}
+                {!(openCard.subscribed_not_booked || []).length
+                  ? portal.members.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.code} · {m.name}
+                      </option>
+                    ))
+                  : null}
               </select>
               <button
                 type="button"
@@ -1500,6 +1575,7 @@ export default function CoachFitgraphPortalPage() {
               >
                 Add
               </button>
+              </div>
             </div>
             ) : (
               <p className="text-[11px] text-slate-500 border-t border-slate-800 pt-3">

@@ -77,6 +77,8 @@ type PublicCalendar = {
     description?: string;
   }>;
   require_paid_membership?: boolean;
+  joining?: { fee_zar: number; waived?: boolean; note?: string } | null;
+  class_subscribe?: boolean;
   contracts?: Array<{
     id: string;
     title: string;
@@ -506,7 +508,12 @@ export default function EmbedFitgraphPage() {
       ) : null}
 
       {shopItems.length > 0 ? (
-        <AdvisorPublicSection id="join" title="Join & pay">
+        <AdvisorPublicSection
+          id="join"
+          title={
+            calendar.class_subscribe ? 'Subscribe to classes' : 'Join & pay'
+          }
+        >
           <GymShopPay
             items={shopItems}
             color={color}
@@ -520,6 +527,8 @@ export default function EmbedFitgraphPage() {
             onPhone={setPhone}
             onBuy={(item) => void buy(item)}
             buyingId={buyingId}
+            joining={calendar.joining}
+            classSubscribe={calendar.class_subscribe === true}
           />
         </AdvisorPublicSection>
       ) : null}

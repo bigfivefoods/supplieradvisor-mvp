@@ -132,6 +132,39 @@ assert.equal(
   false
 );
 
+const addonStore = applied.store;
+addonStore.membership_plans.push({
+  id: 'pln_addon',
+  code: 'ADD',
+  name: 'Tech add-on',
+  price_zar: 150,
+  billing: 'monthly',
+  public: true,
+  active: true,
+  addon: true,
+  created_at: '2026-01-01T00:00:00.000Z',
+});
+const withAddon = applyPaidGymSale(
+  addonStore,
+  {
+    id: 'gsl_addon',
+    kind: 'membership',
+    plan_id: 'pln_addon',
+    amount_zar: 150,
+    name: 'Ada',
+    email: 'ada@example.com',
+    status: 'pending',
+    paystack_ref: 'gym-sale-addon',
+    created_at: new Date().toISOString(),
+  },
+  { companyId: 9 }
+);
+assert.equal(withAddon.client.membership_plan_id, 'pln_1');
+assert.equal(
+  withAddon.store.subscriptions.filter((s) => s.status === 'active').length,
+  2
+);
+
 assert.equal(parseGymSaleKind('programme'), 'programme');
 assert.equal(parseGymSaleKind('membership'), 'membership');
 assert.equal(parseGymSaleKind(''), 'membership');

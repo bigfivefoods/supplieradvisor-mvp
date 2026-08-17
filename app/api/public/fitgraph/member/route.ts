@@ -8,7 +8,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
 import {
   FITGRAPH_CLIENT_TOKENS_KEY,
-  buildMemberPortalPayload,
+  buildMemberPortalPayload as buildMemberPortalPayloadBase,
   classTypeById,
   evaluateMemberAccess,
   newId,
@@ -44,6 +44,14 @@ import {
   startGymShopCheckout,
 } from '@/lib/fitness/gym-sale-checkout';
 import { applyGymSalePaystack } from '@/lib/b2c/gym-sale-apply-paystack';
+import {
+  activeClassSubscriptions,
+  buildClassSubscriptionReport,
+  memberMayBookSession,
+  persistVukaCatalogIfNeeded,
+  storeUsesClassSubscribe,
+  VUKA_JOINING,
+} from '@/lib/fitness/vuka-class-catalog';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -101,12 +109,70 @@ async function resolveMember(
     prof.metadata && typeof prof.metadata === 'object'
       ? { ...(prof.metadata as Record<string, unknown>) }
       : {};
-  const store = readFitgraphFromMetadata(meta);
+  let store = readFitgraphFromMetadata(meta);
   applyCompanyLogoToSettings(store, pickCompanyLogoUrl(prof));
+  store = await persistVukaCatalogIfNeeded(Number(prof.id), store, (s) =>
+    saveStore(Number(prof.id), meta, s)
+  );
   const client = store.clients.find((c) => c.portal_token === clean);
   if (!client || client.active === false) return null;
 
   return { companyId: Number(prof.id), meta, store, client };
+}
+
+function decorateMemberPortal(
+  store: FitgraphStore,
+  client: FitClient,
+  portal: ReturnType<typeof buildMemberPortalPayloadBase>,
+  meta: Record<string, unknown>
+) {
+  const mySubs = activeClassSubscriptions(store, client.id).map((x) => ({
+    id: x.sub.id,
+    plan_id: x.plan.id,
+    plan_name: x.plan.name,
+    price_zar: x.plan.price_zar,
+    billing: x.plan.billing,
+    schedule_label: x.plan.schedule_label,
+    addon: x.plan.addon === true,
+    status: x.sub.status,
+    current_period_end: x.sub.current_period_end || null,
+  }));
+  const open_classes = (portal.open_classes || []).map((c) => {
+    const session = store.sessions.find((s) => s.id === c.id);
+    const gate = session
+      ? memberMayBookSession(store, client, session)
+      : { ok: true as const };
+    return {
+      ...c,
+      can_book: gate.ok,
+      need_plan: gate.need_plan === true,
+      book_hint: gate.ok ? null : gate.error || null,
+    };
+  });
+  return {
+    ...portal,
+    open_classes,
+    vacancies: open_classes.filter((c) => !c.full && !c.my_status),
+    shop: gymShopCatalog(store),
+    require_paid_membership: gymRequiresPaidMembership(store),
+    paid_access: clientHasPaidAccess(store, client),
+    payout_ready: isAdvisorPayoutReady(readAdvisorPayout(meta)),
+    subscriptions: mySubs,
+    class_report: buildClassSubscriptionReport(store, {
+      clientId: client.id,
+      from: portal.from,
+      to: portal.to,
+    }),
+    joining:
+      store.settings?.joining_fee_zar != null
+        ? {
+            fee_zar: store.settings.joining_fee_zar,
+            waived: store.settings.joining_fee_waived !== false,
+            note: store.settings.joining_fee_note || VUKA_JOINING.note,
+          }
+        : null,
+    class_subscribe: storeUsesClassSubscribe(store),
+  };
 }
 
 async function saveStore(
@@ -182,22 +248,21 @@ export async function GET(request: NextRequest) {
       /* wallet hydrate is best-effort */
     }
 
-    const portal = buildMemberPortalPayload(
+    const portal = decorateMemberPortal(
       resolved.store,
       resolved.client,
-      from,
-      to
+      buildMemberPortalPayloadBase(
+        resolved.store,
+        resolved.client,
+        from,
+        to
+      ),
+      resolved.meta
     );
 
     return NextResponse.json({
       success: true,
-      portal: {
-        ...portal,
-        shop: gymShopCatalog(resolved.store),
-        require_paid_membership: gymRequiresPaidMembership(resolved.store),
-        paid_access: clientHasPaidAccess(resolved.store, resolved.client),
-        payout_ready: isAdvisorPayoutReady(readAdvisorPayout(resolved.meta)),
-      },
+      portal,
       companyId: resolved.companyId,
       platform_user_linked: Boolean(resolved.client.platform_user_id),
     });
@@ -307,7 +372,7 @@ export async function POST(request: NextRequest) {
             success: true,
             sale: paid.sale,
             portal: {
-              ...buildMemberPortalPayload(paid.store, nextClient),
+              ...buildMemberPortalPayloadBase(paid.store, nextClient),
               shop: gymShopCatalog(paid.store),
               require_paid_membership: gymRequiresPaidMembership(paid.store),
               paid_access: clientHasPaidAccess(paid.store, nextClient),
@@ -328,7 +393,7 @@ export async function POST(request: NextRequest) {
         success: true,
         sale: findGymSaleByRef(fresh, reference),
         portal: {
-          ...buildMemberPortalPayload(fresh, nextClient),
+          ...buildMemberPortalPayloadBase(fresh, nextClient),
           shop: gymShopCatalog(fresh),
           require_paid_membership: gymRequiresPaidMembership(fresh),
           paid_access: clientHasPaidAccess(fresh, nextClient),
@@ -428,7 +493,7 @@ export async function POST(request: NextRequest) {
         thread: result.thread,
         threads: myThreads,
         unread: totalUnread(store.threads || [], 'member', client.id),
-        portal: buildMemberPortalPayload(store, store.clients[ci]),
+        portal: buildMemberPortalPayloadBase(store, store.clients[ci]),
       });
     }
 
@@ -464,7 +529,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           success: true,
           platform_user_id: c.platform_user_id || null,
-          portal: buildMemberPortalPayload(store, c),
+          portal: buildMemberPortalPayloadBase(store, c),
           message: c.platform_user_id
             ? 'Linked to your SupplierAdvisor account — messages deliver in-app'
             : 'Could not link system user',
@@ -492,7 +557,7 @@ export async function POST(request: NextRequest) {
       }
       return NextResponse.json({
         success: true,
-        portal: buildMemberPortalPayload(store, c),
+        portal: buildMemberPortalPayloadBase(store, c),
         message: result.emailChanged
           ? 'Profile updated — email synced to your wallet and gym records'
           : 'Profile updated on your wallet',
@@ -527,7 +592,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         member,
-        portal: buildMemberPortalPayload(store, c),
+        portal: buildMemberPortalPayloadBase(store, c),
         message: patch.id
           ? 'Family member updated'
           : 'Family member added — saved on your wallet and this gym',
@@ -560,7 +625,7 @@ export async function POST(request: NextRequest) {
       }
       return NextResponse.json({
         success: true,
-        portal: buildMemberPortalPayload(store, c),
+        portal: buildMemberPortalPayloadBase(store, c),
         message: 'Family member removed',
       });
     }
@@ -597,7 +662,7 @@ export async function POST(request: NextRequest) {
         duplicate: result.duplicate,
         check_in: result.check_in,
         access: result.access,
-        portal: buildMemberPortalPayload(
+        portal: buildMemberPortalPayloadBase(
           result.store,
           result.store.clients[ci]
         ),
@@ -631,7 +696,7 @@ export async function POST(request: NextRequest) {
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
-        portal: buildMemberPortalPayload(store, store.clients[ci]),
+        portal: buildMemberPortalPayloadBase(store, store.clients[ci]),
         message: 'Booking cancelled',
       });
     }
@@ -700,6 +765,18 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { error: 'Coach personal time cannot be booked by members' },
           { status: 400 }
+        );
+      }
+
+      const classGate = memberMayBookSession(store, store.clients[ci], session);
+      if (!classGate.ok) {
+        return NextResponse.json(
+          {
+            error: classGate.error,
+            need_membership: classGate.need_plan === true,
+            shop: gymShopCatalog(store),
+          },
+          { status: classGate.need_plan ? 402 : 400 }
         );
       }
 
@@ -781,7 +858,7 @@ export async function POST(request: NextRequest) {
               ? 'Class is full — you are on the waitlist (join request received)'
               : 'You are booked into this class',
         },
-        portal: buildMemberPortalPayload(store, store.clients[ci]),
+        portal: buildMemberPortalPayloadBase(store, store.clients[ci]),
       });
     }
 
@@ -842,7 +919,7 @@ export async function POST(request: NextRequest) {
         message: decision.free
           ? 'Rescheduled'
           : `Rescheduled (late fee R${decision.fee_zar})`,
-        portal: buildMemberPortalPayload(store, store.clients[ci]),
+        portal: buildMemberPortalPayloadBase(store, store.clients[ci]),
       });
     }
 

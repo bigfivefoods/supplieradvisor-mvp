@@ -8,9 +8,17 @@ import {
   useFitgraph,
 } from '@/components/fitness/FitgraphWorkbench';
 import { DataTable, FormCard, StatRow, fc } from '@/components/fitness/FitForm';
+import { VukaClassBoard } from '@/components/fitness/VukaClassBoard';
+import {
+  listSubscribeClasses,
+  storeUsesClassSubscribe,
+  VUKA_JOINING,
+} from '@/lib/fitness/vuka-class-catalog';
 
 export default function MembershipsPage() {
   const { store, loading, saving, post, summary } = useFitgraph();
+  const classSubscribe = store ? storeUsesClassSubscribe(store) : false;
+  const subscribeClasses = store ? listSubscribeClasses(store) : [];
   const [form, setForm] = useState({
     code: '',
     name: '',
@@ -73,9 +81,13 @@ export default function MembershipsPage() {
 
   return (
     <FitgraphWorkbench
-      title="Membership plans"
-      titleAccent="& PT packs"
-      description="Sellable memberships shown on your website. Members must pay first (Paystack / Apple Pay) before they can book classes. Assign desk-issued plans on Subscriptions."
+      title={classSubscribe ? 'Class subscriptions' : 'Membership plans'}
+      titleAccent={classSubscribe ? '& PT packs' : '& PT packs'}
+      description={
+        classSubscribe
+          ? 'Members subscribe to one or more of these classes. Their fee is the total of those classes. Assign a member on Subscriptions, or they pay on the member portal / website.'
+          : 'Sellable memberships shown on your website. Members must pay first (Paystack / Apple Pay) before they can book classes. Assign desk-issued plans on Subscriptions.'
+      }
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -94,6 +106,29 @@ export default function MembershipsPage() {
               },
             ]}
           />
+          {classSubscribe ? (
+            <VukaClassBoard
+              classes={subscribeClasses}
+              joining={
+                store.settings?.joining_fee_zar != null
+                  ? {
+                      fee_zar: store.settings.joining_fee_zar,
+                      waived: store.settings.joining_fee_waived,
+                      note: store.settings.joining_fee_note || VUKA_JOINING.note,
+                    }
+                  : null
+              }
+            />
+          ) : null}
+          {store.settings?.joining_fee_zar != null && !classSubscribe ? (
+            <p className="rounded-xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-950 dark:border-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-100">
+              Once-off joining R{store.settings.joining_fee_zar}
+              {store.settings.joining_fee_waived
+                ? ' — currently waived (free).'
+                : '.'}{' '}
+              {store.settings.joining_fee_note || ''}
+            </p>
+          ) : null}
           <p className="text-xs text-slate-600">
             Manage member billing status on{' '}
             <a
@@ -164,16 +199,17 @@ export default function MembershipsPage() {
             </label>
           </FormCard>
           <DataTable tone="owner"
-            headers={['Code', 'Name', 'Price', 'Billing', 'Class cr.', 'PT cr.', 'Web']}
-            rows={store.membership_plans.map((p) => ({
+            headers={['Code', 'Name', 'When', 'Price', 'Billing', 'Web']}
+            rows={[...store.membership_plans]
+              .sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
+              .map((p) => ({
               id: p.id,
               cells: [
                 p.code,
                 p.name,
+                p.schedule_label || (p.addon ? 'Add-on' : '—'),
                 p.price_zar,
                 p.billing,
-                p.class_credits ?? '∞',
-                p.pt_credits ?? '—',
                 p.public !== false ? 'Public' : 'Hidden',
               ],
             }))}

@@ -12,6 +12,7 @@ import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite'
 import { AdvisorDeskInviteCard } from '@/components/advisors/AdvisorDeskInviteCard';
 import { AdvisorPayoutSettings } from '@/components/advisors/AdvisorPayoutSettings';
 import { AdvisorEmbedSnippet } from '@/components/services/AdvisorEmbedSnippet';
+import { AdvisorPortalManager } from '@/components/advisors/AdvisorPortalManager';
 import type { RetailgraphStore } from '@/lib/retail/retailgraph';
 
 export default function RetailgraphWebsitePage() {
@@ -113,6 +114,37 @@ export default function RetailgraphWebsitePage() {
           <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
         ) : (
           <div className="space-y-6">
+            <AdvisorPortalManager
+              eyebrow="RetailAdvisor®"
+              values={{
+                enabled: form.enabled,
+                brand_name: form.brand_name,
+                public_bio: form.public_bio,
+                website_url: form.website_url,
+                contact_email: form.contact_email,
+                contact_phone: form.contact_phone,
+                color: form.embed_primary_color,
+              }}
+              onChange={(next) =>
+                setForm((f) => ({
+                  ...f,
+                  enabled: next.enabled,
+                  brand_name: next.brand_name,
+                  public_bio: next.public_bio,
+                  website_url: next.website_url,
+                  contact_email: next.contact_email,
+                  contact_phone: next.contact_phone,
+                  embed_primary_color: next.color,
+                }))
+              }
+              onSave={() => void save()}
+              saving={saving}
+              portalPath={
+                token ? `/embed/retail/${encodeURIComponent(token)}` : ''
+              }
+              showCity={false}
+              showBooking={false}
+            />
             <AdvisorMemberAppInvite
               kind="retail"
               companyId={companyId}

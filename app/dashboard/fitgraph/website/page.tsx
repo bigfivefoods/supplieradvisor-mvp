@@ -22,6 +22,8 @@ import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite'
 import { AdvisorDeskInviteCard } from '@/components/advisors/AdvisorDeskInviteCard';
 import { AdvisorPayoutSettings } from '@/components/advisors/AdvisorPayoutSettings';
 import { gymRequiresPaidMembership } from '@/lib/fitness/gym-shop';
+import { AdvisorPortalManager } from '@/components/advisors/AdvisorPortalManager';
+import type { WorkingHours } from '@/lib/schedule/working-hours';
 
 export default function FitgraphWebsitePage() {
   const { companyId, store, loading, saving, post, summary } = useFitgraph();
@@ -40,6 +42,7 @@ export default function FitgraphWebsitePage() {
     embed_primary_color: '#E8E830',
     timezone: 'Africa/Johannesburg',
     require_paid_membership: true,
+    city: '',
   });
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -61,6 +64,7 @@ export default function FitgraphWebsitePage() {
       embed_primary_color: gymBrandColor(s.embed_primary_color),
       timezone: s.timezone || 'Africa/Johannesburg',
       require_paid_membership: gymRequiresPaidMembership(store),
+      city: s.marketplace?.city || '',
     });
   }, [store]);
 
@@ -79,11 +83,26 @@ export default function FitgraphWebsitePage() {
   }, [token, origin]);
 
   const save = async () => {
+    const { city, ...settings } = form;
     await post({
       action: 'update_settings',
-      settings: form,
+      settings: {
+        ...settings,
+        marketplace: {
+          ...(store?.settings?.marketplace || {}),
+          city,
+        },
+      },
     });
     toast.success('Website settings saved');
+  };
+
+  const saveHours = async (working_hours: WorkingHours) => {
+    await post({
+      action: 'update_settings',
+      settings: { working_hours },
+    });
+    toast.success('Portal hours saved');
   };
 
   const rotate = async () => {
@@ -94,9 +113,16 @@ export default function FitgraphWebsitePage() {
     ) {
       return;
     }
+    const { city, ...settings } = form;
     await post({
       action: 'update_settings',
-      settings: form,
+      settings: {
+        ...settings,
+        marketplace: {
+          ...(store?.settings?.marketplace || {}),
+          city,
+        },
+      },
       rotate_token: true,
     });
     toast.success('Public token rotated');
@@ -126,6 +152,44 @@ export default function FitgraphWebsitePage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
+          <AdvisorPortalManager
+            eyebrow="GymAdvisor®"
+            values={{
+              enabled: form.enabled,
+              brand_name: form.brand_name,
+              public_bio: form.public_bio,
+              website_url: form.website_url,
+              contact_email: form.contact_email,
+              contact_phone: form.contact_phone,
+              city: form.city,
+              color: form.embed_primary_color,
+              allow_booking: form.allow_public_booking,
+            }}
+            onChange={(next) =>
+              setForm((f) => ({
+                ...f,
+                enabled: next.enabled,
+                brand_name: next.brand_name,
+                public_bio: next.public_bio,
+                website_url: next.website_url,
+                contact_email: next.contact_email,
+                contact_phone: next.contact_phone,
+                city: next.city || '',
+                embed_primary_color: next.color,
+                allow_public_booking: next.allow_booking !== false,
+              }))
+            }
+            onSave={() => void save()}
+            saving={saving}
+            portalPath={
+              token ? `/embed/fitgraph/${encodeURIComponent(token)}` : ''
+            }
+            hours={store.settings?.working_hours}
+            onHoursSave={saveHours}
+            hoursSaving={saving}
+            bookingLabel="Allow class booking on the portal"
+          />
+
           <StatRow tone="owner"
             items={[
               {

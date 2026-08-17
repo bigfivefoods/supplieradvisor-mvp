@@ -1,9 +1,6 @@
 'use client';
 
 import {
-  CATEGORY_COLORS,
-  figurePaths,
-  movementArtSeed,
   movementPoseImageSrc,
   resolveMovementPose,
 } from '@/lib/fitness/movement-art';
@@ -11,7 +8,6 @@ import {
 export function MovementThumb({
   name,
   category,
-  code,
   imageUrl,
   muscles,
   equipment,
@@ -30,7 +26,9 @@ export function MovementThumb({
   const custom = String(imageUrl || '').trim();
   const cat = category || 'Other';
   const pose = resolveMovementPose(name, cat);
-  const photo = custom || movementPoseImageSrc(pose);
+  const poseSrc = movementPoseImageSrc(pose);
+  const genericSrc = movementPoseImageSrc('generic');
+  const photo = custom || poseSrc;
   const h = large ? 'h-64' : 'h-40';
   const caption = (muscles || equipment || 'Bodyweight').slice(0, 48);
 
@@ -43,12 +41,16 @@ export function MovementThumb({
         className="absolute inset-0 h-full w-full object-cover object-center"
         onError={(e) => {
           const el = e.currentTarget;
-          if (el.dataset.fallback === '1') return;
-          el.dataset.fallback = '1';
-          el.style.display = 'none';
+          if (el.dataset.fallback === 'generic') return;
+          if (el.dataset.fallback === 'pose' || photo === poseSrc) {
+            el.dataset.fallback = 'generic';
+            el.src = genericSrc;
+            return;
+          }
+          el.dataset.fallback = 'pose';
+          el.src = poseSrc;
         }}
       />
-      <StickFallback name={name} category={cat} code={code} />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/10" />
       {large ? (
         <div className="absolute inset-x-0 bottom-0 p-3 text-white">
@@ -62,38 +64,5 @@ export function MovementThumb({
         </div>
       ) : null}
     </div>
-  );
-}
-
-function StickFallback({
-  name,
-  category,
-  code,
-}: {
-  name: string;
-  category: string;
-  code?: string | null;
-}) {
-  const colors = CATEGORY_COLORS[category] || CATEGORY_COLORS.Other;
-  const pose = resolveMovementPose(name, category);
-  const d = figurePaths(pose, movementArtSeed(code || name));
-  return (
-    <svg
-      viewBox="0 0 320 160"
-      className="absolute inset-0 h-full w-full"
-      aria-hidden
-    >
-      <rect width="320" height="160" fill={colors.bg} />
-      <g
-        transform="translate(150,18) scale(1.05)"
-        fill="none"
-        stroke={colors.ink}
-        strokeWidth="4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d={d} />
-      </g>
-    </svg>
   );
 }

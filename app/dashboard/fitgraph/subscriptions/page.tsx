@@ -14,6 +14,7 @@ import {
   StatRow,
   fc,
 } from '@/components/fitness/FitForm';
+import { storeUsesClassSubscribe } from '@/lib/fitness/vuka-class-catalog';
 
 const STATUSES = [
   'active',
@@ -26,6 +27,7 @@ const STATUSES = [
 
 export default function SubscriptionsPage() {
   const { store, loading, saving, post, summary } = useFitgraph();
+  const classSubscribe = store ? storeUsesClassSubscribe(store) : false;
   const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState({
     client_id: '',
@@ -95,8 +97,12 @@ export default function SubscriptionsPage() {
   return (
     <FitgraphWorkbench
       title="Subscriptions"
-      titleAccent="members"
-      description="Active member subscriptions linked to plans. Status updates sync membership on the client record. Packs track remaining class credits."
+      titleAccent={classSubscribe ? 'classes' : 'members'}
+      description={
+        classSubscribe
+          ? 'Subscribe a member to one or more classes. Their monthly fee is the sum of those classes. Status updates sync on the member record.'
+          : 'Active member subscriptions linked to plans. Status updates sync membership on the client record. Packs track remaining class credits.'
+      }
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -118,7 +124,11 @@ export default function SubscriptionsPage() {
           />
 
           <FormCard tone="owner"
-            title="Start / update subscription"
+            title={
+              classSubscribe
+                ? 'Subscribe member to a class'
+                : 'Start / update subscription'
+            }
             onSubmit={() => void add()}
             saving={saving}
             submitLabel="Save subscription"
@@ -144,12 +154,15 @@ export default function SubscriptionsPage() {
                 setForm((f) => ({ ...f, plan_id: e.target.value }))
               }
             >
-              <option value="">Plan…</option>
-              {store.membership_plans
+              <option value="">{classSubscribe ? 'Class…' : 'Plan…'}</option>
+              {[...store.membership_plans]
                 .filter((p) => p.active !== false)
+                .sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
                 .map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} · R{p.price_zar}/{p.billing}
+                    {p.schedule_label
+                      ? `${p.name} · ${p.schedule_label} · R${p.price_zar}/pm`
+                      : `${p.name} · R${p.price_zar}/${p.billing}`}
                   </option>
                 ))}
             </select>
@@ -221,8 +234,9 @@ export default function SubscriptionsPage() {
           <div className="space-y-2">
             {subs.length === 0 ? (
               <p className="text-sm text-slate-500 py-8 text-center border border-dashed border-slate-200 rounded-2xl">
-                No subscriptions yet. Create plans under Memberships, then start
-                a sub for a client.
+                {classSubscribe
+                  ? 'No class subscriptions yet. Open Classes to see the timetable, then subscribe a member here.'
+                  : 'No subscriptions yet. Create plans under Memberships, then start a sub for a client.'}
               </p>
             ) : (
               subs.map((s) => {

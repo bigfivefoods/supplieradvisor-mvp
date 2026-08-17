@@ -16,6 +16,8 @@ import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite'
 import { AdvisorDeskInviteCard } from '@/components/advisors/AdvisorDeskInviteCard';
 import { AdvisorPayoutSettings } from '@/components/advisors/AdvisorPayoutSettings';
 import { AdvisorMemberCalendarShareCard } from '@/components/advisors/AdvisorMemberCalendarShareCard';
+import { AdvisorPortalManager } from '@/components/advisors/AdvisorPortalManager';
+import type { WorkingHours } from '@/lib/schedule/working-hours';
 
 export default function WebsitePage() {
   const { companyId, store, loading, saving, post, summary } =
@@ -32,6 +34,7 @@ export default function WebsitePage() {
     contact_phone: '',
     embed_primary_color: '#0284c7',
     timezone: 'Africa/Johannesburg',
+    city: '',
   });
 
   useEffect(() => {
@@ -49,12 +52,31 @@ export default function WebsitePage() {
       contact_phone: s.contact_phone || '',
       embed_primary_color: s.embed_primary_color || '#0284c7',
       timezone: s.timezone || 'Africa/Johannesburg',
+      city: s.marketplace?.city || '',
     });
   }, [store]);
 
   const save = async () => {
-    await post({ action: 'update_settings', settings: form });
+    const { city, ...settings } = form;
+    await post({
+      action: 'update_settings',
+      settings: {
+        ...settings,
+        marketplace: {
+          ...(store?.settings?.marketplace || {}),
+          city,
+        },
+      },
+    });
     toast.success('Practice website settings saved');
+  };
+
+  const saveHours = async (working_hours: WorkingHours) => {
+    await post({
+      action: 'update_settings',
+      settings: { working_hours },
+    });
+    toast.success('Portal hours saved');
   };
 
   const token = store?.settings?.public_token || '';
@@ -69,6 +91,46 @@ export default function WebsitePage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
+          <AdvisorPortalManager
+            eyebrow="DentalAdvisor®"
+            values={{
+              enabled: form.enabled,
+              brand_name: form.brand_name,
+              public_bio: form.public_bio,
+              website_url: form.website_url,
+              contact_email: form.contact_email,
+              contact_phone: form.contact_phone,
+              city: form.city,
+              color: form.embed_primary_color,
+              allow_booking: form.allow_public_booking,
+            }}
+            onChange={(next) =>
+              setForm((f) => ({
+                ...f,
+                enabled: next.enabled,
+                brand_name: next.brand_name,
+                public_bio: next.public_bio,
+                website_url: next.website_url,
+                contact_email: next.contact_email,
+                contact_phone: next.contact_phone,
+                city: next.city || '',
+                embed_primary_color: next.color,
+                allow_public_booking: next.allow_booking !== false,
+              }))
+            }
+            onSave={() => void save()}
+            saving={saving}
+            portalPath={
+              token
+                ? `/embed/advisor/dentalgraph/${encodeURIComponent(token)}`
+                : ''
+            }
+            hours={store.settings?.working_hours}
+            onHoursSave={saveHours}
+            hoursSaving={saving}
+            bookingLabel="Allow online booking on the portal"
+          />
+
           <StatRow
             items={[
               {
