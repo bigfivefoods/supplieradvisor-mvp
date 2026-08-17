@@ -22,12 +22,16 @@ export function PortalBrandLogo({
   const src = logoUrl && String(logoUrl).trim() && !broken ? String(logoUrl).trim() : null;
 
   if (src) {
+    const companyClass = className
+      .split(/\s+/)
+      .filter((c) => c && c !== 'sa-logo')
+      .join(' ');
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={src}
         alt={name || 'Company'}
-        className={className}
+        className={companyClass}
         onError={() => setBroken(true)}
       />
     );
