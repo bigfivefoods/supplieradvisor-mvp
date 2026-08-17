@@ -48,9 +48,31 @@ const shaun = store.clients.find((c) => c.name === 'Shaun Roberts')!;
 const kids = store.membership_plans.find((p) => p.code === 'VUKA_KIDS')!;
 assert.equal(shaun.membership_plan_id, kids.id);
 const aimee = store.clients.find((c) => c.name === 'Aimee Le Roux')!;
-const desk = store.membership_plans.find((p) => p.id === 'vuka_pln_desk_77050');
-assert.ok(desk);
-assert.equal(aimee.membership_plan_id, desk!.id);
+assert.equal(
+  store.membership_plans.some(
+    (p) => String(p.code || '').startsWith('VUKA_DESK_')
+  ),
+  false
+);
+assert.equal(aimee.membership_plan_id == null, true);
+assert.match(String(aimee.notes || ''), /770\.50/);
+
+store.membership_plans.push({
+  id: 'vuka_pln_desk_99900',
+  code: 'VUKA_DESK_99900',
+  name: 'VUKA membership · R999.00',
+  price_zar: 999,
+  billing: 'monthly',
+  public: false,
+  catalog: 'vuka',
+  created_at: '2026-08-17T12:00:00.000Z',
+});
+const cleaned = ensureVukaRoster(store, { now: '2026-08-17T12:00:00.000Z' });
+assert.equal(cleaned.changed, true);
+assert.equal(
+  store.membership_plans.some((p) => String(p.code || '').startsWith('VUKA_DESK_')),
+  false
+);
 
 const again = ensureVukaRoster(store, { now: '2026-08-17T12:00:00.000Z' });
 assert.equal(again.changed, false);

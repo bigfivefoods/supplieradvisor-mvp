@@ -122,52 +122,48 @@ export function matchCatalogPlan(
   return null;
 }
 
-function deskPlanId(amount: number): string {
-  return `vuka_pln_desk_${Math.round(amount * 100)}`;
+export function isVukaDeskPlan(p: {
+  id?: string;
+  code?: string | null;
+}): boolean {
+  return (
+    String(p.id || '').startsWith('vuka_pln_desk_') ||
+    String(p.code || '').startsWith('VUKA_DESK_')
+  );
 }
 
-function ensureDeskPlan(
-  store: FitgraphStore,
-  amount: number,
-  now: string
-): FitMembershipPlan {
-  const id = deskPlanId(amount);
-  const existing = store.membership_plans.find(
-    (p) => p.id === id || (p.catalog === 'vuka' && Number(p.price_zar) === amount && p.public === false)
+/** Drop synthetic desk rates and any subs pointing at them. */
+export function removeVukaDeskPlans(store: FitgraphStore): boolean {
+  const drop = new Set(
+    (store.membership_plans || [])
+      .filter((p) => isVukaDeskPlan(p))
+      .map((p) => p.id)
   );
-  if (existing) return existing;
-  const row: FitMembershipPlan = {
-    id,
-    code: `VUKA_DESK_${Math.round(amount * 100)}`,
-    name: `VUKA membership · R${amount.toFixed(2)}`,
-    price_zar: amount,
-    billing: 'monthly',
-    description: 'Desk roster rate. Reassign to a class when known.',
-    public: false,
-    active: true,
-    access: 'classes',
-    catalog: 'vuka',
-    created_at: now,
-  };
-  store.membership_plans.push(row);
-  return row;
+  if (!drop.size) return false;
+  store.membership_plans = store.membership_plans.filter((p) => !drop.has(p.id));
+  store.subscriptions = (store.subscriptions || []).filter(
+    (s) => !drop.has(s.plan_id)
+  );
+  for (const c of store.clients || []) {
+    if (c.membership_plan_id && drop.has(c.membership_plan_id)) {
+      c.membership_plan_id = null;
+    }
+  }
+  return true;
 }
 
 function resolvePlan(
   store: FitgraphStore,
   amount: number,
-  hint: string | undefined,
-  now: string
-): FitMembershipPlan {
+  hint: string | undefined
+): FitMembershipPlan | null {
   const catalog = matchCatalogPlan(amount, hint);
-  if (catalog) {
-    const live =
-      store.membership_plans.find(
-        (p) => p.id === catalog.id || p.code === catalog.code
-      ) || null;
-    if (live) return live;
-  }
-  return ensureDeskPlan(store, amount, now);
+  if (!catalog) return null;
+  return (
+    store.membership_plans.find(
+      (p) => p.id === catalog.id || p.code === catalog.code
+    ) || null
+  );
 }
 
 export function ensureVukaRoster(
@@ -176,7 +172,7 @@ export function ensureVukaRoster(
 ): { store: FitgraphStore; changed: boolean; added: number } {
   const now = opts?.now || new Date().toISOString();
   const today = now.slice(0, 10);
-  let changed = false;
+  let changed = removeVukaDeskPlans(store);
   let added = 0;
 
   for (const row of VUKA_ROSTER) {
@@ -192,7 +188,9 @@ export function ensureVukaRoster(
         id: `vuka_cli_${slug}`,
         code: `VUKA-${String(added + 1).padStart(3, '0')}`,
         name: row.name,
-        notes: row.note || 'Roster import',
+        notes: row.note
+          ? `Roster import · ${row.note} · R${row.amount_zar.toFixed(2)}/pm`
+          : `Roster import · R${row.amount_zar.toFixed(2)}/pm`,
         membership_status: 'active',
         active: true,
         start_date: today,
@@ -209,10 +207,30 @@ export function ensureVukaRoster(
       changed = true;
     }
 
-    const plan = resolvePlan(store, row.amount_zar, row.note, now);
-    if (!store.membership_plans.some((p) => p.id === plan.id)) {
-      store.membership_plans.push(plan);
+    const billed = `R${row.amount_zar.toFixed(2)}/pm`;
+    const note = [row.note, billed, 'Roster import'].filter(Boolean).join(' · ');
+    if (!client.notes || !client.notes.includes(billed)) {
+      client.notes = note;
+      client.updated_at = now;
       changed = true;
+    }
+
+    const plan = resolvePlan(store, row.amount_zar, row.note);
+    if (!plan) {
+      if (client.membership_plan_id) {
+        const held = store.membership_plans.find(
+          (p) => p.id === client.membership_plan_id
+        );
+        if (!held || isVukaDeskPlan(held)) {
+          client.membership_plan_id = null;
+          client.updated_at = now;
+          changed = true;
+        }
+      }
+      store.subscriptions = (store.subscriptions || []).filter(
+        (s) => !(s.client_id === client.id && s.id === `vuka_sub_${slug}`)
+      );
+      continue;
     }
 
     if (client.membership_plan_id !== plan.id) {
@@ -237,9 +255,7 @@ export function ensureVukaRoster(
         status: 'active',
         started_at: today,
         auto_renew: true,
-        notes: row.note
-          ? `Roster import · ${row.note}`
-          : 'Roster import',
+        notes: note,
         created_at: now,
         updated_at: now,
       };
