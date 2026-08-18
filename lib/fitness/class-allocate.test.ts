@@ -6,6 +6,7 @@ import { emptyFitgraphStore } from './fitgraph';
 import {
   applyChargedNote,
   allocateMemberToClass,
+  calendarCoverage,
   formatScheduleLabel,
   parseBilledZar,
   parseScheduleHint,
@@ -88,6 +89,23 @@ if ('error' in scheduled) throw new Error(scheduled.error);
 assert.equal(scheduled.sessions.length, 6);
 assert.equal(scheduled.sessions[0].series_id, 'vuka_ser_fsf_5am');
 assert.ok(fsf.series_ids?.includes('vuka_ser_fsf_5am'));
+assert.deepEqual(
+  calendarCoverage(store, fsf, '2026-08-17').coachNames,
+  []
+);
+store.coaches.push({
+  id: 'coh_pat',
+  code: 'PAT',
+  name: 'Pat Coach',
+  specialties: [],
+  active: true,
+  created_at: '2026-08-01T00:00:00.000Z',
+});
+for (const s of scheduled.sessions) s.coach_id = 'coh_pat';
+assert.deepEqual(
+  calendarCoverage(store, fsf, '2026-08-17').coachNames,
+  ['Pat Coach']
+);
 
 const allocated = allocateMemberToClass(store, {
   clientId: 'cli_ada',

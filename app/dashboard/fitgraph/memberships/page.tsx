@@ -540,7 +540,7 @@ export default function MembershipsPage() {
           <DataTable tone="owner"
             headers={
               classSubscribe
-                ? ['Code', 'Name', 'When', 'Price', 'On calendar', 'Web']
+                ? ['Code', 'Name', 'When', 'Price', 'Coach', 'On calendar', 'Web']
                 : ['Code', 'Name', 'When', 'Price', 'Billing', 'Web']
             }
             rows={[...store.membership_plans]
@@ -556,13 +556,20 @@ export default function MembershipsPage() {
                 p.name,
                 p.schedule_label || (p.addon ? 'Add-on' : '—'),
                 p.price_zar,
-                classSubscribe
-                  ? p.unlocks_all_classes
-                    ? 'All adult classes'
-                    : cover && cover.count
-                      ? `${cover.count} · next ${cover.next?.date || ''}`
-                      : 'Not on calendar'
-                  : p.billing,
+                ...(classSubscribe
+                  ? [
+                      p.unlocks_all_classes
+                        ? '—'
+                        : cover?.coachNames.length
+                          ? cover.coachNames.join(', ')
+                          : '—',
+                      p.unlocks_all_classes
+                        ? 'All adult classes'
+                        : cover && cover.count
+                          ? `${cover.count} · next ${cover.next?.date || ''}`
+                          : 'Not on calendar',
+                    ]
+                  : [p.billing]),
                 p.public !== false ? 'Public' : 'Hidden',
               ],
             };

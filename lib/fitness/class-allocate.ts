@@ -239,12 +239,34 @@ export function calendarCoverage(
   store: FitgraphStore,
   plan: FitMembershipPlan,
   fromIso: string
-): { count: number; next: FitSession | null } {
+): { count: number; next: FitSession | null; coachNames: string[] } {
   if (plan.unlocks_all_classes) {
-    return { count: 0, next: null };
+    return { count: 0, next: null, coachNames: [] };
   }
-  const upcoming = upcomingSessionsForPlan(store, plan, fromIso);
-  return { count: upcoming.length, next: upcoming[0] || null };
+  const matching = (store.sessions || []).filter(
+    (s) => s.status !== 'cancelled' && planCoversSession(plan, s, store)
+  );
+  const upcoming = matching
+    .filter((s) => s.status === 'scheduled' && s.date >= fromIso)
+    .sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time)
+    );
+  const coachNames: string[] = [];
+  const seen = new Set<string>();
+  for (const s of matching) {
+    const id = String(s.coach_id || '');
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const name = store.coaches.find((c) => c.id === id)?.name;
+    if (name) coachNames.push(name);
+  }
+  coachNames.sort((a, b) => a.localeCompare(b));
+  return {
+    count: upcoming.length,
+    next: upcoming[0] || null,
+    coachNames,
+  };
 }
 
 function alreadyOnSession(
