@@ -93,6 +93,10 @@ import {
 } from '@/lib/business/company-data';
 import { persistVukaCatalogIfNeeded } from '@/lib/fitness/vuka-class-catalog';
 import { applyMemberDebitBank } from '@/lib/fitness/member-debit-bank';
+import {
+  allocateMemberToClass,
+  scheduleClassOnCalendar,
+} from '@/lib/fitness/class-allocate';
 
 export const runtime = 'nodejs';
 
@@ -858,6 +862,109 @@ export async function POST(request: NextRequest) {
               : resolved.kind === 'private_pt'
                 ? 'Private PT scheduled'
                 : 'Bespoke class scheduled',
+      });
+    }
+
+    if (action === 'allocate_member') {
+      const chargedRaw = body.charged_zar;
+      const chargedZar =
+        chargedRaw === '' || chargedRaw == null
+          ? null
+          : Number(chargedRaw);
+      if (chargedZar != null && !Number.isFinite(chargedZar)) {
+        return NextResponse.json(
+          { error: 'Charged rate must be a number' },
+          { status: 400 }
+        );
+      }
+      const result = allocateMemberToClass(store, {
+        clientId: String(body.client_id || ''),
+        planId: String(body.plan_id || ''),
+        chargedZar,
+        now,
+      });
+      if ('error' in result) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        booked: result.booked,
+        cancelled: result.cancelled,
+        message:
+          result.booked > 0
+            ? `Allocated · booked onto ${result.booked} class${
+                result.booked === 1 ? '' : 'es'
+              } on the calendar`
+            : 'Allocated',
+      });
+    }
+
+    if (action === 'schedule_class') {
+      const rawFreq = String(body.frequency || body.repeat || '')
+        .toLowerCase()
+        .trim();
+      const freq: FitRecurrence['frequency'] =
+        rawFreq === 'daily' || rawFreq === 'weekly' || rawFreq === 'monthly'
+          ? rawFreq
+          : 'none';
+      const recurrence: FitRecurrence =
+        freq === 'none'
+          ? { frequency: 'none' }
+          : {
+              frequency: freq,
+              interval:
+                body.interval != null && body.interval !== ''
+                  ? Number(body.interval)
+                  : 1,
+              weekdays: Array.isArray(body.weekdays)
+                ? (body.weekdays as number[]).map(Number)
+                : undefined,
+              until: body.until ? String(body.until) : null,
+              count:
+                body.count != null && body.count !== ''
+                  ? Number(body.count)
+                  : null,
+            };
+      const result = scheduleClassOnCalendar(store, {
+        planId: String(body.plan_id || ''),
+        date: String(body.date || now.slice(0, 10)),
+        start_time: String(body.start_time || ''),
+        end_time: body.end_time != null ? String(body.end_time) : null,
+        duration_min:
+          body.duration_min != null ? Number(body.duration_min) : null,
+        coach_id: body.coach_id ? String(body.coach_id) : null,
+        location: body.location != null ? String(body.location) : undefined,
+        room: body.room != null ? String(body.room) : null,
+        capacity: body.capacity != null ? Number(body.capacity) : null,
+        public: body.public !== false,
+        recurrence,
+        now,
+      });
+      if ('error' in result) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        created: result.sessions.length,
+        booked: result.booked,
+        sessions: result.sessions,
+        message: `${result.sessions.length} class${
+          result.sessions.length === 1 ? '' : 'es'
+        } on the calendar${
+          result.booked
+            ? ` · ${result.booked} member booking${
+                result.booked === 1 ? '' : 's'
+              }`
+            : ''
+        }`,
       });
     }
 
@@ -2426,6 +2533,12 @@ function upsert(
             null,
       auto_renew: rec.auto_renew !== false,
       notes: rec.notes != null ? String(rec.notes) : prev?.notes,
+      charged_zar:
+        rec.charged_zar !== undefined
+          ? rec.charged_zar == null || rec.charged_zar === ''
+            ? null
+            : Number(rec.charged_zar)
+          : prev?.charged_zar ?? null,
       created_at: prev?.created_at || now,
       updated_at: now,
     };

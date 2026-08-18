@@ -176,6 +176,10 @@ vuka.subscriptions.push({
 });
 assert.equal(memberMayBookSession(vuka, client, fsfSession).need_debit_bank, true);
 assert.equal(
+  memberMayBookSession(vuka, client, fsfSession, { ignoreDebitBank: true }).ok,
+  true
+);
+assert.equal(
   applyMemberDebitBank(client, {
     account_holder: 'Ada Lovelace',
     bank_name: 'FNB',

@@ -41,7 +41,10 @@ const unlim = store.membership_plans.find((p) => p.code === 'VUKA_UNLIM')!;
 assert.equal(lorraine.membership_plan_id, unlim.id);
 assert.ok(
   store.subscriptions.some(
-    (s) => s.client_id === lorraine.id && s.plan_id === unlim.id
+    (s) =>
+      s.client_id === lorraine.id &&
+      s.plan_id === unlim.id &&
+      s.charged_zar === 1140
   )
 );
 const shaun = store.clients.find((c) => c.name === 'Shaun Roberts')!;

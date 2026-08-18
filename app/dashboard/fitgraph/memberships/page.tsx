@@ -8,6 +8,22 @@ import {
   useFitgraph,
 } from '@/components/fitness/FitgraphWorkbench';
 import { DataTable, FormCard, StatRow, fc } from '@/components/fitness/FitForm';
+import {
+  RecurrenceFields,
+  emptyRecurrenceForm,
+  recurrenceApiPayload,
+  validateRecurrenceForm,
+  type RecurrenceFormValue,
+} from '@/components/schedule/RecurrenceFields';
+import {
+  calendarCoverage,
+  nextDateForWeekdays,
+  suggestClassSchedule,
+} from '@/lib/fitness/class-allocate';
+import {
+  durationFromStartEnd,
+  endFromStartDuration,
+} from '@/lib/fitness/session-times';
 import { storeUsesClassSubscribe } from '@/lib/fitness/vuka-class-catalog';
 
 const blankForm = () => ({
@@ -36,6 +52,22 @@ export default function MembershipsPage() {
     sessions_total: '10',
     price_zar: '',
   });
+  const scheduleAnchorRef = useRef<HTMLDivElement>(null);
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const [schedule, setSchedule] = useState({
+    plan_id: '',
+    date: todayIso,
+    start_time: '06:00',
+    end_time: '07:00',
+    coach_id: '',
+    location: '',
+    room: '',
+    capacity: '',
+    public: true,
+  });
+  const [recurrence, setRecurrence] = useState<RecurrenceFormValue>(
+    emptyRecurrenceForm()
+  );
 
   const editing = useMemo(
     () =>
@@ -104,6 +136,77 @@ export default function MembershipsPage() {
     cancelEdit();
   };
 
+  const applySchedulePlan = (planId: string) => {
+    const plan = store?.membership_plans.find((p) => p.id === planId);
+    if (!store || !plan) {
+      setSchedule((s) => ({ ...s, plan_id: planId }));
+      return;
+    }
+    if (plan.unlocks_all_classes) {
+      toast.message('Unlimited covers every adult class', {
+        description: 'Schedule the individual classes instead.',
+      });
+      setSchedule((s) => ({ ...s, plan_id: '' }));
+      return;
+    }
+    const hint = suggestClassSchedule(store, plan);
+    const date = nextDateForWeekdays(hint.weekdays, todayIso);
+    setSchedule({
+      plan_id: plan.id,
+      date,
+      start_time: hint.start_time,
+      end_time: hint.end_time,
+      coach_id: '',
+      location: hint.location,
+      room: '',
+      capacity: hint.capacity != null ? String(hint.capacity) : '',
+      public: hint.public,
+    });
+    setRecurrence({
+      ...emptyRecurrenceForm(),
+      frequency: hint.frequency,
+      weekdays: hint.weekdays,
+      interval: '1',
+      count: '16',
+      end_mode: 'count',
+    });
+  };
+
+  const putOnCalendar = async () => {
+    if (!schedule.plan_id) {
+      toast.error('Select a class');
+      return;
+    }
+    if (!schedule.date || !schedule.start_time) {
+      toast.error('Set date and start time');
+      return;
+    }
+    const recErr = validateRecurrenceForm(recurrence);
+    if (recErr) {
+      toast.error(recErr);
+      return;
+    }
+    const payload = recurrenceApiPayload(recurrence, schedule.date);
+    try {
+      const data = await post({
+        action: 'schedule_class',
+        plan_id: schedule.plan_id,
+        date: schedule.date,
+        start_time: schedule.start_time,
+        end_time: schedule.end_time,
+        coach_id: schedule.coach_id || null,
+        location: schedule.location || undefined,
+        room: schedule.room || undefined,
+        capacity: schedule.capacity ? Number(schedule.capacity) : undefined,
+        public: schedule.public,
+        ...(payload || { frequency: 'none' }),
+      });
+      toast.success((data?.message as string) || 'On the calendar');
+    } catch {
+      /* toast from useFitgraph */
+    }
+  };
+
   const addPt = async () => {
     if (!pt.client_id) {
       toast.error('Select client');
@@ -129,7 +232,7 @@ export default function MembershipsPage() {
       titleAccent={classSubscribe ? 'rates · subscribe' : '& PT packs'}
       description={
         classSubscribe
-          ? 'A class is the membership. Set the rate here, put it on Calendar, then subscribe members. Their fee is the sum of the classes they pick.'
+          ? 'A class is the membership. Set the rate, put it on the calendar with repeats, then allocate members. Subscribers appear on those diary dates.'
           : 'Sellable memberships shown on your website. Members must pay first (Paystack / Apple Pay) before they can book classes. Assign desk-issued plans on Subscriptions.'
       }
     >
@@ -165,21 +268,21 @@ export default function MembershipsPage() {
           <p className="text-xs text-slate-600 dark:text-slate-300">
             {classSubscribe ? (
               <>
-                Next:{' '}
-                <a
-                  href="/dashboard/fitgraph/calendar"
-                  className="font-bold text-yellow-700 underline dark:text-yellow-300"
-                >
-                  Calendar
-                </a>{' '}
-                to put a class on the diary, then{' '}
+                Put each class on the calendar below (with repeats). Then{' '}
                 <a
                   href="/dashboard/fitgraph/membership"
                   className="font-bold text-yellow-700 underline dark:text-yellow-300"
                 >
                   Membership
                 </a>{' '}
-                to attach members.
+                allocates people. They show on{' '}
+                <a
+                  href="/dashboard/fitgraph/calendar"
+                  className="font-bold text-yellow-700 underline dark:text-yellow-300"
+                >
+                  Calendar
+                </a>
+                .
               </>
             ) : (
               <>
@@ -317,27 +420,160 @@ export default function MembershipsPage() {
             </label>
           </FormCard>
           </div>
+          {classSubscribe ? (
+            <div ref={scheduleAnchorRef}>
+              <FormCard
+                tone="owner"
+                title="Put class on calendar"
+                description="Pick the class, first date, time, and repeats. Subscribed members are booked onto those dates and show on Calendar."
+                onSubmit={() => void putOnCalendar()}
+                saving={saving}
+                submitLabel={
+                  recurrence.frequency === 'none'
+                    ? 'Add to calendar'
+                    : 'Add repeating classes'
+                }
+              >
+                <select
+                  className={fc()}
+                  value={schedule.plan_id}
+                  onChange={(e) => applySchedulePlan(e.target.value)}
+                >
+                  <option value="">Class…</option>
+                  {store.membership_plans
+                    .filter(
+                      (p) => p.active !== false && p.unlocks_all_classes !== true
+                    )
+                    .sort(
+                      (a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999)
+                    )
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                        {p.schedule_label ? ` · ${p.schedule_label}` : ''}
+                      </option>
+                    ))}
+                </select>
+                <select
+                  className={fc()}
+                  value={schedule.coach_id}
+                  onChange={(e) =>
+                    setSchedule((s) => ({ ...s, coach_id: e.target.value }))
+                  }
+                >
+                  <option value="">Coach (optional)…</option>
+                  {store.coaches
+                    .filter((c) => c.active !== false)
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                </select>
+                <input
+                  className={fc()}
+                  type="date"
+                  value={schedule.date}
+                  onChange={(e) =>
+                    setSchedule((s) => ({ ...s, date: e.target.value }))
+                  }
+                />
+                <label className="flex flex-col gap-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
+                  Start
+                  <input
+                    className={fc()}
+                    type="time"
+                    value={schedule.start_time}
+                    onChange={(e) => {
+                      const start = e.target.value;
+                      const dur = schedule.end_time
+                        ? durationFromStartEnd(schedule.start_time, schedule.end_time)
+                        : 60;
+                      setSchedule((s) => ({
+                        ...s,
+                        start_time: start,
+                        end_time: endFromStartDuration(start, dur),
+                      }));
+                    }}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
+                  End
+                  <input
+                    className={fc()}
+                    type="time"
+                    value={schedule.end_time}
+                    onChange={(e) =>
+                      setSchedule((s) => ({ ...s, end_time: e.target.value }))
+                    }
+                  />
+                </label>
+                <input
+                  className={fc()}
+                  placeholder="Location"
+                  value={schedule.location}
+                  onChange={(e) =>
+                    setSchedule((s) => ({ ...s, location: e.target.value }))
+                  }
+                />
+                <RecurrenceFields
+                  value={recurrence}
+                  onChange={setRecurrence}
+                  startDate={schedule.date}
+                  inputClass={fc()}
+                  accent="yellow"
+                  unitLabel="classes"
+                />
+                <label className="flex items-center gap-2 text-sm font-medium col-span-full">
+                  <input
+                    type="checkbox"
+                    checked={schedule.public}
+                    onChange={(e) =>
+                      setSchedule((s) => ({ ...s, public: e.target.checked }))
+                    }
+                  />
+                  List on public website calendar
+                </label>
+              </FormCard>
+            </div>
+          ) : null}
           <DataTable tone="owner"
-            headers={['Code', 'Name', 'When', 'Price', 'Billing', 'Web']}
+            headers={
+              classSubscribe
+                ? ['Code', 'Name', 'When', 'Price', 'On calendar', 'Web']
+                : ['Code', 'Name', 'When', 'Price', 'Billing', 'Web']
+            }
             rows={[...store.membership_plans]
               .sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
-              .map((p) => ({
+              .map((p) => {
+                const cover = classSubscribe
+                  ? calendarCoverage(store, p, todayIso)
+                  : null;
+                return {
               id: p.id,
               cells: [
                 p.code,
                 p.name,
                 p.schedule_label || (p.addon ? 'Add-on' : '—'),
                 p.price_zar,
-                p.billing,
+                classSubscribe
+                  ? p.unlocks_all_classes
+                    ? 'All adult classes'
+                    : cover && cover.count
+                      ? `${cover.count} · next ${cover.next?.date || ''}`
+                      : 'Not on calendar'
+                  : p.billing,
                 p.public !== false ? 'Public' : 'Hidden',
               ],
-            }))}
+            };
+              })}
             onEdit={(id) => startEdit(id)}
             onDelete={(id) => {
               if (editingId === id) cancelEdit();
               void post({ entity: 'membership_plans', action: 'delete', id });
             }}
           />
+
 
           <FormCard tone="owner" title="Issue PT pack" onSubmit={() => void addPt()} saving={saving} submitLabel="Issue pack">
             <select className={fc()} value={pt.client_id} onChange={(e) => setPt((f) => ({ ...f, client_id: e.target.value }))}>

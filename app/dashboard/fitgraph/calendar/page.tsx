@@ -18,6 +18,7 @@ import {
   toneLinkClass,
 } from '@/components/fitness/FitForm';
 import { sessionBookingCount } from '@/lib/fitness/fitgraph';
+import { sessionRosterNames } from '@/lib/fitness/class-allocate';
 import { ProgrammeView } from '@/components/fitness/ProgrammeView';
 import {
   hydrateProgramme,
@@ -225,6 +226,13 @@ export default function CalendarPage() {
             : kind === 'private_pt'
               ? `PT · ${ct?.name || 'Personal training'}`
               : ct?.name || 'Class';
+        const names = sessionRosterNames(store, s.id);
+        const namePreview =
+          names.length === 0
+            ? `${booked}${cap ? `/${cap}` : ''} booked`
+            : names.length <= 3
+              ? names.join(', ')
+              : `${names.slice(0, 3).join(', ')} +${names.length - 3}`;
         return {
           id: s.id,
           date: s.date,
@@ -240,9 +248,9 @@ export default function CalendarPage() {
           meta:
             kind === 'coach_personal'
               ? `Personal block${s.room ? ` · ${s.room}` : ''}`
-              : `${booked}${cap ? `/${cap}` : ''} booked${
-                  s.room ? ` · ${s.room}` : ''
-                }${s.public ? ' · public' : ''}`,
+              : [namePreview, s.room, s.public ? 'public' : '']
+                  .filter(Boolean)
+                  .join(' · '),
           tone: sessionKindTone(kind),
         };
       });

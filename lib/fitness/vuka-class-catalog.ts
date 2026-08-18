@@ -12,6 +12,7 @@ import {
   type FitSubscription,
   type FitClient,
   type FitBooking,
+  subscriptionChargeZar,
 } from '@/lib/fitness/fitgraph';
 import {
   gymRequiresDebitBank,
@@ -589,6 +590,21 @@ function classNameFromPlan(p: FitMembershipPlan): string {
   return cut || n;
 }
 
+export function timetableSlotsForPlan(
+  plan: Pick<FitMembershipPlan, 'series_ids'>
+): VukaSlot[] {
+  const ids = new Set(plan.series_ids || []);
+  if (!ids.size) return [];
+  return VUKA_TIMETABLE.filter((s) => ids.has(s.series_id));
+}
+
+export function timetableSlotForPlan(
+  plan: Pick<FitMembershipPlan, 'series_ids'>
+): VukaSlot | null {
+  const slots = timetableSlotsForPlan(plan);
+  return slots.length === 1 ? slots[0] : null;
+}
+
 export function listSubscribeClasses(store: FitgraphStore): SubscribeClass[] {
   if (!storeUsesClassSubscribe(store)) return [];
   const active = (store.subscriptions || []).filter(
@@ -773,7 +789,8 @@ function debitBankGate(
 export function memberMayBookSession(
   store: FitgraphStore,
   client: FitClient | null | undefined,
-  session: FitSession
+  session: FitSession,
+  opts?: { ignoreDebitBank?: boolean }
 ): ClassBookDecision {
   if (!client || client.active === false) {
     return {
@@ -787,7 +804,11 @@ export function memberMayBookSession(
   );
   if (!covering.length) {
     if (!gymHasClassSpecificPlans(store)) {
-      return debitBankGate(store, client) || { ok: true };
+      return (
+        (opts?.ignoreDebitBank ? null : debitBankGate(store, client)) || {
+          ok: true,
+        }
+      );
     }
     return {
       ok: false,
@@ -818,7 +839,9 @@ export function memberMayBookSession(
         weekly_limit: limited.weekly_class_limit,
       };
     }
-    const bank = debitBankGate(store, client);
+    const bank = opts?.ignoreDebitBank
+      ? null
+      : debitBankGate(store, client);
     if (bank) return bank;
     return {
       ok: true,
@@ -827,7 +850,9 @@ export function memberMayBookSession(
       weekly_limit: limited.weekly_class_limit,
     };
   }
-  const bank = debitBankGate(store, client);
+  const bank = opts?.ignoreDebitBank
+    ? null
+    : debitBankGate(store, client);
   if (bank) return bank;
   return { ok: true, plan_name: covering[0].plan.name };
 }
@@ -920,7 +945,10 @@ export function buildClassSubscriptionReport(
         schedule_label: p.schedule_label,
         addon: p.addon === true,
         subscribers: subs.length,
-        mrr_zar: subs.length * (Number(p.price_zar) || 0),
+        mrr_zar: subs.reduce(
+          (n, s) => n + subscriptionChargeZar(s, p),
+          0
+        ),
       };
     })
     .filter((p) =>
@@ -951,7 +979,10 @@ export function buildClassSubscriptionReport(
         name: c.name,
         email: c.email,
         plans: subs.map((x) => x.plan.name),
-        monthly_zar: subs.reduce((n, x) => n + (Number(x.plan.price_zar) || 0), 0),
+        monthly_zar: subs.reduce(
+          (n, x) => n + subscriptionChargeZar(x.sub, x.plan),
+          0
+        ),
         attended: books.filter((b) => b.status === 'attended').length,
         booked: books.filter(
           (b) => b.status === 'booked' || b.status === 'attended'

@@ -1001,17 +1001,16 @@ export function PracticeScheduleCalendar({
             ? 'ring-2 ring-offset-1 ring-slate-900 dark:ring-white dark:ring-offset-slate-900 shadow-md'
             : ''
         }`}
-        title={`${ev.start_time} ${ev.title}${ev.person_name ? ` · ${ev.person_name}` : ''} — click to open`}
+        title={`${ev.start_time} ${ev.title}${ev.person_name ? ` · ${ev.person_name}` : ''}${ev.meta ? ` · ${ev.meta}` : ''} — click to open`}
       >
         <span className="font-bold tabular-nums">{ev.start_time.slice(0, 5)}</span>
         {!dense ? (
           <span className="text-[9px] opacity-70">–{endTime(ev)}</span>
         ) : null}{' '}
         <span className="font-semibold">{ev.title}</span>
-        {ev.person_name && !dense ? (
+        {!dense && (ev.person_name || ev.meta) ? (
           <span className="block text-[10px] opacity-80 truncate">
-            {ev.person_name}
-            {ev.meta ? ` · ${ev.meta}` : ''}
+            {[ev.person_name, ev.meta].filter(Boolean).join(' · ')}
           </span>
         ) : null}
       </button>

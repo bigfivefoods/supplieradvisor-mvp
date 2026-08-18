@@ -130,7 +130,7 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '2a',
         title: 'Class memberships',
         who: 'Owner',
-        desc: 'Slot-specific plans (e.g. VUKA 5am FSF); members subscribe; fee follows the classes they pick.',
+        desc: 'Class list + rate. Put each class on the calendar with repeats. Allocate members at a charged rate — they appear on those diary dates.',
       },
       {
         n: '2b',
@@ -172,7 +172,7 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '4a',
         title: 'Rooms & schedule',
         who: 'Owner',
-        desc: 'Schedule date, time, room, class; assign coach. People leave blocks that coach. Company calendar overlays the week.',
+        desc: 'Schedule from Classes (date, time, repeats) or the diary grid. Subscribed members book onto those dates. People leave blocks that coach.',
       },
       {
         n: '4b',

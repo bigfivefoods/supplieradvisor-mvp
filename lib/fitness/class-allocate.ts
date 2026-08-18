@@ -1,0 +1,520 @@
+/**
+ * Desk: allocate a member to a class at a charged rate, and put a class
+ * on the gym calendar (with repeats) so subscribers appear on those dates.
+ */
+import {
+  addDaysIso,
+  createSessionsFromTemplate,
+  newId,
+  sessionBookingCount,
+  weekdayOf,
+  type FitClient,
+  type FitgraphStore,
+  type FitMembershipPlan,
+  type FitRecurrence,
+  type FitSession,
+  type FitSubscription,
+} from '@/lib/fitness/fitgraph';
+import { endFromStartDuration } from '@/lib/fitness/session-times';
+import {
+  memberMayBookSession,
+  planCoversSession,
+  timetableSlotsForPlan,
+} from '@/lib/fitness/vuka-class-catalog';
+
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+const DAY_RE: Array<{ re: RegExp; d: number }> = [
+  { re: /\bmon(?:day)?\b/i, d: 1 },
+  { re: /\btue(?:s(?:day)?)?\b/i, d: 2 },
+  { re: /\bwed(?:nesday)?\b/i, d: 3 },
+  { re: /\bthu(?:rs(?:day)?)?\b/i, d: 4 },
+  { re: /\bfri(?:day)?\b/i, d: 5 },
+  { re: /\bsat(?:urday)?\b/i, d: 6 },
+  { re: /\bsun(?:day)?\b/i, d: 0 },
+];
+
+export function parseBilledZar(notes?: string | null): number | null {
+  const m = String(notes || '').match(/R\s*([\d]+(?:[.,]\d+)?)\s*\/pm/i);
+  if (!m) return null;
+  const n = Number(String(m[1]).replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+
+export function formatZarPm(amount: number): string {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return '';
+  return `R${n.toFixed(2)}/pm`;
+}
+
+export function applyChargedNote(
+  notes: string | undefined | null,
+  amount: number
+): string {
+  const label = formatZarPm(amount);
+  const raw = String(notes || '').trim();
+  if (!raw) return `Charged ${label}`;
+  if (/R\s*[\d]+(?:[.,]\d+)?\s*\/pm/i.test(raw)) {
+    return raw.replace(/R\s*[\d]+(?:[.,]\d+)?\s*\/pm/i, label);
+  }
+  return `${raw} · ${label}`;
+}
+
+export function formatClockLabel(hhmm: string): string {
+  const [hRaw, mRaw] = String(hhmm || '00:00').slice(0, 5).split(':');
+  let h = Number(hRaw) || 0;
+  const m = Number(mRaw) || 0;
+  const ap = h >= 12 ? 'pm' : 'am';
+  h = h % 12 || 12;
+  return m ? `${h}:${String(m).padStart(2, '0')}${ap}` : `${h}:00${ap}`;
+}
+
+export function formatScheduleLabel(
+  startTime: string,
+  recurrence: FitRecurrence | null | undefined,
+  startDate?: string
+): string {
+  const clock = formatClockLabel(startTime);
+  const freq = recurrence?.frequency || 'none';
+  if (freq === 'daily') return `Daily · ${clock}`;
+  if (freq === 'monthly') return `Monthly · ${clock}`;
+  if (freq === 'weekly') {
+    const days = (
+      recurrence?.weekdays?.length
+        ? recurrence.weekdays
+        : startDate
+          ? [weekdayOf(startDate)]
+          : []
+    )
+      .slice()
+      .sort((a, b) => DAY_ORDER.indexOf(a) - DAY_ORDER.indexOf(b));
+    const names = days.map((d) => DAY_SHORT[d] || '').filter(Boolean);
+    return names.length ? `${clock} ${names.join(' / ')}` : clock;
+  }
+  return startDate ? `${startDate} · ${clock}` : clock;
+}
+
+export function parseScheduleHint(label?: string | null): {
+  start_time: string | null;
+  weekdays: number[];
+  daily: boolean;
+} {
+  const raw = String(label || '');
+  const time = raw.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
+  let start_time: string | null = null;
+  if (time) {
+    let h = Number(time[1]) || 0;
+    const m = Number(time[2] || 0);
+    const ap = String(time[3] || '').toLowerCase();
+    if (ap === 'pm' && h < 12) h += 12;
+    if (ap === 'am' && h === 12) h = 0;
+    start_time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+  const weekdays: number[] = [];
+  for (const { re, d } of DAY_RE) {
+    if (re.test(raw) && !weekdays.includes(d)) weekdays.push(d);
+  }
+  return {
+    start_time,
+    weekdays,
+    daily: /\bdaily\b/i.test(raw),
+  };
+}
+
+export function nextDateForWeekdays(
+  weekdays: number[],
+  fromIso: string
+): string {
+  for (let i = 0; i < 14; i += 1) {
+    const d = addDaysIso(fromIso, i);
+    if (!weekdays.length || weekdays.includes(weekdayOf(d))) return d;
+  }
+  return fromIso;
+}
+
+export function classTypeIdForPlan(
+  store: FitgraphStore,
+  plan: FitMembershipPlan
+): string | null {
+  const ids = plan.class_type_ids || [];
+  const hit = ids.find((id) => store.class_types.some((c) => c.id === id));
+  if (hit) return hit;
+  const byCode = store.class_types.find(
+    (c) => c.code === plan.code && c.active !== false
+  );
+  return byCode?.id || null;
+}
+
+export type SuggestedClassSchedule = {
+  class_type_id: string | null;
+  start_time: string;
+  end_time: string;
+  duration_min: number;
+  weekdays: number[];
+  frequency: FitRecurrence['frequency'];
+  location: string;
+  capacity: number | null;
+  public: boolean;
+};
+
+export function suggestClassSchedule(
+  store: FitgraphStore,
+  plan: FitMembershipPlan
+): SuggestedClassSchedule {
+  const slots = timetableSlotsForPlan(plan);
+  const slot = slots[0];
+  const hint = parseScheduleHint(plan.schedule_label);
+  const start =
+    slot?.start_time || hint.start_time || '06:00';
+  const duration =
+    slot?.duration_min ||
+    store.class_types.find((c) => c.id === (plan.class_type_ids || [])[0])
+      ?.default_duration_min ||
+    60;
+  const weekdays =
+    slots.length === 1
+      ? [...slot!.weekdays]
+      : hint.weekdays.length
+        ? hint.weekdays
+        : slots.length
+          ? [...new Set(slots.flatMap((s) => s.weekdays))]
+          : [];
+  const frequency: FitRecurrence['frequency'] = hint.daily
+    ? 'daily'
+    : weekdays.length
+      ? 'weekly'
+      : 'none';
+  return {
+    class_type_id: classTypeIdForPlan(store, plan),
+    start_time: start,
+    end_time: endFromStartDuration(start, duration),
+    duration_min: duration,
+    weekdays,
+    frequency,
+    location: plan.location || slot?.location || '',
+    capacity: slot?.capacity ?? null,
+    public: slot ? slot.public !== false : true,
+  };
+}
+
+export function sessionRosterNames(
+  store: FitgraphStore,
+  sessionId: string
+): string[] {
+  return (store.bookings || [])
+    .filter(
+      (b) =>
+        b.session_id === sessionId &&
+        (b.status === 'booked' ||
+          b.status === 'attended' ||
+          b.status === 'waitlist')
+    )
+    .map((b) => {
+      const cl = store.clients.find((c) => c.id === b.client_id);
+      return b.family_member_name || cl?.name || b.guest_name || '';
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+}
+
+export function upcomingSessionsForPlan(
+  store: FitgraphStore,
+  plan: FitMembershipPlan,
+  fromIso: string
+): FitSession[] {
+  return (store.sessions || [])
+    .filter(
+      (s) =>
+        s.status === 'scheduled' &&
+        s.date >= fromIso &&
+        planCoversSession(plan, s, store)
+    )
+    .sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time)
+    );
+}
+
+export function calendarCoverage(
+  store: FitgraphStore,
+  plan: FitMembershipPlan,
+  fromIso: string
+): { count: number; next: FitSession | null } {
+  if (plan.unlocks_all_classes) {
+    return { count: 0, next: null };
+  }
+  const upcoming = upcomingSessionsForPlan(store, plan, fromIso);
+  return { count: upcoming.length, next: upcoming[0] || null };
+}
+
+function alreadyOnSession(
+  store: FitgraphStore,
+  sessionId: string,
+  clientId: string
+): boolean {
+  return (store.bookings || []).some(
+    (b) =>
+      b.session_id === sessionId &&
+      b.client_id === clientId &&
+      b.status !== 'cancelled'
+  );
+}
+
+export function bookDeskMemberOntoSession(
+  store: FitgraphStore,
+  session: FitSession,
+  client: FitClient,
+  now: string
+): 'booked' | 'waitlist' | 'skipped' {
+  if (alreadyOnSession(store, session.id, client.id)) return 'skipped';
+  const gate = memberMayBookSession(store, client, session, {
+    ignoreDebitBank: true,
+  });
+  if (!gate.ok) return 'skipped';
+  const cap = session.capacity;
+  const count = sessionBookingCount(store, session.id);
+  const status =
+    cap != null && cap > 0 && count >= cap ? 'waitlist' : 'booked';
+  store.bookings.push({
+    id: newId('bkg'),
+    session_id: session.id,
+    client_id: client.id,
+    status,
+    booked_at: now,
+    source: 'desk',
+  });
+  return status;
+}
+
+function bookMemberOntoUpcoming(
+  store: FitgraphStore,
+  client: FitClient,
+  plan: FitMembershipPlan,
+  fromIso: string,
+  now: string
+): number {
+  if (plan.unlocks_all_classes) return 0;
+  let n = 0;
+  for (const session of upcomingSessionsForPlan(store, plan, fromIso)) {
+    const result = bookDeskMemberOntoSession(store, session, client, now);
+    if (result === 'booked' || result === 'waitlist') n += 1;
+  }
+  return n;
+}
+
+function resolveCharge(
+  chargedZar: number | null | undefined,
+  plan: FitMembershipPlan
+): number {
+  if (chargedZar != null && Number.isFinite(Number(chargedZar))) {
+    return Number(chargedZar);
+  }
+  return Number(plan.price_zar) || 0;
+}
+
+export function allocateMemberToClass(
+  store: FitgraphStore,
+  opts: {
+    clientId: string;
+    planId: string;
+    chargedZar?: number | null;
+    now?: string;
+    bookUpcoming?: boolean;
+  }
+):
+  | { error: string }
+  | {
+      subscription: FitSubscription;
+      booked: number;
+      cancelled: number;
+    } {
+  const now = opts.now || new Date().toISOString();
+  const today = now.slice(0, 10);
+  const client = store.clients.find((c) => c.id === opts.clientId);
+  if (!client || client.active === false) {
+    return { error: 'Member not found' };
+  }
+  const plan = store.membership_plans.find((p) => p.id === opts.planId);
+  if (!plan || plan.active === false) {
+    return { error: 'Class not found' };
+  }
+  const charge = resolveCharge(opts.chargedZar, plan);
+  let sub =
+    store.subscriptions.find(
+      (s) => s.client_id === client.id && s.plan_id === plan.id
+    ) || null;
+  if (sub) {
+    sub.status = 'active';
+    sub.charged_zar = charge;
+    sub.auto_renew = sub.auto_renew !== false;
+    sub.updated_at = now;
+    if (!sub.started_at) sub.started_at = today;
+  } else {
+    sub = {
+      id: newId('sub'),
+      client_id: client.id,
+      plan_id: plan.id,
+      status: 'active',
+      started_at: today,
+      auto_renew: true,
+      charged_zar: charge,
+      created_at: now,
+      updated_at: now,
+    };
+    store.subscriptions.push(sub);
+  }
+
+  let cancelled = 0;
+  if (plan.addon !== true) {
+    for (const other of store.subscriptions) {
+      if (other.id === sub.id) continue;
+      if (other.client_id !== client.id) continue;
+      if (other.status !== 'active' && other.status !== 'trialing') continue;
+      const otherPlan = store.membership_plans.find((p) => p.id === other.plan_id);
+      if (otherPlan?.addon === true) continue;
+      other.status = 'cancelled';
+      other.cancel_at = today;
+      other.updated_at = now;
+      cancelled += 1;
+    }
+  }
+
+  client.notes = applyChargedNote(client.notes, charge);
+  if (plan.addon !== true) {
+    client.membership_plan_id = plan.id;
+    client.membership_status = 'active';
+  }
+  client.updated_at = now;
+
+  const booked =
+    opts.bookUpcoming === false
+      ? 0
+      : bookMemberOntoUpcoming(store, client, plan, today, now);
+
+  return { subscription: sub, booked, cancelled };
+}
+
+function resolveSeriesId(
+  plan: FitMembershipPlan,
+  startTime: string,
+  weekdays: number[]
+): string {
+  const slots = timetableSlotsForPlan(plan);
+  if (slots.length === 1) return slots[0].series_id;
+  if (weekdays.length === 1) {
+    const hit = slots.find(
+      (s) =>
+        s.start_time.slice(0, 5) === startTime.slice(0, 5) &&
+        s.weekdays.length === 1 &&
+        s.weekdays[0] === weekdays[0]
+    );
+    if (hit) return hit.series_id;
+  }
+  if (plan.series_ids?.length === 1) return plan.series_ids[0];
+  return newId('ser');
+}
+
+function sessionKey(s: Pick<FitSession, 'class_type_id' | 'date' | 'start_time'>) {
+  return `${s.class_type_id}|${s.date}|${String(s.start_time).slice(0, 5)}`;
+}
+
+export function scheduleClassOnCalendar(
+  store: FitgraphStore,
+  opts: {
+    planId: string;
+    date: string;
+    start_time: string;
+    end_time?: string | null;
+    duration_min?: number | null;
+    coach_id?: string | null;
+    location?: string;
+    room?: string | null;
+    capacity?: number | null;
+    public?: boolean;
+    recurrence?: FitRecurrence | null;
+    now?: string;
+  }
+):
+  | { error: string }
+  | {
+      sessions: FitSession[];
+      booked: number;
+      series_id: string;
+    } {
+  const now = opts.now || new Date().toISOString();
+  const plan = store.membership_plans.find((p) => p.id === opts.planId);
+  if (!plan || plan.active === false) {
+    return { error: 'Class not found' };
+  }
+  if (plan.unlocks_all_classes) {
+    return {
+      error:
+        'Schedule the individual classes — unlimited members are booked onto those',
+    };
+  }
+  const classTypeId = classTypeIdForPlan(store, plan);
+  if (!classTypeId) {
+    return { error: 'This class has no class type to put on the calendar' };
+  }
+  if (!opts.date || !opts.start_time) {
+    return { error: 'Set a date and start time' };
+  }
+  const start = String(opts.start_time).slice(0, 5);
+  const weekdays = opts.recurrence?.weekdays || [];
+  const seriesId = resolveSeriesId(plan, start, weekdays);
+  const created = createSessionsFromTemplate(
+    store,
+    {
+      class_type_id: classTypeId,
+      coach_id: opts.coach_id || null,
+      date: opts.date,
+      start_time: start,
+      end_time: opts.end_time ?? null,
+      duration_min: opts.duration_min ?? null,
+      session_kind: 'class',
+      capacity: opts.capacity ?? null,
+      location: opts.location || plan.location || undefined,
+      room: opts.room ?? null,
+      public: opts.public !== false,
+      origin: 'owner',
+      series_id: seriesId,
+    },
+    opts.recurrence || { frequency: 'none' },
+    now
+  );
+  const existing = new Set(
+    (store.sessions || [])
+      .filter((s) => s.status !== 'cancelled')
+      .map(sessionKey)
+  );
+  const fresh = created.filter((s) => !existing.has(sessionKey(s)));
+  if (!fresh.length) {
+    return { error: 'Those dates are already on the calendar' };
+  }
+  const ids = new Set(plan.series_ids || []);
+  ids.add(seriesId);
+  plan.series_ids = [...ids];
+  plan.schedule_label = formatScheduleLabel(
+    start,
+    opts.recurrence || { frequency: 'none' },
+    opts.date
+  );
+  store.sessions.push(...fresh);
+
+  const subscribers = (store.subscriptions || []).filter(
+    (s) =>
+      s.plan_id === plan.id &&
+      (s.status === 'active' || s.status === 'trialing')
+  );
+  let booked = 0;
+  for (const sub of subscribers) {
+    const client = store.clients.find((c) => c.id === sub.client_id);
+    if (!client || client.active === false) continue;
+    for (const session of fresh) {
+      const result = bookDeskMemberOntoSession(store, session, client, now);
+      if (result === 'booked' || result === 'waitlist') booked += 1;
+    }
+  }
+
+  return { sessions: fresh, booked, series_id: seriesId };
+}

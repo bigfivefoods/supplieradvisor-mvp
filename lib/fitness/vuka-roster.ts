@@ -255,11 +255,16 @@ export function ensureVukaRoster(
         status: 'active',
         started_at: today,
         auto_renew: true,
+        charged_zar: row.amount_zar,
         notes: note,
         created_at: now,
         updated_at: now,
       };
       store.subscriptions.push(sub);
+      changed = true;
+    } else if (existingSub.charged_zar == null) {
+      existingSub.charged_zar = row.amount_zar;
+      existingSub.updated_at = now;
       changed = true;
     }
   }

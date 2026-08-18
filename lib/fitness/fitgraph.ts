@@ -539,9 +539,25 @@ export type FitSubscription = {
   class_credits_remaining?: number | null;
   auto_renew?: boolean;
   notes?: string;
+  /**
+   * What this member is actually billed (ZAR / period).
+   * Null = use the class / plan list price.
+   */
+  charged_zar?: number | null;
   created_at: string;
   updated_at: string;
 };
+
+/** Desk / debit amount for a subscription — charged override, else list price. */
+export function subscriptionChargeZar(
+  sub: Pick<FitSubscription, 'charged_zar'>,
+  plan?: Pick<FitMembershipPlan, 'price_zar'> | null
+): number {
+  if (sub.charged_zar != null && Number.isFinite(Number(sub.charged_zar))) {
+    return Number(sub.charged_zar);
+  }
+  return Number(plan?.price_zar) || 0;
+}
 
 export type FitClassType = {
   id: string;
@@ -2227,14 +2243,20 @@ export function createSessionsFromTemplate(
     class_plan?: string;
     origin?: string;
     programme_id?: string | null;
+    /** Reuse a catalog series so class-specific plans still match. */
+    series_id?: string | null;
   },
   recurrence?: FitRecurrence | null,
   nowIso?: string
 ): FitSession[] {
   const now = nowIso || new Date().toISOString();
   const dates = expandRecurrenceDates(template.date, recurrence);
-  const seriesId =
-    dates.length > 1 ? newId('ser') : (null as string | null);
+  const forcedSeries = String(template.series_id || '').trim();
+  const seriesId = forcedSeries
+    ? forcedSeries
+    : dates.length > 1
+      ? newId('ser')
+      : (null as string | null);
   const resolved = resolveClassTypeForSession(store, {
     class_type_id: template.class_type_id,
     session_kind: template.session_kind,
