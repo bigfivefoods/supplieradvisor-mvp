@@ -76,6 +76,14 @@ function hubModules(
     accent: 'from-emerald-50 to-white border-emerald-100',
   },
   {
+    href: '/dashboard/fitgraph/membership',
+    icon: Repeat,
+    code: '03b',
+    title: 'Membership',
+    desc: 'Allocate members to classes.',
+    accent: 'from-lime-50 to-white border-lime-100',
+  },
+  {
     href: '/dashboard/fitgraph/subscriptions',
     icon: Repeat,
     code: '04',
@@ -193,7 +201,11 @@ function hubModules(
   },
   ];
   return classSubscribe
-    ? all.filter((m) => m.href !== '/dashboard/fitgraph/classes')
+    ? all.filter(
+        (m) =>
+          m.href !== '/dashboard/fitgraph/classes' &&
+          m.href !== '/dashboard/fitgraph/subscriptions'
+      )
     : all;
 }
 

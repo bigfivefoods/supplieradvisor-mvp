@@ -174,10 +174,10 @@ export default function MembershipsPage() {
                 </a>{' '}
                 to put a class on the diary, then{' '}
                 <a
-                  href="/dashboard/fitgraph/subscriptions"
+                  href="/dashboard/fitgraph/membership"
                   className="font-bold text-yellow-700 underline dark:text-yellow-300"
                 >
-                  Subscriptions
+                  Membership
                 </a>{' '}
                 to attach members.
               </>

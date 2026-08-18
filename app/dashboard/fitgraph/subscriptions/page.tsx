@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   FitgraphWorkbench,
@@ -26,8 +27,15 @@ const STATUSES = [
 ] as const;
 
 export default function SubscriptionsPage() {
+  const router = useRouter();
   const { store, loading, saving, post, summary } = useFitgraph();
   const classSubscribe = store ? storeUsesClassSubscribe(store) : false;
+
+  useEffect(() => {
+    if (store && classSubscribe) {
+      router.replace('/dashboard/fitgraph/membership');
+    }
+  }, [store, classSubscribe, router]);
   const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState({
     client_id: '',
@@ -104,7 +112,7 @@ export default function SubscriptionsPage() {
           : 'Active member subscriptions linked to plans. Status updates sync membership on the client record. Packs track remaining class credits.'
       }
     >
-      {loading || !store ? (
+      {loading || !store || classSubscribe ? (
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
