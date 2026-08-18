@@ -19,7 +19,10 @@ import {
   CLINIC_KIND_TO_MODULE,
   generateAdvisorMemberSlots,
   bookAdvisorMemberSlot,
+  gymCalendarShareOn,
   memberCalendarShareOn,
+  newDeskNotice,
+  pushDeskNotice,
   type ClinicModuleKey,
 } from '@/lib/services/advisor-member-calendar';
 import {
@@ -28,6 +31,18 @@ import {
   saveClinicModuleStore,
 } from '@/lib/services/advisor-clinic-io';
 import { notifyPatientBookingPush } from '@/lib/b2c/member-push';
+import {
+  FITGRAPH_META_KEY,
+  isPublicListingSession,
+  newId,
+  readFitgraphFromMetadata,
+  sessionBookingCount,
+  writeFitgraphToMetadata,
+} from '@/lib/fitness/fitgraph';
+import {
+  loadAdvisorModuleStore,
+  saveAdvisorModuleStore,
+} from '@/lib/business/company-data';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -80,10 +95,65 @@ export async function GET(request: NextRequest) {
 
     const targets = companyId
       ? found.memberships.filter((m) => m.company_id === companyId)
-      : found.memberships.filter((m) => CLINIC_KIND_TO_MODULE[m.kind]);
+      : found.memberships.filter(
+          (m) => CLINIC_KIND_TO_MODULE[m.kind] || m.kind === 'gym'
+        );
 
     const calendars = [];
     for (const mem of targets) {
+      if (mem.kind === 'gym') {
+        const loaded = await loadAdvisorModuleStore(
+          mem.company_id,
+          FITGRAPH_META_KEY,
+          readFitgraphFromMetadata
+        );
+        const store = loaded.store;
+        const shared = gymCalendarShareOn(store.settings);
+        const today = new Date().toISOString().slice(0, 10);
+        const slots = shared
+          ? store.sessions
+              .filter(
+                (s) =>
+                  isPublicListingSession(store, s) &&
+                  s.date >= today &&
+                  s.status === 'scheduled'
+              )
+              .map((s) => {
+                const ct = store.class_types.find(
+                  (c) => c.id === s.class_type_id
+                );
+                const coach = store.coaches.find((c) => c.id === s.coach_id);
+                const booked = sessionBookingCount(store, s.id);
+                const cap = s.capacity ?? ct?.capacity ?? 0;
+                return {
+                  id: s.id,
+                  date: s.date,
+                  start_time: String(s.start_time || '').slice(0, 5),
+                  end_time: s.end_time
+                    ? String(s.end_time).slice(0, 5)
+                    : undefined,
+                  service_name: ct?.name || 'Class',
+                  practitioner_name: coach?.name || null,
+                  full: cap > 0 && booked >= cap,
+                  spots_left: cap > 0 ? Math.max(0, cap - booked) : 99,
+                  virtual: false,
+                };
+              })
+          : [];
+        calendars.push({
+          company_id: mem.company_id,
+          kind: 'gym',
+          module: 'fitgraph',
+          brand: mem.brand || mem.company_name,
+          portal_path: mem.portal_path,
+          shared,
+          require_accept: false,
+          join_status: 'accepted',
+          timezone: store.settings?.timezone || 'Africa/Johannesburg',
+          slots,
+        });
+        continue;
+      }
       const mod = moduleForKind(mem.kind);
       if (!mod) continue;
       const store = await loadClinicModuleStore(mem.company_id, mod);
@@ -139,8 +209,7 @@ export async function POST(request: NextRequest) {
     const companyId = Number(body.company || body.companyId || 0);
     const kind = String(body.kind || '');
     const slotId = String(body.slot_id || body.appointment_id || '');
-    const mod = moduleForKind(kind);
-    if (!companyId || !mod || !slotId) {
+    if (!companyId || !kind || !slotId) {
       return NextResponse.json(
         { error: 'company, kind and slot_id required' },
         { status: 400 }
@@ -152,6 +221,121 @@ export async function POST(request: NextRequest) {
         { error: 'Link this practice first', code: 'need_join' },
         { status: 404 }
       );
+    }
+    if (kind === 'gym') {
+      const loaded = await loadAdvisorModuleStore(
+        companyId,
+        FITGRAPH_META_KEY,
+        readFitgraphFromMetadata
+      );
+      const store = loaded.store;
+      if (!gymCalendarShareOn(store.settings)) {
+        return NextResponse.json(
+          { error: 'This gym is not sharing a bookable diary yet' },
+          { status: 403 }
+        );
+      }
+      const session = store.sessions.find(
+        (s) => s.id === slotId && s.status === 'scheduled'
+      );
+      if (!session || !isPublicListingSession(store, session)) {
+        return NextResponse.json(
+          { error: 'That class is no longer on the diary' },
+          { status: 409 }
+        );
+      }
+      const client = store.clients.find((c) => c.id === found.mem!.ref_id);
+      if (!client) {
+        return NextResponse.json(
+          { error: 'Member record not found' },
+          { status: 404 }
+        );
+      }
+      const existing = store.bookings.find(
+        (b) =>
+          b.session_id === session.id &&
+          b.client_id === client.id &&
+          b.status !== 'cancelled'
+      );
+      if (existing) {
+        return NextResponse.json({
+          success: true,
+          status: existing.status,
+          booking_id: existing.id,
+          message:
+            existing.status === 'waitlist'
+              ? 'You are already on the waitlist'
+              : 'Already booked',
+        });
+      }
+      const ct = store.class_types.find((c) => c.id === session.class_type_id);
+      const cap = session.capacity ?? ct?.capacity ?? 0;
+      const bookedN = sessionBookingCount(store, session.id);
+      const status =
+        cap > 0 && bookedN >= cap ? ('waitlist' as const) : ('booked' as const);
+      const bookingId = newId('bkg');
+      const now = new Date().toISOString();
+      store.bookings.push({
+        id: bookingId,
+        session_id: session.id,
+        client_id: client.id,
+        status,
+        booked_at: now,
+        source: 'member',
+        notes:
+          status === 'waitlist'
+            ? 'SA Member — waitlist'
+            : 'SA Member diary booking',
+      });
+      store.desk_notices = pushDeskNotice(
+        store.desk_notices,
+        newDeskNotice({
+          kind: status === 'waitlist' ? 'booking_request' : 'booking_made',
+          person_id: client.id,
+          person_name: client.name,
+          email: client.email,
+          source: 'pwa',
+          appointment_id: session.id,
+          date: session.date,
+          start_time: session.start_time,
+          service_name: ct?.name || 'Class',
+          note:
+            status === 'waitlist'
+              ? 'Asked to join a full class'
+              : `${session.date} ${session.start_time}`,
+        })
+      );
+      await saveAdvisorModuleStore(
+        companyId,
+        FITGRAPH_META_KEY,
+        store,
+        writeFitgraphToMetadata
+      );
+      await notifyPatientBookingPush({
+        platformUserId: client.platform_user_id || userId,
+        brand: found.mem.brand || found.mem.company_name,
+        title: ct?.name || 'Class',
+        date: session.date,
+        start_time: session.start_time,
+        status,
+        portalPath: `${found.mem.portal_path}${
+          found.mem.portal_path.includes('?') ? '&' : '?'
+        }tab=mine`,
+      });
+      return NextResponse.json({
+        success: true,
+        status,
+        booking_id: bookingId,
+        appointment_id: session.id,
+        message:
+          status === 'waitlist'
+            ? 'You are on the waitlist — the gym will confirm'
+            : `Booked ${session.date} at ${String(session.start_time).slice(0, 5)}`,
+      });
+    }
+    const mod = moduleForKind(kind);
+    if (!mod) {
+      return NextResponse.json({ error: 'Unknown advisor kind' }, { status: 400 });
     }
     const store = await loadClinicModuleStore(companyId, mod);
     const result = bookAdvisorMemberSlot({

@@ -17,9 +17,10 @@ import {
   hireBookingsToScheduleEvents,
 } from '@/lib/hire/calendar-events';
 import { durationLabel } from '@/lib/hire/availability';
+import { AdvisorVisitInvoiceCard } from '@/components/advisors/AdvisorVisitInvoiceCard';
 
 export default function HireCalendarPage() {
-  const { store, loading } = useHiregraph();
+  const { companyId, store, loading } = useHiregraph();
   const [categoryId, setCategoryId] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -127,6 +128,27 @@ export default function HireCalendarPage() {
                     {Number(open.customer_pays_zar).toLocaleString('en-ZA')}
                   </p>
                 ) : null}
+                {String(open.crm_customer_id || open.customer_id || '') ? (
+                  <AdvisorVisitInvoiceCard
+                    companyId={companyId}
+                    module="hiregraph"
+                    refId={String(open.crm_customer_id || open.customer_id)}
+                    memberName={open.customer_name || 'Customer'}
+                    description={`${open.item_title || 'Hire'} · ${open.start_date || ''}`}
+                    amountZar={
+                      Number(open.customer_pays_zar || open.rental_zar || 0)
+                    }
+                    dueDate={open.end_date || open.start_date || null}
+                    sourceId={`hire:${open.id}`}
+                    accountsHref="/dashboard/hiregraph/accounts"
+                    btnClass="bg-cyan-700 hover:bg-cyan-800"
+                    accentClass="border-cyan-200 bg-cyan-50/50 dark:border-cyan-800 dark:bg-cyan-950/20"
+                  />
+                ) : (
+                  <p className="text-[12px] text-slate-500">
+                    Link this hire to a customer to send an invoice.
+                  </p>
+                )}
                 <Link
                   href="/dashboard/hiregraph/bookings"
                   className="inline-block text-xs font-bold text-cyan-800 underline"

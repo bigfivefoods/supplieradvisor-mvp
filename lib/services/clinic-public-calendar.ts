@@ -5,6 +5,7 @@
 import { generateAdvisorMemberSlots } from '@/lib/services/advisor-member-calendar';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { compactWorkingHours } from '@/lib/schedule/working-hours';
+import { isPortalSectionOn } from '@/lib/advisors/portal-sections';
 
 export type ClinicPublicSlot = {
   id: string;
@@ -49,6 +50,14 @@ export type ClinicPublicCalendar = {
     }>;
   }>;
   services: Array<{ name: string; duration_min?: number; price_zar?: number }>;
+  sections?: {
+    diary?: boolean;
+    team?: boolean;
+    services?: boolean;
+    pricing?: boolean;
+    hours?: boolean;
+    contact?: boolean;
+  };
 };
 
 type Appt = {
@@ -122,6 +131,10 @@ export function buildClinicPublicCalendar(opts: {
       embed_primary_color?: string;
       marketplace?: { city?: string };
       enabled?: boolean;
+      portal_sections?: Record<string, boolean>;
+      show_practitioners?: boolean;
+      show_staff?: boolean;
+      show_pricing?: boolean;
     } | null;
   };
   daysAhead?: number;
@@ -139,6 +152,13 @@ export function buildClinicPublicCalendar(opts: {
       name: p.name,
       disciplines: p.disciplines,
     }));
+
+  const showDiary = isPortalSectionOn(store.settings, 'diary');
+  const showTeam = isPortalSectionOn(store.settings, 'team');
+  const showServices = isPortalSectionOn(store.settings, 'services');
+  const showPricing = isPortalSectionOn(store.settings, 'pricing');
+  const showHours = isPortalSectionOn(store.settings, 'hours');
+  const showContact = isPortalSectionOn(store.settings, 'contact');
 
   const generated = generateAdvisorMemberSlots(store, { from: start, to: end });
   const slots: ClinicPublicSlot[] = generated.map((s) => ({
@@ -161,19 +181,29 @@ export function buildClinicPublicCalendar(opts: {
     bio: store.settings?.public_bio,
     timezone: store.settings?.timezone || 'Africa/Johannesburg',
     allow_booking: store.settings?.allow_public_booking !== false,
-    contact_email: store.settings?.contact_email,
-    contact_phone: store.settings?.contact_phone,
     website_url: store.settings?.website_url,
     logo_url: logoUrlFromSettings(store.settings),
-    hours: store.settings?.working_hours
-      ? compactWorkingHours(store.settings.working_hours)
-      : undefined,
+    hours:
+      showHours && store.settings?.working_hours
+        ? compactWorkingHours(store.settings.working_hours)
+        : undefined,
     primary_color: store.settings?.embed_primary_color || '#0d9488',
-    city: store.settings?.marketplace?.city,
+    city: showContact ? store.settings?.marketplace?.city : undefined,
+    contact_email: showContact ? store.settings?.contact_email : undefined,
+    contact_phone: showContact ? store.settings?.contact_phone : undefined,
     from: start,
     to: end,
-    slots,
-    clinicians: clinicians
+    slots: showDiary ? slots : [],
+    sections: {
+      diary: showDiary,
+      team: showTeam,
+      services: showServices,
+      pricing: showPricing,
+      hours: showHours,
+      contact: showContact,
+    },
+    clinicians: showTeam
+      ? clinicians
       .filter((c) => (c as { active?: boolean }).active !== false)
       .map((c) => {
         const person = c as {
@@ -210,14 +240,17 @@ export function buildClinicPublicCalendar(opts: {
               certificates: q.certificates || [],
             })),
         };
-      }),
-    services: store.services
+      })
+      : [],
+    services: showServices
+      ? store.services
       .filter((s) => s.active !== false)
       .map((s) => ({
         name: s.name,
         duration_min: s.default_duration_min,
-        price_zar: s.price_zar,
-      })),
+        price_zar: showPricing ? s.price_zar : undefined,
+      }))
+      : [],
   };
 }
 

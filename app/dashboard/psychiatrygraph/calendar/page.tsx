@@ -31,6 +31,8 @@ import {
   buildDeskSlotWaitlist,
 } from '@/lib/services/advisor-waitlist-desk';
 import { ClinicDiaryKindFields } from '@/components/clinic/ClinicDiaryKindFields';
+import { ClinicAppointmentVisitDesk } from '@/components/clinic/ClinicAppointmentVisitDesk';
+import { appointmentVisitPatients } from '@/lib/clinic/appointment-visit';
 import {
   appointmentKindLabel,
   appointmentKindOf,
@@ -589,7 +591,7 @@ export default function CalendarPage() {
             }
             subtitle={
               selectedId
-                ? 'Edit this slot or book a patient'
+                ? 'Edit this slot, book a patient, then complete notes, script, invoice or claim'
                 : 'New appointment on the diary'
             }
             onClose={closeEditor}
@@ -856,6 +858,39 @@ export default function CalendarPage() {
                 </p>
               ) : null}
             </FormCard>
+            {selectedId && form.appointment_kind !== 'personal' ? (
+              <ClinicAppointmentVisitDesk
+                module="psychiatrygraph"
+                companyId={companyId}
+                appointmentId={selectedId}
+                date={form.date}
+                startTime={form.start_time}
+                serviceName={
+                  store.services.find((s) => s.id === form.service_id)?.name
+                }
+                servicePriceZar={
+                  store.services.find((s) => s.id === form.service_id)
+                    ?.price_zar
+                }
+                treatingName={
+                  store.practitioners.find((p) => p.id === form.practitioner_id)
+                    ?.name
+                }
+                treatingId={form.practitioner_id || null}
+                patients={appointmentVisitPatients({
+                  appointmentId: selectedId,
+                  bookings: store.bookings,
+                  patients: store.patients,
+                })}
+                visitNotes={store.visit_notes}
+                post={post}
+                saving={saving}
+                accent="violet"
+                onRefresh={() => {
+                  void load();
+                }}
+              />
+            ) : null}
           </div>
           </ScheduleEventPeek>
 

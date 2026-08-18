@@ -54,6 +54,22 @@ export function AdvisorWaitlistDesk({
     [queue]
   );
 
+  const bookSlot = async (bookingId: string) => {
+    setBusy(bookingId);
+    try {
+      await post({
+        action: 'promote_slot_waitlist',
+        booking_id: bookingId,
+      });
+      toast.success('Booked from waitlist');
+      onRefresh();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Could not book');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const mark = async (id: string, status: 'contacted' | 'booked' | 'cancelled') => {
     setBusy(id);
     try {
@@ -87,10 +103,8 @@ export function AdvisorWaitlistDesk({
             <ListOrdered className="w-4 h-4" /> Waitlist & next-available queue
           </p>
           <p className="text-[11px] text-slate-500">
-            Patients waiting for a full slot or the next free appointment.
-            {calendarHref
-              ? ' Free a diary slot, then promote or book.'
-              : ''}
+            Waitlist and next-available requests from SA Member / the portal.
+            Book someone in from here, or open the diary.
           </p>
         </div>
         <span className="text-[10px] font-black uppercase text-slate-400">
@@ -171,16 +185,26 @@ export function AdvisorWaitlistDesk({
             {slotWaitlist.map((r) => (
               <li
                 key={r.booking_id}
-                className="rounded-xl border border-slate-100 dark:border-slate-800 px-3 py-2 text-sm"
+                className="rounded-xl border border-slate-100 dark:border-slate-800 px-3 py-2 text-sm flex flex-wrap items-center justify-between gap-2"
               >
-                <span className="font-bold">
-                  #{r.position} · {r.patient_name || r.patient_id}
-                </span>
-                <span className="text-slate-500 text-xs block">
-                  {[r.date, r.start_time?.slice(0, 5), r.service_name, r.clinician_name]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </span>
+                <div>
+                  <span className="font-bold">
+                    #{r.position} · {r.patient_name || r.patient_id}
+                  </span>
+                  <span className="text-slate-500 text-xs block">
+                    {[r.date, r.start_time?.slice(0, 5), r.service_name, r.clinician_name]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  disabled={busy === r.booking_id}
+                  onClick={() => void bookSlot(r.booking_id)}
+                  className="rounded-lg bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white disabled:opacity-50"
+                >
+                  Book in
+                </button>
               </li>
             ))}
           </ul>

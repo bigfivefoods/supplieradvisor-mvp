@@ -53,7 +53,7 @@ export function ScheduleEventPeek({
         onClick={onClose}
       />
       <div
-        className={`relative w-full ${wide ? 'max-w-3xl' : 'max-w-xl'} max-h-[94dvh] overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-950`}
+        className={`relative w-full ${wide ? 'max-w-4xl' : 'max-w-xl'} max-h-[94dvh] overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-950`}
       >
         <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
           <div className="min-w-0">

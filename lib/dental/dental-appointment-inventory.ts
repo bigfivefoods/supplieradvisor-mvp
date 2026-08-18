@@ -28,6 +28,8 @@ export type DentalMaterialUsage = {
   qty_on_hand_at_use?: number | null;
   /** Soft stock warning level at allocation */
   stock_warning?: 'ok' | 'low' | 'out' | null;
+  /** Quantity already issued from Inventory on this appointment */
+  posted_qty?: number;
 };
 
 export type StockWarningLevel = 'ok' | 'low' | 'out';
@@ -176,6 +178,75 @@ export function resolveServiceDefaultMaterials(
     }
   }
   return out;
+}
+
+export function normalizeDentalMaterials(raw: unknown): DentalMaterialUsage[] {
+  if (!Array.isArray(raw)) return [];
+  const out: DentalMaterialUsage[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue;
+    const r = row as Record<string, unknown>;
+    const name = String(r.name || '').trim();
+    const quantity = Number(r.quantity);
+    if (!name || !Number.isFinite(quantity) || quantity <= 0) continue;
+    const pidRaw = r.product_id;
+    const product_id =
+      typeof pidRaw === 'number' && Number.isFinite(pidRaw)
+        ? pidRaw
+        : String(pidRaw || name);
+    const unit = Number(r.unit_price);
+    const posted = Number(r.posted_qty);
+    const warn = String(r.stock_warning || '');
+    out.push({
+      product_id,
+      name,
+      category: String(r.category || 'General'),
+      quantity,
+      uom: r.uom != null ? String(r.uom) : null,
+      lot_number: r.lot_number != null ? String(r.lot_number) : null,
+      billable: r.billable !== false,
+      unit_price: Number.isFinite(unit) && unit > 0 ? unit : 0,
+      qty_on_hand_at_use:
+        r.qty_on_hand_at_use != null ? Number(r.qty_on_hand_at_use) : null,
+      stock_warning:
+        warn === 'low' || warn === 'out' || warn === 'ok' ? warn : null,
+      posted_qty: Number.isFinite(posted) && posted > 0 ? posted : 0,
+    });
+  }
+  return out;
+}
+
+/** Extra units to issue from stock after a new allocation. */
+export function materialsIssueDelta(
+  next: DentalMaterialUsage[]
+): Array<{ product_id: number; quantity: number; name: string; lot_number?: string | null }> {
+  const out: Array<{
+    product_id: number;
+    quantity: number;
+    name: string;
+    lot_number?: string | null;
+  }> = [];
+  for (const line of next) {
+    const pid = Number(line.product_id);
+    if (!Number.isFinite(pid) || pid <= 0) continue;
+    const qty = Math.max(0, Number(line.quantity) || 0);
+    const posted = Math.max(0, Number(line.posted_qty) || 0);
+    const delta = Math.round((qty - posted) * 1000) / 1000;
+    if (delta <= 0) continue;
+    out.push({
+      product_id: pid,
+      quantity: delta,
+      name: line.name,
+      lot_number: line.lot_number || null,
+    });
+  }
+  return out;
+}
+
+export function markMaterialsPosted(
+  lines: DentalMaterialUsage[]
+): DentalMaterialUsage[] {
+  return lines.map((l) => ({ ...l, posted_qty: Number(l.quantity) || 0 }));
 }
 
 export function billableTotal(lines: DentalMaterialUsage[]): number {

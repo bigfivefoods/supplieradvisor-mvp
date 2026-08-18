@@ -75,6 +75,7 @@ export function AdvisorPublicSite({
   cta,
   children,
   footerNote,
+  showVisit = true,
 }: {
   eyebrow: string;
   brand: string;
@@ -91,6 +92,8 @@ export function AdvisorPublicSite({
   cta?: { href: string; label: string };
   children: ReactNode;
   footerNote?: string;
+  /** Hours / visit card on the hero. Default true. */
+  showVisit?: boolean;
 }) {
   const links = (nav || []).filter((n) => n.id && n.label);
   const tel = phone ? phone.replace(/\s+/g, '') : '';
@@ -102,6 +105,7 @@ export function AdvisorPublicSite({
     : '';
   const hourRows = hours || [];
   const hasVisit =
+    showVisit !== false &&
     Boolean(city || phone || email || siteHref || hourRows.length || payoutReady);
   const light = isLightBrand(color);
   const ink = light ? 'text-slate-900' : 'text-white';

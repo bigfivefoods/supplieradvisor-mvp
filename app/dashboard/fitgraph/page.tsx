@@ -35,6 +35,8 @@ import { AdvisorOutcomesPanel } from '@/components/services/AdvisorOutcomesPanel
 import { AdvisorRecallPanel } from '@/components/services/AdvisorRecallPanel';
 import { AdvisorTodayBoard } from '@/components/services/AdvisorTodayBoard';
 import { AdvisorBillingClarityCard } from '@/components/services/AdvisorBillingClarityCard';
+import { AdvisorMemberJoinInbox } from '@/components/advisors/AdvisorMemberJoinInbox';
+import { AdvisorCommandBookingCards } from '@/components/advisors/AdvisorCommandBookingCards';
 
 function hubModules(
   hasFrontDesk: boolean,
@@ -80,7 +82,7 @@ function hubModules(
     icon: Repeat,
     code: '03b',
     title: 'Membership',
-    desc: 'Member or private client · class · coach · list vs agreed rate.',
+    desc: 'Member and/or private client · class rate · coach rate.',
     accent: 'from-lime-50 to-white border-lime-100',
   },
   {
@@ -219,9 +221,9 @@ export default function FitgraphHubPage() {
 
 function Inner() {
   const companyId = getSelectedCompanyId()!;
-  const [summary, setSummary] = useState<Record<string, number | boolean> | null>(
-    null
-  );
+  const [summary, setSummary] = useState<
+    Record<string, number | boolean | string | null | undefined> | null
+  >(null);
   const [store, setStore] = useState<{
     sessions?: Array<{
       id: string;
@@ -455,7 +457,13 @@ function Inner() {
             accountsHref="/dashboard/fitgraph/accounts"
             accentClass="border-amber-200 bg-amber-50/70 dark:border-amber-800 dark:bg-amber-950/30"
           />
-          <AdvisorOutcomesPanel
+          <AdvisorMemberJoinInbox
+        companyId={companyId}
+        module="fitgraph"
+        patientsHref="/dashboard/fitgraph/clients"
+      />
+
+      <AdvisorOutcomesPanel
             outcomes={outcomes}
             accent="yellow"
             title="GymAdvisor outcomes (30 days)"
@@ -497,21 +505,9 @@ function Inner() {
             value={String(summary?.coachCount ?? 0)}
             sub={`${summary?.classTypeCount ?? 0} class types`}
           />
-          <TelemetryCard
-            label="Sessions today"
-            value={String(summary?.sessionsToday ?? 0)}
-            sub={`${summary?.publicSessionsUpcoming ?? 0} public upcoming`}
-          />
-          <TelemetryCard
-            label="Ops model"
-            value={summary?.hasFrontDesk === false ? 'Coach-led' : 'Front desk'}
-            sub={
-              summary?.websiteEnabled
-                ? summary?.publicBooking
-                  ? 'Website live · booking on'
-                  : 'Website live'
-                : 'Set under Website'
-            }
+          <AdvisorCommandBookingCards
+            summary={summary}
+            calendarHref="/dashboard/fitgraph/calendar"
           />
         </HubTelemetryGrid>
         </>

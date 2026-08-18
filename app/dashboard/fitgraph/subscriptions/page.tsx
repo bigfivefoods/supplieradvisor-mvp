@@ -21,7 +21,7 @@ export default function SubscriptionsPage() {
     <FitgraphWorkbench
       title="Subscriptions"
       titleAccent="members · private clients"
-      description="Same desk as Membership: member or private client, class, coach, membership rate vs agreed client rate, and status."
+      description="Same desk as Membership: a person can be a member, a private client, or both — class rate and a separate coach / private rate."
     >
       {loading || !store ? (
         <LoadingBlock />

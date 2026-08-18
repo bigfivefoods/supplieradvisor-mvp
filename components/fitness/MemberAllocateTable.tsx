@@ -24,8 +24,7 @@ const STATUSES: FitSubscription['status'][] = [
   'expired',
 ];
 
-type Kind = 'member' | 'private';
-type Filter = 'all' | 'members' | 'private' | 'open';
+type Filter = 'all' | 'members' | 'private' | 'both' | 'open';
 
 function classOptionLabel(p: FitMembershipPlan): string {
   const when = p.schedule_label ? ` · ${p.schedule_label}` : '';
@@ -38,11 +37,20 @@ function money(n: number): string {
   return `R${n.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}`;
 }
 
+function parseRate(raw: string): number | null {
+  const t = raw.trim();
+  if (!t) return null;
+  const n = Number(t.replace(',', '.'));
+  return Number.isFinite(n) ? n : NaN;
+}
+
 type Draft = {
-  kind: Kind;
+  member: boolean;
+  privateClient: boolean;
   planId: string;
   coachId: string;
   charged: string;
+  privateRate: string;
   status: FitSubscription['status'];
 };
 
@@ -93,7 +101,7 @@ export function MemberAllocateTable({
     [store]
   );
 
-  const members = useMemo(() => {
+  const people = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return store.clients
       .filter((c) => c.active !== false)
@@ -105,20 +113,21 @@ export function MemberAllocateTable({
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [store.clients, q]);
 
+  const isOnClass = (c: FitClient) =>
+    activeSubs.some((s) => s.client_id === c.id) ||
+    Boolean(c.membership_plan_id);
+
   const visible = useMemo(() => {
-    return members.filter((c) => {
-      if (filter === 'members') return c.private_client !== true;
-      if (filter === 'private') return c.private_client === true;
-      if (filter === 'open') {
-        return (
-          !activeSubs.some((s) => s.client_id === c.id) &&
-          !c.coach_id &&
-          c.private_client !== true
-        );
-      }
+    return people.filter((c) => {
+      const member = isOnClass(c);
+      const priv = c.private_client === true;
+      if (filter === 'members') return member;
+      if (filter === 'private') return priv;
+      if (filter === 'both') return member && priv;
+      if (filter === 'open') return !member && !priv;
       return true;
     });
-  }, [members, activeSubs, filter]);
+  }, [people, activeSubs, filter]);
 
   const defaultDraft = (c: FitClient): Draft => {
     const mine = (store.subscriptions || []).filter((s) => s.client_id === c.id);
@@ -136,18 +145,23 @@ export function MemberAllocateTable({
       ? classes.find((p) => p.id === primary.plan_id)
       : undefined;
     const billed = parseBilledZar(c.notes);
-    const charged =
-      c.agreed_rate_zar != null
-        ? c.agreed_rate_zar
-        : primary != null
-          ? subscriptionChargeZar(primary, plan)
+    const classActual =
+      primary != null
+        ? subscriptionChargeZar(primary, plan)
+        : c.agreed_rate_zar != null
+          ? c.agreed_rate_zar
           : billed;
     const planCoach = plan?.default_coach_id || '';
+    const onClass = Boolean(primary?.plan_id || c.membership_plan_id);
     return {
-      kind: c.private_client === true ? 'private' : 'member',
+      member: onClass || c.private_client !== true,
+      privateClient: c.private_client === true,
       planId: primary?.plan_id || c.membership_plan_id || '',
       coachId: c.coach_id || planCoach || '',
-      charged: charged != null && charged !== 0 ? String(charged) : '',
+      charged:
+        classActual != null && classActual !== 0 ? String(classActual) : '',
+      privateRate:
+        c.private_rate_zar != null ? String(c.private_rate_zar) : '',
       status: primary?.status || 'active',
     };
   };
@@ -161,19 +175,26 @@ export function MemberAllocateTable({
 
   const save = async (c: FitClient) => {
     const d = draftFor(c);
-    if (d.kind === 'member' && !d.planId) {
+    if (!d.member && !d.privateClient) {
+      toast.error('Tick Member, Private client, or both');
+      return;
+    }
+    if (d.member && !d.planId) {
       toast.error(classSubscribe ? 'Select a class' : 'Select a plan');
       return;
     }
-    if (d.kind === 'private' && !d.coachId) {
+    if (d.privateClient && !d.coachId) {
       toast.error('Select the coach for this private client');
       return;
     }
-    const chargedRaw = d.charged.trim();
-    const chargedZar =
-      chargedRaw === '' ? null : Number(chargedRaw.replace(',', '.'));
-    if (chargedZar != null && !Number.isFinite(chargedZar)) {
-      toast.error('Client actual rate must be a number');
+    const chargedZar = parseRate(d.charged);
+    const privateRateZar = parseRate(d.privateRate);
+    if (Number.isNaN(chargedZar as number)) {
+      toast.error('Class actual rate must be a number');
+      return;
+    }
+    if (Number.isNaN(privateRateZar as number)) {
+      toast.error('Private rate must be a number');
       return;
     }
     setBusyId(c.id);
@@ -181,10 +202,12 @@ export function MemberAllocateTable({
       const data = await post({
         action: 'allocate_member',
         client_id: c.id,
-        kind: d.kind,
+        member: d.member,
+        private_client: d.privateClient,
         plan_id: d.planId || null,
         coach_id: d.coachId || null,
         charged_zar: chargedZar,
+        private_rate_zar: privateRateZar,
         status: d.status,
       });
       setDrafts((prev) => {
@@ -201,24 +224,21 @@ export function MemberAllocateTable({
   };
 
   const counts = {
-    all: members.length,
-    members: members.filter((c) => c.private_client !== true).length,
-    private: members.filter((c) => c.private_client === true).length,
-    open: members.filter(
-      (c) =>
-        !activeSubs.some((s) => s.client_id === c.id) &&
-        !c.coach_id &&
-        c.private_client !== true
-    ).length,
+    all: people.length,
+    members: people.filter((c) => isOnClass(c)).length,
+    private: people.filter((c) => c.private_client === true).length,
+    both: people.filter((c) => isOnClass(c) && c.private_client === true)
+      .length,
+    open: people.filter((c) => !isOnClass(c) && c.private_client !== true)
+      .length,
   };
 
   return (
     <div className="space-y-3">
       <p className="text-xs text-slate-600 dark:text-slate-300">
-        <strong>Member</strong> = class + coach. <strong>Private client</strong> =
-        coach (class optional).{' '}
-        <strong>Membership rate</strong> comes from the class.{' '}
-        <strong>Client actual rate</strong> is the agreed amount if different.
+        Tick <strong>Member</strong> and/or <strong>Private client</strong> —
+        someone can be both. Member gets a class and a class actual rate.
+        Private client gets a coach and a private rate.
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <input
@@ -232,6 +252,7 @@ export function MemberAllocateTable({
             ['all', `All ${counts.all}`],
             ['members', `Members ${counts.members}`],
             ['private', `Private ${counts.private}`],
+            ['both', `Both ${counts.both}`],
             ['open', `Unallocated ${counts.open}`],
           ] as Array<[Filter, string]>
         ).map(([k, label]) => (
@@ -259,7 +280,7 @@ export function MemberAllocateTable({
           >
             Add one
           </a>{' '}
-          first. Private clients can still be saved with a coach only.
+          first. Private clients can still be saved with a coach and rate.
         </p>
       ) : null}
 
@@ -269,17 +290,18 @@ export function MemberAllocateTable({
         </p>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-yellow-200 bg-white dark:!border-yellow-400 dark:!bg-yellow-950 dark:ring-1 dark:ring-yellow-500/40">
-          <table className="w-full min-w-[1080px] text-sm">
+          <table className="w-full min-w-[1180px] text-sm">
             <thead className="bg-yellow-50 text-left text-[10px] font-black uppercase tracking-wider text-yellow-900 dark:bg-yellow-900/50 dark:text-yellow-200">
               <tr>
                 <th className="px-3 py-2.5">Person</th>
-                <th className="px-3 py-2.5">Kind</th>
+                <th className="px-3 py-2.5">Roles</th>
                 <th className="px-3 py-2.5">
                   {classSubscribe ? 'Class' : 'Plan'}
                 </th>
-                <th className="px-3 py-2.5">Coach</th>
                 <th className="px-3 py-2.5">Membership rate</th>
-                <th className="px-3 py-2.5">Client actual rate</th>
+                <th className="px-3 py-2.5">Class actual rate</th>
+                <th className="px-3 py-2.5">Coach</th>
+                <th className="px-3 py-2.5">Private rate</th>
                 <th className="px-3 py-2.5">Status</th>
                 <th className="px-3 py-2.5" />
               </tr>
@@ -291,7 +313,6 @@ export function MemberAllocateTable({
                 const classRate = selected
                   ? Number(selected.price_zar || 0)
                   : null;
-                const billed = parseBilledZar(c.notes);
                 return (
                   <tr
                     key={c.id}
@@ -303,32 +324,54 @@ export function MemberAllocateTable({
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-yellow-200/80">
                         {c.code}
-                        {d.kind === 'private' ? ' · private' : ''}
+                        {d.member && d.privateClient
+                          ? ' · member + private'
+                          : d.privateClient
+                            ? ' · private'
+                            : d.member
+                              ? ' · member'
+                              : ''}
                       </div>
                     </td>
                     <td className="px-3 py-2 align-middle">
-                      <select
-                        className={fc()}
-                        value={d.kind}
-                        onChange={(e) =>
-                          setDraft(c.id, {
-                            kind: e.target.value as Kind,
-                          })
-                        }
-                      >
-                        <option value="member">Member</option>
-                        <option value="private">Private client</option>
-                      </select>
+                      <label className="flex items-center gap-1.5 text-[11px] font-bold">
+                        <input
+                          type="checkbox"
+                          checked={d.member}
+                          onChange={(e) =>
+                            setDraft(c.id, { member: e.target.checked })
+                          }
+                        />
+                        Member
+                      </label>
+                      <label className="mt-1 flex items-center gap-1.5 text-[11px] font-bold">
+                        <input
+                          type="checkbox"
+                          checked={d.privateClient}
+                          onChange={(e) =>
+                            setDraft(c.id, {
+                              privateClient: e.target.checked,
+                            })
+                          }
+                        />
+                        Private client
+                      </label>
                     </td>
                     <td className="px-3 py-2 align-middle">
                       <select
                         className={fc()}
                         value={d.planId}
+                        disabled={!d.member}
                         onChange={(e) => {
                           const planId = e.target.value;
                           const plan = classes.find((p) => p.id === planId);
                           const next: Partial<Draft> = { planId };
-                          if (plan && !d.coachId && plan.default_coach_id) {
+                          if (
+                            plan &&
+                            !d.coachId &&
+                            !d.privateClient &&
+                            plan.default_coach_id
+                          ) {
                             next.coachId = plan.default_coach_id;
                           }
                           if (
@@ -342,11 +385,11 @@ export function MemberAllocateTable({
                         }}
                       >
                         <option value="">
-                          {d.kind === 'private'
-                            ? 'Class optional…'
-                            : classSubscribe
+                          {d.member
+                            ? classSubscribe
                               ? 'Select class…'
-                              : 'Select plan…'}
+                              : 'Select plan…'
+                            : '—'}
                         </option>
                         {classes.map((p) => (
                           <option key={p.id} value={p.id}>
@@ -355,28 +398,8 @@ export function MemberAllocateTable({
                         ))}
                       </select>
                     </td>
-                    <td className="px-3 py-2 align-middle">
-                      <select
-                        className={fc()}
-                        value={d.coachId}
-                        onChange={(e) =>
-                          setDraft(c.id, { coachId: e.target.value })
-                        }
-                      >
-                        <option value="">
-                          {d.kind === 'private'
-                            ? 'Select coach…'
-                            : 'Coach…'}
-                        </option>
-                        {coaches.map((coach) => (
-                          <option key={coach.id} value={coach.id}>
-                            {coach.name}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
                     <td className="px-3 py-2 align-middle tabular-nums">
-                      {classRate != null ? (
+                      {d.member && classRate != null ? (
                         <div>
                           <div className="font-semibold">{money(classRate)}</div>
                           <div className="text-[10px] text-slate-500">
@@ -384,9 +407,7 @@ export function MemberAllocateTable({
                           </div>
                         </div>
                       ) : (
-                        <span className="text-slate-400">
-                          {d.kind === 'private' ? 'No class' : '—'}
-                        </span>
+                        <span className="text-slate-400">—</span>
                       )}
                     </td>
                     <td className="px-3 py-2 align-middle">
@@ -395,6 +416,7 @@ export function MemberAllocateTable({
                         type="number"
                         min={0}
                         step="0.01"
+                        disabled={!d.member}
                         placeholder={
                           classRate != null ? String(classRate) : 'Agreed'
                         }
@@ -403,18 +425,45 @@ export function MemberAllocateTable({
                           setDraft(c.id, { charged: e.target.value })
                         }
                       />
-                      {billed != null &&
-                      (d.charged === '' ||
-                        Math.abs(billed - Number(d.charged || 0)) > 0.009) ? (
-                        <div className="text-[10px] text-slate-500">
-                          desk {money(billed)}
-                        </div>
-                      ) : null}
+                    </td>
+                    <td className="px-3 py-2 align-middle">
+                      <select
+                        className={fc()}
+                        value={d.coachId}
+                        disabled={!d.privateClient && !d.member}
+                        onChange={(e) =>
+                          setDraft(c.id, { coachId: e.target.value })
+                        }
+                      >
+                        <option value="">
+                          {d.privateClient ? 'Select coach…' : 'Coach…'}
+                        </option>
+                        {coaches.map((coach) => (
+                          <option key={coach.id} value={coach.id}>
+                            {coach.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-3 py-2 align-middle">
+                      <input
+                        className={`${fc()} max-w-[8.5rem] tabular-nums`}
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        disabled={!d.privateClient}
+                        placeholder="Private / PT"
+                        value={d.privateRate}
+                        onChange={(e) =>
+                          setDraft(c.id, { privateRate: e.target.value })
+                        }
+                      />
                     </td>
                     <td className="px-3 py-2 align-middle">
                       <select
                         className={fc()}
                         value={d.status}
+                        disabled={!d.member}
                         onChange={(e) =>
                           setDraft(c.id, {
                             status: e.target.value as FitSubscription['status'],

@@ -23,6 +23,7 @@ import { AdvisorDeskInviteCard } from '@/components/advisors/AdvisorDeskInviteCa
 import { AdvisorPayoutSettings } from '@/components/advisors/AdvisorPayoutSettings';
 import { gymRequiresPaidMembership } from '@/lib/fitness/gym-shop';
 import { AdvisorPortalManager } from '@/components/advisors/AdvisorPortalManager';
+import { AdvisorMemberCalendarShareCard } from '@/components/advisors/AdvisorMemberCalendarShareCard';
 import type { WorkingHours } from '@/lib/schedule/working-hours';
 
 export default function FitgraphWebsitePage() {
@@ -192,6 +193,22 @@ export default function FitgraphWebsitePage() {
             onHoursSave={saveHours}
             hoursSaving={saving}
             bookingLabel="Allow class booking on the portal"
+          />
+          <AdvisorMemberCalendarShareCard
+            variant="gym"
+            shareMemberCalendar={store.settings?.share_member_calendar !== false}
+            generateMemberSlots={false}
+            requireAcceptJoin={false}
+            saving={saving}
+            onSave={async (patch) => {
+              await post({
+                action: 'update_settings',
+                settings: {
+                  share_member_calendar: patch.share_member_calendar,
+                },
+              });
+              toast.success('Member calendar share saved');
+            }}
           />
 
           <StatRow tone="owner"

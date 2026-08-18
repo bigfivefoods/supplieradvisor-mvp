@@ -17,6 +17,15 @@ export default function MembershipAllocatePage() {
     (s) => s.status === 'active' || s.status === 'trialing'
   );
   const privateCount = people.filter((c) => c.private_client === true).length;
+  const onClassIds = new Set(activeSubs.map((s) => s.client_id));
+  const memberCount = people.filter(
+    (c) => onClassIds.has(c.id) || Boolean(c.membership_plan_id)
+  ).length;
+  const bothCount = people.filter(
+    (c) =>
+      c.private_client === true &&
+      (onClassIds.has(c.id) || Boolean(c.membership_plan_id))
+  ).length;
 
   return (
     <FitgraphWorkbench
@@ -24,8 +33,8 @@ export default function MembershipAllocatePage() {
       titleAccent="members · private clients"
       description={
         classSubscribe
-          ? 'Mark each person as a member (class + coach) or a private client (coach). Membership rate is the class list price. Client actual rate is the agreed amount.'
-          : 'Mark each person as a member (plan + coach) or a private client (coach). Membership rate is the plan price. Client actual rate is the agreed amount.'
+          ? 'A person can be a member, a private client, or both. Members get a class and a class actual rate. Private clients get a coach and a private rate.'
+          : 'A person can be a member, a private client, or both. Members get a plan and a class actual rate. Private clients get a coach and a private rate.'
       }
     >
       {loading || !store ? (
@@ -36,16 +45,9 @@ export default function MembershipAllocatePage() {
             tone="owner"
             items={[
               { label: 'People', value: people.length },
-              {
-                label: 'Members',
-                value: people.length - privateCount,
-              },
+              { label: 'Members', value: memberCount },
               { label: 'Private clients', value: privateCount },
-              {
-                label: 'On a class',
-                value:
-                  Number(summary?.activeSubscriptions) || activeSubs.length,
-              },
+              { label: 'Both', value: bothCount },
             ]}
           />
           <MemberAllocateTable

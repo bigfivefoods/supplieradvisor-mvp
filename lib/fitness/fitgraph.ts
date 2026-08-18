@@ -43,6 +43,8 @@ import {
   gymRequiresDebitBank,
   memberDebitBankComplete,
 } from '@/lib/fitness/member-debit-bank';
+import { isPortalSectionOn } from '@/lib/advisors/portal-sections';
+import { gymCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
 
 export {
   SYS_COACH_TIME_CODE,
@@ -478,8 +480,10 @@ export type FitClient = {
    */
   private_client?: boolean;
   coach_id?: string | null;
-  /** Agreed client rate (ZAR / month). Null = use the class list price. */
+  /** Agreed class rate (ZAR / month). Null = use the class list price. */
   agreed_rate_zar?: number | null;
+  /** Agreed private / PT rate with the assigned coach (ZAR / month). */
+  private_rate_zar?: number | null;
   emergency_contact?: string;
   notes?: string;
   /**
@@ -665,6 +669,8 @@ export type FitPublicSettings = {
   /** Internal owner notes for the gym profile */
   bio?: string;
   allow_public_booking: boolean;
+  /** Share public class diary with SA Member PWA (default follows online booking). */
+  share_member_calendar?: boolean;
   /**
    * When true, guests must buy a membership before booking a class.
    * Default: true if the gym has priced public memberships.
@@ -689,6 +695,8 @@ export type FitPublicSettings = {
   show_pricing: boolean;
   /** Show PDF contracts on the public gym page */
   show_contracts?: boolean;
+  /** Owner picks which public portal blocks are visible */
+  portal_sections?: Record<string, boolean>;
   timezone?: string;
   contact_email?: string;
   contact_phone?: string;
@@ -1282,6 +1290,7 @@ export type FitPtPack = {
 };
 
 export interface FitgraphStore {
+  desk_notices?: import('@/lib/services/advisor-member-calendar').DeskMemberNotice[];
   coaches: FitCoach[];
   clients: FitClient[];
   membership_plans: FitMembershipPlan[];
@@ -1454,6 +1463,7 @@ export function coachPersonalBookingError(
 
 export function emptyFitgraphStore(): FitgraphStore {
   return {
+    desk_notices: [],
     coaches: [],
     clients: [],
     membership_plans: [],
@@ -2058,6 +2068,7 @@ export function summariseFitgraph(store: FitgraphStore) {
     ptSessionsRemaining: ptRemaining,
     websiteEnabled: store.settings?.enabled === true,
     publicBooking: store.settings?.allow_public_booking === true,
+    ...gymCommandBookingMetrics(store),
   };
 }
 
@@ -2115,7 +2126,13 @@ export function buildPublicCalendarPayload(
         : a.date.localeCompare(b.date)
     );
 
-  const coaches = store.settings?.show_coaches
+  const showTeam = isPortalSectionOn(store.settings, 'team');
+  const showJoin = isPortalSectionOn(store.settings, 'join');
+  const showPolicies = isPortalSectionOn(store.settings, 'policies');
+  const showHours = isPortalSectionOn(store.settings, 'hours');
+  const showTimetable = isPortalSectionOn(store.settings, 'timetable');
+
+  const coaches = showTeam
     ? store.coaches
         .filter((c) => c.active !== false && !c.end_date)
         .map((c) => ({
@@ -2139,7 +2156,7 @@ export function buildPublicCalendarPayload(
         }))
     : [];
 
-  const plans = store.settings?.show_pricing
+  const plans = showJoin
     ? store.membership_plans
         .filter((p) => p.active !== false && p.public !== false)
         .map((p) => ({
@@ -2174,16 +2191,15 @@ export function buildPublicCalendarPayload(
       kind: p.kind,
     }));
 
-  const contracts =
-    store.settings?.show_contracts !== false
-      ? (store.settings?.contracts || []).map((d) => ({
+  const contracts = showPolicies
+    ? (store.settings?.contracts || []).map((d) => ({
           id: d.id,
           title: d.title,
           file_name: d.file_name,
           url: d.url,
           kind: d.kind || 'other',
         }))
-      : [];
+    : [];
 
   return {
     brand: store.settings?.brand_name || 'Gym',
@@ -2196,17 +2212,25 @@ export function buildPublicCalendarPayload(
     logo_url: logoUrlFromSettings(
       store.settings as { company_logo_url?: string | null } | undefined
     ),
-    hours: store.settings?.working_hours
-      ? compactWorkingHours(store.settings.working_hours)
-      : undefined,
+    hours:
+      showHours && store.settings?.working_hours
+        ? compactWorkingHours(store.settings.working_hours)
+        : undefined,
+    sections: {
+      timetable: showTimetable,
+      team: showTeam,
+      join: showJoin,
+      policies: showPolicies,
+      hours: showHours,
+    },
     city: store.settings?.marketplace?.city,
     primary_color: gymBrandColor(store.settings?.embed_primary_color),
     from,
     to,
-    sessions,
+    sessions: showTimetable ? sessions : [],
     coaches,
     plans,
-    programmes: shopProgrammes,
+    programmes: showJoin ? shopProgrammes : [],
     require_paid_membership:
       store.settings?.require_paid_membership === false
         ? false

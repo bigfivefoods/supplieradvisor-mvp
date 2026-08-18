@@ -765,6 +765,30 @@ export async function POST(request: NextRequest) {
     }
 
     
+    if (action === 'promote_slot_waitlist') {
+      const { promoteWaitlistBooking } = await import(
+        '@/lib/services/advisor-booking'
+      );
+      const promoted = promoteWaitlistBooking(
+        store.bookings,
+        String(body.booking_id || body.id || ''),
+        now
+      );
+      if (!promoted) {
+        return NextResponse.json(
+          { error: 'Waitlist booking not found' },
+          { status: 404 }
+        );
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summarisePsychiatrygraph(store),
+        message: 'Booked from waitlist',
+      });
+    }
+
     if (action === 'manage_waitlist_queue') {
       const qid = String(body.queue_id || body.id || '');
       const status = String(body.status || 'contacted');

@@ -8,6 +8,7 @@ export function AdvisorMemberCalendarShareCard({
   generateMemberSlots,
   requireAcceptJoin,
   memberSlotMinutes,
+  variant = 'clinic',
   saving,
   onSave,
 }: {
@@ -15,6 +16,8 @@ export function AdvisorMemberCalendarShareCard({
   generateMemberSlots: boolean;
   requireAcceptJoin: boolean;
   memberSlotMinutes?: number | null;
+  /** Gym shares public classes; clinics also generate hours slots. */
+  variant?: 'clinic' | 'gym';
   saving?: boolean;
   onSave: (patch: {
     share_member_calendar: boolean;
@@ -53,8 +56,9 @@ export function AdvisorMemberCalendarShareCard({
         Share diary with SA Member
       </p>
       <p className="mt-1 text-[12px] text-slate-500">
-        Patients on the PWA see your working hours (minus personal time and
-        existing appointments) and book. You get a join notice when they link.
+        {variant === 'gym'
+          ? 'Members on SA Member see your public class diary as a calendar and book free spots (or join the waitlist).'
+          : 'Patients on the PWA see your working hours (minus personal time and existing appointments) and book. You get a join notice when they link.'}
       </p>
       <div className="mt-3 space-y-2 text-sm font-medium">
         <label className="flex items-center gap-2">
@@ -63,8 +67,12 @@ export function AdvisorMemberCalendarShareCard({
             checked={share}
             onChange={(e) => setShare(e.target.checked)}
           />
-          Share bookable diary with SA Member patients
+          {variant === 'gym'
+            ? 'Share class diary with SA Member'
+            : 'Share bookable diary with SA Member patients'}
         </label>
+        {variant === 'clinic' ? (
+          <>
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -91,6 +99,8 @@ export function AdvisorMemberCalendarShareCard({
             placeholder="Uses the first consult service"
           />
         </label>
+          </>
+        ) : null}
       </div>
       <button
         type="button"

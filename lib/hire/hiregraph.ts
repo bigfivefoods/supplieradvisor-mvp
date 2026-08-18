@@ -22,6 +22,8 @@ import {
 } from '@/lib/services/member-announcements';
 import type { MemberAnnouncement } from '@/lib/services/member-announcements';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
+import { isPortalSectionOn } from '@/lib/advisors/portal-sections';
+import { hireCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
 
 export const HIREGRAPH_MODULE_ID = 'hiregraph' as const;
 export const HIREGRAPH_META_KEY = 'hiregraph';
@@ -523,6 +525,7 @@ export type HirePublicSettings = {
   public_token?: string;
   /** Allow customers to request hire from portal (default true) */
   allow_portal_booking?: boolean;
+  portal_sections?: Record<string, boolean>;
   primary_color?: string;
   timezone?: string;
   has_front_desk?: boolean;
@@ -1335,6 +1338,7 @@ export function summariseHiregraph(
     websiteEnabled: store.settings?.enabled === true,
     publicTokenIssued: Boolean(store.settings?.public_token),
     liveAnnouncements: publishedAnnouncements(store.announcements).length,
+    ...hireCommandBookingMetrics(store),
     inventoryProductIds: store.items
       .map((i) => Number(i.inventory_product_id))
       .filter((n) => Number.isFinite(n) && n > 0),
@@ -1387,8 +1391,15 @@ export function buildHirePublicWebsitePayload(
     primary_color: settings.primary_color || '#0891b2',
     allow_booking: settings.allow_portal_booking !== false,
     enabled: settings.enabled === true,
-    announcements: publishedAnnouncements(store.announcements),
-    catalogue,
+    announcements: isPortalSectionOn(settings, 'news')
+      ? publishedAnnouncements(store.announcements)
+      : [],
+    catalogue: isPortalSectionOn(settings, 'catalogue') ? catalogue : [],
+    sections: {
+      news: isPortalSectionOn(settings, 'news'),
+      catalogue: isPortalSectionOn(settings, 'catalogue'),
+      contact: isPortalSectionOn(settings, 'contact'),
+    },
   };
 }
 

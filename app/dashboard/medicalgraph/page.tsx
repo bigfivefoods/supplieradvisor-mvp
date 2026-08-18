@@ -35,6 +35,7 @@ import {
   TelemetryCard,
   type HubModule,
 } from '@/components/chrome/CommandHubChrome';
+import { AdvisorCommandBookingCards } from '@/components/advisors/AdvisorCommandBookingCards';
 
 const MODULES: HubModule[] = [
   {
@@ -121,9 +122,9 @@ export default function MedicalgraphHubPage() {
 
 function Inner() {
   const companyId = getSelectedCompanyId()!;
-  const [summary, setSummary] = useState<Record<string, number | boolean> | null>(
-    null
-  );
+  const [summary, setSummary] = useState<
+    Record<string, number | boolean | string | null | undefined> | null
+  >(null);
   const [store, setStore] = useState<{
     appointments?: Array<{
       id: string;
@@ -406,19 +407,9 @@ function Inner() {
               value={String(summary?.patientCount ?? 0)}
               sub={`${summary?.activePatients ?? 0} active / new`}
             />
-            <TelemetryCard
-              label="Today"
-              value={String(summary?.appointmentsToday ?? 0)}
-              sub={`${summary?.appointmentsUpcoming ?? 0} upcoming`}
-            />
-            <TelemetryCard
-              label="Website"
-              value={summary?.websiteEnabled ? 'Live' : 'Off'}
-              sub={
-                summary?.websiteEnabled
-                  ? 'Public booking ready'
-                  : 'Publish from Website'
-              }
+            <AdvisorCommandBookingCards
+              summary={summary}
+              calendarHref="/dashboard/medicalgraph/calendar"
             />
           </HubTelemetryGrid>
         </>

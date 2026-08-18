@@ -345,8 +345,11 @@ export function allocateMemberToClass(
     clientId: string;
     planId?: string | null;
     chargedZar?: number | null;
+    privateRateZar?: number | null;
     status?: FitSubscription['status'];
     kind?: 'member' | 'private';
+    member?: boolean;
+    privateClient?: boolean;
     coachId?: string | null;
     now?: string;
     bookUpcoming?: boolean;
@@ -364,7 +367,14 @@ export function allocateMemberToClass(
   if (!client || client.active === false) {
     return { error: 'Member not found' };
   }
-  const kind = opts.kind === 'private' ? 'private' : 'member';
+  const flagsExplicit =
+    opts.member !== undefined || opts.privateClient !== undefined;
+  const isPrivate = flagsExplicit
+    ? opts.privateClient === true
+    : opts.kind === 'private';
+  const isMember = flagsExplicit
+    ? opts.member === true
+    : opts.kind !== 'private' || Boolean(opts.planId);
   const coachId = opts.coachId ? String(opts.coachId) : null;
   if (coachId) {
     const coach = store.coaches.find((c) => c.id === coachId);
@@ -372,11 +382,14 @@ export function allocateMemberToClass(
       return { error: 'Coach not found' };
     }
   }
-  if (kind === 'private' && !coachId) {
+  if (!isMember && !isPrivate) {
+    return { error: 'Mark this person as a member, a private client, or both' };
+  }
+  if (isPrivate && !coachId) {
     return { error: 'Select the coach for this private client' };
   }
   const planId = opts.planId ? String(opts.planId) : '';
-  if (kind === 'member' && !planId) {
+  if (isMember && !planId) {
     return { error: 'Select a class' };
   }
   const plan = planId
@@ -386,15 +399,50 @@ export function allocateMemberToClass(
     return { error: 'Class not found' };
   }
 
-  client.private_client = kind === 'private';
-  client.coach_id =
-    coachId || plan?.default_coach_id || client.coach_id || null;
-  if (opts.chargedZar != null && Number.isFinite(Number(opts.chargedZar))) {
+  client.private_client = isPrivate;
+  client.coach_id = isPrivate
+    ? coachId
+    : coachId || plan?.default_coach_id || client.coach_id || null;
+  const privateRate =
+    opts.privateRateZar != null && Number.isFinite(Number(opts.privateRateZar))
+      ? Number(opts.privateRateZar)
+      : isPrivate && !isMember && opts.chargedZar != null
+        ? Number(opts.chargedZar)
+        : null;
+  if (privateRate != null && Number.isFinite(privateRate)) {
+    client.private_rate_zar = privateRate;
+  }
+  if (
+    isMember &&
+    opts.chargedZar != null &&
+    Number.isFinite(Number(opts.chargedZar))
+  ) {
     client.agreed_rate_zar = Number(opts.chargedZar);
     client.notes = applyChargedNote(client.notes, Number(opts.chargedZar));
+  } else if (
+    !isMember &&
+    privateRate != null &&
+    Number.isFinite(privateRate)
+  ) {
+    client.notes = applyChargedNote(client.notes, privateRate);
   }
   client.updated_at = now;
 
+  if (!isMember) {
+    let cancelled = 0;
+    for (const other of store.subscriptions) {
+      if (other.client_id !== client.id) continue;
+      if (other.status !== 'active' && other.status !== 'trialing') continue;
+      const otherPlan = store.membership_plans.find((p) => p.id === other.plan_id);
+      if (otherPlan?.addon === true) continue;
+      other.status = 'cancelled';
+      other.cancel_at = today;
+      other.updated_at = now;
+      cancelled += 1;
+    }
+    client.membership_plan_id = null;
+    return { subscription: null, booked: 0, cancelled };
+  }
   if (!plan) {
     return { subscription: null, booked: 0, cancelled: 0 };
   }

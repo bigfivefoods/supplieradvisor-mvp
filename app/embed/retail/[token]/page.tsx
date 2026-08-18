@@ -68,10 +68,13 @@ export default function RetailPublicEmbedPage() {
 
   const color = site.primary_color || '#ea580c';
   const skus = site.skus || [];
+  const sec = (site as { sections?: Record<string, boolean> }).sections || {};
   const nav = [
-    ...(site.announcements?.length ? [{ id: 'news', label: 'News' }] : []),
-    { id: 'shop', label: 'Shop' },
-    ...(site.contact_phone || site.contact_email
+    ...(sec.news !== false && site.announcements?.length
+      ? [{ id: 'news', label: 'News' }]
+      : []),
+    ...(sec.shop !== false ? [{ id: 'shop', label: 'Shop' }] : []),
+    ...(sec.contact !== false && (site.contact_phone || site.contact_email)
       ? [{ id: 'contact', label: 'Contact' }]
       : []),
   ];
@@ -91,12 +94,13 @@ export default function RetailPublicEmbedPage() {
       cta={{ href: '#shop', label: 'Shop' }}
       footerNote="Powered by RetailAdvisor® · SupplierAdvisor"
     >
-      {site.announcements?.length ? (
+      {sec.news !== false && site.announcements?.length ? (
         <AdvisorPublicSection id="news" title="From the desk">
           <AdvisorAnnouncementFeed items={site.announcements} title="" />
         </AdvisorPublicSection>
       ) : null}
 
+      {sec.shop !== false ? (
       <AdvisorPublicSection
         id="shop"
         title="On the shelf"
@@ -137,8 +141,9 @@ export default function RetailPublicEmbedPage() {
           </div>
         ) : null}
       </AdvisorPublicSection>
+      ) : null}
 
-      {site.contact_phone || site.contact_email ? (
+      {sec.contact !== false && (site.contact_phone || site.contact_email) ? (
         <AdvisorPublicSection id="contact" title="Contact">
           <div className="grid gap-3 sm:grid-cols-2">
             {site.contact_phone ? (

@@ -17,6 +17,7 @@ import { publishedAnnouncements } from '@/lib/services/member-announcements';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { ensureSystemPersonalService } from '@/lib/clinic/appointment-kind';
 import { toPortalOpenSlots } from '@/lib/services/advisor-member-calendar';
+import { clinicCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
 
 export const PHYSIOGRAPH_MODULE_ID = 'physiograph' as const;
 export const PHYSIOGRAPH_META_KEY = 'physiograph';
@@ -423,6 +424,7 @@ export type PhysioPublicSettings = {
   require_accept_join?: boolean;
   show_practitioners: boolean;
   show_pricing: boolean;
+  portal_sections?: Record<string, boolean>;
   timezone?: string;
   contact_email?: string;
   contact_phone?: string;
@@ -831,6 +833,7 @@ export function summarisePhysiograph(store: PhysiographStore) {
         !b.feedback_submitted_at
     ).length,
     feedbackCount: (store.appointment_feedback || []).length,
+    ...clinicCommandBookingMetrics(store),
   };
 }
 

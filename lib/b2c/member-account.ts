@@ -136,6 +136,11 @@ function clinicLike(store: {
     service_id: string;
     date: string;
     start_time: string;
+    materials?: Array<{
+      billable?: boolean;
+      quantity?: number;
+      unit_price?: number;
+    }>;
   }>;
   bookings?: Array<{
     id: string;
@@ -155,7 +160,11 @@ function clinicLike(store: {
     const appt = appointments.find((a) => a.id === b.appointment_id);
     if (!patient || !appt) continue;
     const svc = services.find((s) => s.id === appt.service_id);
-    const amount = Number(svc?.price_zar || 0);
+    const materialsZar = (appt.materials || []).reduce((n, l) => {
+      if (l.billable === false) return n;
+      return n + (Number(l.quantity) || 0) * (Number(l.unit_price) || 0);
+    }, 0);
+    const amount = Number(svc?.price_zar || 0) + materialsZar;
     if (!(amount > 0)) continue;
     out.push({
       source: 'visit',

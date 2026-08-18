@@ -206,10 +206,25 @@ export async function POST(request: NextRequest) {
       }
       const members = listMembers(moduleRaw, company.meta);
       const member = members.find((m) => m.ref_id === refId);
+      const sourceRaw = String(body.source || 'desk');
+      const source: MemberAccountCharge['source'] = (
+        [
+          'desk',
+          'subscription',
+          'visit',
+          'hire',
+          'pack',
+          'till',
+        ] as const
+      ).includes(sourceRaw as MemberAccountCharge['source'])
+        ? (sourceRaw as MemberAccountCharge['source'])
+        : 'desk';
       let charge: MemberAccountCharge = {
         ...suggestionToCharge({
-          source: 'desk',
-          source_id: `desk:${Date.now()}`,
+          source,
+          source_id: body.source_id
+            ? String(body.source_id)
+            : `desk:${Date.now()}`,
           kind,
           ref_id: refId,
           member_name: String(body.member_name || member?.name || 'Member'),

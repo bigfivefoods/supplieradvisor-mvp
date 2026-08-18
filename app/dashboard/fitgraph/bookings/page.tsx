@@ -11,9 +11,12 @@ import { Copy, Share2 } from 'lucide-react';
 import { DataTable, FormCard, StatRow, fc } from '@/components/fitness/FitForm';
 import { sessionBookingCount } from '@/lib/fitness/fitgraph';
 import { buildPublicFeedbackPath } from '@/lib/services/booking-feedback';
+import { AdvisorWaitlistDesk } from '@/components/services/AdvisorWaitlistDesk';
+import { AdvisorMemberJoinInbox } from '@/components/advisors/AdvisorMemberJoinInbox';
+import { buildDeskSlotWaitlist } from '@/lib/services/advisor-waitlist-desk';
 
 export default function BookingsPage() {
-  const { companyId, store, loading, saving, post, summary } = useFitgraph();
+  const { companyId, store, loading, saving, post, summary, load } = useFitgraph();
   const [form, setForm] = useState({
     session_id: '',
     client_id: '',
@@ -92,12 +95,17 @@ export default function BookingsPage() {
     <FitgraphWorkbench
       title="Bookings"
       titleAccent="classes"
-      description="Add members to classes, or copy a join link. When you mark attended, a feedback link is issued so the member can rate the class."
+      description="Add members to classes, work SA Member waitlist requests, or copy a join link. When you mark attended, a feedback link is issued so the member can rate the class."
     >
       {loading || !store ? (
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
+          <AdvisorMemberJoinInbox
+            companyId={companyId}
+            module="fitgraph"
+            patientsHref="/dashboard/fitgraph/clients"
+          />
           <StatRow tone="owner"
             items={[
               {
@@ -105,10 +113,39 @@ export default function BookingsPage() {
                 value: Number(summary?.bookingsOpen) || 0,
               },
               {
+                label: 'Waitlist',
+                value: store.bookings.filter((b) => b.status === 'waitlist')
+                  .length,
+              },
+              {
                 label: 'Feedback pending',
                 value: Number(summary?.pendingFeedback) || 0,
               },
             ]}
+          />
+          <AdvisorWaitlistDesk
+            queue={[]}
+            slotWaitlist={buildDeskSlotWaitlist({
+              bookings: store.bookings,
+              appointments: store.sessions.map((s) => ({
+                id: s.id,
+                date: s.date,
+                start_time: s.start_time,
+                service_id: s.class_type_id,
+                practitioner_id: s.coach_id,
+              })),
+              people: store.clients,
+              services: store.class_types,
+              clinicians: store.coaches,
+            })}
+            accentClass="border-yellow-200"
+            post={async (body) => {
+              await post(body);
+            }}
+            onRefresh={() => {
+              void load();
+            }}
+            calendarHref="/dashboard/fitgraph/calendar"
           />
           <FormCard
             tone="owner"

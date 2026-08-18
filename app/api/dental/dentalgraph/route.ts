@@ -849,6 +849,30 @@ export async function POST(request: NextRequest) {
 
 
     
+    if (action === 'promote_slot_waitlist') {
+      const { promoteWaitlistBooking } = await import(
+        '@/lib/services/advisor-booking'
+      );
+      const promoted = promoteWaitlistBooking(
+        store.bookings,
+        String(body.booking_id || body.id || ''),
+        now
+      );
+      if (!promoted) {
+        return NextResponse.json(
+          { error: 'Waitlist booking not found' },
+          { status: 404 }
+        );
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseDentalgraph(store),
+        message: 'Booked from waitlist',
+      });
+    }
+
     if (action === 'manage_waitlist_queue') {
       const qid = String(body.queue_id || body.id || '');
       const status = String(body.status || 'contacted');
@@ -957,6 +981,51 @@ export async function POST(request: NextRequest) {
         recallAfterDays: Number(body.recall_after_days) || 180,
       });
       return NextResponse.json({ success: true, outcomes, recalls });
+    }
+
+    if (action === 'allocate_materials') {
+      const aptId = String(body.appointment_id || body.id || '');
+      const i = store.appointments.findIndex((a) => a.id === aptId);
+      if (i < 0) {
+        return NextResponse.json(
+          { error: 'Appointment not found' },
+          { status: 404 }
+        );
+      }
+      const {
+        normalizeDentalMaterials,
+        markMaterialsPosted,
+        materialsIssueDelta,
+      } = await import('@/lib/dental/dental-appointment-inventory');
+      const incoming = normalizeDentalMaterials(body.materials);
+      const prevPosted = new Map(
+        (store.appointments[i].materials || []).map((l) => [
+          String(l.product_id),
+          Number(l.posted_qty) || 0,
+        ])
+      );
+      const merged = incoming.map((l) => ({
+        ...l,
+        posted_qty: prevPosted.get(String(l.product_id)) || 0,
+      }));
+      const issue = materialsIssueDelta(merged);
+      store.appointments[i] = {
+        ...store.appointments[i],
+        materials: markMaterialsPosted(merged),
+      };
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseDentalgraph(store),
+        analysis: analysis(store),
+        appointment: store.appointments[i],
+        issue,
+        message:
+          merged.length === 0
+            ? 'Materials cleared on this appointment'
+            : `Allocated ${merged.length} inventory item${merged.length === 1 ? '' : 's'} to the appointment`,
+      });
     }
 
     if (
@@ -1876,6 +1945,12 @@ function upsert(
             ? String(rec.series_id)
             : null
           : prev?.series_id ?? null,
+      materials:
+        rec.materials !== undefined
+          ? (
+              await import('@/lib/dental/dental-appointment-inventory')
+            ).normalizeDentalMaterials(rec.materials)
+          : prev?.materials,
       created_at: prev?.created_at || now,
     },
       store.services,

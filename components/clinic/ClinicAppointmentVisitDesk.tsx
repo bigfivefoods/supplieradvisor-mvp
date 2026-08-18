@@ -1,0 +1,870 @@
+'use client';
+
+/**
+ * Calendar visit desk — notes, script, invoice, and medical-aid claim
+ * for a patient booked on a diary appointment.
+ */
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import {
+  FileText,
+  Loader2,
+  Package,
+  Pill,
+  Receipt,
+  Send,
+  Stethoscope,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import {
+  claimStatusLabel,
+  medicalAidSummary,
+  SCRIPT_ROUTES,
+  type PatientMedicalRecord,
+} from '@/lib/clinic/patient-medical';
+import type { VisitNote } from '@/lib/services/advisor-clinical';
+import type { ClinicClaimsModule } from '@/lib/clinic/medical-aid-claims';
+import {
+  notesForVisit,
+  type AppointmentVisitPatient,
+} from '@/lib/clinic/appointment-visit';
+import type { AdvisorAccountModule } from '@/lib/b2c/member-account-types';
+import { formatZar } from '@/lib/b2c/member-account-types';
+import { AppointmentMaterialsPanel } from '@/components/dental/AppointmentMaterialsPanel';
+import {
+  billableTotal,
+  type DentalMaterialUsage,
+} from '@/lib/dental/dental-appointment-inventory';
+import { AdvisorVisitInvoiceCard } from '@/components/advisors/AdvisorVisitInvoiceCard';
+
+type Tab = 'notes' | 'script' | 'invoice' | 'claim' | 'materials';
+
+const ACCENT: Record<
+  string,
+  { border: string; soft: string; btn: string; tab: string }
+> = {
+  teal: {
+    border: 'border-teal-200 dark:border-teal-800',
+    soft: 'bg-teal-50/60 dark:bg-teal-950/30',
+    btn: 'bg-teal-700 hover:bg-teal-800',
+    tab: 'data-[on=true]:bg-teal-700 data-[on=true]:text-white',
+  },
+  sky: {
+    border: 'border-sky-200 dark:border-sky-800',
+    soft: 'bg-sky-50/60 dark:bg-sky-950/30',
+    btn: 'bg-sky-700 hover:bg-sky-800',
+    tab: 'data-[on=true]:bg-sky-700 data-[on=true]:text-white',
+  },
+  emerald: {
+    border: 'border-emerald-200 dark:border-emerald-800',
+    soft: 'bg-emerald-50/60 dark:bg-emerald-950/30',
+    btn: 'bg-emerald-700 hover:bg-emerald-800',
+    tab: 'data-[on=true]:bg-emerald-700 data-[on=true]:text-white',
+  },
+  violet: {
+    border: 'border-violet-200 dark:border-violet-800',
+    soft: 'bg-violet-50/60 dark:bg-violet-950/30',
+    btn: 'bg-violet-700 hover:bg-violet-800',
+    tab: 'data-[on=true]:bg-violet-700 data-[on=true]:text-white',
+  },
+};
+
+const PATIENT_PATH: Record<ClinicClaimsModule, string> = {
+  physiograph: '/dashboard/physiograph/patients',
+  dentalgraph: '/dashboard/dentalgraph/patients',
+  medicalgraph: '/dashboard/medicalgraph/patients',
+  psychiatrygraph: '/dashboard/psychiatrygraph/patients',
+};
+
+export function ClinicAppointmentVisitDesk({
+  module,
+  companyId,
+  appointmentId,
+  date,
+  startTime,
+  serviceName,
+  servicePriceZar,
+  treatingName,
+  treatingId,
+  patients,
+  visitNotes,
+  materials,
+  serviceCode,
+  post,
+  saving,
+  accent = 'teal',
+  onRefresh,
+}: {
+  module: ClinicClaimsModule & AdvisorAccountModule;
+  companyId: number;
+  appointmentId: string;
+  date: string;
+  startTime: string;
+  serviceName?: string;
+  servicePriceZar?: number | null;
+  treatingName?: string;
+  treatingId?: string | null;
+  patients: AppointmentVisitPatient[];
+  visitNotes?: VisitNote[];
+  materials?: DentalMaterialUsage[];
+  serviceCode?: string | null;
+  post: (body: Record<string, unknown>) => Promise<unknown>;
+  saving?: boolean;
+  accent?: 'teal' | 'sky' | 'emerald' | 'violet';
+  onRefresh?: () => void;
+}) {
+  const skin = ACCENT[accent] || ACCENT.teal;
+  const [tab, setTab] = useState<Tab>(
+    module === 'dentalgraph' && patients.length === 0 ? 'materials' : 'notes'
+  );
+  const [patientId, setPatientId] = useState(patients[0]?.patientId || '');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!patients.some((p) => p.patientId === patientId)) {
+      setPatientId(patients[0]?.patientId || '');
+    }
+  }, [patients, patientId]);
+
+  const row = patients.find((p) => p.patientId === patientId) || null;
+  const medical: PatientMedicalRecord | null = row?.medical || null;
+  const notes = notesForVisit(visitNotes, {
+    patientId,
+    appointmentId,
+    bookingId: row?.bookingId,
+  });
+  const scripts = (medical?.scripts || []).filter(
+    (s) =>
+      s.appointment_id === appointmentId ||
+      (row?.bookingId && s.booking_id === row.bookingId)
+  );
+  const claims = (medical?.claims || []).filter(
+    (c) =>
+      c.appointment_id === appointmentId ||
+      (row?.bookingId && c.booking_id === row.bookingId)
+  );
+  const aid = medicalAidSummary(medical);
+
+  const [noteBody, setNoteBody] = useState('');
+  const [pain, setPain] = useState('');
+  const [fn, setFn] = useState('');
+  const [soapOn, setSoapOn] = useState(false);
+  const [soap, setSoap] = useState({
+    subjective: '',
+    objective: '',
+    assessment: '',
+    plan: '',
+  });
+
+  const [rx, setRx] = useState({
+    medication: '',
+    strength: '',
+    dose: '',
+    frequency: '',
+    route: 'oral',
+    duration: '',
+    quantity: '',
+    repeats: '0',
+    instructions: '',
+    diagnosis: '',
+  });
+
+  const [draftMaterials, setDraftMaterials] = useState<DentalMaterialUsage[]>(
+    () => materials || []
+  );
+  useEffect(() => {
+    setDraftMaterials(materials || []);
+  }, [appointmentId, materials]);
+
+  const materialsBillable = billableTotal(draftMaterials);
+  const defaultAmount =
+    (Number(servicePriceZar) || 0) + materialsBillable > 0
+      ? String((Number(servicePriceZar) || 0) + materialsBillable)
+      : '';
+  const [claim, setClaim] = useState({
+    amount_zar: defaultAmount,
+    tariff_code: '',
+    diagnosis_code: '',
+    auth_number: medical?.medical_aid?.auth_number || '',
+    notes: serviceName || '',
+    email: '',
+  });
+
+  useEffect(() => {
+    setNoteBody('');
+    setPain('');
+    setFn('');
+    setSoap({ subjective: '', objective: '', assessment: '', plan: '' });
+    setRx((r) => ({ ...r, medication: '', instructions: '' }));
+    setClaim((c) => ({
+      ...c,
+      amount_zar: defaultAmount || c.amount_zar,
+      notes: serviceName || c.notes,
+      auth_number: medical?.medical_aid?.auth_number || c.auth_number,
+    }));
+    // Reset when the booked patient or slot changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId, appointmentId]);
+
+  const chartHref = row
+    ? `${PATIENT_PATH[module]}/${encodeURIComponent(row.patientId)}?appointment=${encodeURIComponent(appointmentId)}&booking=${encodeURIComponent(row.bookingId)}${treatingId ? `&practitioner=${encodeURIComponent(treatingId)}` : ''}`
+    : PATIENT_PATH[module];
+
+  const run = async (fn: () => Promise<void>) => {
+    setBusy(true);
+    try {
+      await fn();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not save');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveNote = () =>
+    run(async () => {
+      if (!row) return;
+      const body = noteBody.trim();
+      if (!body) {
+        toast.error('Write a visit note first');
+        return;
+      }
+      await post({
+        action: 'upsert_visit_note',
+        person_id: row.patientId,
+        patient_id: row.patientId,
+        body,
+        booking_id: row.bookingId,
+        appointment_id: appointmentId,
+        pain_score: pain === '' ? null : Number(pain),
+        function_score: fn === '' ? null : Number(fn),
+        soap: soapOn
+          ? {
+              subjective: soap.subjective || undefined,
+              objective: soap.objective || undefined,
+              assessment: soap.assessment || undefined,
+              plan: soap.plan || undefined,
+            }
+          : undefined,
+      });
+      toast.success('Visit note saved to the patient record');
+      setNoteBody('');
+      onRefresh?.();
+    });
+
+  const saveScript = () =>
+    run(async () => {
+      if (!row) return;
+      if (!rx.medication.trim()) {
+        toast.error('Medication name is required');
+        return;
+      }
+      await post({
+        action: 'medical_script_upsert',
+        patient_id: row.patientId,
+        script: {
+          medication: rx.medication.trim(),
+          strength: rx.strength || undefined,
+          dose: rx.dose || undefined,
+          frequency: rx.frequency || undefined,
+          route: rx.route || undefined,
+          duration: rx.duration || undefined,
+          quantity: rx.quantity || undefined,
+          repeats: rx.repeats === '' ? 0 : Number(rx.repeats),
+          instructions: rx.instructions || undefined,
+          diagnosis: rx.diagnosis || undefined,
+          prescribed_by: treatingName || undefined,
+          practitioner_id: treatingId || null,
+          appointment_id: appointmentId,
+          booking_id: row.bookingId,
+          prescribed_at: date || new Date().toISOString().slice(0, 10),
+          status: 'active',
+        },
+      });
+      toast.success('Script added to the patient record');
+      setRx((r) => ({ ...r, medication: '', instructions: '', dose: '' }));
+      onRefresh?.();
+    });
+
+  const allocateMaterials = () =>
+    run(async () => {
+      const data = (await post({
+        action: 'allocate_materials',
+        appointment_id: appointmentId,
+        materials: draftMaterials,
+      })) as {
+        issue?: Array<{
+          product_id: number;
+          quantity: number;
+          name: string;
+          lot_number?: string | null;
+        }>;
+        message?: string;
+      };
+      const issue = data.issue || [];
+      let issued = 0;
+      for (const line of issue) {
+        const res = await fetch('/api/inventory/stock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            productId: line.product_id,
+            quantity: line.quantity,
+            movement_type: 'issue',
+            reference_type: 'dental_appointment',
+            reference_id: appointmentId,
+            notes: `Dental visit ${date} · ${line.name}`,
+            lot_number: line.lot_number || undefined,
+          }),
+        });
+        if (res.ok) issued += 1;
+      }
+      toast.success(
+        issued > 0
+          ? `${data.message || 'Materials allocated'} · ${issued} stock issue${issued === 1 ? '' : 's'}`
+          : data.message || 'Materials allocated to this appointment'
+      );
+      onRefresh?.();
+    });
+
+  const saveClaim = (submit: boolean) =>
+    run(async () => {
+      if (!row) return;
+      const amount = Number(claim.amount_zar);
+      const claimId = `mclm_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+      await post({
+        action: 'medical_claim_upsert',
+        patient_id: row.patientId,
+        claim: {
+          id: claimId,
+          status: submit ? 'ready' : 'draft',
+          service_date: date,
+          amount_zar: Number.isFinite(amount) && amount > 0 ? amount : null,
+          tariff_code: claim.tariff_code || undefined,
+          diagnosis_code: claim.diagnosis_code || undefined,
+          auth_number: claim.auth_number || undefined,
+          treating_name: treatingName || undefined,
+          booking_id: row.bookingId,
+          appointment_id: appointmentId,
+          notes: claim.notes || serviceName || undefined,
+        },
+      });
+      if (!submit) {
+        toast.success('Medical-aid claim saved as draft');
+        onRefresh?.();
+        return;
+      }
+      const res = await fetch('/api/clinic/medical-aid-claims', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          module,
+          action: 'submit',
+          patient_id: row.patientId,
+          claim_id: claimId,
+          email: claim.email || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Submit failed');
+      toast.success(data.message || 'Claim submitted to medical aid');
+      onRefresh?.();
+    });
+
+  const tabs: Array<{ id: Tab; label: string; icon: typeof FileText }> = [
+    { id: 'notes', label: 'Notes', icon: Stethoscope },
+    { id: 'script', label: 'Script', icon: Pill },
+    ...(module === 'dentalgraph'
+      ? [{ id: 'materials' as const, label: 'Inventory', icon: Package }]
+      : []),
+    { id: 'invoice', label: 'Invoice', icon: Receipt },
+    { id: 'claim', label: 'Claim', icon: Send },
+  ];
+
+  const inp =
+    'w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900';
+
+  if (patients.length === 0 && module !== 'dentalgraph') {
+    return (
+      <div
+        className={`mt-4 rounded-2xl border ${skin.border} ${skin.soft} px-4 py-3 text-[12px] text-slate-600 dark:text-slate-300`}
+      >
+        Book a patient onto this appointment to complete notes, write a script,
+        send an invoice, or submit a medical-aid claim from this visit.
+      </div>
+    );
+  }
+
+  return (
+    <section
+      className={`mt-4 rounded-2xl border ${skin.border} bg-white dark:bg-neutral-950`}
+    >
+      <div className={`flex flex-wrap items-start justify-between gap-2 border-b ${skin.border} px-4 py-3 ${skin.soft}`}>
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+            Visit desk
+          </p>
+          <p className="text-sm font-black text-slate-900 dark:text-white">
+            {row?.familyMemberName
+              ? `${row.familyMemberName} · ${row.name}`
+              : row?.name ||
+                (module === 'dentalgraph' ? 'This visit' : 'Patient')}
+          </p>
+          <p className="text-[11px] text-slate-500">
+            {date} {String(startTime || '').slice(0, 5)}
+            {serviceName ? ` · ${serviceName}` : ''}
+            {treatingName ? ` · ${treatingName}` : ''}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {patients.length > 1 ? (
+            <select
+              className="rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold dark:border-slate-700 dark:bg-slate-900"
+              value={patientId}
+              onChange={(e) => setPatientId(e.target.value)}
+            >
+              {patients.map((p) => (
+                <option key={p.bookingId} value={p.patientId}>
+                  {p.familyMemberName || p.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          <Link
+            href={chartHref}
+            className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold dark:border-slate-700"
+          >
+            Full chart
+          </Link>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-1 px-3 pt-3">
+        {tabs.map((t) => {
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              data-on={tab === t.id}
+              onClick={() => setTab(t.id)}
+              className={`inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-[11px] font-black dark:border-slate-700 ${skin.tab}`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="space-y-3 p-4">
+        {tab === 'notes' ? (
+          <>
+            {!row ? (
+              <p className="text-[12px] text-slate-500">
+                Book a patient onto this slot to save a visit note.
+              </p>
+            ) : null}
+            {notes.length > 0 ? (
+              <ul className="space-y-1.5">
+                {notes.slice(0, 4).map((n) => (
+                  <li
+                    key={n.id}
+                    className="rounded-xl border border-slate-100 px-3 py-2 text-[12px] dark:border-slate-800"
+                  >
+                    <p className="whitespace-pre-wrap text-slate-700 dark:text-slate-200">
+                      {n.body}
+                    </p>
+                    <p className="mt-1 text-[10px] text-slate-400">
+                      {String(n.created_at).slice(0, 16).replace('T', ' ')}
+                      {n.pain_score != null ? ` · pain ${n.pain_score}` : ''}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[12px] text-slate-500">
+                No notes on this visit yet.
+              </p>
+            )}
+            <textarea
+              className={inp + ' min-h-[88px]'}
+              placeholder="Clinical / visit note for this appointment…"
+              value={noteBody}
+              onChange={(e) => setNoteBody(e.target.value)}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-[10px] font-black uppercase text-slate-400">
+                Pain 0–10
+                <input
+                  className={inp + ' mt-0.5'}
+                  type="number"
+                  min={0}
+                  max={10}
+                  value={pain}
+                  onChange={(e) => setPain(e.target.value)}
+                />
+              </label>
+              <label className="text-[10px] font-black uppercase text-slate-400">
+                Function 0–10
+                <input
+                  className={inp + ' mt-0.5'}
+                  type="number"
+                  min={0}
+                  max={10}
+                  value={fn}
+                  onChange={(e) => setFn(e.target.value)}
+                />
+              </label>
+            </div>
+            <button
+              type="button"
+              className="text-[11px] font-bold text-slate-500 underline"
+              onClick={() => setSoapOn((v) => !v)}
+            >
+              {soapOn ? 'Hide SOAP' : 'Add SOAP headings'}
+            </button>
+            {soapOn ? (
+              <div className="grid sm:grid-cols-2 gap-2">
+                {(
+                  [
+                    ['subjective', 'Subjective'],
+                    ['objective', 'Objective'],
+                    ['assessment', 'Assessment'],
+                    ['plan', 'Plan'],
+                  ] as const
+                ).map(([k, label]) => (
+                  <textarea
+                    key={k}
+                    className={inp + ' min-h-[56px]'}
+                    placeholder={label}
+                    value={soap[k]}
+                    onChange={(e) =>
+                      setSoap((s) => ({ ...s, [k]: e.target.value }))
+                    }
+                  />
+                ))}
+              </div>
+            ) : null}
+            <DeskBtn
+              busy={busy || saving}
+              className={skin.btn}
+              onClick={() => void saveNote()}
+              icon={FileText}
+              label="Save note"
+            />
+          </>
+        ) : null}
+
+        {tab === 'script' ? (
+          <>
+            {scripts.length > 0 ? (
+              <ul className="space-y-1 text-[12px]">
+                {scripts.map((s) => (
+                  <li
+                    key={s.id}
+                    className="rounded-xl border border-slate-100 px-3 py-2 dark:border-slate-800"
+                  >
+                    <strong>{s.medication}</strong>
+                    {s.strength ? ` ${s.strength}` : ''}
+                    {s.dose ? ` · ${s.dose}` : ''}
+                    {s.frequency ? ` · ${s.frequency}` : ''}
+                    {s.instructions ? (
+                      <p className="text-slate-500">{s.instructions}</p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[12px] text-slate-500">
+                No script on this visit yet.
+              </p>
+            )}
+            <div className="grid sm:grid-cols-2 gap-2">
+              <input
+                className={inp + ' sm:col-span-2'}
+                placeholder="Medication *"
+                value={rx.medication}
+                onChange={(e) =>
+                  setRx((r) => ({ ...r, medication: e.target.value }))
+                }
+              />
+              <input
+                className={inp}
+                placeholder="Strength (e.g. 500 mg)"
+                value={rx.strength}
+                onChange={(e) =>
+                  setRx((r) => ({ ...r, strength: e.target.value }))
+                }
+              />
+              <input
+                className={inp}
+                placeholder="Dose"
+                value={rx.dose}
+                onChange={(e) => setRx((r) => ({ ...r, dose: e.target.value }))}
+              />
+              <input
+                className={inp}
+                placeholder="Frequency (e.g. 8 hourly)"
+                value={rx.frequency}
+                onChange={(e) =>
+                  setRx((r) => ({ ...r, frequency: e.target.value }))
+                }
+              />
+              <select
+                className={inp}
+                value={rx.route}
+                onChange={(e) => setRx((r) => ({ ...r, route: e.target.value }))}
+              >
+                {SCRIPT_ROUTES.map((r) => (
+                  <option key={r} value={r}>
+                    Route: {r}
+                  </option>
+                ))}
+              </select>
+              <input
+                className={inp}
+                placeholder="Duration"
+                value={rx.duration}
+                onChange={(e) =>
+                  setRx((r) => ({ ...r, duration: e.target.value }))
+                }
+              />
+              <input
+                className={inp}
+                placeholder="Quantity"
+                value={rx.quantity}
+                onChange={(e) =>
+                  setRx((r) => ({ ...r, quantity: e.target.value }))
+                }
+              />
+              <input
+                className={inp}
+                type="number"
+                min={0}
+                placeholder="Repeats"
+                value={rx.repeats}
+                onChange={(e) =>
+                  setRx((r) => ({ ...r, repeats: e.target.value }))
+                }
+              />
+              <input
+                className={inp + ' sm:col-span-2'}
+                placeholder="Directions for the patient"
+                value={rx.instructions}
+                onChange={(e) =>
+                  setRx((r) => ({ ...r, instructions: e.target.value }))
+                }
+              />
+              <input
+                className={inp + ' sm:col-span-2'}
+                placeholder="Diagnosis (optional)"
+                value={rx.diagnosis}
+                onChange={(e) =>
+                  setRx((r) => ({ ...r, diagnosis: e.target.value }))
+                }
+              />
+            </div>
+            <DeskBtn
+              busy={busy || saving}
+              className={skin.btn}
+              onClick={() => void saveScript()}
+              icon={Pill}
+              label="Add script"
+            />
+          </>
+        ) : null}
+
+        {tab === 'materials' ? (
+          <>
+            <p className="text-[12px] text-slate-500">
+              After the visit, allocate what you used from inventory. Billable
+              lines add to the invoice on the next tab.
+            </p>
+            <AppointmentMaterialsPanel
+              value={draftMaterials}
+              onChange={setDraftMaterials}
+              serviceName={serviceName}
+              serviceCode={serviceCode}
+              autoDefaults={false}
+              compact
+            />
+            <DeskBtn
+              busy={busy || saving}
+              className={skin.btn}
+              onClick={() => void allocateMaterials()}
+              icon={Package}
+              label="Allocate to appointment"
+            />
+          </>
+        ) : null}
+
+        {tab === 'invoice' ? (
+          row ? (
+            <AdvisorVisitInvoiceCard
+              companyId={companyId}
+              module={module}
+              refId={row.patientId}
+              memberName={row.familyMemberName || row.name}
+              memberEmail={row.email}
+              description={`${serviceName || 'Visit'} · ${date}${
+                materialsBillable > 0
+                  ? ` · materials ${formatZar(materialsBillable)}`
+                  : ''
+              }`}
+              amountZar={
+                (Number(servicePriceZar) || 0) + materialsBillable
+              }
+              dueDate={date}
+              sourceId={`visit:${row.bookingId}`}
+              accountsHref={`/dashboard/${module}/accounts`}
+              btnClass={skin.btn}
+            />
+          ) : (
+            <p className="text-[12px] text-slate-500">
+              Book a patient onto this slot to send an invoice.
+            </p>
+          )
+        ) : null}
+
+        {tab === 'claim' ? (
+          <>
+            <p className="text-[12px] text-slate-600">
+              {aid}
+              {medical?.medical_aid?.membership_number
+                ? ''
+                : ' — add scheme details on the patient chart if needed.'}
+            </p>
+            {claims.length > 0 ? (
+              <ul className="space-y-1 text-[12px]">
+                {claims.map((c) => (
+                  <li
+                    key={c.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 px-3 py-2 dark:border-slate-800"
+                  >
+                    <span>
+                      {c.claim_number || c.id.slice(0, 8)} ·{' '}
+                      {claimStatusLabel(c.status)}
+                      {c.amount_zar != null
+                        ? ` · ${formatZar(c.amount_zar)}`
+                        : ''}
+                    </span>
+                    <a
+                      href={`/api/clinic/medical-aid-claims/pack?companyId=${companyId}&module=${module}&patientId=${encodeURIComponent(patientId)}&claimId=${encodeURIComponent(c.id)}`}
+                      className="font-bold underline"
+                    >
+                      Pack
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="grid sm:grid-cols-2 gap-2">
+              <label className="text-[10px] font-black uppercase text-slate-400">
+                Amount (ZAR)
+                <input
+                  className={inp + ' mt-0.5'}
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={claim.amount_zar}
+                  onChange={(e) =>
+                    setClaim((c) => ({ ...c, amount_zar: e.target.value }))
+                  }
+                />
+              </label>
+              <input
+                className={inp}
+                placeholder="Tariff / NHRPL code"
+                value={claim.tariff_code}
+                onChange={(e) =>
+                  setClaim((c) => ({ ...c, tariff_code: e.target.value }))
+                }
+              />
+              <input
+                className={inp}
+                placeholder="ICD-10"
+                value={claim.diagnosis_code}
+                onChange={(e) =>
+                  setClaim((c) => ({ ...c, diagnosis_code: e.target.value }))
+                }
+              />
+              <input
+                className={inp}
+                placeholder="Auth number"
+                value={claim.auth_number}
+                onChange={(e) =>
+                  setClaim((c) => ({ ...c, auth_number: e.target.value }))
+                }
+              />
+              <input
+                className={inp + ' sm:col-span-2'}
+                placeholder="Claim notes / service"
+                value={claim.notes}
+                onChange={(e) =>
+                  setClaim((c) => ({ ...c, notes: e.target.value }))
+                }
+              />
+              <input
+                className={inp + ' sm:col-span-2'}
+                placeholder="Email pack to scheme (optional)"
+                value={claim.email}
+                onChange={(e) =>
+                  setClaim((c) => ({ ...c, email: e.target.value }))
+                }
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <DeskBtn
+                busy={busy || saving}
+                className="bg-slate-800 hover:bg-slate-900"
+                onClick={() => void saveClaim(false)}
+                icon={FileText}
+                label="Save draft"
+              />
+              <DeskBtn
+                busy={busy || saving}
+                className={skin.btn}
+                onClick={() => void saveClaim(true)}
+                icon={Send}
+                label="Submit to medical aid"
+              />
+            </div>
+          </>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function DeskBtn({
+  busy,
+  className,
+  onClick,
+  icon: Icon,
+  label,
+}: {
+  busy?: boolean;
+  className: string;
+  onClick: () => void;
+  icon: typeof FileText;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-black text-white disabled:opacity-50 ${className}`}
+    >
+      {busy ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Icon className="h-3.5 w-3.5" />
+      )}
+      {label}
+    </button>
+  );
+}

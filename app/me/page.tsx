@@ -167,7 +167,7 @@ function membershipBookHref(m: Membership) {
     return `/me?tab=book&company=${m.company_id}&kind=${encodeURIComponent(m.kind)}`;
   }
   if (m.kind === 'gym') {
-    return `${m.portal_path}${m.portal_path.includes('?') ? '&' : '?'}tab=open`;
+    return `/me?tab=book&company=${m.company_id}&kind=gym`;
   }
   return m.portal_path;
 }
@@ -1106,13 +1106,20 @@ function MeAppInner() {
       )}
 
       {tab === 'calendar' && (
-        <B2cMemberCalendar onOpenFull={() => goTab('home')} />
+        <div className="space-y-6">
+          <B2cAdvisorBook
+            companyId={0}
+            kind=""
+            onNeedJoin={() => goTab('memberships')}
+          />
+          <B2cMemberCalendar onOpenFull={() => goTab('home')} />
+        </div>
       )}
 
       {tab === 'book' && (
         <B2cAdvisorBook
           companyId={Number(search?.get('company') || joinCompany || 0)}
-          kind={search?.get('kind') || joinKind || 'psychiatry'}
+          kind={search?.get('kind') || joinKind || ''}
           onNeedJoin={() => {
             const params = new URLSearchParams(search?.toString() || '');
             params.set('join', '1');

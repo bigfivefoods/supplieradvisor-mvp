@@ -18,6 +18,7 @@ import { publishedAnnouncements } from '@/lib/services/member-announcements';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { ensureSystemPersonalService } from '@/lib/clinic/appointment-kind';
 import { toPortalOpenSlots } from '@/lib/services/advisor-member-calendar';
+import { clinicCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
 
 export const PSYCHIATRYGRAPH_MODULE_ID = 'psychiatrygraph' as const;
 export const PSYCHIATRYGRAPH_META_KEY = 'psychiatrygraph';
@@ -421,6 +422,7 @@ export type PsychiatryPublicSettings = {
   require_accept_join?: boolean;
   show_practitioners: boolean;
   show_pricing: boolean;
+  portal_sections?: Record<string, boolean>;
   timezone?: string;
   contact_email?: string;
   contact_phone?: string;
@@ -809,6 +811,7 @@ export function summarisePsychiatrygraph(store: PsychiatrygraphStore) {
         !b.feedback_submitted_at
     ).length,
     feedbackCount: (store.appointment_feedback || []).length,
+    ...clinicCommandBookingMetrics(store),
   };
 }
 

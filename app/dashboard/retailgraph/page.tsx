@@ -20,6 +20,7 @@ import {
   RetailgraphRequired,
 } from '@/components/retail/RetailgraphShell';
 import { formatZar } from '@/lib/b2c/member-account-types';
+import { formatCommandZar } from '@/lib/advisors/command-booking-metrics';
 import { AdvisorBillingClarityCard } from '@/components/services/AdvisorBillingClarityCard';
 import RetailgraphSystemFlow from '@/components/retail/RetailgraphSystemFlow';
 
@@ -29,6 +30,10 @@ type Summary = {
   salesToday: number;
   takingsTodayZar: number;
   openTills: number;
+  bookedToday?: number;
+  bookedWeek?: number;
+  bookedMonth?: number;
+  monthIncomeZar?: number;
 };
 
 export default function RetailgraphHubPage() {
@@ -60,14 +65,28 @@ export default function RetailgraphHubPage() {
             <Loader2 className="h-6 w-6 animate-spin text-orange-600" />
           </div>
         ) : (
-          <div className="mb-6 grid gap-3 sm:grid-cols-4">
+          <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <Stat label="SKUs" value={String(summary?.skuCount || 0)} />
-            <Stat label="Sales today" value={String(summary?.salesToday || 0)} />
+            <Stat
+              label="Sales today"
+              value={String(summary?.bookedToday ?? summary?.salesToday ?? 0)}
+            />
+            <Stat
+              label="This week"
+              value={String(summary?.bookedWeek || 0)}
+            />
+            <Stat
+              label="This month"
+              value={String(summary?.bookedMonth || 0)}
+            />
             <Stat
               label="Takings today"
               value={formatZar(summary?.takingsTodayZar || 0)}
             />
-            <Stat label="Open tills" value={String(summary?.openTills || 0)} />
+            <Stat
+              label="Month income"
+              value={formatCommandZar(summary?.monthIncomeZar || 0)}
+            />
           </div>
         )}
 

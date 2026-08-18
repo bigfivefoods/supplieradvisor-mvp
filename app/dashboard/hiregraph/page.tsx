@@ -39,6 +39,7 @@ import {
   HIRE_SUPPLIER_COMMISSION_PCT,
 } from '@/lib/hire/commercial';
 import { AdvisorBillingClarityCard } from '@/components/services/AdvisorBillingClarityCard';
+import { AdvisorCommandBookingCards } from '@/components/advisors/AdvisorCommandBookingCards';
 
 type Summary = Record<string, number | string | null | undefined>;
 
@@ -208,15 +209,11 @@ export default function HiregraphHubPage() {
               value={Number(summary?.openBookings) || 0}
               sub={`${Number(summary?.outNow) || 0} out now`}
             />
-            <TelemetryCard
-              label="Hire GMV"
-              value={`R${Number(summary?.gmvZar || 0).toLocaleString('en-ZA')}`}
-              sub="Completed rentals"
-            />
-            <TelemetryCard
-              label="Platform fees"
-              value={`R${Number(summary?.platformFeesZar || 0).toLocaleString('en-ZA')}`}
-              sub={`${HIRE_SUPPLIER_COMMISSION_PCT}% · members free`}
+            <AdvisorCommandBookingCards
+              summary={summary}
+              calendarHref="/dashboard/hiregraph/calendar"
+              incomeLabel="Month income"
+              countNoun="hires"
             />
           </HubTelemetryGrid>
         )}

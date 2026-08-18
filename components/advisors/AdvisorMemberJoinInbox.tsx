@@ -33,7 +33,10 @@ export function AdvisorMemberJoinInbox({
     void load();
   }, [load]);
 
-  const act = async (id: string, action: 'accepted' | 'dismissed' | 'seen') => {
+  const act = async (
+    id: string,
+    action: 'accepted' | 'dismissed' | 'seen' | 'book'
+  ) => {
     if (!companyId) return;
     setBusyId(id);
     try {
@@ -91,6 +94,15 @@ export function AdvisorMemberJoinInbox({
                   className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-black text-white disabled:opacity-50"
                 >
                   <Check className="h-3 w-3" /> Accept
+                </button>
+              ) : n.kind === 'booking_request' ? (
+                <button
+                  type="button"
+                  disabled={busyId === n.id}
+                  onClick={() => void act(n.id, 'book')}
+                  className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-black text-white disabled:opacity-50"
+                >
+                  <Check className="h-3 w-3" /> Book in
                 </button>
               ) : (
                 <button

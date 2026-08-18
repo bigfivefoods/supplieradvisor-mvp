@@ -9,6 +9,8 @@ import {
 } from '@/lib/services/member-announcements';
 import type { MemberAnnouncement } from '@/lib/services/member-announcements';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
+import { isPortalSectionOn } from '@/lib/advisors/portal-sections';
+import { retailCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
 
 export const RETAILGRAPH_MODULE_ID = 'retailgraph' as const;
 export const RETAILGRAPH_META_KEY = 'retailgraph';
@@ -48,6 +50,8 @@ export type RetailPublicSettings = {
   contact_email?: string;
   contact_phone?: string;
   embed_primary_color?: string;
+  portal_sections?: Record<string, boolean>;
+  show_pricing?: boolean;
   has_front_desk?: boolean;
   desk_name?: string;
   desk_email?: string | null;
@@ -155,15 +159,24 @@ export function buildRetailPublicWebsitePayload(
     ),
     primary_color: store.settings.embed_primary_color || '#ea580c',
     enabled: store.settings.enabled === true,
-    announcements: publishedAnnouncements(store.announcements),
-    skus: (store.skus || [])
+    announcements: isPortalSectionOn(store.settings, 'news')
+      ? publishedAnnouncements(store.announcements)
+      : [],
+    skus: isPortalSectionOn(store.settings, 'shop')
+      ? (store.skus || [])
       .filter((s) => s.active !== false)
       .map((s) => ({
         id: s.id,
         name: s.name,
         sku: s.sku || '',
         price_zar: Number(s.price_zar) || 0,
-      })),
+      }))
+      : [],
+    sections: {
+      news: isPortalSectionOn(store.settings, 'news'),
+      shop: isPortalSectionOn(store.settings, 'shop'),
+      contact: isPortalSectionOn(store.settings, 'contact'),
+    },
   };
 }
 
@@ -180,11 +193,20 @@ export function summariseRetailgraph(
   salesToday: number;
   takingsTodayZar: number;
   openTills: number;
+  bookedToday: number;
+  bookedWeek: number;
+  bookedMonth: number;
+  fillRateTodayPct: number | null;
+  fillRateWeekPct: number | null;
+  fillRateMonthPct: number | null;
+  monthIncomeZar: number;
+  monthPotentialZar: number;
 } {
   const today = new Date().toISOString().slice(0, 10);
   const todays = store.sales.filter(
     (s) => s.status === 'paid' && String(s.created_at).slice(0, 10) === today
   );
+  const booking = retailCommandBookingMetrics(store);
   return {
     skuCount: store.skus.filter((s) => s.active !== false).length,
     customerCount: store.customers.length,
@@ -192,5 +214,6 @@ export function summariseRetailgraph(
     takingsTodayZar: todays.reduce((n, s) => n + (Number(s.total_zar) || 0), 0),
     openTills: sessions.filter((s) => s.status === 'open' || s.status === 'pending')
       .length,
+    ...booking,
   };
 }

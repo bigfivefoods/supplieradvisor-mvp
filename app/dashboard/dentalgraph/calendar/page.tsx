@@ -32,6 +32,8 @@ import {
   buildDeskSlotWaitlist,
 } from '@/lib/services/advisor-waitlist-desk';
 import { ClinicDiaryKindFields } from '@/components/clinic/ClinicDiaryKindFields';
+import { ClinicAppointmentVisitDesk } from '@/components/clinic/ClinicAppointmentVisitDesk';
+import { appointmentVisitPatients } from '@/lib/clinic/appointment-visit';
 import {
   appointmentKindLabel,
   appointmentKindOf,
@@ -662,7 +664,7 @@ export default function CalendarPage() {
             }
             subtitle={
               selectedId
-                ? 'Edit this slot or book a patient'
+                ? 'Edit this slot, book a patient, then complete notes, script, invoice or claim'
                 : 'New appointment on the diary'
             }
             onClose={closeEditor}
@@ -940,6 +942,45 @@ export default function CalendarPage() {
                 </p>
               ) : null}
             </FormCard>
+            {selectedId && form.appointment_kind !== 'personal' ? (
+              <ClinicAppointmentVisitDesk
+                module="dentalgraph"
+                companyId={companyId}
+                appointmentId={selectedId}
+                date={form.date}
+                startTime={form.start_time}
+                serviceName={
+                  store.services.find((s) => s.id === form.service_id)?.name
+                }
+                servicePriceZar={
+                  store.services.find((s) => s.id === form.service_id)
+                    ?.price_zar
+                }
+                treatingName={
+                  store.staff.find((p) => p.id === form.staff_id)?.name
+                }
+                treatingId={form.staff_id || null}
+                patients={appointmentVisitPatients({
+                  appointmentId: selectedId,
+                  bookings: store.bookings,
+                  patients: store.patients,
+                })}
+                visitNotes={store.visit_notes}
+                materials={
+                  store.appointments.find((a) => a.id === selectedId)
+                    ?.materials
+                }
+                serviceCode={
+                  store.services.find((s) => s.id === form.service_id)?.code
+                }
+                post={post}
+                saving={saving}
+                accent="sky"
+                onRefresh={() => {
+                  void load();
+                }}
+              />
+            ) : null}
           </div>
           </ScheduleEventPeek>
 

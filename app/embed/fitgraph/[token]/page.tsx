@@ -47,6 +47,13 @@ type PublicCalendar = {
   primary_color?: string;
   from: string;
   to: string;
+  sections?: {
+    timetable?: boolean;
+    team?: boolean;
+    join?: boolean;
+    policies?: boolean;
+    hours?: boolean;
+  };
   sessions: PublicSession[];
   coaches: Array<{
     code: string;
@@ -312,11 +319,18 @@ export default function EmbedFitgraphPage() {
     byDate.set(s.date, list);
   }
 
+  const sec = calendar.sections || {};
   const nav = [
-    { id: 'timetable', label: 'Timetable' },
-    ...(calendar.coaches.length ? [{ id: 'team', label: 'Coaches' }] : []),
-    ...(shopItems.length ? [{ id: 'join', label: 'Join' }] : []),
-    ...((calendar.contracts || []).length
+    ...(sec.timetable !== false
+      ? [{ id: 'timetable', label: 'Timetable' }]
+      : []),
+    ...(sec.team !== false && calendar.coaches.length
+      ? [{ id: 'team', label: 'Coaches' }]
+      : []),
+    ...(sec.join !== false && shopItems.length
+      ? [{ id: 'join', label: 'Join' }]
+      : []),
+    ...(sec.policies !== false && (calendar.contracts || []).length
       ? [{ id: 'policies', label: 'Policies' }]
       : []),
   ];
@@ -332,8 +346,9 @@ export default function EmbedFitgraphPage() {
       email={calendar.contact_email}
       websiteUrl={calendar.website_url}
       logoUrl={calendar.logo_url}
-      hours={calendar.hours}
+      hours={sec.hours === false ? [] : calendar.hours}
       color={color}
+      showVisit={sec.hours !== false}
       payoutReady={payoutReady}
       nav={nav}
       cta={{ href: shopItems.length ? '#join' : '#timetable', label: shopItems.length ? 'Join' : 'Timetable' }}
@@ -358,6 +373,7 @@ export default function EmbedFitgraphPage() {
         </div>
       ) : null}
 
+      {sec.timetable !== false ? (
       <AdvisorPublicSection
         id="timetable"
         title="Class timetable"
@@ -437,8 +453,9 @@ export default function EmbedFitgraphPage() {
           </div>
         )}
       </AdvisorPublicSection>
+      ) : null}
 
-      {calendar.coaches.length > 0 ? (
+      {sec.team !== false && calendar.coaches.length > 0 ? (
         <AdvisorPublicSection
           id="team"
           title="Coaches"
@@ -507,7 +524,7 @@ export default function EmbedFitgraphPage() {
         </AdvisorPublicSection>
       ) : null}
 
-      {shopItems.length > 0 ? (
+      {sec.join !== false && shopItems.length > 0 ? (
         <AdvisorPublicSection
           id="join"
           title={
@@ -533,7 +550,7 @@ export default function EmbedFitgraphPage() {
         </AdvisorPublicSection>
       ) : null}
 
-      {(calendar.contracts || []).length > 0 ? (
+      {sec.policies !== false && (calendar.contracts || []).length > 0 ? (
         <AdvisorPublicSection
           id="policies"
           title="Contracts & policies"

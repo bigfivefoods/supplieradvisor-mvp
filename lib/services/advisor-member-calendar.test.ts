@@ -11,6 +11,7 @@ import {
   virtualSlotId,
   type ClinicMemberStore,
 } from './advisor-member-calendar';
+import { promoteWaitlistBooking } from './advisor-booking';
 
 const hours = {
   default_open: '09:00',
@@ -111,6 +112,31 @@ if (booked.ok) {
   assert.equal(booked.store.appointments.length, 1);
   assert.equal(booked.store.bookings.length, 1);
   assert.equal(booked.store.desk_notices?.[0]?.kind, 'booking_made');
+  booked.store.patients.push({
+    id: 'pat_2',
+    name: 'Jo',
+    desk_join_status: 'accepted',
+  });
+  const wait = bookAdvisorMemberSlot({
+    store: booked.store,
+    module: 'psychiatrygraph',
+    patientId: 'pat_2',
+    slotId: slots[0].id,
+    newId: (p) => `${p}_${++n}`,
+    source: 'pwa',
+  });
+  assert.equal(wait.ok, true);
+  if (wait.ok) {
+    assert.equal(wait.status, 'waitlist');
+    assert.ok(
+      wait.store.desk_notices?.some((n) => n.kind === 'booking_request')
+    );
+    const promoted = promoteWaitlistBooking(
+      wait.store.bookings,
+      wait.bookingId
+    );
+    assert.equal(promoted?.status, 'booked');
+  }
 }
 
 const closed = generateAdvisorMemberSlots({

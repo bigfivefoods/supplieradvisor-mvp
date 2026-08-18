@@ -252,7 +252,7 @@ assert.equal(privateOnly.subscription, null);
 const bev = store.clients.find((c) => c.id === 'cli_bev')!;
 assert.equal(bev.private_client, true);
 assert.equal(bev.coach_id, 'coh_pat');
-assert.equal(bev.agreed_rate_zar, 650);
+assert.equal(bev.private_rate_zar, 650);
 
 const missingCoach = allocateMemberToClass(store, {
   clientId: 'cli_bev',
@@ -260,5 +260,24 @@ const missingCoach = allocateMemberToClass(store, {
   now: '2026-08-17T10:00:00.000Z',
 });
 assert.ok('error' in missingCoach);
+
+const both = allocateMemberToClass(store, {
+  clientId: 'cli_ada',
+  member: true,
+  privateClient: true,
+  planId: boot.id,
+  coachId: 'coh_pat',
+  chargedZar: 475,
+  privateRateZar: 800,
+  now: '2026-08-17T10:00:00.000Z',
+});
+if ('error' in both) throw new Error(both.error);
+const ada = store.clients.find((c) => c.id === 'cli_ada')!;
+assert.equal(ada.private_client, true);
+assert.equal(ada.coach_id, 'coh_pat');
+assert.equal(ada.private_rate_zar, 800);
+assert.equal(ada.agreed_rate_zar, 475);
+assert.equal(both.subscription?.plan_id, boot.id);
+assert.equal(both.subscription?.charged_zar, 475);
 
 console.log('class-allocate.test.ts ok');

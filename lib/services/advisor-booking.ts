@@ -88,6 +88,25 @@ export function promoteNextWaitlist<
   return next;
 }
 
+/** Desk books a specific waitlisted person onto the slot. */
+export function promoteWaitlistBooking<
+  T extends {
+    id: string;
+    status: string;
+    notes?: string;
+    waitlist_offered_at?: string | null;
+  },
+>(bookings: T[], bookingId: string, now = new Date().toISOString()): T | null {
+  const hit = bookings.find((b) => b.id === bookingId);
+  if (!hit || hit.status !== 'waitlist') return null;
+  hit.status = 'booked';
+  hit.waitlist_offered_at = now;
+  hit.notes = [hit.notes, 'Desk booked from waitlist']
+    .filter(Boolean)
+    .join(' · ');
+  return hit;
+}
+
 export function resolveFamilyAttendee(
   family: FamilyMember[] | undefined | null,
   familyMemberId: string | null | undefined

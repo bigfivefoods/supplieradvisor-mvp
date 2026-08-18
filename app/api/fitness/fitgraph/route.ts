@@ -6,6 +6,7 @@ import {
 } from '@/lib/auth/api-auth';
 import {
   promoteNextWaitlist,
+  promoteWaitlistBooking,
   resolveFamilyAttendee,
 } from '@/lib/services/advisor-booking';
 import { findRoomDiaryConflict } from '@/lib/services/clinic-public-calendar';
@@ -874,7 +875,18 @@ export async function POST(request: NextRequest) {
           : Number(chargedRaw);
       if (chargedZar != null && !Number.isFinite(chargedZar)) {
         return NextResponse.json(
-          { error: 'Charged rate must be a number' },
+          { error: 'Class actual rate must be a number' },
+          { status: 400 }
+        );
+      }
+      const privateRaw = body.private_rate_zar;
+      const privateRateZar =
+        privateRaw === '' || privateRaw == null
+          ? null
+          : Number(privateRaw);
+      if (privateRateZar != null && !Number.isFinite(privateRateZar)) {
+        return NextResponse.json(
+          { error: 'Private rate must be a number' },
           { status: 400 }
         );
       }
@@ -888,12 +900,19 @@ export async function POST(request: NextRequest) {
         statusRaw === 'expired'
           ? statusRaw
           : undefined;
+      const flagsExplicit =
+        body.member !== undefined || body.private_client !== undefined;
       const result = allocateMemberToClass(store, {
         clientId: String(body.client_id || ''),
         planId: body.plan_id ? String(body.plan_id) : null,
         chargedZar,
+        privateRateZar,
         status,
         kind: String(body.kind || '') === 'private' ? 'private' : 'member',
+        member: flagsExplicit ? body.member === true : undefined,
+        privateClient: flagsExplicit
+          ? body.private_client === true
+          : undefined,
         coachId: body.coach_id ? String(body.coach_id) : null,
         now,
       });
@@ -1426,6 +1445,27 @@ export async function POST(request: NextRequest) {
     }
 
     /** Send booking reminders (next 24h) */
+    if (action === 'promote_slot_waitlist') {
+      const promoted = promoteWaitlistBooking(
+        store.bookings,
+        String(body.booking_id || body.id || ''),
+        now
+      );
+      if (!promoted) {
+        return NextResponse.json(
+          { error: 'Waitlist booking not found' },
+          { status: 404 }
+        );
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        message: 'Booked from waitlist',
+      });
+    }
+
     if (action === 'send_reminders') {
       const {
         sendBookingReminderEmail,
@@ -2499,6 +2539,12 @@ function upsert(
             ? null
             : Number(rec.agreed_rate_zar)
           : prev?.agreed_rate_zar ?? null,
+      private_rate_zar:
+        rec.private_rate_zar !== undefined
+          ? rec.private_rate_zar == null || rec.private_rate_zar === ''
+            ? null
+            : Number(rec.private_rate_zar)
+          : prev?.private_rate_zar ?? null,
       emergency_contact:
         rec.emergency_contact !== undefined
           ? rec.emergency_contact

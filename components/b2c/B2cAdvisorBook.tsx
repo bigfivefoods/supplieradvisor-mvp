@@ -11,6 +11,7 @@ type Slot = {
   service_name: string;
   practitioner_name?: string | null;
   full: boolean;
+  spots_left?: number;
   virtual?: boolean;
 };
 
@@ -77,7 +78,8 @@ export function B2cAdvisorBook({
     void load();
   }, [load]);
 
-  const cal = cals[0];
+  const [pickedCal, setPickedCal] = useState(0);
+  const cal = cals[Math.min(pickedCal, Math.max(0, cals.length - 1))] || cals[0];
   const slots = cal?.slots || [];
   const byDate = useMemo(() => {
     const map = new Map<string, Slot[]>();
@@ -94,7 +96,7 @@ export function B2cAdvisorBook({
     month: 'long',
     year: 'numeric',
   });
-  const daySlots = (byDate.get(picked) || []).filter((s) => !s.full);
+  const daySlots = byDate.get(picked) || [];
 
   const book = async (slotId: string) => {
     setBusyId(slotId);
@@ -105,8 +107,8 @@ export function B2cAdvisorBook({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          company: companyId,
-          kind,
+          company: cal?.company_id || companyId,
+          kind: cal?.kind || kind,
           slot_id: slotId,
         }),
       });
@@ -166,7 +168,21 @@ export function B2cAdvisorBook({
         <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
           Book with
         </p>
-        <h2 className="text-lg font-black text-slate-900">{cal.brand}</h2>
+        {cals.length > 1 ? (
+          <select
+            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
+            value={String(pickedCal)}
+            onChange={(e) => setPickedCal(Number(e.target.value))}
+          >
+            {cals.map((c, i) => (
+              <option key={`${c.company_id}-${c.kind}`} value={i}>
+                {c.brand}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <h2 className="text-lg font-black text-slate-900">{cal.brand}</h2>
+        )}
         {!cal.shared ? (
           <p className="mt-1 text-[12px] text-amber-800">
             This practice has not shared a bookable diary yet.
@@ -230,7 +246,7 @@ export function B2cAdvisorBook({
           {weeks.flat().map((iso, i) => {
             if (!iso) return <span key={`e-${i}`} />;
             const n = Number(iso.slice(8, 10));
-            const has = (byDate.get(iso) || []).some((s) => !s.full);
+            const has = (byDate.get(iso) || []).length > 0;
             const sel = iso === picked;
             return (
               <button
@@ -259,11 +275,12 @@ export function B2cAdvisorBook({
 
       <div className="space-y-2">
         <p className="px-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
-          {picked} · {daySlots.length || 'no'} open
+          {picked} · {daySlots.filter((s) => !s.full).length || 'no'} free
+          {daySlots.some((s) => s.full) ? ` · ${daySlots.filter((s) => s.full).length} waitlist` : ''}
         </p>
         {daySlots.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-[12px] text-slate-500">
-            No free times this day. Try another date.
+            No times this day. Try another date.
           </p>
         ) : (
           daySlots.map((s) => (
@@ -281,15 +298,20 @@ export function B2cAdvisorBook({
                 </span>
                 <span className="block text-[11px] text-slate-500">
                   {s.practitioner_name || cal.brand}
+                  {s.full ? ' · full' : ''}
                 </span>
               </span>
               <button
                 type="button"
                 disabled={Boolean(busyId) || cal.join_status === 'pending'}
                 onClick={() => void book(s.id)}
-                className="rounded-full bg-[#0077b6] px-3 py-1.5 text-[11px] font-black text-white disabled:opacity-50"
+                className={`rounded-full px-3 py-1.5 text-[11px] font-black disabled:opacity-50 ${
+                  s.full
+                    ? 'border border-amber-300 bg-amber-50 text-amber-950'
+                    : 'bg-[#0077b6] text-white'
+                }`}
               >
-                {busyId === s.id ? '…' : 'Book'}
+                {busyId === s.id ? '…' : s.full ? 'Waitlist' : 'Book'}
               </button>
             </article>
           ))

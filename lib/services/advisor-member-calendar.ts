@@ -149,6 +149,15 @@ export function memberCalendarShareOn(settings?: ClinicMemberStore['settings']) 
   return true;
 }
 
+export function gymCalendarShareOn(settings?: {
+  share_member_calendar?: boolean;
+  allow_public_booking?: boolean;
+} | null) {
+  if (settings?.share_member_calendar === false) return false;
+  if (settings?.allow_public_booking === false) return false;
+  return true;
+}
+
 export function memberSlotsFromHoursOn(
   settings?: ClinicMemberStore['settings']
 ) {
@@ -532,14 +541,13 @@ export function bookAdvisorMemberSlot<T extends ClinicMemberStore>(opts: {
       slot =
         slots.find(
           (s) =>
-            s.virtual &&
             s.date === parsed.date &&
             s.start_time === parsed.start &&
             (s.practitioner_id || null) === parsed.practitionerId
         ) || null;
     }
   }
-  if (!slot || slot.full) {
+  if (!slot) {
     return { ok: false, error: 'That time is no longer free', status: 409 };
   }
 

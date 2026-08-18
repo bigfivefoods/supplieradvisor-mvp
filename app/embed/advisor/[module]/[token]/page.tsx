@@ -52,6 +52,14 @@ type Calendar = {
     }>;
   }>;
   services?: Array<{ name: string; price_zar?: number }>;
+  sections?: {
+    diary?: boolean;
+    team?: boolean;
+    services?: boolean;
+    pricing?: boolean;
+    hours?: boolean;
+    contact?: boolean;
+  };
 };
 
 const MODULE_LABEL: Record<string, string> = {
@@ -144,11 +152,17 @@ export default function EmbedClinicAdvisorPage() {
     return <AdvisorPublicStatus error={error} />;
   }
 
+  const sec = calendar?.sections || {};
   const nav = [
-    { id: 'diary', label: 'Book' },
-    ...(calendar?.clinicians?.length ? [{ id: 'team', label: 'Team' }] : []),
-    ...(calendar?.services?.length ? [{ id: 'services', label: 'Services' }] : []),
-    ...(calendar?.city || calendar?.contact_phone || calendar?.contact_email
+    ...(sec.diary !== false ? [{ id: 'diary', label: 'Book' }] : []),
+    ...(sec.team !== false && calendar?.clinicians?.length
+      ? [{ id: 'team', label: 'Team' }]
+      : []),
+    ...(sec.services !== false && calendar?.services?.length
+      ? [{ id: 'services', label: 'Services' }]
+      : []),
+    ...(sec.contact !== false &&
+    (calendar?.city || calendar?.contact_phone || calendar?.contact_email)
       ? [{ id: 'contact', label: 'Contact' }]
       : []),
   ];
@@ -178,9 +192,10 @@ export default function EmbedClinicAdvisorPage() {
       email={calendar?.contact_email}
       websiteUrl={calendar?.website_url}
       logoUrl={calendar?.logo_url}
-      hours={calendar?.hours}
+      hours={sec.hours === false ? [] : calendar?.hours}
       color={color}
       payoutReady={payoutReady}
+      showVisit={sec.hours !== false && sec.contact !== false}
       nav={nav}
       cta={{ href: '#diary', label: 'Book' }}
     >
@@ -199,6 +214,7 @@ export default function EmbedClinicAdvisorPage() {
         </p>
       ) : null}
 
+      {sec.diary !== false ? (
       <AdvisorPublicSection
         id="diary"
         title="Open diary"
@@ -286,8 +302,11 @@ export default function EmbedClinicAdvisorPage() {
           </div>
         )}
       </AdvisorPublicSection>
+      ) : null}
 
-      {calendar?.clinicians && calendar.clinicians.length > 0 ? (
+      {sec.team !== false &&
+      calendar?.clinicians &&
+      calendar.clinicians.length > 0 ? (
         <AdvisorPublicSection
           id="team"
           title="The team"
@@ -356,7 +375,9 @@ export default function EmbedClinicAdvisorPage() {
         </AdvisorPublicSection>
       ) : null}
 
-      {calendar?.services && calendar.services.length > 0 ? (
+      {sec.services !== false &&
+      calendar?.services &&
+      calendar.services.length > 0 ? (
         <AdvisorPublicSection id="services" title="Services">
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {calendar.services.map((svc) => (
@@ -376,7 +397,8 @@ export default function EmbedClinicAdvisorPage() {
         </AdvisorPublicSection>
       ) : null}
 
-      {calendar?.city || calendar?.contact_phone || calendar?.contact_email ? (
+      {sec.contact !== false &&
+      (calendar?.city || calendar?.contact_phone || calendar?.contact_email) ? (
       <AdvisorPublicSection id="contact" title="Contact">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {calendar?.city ? (

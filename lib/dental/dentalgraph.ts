@@ -17,6 +17,7 @@ import { publishedAnnouncements } from '@/lib/services/member-announcements';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { ensureSystemPersonalService } from '@/lib/clinic/appointment-kind';
 import { toPortalOpenSlots } from '@/lib/services/advisor-member-calendar';
+import { clinicCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
 
 export const DENTALGRAPH_MODULE_ID = 'dentalgraph' as const;
 export const DENTALGRAPH_META_KEY = 'dentalgraph';
@@ -400,6 +401,8 @@ export type DentalAppointment = {
   personal_reason?: import('@/lib/clinic/appointment-kind').ClinicPersonalReason | null;
   /** Links occurrences created as a repeating series */
   series_id?: string | null;
+  /** Inventory items used on this visit (allocated after the meeting). */
+  materials?: import('@/lib/dental/dental-appointment-inventory').DentalMaterialUsage[];
   created_at: string;
 };
 
@@ -437,6 +440,7 @@ export type DentalPublicSettings = {
   require_accept_join?: boolean;
   show_staff: boolean;
   show_pricing: boolean;
+  portal_sections?: Record<string, boolean>;
   timezone?: string;
   contact_email?: string;
   contact_phone?: string;
@@ -854,6 +858,7 @@ export function summariseDentalgraph(store: DentalgraphStore) {
         !b.feedback_submitted_at
     ).length,
     feedbackCount: (store.appointment_feedback || []).length,
+    ...clinicCommandBookingMetrics(store),
   };
 }
 

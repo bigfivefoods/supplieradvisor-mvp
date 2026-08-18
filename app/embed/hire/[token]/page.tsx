@@ -111,10 +111,16 @@ export default function HirePublicEmbedPage() {
     : site.contact_phone
       ? `tel:${site.contact_phone.replace(/\s+/g, '')}`
       : '#catalogue';
+  const sec = (site as { sections?: Record<string, boolean> }).sections || {};
   const nav = [
-    ...(site.announcements?.length ? [{ id: 'news', label: 'News' }] : []),
-    { id: 'catalogue', label: 'Catalogue' },
-    ...(site.city || site.contact_phone || site.contact_email
+    ...(sec.news !== false && site.announcements?.length
+      ? [{ id: 'news', label: 'News' }]
+      : []),
+    ...(sec.catalogue !== false
+      ? [{ id: 'catalogue', label: 'Catalogue' }]
+      : []),
+    ...(sec.contact !== false &&
+    (site.city || site.contact_phone || site.contact_email)
       ? [{ id: 'contact', label: 'Contact' }]
       : []),
   ];
@@ -135,12 +141,13 @@ export default function HirePublicEmbedPage() {
       cta={{ href: '#catalogue', label: 'Browse hire' }}
       footerNote="Powered by HireAdvisor® · SupplierAdvisor"
     >
-      {site.announcements?.length ? (
+      {sec.news !== false && site.announcements?.length ? (
         <AdvisorPublicSection id="news" title="From the desk">
           <AdvisorAnnouncementFeed items={site.announcements} title="" />
         </AdvisorPublicSection>
       ) : null}
 
+      {sec.catalogue !== false ? (
       <AdvisorPublicSection
         id="catalogue"
         title="Catalogue"
@@ -322,8 +329,10 @@ export default function HirePublicEmbedPage() {
           </p>
         ) : null}
       </AdvisorPublicSection>
+      ) : null}
 
-      {site.city || site.contact_phone || site.contact_email ? (
+      {sec.contact !== false &&
+      (site.city || site.contact_phone || site.contact_email) ? (
         <AdvisorPublicSection id="contact" title="Contact">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {site.city ? (
