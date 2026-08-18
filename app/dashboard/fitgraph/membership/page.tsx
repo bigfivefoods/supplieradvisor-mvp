@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import {
   FitgraphWorkbench,
   LoadingBlock,
@@ -56,6 +57,16 @@ export default function MembershipAllocatePage() {
             saving={saving}
             classSubscribe={classSubscribe}
           />
+          <p className="text-[12px] text-slate-500">
+            Invoices are monthly memberships (the class / private rate), not
+            after each class.{' '}
+            <Link
+              href="/dashboard/fitgraph/accounts"
+              className="font-bold text-yellow-800 underline"
+            >
+              Send this month’s invoices
+            </Link>
+          </p>
         </div>
       )}
     </FitgraphWorkbench>

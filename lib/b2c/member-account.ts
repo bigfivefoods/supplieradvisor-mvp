@@ -1,7 +1,10 @@
 /**
  * Member account ledger on company metadata.member_accounts.
  */
-import { readFitgraphFromMetadata } from '@/lib/fitness/fitgraph';
+import {
+  readFitgraphFromMetadata,
+  subscriptionChargeZar,
+} from '@/lib/fitness/fitgraph';
 import { readPhysiographFromMetadata } from '@/lib/clinic/physiograph';
 import { readMedicalgraphFromMetadata } from '@/lib/clinic/medicalgraph';
 import { readPsychiatrygraphFromMetadata } from '@/lib/clinic/psychiatrygraph';
@@ -191,30 +194,51 @@ export function collectSuggestions(
     const store = readFitgraphFromMetadata(meta);
     const out: MemberAccountSuggestion[] = [];
     const plans = store.membership_plans || [];
-    const clients = store.clients || [];
-    for (const sub of store.subscriptions || []) {
-      const status = String(sub.status || '').toLowerCase();
-      const ended = sub.current_period_end && sub.current_period_end < today;
-      const due =
-        status === 'past_due' ||
-        ((status === 'active' || status === 'trialing') && ended);
-      if (!due) continue;
-      const plan = plans.find((p) => p.id === sub.plan_id);
-      const amount = Number(plan?.price_zar || 0);
+    const month = today.slice(0, 7);
+    const monthLabel = new Date(`${month}-01T12:00:00`).toLocaleString(
+      'en-ZA',
+      { month: 'long', year: 'numeric' }
+    );
+    for (const client of store.clients || []) {
+      if (client.active === false) continue;
+      const sub = (store.subscriptions || []).find(
+        (s) =>
+          s.client_id === client.id &&
+          (s.status === 'active' ||
+            s.status === 'trialing' ||
+            s.status === 'past_due')
+      );
+      const plan = plans.find(
+        (p) => p.id === (sub?.plan_id || client.membership_plan_id)
+      );
+      const isMember = Boolean(sub || client.membership_plan_id);
+      const classZar = isMember
+        ? sub
+          ? subscriptionChargeZar(sub, plan)
+          : client.agreed_rate_zar != null &&
+              Number.isFinite(Number(client.agreed_rate_zar))
+            ? Number(client.agreed_rate_zar)
+            : Number(plan?.price_zar) || 0
+        : 0;
+      const privateZar =
+        client.private_client && Number(client.private_rate_zar) > 0
+          ? Number(client.private_rate_zar)
+          : 0;
+      const amount = classZar + privateZar;
       if (!(amount > 0)) continue;
-      const client = clients.find((c) => c.id === sub.client_id);
-      if (!client) continue;
-      const period = sub.current_period_end || today;
+      const parts: string[] = [];
+      if (isMember) parts.push(plan?.name || 'Membership');
+      if (privateZar > 0) parts.push('Private');
       out.push({
         source: 'subscription',
-        source_id: `sub:${sub.id}:${period}`,
+        source_id: `mem:${client.id}:${month}`,
         kind: 'gym',
         ref_id: client.id,
         member_name: client.name,
         member_email: client.email || null,
-        description: `${plan?.name || 'Membership'} · period to ${period}`,
+        description: `${parts.join(' + ')} · ${monthLabel}`,
         amount_zar: amount,
-        due_date: period,
+        due_date: today,
       });
     }
     return out;

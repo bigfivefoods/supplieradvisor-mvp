@@ -278,7 +278,9 @@ export function AdvisorMemberAccounts({
         <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-sm font-black text-slate-900">
-              Unbilled visits / fees ({suggestions.length})
+              {module === 'fitgraph'
+                ? `Unbilled monthly memberships (${suggestions.length})`
+                : `Unbilled visits / fees (${suggestions.length})`}
             </h3>
             <button
               type="button"

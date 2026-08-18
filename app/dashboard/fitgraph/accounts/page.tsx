@@ -25,7 +25,7 @@ export default function FitgraphAccountsPage() {
     <FitgraphWorkbench
       title="Member accounts"
       titleAccent="pay & proof"
-      description="Charge members, collect card / Apple Pay (settles to your bank, 1% admin) or proof of payment, and post receipts to Customers invoices."
+      description="Send one monthly membership invoice per member (class rate and/or private rate). Not per class. Collect card / Apple Pay (1% admin) or proof of payment — receipts post to Customers invoices."
     >
       {collect ? (
         <div className="mb-6 rounded-2xl border border-yellow-200 bg-white p-4 space-y-3 dark:border-yellow-700 dark:bg-yellow-950/30">

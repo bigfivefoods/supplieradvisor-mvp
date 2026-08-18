@@ -17,14 +17,7 @@ import {
   fc,
   toneLinkClass,
 } from '@/components/fitness/FitForm';
-import {
-  sessionBookingCount,
-  sessionKindOf,
-  clientById,
-  planById,
-  subscriptionChargeZar,
-} from '@/lib/fitness/fitgraph';
-import { AdvisorVisitInvoiceCard } from '@/components/advisors/AdvisorVisitInvoiceCard';
+import { sessionBookingCount } from '@/lib/fitness/fitgraph';
 import { sessionRosterNames } from '@/lib/fitness/class-allocate';
 import { ProgrammeView } from '@/components/fitness/ProgrammeView';
 import {
@@ -1287,54 +1280,15 @@ export default function CalendarPage() {
                         ? `Book ${addMemberIds.length} member(s)`
                         : 'Book selected members'}
                     </button>
-                    {roster
-                      .filter(
-                        (b) =>
-                          b.status === 'booked' || b.status === 'attended'
-                      )
-                      .slice(0, 6)
-                      .map((b) => {
-                        const cl = clientById(store, b.client_id);
-                        const kind = sessionKindOf(store, s);
-                        const sub = (store.subscriptions || []).find(
-                          (x) =>
-                            x.client_id === b.client_id &&
-                            (x.status === 'active' || x.status === 'trialing')
-                        );
-                        const plan = planById(
-                          store,
-                          sub?.plan_id || cl?.membership_plan_id
-                        );
-                        const amount =
-                          kind === 'private_pt'
-                            ? Number(cl?.private_rate_zar) || 0
-                            : cl?.agreed_rate_zar != null
-                              ? Number(cl.agreed_rate_zar) || 0
-                              : sub
-                                ? subscriptionChargeZar(sub, plan)
-                                : Number(plan?.price_zar) || 0;
-                        const ct = store.class_types.find(
-                          (t) => t.id === s.class_type_id
-                        );
-                        return (
-                          <AdvisorVisitInvoiceCard
-                            key={b.id}
-                            companyId={companyId}
-                            module="fitgraph"
-                            refId={b.client_id}
-                            memberName={
-                              b.family_member_name || cl?.name || 'Member'
-                            }
-                            memberEmail={cl?.email}
-                            description={`${ct?.name || 'Class'} · ${s.date}`}
-                            amountZar={amount}
-                            dueDate={s.date}
-                            sourceId={`visit:${b.id}`}
-                            accountsHref="/dashboard/fitgraph/accounts"
-                            btnClass="bg-yellow-700 hover:bg-yellow-800"
-                          />
-                        );
-                      })}
+                    <p className="text-[11px] text-slate-500">
+                      Gym invoices are monthly memberships, not per class.{' '}
+                      <Link
+                        href="/dashboard/fitgraph/accounts"
+                        className="font-bold text-yellow-800 underline"
+                      >
+                        Send this month’s invoices
+                      </Link>
+                    </p>
                   </div>
                 );
               })()}
