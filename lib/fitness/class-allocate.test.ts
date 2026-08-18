@@ -13,6 +13,7 @@ import {
   scheduleClassOnCalendar,
   sessionRosterNames,
   suggestClassSchedule,
+  updateClassDesk,
 } from './class-allocate';
 import {
   ensureVukaClassCatalog,
@@ -106,6 +107,18 @@ assert.deepEqual(
   calendarCoverage(store, fsf, '2026-08-17').coachNames,
   ['Pat Coach']
 );
+const desk = updateClassDesk(store, {
+  planId: fsf.id,
+  patch: { price_zar: 920, name: 'FSF 5am' },
+  coachId: 'coh_pat',
+  fromDate: '2026-08-17',
+  now: '2026-08-17T10:00:00.000Z',
+});
+if ('error' in desk) throw new Error(desk.error);
+assert.equal(fsf.price_zar, 920);
+assert.equal(fsf.name, 'FSF 5am');
+assert.equal(fsf.default_coach_id, 'coh_pat');
+assert.equal(scheduled.sessions[0].coach_id, 'coh_pat');
 
 const allocated = allocateMemberToClass(store, {
   clientId: 'cli_ada',
@@ -114,7 +127,8 @@ const allocated = allocateMemberToClass(store, {
   now: '2026-08-17T10:00:00.000Z',
 });
 if ('error' in allocated) throw new Error(allocated.error);
-assert.equal(allocated.subscription.charged_zar, 775);
+assert.equal(allocated.subscription?.charged_zar, 775);
+assert.equal(store.clients[0].agreed_rate_zar, 775);
 assert.equal(allocated.booked, 6);
 assert.match(String(store.clients[0].notes), /R775\.00\/pm/);
 assert.ok(sessionRosterNames(store, scheduled.sessions[0].id).includes('Ada'));
@@ -215,5 +229,36 @@ assert.ok(bootSched.booked >= 1);
 assert.ok(
   sessionRosterNames(store, bootSched.sessions[0].id).includes('Ada')
 );
+
+const times = updateClassDesk(store, {
+  planId: boot.id,
+  sessionPatch: { start_time: '17:45', end_time: '18:45' },
+  fromDate: '2026-08-17',
+  now: '2026-08-17T10:00:00.000Z',
+});
+if ('error' in times) throw new Error(times.error);
+assert.ok(times.sessionsUpdated >= 1);
+assert.equal(bootSched.sessions[0].start_time, '17:45');
+
+const privateOnly = allocateMemberToClass(store, {
+  clientId: 'cli_bev',
+  kind: 'private',
+  coachId: 'coh_pat',
+  chargedZar: 650,
+  now: '2026-08-17T10:00:00.000Z',
+});
+if ('error' in privateOnly) throw new Error(privateOnly.error);
+assert.equal(privateOnly.subscription, null);
+const bev = store.clients.find((c) => c.id === 'cli_bev')!;
+assert.equal(bev.private_client, true);
+assert.equal(bev.coach_id, 'coh_pat');
+assert.equal(bev.agreed_rate_zar, 650);
+
+const missingCoach = allocateMemberToClass(store, {
+  clientId: 'cli_bev',
+  kind: 'private',
+  now: '2026-08-17T10:00:00.000Z',
+});
+assert.ok('error' in missingCoach);
 
 console.log('class-allocate.test.ts ok');

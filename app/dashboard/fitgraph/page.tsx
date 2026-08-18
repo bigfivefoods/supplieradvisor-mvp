@@ -71,7 +71,7 @@ function hubModules(
     code: '03',
     title: classSubscribe ? 'Classes' : 'Membership plans',
     desc: classSubscribe
-      ? 'The class is the membership — rate, calendar with repeats, then members.'
+      ? 'Edit classes, assign coaches, put repeats on the calendar.'
       : 'Unlimited, packs, pricing and class/PT credits.',
     accent: 'from-emerald-50 to-white border-emerald-100',
   },
@@ -80,7 +80,7 @@ function hubModules(
     icon: Repeat,
     code: '03b',
     title: 'Membership',
-    desc: 'Member list, class rate, charged rate, allocate to a class.',
+    desc: 'Member or private client · class · coach · list vs agreed rate.',
     accent: 'from-lime-50 to-white border-lime-100',
   },
   {

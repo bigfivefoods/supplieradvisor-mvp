@@ -96,6 +96,7 @@ import { applyMemberDebitBank } from '@/lib/fitness/member-debit-bank';
 import {
   allocateMemberToClass,
   scheduleClassOnCalendar,
+  updateClassDesk,
 } from '@/lib/fitness/class-allocate';
 
 export const runtime = 'nodejs';
@@ -877,10 +878,23 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      const statusRaw = String(body.status || '').trim();
+      const status =
+        statusRaw === 'active' ||
+        statusRaw === 'trialing' ||
+        statusRaw === 'past_due' ||
+        statusRaw === 'paused' ||
+        statusRaw === 'cancelled' ||
+        statusRaw === 'expired'
+          ? statusRaw
+          : undefined;
       const result = allocateMemberToClass(store, {
         clientId: String(body.client_id || ''),
-        planId: String(body.plan_id || ''),
+        planId: body.plan_id ? String(body.plan_id) : null,
         chargedZar,
+        status,
+        kind: String(body.kind || '') === 'private' ? 'private' : 'member',
+        coachId: body.coach_id ? String(body.coach_id) : null,
         now,
       });
       if ('error' in result) {
@@ -900,6 +914,124 @@ export async function POST(request: NextRequest) {
                 result.booked === 1 ? '' : 'es'
               } on the calendar`
             : 'Allocated',
+      });
+    }
+
+    if (action === 'update_class_desk') {
+      const planId = String(body.plan_id || body.id || '');
+      const coachRaw = body.coach_id;
+      const coachId =
+        coachRaw === undefined
+          ? undefined
+          : coachRaw
+            ? String(coachRaw)
+            : null;
+      const patch =
+        body.patch && typeof body.patch === 'object'
+          ? (body.patch as Record<string, unknown>)
+          : body;
+      const hasPatch =
+        patch.name != null ||
+        patch.code != null ||
+        patch.price_zar != null ||
+        patch.billing != null ||
+        patch.schedule_label != null ||
+        patch.description != null ||
+        patch.public != null ||
+        patch.location != null ||
+        patch.class_credits !== undefined ||
+        patch.pt_credits !== undefined ||
+        patch.access != null ||
+        patch.programme_id !== undefined;
+      const sessionRaw =
+        body.session && typeof body.session === 'object'
+          ? (body.session as Record<string, unknown>)
+          : null;
+      const result = updateClassDesk(store, {
+        planId,
+        patch: hasPatch
+          ? {
+              code: patch.code != null ? String(patch.code) : undefined,
+              name: patch.name != null ? String(patch.name) : undefined,
+              price_zar:
+                patch.price_zar != null ? Number(patch.price_zar) : undefined,
+              billing: patch.billing
+                ? (String(patch.billing) as FitMembershipPlan['billing'])
+                : undefined,
+              schedule_label:
+                patch.schedule_label != null
+                  ? String(patch.schedule_label)
+                  : undefined,
+              description:
+                patch.description != null
+                  ? String(patch.description)
+                  : undefined,
+              public:
+                patch.public != null ? patch.public === true : undefined,
+              location:
+                patch.location != null ? String(patch.location) : undefined,
+              class_credits:
+                patch.class_credits !== undefined
+                  ? patch.class_credits == null || patch.class_credits === ''
+                    ? null
+                    : Number(patch.class_credits)
+                  : undefined,
+              pt_credits:
+                patch.pt_credits !== undefined
+                  ? patch.pt_credits == null || patch.pt_credits === ''
+                    ? null
+                    : Number(patch.pt_credits)
+                  : undefined,
+              access: patch.access
+                ? (String(patch.access) as FitMembershipPlan['access'])
+                : undefined,
+              programme_id:
+                patch.programme_id !== undefined
+                  ? patch.programme_id
+                    ? String(patch.programme_id)
+                    : null
+                  : undefined,
+            }
+          : undefined,
+        coachId,
+        sessionPatch: sessionRaw
+          ? {
+              start_time: sessionRaw.start_time
+                ? String(sessionRaw.start_time)
+                : undefined,
+              end_time:
+                sessionRaw.end_time != null
+                  ? String(sessionRaw.end_time)
+                  : undefined,
+              location:
+                sessionRaw.location != null
+                  ? String(sessionRaw.location)
+                  : undefined,
+              public:
+                sessionRaw.public != null
+                  ? sessionRaw.public === true
+                  : undefined,
+            }
+          : undefined,
+        fromDate: body.from_date ? String(body.from_date) : now.slice(0, 10),
+        now,
+      });
+      if ('error' in result) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        sessionsUpdated: result.sessionsUpdated,
+        message:
+          result.sessionsUpdated > 0
+            ? `Saved · ${result.sessionsUpdated} upcoming class${
+                result.sessionsUpdated === 1 ? '' : 'es'
+              } updated`
+            : 'Saved',
       });
     }
 
@@ -2361,6 +2493,12 @@ function upsert(
             ? String(rec.coach_id)
             : null
           : prev?.coach_id ?? null,
+      agreed_rate_zar:
+        rec.agreed_rate_zar !== undefined
+          ? rec.agreed_rate_zar == null || rec.agreed_rate_zar === ''
+            ? null
+            : Number(rec.agreed_rate_zar)
+          : prev?.agreed_rate_zar ?? null,
       emergency_contact:
         rec.emergency_contact !== undefined
           ? rec.emergency_contact
@@ -2450,6 +2588,12 @@ function upsert(
         rec.location != null
           ? String(rec.location)
           : store.membership_plans[i]?.location,
+      default_coach_id:
+        rec.default_coach_id !== undefined
+          ? rec.default_coach_id
+            ? String(rec.default_coach_id)
+            : null
+          : store.membership_plans[i]?.default_coach_id ?? null,
       sibling_discount_pct:
         rec.sibling_discount_pct != null
           ? Number(rec.sibling_discount_pct)

@@ -478,6 +478,8 @@ export type FitClient = {
    */
   private_client?: boolean;
   coach_id?: string | null;
+  /** Agreed client rate (ZAR / month). Null = use the class list price. */
+  agreed_rate_zar?: number | null;
   emergency_contact?: string;
   notes?: string;
   /**
@@ -519,6 +521,8 @@ export type FitMembershipPlan = {
   audience?: 'all' | 'gents' | 'women' | 'kids' | string;
   schedule_label?: string;
   location?: string;
+  /** Default coach for this class (applied to new / upcoming diary dates). */
+  default_coach_id?: string | null;
   sibling_discount_pct?: number;
   sort_order?: number;
   catalog?: string;

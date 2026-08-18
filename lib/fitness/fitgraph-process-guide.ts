@@ -130,7 +130,7 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '2a',
         title: 'Class memberships',
         who: 'Owner',
-        desc: 'Class list + rate. Put each class on the calendar with repeats. Allocate members at a charged rate — they appear on those diary dates.',
+        desc: 'Edit each class in the list (rate, coach, when). Open a row to change times and repeats. Allocate members at a charged rate.',
       },
       {
         n: '2b',

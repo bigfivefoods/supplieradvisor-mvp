@@ -15,7 +15,10 @@ import {
   type FitSession,
   type FitSubscription,
 } from '@/lib/fitness/fitgraph';
-import { endFromStartDuration } from '@/lib/fitness/session-times';
+import {
+  endFromStartDuration,
+  resolveSessionTimes,
+} from '@/lib/fitness/session-times';
 import {
   memberMayBookSession,
   planCoversSession,
@@ -254,13 +257,15 @@ export function calendarCoverage(
     );
   const coachNames: string[] = [];
   const seen = new Set<string>();
-  for (const s of matching) {
-    const id = String(s.coach_id || '');
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    const name = store.coaches.find((c) => c.id === id)?.name;
+  const addCoach = (id: string | null | undefined) => {
+    const key = String(id || '');
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    const name = store.coaches.find((c) => c.id === key)?.name;
     if (name) coachNames.push(name);
-  }
+  };
+  addCoach(plan.default_coach_id);
+  for (const s of matching) addCoach(s.coach_id);
   coachNames.sort((a, b) => a.localeCompare(b));
   return {
     count: upcoming.length,
@@ -338,15 +343,18 @@ export function allocateMemberToClass(
   store: FitgraphStore,
   opts: {
     clientId: string;
-    planId: string;
+    planId?: string | null;
     chargedZar?: number | null;
+    status?: FitSubscription['status'];
+    kind?: 'member' | 'private';
+    coachId?: string | null;
     now?: string;
     bookUpcoming?: boolean;
   }
 ):
   | { error: string }
   | {
-      subscription: FitSubscription;
+      subscription: FitSubscription | null;
       booked: number;
       cancelled: number;
     } {
@@ -356,27 +364,61 @@ export function allocateMemberToClass(
   if (!client || client.active === false) {
     return { error: 'Member not found' };
   }
-  const plan = store.membership_plans.find((p) => p.id === opts.planId);
-  if (!plan || plan.active === false) {
+  const kind = opts.kind === 'private' ? 'private' : 'member';
+  const coachId = opts.coachId ? String(opts.coachId) : null;
+  if (coachId) {
+    const coach = store.coaches.find((c) => c.id === coachId);
+    if (!coach || coach.active === false) {
+      return { error: 'Coach not found' };
+    }
+  }
+  if (kind === 'private' && !coachId) {
+    return { error: 'Select the coach for this private client' };
+  }
+  const planId = opts.planId ? String(opts.planId) : '';
+  if (kind === 'member' && !planId) {
+    return { error: 'Select a class' };
+  }
+  const plan = planId
+    ? store.membership_plans.find((p) => p.id === planId)
+    : null;
+  if (planId && (!plan || plan.active === false)) {
     return { error: 'Class not found' };
   }
+
+  client.private_client = kind === 'private';
+  client.coach_id =
+    coachId || plan?.default_coach_id || client.coach_id || null;
+  if (opts.chargedZar != null && Number.isFinite(Number(opts.chargedZar))) {
+    client.agreed_rate_zar = Number(opts.chargedZar);
+    client.notes = applyChargedNote(client.notes, Number(opts.chargedZar));
+  }
+  client.updated_at = now;
+
+  if (!plan) {
+    return { subscription: null, booked: 0, cancelled: 0 };
+  }
   const charge = resolveCharge(opts.chargedZar, plan);
+  const status = opts.status || 'active';
   let sub =
     store.subscriptions.find(
       (s) => s.client_id === client.id && s.plan_id === plan.id
     ) || null;
   if (sub) {
-    sub.status = 'active';
+    sub.status = status;
     sub.charged_zar = charge;
     sub.auto_renew = sub.auto_renew !== false;
     sub.updated_at = now;
     if (!sub.started_at) sub.started_at = today;
+    if (status === 'cancelled' || status === 'expired') {
+      sub.cancel_at = today;
+    }
   } else {
     sub = {
       id: newId('sub'),
       client_id: client.id,
       plan_id: plan.id,
-      status: 'active',
+      status,
       started_at: today,
       auto_renew: true,
       charged_zar: charge,
@@ -402,14 +444,25 @@ export function allocateMemberToClass(
   }
 
   client.notes = applyChargedNote(client.notes, charge);
+  client.agreed_rate_zar = charge;
   if (plan.addon !== true) {
     client.membership_plan_id = plan.id;
-    client.membership_status = 'active';
+    client.membership_status =
+      status === 'active' || status === 'trialing'
+        ? status === 'trialing'
+          ? 'trial'
+          : 'active'
+        : status === 'paused'
+          ? 'paused'
+          : status === 'cancelled'
+            ? 'cancelled'
+            : 'expired';
   }
   client.updated_at = now;
 
+  const live = status === 'active' || status === 'trialing';
   const booked =
-    opts.bookUpcoming === false
+    opts.bookUpcoming === false || !live
       ? 0
       : bookMemberOntoUpcoming(store, client, plan, today, now);
 
@@ -488,7 +541,7 @@ export function scheduleClassOnCalendar(
     store,
     {
       class_type_id: classTypeId,
-      coach_id: opts.coach_id || null,
+      coach_id: opts.coach_id || plan.default_coach_id || null,
       date: opts.date,
       start_time: start,
       end_time: opts.end_time ?? null,
@@ -539,4 +592,115 @@ export function scheduleClassOnCalendar(
   }
 
   return { sessions: fresh, booked, series_id: seriesId };
+}
+
+export function updateClassDesk(
+  store: FitgraphStore,
+  opts: {
+    planId: string;
+    patch?: {
+      code?: string;
+      name?: string;
+      price_zar?: number;
+      billing?: FitMembershipPlan['billing'];
+      schedule_label?: string;
+      description?: string;
+      public?: boolean;
+      location?: string;
+      class_credits?: number | null;
+      pt_credits?: number | null;
+      access?: FitMembershipPlan['access'];
+      programme_id?: string | null;
+    };
+    coachId?: string | null;
+    sessionPatch?: {
+      start_time?: string;
+      end_time?: string | null;
+      location?: string;
+      public?: boolean;
+    };
+    fromDate?: string;
+    now?: string;
+  }
+):
+  | { error: string }
+  | { plan: FitMembershipPlan; sessionsUpdated: number } {
+  const plan = store.membership_plans.find((p) => p.id === opts.planId);
+  if (!plan || plan.active === false) {
+    return { error: 'Class not found' };
+  }
+  if (opts.coachId) {
+    const coach = store.coaches.find((c) => c.id === opts.coachId);
+    if (!coach || coach.active === false) {
+      return { error: 'Coach not found' };
+    }
+  }
+  const patch = opts.patch;
+  if (patch) {
+    if (patch.code != null) plan.code = String(patch.code);
+    if (patch.name != null) plan.name = String(patch.name);
+    if (patch.price_zar != null) plan.price_zar = Number(patch.price_zar) || 0;
+    if (patch.billing) plan.billing = patch.billing;
+    if (patch.schedule_label != null) plan.schedule_label = patch.schedule_label;
+    if (patch.description != null) plan.description = patch.description;
+    if (patch.public != null) plan.public = patch.public;
+    if (patch.location != null) plan.location = patch.location;
+    if (patch.class_credits !== undefined) {
+      plan.class_credits = patch.class_credits;
+    }
+    if (patch.pt_credits !== undefined) plan.pt_credits = patch.pt_credits;
+    if (patch.access) plan.access = patch.access;
+    if (patch.programme_id !== undefined) {
+      plan.programme_id = patch.programme_id;
+    }
+  }
+  if (opts.coachId !== undefined) {
+    plan.default_coach_id = opts.coachId || null;
+  }
+  const from = opts.fromDate || (opts.now || new Date().toISOString()).slice(0, 10);
+  const future = (store.sessions || []).filter(
+    (s) =>
+      s.status === 'scheduled' &&
+      s.date >= from &&
+      planCoversSession(plan, s, store)
+  );
+  let sessionsUpdated = 0;
+  for (const s of future) {
+    let changed = false;
+    if (opts.coachId !== undefined && s.coach_id !== (opts.coachId || null)) {
+      s.coach_id = opts.coachId || null;
+      changed = true;
+    }
+    if (opts.sessionPatch) {
+      if (opts.sessionPatch.start_time) {
+        const times = resolveSessionTimes({
+          start_time: opts.sessionPatch.start_time,
+          end_time: opts.sessionPatch.end_time ?? s.end_time,
+          duration_min: s.duration_min,
+        });
+        s.start_time = times.start_time;
+        s.end_time = times.end_time;
+        s.duration_min = times.duration_min;
+        changed = true;
+      } else if (opts.sessionPatch.end_time) {
+        const times = resolveSessionTimes({
+          start_time: s.start_time,
+          end_time: opts.sessionPatch.end_time,
+        });
+        s.end_time = times.end_time;
+        s.duration_min = times.duration_min;
+        changed = true;
+      }
+      if (opts.sessionPatch.location != null) {
+        s.location = opts.sessionPatch.location;
+        changed = true;
+      }
+      if (opts.sessionPatch.public != null) {
+        s.public = opts.sessionPatch.public;
+        changed = true;
+      }
+    }
+    if (changed) sessionsUpdated += 1;
+  }
+  return { plan, sessionsUpdated };
 }
