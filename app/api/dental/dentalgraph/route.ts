@@ -76,6 +76,11 @@ import {
   serviceMemberInviteEmailHtml,
   serviceMemberInviteEmailText,
 } from '@/lib/services/member-invite';
+import {
+  markMaterialsPosted,
+  materialsIssueDelta,
+  normalizeDentalMaterials,
+} from '@/lib/dental/dental-appointment-inventory';
 
 export const runtime = 'nodejs';
 
@@ -992,11 +997,6 @@ export async function POST(request: NextRequest) {
           { status: 404 }
         );
       }
-      const {
-        normalizeDentalMaterials,
-        markMaterialsPosted,
-        materialsIssueDelta,
-      } = await import('@/lib/dental/dental-appointment-inventory');
       const incoming = normalizeDentalMaterials(body.materials);
       const prevPosted = new Map(
         (store.appointments[i].materials || []).map((l) => [
@@ -1947,9 +1947,7 @@ function upsert(
           : prev?.series_id ?? null,
       materials:
         rec.materials !== undefined
-          ? (
-              await import('@/lib/dental/dental-appointment-inventory')
-            ).normalizeDentalMaterials(rec.materials)
+          ? normalizeDentalMaterials(rec.materials)
           : prev?.materials,
       created_at: prev?.created_at || now,
     },
