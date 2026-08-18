@@ -487,6 +487,7 @@ export type DentalgraphStore = {
   /** Care packs with session ledger */
   care_packs?: import('@/lib/services/advisor-pack-ledger').AdvisorPackLedgerEntry[];
   visit_notes?: import('@/lib/services/advisor-clinical').VisitNote[];
+  record_shares?: import('@/lib/services/advisor-b2c-relationship').PatientRecordShareGrant[];
   outcome_scores?: import('@/lib/services/advisor-clinical').OutcomeScore[];
   treatment_plans?: import('@/lib/services/advisor-clinical').TreatmentPlan[];
   /** Desk · practitioner · patient messaging threads */
@@ -534,6 +535,7 @@ export function emptyDentalgraphStore(): DentalgraphStore {
     appointment_feedback: [],
     announcements: [],
     desk_notices: [],
+    record_shares: [],
     settings: defaultDentalPublicSettings(),
   };
 }

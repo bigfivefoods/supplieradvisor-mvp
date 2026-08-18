@@ -465,6 +465,7 @@ export type MedicalgraphStore = {
   care_packs?: import('@/lib/services/advisor-pack-ledger').AdvisorPackLedgerEntry[];
   treatment_plans?: import('@/lib/services/advisor-clinical').TreatmentPlan[];
   visit_notes?: import('@/lib/services/advisor-clinical').VisitNote[];
+  record_shares?: import('@/lib/services/advisor-b2c-relationship').PatientRecordShareGrant[];
   outcome_scores?: import('@/lib/services/advisor-clinical').OutcomeScore[];
   /** Desk · practitioner · patient messaging threads */
   threads?: import('@/lib/messaging/service-inbox').ServiceThread[];
@@ -511,6 +512,7 @@ export function emptyMedicalgraphStore(): MedicalgraphStore {
     appointment_feedback: [],
     announcements: [],
     desk_notices: [],
+    record_shares: [],
     settings: defaultPublicSettings(),
   };
 }

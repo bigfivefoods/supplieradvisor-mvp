@@ -474,6 +474,7 @@ export type PhysiographStore = {
   appointment_feedback?: import('@/lib/services/booking-feedback').ServiceFeedback[];
   announcements?: import('@/lib/services/member-announcements').MemberAnnouncement[];
   desk_notices?: import('@/lib/services/advisor-member-calendar').DeskMemberNotice[];
+  record_shares?: import('@/lib/services/advisor-b2c-relationship').PatientRecordShareGrant[];
   settings?: PhysioPublicSettings;
   updated_at?: string;
 };
@@ -513,6 +514,7 @@ export function emptyPhysiographStore(): PhysiographStore {
     appointment_feedback: [],
     announcements: [],
     desk_notices: [],
+    record_shares: [],
     settings: defaultPublicSettings(),
   };
 }

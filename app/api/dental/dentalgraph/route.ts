@@ -65,6 +65,7 @@ import {
   upsertMedicalClaim,
   upsertPatientScript,
 } from '@/lib/clinic/patient-medical';
+import { normalizeRecordShares } from '@/lib/clinic/record-shares';
 import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import {
   buildServiceMemberInviteLink,
@@ -986,6 +987,18 @@ export async function POST(request: NextRequest) {
         recallAfterDays: Number(body.recall_after_days) || 180,
       });
       return NextResponse.json({ success: true, outcomes, recalls });
+    }
+
+    if (action === 'save_record_shares') {
+      store.record_shares = normalizeRecordShares(body.record_shares);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseDentalgraph(store),
+        analysis: analysis(store),
+        message: 'Patient share updated',
+      });
     }
 
     if (action === 'allocate_materials') {

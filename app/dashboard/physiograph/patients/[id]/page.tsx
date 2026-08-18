@@ -10,6 +10,8 @@ import {
 } from '@/components/clinic/PhysiographWorkbench';
 import { PatientMedicalChart } from '@/components/clinic/PatientMedicalChart';
 import { AdvisorTreatmentPlanPanel } from '@/components/services/AdvisorTreatmentPlanPanel';
+import { PatientRecordSharePanel } from '@/components/services/PatientRecordSharePanel';
+import { AdvisorProfileShare } from '@/components/advisors/AdvisorProfileShare';
 import { healthSummaryLabel } from '@/lib/health/body-map';
 
 export default function PhysioPatientRecordPage() {
@@ -122,6 +124,33 @@ export default function PhysioPatientRecordPage() {
             onRefresh={() => {
               void load();
             }}
+          />
+
+          <PatientRecordSharePanel
+            personId={patient.id}
+            personName={patient.name}
+            fromCompanyId={companyId}
+            fromModule="physio"
+            grants={store.record_shares || []}
+            practitioners={(store.practitioners || [])
+              .filter((p) => p.active !== false)
+              .map((p) => ({ id: p.id, name: p.name }))}
+            consentOnFile={Boolean(patient.popia_consent_at)}
+            disabled={saving}
+            onChange={async (next) => {
+              await post({
+                action: 'save_record_shares',
+                record_shares: next,
+              });
+            }}
+          />
+          <AdvisorProfileShare
+            companyId={companyId}
+            personId={patient.id}
+            kind="physio"
+            personName={patient.name}
+            email={patient.email}
+            platformUserId={patient.platform_user_id}
           />
 
           <PatientMedicalChart

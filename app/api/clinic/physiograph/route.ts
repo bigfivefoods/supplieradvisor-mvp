@@ -65,6 +65,7 @@ import {
   upsertMedicalClaim,
   upsertPatientScript,
 } from '@/lib/clinic/patient-medical';
+import { normalizeRecordShares } from '@/lib/clinic/record-shares';
 import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import {
   buildServiceMemberInviteLink,
@@ -971,6 +972,18 @@ export async function POST(request: NextRequest) {
       });
     }
 
+
+    if (action === 'save_record_shares') {
+      store.record_shares = normalizeRecordShares(body.record_shares);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summarisePhysiograph(store),
+        analysis: analysis(store),
+        message: 'Patient share updated',
+      });
+    }
 
     if (
       action === 'upsert_visit_note' ||

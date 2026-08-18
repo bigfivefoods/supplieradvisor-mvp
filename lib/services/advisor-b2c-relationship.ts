@@ -119,6 +119,11 @@ export type PatientRecordShareGrant = {
         company_id: number;
         module: AdvisorModuleKind;
         label?: string;
+      }
+    | {
+        type: 'practitioner';
+        practitioner_id: string;
+        label?: string;
       };
   scopes: ClinicalShareScope[];
   status: 'pending' | 'active' | 'revoked' | 'expired';
@@ -127,6 +132,9 @@ export type PatientRecordShareGrant = {
   created_at: string;
   decided_at?: string | null;
   expires_at?: string | null;
+  /** When the patient agreed to this share (desk or app). */
+  consented_at?: string | null;
+  consent_source?: 'desk' | 'patient' | null;
 };
 
 export type ClinicEngagementInput = {
@@ -401,4 +409,38 @@ export function scopesAllowedForProfessional(
 
 export function newShareGrantId() {
   return `prg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function scopesAllowedForPractitioner(
+  grants: PatientRecordShareGrant[],
+  personId: string,
+  practitionerId: string
+): ClinicalShareScope[] {
+  const active = grants.filter(
+    (g) =>
+      g.person_id === personId &&
+      g.status === 'active' &&
+      g.to.type === 'practitioner' &&
+      g.to.practitioner_id === practitionerId
+  );
+  const set = new Set<ClinicalShareScope>();
+  for (const g of active) for (const s of g.scopes) set.add(s);
+  return [...set];
+}
+
+export function patientsSharedWithPractitioner(
+  grants: PatientRecordShareGrant[],
+  practitionerId: string
+): string[] {
+  const ids = new Set<string>();
+  for (const g of grants) {
+    if (
+      g.status === 'active' &&
+      g.to.type === 'practitioner' &&
+      g.to.practitioner_id === practitionerId
+    ) {
+      ids.add(g.person_id);
+    }
+  }
+  return [...ids];
 }
