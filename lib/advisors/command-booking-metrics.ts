@@ -268,7 +268,12 @@ function gymPlanForSession(
     );
     if (sub) {
       const hit = plans.find((p) => p.id === sub.plan_id);
-      if (hit) return { plan: hit, charged: sub.charged_zar };
+      if (hit) {
+        return {
+          plan: hit,
+          charged: sub.charged_zar ?? null,
+        };
+      }
     }
     const client = (store.clients || []).find((c) => c.id === clientId);
     if (client?.membership_plan_id) {
@@ -299,7 +304,7 @@ function gymPlanForSession(
 
 function gymCharge(
   client: NonNullable<GymCommandStore['clients']>[number] | undefined,
-  charged: number | null,
+  charged: number | null | undefined,
   plan: { price_zar?: number } | null,
   privatePt: boolean
 ): number {
