@@ -28,6 +28,8 @@ function actionLabel(href: string): string {
   if (h.includes('/profile')) return 'Profile';
   if (h.includes('/connections')) return 'Network';
   if (h.includes('/ar')) return 'AR';
+  if (h.includes('/patients/')) return 'Check-in';
+  if (h.includes('/calendar')) return 'Diary';
   return 'Open';
 }
 

@@ -30,6 +30,26 @@ assert.ok(!core.moduleIds.includes('fitgraph'));
 
 assert.ok(verticalModuleIdsForPacks(['fitness_gym']).includes('fitgraph'));
 assert.ok(!verticalModuleIdsForPacks(['fitness_gym']).includes('suppliers'));
+assert.ok(
+  verticalModuleIdsForPacks(['medical_practice']).includes('medicalgraph')
+);
+assert.ok(verticalModuleIdsForPacks(['psychiatry']).includes('psychiatrygraph'));
+
+const medical = groupWorkspaceModules({
+  sectorId: 'tertiary',
+  industryIds: ['medical_private'],
+});
+const medicalIndustry = medical.find((g) => g.layer === 'industry')!;
+assert.ok(medicalIndustry.moduleIds.includes('medicalgraph'));
+assert.ok(!medicalIndustry.moduleIds.includes('fitgraph'));
+
+const psych = groupWorkspaceModules({
+  sectorId: 'tertiary',
+  industryIds: ['psychiatry_private'],
+});
+assert.ok(
+  psych.find((g) => g.layer === 'industry')!.moduleIds.includes('psychiatrygraph')
+);
 
 const empty = groupWorkspaceModules({ sectorId: null, industryIds: [] });
 assert.equal(empty.find((g) => g.layer === 'industry')!.moduleIds.length, 0);

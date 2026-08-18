@@ -15,6 +15,14 @@ export type B2cCareRecord = {
   brand: string;
   href: string;
   summary: Record<string, unknown>;
+  advice?: Array<{ id: string; body: string; at?: string }>;
+  follow_ups?: Array<{
+    id: string;
+    remind_on: string;
+    title?: string;
+    advice: string;
+    status: string;
+  }>;
 };
 
 export type B2cCareClinic = {

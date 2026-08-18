@@ -84,6 +84,13 @@ type Portal = {
   medical_share?: Record<string, unknown> | null;
   announcements?: import('@/lib/services/member-announcements').MemberAnnouncementPublic[];
   shared_advice?: SharedAdviceNote[];
+  follow_ups?: Array<{
+    id: string;
+    remind_on: string;
+    title?: string;
+    advice: string;
+    status: string;
+  }>;
   treatment_plans?: SharedTreatmentPlan[];
   open_slots: Slot[];
   waitlist_queue?: Array<{ id: string; position: number }>;
@@ -360,6 +367,7 @@ export default function MemberPhysiographPortalPage() {
             share={portal.medical_share}
             plans={portal.treatment_plans}
             advice={portal.shared_advice}
+            followUps={portal.follow_ups}
             tone="teal"
           />
         )}
@@ -571,6 +579,7 @@ export default function MemberPhysiographPortalPage() {
             share={portal.medical_share}
             plans={portal.treatment_plans}
             advice={portal.shared_advice}
+            followUps={portal.follow_ups}
             tone="teal"
             heading="Physio info, advice & plan"
           />

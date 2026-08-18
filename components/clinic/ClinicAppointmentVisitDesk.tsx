@@ -1,12 +1,14 @@
 'use client';
 
 /**
- * Calendar visit desk — notes, script, invoice, and medical-aid claim
+ * Calendar visit desk — notes, script, invoice, claim, and follow-up
  * for a patient booked on a diary appointment.
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
+  Bell,
+  CalendarPlus,
   FileText,
   Loader2,
   Package,
@@ -37,7 +39,7 @@ import {
 } from '@/lib/dental/dental-appointment-inventory';
 import { AdvisorVisitInvoiceCard } from '@/components/advisors/AdvisorVisitInvoiceCard';
 
-type Tab = 'notes' | 'script' | 'invoice' | 'claim' | 'materials';
+type Tab = 'notes' | 'script' | 'invoice' | 'claim' | 'materials' | 'followup';
 
 const ACCENT: Record<
   string,
@@ -83,6 +85,7 @@ export function ClinicAppointmentVisitDesk({
   date,
   startTime,
   serviceName,
+  serviceId,
   servicePriceZar,
   treatingName,
   treatingId,
@@ -101,6 +104,7 @@ export function ClinicAppointmentVisitDesk({
   date: string;
   startTime: string;
   serviceName?: string;
+  serviceId?: string | null;
   servicePriceZar?: number | null;
   treatingName?: string;
   treatingId?: string | null;
@@ -189,6 +193,24 @@ export function ClinicAppointmentVisitDesk({
     notes: serviceName || '',
     email: '',
   });
+
+  const addDays = (n: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+  const [followUp, setFollowUp] = useState({
+    title: 'Check-in after your visit',
+    advice: 'Please check in with the practice — how are you feeling after this visit?',
+    message: '',
+    remind_on: addDays(7),
+  });
+  const visitFollowUps = (row?.followUps || []).filter(
+    (f) =>
+      !f.appointment_id ||
+      f.appointment_id === appointmentId ||
+      f.next_appointment_id
+  );
 
   useEffect(() => {
     setNoteBody('');
@@ -373,6 +395,36 @@ export function ClinicAppointmentVisitDesk({
       onRefresh?.();
     });
 
+  const saveFollowUp = (mode: 'schedule' | 'now' | 'book') =>
+    run(async () => {
+      if (!row) return;
+      const data = (await post({
+        action: mode === 'book' ? 'book_follow_up' : 'upsert_follow_up',
+        patient_id: row.patientId,
+        send_now: mode === 'now',
+        book_next: mode === 'book',
+        notify_parties: true,
+        author_name: treatingName || undefined,
+        follow_up: {
+          title: followUp.title.trim() || 'Check-in after your visit',
+          advice:
+            followUp.advice.trim() ||
+            'Please check in with the practice after this visit.',
+          message: followUp.message.trim() || undefined,
+          remind_on: followUp.remind_on,
+          appointment_id: appointmentId,
+          service_id: serviceId || undefined,
+        },
+      })) as { message?: string; appointment_id?: string };
+      toast.success(
+        data.message ||
+          (mode === 'book'
+            ? 'Follow-up appointment booked'
+            : 'Check-in saved')
+      );
+      onRefresh?.();
+    });
+
   const tabs: Array<{ id: Tab; label: string; icon: typeof FileText }> = [
     { id: 'notes', label: 'Notes', icon: Stethoscope },
     { id: 'script', label: 'Script', icon: Pill },
@@ -381,6 +433,7 @@ export function ClinicAppointmentVisitDesk({
       : []),
     { id: 'invoice', label: 'Invoice', icon: Receipt },
     { id: 'claim', label: 'Claim', icon: Send },
+    { id: 'followup', label: 'Follow-up', icon: Bell },
   ];
 
   const inp =
@@ -392,7 +445,8 @@ export function ClinicAppointmentVisitDesk({
         className={`mt-4 rounded-2xl border ${skin.border} ${skin.soft} px-4 py-3 text-[12px] text-slate-600 dark:text-slate-300`}
       >
         Book a patient onto this appointment to complete notes, write a script,
-        send an invoice, or submit a medical-aid claim from this visit.
+        send an invoice, submit a medical-aid claim, or schedule a follow-up
+        check-in from this visit.
       </div>
     );
   }
@@ -830,6 +884,128 @@ export function ClinicAppointmentVisitDesk({
                 onClick={() => void saveClaim(true)}
                 icon={Send}
                 label="Submit to medical aid"
+              />
+            </div>
+          </>
+        ) : null}
+
+        {tab === 'followup' ? (
+          <>
+            {!row ? (
+              <p className="text-[12px] text-slate-500">
+                Book a patient onto this slot to schedule a check-in.
+              </p>
+            ) : null}
+            <p className="text-[12px] text-slate-600">
+              Reminds the practice desk and the member PWA to check in. Book the
+              next open diary slot, or send a notification now.
+            </p>
+            {visitFollowUps.length > 0 ? (
+              <ul className="space-y-1.5">
+                {visitFollowUps.slice(0, 5).map((f) => (
+                  <li
+                    key={f.id}
+                    className="rounded-xl border border-slate-100 px-3 py-2 text-[12px] dark:border-slate-800"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-bold text-slate-800 dark:text-slate-100">
+                        {f.title || 'Check-in'} · {f.remind_on}
+                      </span>
+                      <span className="text-[10px] font-black uppercase text-slate-400">
+                        {f.status}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 whitespace-pre-wrap text-slate-600">
+                      {f.advice}
+                    </p>
+                    {f.next_appointment_id ? (
+                      <p className="mt-0.5 text-[10px] font-bold text-emerald-700">
+                        Follow-up slot booked
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[12px] text-slate-500">
+                No follow-up on this visit yet.
+              </p>
+            )}
+            <input
+              className={inp}
+              placeholder="Title (e.g. Wound check / how are you feeling)"
+              value={followUp.title}
+              onChange={(e) =>
+                setFollowUp((f) => ({ ...f, title: e.target.value }))
+              }
+            />
+            <textarea
+              className={inp + ' min-h-[72px]'}
+              placeholder="What both of you should check at the follow-up…"
+              value={followUp.advice}
+              onChange={(e) =>
+                setFollowUp((f) => ({ ...f, advice: e.target.value }))
+              }
+            />
+            <textarea
+              className={inp + ' min-h-[52px]'}
+              placeholder="Optional extra message on the member PWA"
+              value={followUp.message}
+              onChange={(e) =>
+                setFollowUp((f) => ({ ...f, message: e.target.value }))
+              }
+            />
+            <label className="block text-[10px] font-black uppercase text-slate-400">
+              Remind / book from
+              <input
+                className={inp + ' mt-0.5'}
+                type="date"
+                value={followUp.remind_on}
+                onChange={(e) =>
+                  setFollowUp((f) => ({ ...f, remind_on: e.target.value }))
+                }
+              />
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                [3, '3 days'],
+                [7, '1 week'],
+                [14, '2 weeks'],
+                [28, '1 month'],
+              ].map(([n, label]) => (
+                <button
+                  key={String(n)}
+                  type="button"
+                  className="rounded-full border border-slate-200 px-2.5 py-1 text-[10px] font-bold dark:border-slate-700"
+                  onClick={() =>
+                    setFollowUp((f) => ({ ...f, remind_on: addDays(Number(n)) }))
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <DeskBtn
+                busy={busy || saving}
+                className="bg-slate-800 hover:bg-slate-900"
+                onClick={() => void saveFollowUp('schedule')}
+                icon={Bell}
+                label="Schedule check-in"
+              />
+              <DeskBtn
+                busy={busy || saving}
+                className={skin.btn}
+                onClick={() => void saveFollowUp('now')}
+                icon={Send}
+                label="Notify both now"
+              />
+              <DeskBtn
+                busy={busy || saving}
+                className="bg-emerald-700 hover:bg-emerald-800"
+                onClick={() => void saveFollowUp('book')}
+                icon={CalendarPlus}
+                label="Book next open slot"
               />
             </div>
           </>

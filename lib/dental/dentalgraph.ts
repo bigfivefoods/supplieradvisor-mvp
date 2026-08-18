@@ -13,6 +13,10 @@ import {
   buildPatientMedicalShare,
   buildSharedAdvice,
 } from '@/lib/clinic/medical-share';
+import {
+  followUpsAsAdvice,
+  patientFacingFollowUps,
+} from '@/lib/clinic/patient-follow-up';
 import { publishedAnnouncements } from '@/lib/services/member-announcements';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { ensureSystemPersonalService } from '@/lib/clinic/appointment-kind';
@@ -327,6 +331,7 @@ export type DentalPatient = {
   invite_expires_at?: string | null;
   /** Share medical chart summary on patient portal (default true after invite) */
   share_medical?: boolean;
+  follow_ups?: import('@/lib/clinic/patient-follow-up').PatientFollowUp[];
   share_schedule?: boolean;
   share_feedback?: boolean;
   status?: (typeof PATIENT_STATUSES)[number] | string;
@@ -724,7 +729,13 @@ export function buildDentalPatientPortalPayload(
     medical_share,
     announcements: publishedAnnouncements(store.announcements),
     shared_advice: shareMedical
-      ? buildSharedAdvice(store.visit_notes, patient.id)
+      ? [
+          ...buildSharedAdvice(store.visit_notes, patient.id),
+          ...followUpsAsAdvice(patient.follow_ups),
+        ]
+      : [],
+    follow_ups: shareMedical
+      ? patientFacingFollowUps(patient.follow_ups)
       : [],
     open_slots,
     vacancies: open_slots.filter((s) => !s.full && !s.my_status),

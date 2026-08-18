@@ -86,6 +86,13 @@ type Portal = {
   medical_share?: Record<string, unknown> | null;
   announcements?: import('@/lib/services/member-announcements').MemberAnnouncementPublic[];
   shared_advice?: SharedAdviceNote[];
+  follow_ups?: Array<{
+    id: string;
+    remind_on: string;
+    title?: string;
+    advice: string;
+    status: string;
+  }>;
   treatment_plans?: SharedTreatmentPlan[];
   my_bookings: Array<{
     waitlist_offered_at?: string | null;
@@ -481,6 +488,7 @@ export default function MemberPsychiatrygraphPortalPage() {
             share={portal.medical_share}
             plans={portal.treatment_plans}
             advice={portal.shared_advice}
+            followUps={portal.follow_ups}
             tone="rose"
           />
         )}
@@ -571,6 +579,7 @@ export default function MemberPsychiatrygraphPortalPage() {
             share={portal.medical_share}
             plans={portal.treatment_plans}
             advice={portal.shared_advice}
+            followUps={portal.follow_ups}
             tone="rose"
             heading="Medical info, advice & scripts"
           />

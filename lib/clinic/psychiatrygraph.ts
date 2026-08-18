@@ -14,6 +14,10 @@ import {
   buildPatientMedicalShare,
   buildSharedAdvice,
 } from '@/lib/clinic/medical-share';
+import {
+  followUpsAsAdvice,
+  patientFacingFollowUps,
+} from '@/lib/clinic/patient-follow-up';
 import { publishedAnnouncements } from '@/lib/services/member-announcements';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { ensureSystemPersonalService } from '@/lib/clinic/appointment-kind';
@@ -323,6 +327,7 @@ export type PsychiatryPatient = {
   /** Full medical chart: aid, documents, claims */
   medical?: import('@/lib/clinic/patient-medical').PatientMedicalRecord;
   share_medical?: boolean;
+  follow_ups?: import('@/lib/clinic/patient-follow-up').PatientFollowUp[];
   /**
    * Household / family (kids, dependents) — parent email often on the primary patient.
    */
@@ -697,7 +702,11 @@ export function buildPatientPortalPayload(
     vacancies: open_slots.filter((s) => !s.full && !s.my_status),
     medical_share: buildPatientMedicalShare(patient),
     announcements: publishedAnnouncements(store.announcements),
-    shared_advice: buildSharedAdvice(store.visit_notes, patient.id),
+    shared_advice: [
+      ...buildSharedAdvice(store.visit_notes, patient.id),
+      ...followUpsAsAdvice(patient.follow_ups),
+    ],
+    follow_ups: patientFacingFollowUps(patient.follow_ups),
     shares: {
       schedule: true,
       medical: patient.share_medical !== false,

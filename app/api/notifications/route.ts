@@ -670,6 +670,10 @@ export async function GET(request: NextRequest) {
           source: 'dentalgraph',
         });
       }
+      const { advisorBellFollowUps } = await import(
+        '@/lib/clinic/notify-follow-up'
+      );
+      notifications.push(...advisorBellFollowUps(meta));
     } catch {
       /* soft */
     }

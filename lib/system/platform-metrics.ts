@@ -94,6 +94,10 @@ export type ManagementReport = {
     fitgraphEnabled: number;
     physiographEnabled: number;
     dentalgraphEnabled: number;
+    medicalgraphEnabled: number;
+    psychiatrygraphEnabled: number;
+    hiregraphEnabled: number;
+    retailgraphEnabled: number;
   };
   /**
    * Company workspaces that signed up, newest first.
@@ -243,6 +247,10 @@ export async function loadPlatformConsoleReports(): Promise<PlatformConsolePaylo
   let fitgraphEnabled = 0;
   let physiographEnabled = 0;
   let dentalgraphEnabled = 0;
+  let medicalgraphEnabled = 0;
+  let psychiatrygraphEnabled = 0;
+  let hiregraphEnabled = 0;
+  let retailgraphEnabled = 0;
 
   const since7 = daysAgoIso(7);
   const since30 = daysAgoIso(30);
@@ -348,6 +356,10 @@ export async function loadPlatformConsoleReports(): Promise<PlatformConsolePaylo
       if (em?.fitgraph === true) fitgraphEnabled += 1;
       if (em?.physiograph === true) physiographEnabled += 1;
       if (em?.dentalgraph === true) dentalgraphEnabled += 1;
+      if (em?.medicalgraph === true) medicalgraphEnabled += 1;
+      if (em?.psychiatrygraph === true) psychiatrygraphEnabled += 1;
+      if (em?.hiregraph === true) hiregraphEnabled += 1;
+      if (em?.retailgraph === true) retailgraphEnabled += 1;
 
       const id = Number(p.id);
       const contactEmail = p.email
@@ -520,6 +532,10 @@ export async function loadPlatformConsoleReports(): Promise<PlatformConsolePaylo
       fitgraphEnabled,
       physiographEnabled,
       dentalgraphEnabled,
+      medicalgraphEnabled,
+      psychiatrygraphEnabled,
+      hiregraphEnabled,
+      retailgraphEnabled,
     },
     recentCompanies,
     opsAnalytics: ops.analytics,

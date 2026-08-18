@@ -11,6 +11,10 @@ import { readFitgraphFromMetadata } from '@/lib/fitness/fitgraph';
 import { readHiregraphFromMetadata } from '@/lib/hire/hiregraph';
 import { readRetailgraphFromMetadata } from '@/lib/retail/retailgraph';
 import { buildPatientMedicalShare } from '@/lib/clinic/medical-share';
+import {
+  followUpsAsAdvice,
+  patientFacingFollowUps,
+} from '@/lib/clinic/patient-follow-up';
 import type { B2cMembership } from '@/lib/b2c/types';
 import type {
   B2cCareAnnouncement,
@@ -175,12 +179,26 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
     }
 
     const share = buildPatientMedicalShare(patient);
-    if (share) {
+    const advice = followUpsAsAdvice(patient.follow_ups);
+    const followUps = patientFacingFollowUps(patient.follow_ups);
+    if (share || advice.length || followUps.length) {
       records.push({
         kind: mem.kind,
         brand,
         href: careHref,
-        summary: share,
+        summary: share || {},
+        advice: advice.map((a) => ({
+          id: a.id,
+          body: a.body,
+          at: a.at,
+        })),
+        follow_ups: followUps.map((f) => ({
+          id: f.id,
+          remind_on: f.remind_on,
+          title: f.title,
+          advice: f.advice,
+          status: f.status,
+        })),
       });
     }
 

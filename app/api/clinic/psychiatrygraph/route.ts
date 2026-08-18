@@ -66,6 +66,7 @@ import {
   upsertPatientScript,
 } from '@/lib/clinic/patient-medical';
 import { normalizeRecordShares } from '@/lib/clinic/record-shares';
+import { applyClinicFollowUp } from '@/lib/clinic/follow-up-action';
 import { mergeInviteFieldsFromRecord } from '@/lib/services/member-invite';
 
 export const runtime = 'nodejs';
@@ -821,6 +822,7 @@ export async function POST(request: NextRequest) {
           moduleLabel: 'PsychiatryAdvisor®',
           portalPath: 'psychiatrygraph',
           brandFallback: 'Practice',
+          companyId,
         },
         now
       );
@@ -879,6 +881,45 @@ export async function POST(request: NextRequest) {
       });
     }
 
+
+    if (action === 'upsert_follow_up' || action === 'book_follow_up') {
+      const patientId = String(body.patient_id || '');
+      const patch = (body.follow_up || body) as Record<string, unknown>;
+      const patient = store.patients.find((p) => p.id === patientId);
+      const result = await applyClinicFollowUp({
+        store,
+        companyId,
+        module: 'psychiatrygraph',
+        patientId,
+        patch,
+        authorName:
+          body.author_name != null
+            ? String(body.author_name)
+            : store.practitioners.find((p) => p.id === patient?.practitioner_id)
+                ?.name,
+        sendNow: body.send_now === true,
+        bookNext: action === 'book_follow_up' || body.book_next === true,
+        notifyOnSchedule: body.notify_parties === true,
+        now,
+        newBookingId: () => newId('bkg'),
+      });
+      if (!result.ok) {
+        return NextResponse.json(
+          { error: result.error },
+          { status: result.status || 400 }
+        );
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summarisePsychiatrygraph(store),
+        analysis: analysis(store),
+        appointment_id: result.appointment?.id,
+        booking_id: result.booking?.id,
+        message: result.message,
+      });
+    }
 
     if (action === 'save_record_shares') {
       store.record_shares = normalizeRecordShares(body.record_shares);
@@ -1651,6 +1692,7 @@ function upsert(
           : prev?.medical,
       identity: prev?.identity,
       family: prev?.family,
+      follow_ups: prev?.follow_ups,
       start_date:
         rec.start_date !== undefined
           ? rec.start_date

@@ -872,6 +872,162 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     ],
   },
   {
+    id: 'medical_practice',
+    name: 'Medical Practice (Services)',
+    shortName: 'Medical',
+    description:
+      'Tertiary / services industry pack for GPs, specialists and nurses — MedicalAdvisor®: practitioners, patient invites & portal, consults, care packs, diary, medical chart, scripts, bookings, messages and practice website, plus procurement.',
+    monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
+    priority: 1,
+    recommendSectors: ['tertiary', 'quaternary'],
+    recommendEntities: ['private_company'],
+    modules: [
+      {
+        id: 'med_os',
+        name: 'MedicalAdvisor® practice OS',
+        description:
+          'Practitioners, patient invites & portal, consults, care packs, diary, medical chart, scripts, bookings and messages.',
+        unlocks: ['medicalgraph', 'customers', 'people'],
+      },
+      {
+        id: 'med_procure',
+        name: 'Practice procurement',
+        description: 'Order from medical suppliers, pharmacies and labs.',
+        unlocks: ['suppliers', 'inventory', 'medicalgraph'],
+      },
+      {
+        id: 'med_compliance',
+        name: 'Clinical compliance',
+        description: 'Docs, quality, and SHEQ light.',
+        unlocks: ['quality', 'sheq', 'medicalgraph'],
+      },
+    ],
+    industryToolsHrefs: [
+      { name: 'MedicalAdvisor®', href: '/dashboard/medicalgraph', desc: 'Practice OS' },
+      {
+        name: 'Practitioners',
+        href: '/dashboard/medicalgraph/practitioners',
+        desc: 'GPs · nurses · specialists',
+      },
+      {
+        name: 'Patients',
+        href: '/dashboard/medicalgraph/patients',
+        desc: 'Register · invites · chart · scripts',
+      },
+      {
+        name: 'Services',
+        href: '/dashboard/medicalgraph/services',
+        desc: 'Consults · procedures',
+      },
+      {
+        name: 'Calendar',
+        href: '/dashboard/medicalgraph/calendar',
+        desc: 'Diary',
+      },
+      {
+        name: 'Bookings',
+        href: '/dashboard/medicalgraph/bookings',
+        desc: 'Book · attend',
+      },
+      {
+        name: 'Messages',
+        href: '/dashboard/medicalgraph/messages',
+        desc: 'Team · patients',
+      },
+      {
+        name: 'Website',
+        href: '/dashboard/medicalgraph/website',
+        desc: 'Practice profile',
+      },
+      {
+        name: 'Comms',
+        href: '/dashboard/medicalgraph/comms',
+        desc: 'Ads · notices to patients',
+      },
+      { name: 'Suppliers', href: '/dashboard/suppliers', desc: 'Medical supply' },
+    ],
+  },
+  {
+    id: 'psychiatry',
+    name: 'Psychiatry & Psychology (Services)',
+    shortName: 'Psychiatry',
+    description:
+      'Tertiary / services industry pack for psychiatry and psychology — PsychiatryAdvisor®: clinicians, patient invites & portal, therapy packs, diary, medical chart, scripts, bookings, messages and practice website, plus procurement.',
+    monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
+    priority: 1,
+    recommendSectors: ['tertiary', 'quaternary'],
+    recommendEntities: ['private_company'],
+    modules: [
+      {
+        id: 'psy_os',
+        name: 'PsychiatryAdvisor® practice OS',
+        description:
+          'Clinicians, patient invites & portal, therapy packs, diary, medical chart, scripts, bookings and messages.',
+        unlocks: ['psychiatrygraph', 'customers', 'people'],
+      },
+      {
+        id: 'psy_procure',
+        name: 'Practice procurement',
+        description: 'Order from clinic suppliers and referral partners.',
+        unlocks: ['suppliers', 'inventory', 'psychiatrygraph'],
+      },
+      {
+        id: 'psy_compliance',
+        name: 'Clinical compliance',
+        description: 'Docs, quality, and SHEQ light.',
+        unlocks: ['quality', 'sheq', 'psychiatrygraph'],
+      },
+    ],
+    industryToolsHrefs: [
+      {
+        name: 'PsychiatryAdvisor®',
+        href: '/dashboard/psychiatrygraph',
+        desc: 'Practice OS',
+      },
+      {
+        name: 'Practitioners',
+        href: '/dashboard/psychiatrygraph/practitioners',
+        desc: 'Psychiatrists · psychologists',
+      },
+      {
+        name: 'Patients',
+        href: '/dashboard/psychiatrygraph/patients',
+        desc: 'Register · invites · chart · scripts',
+      },
+      {
+        name: 'Services',
+        href: '/dashboard/psychiatrygraph/services',
+        desc: 'Assessments · therapy',
+      },
+      {
+        name: 'Calendar',
+        href: '/dashboard/psychiatrygraph/calendar',
+        desc: 'Diary',
+      },
+      {
+        name: 'Bookings',
+        href: '/dashboard/psychiatrygraph/bookings',
+        desc: 'Book · attend',
+      },
+      {
+        name: 'Messages',
+        href: '/dashboard/psychiatrygraph/messages',
+        desc: 'Team · patients',
+      },
+      {
+        name: 'Website',
+        href: '/dashboard/psychiatrygraph/website',
+        desc: 'Practice profile',
+      },
+      {
+        name: 'Comms',
+        href: '/dashboard/psychiatrygraph/comms',
+        desc: 'Ads · notices to patients',
+      },
+      { name: 'Suppliers', href: '/dashboard/suppliers', desc: 'Clinic supply' },
+    ],
+  },
+  {
     id: 'allied_health',
     name: 'Allied Health / Physio & Biokinetics',
     shortName: 'Allied Health',
@@ -1256,6 +1412,26 @@ export function enabledModulesMapFromPacks(
     unlocked.add('people');
     unlocked.add('quality');
   }
+  // Medical practice → MedicalAdvisor (accept legacy pack id `medical`)
+  if (packIds.includes('medical_practice') || packIds.includes('medical')) {
+    unlocked.add('medicalgraph');
+    unlocked.add('suppliers');
+    unlocked.add('customers');
+    unlocked.add('operations');
+    unlocked.add('inventory');
+    unlocked.add('people');
+    unlocked.add('quality');
+  }
+  // Psychiatry & psychology → PsychiatryAdvisor
+  if (packIds.includes('psychiatry')) {
+    unlocked.add('psychiatrygraph');
+    unlocked.add('suppliers');
+    unlocked.add('customers');
+    unlocked.add('operations');
+    unlocked.add('inventory');
+    unlocked.add('people');
+    unlocked.add('quality');
+  }
   // Hire & rental marketplace → HireAdvisor (supplier take-rate · B2C free)
   if (packIds.includes('staffing_hire')) {
     unlocked.add('hiregraph');
@@ -1586,6 +1762,24 @@ export function appModulesUnlockedByPack(pack: IndustryPackDef): string[] {
   }
   if (pack.id === 'dental') {
     ids.add('dentalgraph');
+    ids.add('suppliers');
+    ids.add('customers');
+    ids.add('operations');
+    ids.add('inventory');
+    ids.add('people');
+    ids.add('quality');
+  }
+  if (pack.id === 'medical_practice' || pack.id === 'medical') {
+    ids.add('medicalgraph');
+    ids.add('suppliers');
+    ids.add('customers');
+    ids.add('operations');
+    ids.add('inventory');
+    ids.add('people');
+    ids.add('quality');
+  }
+  if (pack.id === 'psychiatry') {
+    ids.add('psychiatrygraph');
     ids.add('suppliers');
     ids.add('customers');
     ids.add('operations');

@@ -11,6 +11,7 @@ import {
 import { PatientMedicalChart } from '@/components/clinic/PatientMedicalChart';
 import { AdvisorTreatmentPlanPanel } from '@/components/services/AdvisorTreatmentPlanPanel';
 import { PatientRecordSharePanel } from '@/components/services/PatientRecordSharePanel';
+import { PatientFollowUpDesk } from '@/components/clinic/PatientFollowUpDesk';
 import { AdvisorProfileShare } from '@/components/advisors/AdvisorProfileShare';
 import { healthSummaryLabel } from '@/lib/health/body-map';
 
@@ -130,6 +131,13 @@ export default function MedicalPatientRecordPage() {
             }}
           />
 
+          <PatientFollowUpDesk
+            patientId={patient.id}
+            followUps={patient.follow_ups}
+            post={post}
+            saving={saving}
+            accentClass="border-emerald-200"
+          />
           <PatientRecordSharePanel
             personId={patient.id}
             personName={patient.name}

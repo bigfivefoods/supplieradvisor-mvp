@@ -87,12 +87,20 @@ export function MemberMedicalShare({
   share,
   plans,
   advice,
+  followUps,
   tone = 'emerald',
   heading,
 }: {
   share?: Record<string, unknown> | null;
   plans?: SharedTreatmentPlan[] | null;
   advice?: SharedAdviceNote[] | null;
+  followUps?: Array<{
+    id: string;
+    remind_on: string;
+    title?: string;
+    advice: string;
+    status: string;
+  }> | null;
   tone?: keyof typeof TONE | string;
   heading?: string;
 }) {
@@ -100,7 +108,12 @@ export function MemberMedicalShare({
   const hasShare = Boolean(share && Object.keys(share).length);
   const planList = plans || [];
   const adviceList = advice || [];
-  const empty = !hasShare && planList.length === 0 && adviceList.length === 0;
+  const reminderList = (followUps || []).filter((f) => f.status !== 'cancelled');
+  const empty =
+    !hasShare &&
+    planList.length === 0 &&
+    adviceList.length === 0 &&
+    reminderList.length === 0;
 
   return (
     <div className={`rounded-2xl border ${t.border} bg-white p-4 space-y-4`}>
@@ -169,6 +182,32 @@ export function MemberMedicalShare({
             </div>
           ) : null}
         </>
+      ) : null}
+
+      {reminderList.length > 0 ? (
+        <div>
+          <div className={`mb-1.5 flex items-center gap-1.5 ${t.text}`}>
+            <Stethoscope className="h-3.5 w-3.5" />
+            <p className="text-[10px] font-black uppercase tracking-wide">
+              Your treatment reminders
+            </p>
+          </div>
+          <ul className="space-y-2">
+            {reminderList.map((f) => (
+              <li
+                key={f.id}
+                className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2"
+              >
+                <p className="text-[10px] font-bold uppercase text-amber-800">
+                  {f.title || 'Check-in'} · {f.remind_on}
+                </p>
+                <p className="mt-0.5 whitespace-pre-wrap text-sm text-slate-800">
+                  {f.advice}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       {adviceList.length > 0 ? (

@@ -247,6 +247,34 @@ export const INDUSTRIES: readonly IndustryOption[] = [
       { id: 'allied_multi', label: 'Multi-disciplinary clinic', description: 'Combined allied health rooms.' },
     ]),
   },
+  {
+    id: 'medical_private',
+    label: 'Medical practices',
+    description:
+      'GPs, specialists and nurse-led rooms — MedicalAdvisor® diary, practitioners, patients, care packs, scripts and practice website.',
+    sectorId: 'tertiary',
+    packIds: ['medical_practice'],
+    businessTypes: privateTypes([
+      { id: 'gp_practice', label: 'GP / family practice', description: 'General practice and family medicine rooms.' },
+      { id: 'specialist_practice', label: 'Specialist practice', description: 'Consulting specialists and procedure rooms.' },
+      { id: 'nurse_clinic', label: 'Nurse-led clinic', description: 'Primary care and occupational health nursing.' },
+      { id: 'medical_group', label: 'Medical group / multi-site', description: 'Multi-room or multi-site medical groups.' },
+    ]),
+  },
+  {
+    id: 'psychiatry_private',
+    label: 'Psychiatry & psychology',
+    description:
+      'Psychiatry, psychology and counselling practices — PsychiatryAdvisor® diary, clinicians, patients, therapy packs and practice website.',
+    sectorId: 'tertiary',
+    packIds: ['psychiatry'],
+    businessTypes: privateTypes([
+      { id: 'psychiatry_practice', label: 'Psychiatry practice', description: 'Psychiatrists and medical mental-health rooms.' },
+      { id: 'psychology_practice', label: 'Psychology practice', description: 'Clinical and counselling psychology.' },
+      { id: 'counselling_practice', label: 'Counselling practice', description: 'Registered counsellors and therapy rooms.' },
+      { id: 'mental_health_group', label: 'Multi-clinician mental health', description: 'Shared rooms across psychiatry and psychology.' },
+    ]),
+  },
 
   // ── Quaternary ───────────────────────────────────────────
   {

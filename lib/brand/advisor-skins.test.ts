@@ -41,4 +41,20 @@ assert.equal(
   'medical'
 );
 
+assert.equal(
+  advisorLandingPath({
+    packIds: ['medical_practice'],
+    enabledModules: { medicalgraph: true, dentalgraph: true },
+  }),
+  '/dashboard/medicalgraph'
+);
+
+assert.equal(
+  advisorLandingPath({
+    packIds: ['psychiatry'],
+    enabledModules: { psychiatrygraph: true, medicalgraph: true },
+  }),
+  '/dashboard/psychiatrygraph'
+);
+
 console.log('advisor-skins.test.ts ok');

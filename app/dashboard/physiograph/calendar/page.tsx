@@ -869,6 +869,7 @@ export default function CalendarPage() {
                 serviceName={
                   store.services.find((s) => s.id === form.service_id)?.name
                 }
+                serviceId={form.service_id || null}
                 servicePriceZar={
                   store.services.find((s) => s.id === form.service_id)
                     ?.price_zar

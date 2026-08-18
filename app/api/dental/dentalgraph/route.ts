@@ -66,6 +66,7 @@ import {
   upsertPatientScript,
 } from '@/lib/clinic/patient-medical';
 import { normalizeRecordShares } from '@/lib/clinic/record-shares';
+import { applyClinicFollowUp } from '@/lib/clinic/follow-up-action';
 import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import {
   buildServiceMemberInviteLink,
@@ -901,45 +902,19 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'send_reminders') {
-      const { sendBookingReminderEmail, needsReminder } = await import(
-        '@/lib/services/advisor-reminders'
+      const { clinicSendReminders } = await import(
+        '@/lib/services/clinic-advisor-actions'
       );
-      let sent = 0;
-      let skipped = 0;
-      for (const b of store.bookings) {
-        if (b.status !== 'booked') continue;
-        const appt = store.appointments.find((a) => a.id === b.appointment_id);
-        if (!appt || appt.status === 'cancelled') continue;
-        if (!needsReminder(b, appt.date, appt.start_time, 24)) {
-          skipped++;
-          continue;
-        }
-        const patient = store.patients.find((p) => p.id === b.patient_id);
-        const email = patient?.email;
-        if (!email) {
-          skipped++;
-          continue;
-        }
-        const svc = store.services.find((s) => s.id === appt.service_id);
-        const result = await sendBookingReminderEmail({
-          to: email,
-          personName: b.family_member_name || patient?.name || 'Patient',
-          brand: store.settings?.brand_name || 'Practice',
-          eventTitle: svc?.name || 'Appointment',
-          date: appt.date,
-          start_time: appt.start_time,
-          location: appt.location,
-          manageUrl: patient?.portal_token
-            ? `/member/dentalgraph/${patient.portal_token}`
-            : undefined,
+      const { sent, skipped } = await clinicSendReminders(
+        store,
+        {
           moduleLabel: 'DentalAdvisor®',
-        });
-        if (result.ok) {
-          b.reminded_at = now;
-          b.reminder_count = (Number(b.reminder_count) || 0) + 1;
-          sent++;
-        }
-      }
+          portalPath: 'dentalgraph',
+          brandFallback: 'Practice',
+          companyId,
+        },
+        now
+      );
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
@@ -987,6 +962,44 @@ export async function POST(request: NextRequest) {
         recallAfterDays: Number(body.recall_after_days) || 180,
       });
       return NextResponse.json({ success: true, outcomes, recalls });
+    }
+
+    if (action === 'upsert_follow_up' || action === 'book_follow_up') {
+      const patientId = String(body.patient_id || '');
+      const patch = (body.follow_up || body) as Record<string, unknown>;
+      const patient = store.patients.find((p) => p.id === patientId);
+      const result = await applyClinicFollowUp({
+        store,
+        companyId,
+        module: 'dentalgraph',
+        patientId,
+        patch,
+        authorName:
+          body.author_name != null
+            ? String(body.author_name)
+            : store.staff.find((p) => p.id === patient?.staff_id)?.name,
+        sendNow: body.send_now === true,
+        bookNext: action === 'book_follow_up' || body.book_next === true,
+        notifyOnSchedule: body.notify_parties === true,
+        now,
+        newBookingId: () => newId('bkg'),
+      });
+      if (!result.ok) {
+        return NextResponse.json(
+          { error: result.error },
+          { status: result.status || 400 }
+        );
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseDentalgraph(store),
+        analysis: analysis(store),
+        appointment_id: result.appointment?.id,
+        booking_id: result.booking?.id,
+        message: result.message,
+      });
     }
 
     if (action === 'save_record_shares') {
@@ -1866,6 +1879,7 @@ function upsert(
           : prev?.medical,
       identity: prev?.identity,
       family: prev?.family,
+      follow_ups: prev?.follow_ups,
       start_date:
         rec.start_date !== undefined
           ? rec.start_date

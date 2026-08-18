@@ -124,6 +124,10 @@ export async function buildPlatformManagementReportPdf(
     ['GymAdvisor®', mod.fitgraphEnabled],
     ['PhysioAdvisor®', mod.physiographEnabled],
     ['DentalAdvisor®', mod.dentalgraphEnabled],
+    ['MedicalAdvisor®', mod.medicalgraphEnabled],
+    ['PsychiatryAdvisor®', mod.psychiatrygraphEnabled],
+    ['HireAdvisor®', mod.hiregraphEnabled],
+    ['RetailAdvisor®', mod.retailgraphEnabled],
   ];
 
   const recent = (management.recentCompanies || []).slice(0, 6).map((r) => [
@@ -318,7 +322,7 @@ export async function buildPlatformManagementReportPdf(
       headers.forEach((h, i) => t(pdf, h, x0 + i * cw + 2, ty, cw - 4, 8));
       ty += 10;
       pdf.font('Helvetica').fontSize(6).fillColor(INK);
-      for (const row of table.rows.slice(0, 6)) {
+      for (const row of table.rows.slice(0, 12)) {
         if (ty > maxTableY - 8) break;
         headers.forEach((_, i) =>
           t(pdf, str(row[i]), x0 + i * cw + 2, ty, cw - 4, 8)

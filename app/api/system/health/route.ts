@@ -1,10 +1,17 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseServer, hasServiceRole } from '@/lib/supabase/server-client';
+import { ADVISOR_SKINS } from '@/lib/brand/advisor-skins';
 import {
   deploymentMeta,
   probeProfileColumns,
   type ProfileColumnProbeResult,
 } from '@/lib/system/schema-probe';
+
+const advisorRegistry = ADVISOR_SKINS.map((s) => ({
+  id: s.moduleIds[0],
+  brand: s.registered,
+  packIds: s.packIds,
+}));
 
 /**
  * GET /api/system/health
@@ -156,6 +163,7 @@ export async function GET() {
       serviceRole: hasServiceRole(),
       latencyMs: Date.now() - started,
       deploy,
+      advisors: advisorRegistry,
       checks,
       at: new Date().toISOString(),
     });
@@ -402,6 +410,7 @@ export async function GET() {
       schemaGhostColumns: ghostColumns,
       settleMissing,
       deploy,
+      advisors: advisorRegistry,
       checks,
       at: new Date().toISOString(),
       hint:

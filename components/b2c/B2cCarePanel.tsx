@@ -197,6 +197,24 @@ export function B2cCarePanel() {
               <HeartPulse className="h-4 w-4" />
               <p className="text-sm font-black">{r.brand} · records</p>
             </div>
+            {r.follow_ups && r.follow_ups.length > 0 ? (
+              <div className="mt-2 rounded-xl bg-amber-50 px-2.5 py-2">
+                <p className="text-[10px] font-black uppercase text-amber-800">
+                  Treatment reminder
+                </p>
+                <p className="mt-0.5 text-xs font-semibold text-slate-800">
+                  {r.follow_ups[0].title || 'Check-in'} · {r.follow_ups[0].remind_on}
+                </p>
+                <p className="mt-0.5 line-clamp-3 text-xs text-slate-700">
+                  {r.follow_ups[0].advice}
+                </p>
+              </div>
+            ) : null}
+            {r.advice && r.advice.length > 0 && !r.follow_ups?.length ? (
+              <p className="mt-2 line-clamp-3 text-xs text-slate-700">
+                {r.advice[0].body}
+              </p>
+            ) : null}
             {bits.length ? (
               <dl className="mt-2 space-y-1">
                 {bits.map((bit) => (
@@ -208,11 +226,11 @@ export function B2cCarePanel() {
                   </div>
                 ))}
               </dl>
-            ) : (
+            ) : !r.follow_ups?.length && !r.advice?.length ? (
               <p className="mt-1 text-[11px] text-slate-500">
-                Open for allergies, scripts and medical aid
+                Open for allergies, scripts, advice and medical aid
               </p>
-            )}
+            ) : null}
           </Link>
         );
       })}

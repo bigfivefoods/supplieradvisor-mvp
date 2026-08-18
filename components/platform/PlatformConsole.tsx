@@ -119,6 +119,10 @@ type ManagementReport = {
     fitgraphEnabled?: number;
     physiographEnabled?: number;
     dentalgraphEnabled?: number;
+    medicalgraphEnabled?: number;
+    psychiatrygraphEnabled?: number;
+    hiregraphEnabled?: number;
+    retailgraphEnabled?: number;
   };
   recentCompanies?: Array<{
     id: number;
@@ -888,6 +892,10 @@ export function ManagementReportView({
               ['GymAdvisor®', mod?.fitgraphEnabled],
               ['PhysioAdvisor®', mod?.physiographEnabled],
               ['DentalAdvisor®', mod?.dentalgraphEnabled],
+              ['MedicalAdvisor®', mod?.medicalgraphEnabled],
+              ['PsychiatryAdvisor®', mod?.psychiatrygraphEnabled],
+              ['HireAdvisor®', mod?.hiregraphEnabled],
+              ['RetailAdvisor®', mod?.retailgraphEnabled],
             ].map(([label, val]) => (
               <div
                 key={String(label)}

@@ -17,6 +17,7 @@ import {
   notifyBookingReminderPush,
   notifyLinkedMember,
 } from '@/lib/b2c/member-push';
+import { notifyFollowUpCheckIn } from '@/lib/clinic/notify-follow-up';
 import {
   computeOutcomes,
   recallCandidates,
@@ -56,6 +57,7 @@ export type ClinicPatientRow = {
   active?: boolean;
   portal_token?: string | null;
   platform_user_id?: string | null;
+  follow_ups?: import('@/lib/clinic/patient-follow-up').PatientFollowUp[];
   family?: FamilyMember[];
   no_show_count?: number;
   last_no_show_at?: string | null;
@@ -88,6 +90,7 @@ export type ClinicModuleConfig = {
   portalPath: string;
   brandFallback: string;
   recallAfterDays?: number;
+  companyId?: number;
 };
 
 export async function clinicSendReminders(
@@ -150,6 +153,62 @@ export async function clinicSendReminders(
     } else {
       skipped++;
     }
+  }
+  const { dueFollowUps, saveFollowUpOnPatient } = await import(
+    '@/lib/clinic/patient-follow-up'
+  );
+  const today = now.slice(0, 10);
+  const followModule =
+    cfg.portalPath === 'physiograph' ||
+    cfg.portalPath === 'dentalgraph' ||
+    cfg.portalPath === 'psychiatrygraph' ||
+    cfg.portalPath === 'medicalgraph'
+      ? cfg.portalPath
+      : null;
+  for (const { patient, follow_up } of dueFollowUps(
+    store.patients,
+    today
+  )) {
+    if (followModule) {
+      await notifyFollowUpCheckIn({
+        companyId: Number(cfg.companyId) || 0,
+        module: followModule,
+        brand: store.settings?.brand_name || cfg.brandFallback,
+        patient,
+        followUp: follow_up,
+        mode: 'due',
+      });
+    } else {
+      const uid = patient.platform_user_id;
+      const portal = patient.portal_token
+        ? `/member/${cfg.portalPath}/${patient.portal_token}`
+        : '/me';
+      if (uid) {
+        await notifyLinkedMember({
+          platformUserId: uid,
+          title:
+            follow_up.title ||
+            `${store.settings?.brand_name || cfg.brandFallback} care reminder`,
+          body: follow_up.message || follow_up.advice,
+          url: portal,
+          tag: `followup-${follow_up.id}`,
+          topic: 'care',
+        });
+      }
+    }
+    const pi = store.patients.findIndex((p) => p.id === patient.id);
+    if (pi < 0) continue;
+    store.patients[pi] = saveFollowUpOnPatient(
+      store.patients[pi],
+      {
+        id: follow_up.id,
+        advice: follow_up.advice,
+        status: 'sent',
+        sent_at: now,
+      },
+      now
+    ).patient;
+    sent += 1;
   }
   return { sent, skipped };
 }

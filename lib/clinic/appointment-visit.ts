@@ -3,6 +3,7 @@
  */
 import type { PatientMedicalRecord } from '@/lib/clinic/patient-medical';
 import type { VisitNote } from '@/lib/services/advisor-clinical';
+import type { PatientFollowUp } from '@/lib/clinic/patient-follow-up';
 
 export type AppointmentVisitPatient = {
   patientId: string;
@@ -11,6 +12,7 @@ export type AppointmentVisitPatient = {
   email?: string | null;
   familyMemberName?: string | null;
   medical?: PatientMedicalRecord | null;
+  followUps?: PatientFollowUp[];
 };
 
 export function appointmentVisitPatients(opts: {
@@ -27,6 +29,7 @@ export function appointmentVisitPatients(opts: {
     name: string;
     email?: string | null;
     medical?: PatientMedicalRecord | null;
+    follow_ups?: PatientFollowUp[];
   }>;
 }): AppointmentVisitPatient[] {
   const id = String(opts.appointmentId || '');
@@ -44,6 +47,7 @@ export function appointmentVisitPatients(opts: {
       email: p?.email || null,
       familyMemberName: b.family_member_name || null,
       medical: p?.medical || null,
+      followUps: p?.follow_ups || [],
     });
   }
   return out;
