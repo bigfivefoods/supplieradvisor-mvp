@@ -15,6 +15,7 @@ import {
   type PracticePdfEvent,
 } from '@/lib/schedule/practice-schedule-pdf';
 import { normalizeWorkingHours } from '@/lib/schedule/working-hours';
+import { clinicRoomNames } from '@/lib/clinic/clinic-rooms';
 import {
   readFitgraphFromMetadata,
   type FitgraphStore,
@@ -215,7 +216,7 @@ export async function GET(request: NextRequest) {
         contactPhone = store.settings?.contact_phone || '';
         websiteUrl = store.settings?.website_url || '';
         workingHours = normalizeWorkingHours(store.settings?.working_hours);
-        rooms = store.settings?.rooms || [];
+        rooms = clinicRoomNames(store.settings?.rooms);
         people = (store.coaches || [])
           .filter((c) => c.active !== false)
           .map((c) => ({
@@ -238,7 +239,7 @@ export async function GET(request: NextRequest) {
         contactPhone = store.settings?.contact_phone || '';
         websiteUrl = store.settings?.website_url || '';
         workingHours = normalizeWorkingHours(store.settings?.working_hours);
-        rooms = store.settings?.rooms || [];
+        rooms = clinicRoomNames(store.settings?.rooms);
         people = (store.staff || [])
           .filter((p) => p.active !== false)
           .map((p) => ({
@@ -266,7 +267,7 @@ export async function GET(request: NextRequest) {
         contactPhone = store.settings?.contact_phone || '';
         websiteUrl = store.settings?.website_url || '';
         workingHours = normalizeWorkingHours(store.settings?.working_hours);
-        rooms = store.settings?.rooms || [];
+        rooms = clinicRoomNames(store.settings?.rooms);
         people = (store.practitioners || [])
           .filter((p) => p.active !== false)
           .map((p) => ({
