@@ -315,7 +315,7 @@ export const SYSTEM_BENEFITS = [
 ];
 
 export const ONE_SENTENCE =
-  'Register practitioners and patients (injury, visit history, consented referral) → packs and plans → rooms with assets; open the existing visit → branded pre/post emails (SA Member + rate session/practice) → today board and recalls → Card / Apple Pay to your bank — one MedicalAdvisor OS.';
+  'Register practitioners and patients (injury, visit history, consented referral) > packs and plans > rooms with assets; open the existing visit > branded pre/post emails (SA Member + rate session/practice) > today board and recalls > Card / Apple Pay to your bank - one MedicalAdvisor OS.';
 
 
 // ── PDF (teal brand) ────────────────────────────────────────────────────
@@ -337,16 +337,44 @@ function geoFor(orientation: MedicalgraphProcessGuideOrientation): Geo {
   const isLandscape = orientation === 'landscape';
   const pageW = isLandscape ? A4_PORTRAIT_H : A4_PORTRAIT_W;
   const pageH = isLandscape ? A4_PORTRAIT_W : A4_PORTRAIT_H;
-  const mx = isLandscape ? 28 : 34;
+  const mx = isLandscape ? 26 : 32;
   return {
     orientation,
     pageW,
     pageH,
     mx,
     contentW: pageW - mx * 2,
-    footerY: pageH - 22,
+    footerY: pageH - 20,
     isLandscape,
   };
+}
+
+/** Helvetica is WinAnsi — arrows, curly quotes and marks break or force extra pages. */
+function pdfSafe(s: string): string {
+  return String(s || '')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\u2192/g, '>')
+    .replace(/®/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function clipText(
+  doc: PdfDoc,
+  text: string,
+  x: number,
+  y: number,
+  opts: { width: number; height: number; align?: 'left' | 'center' | 'right' }
+) {
+  doc.text(pdfSafe(text), x, y, {
+    width: opts.width,
+    height: opts.height,
+    align: opts.align,
+    ellipsis: true,
+    lineBreak: true,
+  });
 }
 
 const BRAND = '#059669';
@@ -419,10 +447,14 @@ function drawFooter(doc: PdfDoc, g: Geo, pageNum: number, total: number) {
 function drawHero(doc: PdfDoc, g: Geo): number {
   const orientLabel = g.isLandscape ? 'A4 LANDSCAPE · 2 PAGES' : 'A4 PORTRAIT · 2 PAGES';
   return drawProcessGuideHero(doc, g, {
-    eyebrow: 'MedicalAdvisor® · end-to-end process · ' + orientLabel,
-    title: 'People → Diary (open visit) → Emails · board → One OS',
-    subtitle: g.isLandscape ? undefined : 'Medical practice OS — injury, visit history, rooms+assets, branded emails, consented referral.',
-    sideNote: g.isLandscape ? 'MedicalAdvisor® OS — rooms+assets, open visit, branded emails, consented referral, Card / Apple Pay.' : undefined,
+    eyebrow: 'MedicalAdvisor · end-to-end process · ' + orientLabel,
+    title: 'People > Diary (open visit) > Emails · board > One OS',
+    subtitle: g.isLandscape
+      ? undefined
+      : 'Medical practice OS - injury, visit history, rooms+assets, branded emails, consented referral.',
+    sideNote: g.isLandscape
+      ? 'MedicalAdvisor OS - rooms+assets, open visit, branded emails, consented referral, Card / Apple Pay.'
+      : undefined,
     landscape: g.isLandscape,
   });
 }
@@ -454,200 +486,158 @@ function drawChain(doc: PdfDoc, g: Geo, y: number): number {
 function drawRoleCards(doc: PdfDoc, g: Geo, y: number): number {
   doc
     .font('Helvetica-Bold')
-    .fontSize(7.5)
+    .fontSize(7)
     .fillColor(MUTED)
     .text('WHO DOES WHAT', g.mx, y, { characterSpacing: 0.8 });
-  y += 11;
+  y += 10;
 
-  const gap = 8;
+  const gap = 7;
   const colW = (g.contentW - gap * 2) / 3;
   const tones = [BRAND_DEEP, AMBER, SKY];
-  const h = g.isLandscape ? 156 : 176;
+  const h = g.isLandscape ? 122 : 158;
+  const bulletH = g.isLandscape ? 8 : 12;
 
   ROLE_CARDS.forEach((card, i) => {
     const x = g.mx + i * (colW + gap);
     const tone = tones[i];
-    let cy = y + 7;
+    let cy = y + 6;
+    const innerW = colW - 16;
 
-    doc.roundedRect(x, y, colW, h, 7).fillAndStroke(SOFT, LINE);
+    doc.roundedRect(x, y, colW, h, 6).fillAndStroke(SOFT, LINE);
     doc.rect(x, y, colW, 3).fill(tone);
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(g.isLandscape ? 9.5 : 9)
-      .fillColor(INK)
-      .text(card.title, x + 8, cy, { width: colW - 16 });
-    cy += 12;
-    doc
-      .font('Helvetica')
-      .fontSize(7)
-      .fillColor(MUTED)
-      .text(card.subtitle, x + 8, cy, { width: colW - 16 });
+    doc.font('Helvetica-Bold').fontSize(g.isLandscape ? 8.5 : 9).fillColor(INK);
+    clipText(doc, card.title, x + 8, cy, { width: innerW, height: 11 });
     cy += 11;
-    doc.font('Helvetica-Bold').fontSize(6.5).fillColor(tone).text('DOES', x + 8, cy);
-    cy += 9;
+    doc.font('Helvetica').fontSize(6.5).fillColor(MUTED);
+    clipText(doc, card.subtitle, x + 8, cy, { width: innerW, height: 9 });
+    cy += 10;
+    doc.font('Helvetica-Bold').fontSize(6).fillColor(tone).text('DOES', x + 8, cy);
+    cy += 8;
     card.does.forEach((line) => {
-      doc
-        .font('Helvetica')
-        .fontSize(6.2)
-        .fillColor(INK)
-        .text(`• ${line}`, x + 8, cy, { width: colW - 16 });
-      cy += g.isLandscape ? 9 : 10;
+      doc.font('Helvetica').fontSize(6).fillColor(INK);
+      clipText(doc, `• ${line}`, x + 8, cy, { width: innerW, height: bulletH });
+      cy += bulletH + 0.5;
     });
     cy += 2;
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(6.5)
-      .fillColor(MUTED)
-      .text('DOES NOT', x + 8, cy);
-    cy += 9;
+    doc.font('Helvetica-Bold').fontSize(6).fillColor(MUTED).text('DOES NOT', x + 8, cy);
+    cy += 8;
     card.doesNot.forEach((line) => {
-      doc
-        .font('Helvetica')
-        .fontSize(6.2)
-        .fillColor(MUTED)
-        .text(`• ${line}`, x + 8, cy, { width: colW - 16 });
-      cy += 9;
+      doc.font('Helvetica').fontSize(6).fillColor(MUTED);
+      clipText(doc, `• ${line}`, x + 8, cy, { width: innerW, height: bulletH });
+      cy += bulletH + 0.5;
     });
   });
 
-  return y + h + 10;
+  return y + h + 8;
 }
 
 function drawPhase(doc: PdfDoc, g: Geo, phase: ProcessPhase, y: number): number {
   doc
     .font('Helvetica-Bold')
-    .fontSize(g.isLandscape ? 8 : 8.5)
-    .fillColor(BRAND_DEEP)
-    .text(phase.title, g.mx, y, { width: g.contentW });
-  y += 10;
-  doc
-    .font('Helvetica')
-    .fontSize(6.5)
-    .fillColor(MUTED)
-    .text(phase.subtitle, g.mx, y, { width: g.contentW });
-  y += 10;
+    .fontSize(g.isLandscape ? 7.5 : 8)
+    .fillColor(BRAND_DEEP);
+  clipText(doc, phase.title, g.mx, y, { width: g.contentW, height: 10 });
+  y += 9;
+  doc.font('Helvetica').fontSize(6).fillColor(MUTED);
+  clipText(doc, phase.subtitle, g.mx, y, { width: g.contentW, height: 8 });
+  y += 9;
 
   const steps = phase.steps;
   const gap = 5;
   const boxW = (g.contentW - gap * (steps.length - 1)) / Math.max(1, steps.length);
-  const boxH =
-    steps.length >= 4
-      ? g.isLandscape
-        ? 58
-        : 64
-      : g.isLandscape
-        ? 48
-        : 54;
+  const boxH = g.isLandscape ? 46 : 56;
 
   steps.forEach((step, i) => {
     const x = g.mx + i * (boxW + gap);
     doc.roundedRect(x, y, boxW, boxH, 4).fillAndStroke(SOFT, LINE);
-    doc.circle(x + 9, y + 10, 6).fill(BRAND_DEEP);
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(5.5)
-      .fillColor('#ffffff')
-      .text(step.n, x + 5, y + 7, { width: 10, align: 'center' });
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(7)
-      .fillColor(INK)
-      .text(step.title, x + 18, y + 5, { width: boxW - 22 });
-    doc
-      .font('Helvetica')
-      .fontSize(5.5)
-      .fillColor(BRAND)
-      .text(step.who.toUpperCase(), x + 6, y + 18, { width: boxW - 12 });
-    doc
-      .font('Helvetica')
-      .fontSize(6)
-      .fillColor(MUTED)
-      .text(step.desc, x + 6, y + 28, { width: boxW - 12, height: boxH - 32 });
+    doc.circle(x + 9, y + 9, 5.5).fill(BRAND_DEEP);
+    doc.font('Helvetica-Bold').fontSize(5).fillColor('#ffffff');
+    clipText(doc, step.n, x + 4, y + 6, { width: 10, height: 7, align: 'center' });
+    doc.font('Helvetica-Bold').fontSize(6.5).fillColor(INK);
+    clipText(doc, step.title, x + 17, y + 5, { width: boxW - 21, height: 10 });
+    doc.font('Helvetica').fontSize(5).fillColor(BRAND);
+    clipText(doc, step.who.toUpperCase(), x + 6, y + 16, {
+      width: boxW - 12,
+      height: 7,
+    });
+    doc.font('Helvetica').fontSize(5.8).fillColor(MUTED);
+    clipText(doc, step.desc, x + 6, y + 24, {
+      width: boxW - 12,
+      height: boxH - 28,
+    });
   });
 
-  return y + boxH + 8;
+  return y + boxH + 6;
 }
 
 function drawGuardrails(doc: PdfDoc, g: Geo, y: number): number {
   doc
     .font('Helvetica-Bold')
-    .fontSize(7.5)
+    .fontSize(7)
     .fillColor(MUTED)
     .text('GUARDRAILS', g.mx, y, { characterSpacing: 0.6 });
-  y += 10;
+  y += 9;
   const cols = g.isLandscape ? 3 : 2;
-  const gap = 6;
+  const gap = 5;
   const boxW = (g.contentW - gap * (cols - 1)) / cols;
-  const boxH = 34;
+  const boxH = g.isLandscape ? 30 : 32;
   GUARDRAILS.forEach((item, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
     const x = g.mx + col * (boxW + gap);
     const by = y + row * (boxH + gap);
     doc.roundedRect(x, by, boxW, boxH, 4).fillAndStroke('#ecfdf5', '#6ee7b7');
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(7)
-      .fillColor(INK)
-      .text(item.title, x + 6, by + 5, { width: boxW - 12 });
-    doc
-      .font('Helvetica')
-      .fontSize(6)
-      .fillColor(MUTED)
-      .text(item.desc, x + 6, by + 15, { width: boxW - 12, height: 16 });
+    doc.font('Helvetica-Bold').fontSize(6.5).fillColor(INK);
+    clipText(doc, item.title, x + 6, by + 4, { width: boxW - 12, height: 9 });
+    doc.font('Helvetica').fontSize(5.6).fillColor(MUTED);
+    clipText(doc, item.desc, x + 6, by + 13, { width: boxW - 12, height: 14 });
   });
   const rows = Math.ceil(GUARDRAILS.length / cols);
-  return y + rows * (boxH + gap) + 4;
+  return y + rows * (boxH + gap) + 3;
 }
 
 function drawBenefits(doc: PdfDoc, g: Geo, y: number): number {
   doc
     .font('Helvetica-Bold')
-    .fontSize(7.5)
+    .fontSize(7)
     .fillColor(MUTED)
     .text('WHY THIS OS', g.mx, y, { characterSpacing: 0.6 });
-  y += 10;
+  y += 9;
   const cols = g.isLandscape ? 4 : 2;
-  const gap = 5;
+  const gap = 4;
   const boxW = (g.contentW - gap * (cols - 1)) / cols;
-  const boxH = 36;
+  const boxH = g.isLandscape ? 30 : 34;
   SYSTEM_BENEFITS.forEach((b, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
     const x = g.mx + col * (boxW + gap);
     const by = y + row * (boxH + gap);
     doc.roundedRect(x, by, boxW, boxH, 4).fillAndStroke(SOFT, LINE);
-    doc.circle(x + 7, by + 9, 2).fill(BRAND);
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(6.5)
-      .fillColor(INK)
-      .text(b.title, x + 12, by + 5, { width: boxW - 16 });
-    doc
-      .font('Helvetica')
-      .fontSize(5.8)
-      .fillColor(MUTED)
-      .text(b.desc, x + 6, by + 16, { width: boxW - 12, height: 18 });
+    doc.circle(x + 6, by + 8, 1.8).fill(BRAND);
+    doc.font('Helvetica-Bold').fontSize(6).fillColor(INK);
+    clipText(doc, b.title, x + 11, by + 4, { width: boxW - 16, height: 8 });
+    doc.font('Helvetica').fontSize(5.4).fillColor(MUTED);
+    clipText(doc, b.desc, x + 6, by + 13, { width: boxW - 12, height: 14 });
   });
   const rows = Math.ceil(SYSTEM_BENEFITS.length / cols);
-  return y + rows * (boxH + gap) + 4;
+  return y + rows * (boxH + gap) + 3;
 }
 
 function drawOutcome(doc: PdfDoc, g: Geo, y: number): number {
-  const h = g.isLandscape ? 44 : 56;
-  doc.roundedRect(g.mx, y, g.contentW, h, 6).fillAndStroke('#ecfdf5', '#6ee7b7');
-  doc
-    .font('Helvetica-Bold')
-    .fontSize(7)
-    .fillColor(BRAND_DEEP)
-    .text('ONE SENTENCE — THE FULL LOOP', g.mx + 10, y + 5, {
-      width: g.contentW - 20,
-    });
-  doc
-    .font('Helvetica')
-    .fontSize(6.8)
-    .fillColor(INK)
-    .text(ONE_SENTENCE, g.mx + 10, y + 16, { width: g.contentW - 20 });
+  const room = g.footerY - 8 - y;
+  if (room < 22) return y;
+  const h = Math.min(g.isLandscape ? 34 : 44, room);
+  doc.roundedRect(g.mx, y, g.contentW, h, 5).fillAndStroke('#ecfdf5', '#6ee7b7');
+  doc.font('Helvetica-Bold').fontSize(6.5).fillColor(BRAND_DEEP);
+  clipText(doc, 'ONE SENTENCE - THE FULL LOOP', g.mx + 10, y + 4, {
+    width: g.contentW - 20,
+    height: 8,
+  });
+  doc.font('Helvetica').fontSize(6.4).fillColor(INK);
+  clipText(doc, ONE_SENTENCE, g.mx + 10, y + 13, {
+    width: g.contentW - 20,
+    height: h - 16,
+  });
   return y + h;
 }
 
@@ -667,14 +657,15 @@ export async function buildMedicalgraphProcessGuidePdf(opts?: {
       layout,
       bufferPages: true,
       autoFirstPage: true,
-      margins: { top: 0, bottom: 28, left: g.mx, right: g.mx },
+      // bottom 0 so wrapped text cannot auto-insert blank pages
+      margins: { top: 0, bottom: 0, left: g.mx, right: g.mx },
       info: {
         Title:
-          'MedicalAdvisor® Process Design — People → Open visit → Emails · board',
-        Author: 'SupplierAdvisor®',
+          'MedicalAdvisor Process Design - People > Open visit > Emails · board',
+        Author: 'SupplierAdvisor',
         Subject: `MedicalAdvisor clinic services end-to-end process (A4 ${orientation})`,
         Keywords:
-          'MedicalAdvisor, clinic, physio, practitioners, diary, packages, process guide',
+          'MedicalAdvisor, clinic, practitioners, diary, packages, process guide',
         CreationDate: generated,
       },
     });
@@ -689,22 +680,23 @@ export async function buildMedicalgraphProcessGuidePdf(opts?: {
     y = drawChain(doc, g, y);
     y = drawRoleCards(doc, g, y);
 
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(7.5)
-      .fillColor(MUTED)
-      .text('FULL PROCESS — PART A (PEOPLE → SERVICES → DIARY)', g.mx, y, {
-        characterSpacing: 0.3,
-      });
-    y += 11;
+    doc.font('Helvetica-Bold').fontSize(7).fillColor(MUTED);
+    clipText(
+      doc,
+      'FULL PROCESS - PART A (PEOPLE > SERVICES > DIARY)',
+      g.mx,
+      y,
+      { width: g.contentW, height: 9 }
+    );
+    y += 10;
 
     for (const phase of PROCESS_PHASES.slice(0, 3)) {
       y = drawPhase(doc, g, phase, y);
     }
 
-    doc.addPage({ size: 'A4', layout });
+    doc.addPage({ size: 'A4', layout, margins: { top: 0, bottom: 0, left: g.mx, right: g.mx } });
     y = drawProcessGuidePageHeader(doc, g, {
-      eyebrow: 'MedicalAdvisor® · end-to-end process · continued',
+      eyebrow: 'MedicalAdvisor · end-to-end process · continued',
       title: 'Process continued · Floor · Messages · One OS · Guardrails',
       landscape: g.isLandscape,
     });
@@ -718,9 +710,10 @@ export async function buildMedicalgraphProcessGuidePdf(opts?: {
     drawOutcome(doc, g, y);
 
     const range = doc.bufferedPageRange();
-    for (let i = 0; i < range.count; i++) {
+    const total = range.count;
+    for (let i = 0; i < total; i++) {
       doc.switchToPage(range.start + i);
-      drawFooter(doc, g, i + 1, range.count);
+      drawFooter(doc, g, i + 1, total);
     }
 
     doc.end();
