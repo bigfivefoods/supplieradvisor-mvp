@@ -1,6 +1,7 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Copy, Download, Link2, Mail, Pencil, Upload, X } from 'lucide-react';
 import {
@@ -109,6 +110,7 @@ const blankForm = (): ClientForm => ({
 export default function ClientsPage() {
   const { companyId, store, loading, saving, post, load, summary } =
     useFitgraph();
+  const search = useSearchParams();
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [form, setForm] = useState<ClientForm>(blankForm);
@@ -157,6 +159,14 @@ export default function ClientsPage() {
     });
     setEditing(true);
   };
+
+  const openId = search.get('open');
+  useEffect(() => {
+    if (!openId || !store || editing) return;
+    const person = store.clients.find((c) => c.id === openId);
+    if (person) openEdit(person);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openId, store]);
 
   const save = async () => {
     if (!form.name.trim()) {

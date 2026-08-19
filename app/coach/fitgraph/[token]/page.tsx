@@ -37,6 +37,8 @@ import {
   type FitSessionKind,
 } from '@/lib/fitness/session-times';
 import { FitClassFeedbackForm } from '@/components/fitness/FitClassFeedbackForm';
+import { MemberSpecialDatesPanel } from '@/components/fitness/MemberSpecialDatesPanel';
+import type { MemberSpecialDate } from '@/lib/fitness/member-special-dates';
 import { PersonQualificationsEditor } from '@/components/services/PersonQualificationsEditor';
 import type { PersonQualification } from '@/lib/services/person-qualifications';
 import type { PersonHealthProfile } from '@/lib/health/body-map';
@@ -223,6 +225,7 @@ type Portal = {
     plan_names?: string[];
     monthly_zar?: number;
   }>;
+  special_dates?: MemberSpecialDate[];
   class_report?: import('@/lib/fitness/vuka-class-catalog').ClassSubscriptionReport;
   class_types: Array<{
     id: string;
@@ -660,6 +663,12 @@ export default function CoachFitgraphPortalPage() {
               ? `${todayCards.length} session${todayCards.length === 1 ? '' : 's'} today`
               : 'Nothing on the floor today. Book a member or open Diary.'}
           </p>
+          <MemberSpecialDatesPanel
+            tone="coach"
+            title="Your clients"
+            description="Birthdays and gym anniversaries for members assigned to you or training with you."
+            rows={portal.special_dates || []}
+          />
           {todayCards.map((card) => (
             <button
               key={card.session.id}
@@ -736,6 +745,12 @@ export default function CoachFitgraphPortalPage() {
                     ? ` · R${m.monthly_zar.toLocaleString('en-ZA')}/pm`
                     : ''}
                   {m.health?.injured ? ' · injured' : ''}
+                  {(() => {
+                    const hit = (portal.special_dates || []).find(
+                      (d) => d.client_id === m.id && d.days_until <= 7
+                    );
+                    return hit ? ` · ${hit.label}` : '';
+                  })()}
                 </div>
               </button>
               <button

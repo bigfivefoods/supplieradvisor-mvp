@@ -38,6 +38,8 @@ import { AdvisorTodayBoard } from '@/components/services/AdvisorTodayBoard';
 import { AdvisorBillingClarityCard } from '@/components/services/AdvisorBillingClarityCard';
 import { AdvisorMemberJoinInbox } from '@/components/advisors/AdvisorMemberJoinInbox';
 import { AdvisorCommandBookingCards } from '@/components/advisors/AdvisorCommandBookingCards';
+import { MemberSpecialDatesPanel } from '@/components/fitness/MemberSpecialDatesPanel';
+import { memberSpecialDates } from '@/lib/fitness/member-special-dates';
 
 function hubModules(
   hasFrontDesk: boolean,
@@ -232,7 +234,17 @@ function Inner() {
       status: string;
       family_member_name?: string | null;
     }>;
-    clients?: Array<{ id: string; name: string }>;
+    clients?: Array<{
+      id: string;
+      name: string;
+      date_of_birth?: string | null;
+      start_date?: string | null;
+      created_at?: string;
+      coach_id?: string | null;
+      active?: boolean;
+      passport?: { date_of_birth?: string | null };
+      medical?: { date_of_birth?: string | null };
+    }>;
     coaches?: Array<{ id: string; name: string }>;
     class_types?: Array<{ id: string; name: string }>;
     settings?: { brand_name?: string; class_subscribe?: boolean } | null;
@@ -353,6 +365,13 @@ function Inner() {
   };
 
   const today = new Date().toISOString().slice(0, 10);
+  const specialDates = memberSpecialDates(store?.clients || [], {
+    from: today,
+    days: 14,
+  });
+  const specialToday = specialDates.filter(
+    (r) => r.days_until === 0 && r.kind !== 'joined'
+  ).length;
   const todayRows = (() => {
     if (!store) return [];
     const sessions = (store.sessions || []).filter(
@@ -468,6 +487,16 @@ function Inner() {
             summary={summary}
             calendarHref="/dashboard/fitgraph/calendar"
           />
+          <TelemetryCard
+            label="Member dates"
+            value={String(specialToday)}
+            sub={
+              specialToday
+                ? 'birthdays & gym anniversaries today'
+                : `${specialDates.filter((r) => r.kind !== 'joined').length} in the next 14 days`
+            }
+            accent="amber"
+          />
         </HubTelemetryGrid>
         <div className="space-y-4 mb-6 mt-6">
           <AdvisorOutcomesPanel
@@ -491,6 +520,10 @@ function Inner() {
               void markBooking(id, status);
             }}
             markBusyId={markBusy}
+          />
+          <MemberSpecialDatesPanel
+            rows={specialDates}
+            hrefFor={(r) => `/dashboard/fitgraph/clients?open=${r.client_id}`}
           />
           <AdvisorRecallPanel
             rows={recalls}

@@ -2597,6 +2597,8 @@ export function buildCoachPortalPayload(
       notes: c.notes,
       membership_status: c.membership_status,
       coach_id: c.coach_id,
+      date_of_birth: c.date_of_birth || c.passport?.date_of_birth || null,
+      start_date: c.start_date || null,
       health: c.health,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));

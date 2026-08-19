@@ -47,6 +47,7 @@ import {
   issueFeedbackPrompt,
 } from '@/lib/services/booking-feedback';
 import { applyCoachMemberClassFeedback } from '@/lib/fitness/coach-member-feedback';
+import { memberSpecialDatesForStore } from '@/lib/fitness/member-special-dates';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -87,6 +88,10 @@ function buildCoachPortalPayload(
     ...portal,
     sessions,
     members,
+    special_dates: memberSpecialDatesForStore(store, {
+      days: 14,
+      coachId: coach.id,
+    }),
     class_report: buildClassSubscriptionReport(store, {
       coachId: coach.id,
       from: portal.from,
