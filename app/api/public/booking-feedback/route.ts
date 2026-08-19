@@ -100,6 +100,88 @@ function feedbackStatusOk(status?: string) {
   return status === 'attended' || status === 'booked';
 }
 
+type ClinicFeedbackStore = {
+  bookings: Array<{
+    id: string;
+    appointment_id: string;
+    patient_id: string;
+    status?: string;
+    feedback_token?: string | null;
+    feedback_submitted_at?: string | null;
+    feedback_id?: string | null;
+  }>;
+  patients: Array<{ id: string; name?: string; email?: string | null }>;
+  appointment_feedback?: ServiceFeedback[];
+};
+
+function applyClinicVisitFeedback<T extends ClinicFeedbackStore>(
+  store: T,
+  opts: {
+    token: string;
+    now: string;
+    statusOk: (status?: string) => boolean;
+    body: Record<string, unknown>;
+    includePractice?: boolean;
+  }
+):
+  | { kind: 'invalid' }
+  | { kind: 'already' }
+  | { kind: 'saved'; feedbackId: string } {
+  const booking = store.bookings.find((b) => b.feedback_token === opts.token);
+  if (!booking || !opts.statusOk(booking.status)) return { kind: 'invalid' };
+  if (booking.feedback_submitted_at) return { kind: 'already' };
+  const patient = store.patients.find((p) => p.id === booking.patient_id);
+  const { list, row } = upsertServiceFeedback(store.appointment_feedback, {
+    booking_id: booking.id,
+    event_id: booking.appointment_id,
+    role: 'patient',
+    person_id: booking.patient_id,
+    author_name:
+      opts.body.author_name != null
+        ? String(opts.body.author_name)
+        : patient?.name,
+    author_email:
+      opts.body.author_email != null
+        ? String(opts.body.author_email)
+        : patient?.email ?? undefined,
+    feeling: opts.body.feeling,
+    intensity: opts.body.intensity,
+    enjoyment: opts.body.enjoyment,
+    would_return: opts.includePractice
+      ? opts.body.would_return ?? opts.body.practice
+      : opts.body.would_return,
+    practice: opts.includePractice ? opts.body.practice : undefined,
+    comment:
+      opts.body.comment != null ? String(opts.body.comment) : undefined,
+    tags: Array.isArray(opts.body.tags)
+      ? (opts.body.tags as unknown[]).map(String)
+      : undefined,
+  } as Omit<ServiceFeedback, 'id' | 'created_at' | 'updated_at'>);
+  store.appointment_feedback = list;
+  booking.feedback_submitted_at = opts.now;
+  booking.feedback_id = row.id;
+  return { kind: 'saved', feedbackId: row.id };
+}
+
+function clinicFeedbackEarlyResponse(
+  result: ReturnType<typeof applyClinicVisitFeedback>
+) {
+  if (result.kind === 'invalid') {
+    return NextResponse.json(
+      { error: 'Invalid feedback link' },
+      { status: 404 }
+    );
+  }
+  if (result.kind === 'already') {
+    return NextResponse.json({
+      success: true,
+      message: 'Feedback already submitted — thank you',
+      already_submitted: true,
+    });
+  }
+  return null;
+}
+
 function resolveFit(
   store: FitgraphStore,
   token: string
@@ -421,63 +503,41 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    if (module === 'medicalgraph' || module === 'psychiatrygraph') {
-      const store =
-        module === 'medicalgraph'
-          ? readMedicalgraphFromMetadata(meta)
-          : readPsychiatrygraphFromMetadata(meta);
-      const booking = store.bookings.find((b) => b.feedback_token === token);
-      const statusOk =
-        module === 'medicalgraph'
-          ? feedbackStatusOk(booking?.status)
-          : booking?.status === 'attended';
-      if (!booking || !statusOk) {
-        return NextResponse.json({ error: 'Invalid feedback link' }, { status: 404 });
-      }
-      if (booking.feedback_submitted_at) {
-        return NextResponse.json({
-          success: true,
-          message: 'Feedback already submitted — thank you',
-          already_submitted: true,
-        });
-      }
-      const patient = store.patients.find((p) => p.id === booking.patient_id);
-      const { list, row } = upsertServiceFeedback(store.appointment_feedback, {
-        booking_id: booking.id,
-        event_id: booking.appointment_id,
-        role: 'patient',
-        person_id: booking.patient_id,
-        author_name:
-          body.author_name != null
-            ? String(body.author_name)
-            : patient?.name,
-        author_email:
-          body.author_email != null
-            ? String(body.author_email)
-            : patient?.email,
-        feeling: body.feeling,
-        intensity: body.intensity,
-        enjoyment: body.enjoyment,
-        would_return: body.would_return ?? body.practice,
-        practice: body.practice,
-        comment: body.comment != null ? String(body.comment) : undefined,
-        tags: Array.isArray(body.tags)
-          ? (body.tags as unknown[]).map(String)
-          : undefined,
-      } as Omit<ServiceFeedback, 'id' | 'created_at' | 'updated_at'>);
-      store.appointment_feedback = list;
-      booking.feedback_submitted_at = now;
-      booking.feedback_id = row.id;
-      await saveMeta(
-        companyId,
-        module === 'medicalgraph'
-          ? writeMedicalgraphToMetadata(meta, store)
-          : writePsychiatrygraphToMetadata(meta, store)
-      );
+    if (module === 'medicalgraph') {
+      const store = readMedicalgraphFromMetadata(meta);
+      const result = applyClinicVisitFeedback(store, {
+        token,
+        now,
+        statusOk: feedbackStatusOk,
+        body,
+        includePractice: true,
+      });
+      const early = clinicFeedbackEarlyResponse(result);
+      if (early) return early;
+      await saveMeta(companyId, writeMedicalgraphToMetadata(meta, store));
       return NextResponse.json({
         success: true,
         message: 'Thanks — your feedback helps the practice improve',
-        feedback_id: row.id,
+        feedback_id: result.kind === 'saved' ? result.feedbackId : undefined,
+      });
+    }
+
+    if (module === 'psychiatrygraph') {
+      const store = readPsychiatrygraphFromMetadata(meta);
+      const result = applyClinicVisitFeedback(store, {
+        token,
+        now,
+        statusOk: (status) => status === 'attended',
+        body,
+        includePractice: true,
+      });
+      const early = clinicFeedbackEarlyResponse(result);
+      if (early) return early;
+      await saveMeta(companyId, writePsychiatrygraphToMetadata(meta, store));
+      return NextResponse.json({
+        success: true,
+        message: 'Thanks — your feedback helps the practice improve',
+        feedback_id: result.kind === 'saved' ? result.feedbackId : undefined,
       });
     }
 
