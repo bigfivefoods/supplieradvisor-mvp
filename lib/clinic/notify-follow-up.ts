@@ -8,6 +8,11 @@ import { resolveCompanyEmails } from '@/lib/billing/company-emails';
 import { getAppUrl, getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import type { PatientFollowUp } from '@/lib/clinic/patient-follow-up';
+import { pickCompanyLogoUrl } from '@/lib/business/company-logo';
+import {
+  escapeEmailHtml,
+  sendAdvisorNoticeEmail,
+} from '@/lib/services/advisor-branded-email';
 
 export const CLINIC_FOLLOW_UP_MODULES = [
   'medicalgraph',
@@ -171,20 +176,29 @@ export async function notifyFollowUpCheckIn(opts: {
 
   const resend = getResend();
   const app = getAppUrl();
-  if (resend && opts.patient.email && opts.patient.email.includes('@')) {
+  let logoUrl: string | null = null;
+  try {
+    const { data: prof } = await getSupabaseServer()
+      .from('profiles')
+      .select('logo_url')
+      .eq('id', opts.companyId)
+      .maybeSingle();
+    logoUrl = pickCompanyLogoUrl(prof);
+  } catch {
+    /* soft */
+  }
+  if (opts.patient.email && opts.patient.email.includes('@')) {
     try {
-      await resend.emails.send({
-        from: getResendFrom(),
-        to: opts.patient.email,
-        replyTo: getResendReplyTo(),
+      await sendAdvisorNoticeEmail(opts.patient.email, {
+        personName: opts.patient.name,
+        brand,
+        logoUrl,
+        moduleKey: opts.module,
         subject: `${copy.title} · ${brand}`,
-        text: [
-          `Hi ${opts.patient.name},`,
-          '',
-          copy.memberBody,
-          '',
-          `Open: ${app}${paths.portal}`,
-        ].join('\n'),
+        headline: escapeEmailHtml(copy.title),
+        leadHtml: `Hi ${escapeEmailHtml(opts.patient.name)}, ${escapeEmailHtml(copy.memberBody)}`,
+        ctaUrl: `${app}${paths.portal}`,
+        ctaLabel: 'Open your portal',
       });
     } catch (err) {
       console.warn('[follow-up member email]', err);

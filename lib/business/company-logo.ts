@@ -26,3 +26,14 @@ export function logoUrlFromSettings(settings?: unknown): string | null {
   ).trim();
   return s || null;
 }
+
+/** Profile logo, then Advisor settings company_logo_url. */
+export function resolveCompanyLogoUrl(opts: {
+  profileLogoUrl?: unknown;
+  settings?: unknown;
+}): string | null {
+  return (
+    pickCompanyLogoUrl({ logo_url: opts.profileLogoUrl }) ||
+    logoUrlFromSettings(opts.settings)
+  );
+}

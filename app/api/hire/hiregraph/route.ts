@@ -44,6 +44,7 @@ import {
   hireCustomerInviteEmailText,
 } from '@/lib/b2c/hire-invite-email';
 import { getAppUrl, getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
+import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { listInventoryProductForHire } from '@/lib/hire/list-from-inventory';
 import {
   applyAnnouncementAction,
@@ -489,6 +490,7 @@ export async function POST(req: NextRequest) {
               brand,
               appLink,
               portalLink,
+              logoUrl: logoUrlFromSettings(next.settings),
             }),
             text: hireCustomerInviteEmailText({
               customerName: customer.name,

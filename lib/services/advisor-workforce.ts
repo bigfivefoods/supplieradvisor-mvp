@@ -5,6 +5,7 @@
  * Contracted coaches / clinicians → B2C work PWA (token portal).
  */
 import { getAppUrl, getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
+import { renderAdvisorNoticeEmail } from '@/lib/services/advisor-branded-email';
 
 export const ADVISOR_WORKFORCE_MODULES = [
   'fitgraph',
@@ -226,31 +227,24 @@ export function contractorWorkInviteEmailHtml(opts: {
   inviteLink: string;
   module: AdvisorWorkforceModule;
   roleLabel: string;
+  logoUrl?: string | null;
 }): string {
   const name = escapeHtml(opts.inviteeName || '');
   const brand = escapeHtml(opts.businessName);
   const by = escapeHtml(opts.invitedBy);
-  const link = escapeHtml(opts.inviteLink);
   const role = escapeHtml(opts.roleLabel);
-  const advisor = escapeHtml(MODULE_LABEL[opts.module]);
-  return `<!DOCTYPE html>
-<html><body style="margin:0;padding:0;background:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <div style="max-width:560px;margin:28px auto;background:#111827;border-radius:24px;overflow:hidden;border:1px solid #1f2937;">
-    <div style="padding:32px 28px;background:linear-gradient(135deg,#E8E830,#ca8a04);color:#0f172a;">
-      <div style="font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;">${advisor}</div>
-      <h1 style="margin:8px 0 0;font-size:26px;letter-spacing:-0.4px;">Your work app is ready</h1>
-    </div>
-    <div style="padding:28px;color:#e2e8f0;">
-      <p style="margin:0 0 14px;line-height:1.6;">Hello${name ? ` ${name}` : ''},</p>
-      <p style="margin:0 0 14px;line-height:1.6;"><strong>${by}</strong> invited you as a <strong>${role}</strong> at <strong>${brand}</strong>.</p>
-      <p style="margin:0 0 22px;line-height:1.6;color:#94a3b8;">Add this to your phone home screen. Today’s board, diary, roster and messages — no desktop login required.</p>
-      <p style="text-align:center;margin:0 0 18px;">
-        <a href="${link}" style="display:inline-block;background:#E8E830;color:#0f172a;font-weight:800;padding:14px 28px;border-radius:999px;text-decoration:none;">Open work app</a>
-      </p>
-      <p style="font-size:12px;color:#64748b;word-break:break-all;">${link}</p>
-    </div>
-  </div>
-</body></html>`;
+  return renderAdvisorNoticeEmail({
+    personName: opts.inviteeName,
+    brand: opts.businessName,
+    logoUrl: opts.logoUrl,
+    moduleKey: opts.module,
+    subject: `${opts.businessName} — your ${opts.roleLabel} work app`,
+    headline: 'Your work app is ready',
+    leadHtml: `Hello${name ? ` ${name}` : ''}, <strong>${by}</strong> invited you as a <strong>${role}</strong> at <strong>${brand}</strong>. Add this to your phone home screen — today’s board, diary, roster and messages, no desktop login required.`,
+    extraHtml: `<p style="margin:12px 0 0;font-size:12px;color:#64748b;word-break:break-all;">${escapeHtml(opts.inviteLink)}</p>`,
+    ctaUrl: opts.inviteLink,
+    ctaLabel: 'Open work app',
+  }).html;
 }
 
 export function contractorWorkInviteEmailText(opts: {

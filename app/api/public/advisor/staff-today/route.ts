@@ -376,6 +376,8 @@ export async function POST(req: NextRequest) {
                 start_time: session.start_time,
                 location: session.location,
                 moduleLabel: 'GymAdvisor®',
+                moduleKey: 'fitgraph',
+                logoUrl: store.settings?.company_logo_url || null,
               });
             }
           }

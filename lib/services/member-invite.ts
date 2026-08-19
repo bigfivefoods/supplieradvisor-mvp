@@ -4,6 +4,10 @@
  * open SA Member and link this business to their wallet.
  */
 import { getAppUrl } from '@/lib/resend';
+import {
+  escapeEmailHtml,
+  renderAdvisorNoticeEmail,
+} from '@/lib/services/advisor-branded-email';
 
 export type ServiceMemberModule =
   | 'fitgraph'
@@ -178,14 +182,6 @@ export function isInviteExpired(expiresAt?: string | null): boolean {
   return t < Date.now();
 }
 
-function escapeHtml(s: string) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 export function serviceMemberInviteEmailHtml(params: {
   inviteeName?: string | null;
   businessName: string;
@@ -193,69 +189,52 @@ export function serviceMemberInviteEmailHtml(params: {
   inviteLink: string;
   module: ServiceMemberModule;
   memberAppLink?: string | null;
+  logoUrl?: string | null;
 }): string {
   const inviteeName = params.inviteeName
-    ? escapeHtml(String(params.inviteeName))
-    : null;
-  const businessName = escapeHtml(String(params.businessName));
-  const invitedBy = escapeHtml(String(params.invitedBy));
-  const role = escapeHtml(MODULE_ROLE[params.module]);
-  const product = escapeHtml(MODULE_LABEL[params.module]);
+    ? escapeEmailHtml(String(params.inviteeName))
+    : '';
+  const businessName = escapeEmailHtml(String(params.businessName));
+  const invitedBy = escapeEmailHtml(String(params.invitedBy));
+  const role = escapeEmailHtml(MODULE_ROLE[params.module]);
+  const product = escapeEmailHtml(MODULE_LABEL[params.module]);
   const inviteLink = String(params.inviteLink || '').trim();
-  const inviteLinkAttr = escapeHtml(inviteLink);
+  const inviteLinkAttr = escapeEmailHtml(inviteLink);
   const benefits =
     params.module === 'fitgraph'
       ? 'open class vacancies, book or join waitlists, see your bookings, leave class feedback, and update your member profile'
       : 'open appointment vacancies, book or join waitlists, see your visits, leave feedback, and view shared medical / clinical information';
+  const extraApp = params.memberAppLink
+    ? `<p style="margin:16px 0 0;text-align:center;">
+         <a href="${escapeEmailHtml(params.memberAppLink)}" style="color:#0f172a;font-weight:800;font-size:13px;">Open SA Member app →</a>
+       </p>`
+    : '';
 
-  return `
-<!DOCTYPE html>
-<html>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <div style="max-width:620px;margin:32px auto;background:#fff;border-radius:20px;overflow:hidden;border:1px solid #e2e8f0;">
-    <div style="background:linear-gradient(135deg,#00b4d8 0%,#0077b6 100%);padding:36px 40px;color:#fff;text-align:center;">
-      <div style="font-size:13px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.9;margin-bottom:8px;">SupplierAdvisor®</div>
-      <h1 style="margin:0;font-size:24px;font-weight:800;letter-spacing:-0.5px;">You're invited as a ${role}</h1>
-    </div>
-    <div style="padding:36px 40px;">
-      <p style="color:#334155;font-size:16px;line-height:1.7;margin:0 0 18px;">
-        Hello${inviteeName ? ` ${inviteeName}` : ''},
-      </p>
-      <p style="color:#334155;font-size:16px;line-height:1.7;margin:0 0 18px;">
-        <strong>${invitedBy}</strong> at <strong>${businessName}</strong> has invited you to join their
-        <strong>${product}</strong> portal on SupplierAdvisor.
-      </p>
-      <p style="color:#334155;font-size:16px;line-height:1.7;margin:0 0 20px;">
-        Once you accept, you can ${benefits}.
-      </p>
-      <div style="text-align:center;margin:24px 0 20px;">
-        ${
-          params.memberAppLink
-            ? `<a href="${escapeHtml(params.memberAppLink)}" style="background:#0077b6;color:#fff;padding:16px 40px;border-radius:9999px;text-decoration:none;font-weight:700;font-size:16px;display:inline-block;margin-bottom:10px;">Open SA Member app →</a><br/>`
-            : ''
-        }
-        <a href="${inviteLinkAttr}" style="background:#00b4d8;color:#fff;padding:16px 40px;border-radius:9999px;text-decoration:none;font-weight:700;font-size:16px;display:inline-block;">
-          Accept invitation →
-        </a>
-      </div>
-      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:14px;padding:16px 18px;">
-        <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#0369a1;">
-          Your join link
-        </p>
-        <p style="margin:0;font-size:13px;line-height:1.55;word-break:break-all;">
-          <a href="${inviteLinkAttr}" style="color:#0077b6;font-weight:600;">${inviteLinkAttr}</a>
-        </p>
-        <p style="margin:10px 0 0;font-size:12px;color:#64748b;line-height:1.5;">
-          This link expires in 14 days. Use the same email this invitation was sent to.
-        </p>
-      </div>
-    </div>
-    <div style="background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;text-align:center;">
-      SupplierAdvisor® · Verified. Transparent. Accelerating humanity.
-    </div>
-  </div>
-</body>
-</html>`;
+  return renderAdvisorNoticeEmail({
+    personName: params.inviteeName,
+    brand: params.businessName,
+    logoUrl: params.logoUrl,
+    moduleKey: params.module,
+    subject: `${params.businessName} invited you`,
+    headline: `You're invited as a ${role}`,
+    leadHtml: `Hello${inviteeName ? ` ${inviteeName}` : ''}, <strong>${invitedBy}</strong> at <strong>${businessName}</strong> has invited you to join their <strong>${product}</strong>. Once you accept, you can ${benefits}.`,
+    extraHtml: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:18px;">
+      <tr>
+        <td style="padding:16px 18px;">
+          <p style="margin:0 0 8px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#64748b;">Your join link</p>
+          <p style="margin:0;font-size:13px;line-height:1.55;word-break:break-all;">
+            <a href="${inviteLinkAttr}" style="color:#0f172a;font-weight:600;">${inviteLinkAttr}</a>
+          </p>
+          <p style="margin:10px 0 0;font-size:12px;color:#64748b;line-height:1.5;">
+            This link expires in 14 days. Use the same email this invitation was sent to.
+          </p>
+          ${extraApp}
+        </td>
+      </tr>
+    </table>`,
+    ctaUrl: inviteLink,
+    ctaLabel: 'Accept invitation',
+  }).html;
 }
 
 export function serviceMemberInviteEmailText(params: {

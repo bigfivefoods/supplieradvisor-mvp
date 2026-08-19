@@ -750,7 +750,7 @@ export async function POST(request: NextRequest) {
       const supabase = getSupabaseServer();
       const { data: prof } = await supabase
         .from('profiles')
-        .select('trading_name, legal_name')
+        .select('trading_name, legal_name, logo_url')
         .eq('id', companyId)
         .maybeSingle();
       const businessName =
@@ -780,6 +780,7 @@ export async function POST(request: NextRequest) {
             invitedBy,
             inviteLink,
             module: 'physiograph',
+            logoUrl: String(prof?.logo_url || store.settings?.company_logo_url || '').trim() || null,
           }),
           text: serviceMemberInviteEmailText({
             inviteeName: patient.name,

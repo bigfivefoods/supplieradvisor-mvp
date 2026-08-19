@@ -649,6 +649,8 @@ export async function POST(req: NextRequest) {
               ? `/member/${mod}/${patient.portal_token}`
               : undefined,
             moduleLabel: clinicianModuleLabel(mod),
+            moduleKey: mod,
+            logoUrl: store.settings?.company_logo_url || null,
           });
         }
       }
@@ -736,6 +738,8 @@ export async function POST(req: NextRequest) {
               start_time: appt.start_time,
               location: appt.location,
               moduleLabel: clinicianModuleLabel(mod),
+              moduleKey: mod,
+              logoUrl: store.settings?.company_logo_url || null,
             });
           }
         }

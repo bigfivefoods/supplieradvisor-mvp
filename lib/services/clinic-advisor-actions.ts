@@ -470,6 +470,8 @@ export async function notifyPromotedWaitlist(
       location: appt.location,
       manageUrl,
       moduleLabel: cfg.moduleLabel,
+      moduleKey: cfg.portalPath,
+      logoUrl: cfg.logoUrl || store.settings?.company_logo_url || null,
     });
   }
   await notifyLinkedMember({

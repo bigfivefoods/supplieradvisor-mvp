@@ -5,14 +5,19 @@ import assert from 'node:assert/strict';
 import {
   advisorEmailSkin,
   appointmentEndMs,
+  clientEmailChrome,
   escapeEmailHtml,
   needsPostSessionEmail,
   renderAdvisorInvoiceEmail,
+  renderAdvisorNoticeEmail,
   renderAdvisorSessionEmail,
+  supplierAdvisorLogoUrl,
 } from './advisor-branded-email';
 
 assert.equal(advisorEmailSkin('medicalgraph').product, 'MedicalAdvisor®');
-assert.equal(advisorEmailSkin('MedicalAdvisor®').accent, '#059669');
+assert.equal(advisorEmailSkin('MedicalAdvisor®').accent, '#4f46e5');
+assert.equal(advisorEmailSkin(null).product, 'SupplierAdvisor®');
+assert.equal(advisorEmailSkin('fitgraph').accent, '#E8E830');
 assert.equal(escapeEmailHtml('<x>'), '&lt;x&gt;');
 
 const pre = renderAdvisorSessionEmail({
@@ -117,5 +122,42 @@ assert.match(invoice.html, /PhysioAdvisor®/);
 assert.match(invoice.html, /Invoice ready, Ada/);
 assert.match(invoice.html, /View invoice in SA Member/);
 assert.match(invoice.html, /R850/);
+assert.match(invoice.html, /PhysioAdvisor®/);
+assert.match(invoice.html, /sa-logo\.png/);
+
+const withLogo = clientEmailChrome({
+  moduleKey: 'fitgraph',
+  logoUrl: 'https://cdn.example.com/vuka.png',
+});
+assert.equal(withLogo.companyLogo, 'https://cdn.example.com/vuka.png');
+assert.equal(withLogo.hasModule, true);
+
+const gymNoLogo = renderAdvisorSessionEmail({
+  kind: 'pre',
+  personName: 'Sam',
+  brand: 'VUKA Fitness',
+  eventTitle: 'VUKA Class',
+  date: '2026-08-20',
+  start_time: '06:00',
+  ctaUrl: '/member/fitgraph/tok',
+  moduleKey: 'fitgraph',
+});
+assert.match(gymNoLogo.html, /GymAdvisor®/);
+assert.match(gymNoLogo.html, /VUKA Fitness/);
+assert.match(gymNoLogo.html, /sa-logo\.png/);
+assert.doesNotMatch(gymNoLogo.html, /cdn\.example\.com/);
+
+const coreOnly = renderAdvisorNoticeEmail({
+  brand: 'Acme Trading',
+  subject: 'Hello',
+  headline: 'Welcome',
+  leadHtml: 'Welcome to the network.',
+  ctaUrl: '/me',
+  ctaLabel: 'Open',
+});
+assert.match(coreOnly.html, /SupplierAdvisor®/);
+assert.match(coreOnly.html, /sa-logo\.png/);
+assert.doesNotMatch(coreOnly.html, /GymAdvisor/);
+assert.ok(supplierAdvisorLogoUrl().includes('sa-logo.png'));
 
 console.log('advisor-branded-email.test.ts ok');

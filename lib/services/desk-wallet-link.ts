@@ -3,6 +3,8 @@
  * (email, phone, photo, family) and email a link to accept the practice.
  */
 import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
+import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { pickCompanyLogoUrl } from '@/lib/business/company-logo';
 import {
   loadB2cProfile,
   loadB2cProfileByEmail,
@@ -146,6 +148,17 @@ export async function sendDeskPersonInvite<T extends DeskInvitePerson>(opts: {
   const inviteLink = buildServiceMemberInviteLink(opts.module, inviteToken);
   const appLink = memberAppLink(person.portal_token);
   const advisor = serviceMemberAdvisorName(opts.module);
+  let logoUrl: string | null = null;
+  try {
+    const { data: prof } = await getSupabaseServer()
+      .from('profiles')
+      .select('logo_url')
+      .eq('id', opts.companyId)
+      .maybeSingle();
+    logoUrl = pickCompanyLogoUrl(prof);
+  } catch {
+    /* soft */
+  }
 
   let warning: string | undefined;
   try {
@@ -162,6 +175,7 @@ export async function sendDeskPersonInvite<T extends DeskInvitePerson>(opts: {
         inviteLink,
         module: opts.module,
         memberAppLink: appLink,
+        logoUrl,
       }),
       text: serviceMemberInviteEmailText({
         inviteeName: person.name,

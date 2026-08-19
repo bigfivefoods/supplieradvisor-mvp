@@ -532,7 +532,7 @@ export async function POST(request: NextRequest) {
       const supabase = getSupabaseServer();
       const { data: prof } = await supabase
         .from('profiles')
-        .select('trading_name, legal_name')
+        .select('trading_name, legal_name, logo_url')
         .eq('id', companyId)
         .maybeSingle();
       const businessName =
@@ -562,6 +562,7 @@ export async function POST(request: NextRequest) {
             inviteLink,
             module: 'fitgraph',
             memberAppLink: appLink,
+            logoUrl: String(prof?.logo_url || store.settings?.company_logo_url || '').trim() || null,
           }),
           text: serviceMemberInviteEmailText({
             inviteeName: client.name,
@@ -1288,6 +1289,8 @@ export async function POST(request: NextRequest) {
                 ? `/member/fitgraph/${client.portal_token}`
                 : undefined,
               moduleLabel: 'GymAdvisor®',
+              moduleKey: 'fitgraph',
+              logoUrl: store.settings?.company_logo_url || null,
             });
           }
         }
@@ -1506,6 +1509,8 @@ export async function POST(request: NextRequest) {
             ? `/member/fitgraph/${client.portal_token}`
             : undefined,
           moduleLabel: 'GymAdvisor®',
+          moduleKey: 'fitgraph',
+          logoUrl: store.settings?.company_logo_url || null,
         });
         if (result.ok) {
           b.reminded_at = now;
