@@ -23,6 +23,7 @@ import {
   MedicalgraphRequired,
 } from '@/components/clinic/MedicalgraphShell';
 import MedicalgraphSystemFlow from '@/components/clinic/MedicalgraphSystemFlow';
+import AdvisorSystemOverview from '@/components/advisors/AdvisorSystemOverview';
 import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 import { AdvisorOutcomesPanel } from '@/components/services/AdvisorOutcomesPanel';
 import { AdvisorRecallPanel } from '@/components/services/AdvisorRecallPanel';
@@ -426,6 +427,7 @@ function Inner() {
 
       <div className="mt-8">
         <MedicalgraphSystemFlow />
+        <AdvisorSystemOverview module="medicalgraph" />
       </div>
 
       <div className="my-8 grid sm:grid-cols-2 gap-3">

@@ -21,6 +21,7 @@ import {
   DentalgraphRequired,
 } from '@/components/dental/DentalgraphShell';
 import DentalgraphSystemFlow from '@/components/dental/DentalgraphSystemFlow';
+import AdvisorSystemOverview from '@/components/advisors/AdvisorSystemOverview';
 import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 import { AdvisorOutcomesPanel } from '@/components/services/AdvisorOutcomesPanel';
 import { AdvisorRecallPanel } from '@/components/services/AdvisorRecallPanel';
@@ -416,6 +417,7 @@ function Inner() {
 
       <div className="mt-8">
         <DentalgraphSystemFlow />
+        <AdvisorSystemOverview module="dentalgraph" />
       </div>
 
       <div className="my-8 grid sm:grid-cols-2 gap-3">

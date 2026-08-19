@@ -27,6 +27,7 @@ import {
   HiregraphRequired,
 } from '@/components/hire/HiregraphShell';
 import HiregraphSystemFlow from '@/components/hire/HiregraphSystemFlow';
+import AdvisorSystemOverview from '@/components/advisors/AdvisorSystemOverview';
 import HiregraphProcessPdfButtons from '@/components/hire/HiregraphProcessPdfButtons';
 import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 import {
@@ -225,6 +226,7 @@ export default function HiregraphHubPage() {
 
         <div className="mt-8">
           <HiregraphSystemFlow />
+          <AdvisorSystemOverview module="hiregraph" />
         </div>
 
         <div className="mt-8 space-y-6">

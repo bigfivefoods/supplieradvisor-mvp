@@ -1,0 +1,65 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit, clientIp } from '@/lib/http/rate-limit';
+import {
+  advisorSystemOverviewFilename,
+  parseAdvisorOverviewModule,
+} from '@/lib/advisors/system-overview';
+import { buildAdvisorSystemOverviewPdf } from '@/lib/advisors/system-overview-pdf';
+
+export const runtime = 'nodejs';
+export const maxDuration = 30;
+
+/**
+ * GET /api/advisors/system-overview/pdf?module=medicalgraph&download=1
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const ip = clientIp(request);
+    const rl = rateLimit(`advisor-system-overview-pdf:${ip}`, {
+      limit: 40,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Too many requests', retryAfterSec: rl.retryAfterSec },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
+      );
+    }
+
+    const module = parseAdvisorOverviewModule(
+      request.nextUrl.searchParams.get('module')
+    );
+    if (!module) {
+      return NextResponse.json(
+        { error: 'Unknown advisor module' },
+        { status: 400 }
+      );
+    }
+
+    const forceDownload =
+      request.nextUrl.searchParams.get('download') === '1' ||
+      request.nextUrl.searchParams.get('download') === 'true';
+
+    const buf = await buildAdvisorSystemOverviewPdf(module);
+    const filename = advisorSystemOverviewFilename(module);
+    const bytes = new Uint8Array(buf);
+
+    return new NextResponse(bytes, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': forceDownload
+          ? `attachment; filename="${filename}"`
+          : `inline; filename="${filename}"`,
+        'Content-Length': String(bytes.byteLength),
+        'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+      },
+    });
+  } catch (e: unknown) {
+    console.error('advisor system overview pdf', e);
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'PDF generation failed' },
+      { status: 500 }
+    );
+  }
+}

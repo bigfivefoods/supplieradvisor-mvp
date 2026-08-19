@@ -24,6 +24,7 @@ import {
   FitgraphRequired,
 } from '@/components/fitness/FitgraphShell';
 import FitgraphSystemFlow from '@/components/fitness/FitgraphSystemFlow';
+import AdvisorSystemOverview from '@/components/advisors/AdvisorSystemOverview';
 import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 import {
   HubModuleGrid,
@@ -517,6 +518,7 @@ function Inner() {
         <FitgraphSystemFlow
           hasFrontDesk={summary?.hasFrontDesk !== false}
         />
+        <AdvisorSystemOverview module="fitgraph" />
       </div>
 
       <div className="my-8 grid sm:grid-cols-2 gap-3">

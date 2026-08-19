@@ -23,6 +23,7 @@ import { formatZar } from '@/lib/b2c/member-account-types';
 import { formatCommandZar } from '@/lib/advisors/command-booking-metrics';
 import { AdvisorBillingClarityCard } from '@/components/services/AdvisorBillingClarityCard';
 import RetailgraphSystemFlow from '@/components/retail/RetailgraphSystemFlow';
+import AdvisorSystemOverview from '@/components/advisors/AdvisorSystemOverview';
 
 type Summary = {
   skuCount: number;
@@ -99,6 +100,7 @@ export default function RetailgraphHubPage() {
 
         <div className="mt-8 mb-6">
           <RetailgraphSystemFlow defaultCollapsed={false} />
+          <AdvisorSystemOverview module="retailgraph" />
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">

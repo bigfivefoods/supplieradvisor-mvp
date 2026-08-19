@@ -23,6 +23,7 @@ import {
   PhysiographRequired,
 } from '@/components/clinic/PhysiographShell';
 import PhysiographSystemFlow from '@/components/clinic/PhysiographSystemFlow';
+import AdvisorSystemOverview from '@/components/advisors/AdvisorSystemOverview';
 import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 import { AdvisorOutcomesPanel } from '@/components/services/AdvisorOutcomesPanel';
 import { AdvisorRecallPanel } from '@/components/services/AdvisorRecallPanel';
@@ -418,6 +419,7 @@ function Inner() {
 
       <div className="mt-8">
         <PhysiographSystemFlow />
+        <AdvisorSystemOverview module="physiograph" />
       </div>
 
       <div className="my-8 grid sm:grid-cols-2 gap-3">
