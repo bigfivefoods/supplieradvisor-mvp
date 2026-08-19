@@ -341,6 +341,16 @@ function Inner() {
         }
       />
 
+      <AdvisorBillingClarityCard
+        brand={
+          (store as { settings?: { brand_name?: string } } | null)?.settings
+            ?.brand_name || 'your practice'
+        }
+        moduleLabel="DentalAdvisor®"
+        accountsHref="/dashboard/dentalgraph/accounts"
+        accentClass="border-sky-200 bg-sky-50/70 dark:border-sky-800 dark:bg-sky-950/30"
+      />
+
       <AdvisorMemberJoinInbox
         companyId={companyId}
         module="dentalgraph"
@@ -353,16 +363,23 @@ function Inner() {
         </div>
       ) : (
         <>
-          <div className="space-y-4 mb-6">
-            <AdvisorBillingClarityCard
-              brand={
-                (store as { settings?: { brand_name?: string } } | null)?.settings
-                  ?.brand_name || 'your practice'
-              }
-              moduleLabel="DentalAdvisor®"
-              accountsHref="/dashboard/dentalgraph/accounts"
-              accentClass="border-sky-200 bg-sky-50/70 dark:border-sky-800 dark:bg-sky-950/30"
+          <HubTelemetryGrid>
+            <TelemetryCard
+              label="Staff"
+              value={String(summary?.staffCount ?? 0)}
+              sub="Active team"
             />
+            <TelemetryCard
+              label="Patients"
+              value={String(summary?.patientCount ?? 0)}
+              sub={`${summary?.activePatients ?? 0} active / new`}
+            />
+            <AdvisorCommandBookingCards
+              summary={summary}
+              calendarHref="/dashboard/dentalgraph/calendar"
+            />
+          </HubTelemetryGrid>
+          <div className="space-y-4 mb-6 mt-6">
             <AdvisorOutcomesPanel
               outcomes={outcomes}
               accent="sky"
@@ -394,22 +411,6 @@ function Inner() {
               }}
             />
           </div>
-          <HubTelemetryGrid>
-            <TelemetryCard
-              label="Staff"
-              value={String(summary?.staffCount ?? 0)}
-              sub="Active team"
-            />
-            <TelemetryCard
-              label="Patients"
-              value={String(summary?.patientCount ?? 0)}
-              sub={`${summary?.activePatients ?? 0} active / new`}
-            />
-            <AdvisorCommandBookingCards
-              summary={summary}
-              calendarHref="/dashboard/dentalgraph/calendar"
-            />
-          </HubTelemetryGrid>
         </>
       )}
 

@@ -444,26 +444,42 @@ function Inner() {
         }
       />
 
+      <AdvisorBillingClarityCard
+        brand={store?.settings?.brand_name || 'your gym'}
+        moduleLabel="GymAdvisor®"
+        accountsHref="/dashboard/fitgraph/accounts"
+        accentClass="border-amber-200 bg-amber-50/70 dark:border-amber-800 dark:bg-amber-950/30"
+      />
+      <AdvisorMemberJoinInbox
+        companyId={companyId}
+        module="fitgraph"
+        patientsHref="/dashboard/fitgraph/clients"
+      />
+
       {loading ? (
         <div className="py-16 flex justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-yellow-600" />
         </div>
       ) : (
         <>
-        <div className="space-y-4 mb-6">
-          <AdvisorBillingClarityCard
-            brand={store?.settings?.brand_name || 'your gym'}
-            moduleLabel="GymAdvisor®"
-            accountsHref="/dashboard/fitgraph/accounts"
-            accentClass="border-amber-200 bg-amber-50/70 dark:border-amber-800 dark:bg-amber-950/30"
+        <HubTelemetryGrid>
+          <TelemetryCard
+            label="Active members"
+            value={String(summary?.activeMembers ?? 0)}
+            sub={`${summary?.activeSubscriptions ?? 0} subscriptions`}
           />
-          <AdvisorMemberJoinInbox
-        companyId={companyId}
-        module="fitgraph"
-        patientsHref="/dashboard/fitgraph/clients"
-      />
-
-      <AdvisorOutcomesPanel
+          <TelemetryCard
+            label="Coaches"
+            value={String(summary?.coachCount ?? 0)}
+            sub={`${summary?.classTypeCount ?? 0} class types`}
+          />
+          <AdvisorCommandBookingCards
+            summary={summary}
+            calendarHref="/dashboard/fitgraph/calendar"
+          />
+        </HubTelemetryGrid>
+        <div className="space-y-4 mb-6 mt-6">
+          <AdvisorOutcomesPanel
             outcomes={outcomes}
             accent="yellow"
             title="GymAdvisor outcomes (30 days)"
@@ -494,22 +510,6 @@ function Inner() {
             }}
           />
         </div>
-        <HubTelemetryGrid>
-          <TelemetryCard
-            label="Active members"
-            value={String(summary?.activeMembers ?? 0)}
-            sub={`${summary?.activeSubscriptions ?? 0} subscriptions`}
-          />
-          <TelemetryCard
-            label="Coaches"
-            value={String(summary?.coachCount ?? 0)}
-            sub={`${summary?.classTypeCount ?? 0} class types`}
-          />
-          <AdvisorCommandBookingCards
-            summary={summary}
-            calendarHref="/dashboard/fitgraph/calendar"
-          />
-        </HubTelemetryGrid>
         </>
       )}
 

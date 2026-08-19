@@ -2,7 +2,8 @@
 
 /**
  * End-to-end MedicalAdvisor® process design:
- * People → Packs · plans → Diary (rooms) → Waitlist · floor → Messages → Marketplace · reports
+ * People (injury · history · referral) → Packs · plans → Diary (rooms+assets · open visit)
+ * → Floor (branded emails · board · recall) → Messages → Website · command
  *
  * Expandable on the MedicalAdvisor command hub; downloadable A4 PDF
  * (landscape + portrait) — same pattern as GymAdvisor / CropAdvisor.
@@ -20,8 +21,11 @@ import {
   FileText,
   Globe,
   HeartPulse,
+  Hospital,
+  Mail,
   MessageSquare,
   Package,
+  Share2,
   ShieldCheck,
   Sparkles,
   Stethoscope,
@@ -56,7 +60,7 @@ const PHASES: Phase[] = [
   {
     id: 'people',
     title: '1 · People (clinicians & patients)',
-    subtitle: 'Workforce book · Customers 360 · POPIA · invite',
+    subtitle: 'Injury sub-card · visit history · consented referral · invite',
     steps: [
       {
         id: 'staff',
@@ -70,29 +74,29 @@ const PHASES: Phase[] = [
       {
         id: 'patients',
         n: '1b',
-        title: 'Patients · POPIA',
+        title: 'Patients · injury · POPIA',
         who: 'Owner / desk',
-        desc: 'Patient book dual-writes CRM. Open Customers 360 for visits, invoices and household. POPIA + invite.',
+        desc: 'Injury & recovery is a sub-card on Add patient. Desk order: stats → Add → Existing → Shared → Invite. Dual-writes CRM; POPIA.',
         href: '/dashboard/medicalgraph/patients',
-        icon: Users,
+        icon: HeartPulse,
       },
       {
         id: 'clinical',
         n: '1c',
-        title: 'Clinical, chart & identity',
+        title: 'Chart · visit history',
         who: 'Practitioner',
-        desc: 'Clinical profile; medical aid, docs, claims, scripts; visit notes. Optional identity verify on portal.',
+        desc: 'Clinical chart, medical aid, notes. Visit history on the desk and SA Member PWA — practitioner and patient see the same visits.',
         href: '/dashboard/medicalgraph/patients',
         icon: FileText,
       },
       {
-        id: 'invite',
+        id: 'refer',
         n: '1d',
-        title: 'Patient invite & portal',
+        title: 'Invite · consented referral',
         who: 'Owner / desk',
-        desc: 'Email invite; portal for open slots, waitlist, family booking, shared care.',
+        desc: 'Portal invite. With patient consent, share selected patient + practice info to another practice (GP → physio / psychiatry).',
         href: '/dashboard/medicalgraph/patients',
-        icon: Globe,
+        icon: Share2,
       },
     ],
   },
@@ -132,33 +136,33 @@ const PHASES: Phase[] = [
   },
   {
     id: 'diary',
-    title: '3 · Diary (rooms · practice · clinician)',
-    subtitle: 'Parallel practice floor · exclusive clinician books',
+    title: '3 · Diary (rooms · assets · open visit)',
+    subtitle: 'Rooms desk + equipment · click booked slot to open it',
     steps: [
       {
-        id: 'schedule',
+        id: 'rooms',
         n: '3a',
-        title: 'Rooms & schedule',
+        title: 'Rooms & assets',
         who: 'Owner / desk',
-        desc: 'Define rooms on Website; schedule date, time, service, room; assign clinician.',
+        desc: 'Rooms desk: consult rooms and surgeries; assign assets (equipment) to each room — not only a website list.',
+        href: '/dashboard/medicalgraph/rooms',
+        icon: Hospital,
+      },
+      {
+        id: 'open-visit',
+        n: '3b',
+        title: 'Open existing visit',
+        who: 'Owner / desk',
+        desc: 'Click a booked slot to open that visit (notes, attend). Empty slots book new — never a second appointment on the profile.',
         href: '/dashboard/medicalgraph/calendar',
         icon: CalendarDays,
       },
       {
         id: 'views',
-        n: '3b',
-        title: 'Practice vs clinician diary',
-        who: 'Owner / desk',
-        desc: 'Practice view runs all clinicians in parallel; each clinician cannot be double-booked.',
-        href: '/dashboard/medicalgraph/calendar',
-        icon: CalendarDays,
-      },
-      {
-        id: 'public',
         n: '3c',
-        title: 'Public flag',
-        who: 'Owner',
-        desc: 'Mark public so the slot can appear for portal / online booking.',
+        title: 'Practice diary · hours',
+        who: 'Owner / desk',
+        desc: 'Parallel clinician books; no double-book. Waitlist default-open under the diary; working hours collapsible. Public flag for online booking.',
         href: '/dashboard/medicalgraph/calendar',
         icon: Globe,
       },
@@ -166,34 +170,34 @@ const PHASES: Phase[] = [
   },
   {
     id: 'floor',
-    title: '4 · Floor (waitlist · attend · recall)',
-    subtitle: 'Book · queue · reminders · outcomes · feedback',
+    title: '4 · Floor (emails · board · recall)',
+    subtitle: 'Book · branded pre/post mail · outcomes · today board',
     steps: [
       {
         id: 'book',
         n: '4a',
-        title: 'Book · family · other clinician',
+        title: 'Book · family · waitlist',
         who: 'Desk / portal',
-        desc: 'Book patient or family; if preferred clinician full, book another or join waitlist.',
+        desc: 'Book patient or family; if preferred clinician full, book another or join the waitlist (default-open on the diary).',
         href: '/dashboard/medicalgraph/bookings',
         icon: ClipboardCheck,
       },
       {
-        id: 'waitlist',
+        id: 'emails',
         n: '4b',
-        title: 'Waitlist desk',
-        who: 'Desk',
-        desc: 'Slot waitlists + next-available practice queue; contact, promote, book when free.',
+        title: 'Branded pre / post emails',
+        who: 'Owner / system',
+        desc: '24h MedicalAdvisor® email with practice logo: update SA Member profile + list ailments. After the visit: rate the session and the practice.',
         href: '/dashboard/medicalgraph/bookings',
-        icon: ClipboardCheck,
+        icon: Mail,
       },
       {
-        id: 'attend',
+        id: 'board',
         n: '4c',
-        title: 'Remind · attend · plan · feedback',
+        title: 'Outcomes · board · recalls',
         who: 'Clinician / desk',
-        desc: '24h reminders; attended / no-show; care plan progresses; feedback token; recalls board.',
-        href: '/dashboard/medicalgraph/bookings',
+        desc: 'Command: outcomes (30 days) → Today’s treatment board → Rehab / review recalls. Mark attended / no-show; Send 24h reminders.',
+        href: '/dashboard/medicalgraph',
         icon: Sparkles,
       },
     ],
@@ -226,7 +230,7 @@ const PHASES: Phase[] = [
         n: '5c',
         title: 'Company inbox (external)',
         who: 'Owner',
-        desc: 'Trade partners on the platform company inbox.',
+        desc: 'Trade partners on the platform company inbox. Inbound consented referrals land on Shared patients.',
         href: '/dashboard/messages',
         icon: MessageSquare,
       },
@@ -234,34 +238,34 @@ const PHASES: Phase[] = [
   },
   {
     id: 'web',
-    title: '6 · Website, marketplace & insights',
-    subtitle: 'Rooms · ops · public list · utilisation',
+    title: '6 · Website, pay-out & command',
+    subtitle: 'Card / Apple Pay · marketplace · hub order',
     steps: [
       {
-        id: 'profile',
+        id: 'pay',
         n: '6a',
-        title: 'Profile · rooms · ops',
+        title: 'Card / Apple Pay · profile',
         who: 'Owner',
-        desc: 'Brand bio, room list, reschedule policy. SA only bills platform subscription.',
-        href: '/dashboard/medicalgraph/website',
-        icon: FileText,
+        desc: 'Connect a payout bank on Accounts. Company SaaS stays on SupplierAdvisor; member card / Apple Pay settles to your bank.',
+        href: '/dashboard/medicalgraph/accounts',
+        icon: CreditCard,
       },
       {
         id: 'publish',
         n: '6b',
         title: 'Publish & marketplace',
         who: 'Owner',
-        desc: 'Enable website/booking; list on /marketplace/advisors (city + blurb).',
+        desc: 'Brand bio, booking settings, embed. Enable website; list on /marketplace/advisors (city + blurb).',
         href: '/dashboard/medicalgraph/website',
         icon: Globe,
       },
       {
         id: 'report',
         n: '6c',
-        title: 'Reports · staff Today',
+        title: 'Command hub · reports',
         who: 'Owner / desk',
-        desc: 'Utilisation and outcomes; mobile staff PWA for today’s board.',
-        href: '/dashboard/medicalgraph/report',
+        desc: 'Hub order: Card/Apple Pay → Practitioners/Patients/booked stats → outcomes → today board → recalls → this E2E. Reports + staff Today PWA.',
+        href: '/dashboard/medicalgraph',
         icon: Package,
       },
     ],
@@ -273,32 +277,32 @@ const ROLE_CARDS = [
     tone: 'owner' as const,
     icon: UserRound,
     title: 'Practice owner / manager',
-    subtitle: 'Team · diary · waitlist · marketplace',
+    subtitle: 'Team · rooms · referral · command hub',
     does: [
-      'Register clinicians; employed + contractors dual-write to People; leave blocks the diary',
-      'Patients with POPIA consent; invites, portals, family',
-      'Services, care packs, treatment plans; one-click book next',
-      'Practice + exclusive clinician diaries; rooms as resources',
-      'Waitlist desk, reminders, outcomes, recalls, staff Today PWA',
-      'In-app messages (system user ID); marketplace listing',
+      'Register clinicians; People dual-write; leave blocks the diary',
+      'Patients with injury sub-card, POPIA, visit history, invites',
+      'Consented referral of selected record + practice info to another practice',
+      'Rooms desk with assets; click a booked slot to open that visit',
+      'Branded pre/post emails (logo); outcomes, today board, recalls',
+      'Card / Apple Pay to your bank; marketplace; in-app messages',
     ],
     doesNot: [
       'Does not double-book the same clinician diary',
       'Does not keep a second ledger — CRM and Finance show the same fee',
     ],
-    href: '/dashboard/medicalgraph/calendar',
+    href: '/dashboard/medicalgraph',
   },
   {
     tone: 'clinician' as const,
     icon: Stethoscope,
     title: 'Practitioner',
-    subtitle: 'Diary · clinical · attend · care plans',
+    subtitle: 'Open visit · history · attend · rate',
     does: [
-      'Keep bio current; clinical notes and medical chart',
-      'Treatment plan steps; visit notes and outcome scores',
-      'Mark attended / no-show (progresses care plans)',
+      'Clinical notes, injury awareness and medical chart',
+      'Visit history shared with the patient on the SA Member PWA',
+      'Open the booked visit from the diary — do not create another',
+      'Mark attended / no-show; branded post-session rating goes out',
       'Care threads; patients get in-app when on-system',
-      'Request post-visit feedback after attendance',
     ],
     doesNot: [
       'Does not change other clinicians’ rates or double-book own diary',
@@ -310,17 +314,17 @@ const ROLE_CARDS = [
     tone: 'patient' as const,
     icon: Users,
     title: 'Patient / public',
-    subtitle: 'Portal · book · family · feedback',
+    subtitle: 'SA Member · history · rate · consent',
     does: [
-      'Book open slots (preferred or other clinician when allowed)',
-      'Join slot waitlist or next-available practice queue',
-      'Book household members; identity verify when asked',
-      'In-app messages once on SupplierAdvisor',
-      'After visit: feedback; shared care when enabled',
+      'Keep SA Member profile and ailments up to date (pre-session reminder)',
+      'Book open slots; join waitlist; book household members',
+      'See own visit history on the PWA — same record as the practice',
+      'Rate the session and the practice after the visit',
+      'Consent to share selected info with another practice when referred',
     ],
     doesNot: [
       'Does not see private slots or other patients’ charts',
-      'Does not pay company SaaS — visit fees settle to the practice (1% on card / Apple Pay)'
+      'Does not pay company SaaS — visit fees settle to the practice (1% on card / Apple Pay)',
     ],
     href: '/dashboard/medicalgraph/website',
   },
@@ -332,32 +336,32 @@ const GUARDRAILS = [
     desc: 'Each clinician diary is exclusive; the practice can still run many clinicians in parallel.',
   },
   {
-    title: 'Public = published',
-    desc: 'Only public slots and an enabled website profile are ready for online booking.',
+    title: 'Click booked slot → open that visit',
+    desc: 'A scheduled appointment opens the existing visit. Empty slots book new — never a second record.',
+  },
+  {
+    title: 'Rooms desk + assets',
+    desc: 'Consult rooms and surgeries live on Rooms; assign equipment assets to each room.',
+  },
+  {
+    title: 'Branded pre / post emails',
+    desc: 'Practice-logo MedicalAdvisor® mail 24h before (update SA Member + ailments) and after (rate session + practice).',
+  },
+  {
+    title: 'Visit history both sides',
+    desc: 'Desk and SA Member PWA show the same past visits. Practitioner and patient see one history.',
+  },
+  {
+    title: 'Consented referral only',
+    desc: 'A GP may share selected patient + practice info with another practice only after the patient consents.',
   },
   {
     title: 'POPIA on create',
     desc: 'Desk confirms lawful processing when creating a patient; portals show a privacy notice.',
   },
   {
-    title: 'Care packs & treatment plans',
-    desc: 'Session packs and step plans live on the patient — Book next from the plan.',
-  },
-  {
-    title: 'Waitlist is a desk queue',
-    desc: 'Slot waitlist plus next-available practice queue with notify when a place opens.',
-  },
-  {
-    title: 'Messages: system ID first',
-    desc: 'Once the patient is on SupplierAdvisor, care threads deliver in-app by platform user ID.',
-  },
-  {
     title: 'One money book',
-    desc: 'Visit and pack fees post CRM + Finance (AR, revenue, VAT). Card / Apple Pay 1% admin.',
-  },
-  {
-    title: 'Workforce book',
-    desc: 'Employed clinicians on payroll; contractors as a People type. Leave blocks the diary.',
+    desc: 'Visit and pack fees post CRM + Finance. Card / Apple Pay settles to your bank (1% admin). SaaS stays on SA.',
   },
   {
     title: 'Tokenised public surfaces',
@@ -390,12 +394,13 @@ export default function MedicalgraphSystemFlow({
               Full clinic OS — process design
             </p>
             <h2 className="text-lg sm:text-xl font-black mt-0.5 leading-tight">
-              People → Packs · plans → Diary → Floor → Messages → One OS
+              People → Packs → Diary (open visit) → Emails · board → One OS
             </h2>
             <p className="text-sm text-white/90 mt-1.5 max-w-3xl leading-snug">
-              Workforce in People; patients on Customers 360 with VAT invoices; waitlist
-              desk and treatment-plan book next; in-app care by system user ID;
-              marketplace listing — SA bills company SaaS plus 1% on card / Apple Pay collections.
+              Injury sub-card and visit history; rooms with assets; click a booked slot to
+              open that visit; branded pre-session (update SA Member + ailments) and
+              post-session (rate session + practice) emails; consented GP referral;
+              Card / Apple Pay to your bank — company SaaS stays on SupplierAdvisor.
             </p>
           </button>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -422,7 +427,7 @@ export default function MedicalgraphSystemFlow({
             {[
               {
                 label: 'People',
-                sub: 'Workforce · CRM 360',
+                sub: 'Injury · history · share',
                 tone: 'teal',
               },
               {
@@ -430,16 +435,20 @@ export default function MedicalgraphSystemFlow({
                 sub: 'VAT invoices · plans',
                 tone: 'emerald',
               },
-              { label: 'Diary', sub: 'Leave blocks · rooms', tone: 'violet' },
+              {
+                label: 'Diary',
+                sub: 'Rooms+assets · open visit',
+                tone: 'violet',
+              },
               {
                 label: 'Floor',
-                sub: 'Waitlist · attend · recall',
+                sub: 'Emails · board · recall',
                 tone: 'amber',
               },
               { label: 'Messages', sub: 'System ID · in-app', tone: 'fuchsia' },
               {
-                label: 'Website · One OS',
-                sub: 'Marketplace · rooms · ops',
+                label: 'Website · command',
+                sub: 'Card pay · hub order',
                 tone: 'sky',
               },
             ].map((node, i, arr) => (
@@ -570,10 +579,13 @@ export default function MedicalgraphSystemFlow({
                 <Sparkles className="w-5 h-5 shrink-0 text-emerald-700 mt-0.5" />
                 <p className="text-sm leading-snug">
                   <strong className="font-black">One sentence:</strong> Register
-                  practitioners and patients → define services and rehab packs →
-                  schedule diary with practitioners → book and mark attended →
-                  message team, patients and trade partners in-app → publish the clinic website and review
-                  utilisation.
+                  practitioners and patients (injury sub-card, visit history, consented
+                  referral) → services, packs and treatment plans → rooms with assets
+                  and a diary that opens the existing visit → branded pre-session
+                  (update SA Member + ailments) and post-session (rate session +
+                  practice) emails → today&apos;s treatment board and recalls → Card /
+                  Apple Pay to your bank, website and this command hub — one
+                  MedicalAdvisor OS.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2 shrink-0">

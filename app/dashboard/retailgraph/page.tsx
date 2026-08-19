@@ -60,6 +60,13 @@ export default function RetailgraphHubPage() {
         title="Retail till OS"
         description="Ring up sales, present QR or NFC for the customer to pay on their phone, and collect open SA Member bills at the counter. Same pay-at-till path works on GymAdvisor and clinic desks."
       >
+        <AdvisorBillingClarityCard
+          brand="your store"
+          moduleLabel="RetailAdvisor®"
+          accountsHref="/dashboard/retailgraph/accounts"
+          accentClass="border-orange-200 bg-orange-50/70 dark:border-orange-800 dark:bg-orange-950/30"
+        />
+
         {loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-orange-600" />
@@ -90,15 +97,8 @@ export default function RetailgraphHubPage() {
           </div>
         )}
 
-        <RetailgraphSystemFlow defaultCollapsed={false} />
-
-        <div className="mb-6">
-          <AdvisorBillingClarityCard
-            brand="your store"
-            moduleLabel="RetailAdvisor®"
-            accountsHref="/dashboard/retailgraph/accounts"
-            accentClass="border-orange-200 bg-orange-50/70 dark:border-orange-800 dark:bg-orange-950/30"
-          />
+        <div className="mt-8 mb-6">
+          <RetailgraphSystemFlow defaultCollapsed={false} />
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">

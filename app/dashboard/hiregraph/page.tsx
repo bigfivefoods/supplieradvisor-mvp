@@ -181,6 +181,13 @@ export default function HiregraphHubPage() {
           description={`Gear owners and renters live in Core Suppliers (SRM) and Core Customers (CRM). Issue B2C portals so customers browse, request, complete docs and track hires on their phones — free for the member. Platform earns ${HIRE_SUPPLIER_COMMISSION_PCT}% from the listing business on hire rental value.`}
         />
 
+        <AdvisorBillingClarityCard
+          brand="your hire desk"
+          moduleLabel="HireAdvisor®"
+          accountsHref="/dashboard/hiregraph/accounts"
+          accentClass="border-cyan-200 bg-cyan-50/70 dark:border-cyan-800 dark:bg-cyan-950/30"
+        />
+
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <HiregraphProcessPdfButtons variant="hub" />
           <Link
@@ -190,8 +197,6 @@ export default function HiregraphHubPage() {
             <MessageSquare className="h-3.5 w-3.5" /> Hire messages
           </Link>
         </div>
-
-        <HiregraphSystemFlow />
 
         {loading ? (
           <div className="flex justify-center py-8">
@@ -218,13 +223,8 @@ export default function HiregraphHubPage() {
           </HubTelemetryGrid>
         )}
 
-        <div className="mt-6 mb-6">
-          <AdvisorBillingClarityCard
-            brand="your hire desk"
-            moduleLabel="HireAdvisor®"
-            accountsHref="/dashboard/hiregraph/accounts"
-            accentClass="border-cyan-200 bg-cyan-50/70 dark:border-cyan-800 dark:bg-cyan-950/30"
-          />
+        <div className="mt-8">
+          <HiregraphSystemFlow />
         </div>
 
         <div className="mt-8 space-y-6">

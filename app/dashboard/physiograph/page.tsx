@@ -343,6 +343,16 @@ function Inner() {
         }
       />
 
+      <AdvisorBillingClarityCard
+        brand={
+          (store as { settings?: { brand_name?: string } } | null)?.settings
+            ?.brand_name || 'your clinic'
+        }
+        moduleLabel="PhysioAdvisor®"
+        accountsHref="/dashboard/physiograph/accounts"
+        accentClass="border-teal-200 bg-teal-50/70 dark:border-teal-800 dark:bg-teal-950/30"
+      />
+
       <AdvisorMemberJoinInbox
         companyId={companyId}
         module="physiograph"
@@ -355,16 +365,23 @@ function Inner() {
         </div>
       ) : (
         <>
-          <div className="space-y-4 mb-6">
-            <AdvisorBillingClarityCard
-              brand={
-                (store as { settings?: { brand_name?: string } } | null)?.settings
-                  ?.brand_name || 'your clinic'
-              }
-              moduleLabel="PhysioAdvisor®"
-              accountsHref="/dashboard/physiograph/accounts"
-              accentClass="border-teal-200 bg-teal-50/70 dark:border-teal-800 dark:bg-teal-950/30"
+          <HubTelemetryGrid>
+            <TelemetryCard
+              label="Practitioners"
+              value={String(summary?.practitionerCount ?? 0)}
+              sub="Active team"
             />
+            <TelemetryCard
+              label="Patients"
+              value={String(summary?.patientCount ?? 0)}
+              sub={`${summary?.activePatients ?? 0} active / new`}
+            />
+            <AdvisorCommandBookingCards
+              summary={summary}
+              calendarHref="/dashboard/physiograph/calendar"
+            />
+          </HubTelemetryGrid>
+          <div className="space-y-4 mb-6 mt-6">
             <AdvisorOutcomesPanel
               outcomes={outcomes}
               accent="teal"
@@ -396,22 +413,6 @@ function Inner() {
               }}
             />
           </div>
-          <HubTelemetryGrid>
-            <TelemetryCard
-              label="Practitioners"
-              value={String(summary?.practitionerCount ?? 0)}
-              sub="Active team"
-            />
-            <TelemetryCard
-              label="Patients"
-              value={String(summary?.patientCount ?? 0)}
-              sub={`${summary?.activePatients ?? 0} active / new`}
-            />
-            <AdvisorCommandBookingCards
-              summary={summary}
-              calendarHref="/dashboard/physiograph/calendar"
-            />
-          </HubTelemetryGrid>
         </>
       )}
 

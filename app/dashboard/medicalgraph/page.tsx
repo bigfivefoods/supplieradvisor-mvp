@@ -351,6 +351,16 @@ function Inner() {
         }
       />
 
+      <AdvisorBillingClarityCard
+        brand={
+          (store as { settings?: { brand_name?: string } } | null)?.settings
+            ?.brand_name || 'your practice'
+        }
+        moduleLabel="MedicalAdvisor®"
+        accountsHref="/dashboard/medicalgraph/accounts"
+        accentClass="border-emerald-200 bg-emerald-50/70 dark:border-emerald-800 dark:bg-emerald-950/30"
+      />
+
       <AdvisorMemberJoinInbox
         companyId={companyId}
         module="medicalgraph"
@@ -363,47 +373,6 @@ function Inner() {
         </div>
       ) : (
         <>
-          <div className="space-y-4 mb-6">
-            <AdvisorBillingClarityCard
-              brand={
-                (store as { settings?: { brand_name?: string } } | null)?.settings
-                  ?.brand_name || 'your practice'
-              }
-              moduleLabel="MedicalAdvisor®"
-              accountsHref="/dashboard/medicalgraph/accounts"
-              accentClass="border-emerald-200 bg-emerald-50/70 dark:border-emerald-800 dark:bg-emerald-950/30"
-            />
-            <AdvisorOutcomesPanel
-              outcomes={outcomes}
-              accent="emerald"
-              title="MedicalAdvisor outcomes (30 days)"
-              onRefresh={() => void load()}
-              onSendReminders={() => void sendReminders()}
-              remindersBusy={remindersBusy}
-            />
-            <AdvisorTodayBoard
-              date={today}
-              rows={todayRows}
-              title="Today's consult board"
-              accentClass="border-emerald-200 dark:border-emerald-800"
-              onMark={(id, status) => {
-                if (id.startsWith('a-')) {
-                  toast.message('Open diary to book a patient into this slot');
-                  return;
-                }
-                void markBooking(id, status);
-              }}
-              markBusyId={markBusy}
-            />
-            <AdvisorRecallPanel
-              rows={recalls}
-              title="Review / check-up recalls"
-              description="Patients due for a follow-up visit."
-              onBook={() => {
-                window.location.href = '/dashboard/medicalgraph/calendar';
-              }}
-            />
-          </div>
           <HubTelemetryGrid>
             <TelemetryCard
               label="Practitioners"
@@ -420,6 +389,38 @@ function Inner() {
               calendarHref="/dashboard/medicalgraph/calendar"
             />
           </HubTelemetryGrid>
+          <div className="space-y-4 mb-6 mt-6">
+            <AdvisorOutcomesPanel
+              outcomes={outcomes}
+              accent="emerald"
+              title="MedicalAdvisor outcomes (30 days)"
+              onRefresh={() => void load()}
+              onSendReminders={() => void sendReminders()}
+              remindersBusy={remindersBusy}
+            />
+            <AdvisorTodayBoard
+              date={today}
+              rows={todayRows}
+              title="Today's treatment board"
+              accentClass="border-emerald-200 dark:border-emerald-800"
+              onMark={(id, status) => {
+                if (id.startsWith('a-')) {
+                  toast.message('Open diary to book a patient into this slot');
+                  return;
+                }
+                void markBooking(id, status);
+              }}
+              markBusyId={markBusy}
+            />
+            <AdvisorRecallPanel
+              rows={recalls}
+              title="Rehab / review recalls"
+              description="Patients due for a follow-up visit."
+              onBook={() => {
+                window.location.href = '/dashboard/medicalgraph/calendar';
+              }}
+            />
+          </div>
         </>
       )}
 
@@ -430,20 +431,20 @@ function Inner() {
       <div className="my-8 grid sm:grid-cols-2 gap-3">
         {[
           {
-            t: 'Practitioners · disciplines',
-            b: 'Register GPs and clinic team, set rates, assign disciplines, and keep bios for the practice website.',
+            t: 'Patients · history · referral',
+            b: 'Injury & recovery sub-card; visit history on desk and SA Member PWA; consented share to another practice (GP → physio / psychiatry).',
           },
           {
-            t: 'Patients · packages',
-            b: 'Patient register with status, assigned practitioner, family members, and multi-session care packs.',
+            t: 'Rooms · diary · open visit',
+            b: 'Rooms with assets; click a booked slot to open that visit (never a second appointment); waitlist default-open.',
           },
           {
-            t: 'Diary · bookings · recalls',
-            b: 'Schedule consults, book patients (or household), mark attended / no-show, promote waitlist.',
+            t: 'Branded emails · board',
+            b: '24h MedicalAdvisor® mail (logo): update SA Member + ailments. After visit: rate session + practice. Outcomes, today board, recalls.',
           },
           {
-            t: 'Website · outcomes',
-            b: 'Publish practice profile; track attendance, no-shows, and feedback on the hub.',
+            t: 'Card / Apple Pay · website',
+            b: 'Connect a payout bank on Accounts. Company SaaS stays on SupplierAdvisor; member sales settle to your bank.',
           },
         ].map((x) => (
           <div

@@ -1,6 +1,7 @@
 /**
  * MedicalAdvisor® end-to-end process guide content + PDF.
- * People → Packs · plans → Diary (rooms) → Waitlist · floor → Messages → Marketplace · reports
+ * People (injury · history · referral) → Packs · plans → Diary (rooms+assets · open visit)
+ * → Floor (branded emails · board · recall) → Messages → Website · command
  * Pure pdfkit — works on Vercel serverless.
  *
  * Do not import from client components (pulls pdfkit into the browser bundle).
@@ -29,41 +30,40 @@ export type ProcessPhase = {
 };
 
 export const PROCESS_CHAIN = [
-  { label: 'People', sub: 'Workforce · CRM 360' },
+  { label: 'People', sub: 'Injury · history · share' },
   { label: 'Services · packs', sub: 'VAT invoices · plans' },
-  { label: 'Diary', sub: 'Leave blocks · rooms' },
-  { label: 'Floor', sub: 'Waitlist · attend · recall' },
+  { label: 'Diary', sub: 'Rooms+assets · open visit' },
+  { label: 'Floor', sub: 'Emails · board · recall' },
   { label: 'Messages', sub: 'System ID · in-app' },
-  { label: 'Website · One OS', sub: 'Finance · calendar · 360' },
+  { label: 'Website · command', sub: 'Card pay · hub order' },
 ] as const;
 
 export const ROLE_CARDS = [
   {
     title: 'Practice owner / manager',
-    subtitle: 'Team · diary · waitlist · marketplace',
+    subtitle: 'Team · rooms · referral · command hub',
     does: [
-      'Register clinicians; employed + contractors dual-write to People; leave blocks the diary',
-      'Patients land on Customers 360 (visits, invoices, household); POPIA + invites',
-      'Services, care packs, treatment plans; one-click book next session',
-      'Practice diary (parallel clinicians) + exclusive clinician books; rooms',
-      'Waitlist desk, 24h reminders, outcomes & recalls, staff Today PWA',
-      'In-app messages (system user ID first); marketplace listing; ops policies',
+      'Register clinicians; People dual-write; leave blocks the diary',
+      'Patients with injury sub-card, POPIA, visit history, invites',
+      'Consented GP referral of selected record + practice info',
+      'Rooms desk with assets; click a booked slot to open that visit',
+      'Branded pre/post emails (logo); outcomes, today board, recalls',
+      'Card / Apple Pay to your bank; marketplace; in-app messages',
     ],
     doesNot: [
       'Does not double-book the same clinician diary',
-      'Does not surcharge patients — 1% admin fee is taken from your card / Apple Pay settlement',
+      'Does not surcharge patients — 1% admin is taken from card / Apple Pay settlement',
     ],
   },
   {
     title: 'Practitioner',
-    subtitle: 'Diary · clinical · attend · care plans',
+    subtitle: 'Open visit · history · attend · rate',
     does: [
-      'Keep bio / disciplines current for website',
-      'Update clinical notes and medical chart (aid, docs, claims, scripts)',
-      'Treatment plan steps; visit notes and outcome scores',
-      'Run appointments; mark attended / no-show (progresses care plans)',
-      'Reply on care threads; patients receive in-app when on-system',
-      'Request post-visit feedback after attendance',
+      'Clinical notes, injury awareness and medical chart',
+      'Visit history shared with the patient on the SA Member PWA',
+      'Open the booked visit from the diary — do not create another',
+      'Mark attended / no-show; branded post-session rating goes out',
+      'Care threads; patients receive in-app when on-system',
     ],
     doesNot: [
       'Does not change other clinicians’ rates or double-book own diary',
@@ -72,17 +72,17 @@ export const ROLE_CARDS = [
   },
   {
     title: 'Patient / public',
-    subtitle: 'Portal · book · family · feedback',
+    subtitle: 'SA Member · history · rate · consent',
     does: [
-      'Accept invite; book open slots (preferred or other clinician when allowed)',
-      'Join slot waitlist or next-available practice queue',
-      'Book household / family members; identity verify when asked',
-      'In-app messages once on SupplierAdvisor (system user ID)',
-      'After visit: feedback; see shared care notes when enabled',
+      'Keep SA Member profile and ailments current (pre-session reminder)',
+      'Book open slots; join waitlist; book household members',
+      'See own visit history on the PWA — same record as the practice',
+      'Rate the session and the practice after the visit',
+      'Consent to share selected info when referred to another practice',
     ],
     doesNot: [
       'Does not see private / unpublished slots or other patients’ charts',
-      'Does not pay company SaaS — visit fees settle to the practice (1% admin on card / Apple Pay)'
+      'Does not pay company SaaS — visit fees settle to the practice (1% on card / Apple Pay)',
     ],
   },
 ] as const;
@@ -90,7 +90,7 @@ export const ROLE_CARDS = [
 export const PROCESS_PHASES: ProcessPhase[] = [
   {
     title: '1 · People (clinicians & patients)',
-    subtitle: 'Workforce book · Customers 360 · POPIA',
+    subtitle: 'Injury sub-card · visit history · consented referral · invite',
     steps: [
       {
         n: '1a',
@@ -100,15 +100,21 @@ export const PROCESS_PHASES: ProcessPhase[] = [
       },
       {
         n: '1b',
-        title: 'Patients · POPIA · invite',
+        title: 'Patients · injury · POPIA',
         who: 'Owner / desk',
-        desc: 'Patient book dual-writes CRM. Open Customers 360 for visits, invoices and household. POPIA + invite.',
+        desc: 'Injury & recovery is a sub-card on Add patient. Desk order: stats → Add → Existing → Shared → Invite.',
       },
       {
         n: '1c',
-        title: 'Clinical, chart & identity',
+        title: 'Chart · visit history',
         who: 'Practitioner',
-        desc: 'Clinical profile; medical aid, docs, claims, scripts; visit notes & scores. Optional VerifyNow/Didit identity on portal.',
+        desc: 'Clinical chart, medical aid, notes. Visit history on desk and SA Member PWA — both see the same visits.',
+      },
+      {
+        n: '1d',
+        title: 'Invite · consented referral',
+        who: 'Owner / desk',
+        desc: 'Portal invite. With consent, share selected patient + practice info to another practice (GP → physio / psychiatry).',
       },
     ],
   },
@@ -137,50 +143,50 @@ export const PROCESS_PHASES: ProcessPhase[] = [
     ],
   },
   {
-    title: '3 · Diary (rooms · practice · clinician)',
-    subtitle: 'Parallel practice floor · exclusive clinician books',
+    title: '3 · Diary (rooms · assets · open visit)',
+    subtitle: 'Rooms desk + equipment · click booked slot to open it',
     steps: [
       {
         n: '3a',
-        title: 'Rooms & schedule',
+        title: 'Rooms & assets',
         who: 'Owner / desk',
-        desc: 'Schedule date, time, service, room; assign clinician. People leave blocks that person. Company calendar overlays the week.',
+        desc: 'Rooms desk: consult rooms and surgeries; assign assets (equipment) to each room — not only a website list.',
       },
       {
         n: '3b',
-        title: 'Practice vs clinician view',
+        title: 'Open existing visit',
         who: 'Owner / desk',
-        desc: 'Practice diary shows all clinicians in parallel; each clinician cannot be double-booked.',
+        desc: 'Click a booked slot to open that visit. Empty slots book new — never a second appointment on the profile.',
       },
       {
         n: '3c',
-        title: 'Public flag',
-        who: 'Owner',
-        desc: 'Mark public so the slot can appear for online / portal booking.',
+        title: 'Practice diary · hours',
+        who: 'Owner / desk',
+        desc: 'Parallel books; no double-book. Waitlist default-open under the diary; working hours collapsible. Public flag for online booking.',
       },
     ],
   },
   {
-    title: '4 · Floor (waitlist · attend · recall)',
-    subtitle: 'Book · queue · reminders · outcomes · feedback',
+    title: '4 · Floor (emails · board · recall)',
+    subtitle: 'Book · branded pre/post mail · outcomes · today board',
     steps: [
       {
         n: '4a',
-        title: 'Book · family · other clinician',
+        title: 'Book · family · waitlist',
         who: 'Desk / portal',
-        desc: 'Book patient (or family member); if preferred clinician full, book another or join waitlist.',
+        desc: 'Book patient or family; if preferred clinician full, book another or join the waitlist (default-open on the diary).',
       },
       {
         n: '4b',
-        title: 'Waitlist desk',
-        who: 'Desk',
-        desc: 'Slot waitlists + next-available practice queue; contact, promote, book when a slot frees.',
+        title: 'Branded pre / post emails',
+        who: 'Owner / system',
+        desc: '24h MedicalAdvisor® email with practice logo: update SA Member + ailments. After: rate session + practice.',
       },
       {
         n: '4c',
-        title: 'Remind · attend · plan · feedback',
+        title: 'Outcomes · board · recalls',
         who: 'Desk / clinician',
-        desc: 'Remind, attend, progress plans, feedback, recalls. Attendance and recalls write CRM activity + Intelligence.',
+        desc: 'Command: outcomes (30 days) → today’s treatment board → rehab recalls. Mark attended / no-show; Send 24h reminders.',
       },
     ],
   },
@@ -204,31 +210,31 @@ export const PROCESS_PHASES: ProcessPhase[] = [
         n: '5c',
         title: 'Company inbox (external)',
         who: 'Owner',
-        desc: 'Trade partners (suppliers / customers) on the platform company inbox.',
+        desc: 'Trade partners on the platform company inbox. Inbound consented referrals land on Shared patients.',
       },
     ],
   },
   {
-    title: '6 · Website, marketplace & insights',
-    subtitle: 'Rooms · ops · public list · utilisation',
+    title: '6 · Website, pay-out & command',
+    subtitle: 'Card / Apple Pay · marketplace · hub order',
     steps: [
       {
         n: '6a',
-        title: 'Profile · rooms · ops',
+        title: 'Card / Apple Pay · profile',
         who: 'Owner',
-        desc: 'Brand bio, room list, reschedule policy. Card / Apple Pay settles to your bank (1% admin).',
+        desc: 'Connect a payout bank on Accounts. Company SaaS stays on SupplierAdvisor; member card / Apple Pay settles to your bank.',
       },
       {
         n: '6b',
         title: 'Publish & marketplace',
         who: 'Owner',
-        desc: 'Enable website/booking; list on /marketplace/advisors (city + blurb).',
+        desc: 'Brand bio, booking settings, embed. Enable website; list on /marketplace/advisors (city + blurb).',
       },
       {
         n: '6c',
-        title: 'Reports · staff Today',
+        title: 'Command hub · reports',
         who: 'Owner / desk',
-        desc: 'Utilisation and outcomes; staff PWA today board for the floor.',
+        desc: 'Hub order: Card/Apple Pay → stats → outcomes → today board → recalls → this E2E. Reports + staff Today PWA.',
       },
     ],
   },
@@ -240,36 +246,32 @@ export const GUARDRAILS = [
     desc: 'Each clinician diary is exclusive; the practice can still run many clinicians in parallel.',
   },
   {
-    title: 'Public = published',
-    desc: 'Only public slots and an enabled website profile are ready for online booking.',
+    title: 'Click booked slot → open that visit',
+    desc: 'A scheduled appointment opens the existing visit. Empty slots book new — never a second record.',
+  },
+  {
+    title: 'Rooms desk + assets',
+    desc: 'Consult rooms and surgeries live on Rooms; assign equipment assets to each room.',
+  },
+  {
+    title: 'Branded pre / post emails',
+    desc: 'Practice-logo MedicalAdvisor® mail 24h before (update SA Member + ailments) and after (rate session + practice).',
+  },
+  {
+    title: 'Visit history both sides',
+    desc: 'Desk and SA Member PWA show the same past visits. Practitioner and patient see one history.',
+  },
+  {
+    title: 'Consented referral only',
+    desc: 'A GP may share selected patient + practice info with another practice only after the patient consents.',
   },
   {
     title: 'POPIA on create',
-    desc: 'Desk confirms lawful processing / consent when creating a patient record; portals show a privacy notice.',
-  },
-  {
-    title: 'Care packs & plans on the patient',
-    desc: 'Session packs and treatment steps live on the patient — book next from the plan, not a side sheet.',
-  },
-  {
-    title: 'Waitlist is a desk queue',
-    desc: 'Slot waitlist plus next-available practice queue with notify when a place opens.',
-  },
-  {
-    title: 'Attend then feedback · plan progress',
-    desc: 'Mark attended before feedback tokens; active treatment plans advance on attendance.',
-  },
-  {
-    title: 'Messages: system ID first',
-    desc: 'Once the patient is on SupplierAdvisor, care threads deliver in-app by platform user ID.',
+    desc: 'Desk confirms lawful processing / consent when creating a patient; portals show a privacy notice.',
   },
   {
     title: 'One money book',
-    desc: 'Visit and pack fees post CRM + Finance (AR, revenue, VAT). Card / Apple Pay 1% admin to your bank.',
-  },
-  {
-    title: 'Workforce book',
-    desc: 'Employed clinicians on payroll; contractors as a People type. Leave blocks the diary.',
+    desc: 'Visit and pack fees post CRM + Finance. Card / Apple Pay settles to your bank (1% admin). SaaS stays on SA.',
   },
   {
     title: 'Tokenised public surfaces',
@@ -283,37 +285,37 @@ export const SYSTEM_BENEFITS = [
     desc: 'GPs, specialists and nursing on one diary and patient book.',
   },
   {
-    title: 'Exclusive clinician diaries',
-    desc: 'No double-book per clinician while the floor runs multiple books at once.',
+    title: 'Open the existing visit',
+    desc: 'Click a booked slot to open that appointment — never a second record on the profile.',
   },
   {
-    title: 'Waitlist desk + recalls',
-    desc: 'Fill cancellations, work the next-available queue, re-engage overdue patients.',
+    title: 'Rooms desk + assets',
+    desc: 'Named consult rooms and surgeries with equipment assigned on the Rooms desk.',
   },
   {
-    title: 'Treatment plans that book',
-    desc: 'Step plans with one-click next session on an open diary slot.',
+    title: 'Branded session emails',
+    desc: 'Practice-logo pre-session (SA Member + ailments) and post-session (rate session + practice).',
   },
   {
-    title: 'Rooms as resources',
-    desc: 'Named surgeries / bays / rooms on the calendar, managed under Website.',
+    title: 'Visit history both sides',
+    desc: 'Desk and SA Member PWA share the same past visits and notes.',
   },
   {
-    title: 'In-app care messaging',
-    desc: 'Desk, clinicians and patients on one thread — system user ID when on-platform.',
+    title: 'Consented GP referral',
+    desc: 'Share selected patient + practice info with another practice only after consent.',
+  },
+  {
+    title: 'Command hub floor',
+    desc: 'Card/Apple Pay → stats → outcomes → today board → recalls → this E2E.',
   },
   {
     title: 'Marketplace discoverability',
     desc: 'Opt-in listing on /marketplace/advisors with city and blurb.',
   },
-  {
-    title: 'POPIA-aware desk',
-    desc: 'Consent on create and privacy notice on patient portals.',
-  },
 ];
 
 export const ONE_SENTENCE =
-  'Register clinicians (People workforce · leave blocks diary) and patients (Customers 360 · POPIA) → services, packs and treatment plans with VAT invoices → diary and company calendar → book, waitlist, attend (CRM + Intelligence) → messages by system user ID → website, marketplace and Finance — one OS.';
+  'Register practitioners and patients (injury, visit history, consented referral) → packs and plans → rooms with assets; open the existing visit → branded pre/post emails (SA Member + rate session/practice) → today board and recalls → Card / Apple Pay to your bank — one MedicalAdvisor OS.';
 
 
 // ── PDF (teal brand) ────────────────────────────────────────────────────
@@ -418,9 +420,9 @@ function drawHero(doc: PdfDoc, g: Geo): number {
   const orientLabel = g.isLandscape ? 'A4 LANDSCAPE · 2 PAGES' : 'A4 PORTRAIT · 2 PAGES';
   return drawProcessGuideHero(doc, g, {
     eyebrow: 'MedicalAdvisor® · end-to-end process · ' + orientLabel,
-    title: 'Practitioners → Patients → Diary → One OS',
-    subtitle: g.isLandscape ? undefined : 'Tertiary / services medical practice OS — people, diary, care packs, website & reports.',
-    sideNote: g.isLandscape ? 'End-to-end medical practice OS on SupplierAdvisor® — diary, packages, website booking.' : undefined,
+    title: 'People → Diary (open visit) → Emails · board → One OS',
+    subtitle: g.isLandscape ? undefined : 'Medical practice OS — injury, visit history, rooms+assets, branded emails, consented referral.',
+    sideNote: g.isLandscape ? 'MedicalAdvisor® OS — rooms+assets, open visit, branded emails, consented referral, Card / Apple Pay.' : undefined,
     landscape: g.isLandscape,
   });
 }
@@ -460,7 +462,7 @@ function drawRoleCards(doc: PdfDoc, g: Geo, y: number): number {
   const gap = 8;
   const colW = (g.contentW - gap * 2) / 3;
   const tones = [BRAND_DEEP, AMBER, SKY];
-  const h = g.isLandscape ? 148 : 168;
+  const h = g.isLandscape ? 156 : 176;
 
   ROLE_CARDS.forEach((card, i) => {
     const x = g.mx + i * (colW + gap);
@@ -632,7 +634,7 @@ function drawBenefits(doc: PdfDoc, g: Geo, y: number): number {
 }
 
 function drawOutcome(doc: PdfDoc, g: Geo, y: number): number {
-  const h = g.isLandscape ? 38 : 50;
+  const h = g.isLandscape ? 44 : 56;
   doc.roundedRect(g.mx, y, g.contentW, h, 6).fillAndStroke('#ecfdf5', '#6ee7b7');
   doc
     .font('Helvetica-Bold')
@@ -668,7 +670,7 @@ export async function buildMedicalgraphProcessGuidePdf(opts?: {
       margins: { top: 0, bottom: 28, left: g.mx, right: g.mx },
       info: {
         Title:
-          'MedicalAdvisor® Process Design — Practitioners → Diary → Website',
+          'MedicalAdvisor® Process Design — People → Open visit → Emails · board',
         Author: 'SupplierAdvisor®',
         Subject: `MedicalAdvisor clinic services end-to-end process (A4 ${orientation})`,
         Keywords:
