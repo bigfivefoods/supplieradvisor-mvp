@@ -399,12 +399,12 @@ export async function clinicMarkAttendance(
         applyAttendanceToPersonStats(store.patients[pi], status, now)
       );
     }
-    if (status === 'attended' && cfg.portalPath === 'medicalgraph') {
+    if (status === 'attended' && opts.cfg.portalPath === 'medicalgraph') {
       const { issueFeedbackPrompt } = await import(
         '@/lib/services/booking-feedback'
       );
       Object.assign(booking, issueFeedbackPrompt(booking, now));
-      await clinicSendPostSessionEmails(store, cfg, now);
+      await clinicSendPostSessionEmails(store, opts.cfg, now);
     }
     if (status === 'attended' && store.treatment_plans?.length) {
       const { progressTreatmentPlanOnAttend } = await import(
