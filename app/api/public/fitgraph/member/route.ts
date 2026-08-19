@@ -1,7 +1,7 @@
 /**
  * Member / client portal API (token auth).
  * GET  ?token=  — open class vacancies + my bookings
- * POST { token, action: book | request_join | cancel | update_profile }
+ * POST { token, action: book | request_join | cancel | rsvp | update_profile }
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
@@ -22,6 +22,7 @@ import {
   type FitClient,
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
+import { applyMemberClassRsvp } from '@/lib/fitness/member-class-rsvp';
 import { notifyPatientBookingPush } from '@/lib/b2c/member-push';
 import { portalInvoicesForPerson } from '@/lib/b2c/member-account-portal';
 import {
@@ -748,31 +749,40 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    if (action === 'cancel' || action === 'cancel_booking') {
+    if (
+      action === 'cancel' ||
+      action === 'cancel_booking' ||
+      action === 'rsvp'
+    ) {
       const bookingId = String(body.booking_id || body.bookingId || '');
-      const bi = store.bookings.findIndex(
-        (b) => b.id === bookingId && b.client_id === client.id
-      );
-      if (bi < 0) {
-        return NextResponse.json(
-          { error: 'Booking not found' },
-          { status: 404 }
-        );
+      const coming =
+        action === 'rsvp'
+          ? body.coming === true ||
+            body.rsvp === 'coming' ||
+            body.rsvp === true
+          : false;
+      const result = applyMemberClassRsvp(store, {
+        bookingId,
+        clientId: client.id,
+        coming,
+      });
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
       }
-      const booking = store.bookings[bi];
-      if (booking.status === 'attended') {
-        return NextResponse.json(
-          { error: 'Cannot cancel an attended class' },
-          { status: 400 }
-        );
-      }
-      booking.status = 'cancelled';
-      store.bookings[bi] = booking;
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
         portal: buildMemberPortalPayloadBase(store, store.clients[ci]),
-        message: 'Booking cancelled',
+        promoted: result.promoted
+          ? { booking_id: result.promoted.id, client_id: result.promoted.client_id }
+          : null,
+        message: coming
+          ? result.booking.status === 'waitlist'
+            ? 'You’re on the waitlist — we’ll notify you if a spot opens'
+            : 'You’re marked as coming'
+          : result.promoted
+            ? 'Can’t make it — your spot was offered to the waitlist'
+            : 'Can’t make it — your spot is free',
       });
     }
 

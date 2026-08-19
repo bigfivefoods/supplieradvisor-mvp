@@ -67,6 +67,7 @@ type OpenClass = {
   class_plan?: string;
   my_status?: string | null;
   my_booking_id?: string | null;
+  my_rsvp?: 'coming' | 'not_coming' | null;
   programme?: import('@/lib/fitness/movements').FitHydratedProgramme | null;
   can_book?: boolean;
   need_plan?: boolean;
@@ -89,6 +90,7 @@ type MyBooking = {
   coach_feedback?: string | null;
   coach_member_feeling?: number | null;
   coach_member_rating?: number | null;
+  rsvp?: 'coming' | 'not_coming' | null;
   programme?: import('@/lib/fitness/movements').FitHydratedProgramme | null;
 };
 
@@ -526,22 +528,34 @@ export default function MemberFitgraphPortalPage() {
     }
   };
 
-  const cancel = async (bookingId: string) => {
-    if (!confirm('Cancel this booking?')) return;
+  const rsvp = async (bookingId: string, coming: boolean) => {
+    if (
+      !coming &&
+      !confirm(
+        'Can’t make this class? Your spot will be freed and may go to the waitlist.'
+      )
+    ) {
+      return;
+    }
     setBusyId(bookingId);
     setMsg(null);
     setError(null);
     try {
       const data = await post({
-        action: 'cancel',
+        action: 'rsvp',
         booking_id: bookingId,
+        coming,
       });
-      setMsg(data.message || 'Cancelled');
+      setMsg(data.message || (coming ? 'You’re coming' : 'Marked as not coming'));
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Cancel failed');
+      setError(e instanceof Error ? e.message : 'Could not update');
     } finally {
       setBusyId(null);
     }
+  };
+
+  const cancel = async (bookingId: string) => {
+    await rsvp(bookingId, false);
   };
 
   const saveProfile = async () => {
@@ -1079,6 +1093,7 @@ export default function MemberFitgraphPortalPage() {
               color={color}
               onBook={(id, waitlist) => void book(id, waitlist)}
               onCancel={(id) => void cancel(id)}
+              onRsvp={(id, coming) => void rsvp(id, coming)}
               onNeedSubscribe={(needBank) =>
                 selectTab(needBank ? 'profile' : 'join')
               }
@@ -1089,8 +1104,8 @@ export default function MemberFitgraphPortalPage() {
         {tab === 'mine' && (
           <div className="space-y-4">
             <p className="text-sm text-slate-600">
-              Classes you have booked. Leave feedback after you attend — your
-              coach sees it on your progress.
+              Classes you have booked. Before class, say if you’re coming so the
+              gym can free the spot if you can’t make it.
             </p>
             {portal.my_bookings.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
@@ -1133,7 +1148,11 @@ export default function MemberFitgraphPortalPage() {
                               </p>
                             ) : null}
                             <span className="inline-block mt-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase text-slate-700">
-                              {b.status}
+                              {b.rsvp === 'coming'
+                                ? 'Coming'
+                                : b.rsvp === 'not_coming'
+                                  ? 'Not coming'
+                                  : b.status}
                             </span>
                             {b.upcoming !== false ? (
                               <a
@@ -1178,15 +1197,45 @@ export default function MemberFitgraphPortalPage() {
                               </div>
                             ) : null}
                           </div>
-                          {b.status === 'booked' || b.status === 'waitlist' ? (
-                            <button
-                              type="button"
-                              disabled={busyId === b.booking_id}
-                              onClick={() => void cancel(b.booking_id)}
-                              className="text-xs font-bold text-rose-600 shrink-0"
-                            >
-                              Cancel
-                            </button>
+                          {b.upcoming !== false &&
+                          (b.status === 'booked' ||
+                            b.status === 'waitlist' ||
+                            b.rsvp === 'not_coming') ? (
+                            <div className="flex shrink-0 flex-col gap-1">
+                              {b.status !== 'cancelled' ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    disabled={busyId === b.booking_id}
+                                    onClick={() => void rsvp(b.booking_id, true)}
+                                    className={`rounded-xl px-2 py-1 text-[11px] font-black ${
+                                      b.rsvp === 'coming'
+                                        ? 'bg-emerald-600 text-white'
+                                        : 'border border-emerald-200 text-emerald-800'
+                                    }`}
+                                  >
+                                    I’m coming
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={busyId === b.booking_id}
+                                    onClick={() => void rsvp(b.booking_id, false)}
+                                    className="text-[11px] font-bold text-rose-600"
+                                  >
+                                    Can’t make it
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={busyId === b.booking_id}
+                                  onClick={() => void rsvp(b.booking_id, true)}
+                                  className="rounded-xl border border-yellow-300 px-2 py-1 text-[11px] font-black text-yellow-800"
+                                >
+                                  I can come
+                                </button>
+                              )}
+                            </div>
                           ) : null}
                         </div>
                       ))}

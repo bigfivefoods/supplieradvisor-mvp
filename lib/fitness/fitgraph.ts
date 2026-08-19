@@ -670,6 +670,9 @@ export type FitBooking = {
   coach_member_feeling?: number | null;
   /** Coach’s rating of this member in the class (1–5) */
   coach_member_rating?: number | null;
+  /** Member said before class whether they will attend */
+  rsvp?: 'coming' | 'not_coming' | null;
+  rsvp_at?: string | null;
 };
 
 /** Gym-level website / portal settings */
@@ -1672,6 +1675,7 @@ export function buildMemberPortalPayload(
             share_code: s.share_code,
             my_status: myBooking?.status || null,
             my_booking_id: myBooking?.id || null,
+            my_rsvp: myBooking?.rsvp || null,
             programme: programmeForSessionPayload(store, s, {
               memberFacing: true,
             }),
@@ -1689,10 +1693,11 @@ export function buildMemberPortalPayload(
         .filter(
           (b) =>
             b.client_id === client.id &&
-            b.status !== 'cancelled' &&
             (() => {
               const s = store.sessions.find((x) => x.id === b.session_id);
-              return s && s.date >= historyFrom;
+              if (!s || s.date < historyFrom) return false;
+              if (b.status !== 'cancelled') return true;
+              return b.rsvp === 'not_coming' && s.date >= start;
             })()
         )
         .map((b) => {
@@ -1717,6 +1722,7 @@ export function buildMemberPortalPayload(
             coach_feedback: b.coach_feedback || null,
             coach_member_feeling: b.coach_member_feeling ?? null,
             coach_member_rating: b.coach_member_rating ?? null,
+            rsvp: b.rsvp || null,
             programme: programmeForSessionPayload(store, s, {
               memberFacing: true,
             }),
@@ -2389,6 +2395,7 @@ export type CoachRosterRow = {
   health_label?: string;
   coach_feedback?: string | null;
   coach_feedback_at?: string | null;
+  rsvp?: 'coming' | 'not_coming' | null;
 };
 
 export type CoachSessionCard = {
@@ -2488,6 +2495,7 @@ export function buildCoachPortalPayload(
           coach_feedback_at: b.coach_feedback_at || null,
           coach_member_feeling: b.coach_member_feeling ?? null,
           coach_member_rating: b.coach_member_rating ?? null,
+          rsvp: b.rsvp || null,
         };
       });
       const planned = roster.filter(

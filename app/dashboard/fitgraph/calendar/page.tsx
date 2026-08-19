@@ -251,7 +251,9 @@ export default function CalendarPage() {
           title,
           subtitle: s.location || undefined,
           person_id: s.coach_id || null,
-          person_name: coach?.name,
+          person_name:
+            coach?.name ||
+            (kind === 'class' || kind === 'private_pt' ? 'No coach' : undefined),
           status: s.status,
           public: s.public === true,
           meta:
@@ -616,6 +618,7 @@ export default function CalendarPage() {
           client_id: b.client_id,
           name: b.family_member_name || cl?.name || b.guest_name || b.client_id,
           status: b.status,
+          rsvp: b.rsvp || null,
           coach_feedback: b.coach_feedback || null,
         };
       });
@@ -877,7 +880,11 @@ export default function CalendarPage() {
             open={editorOpen}
             title={
               selectedSessionId
-                ? `${sessionKindLabel(form.session_kind)} · ${form.date} ${form.start_time}${form.end_time ? `–${form.end_time}` : ''}`
+                ? `${sessionKindLabel(form.session_kind)} · ${form.date} ${form.start_time}${form.end_time ? `–${form.end_time}` : ''}${
+                    form.coach_id
+                      ? ` · ${store.coaches.find((c) => c.id === form.coach_id)?.name || 'coach'}`
+                      : ' · no coach'
+                  }`
                 : slotPicked
                   ? `New session · ${slotPicked}`
                   : 'New session'
@@ -886,7 +893,7 @@ export default function CalendarPage() {
               selectedSessionId
                 ? form.session_kind === 'coach_personal'
                   ? 'Coach’s own training or blocked diary time'
-                  : 'Edit details, coach and the booked roster'
+                  : 'Coach, time and booked members — change the coach if they can’t take this class'
                 : 'Group class, private PT, or coach personal time'
             }
             onClose={closeEditor}
@@ -951,6 +958,60 @@ export default function CalendarPage() {
               </div>
             ) : null}
           </div>
+          {selectedSessionId && form.session_kind !== 'coach_personal' ? (
+            <div className="mb-3 rounded-2xl border border-yellow-300 bg-yellow-50 px-3 py-3 dark:border-yellow-700 dark:bg-yellow-950/40">
+              <p className="text-[10px] font-black uppercase tracking-wide text-yellow-800 dark:text-yellow-200">
+                Coach for this session
+              </p>
+              <p className="text-base font-black text-slate-900 dark:text-yellow-50">
+                {store.coaches.find((c) => c.id === form.coach_id)?.name ||
+                  'No coach assigned'}
+                {(() => {
+                  const c = store.coaches.find((x) => x.id === form.coach_id);
+                  if (!c) return null;
+                  const unavailable =
+                    c.active === false ||
+                    (c.end_date && c.end_date < form.date);
+                  return unavailable ? (
+                    <span className="ml-2 text-xs font-bold text-rose-700 dark:text-rose-300">
+                      Not available
+                    </span>
+                  ) : null;
+                })()}
+              </p>
+              <select
+                className="mt-2 w-full rounded-xl border border-yellow-200 bg-white px-3 py-2 text-sm font-semibold dark:border-yellow-700 dark:bg-yellow-950 dark:text-yellow-50"
+                value={form.coach_id}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setForm((f) => ({ ...f, coach_id: id }));
+                  void reassignCoach(selectedSessionId, id);
+                }}
+              >
+                <option value="">Unassigned — pick a coach…</option>
+                {store.coaches
+                  .filter((c) => c.active !== false || c.id === form.coach_id)
+                  .map((c) => {
+                    const unavailable =
+                      c.active === false ||
+                      (c.end_date && c.end_date < form.date);
+                    return (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                        {unavailable ? ' · not available' : ''}
+                        {(c.specialties || []).length
+                          ? ` · ${(c.specialties || []).join(', ')}`
+                          : ''}
+                      </option>
+                    );
+                  })}
+              </select>
+              <p className="mt-1 text-[11px] text-slate-600 dark:text-yellow-100/80">
+                Change the coach if they can’t take this class. Saves as soon as
+                you pick someone.
+              </p>
+            </div>
+          ) : null}
           <FormCard
             tone="owner"
             title={
@@ -1084,6 +1145,7 @@ export default function CalendarPage() {
                 Blocks the coach’s diary — not member-bookable.
               </p>
             )}
+            {selectedSessionId ? null : (
             <select
               className={fc()}
               value={form.coach_id}
@@ -1093,7 +1155,7 @@ export default function CalendarPage() {
             >
               <option value="">
                 {form.session_kind === 'class'
-                  ? 'Coach (optional now — step 2)…'
+                  ? 'Coach (optional now — assign after create)…'
                   : 'Coach (required)…'}
               </option>
               {store.coaches
@@ -1107,6 +1169,7 @@ export default function CalendarPage() {
                   </option>
                 ))}
             </select>
+            )}
             <input
               className={fc()}
               type="date"

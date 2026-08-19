@@ -7,6 +7,7 @@ export type BookedRosterRow = {
   client_id?: string;
   name: string;
   status: string;
+  rsvp?: 'coming' | 'not_coming' | null;
   coach_feedback?: string | null;
 };
 
@@ -54,6 +55,11 @@ export function ClassBookedRoster({
                 </p>
                 <p className="text-[10px] uppercase font-bold text-slate-500">
                   {r.status.replace(/_/g, ' ')}
+                  {r.rsvp === 'coming'
+                    ? ' · coming'
+                    : r.rsvp === 'not_coming'
+                      ? ' · not coming'
+                      : ''}
                 </p>
                 {r.coach_feedback ? (
                   <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">

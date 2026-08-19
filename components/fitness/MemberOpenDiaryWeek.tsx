@@ -17,6 +17,7 @@ export type MemberDiarySlot = {
   full: boolean;
   my_status?: string | null;
   my_booking_id?: string | null;
+  my_rsvp?: 'coming' | 'not_coming' | null;
   can_book?: boolean;
   need_plan?: boolean;
   need_debit_bank?: boolean;
@@ -31,6 +32,7 @@ export function MemberOpenDiaryWeek({
   busyId,
   onBook,
   onCancel,
+  onRsvp,
   onNeedSubscribe,
   color = '#E8E830',
 }: {
@@ -40,6 +42,7 @@ export function MemberOpenDiaryWeek({
   busyId?: string | null;
   onBook: (sessionId: string, waitlist: boolean) => void;
   onCancel?: (bookingId: string) => void;
+  onRsvp?: (bookingId: string, coming: boolean) => void;
   onNeedSubscribe?: (needBank?: boolean, hint?: string | null) => void;
   color?: string;
 }) {
@@ -109,16 +112,42 @@ export function MemberOpenDiaryWeek({
                 </span>
                 {active.my_booking_id &&
                 active.my_status !== 'attended' &&
-                active.my_status !== 'waitlist' &&
-                onCancel ? (
-                  <button
-                    type="button"
-                    disabled={busyId === active.my_booking_id}
-                    onClick={() => onCancel(active.my_booking_id!)}
-                    className="inline-flex items-center gap-1 text-xs font-bold text-rose-600"
-                  >
-                    <X className="h-3.5 w-3.5" /> Cancel
-                  </button>
+                active.my_status !== 'waitlist' ? (
+                  <>
+                    {onRsvp ? (
+                      <>
+                        <button
+                          type="button"
+                          disabled={busyId === active.my_booking_id}
+                          onClick={() => onRsvp(active.my_booking_id!, true)}
+                          className={`rounded-xl px-2 py-1 text-[11px] font-black ${
+                            active.my_rsvp === 'coming'
+                              ? 'bg-emerald-600 text-white'
+                              : 'border border-emerald-200 text-emerald-800'
+                          }`}
+                        >
+                          I’m coming
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busyId === active.my_booking_id}
+                          onClick={() => onRsvp(active.my_booking_id!, false)}
+                          className="inline-flex items-center gap-1 text-xs font-bold text-rose-600"
+                        >
+                          Can’t make it
+                        </button>
+                      </>
+                    ) : onCancel ? (
+                      <button
+                        type="button"
+                        disabled={busyId === active.my_booking_id}
+                        onClick={() => onCancel(active.my_booking_id!)}
+                        className="inline-flex items-center gap-1 text-xs font-bold text-rose-600"
+                      >
+                        <X className="h-3.5 w-3.5" /> Cancel
+                      </button>
+                    ) : null}
+                  </>
                 ) : null}
               </>
             ) : allowBooking && active.can_book === false ? (

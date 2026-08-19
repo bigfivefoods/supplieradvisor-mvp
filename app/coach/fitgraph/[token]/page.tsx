@@ -76,6 +76,7 @@ type RosterRow = {
   coach_feedback?: string | null;
   coach_member_feeling?: number | null;
   coach_member_rating?: number | null;
+  rsvp?: 'coming' | 'not_coming' | null;
 };
 
 type PortalSession = {
@@ -1340,6 +1341,11 @@ export default function CoachFitgraphPortalPage() {
                         <div className="text-[10px] uppercase text-slate-500">
                           Plan {r.status} · Actual{' '}
                           {r.actual === 'pending' ? '—' : r.actual}
+                          {r.rsvp === 'coming'
+                            ? ' · coming'
+                            : r.rsvp === 'not_coming'
+                              ? ' · not coming'
+                              : ''}
                         </div>
                         {(r.injured || r.health_label) && (
                           <div
