@@ -17,7 +17,10 @@ import {
   readMedicalgraphFromMetadata,
   writeMedicalgraphToMetadata,
 } from '@/lib/clinic/medicalgraph';
-import { applyCompanyLogoToSettings } from '@/lib/business/company-logo';
+import {
+  applyCompanyLogoToSettings,
+  logoUrlFromSettings,
+} from '@/lib/business/company-logo';
 import { clinicSendReminders } from '@/lib/services/clinic-advisor-actions';
 
 export const runtime = 'nodejs';
@@ -71,7 +74,7 @@ async function runForCompany(
           manageUrl,
           moduleLabel: 'GymAdvisor®',
           moduleKey: 'fitgraph',
-          logoUrl: profile?.logo_url || store.settings?.company_logo_url,
+          logoUrl: profile?.logo_url || logoUrlFromSettings(store.settings),
         });
         emailed = result.ok;
       }
@@ -159,7 +162,7 @@ async function runForCompany(
           manageUrl,
           moduleLabel: 'DentalAdvisor®',
           moduleKey: 'dentalgraph',
-          logoUrl: profile?.logo_url || store.settings?.company_logo_url,
+          logoUrl: profile?.logo_url || logoUrlFromSettings(store.settings),
         });
         emailed = result.ok;
       }
@@ -204,7 +207,7 @@ async function runForCompany(
         portalPath: 'medicalgraph',
         brandFallback: profile?.trading_name || 'Practice',
         companyId,
-        logoUrl: profile?.logo_url || store.settings?.company_logo_url || null,
+        logoUrl: profile?.logo_url || logoUrlFromSettings(store.settings),
       },
       now
     );
@@ -275,7 +278,7 @@ async function runForCompany(
           manageUrl,
           moduleLabel: label,
           moduleKey: key,
-          logoUrl: profile?.logo_url || store.settings?.company_logo_url,
+          logoUrl: profile?.logo_url || logoUrlFromSettings(store.settings),
         });
         emailed = result.ok;
       }
