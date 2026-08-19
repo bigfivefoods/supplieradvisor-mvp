@@ -75,6 +75,7 @@ import {
   upsertClinicMovement,
 } from '@/lib/clinic/clinic-movements';
 import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
+import { resolveCompanyLogoUrl } from '@/lib/business/company-logo';
 import {
   buildServiceMemberInviteLink,
   buildServiceMemberPortalLink,
@@ -780,7 +781,10 @@ export async function POST(request: NextRequest) {
             invitedBy,
             inviteLink,
             module: 'physiograph',
-            logoUrl: String(prof?.logo_url || store.settings?.company_logo_url || '').trim() || null,
+            logoUrl: resolveCompanyLogoUrl({
+              profileLogoUrl: prof?.logo_url,
+              settings: store.settings,
+            }),
           }),
           text: serviceMemberInviteEmailText({
             inviteeName: patient.name,
