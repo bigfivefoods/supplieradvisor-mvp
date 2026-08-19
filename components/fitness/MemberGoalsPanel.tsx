@@ -68,7 +68,7 @@ export function MemberGoalsPanel({
 }) {
   const [kind, setKind] = useState('weight');
   const preset = MEMBER_GOAL_PRESETS.find((p) => p.kind === kind) || MEMBER_GOAL_PRESETS[0];
-  const [title, setTitle] = useState(preset.title);
+  const [title, setTitle] = useState<string>(preset.title);
   const [startValue, setStartValue] = useState('');
   const [targetValue, setTargetValue] = useState('');
   const [targetDate, setTargetDate] = useState('');
