@@ -21,6 +21,10 @@ import {
   nextOfKinLabel,
   passportFacts,
 } from '@/lib/fitness/member-profile';
+import {
+  PARQ_QUESTIONS,
+  parqYesCount,
+} from '@/lib/fitness/member-contract';
 
 type PostFn = (body: Record<string, unknown>) => Promise<unknown>;
 
@@ -48,6 +52,7 @@ export function GymMemberProfileDesk({
   const [joinOpen, setJoinOpen] = useState(true);
   const [passportOpen, setPassportOpen] = useState(true);
   const [pbOpen, setPbOpen] = useState(true);
+  const [contractOpen, setContractOpen] = useState(true);
   const [charges, setCharges] = useState<MemberAccountCharge[]>([]);
   const [accountLoading, setAccountLoading] = useState(true);
 
@@ -175,6 +180,101 @@ export function GymMemberProfileDesk({
             </ul>
           </div>
         ) : null}
+      </AdvisorExpandablePanel>
+
+      <AdvisorExpandablePanel
+        title="Membership contract (owner only)"
+        description="Group or private application, PAR-Q and signatures. Not shown on the member PWA."
+        open={contractOpen}
+        onToggle={() => setContractOpen((v) => !v)}
+        accentClass="border-rose-200 bg-rose-50/50 dark:border-rose-800 dark:bg-rose-950/30"
+        titleClass="text-rose-950 dark:text-rose-50"
+        hintClass="text-rose-800/80 dark:text-rose-200/80"
+      >
+        {!(client.contracts || []).length ? (
+          <p className="text-[12px] text-slate-500">
+            No contract on file yet. Send the onboarding form from Classes.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm">
+              <span className="font-black uppercase">
+                {client.contract_kind || client.contracts?.[0]?.kind || '—'}
+              </span>
+              {client.occupation ? ` · ${client.occupation}` : ''}
+              {client.heard_about ? ` · heard via ${client.heard_about}` : ''}
+            </p>
+            {client.address ? (
+              <p className="text-[12px]">{client.address}</p>
+            ) : null}
+            {client.gp_contact ? (
+              <p className="text-[12px]">GP: {client.gp_contact}</p>
+            ) : null}
+            {(client.contracts || [])
+              .slice()
+              .reverse()
+              .map((con) => (
+                <div
+                  key={con.id}
+                  className="rounded-xl border border-rose-200 bg-white p-3 dark:border-rose-800 dark:bg-rose-950/40"
+                >
+                  <p className="text-[11px] font-black uppercase">
+                    {con.kind} · {String(con.submitted_at || '').slice(0, 10)}
+                  </p>
+                  {con.class_option ? (
+                    <p className="text-[12px]">
+                      Class {con.class_option}
+                      {con.debit_amount_zar
+                        ? ` · debit R${con.debit_amount_zar}`
+                        : ''}
+                    </p>
+                  ) : null}
+                  <ul className="mt-2 space-y-1 text-[12px]">
+                    {PARQ_QUESTIONS.map((q) => (
+                      <li key={q.key}>
+                        <span className="font-bold">
+                          {con.parq?.[q.key] === true
+                            ? 'Yes'
+                            : con.parq?.[q.key] === false
+                              ? 'No'
+                              : '—'}
+                        </span>{' '}
+                        {q.label}
+                      </li>
+                    ))}
+                  </ul>
+                  {con.parq_explanation ? (
+                    <p className="mt-2 text-[12px]">
+                      <strong>Explain:</strong> {con.parq_explanation}
+                    </p>
+                  ) : null}
+                  {parqYesCount(con.parq) > 0 ? (
+                    <p className="mt-1 text-[11px] font-bold text-rose-800">
+                      {parqYesCount(con.parq)} Yes answer(s)
+                    </p>
+                  ) : null}
+                  {con.signature_name ? (
+                    <p className="mt-2 text-[12px]">
+                      Signed: {con.signature_name}
+                    </p>
+                  ) : null}
+                  {(con.signature_urls || []).length ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {(con.signature_urls || []).map((url) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          key={url}
+                          src={url}
+                          alt="Signature"
+                          className="h-16 rounded-lg border border-slate-200 bg-white"
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+          </div>
+        )}
       </AdvisorExpandablePanel>
 
       <AdvisorExpandablePanel

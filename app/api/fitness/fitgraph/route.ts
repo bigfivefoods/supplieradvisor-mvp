@@ -2681,6 +2681,43 @@ function upsert(
       join_events: Array.isArray(rec.join_events)
         ? (rec.join_events as FitClient['join_events'])
         : prev?.join_events,
+      contract_kind:
+        rec.contract_kind === 'private' || rec.contract_kind === 'group'
+          ? rec.contract_kind
+          : prev?.contract_kind,
+      contracts: Array.isArray(rec.contracts)
+        ? (rec.contracts as FitClient['contracts'])
+        : prev?.contracts,
+      occupation:
+        rec.occupation !== undefined
+          ? rec.occupation
+            ? String(rec.occupation)
+            : undefined
+          : prev?.occupation,
+      heard_about:
+        rec.heard_about !== undefined
+          ? rec.heard_about
+            ? String(rec.heard_about)
+            : undefined
+          : prev?.heard_about,
+      employer_student_number:
+        rec.employer_student_number !== undefined
+          ? rec.employer_student_number
+            ? String(rec.employer_student_number)
+            : undefined
+          : prev?.employer_student_number,
+      address:
+        rec.address !== undefined
+          ? rec.address
+            ? String(rec.address)
+            : undefined
+          : prev?.address,
+      gp_contact:
+        rec.gp_contact !== undefined
+          ? rec.gp_contact
+            ? String(rec.gp_contact)
+            : undefined
+          : prev?.gp_contact,
       notes:
         rec.notes !== undefined
           ? rec.notes

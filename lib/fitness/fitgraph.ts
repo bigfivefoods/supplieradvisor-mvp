@@ -525,6 +525,15 @@ export type FitClient = {
   medical?: import('@/lib/clinic/patient-medical').PatientMedicalRecord;
   /** Explicit join / membership events (PWA, invite, freeze, desk). */
   join_events?: FitMemberJoinEvent[];
+  /** Group class contract vs private (PT) contract. */
+  contract_kind?: 'group' | 'private';
+  /** Owner-only onboarding / Jotform contracts (PAR-Q, signatures). */
+  contracts?: import('@/lib/fitness/member-contract').FitMemberContract[];
+  occupation?: string;
+  heard_about?: string;
+  employer_student_number?: string;
+  address?: string;
+  gp_contact?: string;
   notes?: string;
   /**
    * Bank account for the gym owner to set up a debit order.
@@ -741,6 +750,8 @@ export type FitPublicSettings = {
    * Set once after clearing seeded series sessions.
    */
   vuka_calendar_manual?: boolean;
+  /** Version stamp when Jotform group/private contracts replaced the billed-name roster. */
+  vuka_contracts_import?: string;
   /** Collect debit-order bank details on the member profile. */
   collect_debit_bank?: boolean;
   /** Membership is incomplete until bank details are submitted. */

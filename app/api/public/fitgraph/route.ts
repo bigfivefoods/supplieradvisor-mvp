@@ -283,6 +283,136 @@ export async function POST(request: NextRequest) {
     const { companyId, meta } = resolved;
     let store = resolved.store;
 
+    if (action === 'onboard_member' || action === 'onboard_contract') {
+      const { applyContractToClient } = await import(
+        '@/lib/fitness/member-contract'
+      );
+      const { appendJoinEvent } = await import('@/lib/fitness/member-profile');
+      const name = String(body.name || '').trim();
+      const email = String(body.email || '').trim().toLowerCase();
+      const phone = String(body.phone || '').trim();
+      const idNumber = String(body.id_number || '').replace(/\D/g, '');
+      if (name.length < 2) {
+        return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+      }
+      if (!email.includes('@') && phone.replace(/\D/g, '').length < 7) {
+        return NextResponse.json(
+          { error: 'Email or mobile number is required' },
+          { status: 400 }
+        );
+      }
+      if (body.terms_accepted !== true || body.parq_accepted !== true) {
+        return NextResponse.json(
+          { error: 'Please accept the terms and the health questionnaire' },
+          { status: 400 }
+        );
+      }
+      const kind =
+        String(body.kind || body.contract_kind || '') === 'private'
+          ? 'private'
+          : 'group';
+      const parqRaw =
+        body.parq && typeof body.parq === 'object'
+          ? (body.parq as Record<string, unknown>)
+          : {};
+      const now = new Date().toISOString();
+      const sub = {
+        kind,
+        submitted_at: now.slice(0, 10),
+        heard_about: body.heard_about ? String(body.heard_about) : null,
+        name,
+        id_number: idNumber || null,
+        phone: phone || null,
+        email: email || null,
+        start_date: body.start_date
+          ? String(body.start_date).slice(0, 10)
+          : now.slice(0, 10),
+        occupation: body.occupation ? String(body.occupation) : null,
+        employer_student_number: body.employer_student_number
+          ? String(body.employer_student_number)
+          : null,
+        medical_aid: body.medical_aid ? String(body.medical_aid) : null,
+        medical_aid_plan: body.medical_aid_plan
+          ? String(body.medical_aid_plan)
+          : null,
+        emergency_contact: body.emergency_contact
+          ? String(body.emergency_contact)
+          : null,
+        address: body.address ? String(body.address) : null,
+        gp: body.gp ? String(body.gp) : null,
+        parq: {
+          heart_condition: parqRaw.heart_condition === true,
+          chest_pain_activity: parqRaw.chest_pain_activity === true,
+          chest_pain_rest: parqRaw.chest_pain_rest === true,
+          dizziness_unconscious: parqRaw.dizziness_unconscious === true,
+          taking_medication: parqRaw.taking_medication === true,
+          other_reason: parqRaw.other_reason === true,
+          pain_injuries: parqRaw.pain_injuries === true,
+          surgeries_12m: parqRaw.surgeries_12m === true,
+          chronic_disease: parqRaw.chronic_disease === true,
+        },
+        parq_explanation: body.parq_explanation
+          ? String(body.parq_explanation)
+          : null,
+        terms_accepted: true,
+        parq_accepted: true,
+        class_option: body.class_option ? String(body.class_option) : null,
+        class_amount_zar: body.class_amount_zar
+          ? Number(body.class_amount_zar)
+          : null,
+        debit_amount_zar: body.debit_amount_zar
+          ? Number(body.debit_amount_zar)
+          : null,
+        account_holder: body.account_holder ? String(body.account_holder) : null,
+        account_type: body.account_type ? String(body.account_type) : null,
+        account_number: body.account_number ? String(body.account_number) : null,
+        bank_name: body.bank_name ? String(body.bank_name) : null,
+        source: 'onboarding' as const,
+        signature_name: body.signature_name ? String(body.signature_name) : name,
+      };
+      let client = store.clients.find(
+        (c) =>
+          c.active !== false &&
+          ((idNumber && c.id_number === idNumber) ||
+            (email && c.email && c.email.toLowerCase() === email))
+      );
+      if (!client) {
+        client = {
+          id: newId('cli'),
+          code: `M${Date.now().toString(36).slice(-5).toUpperCase()}`,
+          name,
+          membership_status: 'active',
+          active: true,
+          created_at: now,
+          updated_at: now,
+        };
+        store.clients.push(client);
+      }
+      client = applyContractToClient(client, sub, now);
+      if (body.signature_name) {
+        const last = client.contracts?.[client.contracts.length - 1];
+        if (last) last.signature_name = String(body.signature_name);
+      }
+      client.join_events = appendJoinEvent(client, {
+        at: now,
+        kind: 'joined_pwa',
+        title:
+          kind === 'private'
+            ? 'Private onboarding form submitted'
+            : 'Group onboarding form submitted',
+        source: 'pwa',
+      });
+      const idx = store.clients.findIndex((c) => c.id === client!.id);
+      if (idx >= 0) store.clients[idx] = client;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        message:
+          'Application received. The gym owner can see it on your member profile.',
+        client_id: client.id,
+      });
+    }
+
     if (action === 'checkout' || action === 'buy') {
       const started = await startGymShopCheckout({
         store,

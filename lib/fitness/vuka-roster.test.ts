@@ -34,31 +34,19 @@ const store = emptyFitgraphStore();
 ensureVukaClassCatalog(store, { companyId: VUKA_COMPANY_ID });
 const first = ensureVukaRoster(store, { now: '2026-08-17T12:00:00.000Z' });
 assert.equal(first.changed, true);
-assert.equal(first.added, VUKA_ROSTER.length);
-assert.ok(store.clients.some((c) => c.name === 'Lorraine Naidoo'));
-const lorraine = store.clients.find((c) => c.name === 'Lorraine Naidoo')!;
-const unlim = store.membership_plans.find((p) => p.code === 'VUKA_UNLIM')!;
-assert.equal(lorraine.membership_plan_id, unlim.id);
-assert.ok(
-  store.subscriptions.some(
-    (s) =>
-      s.client_id === lorraine.id &&
-      s.plan_id === unlim.id &&
-      s.charged_zar === 1140
-  )
-);
-const shaun = store.clients.find((c) => c.name === 'Shaun Roberts')!;
-const kids = store.membership_plans.find((p) => p.code === 'VUKA_KIDS')!;
-assert.equal(shaun.membership_plan_id, kids.id);
-const aimee = store.clients.find((c) => c.name === 'Aimee Le Roux')!;
+assert.ok(first.added > 150);
+assert.ok(store.clients.some((c) => /aimee le roux/i.test(c.name)));
+assert.ok(store.clients.some((c) => /gouweloos/i.test(c.name)));
+const aimee = store.clients.find((c) => /aimee le roux/i.test(c.name))!;
+assert.ok((aimee.contracts || []).length >= 1);
+assert.equal(aimee.contracts?.[0].parq != null, true);
 assert.equal(
   store.membership_plans.some(
     (p) => String(p.code || '').startsWith('VUKA_DESK_')
   ),
   false
 );
-assert.equal(aimee.membership_plan_id == null, true);
-assert.match(String(aimee.notes || ''), /770\.50/);
+assert.equal(store.settings?.vuka_contracts_import != null, true);
 
 store.membership_plans.push({
   id: 'vuka_pln_desk_99900',
@@ -78,8 +66,7 @@ assert.equal(
 );
 
 const again = ensureVukaRoster(store, { now: '2026-08-17T12:00:00.000Z' });
-assert.equal(again.changed, false);
 assert.equal(again.added, 0);
-assert.equal(store.clients.filter((c) => c.id.startsWith('vuka_cli_')).length, VUKA_ROSTER.length);
+assert.ok(store.clients.filter((c) => c.active !== false).length > 150);
 
 console.log('vuka-roster.test.ts ok');

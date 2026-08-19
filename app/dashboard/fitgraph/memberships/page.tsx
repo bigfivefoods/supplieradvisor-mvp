@@ -72,6 +72,33 @@ export default function MembershipsPage() {
               },
             ]}
           />
+          {store.settings?.public_token ? (
+            <div className="rounded-2xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm dark:border-yellow-800 dark:bg-yellow-950/40">
+              <p className="font-black">New member onboarding</p>
+              <p className="mt-1 text-[12px] text-slate-600 dark:text-yellow-100/80">
+                Send the group or private contract form. Answers save on their
+                profile for you only.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-3 text-[12px] font-bold">
+                <a
+                  className="underline"
+                  href={`/join/fitgraph/${encodeURIComponent(store.settings.public_token)}?kind=group`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Group class form
+                </a>
+                <a
+                  className="underline"
+                  href={`/join/fitgraph/${encodeURIComponent(store.settings.public_token)}?kind=private`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Private form
+                </a>
+              </div>
+            </div>
+          ) : null}
           {store.settings?.joining_fee_zar != null ? (
             <p className="rounded-xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-950 dark:border-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-100">
               Once-off joining R{store.settings.joining_fee_zar}

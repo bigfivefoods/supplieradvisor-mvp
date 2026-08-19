@@ -3,12 +3,16 @@
  * Applied only for that gym when the catalog loads.
  */
 import type {
-  FitClient,
   FitgraphStore,
   FitMembershipPlan,
   FitSubscription,
 } from '@/lib/fitness/fitgraph';
 import { VUKA_MEMBERSHIP_PLANS } from '@/lib/fitness/vuka-class-catalog';
+import generated from '@/lib/fitness/vuka-contracts.generated.json';
+import {
+  applyContractSubmissions,
+  type FitContractSubmission,
+} from '@/lib/fitness/member-contract';
 
 export type VukaRosterRow = {
   name: string;
@@ -166,79 +170,35 @@ function resolvePlan(
   );
 }
 
-export function ensureVukaRoster(
+export const VUKA_CONTRACTS_IMPORT = String(
+  (generated as { import_version?: string }).import_version || '2026-08-19'
+);
+export const VUKA_CONTRACT_SUBMISSIONS = ((
+  generated as { submissions?: FitContractSubmission[] }
+).submissions || []) as FitContractSubmission[];
+
+function attachContractRates(
   store: FitgraphStore,
-  opts?: { now?: string }
-): { store: FitgraphStore; changed: boolean; added: number } {
-  const now = opts?.now || new Date().toISOString();
+  now: string
+): boolean {
   const today = now.slice(0, 10);
-  let changed = removeVukaDeskPlans(store);
-  let added = 0;
-
-  for (const row of VUKA_ROSTER) {
-    const slug = rosterSlug(row.name);
-    const key = normalizePersonName(row.name);
-    let client = store.clients.find(
-      (c) =>
-        c.id === `vuka_cli_${slug}` ||
-        normalizePersonName(c.name) === key
-    );
-    if (!client) {
-      client = {
-        id: `vuka_cli_${slug}`,
-        code: `VUKA-${String(added + 1).padStart(3, '0')}`,
-        name: row.name,
-        notes: row.note
-          ? `Roster import · ${row.note} · R${row.amount_zar.toFixed(2)}/pm`
-          : `Roster import · R${row.amount_zar.toFixed(2)}/pm`,
-        membership_status: 'active',
-        active: true,
-        start_date: today,
-        created_at: now,
-        updated_at: now,
-      };
-      store.clients.push(client);
-      changed = true;
-      added += 1;
-    } else if (client.active === false) {
-      client.active = true;
-      client.membership_status = 'active';
-      client.updated_at = now;
-      changed = true;
-    }
-
-    const billed = `R${row.amount_zar.toFixed(2)}/pm`;
-    const note = [row.note, billed, 'Roster import'].filter(Boolean).join(' · ');
-    if (!client.notes || !client.notes.includes(billed)) {
-      client.notes = note;
-      client.updated_at = now;
-      changed = true;
-    }
-
-    const plan = resolvePlan(store, row.amount_zar, row.note);
-    if (!plan) {
-      if (client.membership_plan_id) {
-        const held = store.membership_plans.find(
-          (p) => p.id === client.membership_plan_id
-        );
-        if (!held || isVukaDeskPlan(held)) {
-          client.membership_plan_id = null;
-          client.updated_at = now;
-          changed = true;
-        }
-      }
-      store.subscriptions = (store.subscriptions || []).filter(
-        (s) => !(s.client_id === client.id && s.id === `vuka_sub_${slug}`)
-      );
-      continue;
-    }
-
+  let changed = false;
+  for (const client of store.clients || []) {
+    if (client.active === false) continue;
+    const latest = [...(client.contracts || [])].sort((a, b) =>
+      String(b.submitted_at || '').localeCompare(String(a.submitted_at || ''))
+    )[0];
+    if (!latest || latest.kind === 'private') continue;
+    const amount = Number(latest.debit_amount_zar || latest.class_amount_zar || 0);
+    if (!(amount > 0)) continue;
+    const plan = resolvePlan(store, amount, latest.class_option || undefined);
+    if (!plan) continue;
     if (client.membership_plan_id !== plan.id) {
       client.membership_plan_id = plan.id;
       client.updated_at = now;
       changed = true;
     }
-
+    const slug = rosterSlug(client.name);
     const subId = `vuka_sub_${slug}`;
     const existingSub = store.subscriptions.find(
       (s) =>
@@ -253,21 +213,39 @@ export function ensureVukaRoster(
         client_id: client.id,
         plan_id: plan.id,
         status: 'active',
-        started_at: today,
+        started_at: client.start_date || today,
         auto_renew: true,
-        charged_zar: row.amount_zar,
-        notes: note,
+        charged_zar: amount,
+        notes: 'Group contract',
         created_at: now,
         updated_at: now,
       };
       store.subscriptions.push(sub);
       changed = true;
-    } else if (existingSub.charged_zar == null) {
-      existingSub.charged_zar = row.amount_zar;
+    } else if (existingSub.status === 'cancelled') {
+      existingSub.status = 'active';
+      existingSub.charged_zar = amount;
       existingSub.updated_at = now;
       changed = true;
     }
   }
+  return changed;
+}
 
-  return { store, changed, added };
+export function ensureVukaRoster(
+  store: FitgraphStore,
+  opts?: { now?: string }
+): { store: FitgraphStore; changed: boolean; added: number } {
+  const now = opts?.now || new Date().toISOString();
+  let changed = removeVukaDeskPlans(store);
+  const replace =
+    store.settings?.vuka_contracts_import !== VUKA_CONTRACTS_IMPORT;
+  const applied = applyContractSubmissions(store, VUKA_CONTRACT_SUBMISSIONS, {
+    now,
+    replaceRoster: replace,
+    importVersion: VUKA_CONTRACTS_IMPORT,
+  });
+  changed = changed || applied.changed;
+  if (attachContractRates(store, now)) changed = true;
+  return { store, changed, added: applied.added };
 }
