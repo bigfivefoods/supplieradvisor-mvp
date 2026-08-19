@@ -118,7 +118,7 @@ export function applyClinicianVisitCare(
     try {
       const rec = (body.script || body.record || body) as Record<string, unknown>;
       patient.medical = upsertPatientScript(
-        patient.medical,
+        patient.medical ?? undefined,
         {
           ...rec,
           prescribed_by:
