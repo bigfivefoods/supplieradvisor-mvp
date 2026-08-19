@@ -43,10 +43,6 @@ import {
 } from '@/lib/fitness/fitgraph';
 import { appendJoinEvent } from '@/lib/fitness/member-profile';
 import {
-  newDeskNotice,
-  pushDeskNotice,
-} from '@/lib/services/advisor-member-calendar';
-import {
   hireCustomerPortalPath,
   issueCustomerPortal,
   readHiregraphFromMetadata,
