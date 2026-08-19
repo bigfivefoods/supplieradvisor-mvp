@@ -18,6 +18,7 @@ type Row = {
   location?: string;
   session_id?: string;
   appointment_id?: string;
+  coach_feedback?: string | null;
 };
 
 export default function StaffAdvisorTodayPage() {
@@ -34,6 +35,9 @@ export default function StaffAdvisorTodayPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [showInstall, setShowInstall] = useState(false);
+  const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, string>>(
+    {}
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -86,6 +90,37 @@ export default function StaffAdvisorTodayPage() {
             ? 'Cancelled — waitlist promoted if someone was waiting'
             : `Marked ${status.replace('_', ' ')}`
       );
+      void load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Update failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const saveMemberFeedback = async (bookingId: string) => {
+    const comment = (feedbackDrafts[bookingId] || '').trim();
+    if (!comment) {
+      setError('Write a short note for the member');
+      return;
+    }
+    setBusyId(bookingId);
+    setMsg(null);
+    try {
+      const res = await fetch('/api/public/advisor/staff-today', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          module: mod,
+          token,
+          action: 'member_coach_feedback',
+          booking_id: bookingId,
+          comment,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Update failed');
+      setMsg('Member feedback saved');
       void load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Update failed');
@@ -266,6 +301,38 @@ export default function StaffAdvisorTodayPage() {
                     </button>
                   ) : null}
                 </div>
+                {mod === 'fitgraph' &&
+                r.booking_id &&
+                (r.status === 'attended' || r.status === 'booked') ? (
+                  <div className="mt-2 space-y-1.5">
+                    {r.coach_feedback ? (
+                      <p className="text-[11px] text-amber-200/90">
+                        Your note: {r.coach_feedback}
+                      </p>
+                    ) : null}
+                    <textarea
+                      className="w-full rounded-xl border border-white/15 bg-black/30 px-2.5 py-2 text-[12px] min-h-[2.6rem]"
+                      placeholder="Optional feedback for this member after class"
+                      value={
+                        feedbackDrafts[r.booking_id] ?? r.coach_feedback ?? ''
+                      }
+                      onChange={(e) =>
+                        setFeedbackDrafts((cur) => ({
+                          ...cur,
+                          [r.booking_id!]: e.target.value,
+                        }))
+                      }
+                    />
+                    <button
+                      type="button"
+                      disabled={busyId === r.booking_id}
+                      onClick={() => void saveMemberFeedback(r.booking_id!)}
+                      className="rounded-xl border border-amber-400/40 bg-amber-500/20 px-3 py-2 text-[11px] font-black text-amber-100 disabled:opacity-50"
+                    >
+                      Save member feedback
+                    </button>
+                  </div>
+                ) : null}
               </li>
             ))}
           </ul>

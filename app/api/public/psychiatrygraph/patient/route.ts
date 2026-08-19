@@ -147,6 +147,21 @@ export async function GET(request: NextRequest) {
     } catch {
       /* wallet hydrate is best-effort */
     }
+    const { ensureClientRatingTokens } = await import(
+      '@/lib/services/booking-feedback'
+    );
+    const ratingDirty = ensureClientRatingTokens(
+      resolved.store.bookings,
+      (b) => {
+        const a = resolved.store.appointments.find(
+          (x) => x.id === b.appointment_id
+        );
+        return a ? { date: a.date, start_time: a.start_time } : null;
+      }
+    );
+    if (ratingDirty) {
+      await saveStore(resolved.companyId, resolved.meta, resolved.store);
+    }
     const { withPortalInvoices } = await import(
       '@/lib/b2c/member-account-portal'
     );

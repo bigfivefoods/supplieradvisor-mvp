@@ -72,6 +72,7 @@ type RosterRow = {
   health?: PersonHealthProfile;
   injured?: boolean;
   health_label?: string;
+  coach_feedback?: string | null;
 };
 
 type PortalSession = {
@@ -283,6 +284,10 @@ export default function CoachFitgraphPortalPage() {
   const [guestFor, setGuestFor] = useState<string | null>(null);
   const [guestName, setGuestName] = useState('');
   const [memberFor, setMemberFor] = useState('');
+  const [memberSearch, setMemberSearch] = useState('');
+  const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, string>>(
+    {}
+  );
   const [create, setCreate] = useState({
     session_kind: 'class' as FitSessionKind,
     class_type_id: '',
@@ -1444,6 +1449,53 @@ export default function CoachFitgraphPortalPage() {
                           Plan
                         </button>
                       </div>
+                      {r.actual === 'attended' || r.actual === 'pending' ? (
+                        <div className="w-full pt-1 space-y-1">
+                          {r.coach_feedback ? (
+                            <p className="text-[11px] text-amber-200/90">
+                              Your note: {r.coach_feedback}
+                            </p>
+                          ) : null}
+                          <textarea
+                            className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-[11px] min-h-[2.5rem]"
+                            placeholder="Optional feedback for this member after class"
+                            value={
+                              feedbackDrafts[r.booking_id] ??
+                              r.coach_feedback ??
+                              ''
+                            }
+                            onChange={(e) =>
+                              setFeedbackDrafts((cur) => ({
+                                ...cur,
+                                [r.booking_id]: e.target.value,
+                              }))
+                            }
+                          />
+                          <button
+                            type="button"
+                            disabled={
+                              busy ||
+                              !(
+                                feedbackDrafts[r.booking_id] ||
+                                r.coach_feedback
+                              )?.trim()
+                            }
+                            className="rounded-lg bg-amber-500/90 px-2 py-1 text-[10px] font-black text-amber-950 disabled:opacity-50"
+                            onClick={() =>
+                              void post({
+                                action: 'member_coach_feedback',
+                                booking_id: r.booking_id,
+                                comment:
+                                  feedbackDrafts[r.booking_id] ??
+                                  r.coach_feedback ??
+                                  '',
+                              })
+                            }
+                          >
+                            Save member feedback
+                          </button>
+                        </div>
+                      ) : null}
                     </li>
                     );
                   })}
@@ -1504,78 +1556,69 @@ export default function CoachFitgraphPortalPage() {
 
             {sessionEdit?.session_kind !== 'coach_personal' ? (
             <div className="space-y-2 border-t border-slate-800 pt-3">
-              {(openCard.subscribed_not_booked || []).length ? (
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
-                  <p className="font-black uppercase tracking-wider text-[10px] text-amber-300">
-                    Subscribed — book in
-                  </p>
-                  <ul className="mt-1 space-y-1">
-                    {openCard.subscribed_not_booked!.map((s) => (
-                      <li
-                        key={s.client_id}
-                        className="flex items-center justify-between gap-2"
-                      >
-                        <span>
-                          {s.name}
-                          <span className="text-amber-200/70">
-                            {' '}
-                            · {s.plan_name}
-                          </span>
-                        </span>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          className="rounded-lg bg-amber-500 px-2 py-1 text-[10px] font-black text-amber-950"
-                          onClick={() =>
-                            void post({
-                              action: 'book_member',
-                              session_id: openCard.session.id,
-                              client_id: s.client_id,
-                            })
-                          }
-                        >
-                          Book in
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              <div className="flex flex-wrap gap-2 items-end">
-              <select
-                className="flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                value={memberFor}
-                onChange={(e) => setMemberFor(e.target.value)}
-              >
-                <option value="">Add subscribed member…</option>
-                {(openCard.subscribed_not_booked || []).map((m) => (
-                  <option key={m.client_id} value={m.client_id}>
-                    {m.code} · {m.name}
-                  </option>
-                ))}
-                {!(openCard.subscribed_not_booked || []).length
-                  ? portal.members.map((m) => (
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Add a booked member
+              </p>
+              <input
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                placeholder="Search members to book on this class…"
+                value={memberSearch}
+                onChange={(e) => {
+                  setMemberSearch(e.target.value);
+                  setMemberFor('');
+                }}
+              />
+              {memberSearch.trim().length >= 2 ? (
+                <select
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                  value={memberFor}
+                  onChange={(e) => setMemberFor(e.target.value)}
+                >
+                  <option value="">Pick a search match…</option>
+                  {portal.members
+                    .filter((m) => {
+                      const booked = openCard.roster.some(
+                        (r) => r.client_id === m.id && r.status !== 'cancelled'
+                      );
+                      if (booked) return false;
+                      const q = memberSearch.trim().toLowerCase();
+                      return (
+                        m.name.toLowerCase().includes(q) ||
+                        String(m.code || '')
+                          .toLowerCase()
+                          .includes(q)
+                      );
+                    })
+                    .slice(0, 20)
+                    .map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.code} · {m.name}
                       </option>
-                    ))
-                  : null}
-              </select>
+                    ))}
+                </select>
+              ) : (
+                <p className="text-[11px] text-slate-500">
+                  Roster shows booked members only. Type 2+ letters to add
+                  someone.
+                </p>
+              )}
               <button
                 type="button"
                 disabled={busy || !memberFor}
-                className="rounded-xl bg-amber-500 text-amber-950 px-3 py-2 text-xs font-black"
+                className="rounded-xl bg-amber-500 text-amber-950 px-3 py-2 text-xs font-black disabled:opacity-50"
                 onClick={() =>
                   void post({
                     action: 'book_member',
                     session_id: openCard.session.id,
                     client_id: memberFor,
-                  }).then(() => setMemberFor(''))
+                  }).then(() => {
+                    setMemberFor('');
+                    setMemberSearch('');
+                  })
                 }
               >
-                Add
+                Book onto class
               </button>
-              </div>
             </div>
             ) : (
               <p className="text-[11px] text-slate-500 border-t border-slate-800 pt-3">

@@ -46,6 +46,7 @@ import {
   buildPublicFeedbackPath,
   issueFeedbackPrompt,
 } from '@/lib/services/booking-feedback';
+import { applyCoachMemberClassFeedback } from '@/lib/fitness/coach-member-feedback';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -1010,6 +1011,36 @@ export async function POST(request: NextRequest) {
                 path: feedbackPath,
               }
             : null,
+      });
+    }
+
+    if (
+      action === 'member_coach_feedback' ||
+      action === 'member_feedback_note'
+    ) {
+      const result = applyCoachMemberClassFeedback(store, {
+        bookingId: String(body.booking_id || ''),
+        coachId: coach.id,
+        coachName: coach.name,
+        comment: String(body.comment || body.note || ''),
+      });
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      const session = store.sessions.find(
+        (s) => s.id === result.booking.session_id
+      );
+      if (!session || (session.coach_id && session.coach_id !== coach.id)) {
+        return NextResponse.json(
+          { error: 'Not your class' },
+          { status: 403 }
+        );
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        portal: buildCoachPortalPayload(store, coach),
+        message: 'Member feedback saved',
       });
     }
 

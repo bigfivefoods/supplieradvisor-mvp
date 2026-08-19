@@ -18,6 +18,7 @@ import type {
   B2cCareRecord,
 } from '@/lib/b2c/care-types';
 import EnablePushButton from '@/components/pwa/EnablePushButton';
+import { MemberRateLink } from '@/components/advisors/MemberRateLink';
 
 function formatShare(summary: Record<string, unknown>) {
   const keys = [
@@ -136,10 +137,13 @@ export function B2cCarePanel() {
       {bookings.length > 0 ? (
         <ul className="space-y-2">
           {bookings.slice(0, 12).map((b) => (
-            <li key={b.id}>
+            <li
+              key={b.id}
+              className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
+            >
               <Link
                 href={b.href}
-                className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm active:scale-[0.99]"
+                className="flex items-center gap-3 active:scale-[0.99]"
               >
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
                   <CalendarDays className="h-5 w-5" />
@@ -163,6 +167,17 @@ export function B2cCarePanel() {
                 </span>
                 <ChevronRight className="h-4 w-4 text-slate-400" />
               </Link>
+              {b.feedback_href || b.feedback_done ? (
+                <MemberRateLink
+                  href={b.feedback_href}
+                  submitted={b.feedback_done}
+                  label={
+                    b.kind === 'gym'
+                      ? 'Rate this class (optional)'
+                      : 'Rate this visit (optional)'
+                  }
+                />
+              ) : null}
             </li>
           ))}
         </ul>

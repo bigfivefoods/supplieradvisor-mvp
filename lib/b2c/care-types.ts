@@ -10,6 +10,8 @@ export type B2cCareBooking = {
   href: string;
   past?: boolean;
   notes?: string;
+  feedback_href?: string | null;
+  feedback_done?: boolean;
 };
 
 export type B2cCareRecord = {

@@ -42,6 +42,7 @@ import {
   issueFeedbackPrompt,
   buildPublicFeedbackPath,
 } from '@/lib/services/booking-feedback';
+import { applyCoachMemberClassFeedback } from '@/lib/fitness/coach-member-feedback';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -99,6 +100,7 @@ export async function GET(req: NextRequest) {
             status: b.status,
             location: s.location,
             session_id: s.id,
+            coach_feedback: b.coach_feedback || null,
           });
         }
         if (!books.length) {
@@ -292,6 +294,12 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    if (action === 'member_coach_feedback' && module !== 'fitgraph') {
+      return NextResponse.json(
+        { error: 'Member class feedback is GymAdvisor only' },
+        { status: 400 }
+      );
+    }
 
     const supabase = getSupabaseServer();
     const { data: rows } = await supabase
@@ -312,6 +320,28 @@ export async function POST(req: NextRequest) {
         if (!coach) continue;
 
         const now = new Date().toISOString();
+
+        if (action === 'member_coach_feedback') {
+          const result = applyCoachMemberClassFeedback(store, {
+            bookingId,
+            coachId: coach.id,
+            coachName: coach.name,
+            comment: String(body.comment || body.note || ''),
+            now,
+          });
+          if (!result.ok) {
+            return NextResponse.json({ error: result.error }, { status: 400 });
+          }
+          const meta = writeFitgraphToMetadata(meta0, store);
+          await supabase
+            .from('profiles')
+            .update({ metadata: meta, updated_at: now })
+            .eq('id', row.id);
+          return NextResponse.json({
+            success: true,
+            message: 'Member feedback saved',
+          });
+        }
 
         if (action === 'delete_session' || action === 'delete_appointment') {
           const session = store.sessions.find(
@@ -528,6 +558,9 @@ export async function POST(req: NextRequest) {
             now,
           });
           store.care_packs = packs;
+          const prompted = issueFeedbackPrompt(booking, now);
+          booking.feedback_token = prompted.feedback_token;
+          booking.feedback_requested_at = prompted.feedback_requested_at;
         }
         const meta = writeDentalgraphToMetadata(meta0, store);
         await supabase
@@ -547,6 +580,8 @@ export async function POST(req: NextRequest) {
             id: string;
             status: string;
             patient_id: string;
+            feedback_token?: string | null;
+            feedback_requested_at?: string | null;
           }>;
           patients: Array<PersonNoShowStats & { id: string }>;
           care_packs?: Parameters<typeof consumePackSession>[0];
@@ -598,6 +633,9 @@ export async function POST(req: NextRequest) {
             now,
           });
           store.care_packs = packs;
+          const prompted = issueFeedbackPrompt(booking, now);
+          booking.feedback_token = prompted.feedback_token;
+          booking.feedback_requested_at = prompted.feedback_requested_at;
         }
         return {
           meta: write(meta0, store),

@@ -59,6 +59,24 @@ import {
   gymRequiresDebitBank,
   memberDebitBankPublic,
 } from '@/lib/fitness/member-debit-bank';
+import {
+  applyGoalToStore,
+  createMemberGoal,
+  logGoalActual,
+  memberFacingGoals,
+} from '@/lib/fitness/member-goals';
+import {
+  applyWatchSessionToStore,
+  ensureGarminAccess,
+  garminActivityToWatchInput,
+  garminConfigured,
+  garminRedirectUri,
+  matchWatchToSession,
+  newPkcePair,
+  pullGarminActivities,
+  publicWearableStatus,
+  GARMIN_AUTHORIZE_URL,
+} from '@/lib/fitness/wearables';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -191,6 +209,24 @@ function decorateMemberPortal(
       email: client.email,
       userId: client.platform_user_id,
     }),
+    goals: memberFacingGoals(store, client.id),
+    wearable: publicWearableStatus(client),
+    watch_sessions: (store.watch_sessions || [])
+      .filter((w) => w.client_id === client.id)
+      .slice(0, 12)
+      .map((w) => ({
+        id: w.id,
+        booking_id: w.booking_id || null,
+        session_id: w.session_id || null,
+        source: w.source,
+        started_at: w.started_at,
+        duration_min: w.duration_min ?? null,
+        distance_km: w.distance_km ?? null,
+        calories: w.calories ?? null,
+        avg_hr: w.avg_hr ?? null,
+        activity_type: w.activity_type || null,
+      })),
+    diary_open: store.settings?.share_member_calendar !== false,
   };
 }
 
@@ -265,6 +301,20 @@ export async function GET(request: NextRequest) {
       }
     } catch {
       /* wallet hydrate is best-effort */
+    }
+
+    const { ensureClientRatingTokens } = await import(
+      '@/lib/services/booking-feedback'
+    );
+    const ratingDirty = ensureClientRatingTokens(
+      resolved.store.bookings,
+      (b) => {
+        const s = resolved.store.sessions.find((x) => x.id === b.session_id);
+        return s ? { date: s.date, start_time: s.start_time } : null;
+      }
+    );
+    if (ratingDirty) {
+      await saveStore(resolved.companyId, resolved.meta, resolved.store);
     }
 
     const portal = decorateMemberPortal(
@@ -884,6 +934,313 @@ export async function POST(request: NextRequest) {
               : 'You are booked into this class',
         },
         portal: buildMemberPortalPayloadBase(store, store.clients[ci]),
+      });
+    }
+
+    if (action === 'upsert_goal' || action === 'save_goal') {
+      const title = String(body.title || '').trim();
+      const kind = String(body.kind || 'custom');
+      if (!title && kind === 'custom') {
+        return NextResponse.json({ error: 'Give the goal a name' }, { status: 400 });
+      }
+      const existingId = String(body.goal_id || body.id || '');
+      const prev = existingId
+        ? (store.goals || []).find(
+            (g) => g.id === existingId && g.client_id === client.id
+          )
+        : null;
+      const startVal =
+        body.start_value != null && String(body.start_value) !== ''
+          ? Number(body.start_value)
+          : prev?.start_value ?? null;
+      const targetVal =
+        body.target_value != null && String(body.target_value) !== ''
+          ? Number(body.target_value)
+          : prev?.target_value ?? null;
+      let goal = prev
+        ? {
+            ...prev,
+            title: title || prev.title,
+            kind: kind || prev.kind,
+            description:
+              body.description != null ? String(body.description) : prev.description,
+            unit:
+              body.unit != null ? String(body.unit) || null : prev.unit,
+            start_value: Number.isFinite(Number(startVal)) ? Number(startVal) : prev.start_value,
+            target_value: Number.isFinite(Number(targetVal))
+              ? Number(targetVal)
+              : prev.target_value,
+            target_date:
+              body.target_date != null
+                ? String(body.target_date).slice(0, 10) || null
+                : prev.target_date,
+            direction:
+              body.direction === 'increase' || body.direction === 'decrease'
+                ? body.direction
+                : prev.direction,
+            updated_at: now,
+          }
+        : createMemberGoal({
+            client_id: client.id,
+            coach_id: client.coach_id,
+            kind,
+            title,
+            description: body.description != null ? String(body.description) : undefined,
+            unit: body.unit != null ? String(body.unit) : undefined,
+            start_value: Number.isFinite(Number(startVal)) ? Number(startVal) : null,
+            target_value: Number.isFinite(Number(targetVal)) ? Number(targetVal) : null,
+            target_date: body.target_date
+              ? String(body.target_date).slice(0, 10)
+              : null,
+            direction:
+              body.direction === 'increase' ? 'increase' : undefined,
+            created_by_role: 'member',
+            nowIso: now,
+          });
+      if (body.status === 'paused' || body.status === 'abandoned' || body.status === 'active') {
+        goal = { ...goal, status: body.status };
+      }
+      applyGoalToStore(store, goal, prev ? `Updated goal · ${goal.title}` : `Goal set · ${goal.title}`);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        goal,
+        portal: decorateMemberPortal(
+          store,
+          store.clients[ci],
+          buildMemberPortalPayloadBase(store, store.clients[ci]),
+          meta
+        ),
+        message: prev ? 'Goal updated' : 'Goal saved',
+      });
+    }
+
+    if (action === 'log_goal' || action === 'goal_actual') {
+      const goalId = String(body.goal_id || '');
+      const value = Number(body.value ?? body.actual);
+      if (!Number.isFinite(value)) {
+        return NextResponse.json({ error: 'Enter an actual number' }, { status: 400 });
+      }
+      const prev = (store.goals || []).find(
+        (g) => g.id === goalId && g.client_id === client.id
+      );
+      if (!prev) {
+        return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
+      }
+      const next = logGoalActual(prev, value, {
+        note: body.note != null ? String(body.note) : undefined,
+        by_role: 'member',
+        by_id: client.id,
+        source: body.source != null ? String(body.source) : 'manual',
+        nowIso: now,
+      });
+      applyGoalToStore(store, next);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        goal: next,
+        portal: decorateMemberPortal(
+          store,
+          store.clients[ci],
+          buildMemberPortalPayloadBase(store, store.clients[ci]),
+          meta
+        ),
+        message:
+          next.status === 'achieved' ? 'Goal hit — well done' : 'Actual saved',
+      });
+    }
+
+    if (action === 'watch_log') {
+      const startedAt = String(body.started_at || now);
+      let sessionId = body.session_id ? String(body.session_id) : null;
+      let bookingId = body.booking_id ? String(body.booking_id) : null;
+      if (bookingId) {
+        const b = store.bookings.find(
+          (x) => x.id === bookingId && x.client_id === client.id
+        );
+        if (b) sessionId = b.session_id;
+      }
+      if (!sessionId) {
+        const matched = matchWatchToSession(
+          store,
+          client.id,
+          startedAt,
+          body.duration_min != null ? Number(body.duration_min) : null
+        );
+        sessionId = matched.session_id;
+        bookingId = bookingId || matched.booking_id;
+      }
+      const source = String(body.source || 'manual');
+      applyWatchSessionToStore(store, {
+        client_id: client.id,
+        booking_id: bookingId,
+        session_id: sessionId,
+        source:
+          source === 'garmin' ||
+          source === 'apple_watch' ||
+          source === 'wear_os'
+            ? source
+            : 'manual',
+        started_at: startedAt,
+        duration_min:
+          body.duration_min != null && String(body.duration_min).trim() !== ''
+            ? Number(body.duration_min)
+            : null,
+        distance_km:
+          body.distance_km != null && String(body.distance_km).trim() !== ''
+            ? Number(body.distance_km)
+            : null,
+        calories:
+          body.calories != null && String(body.calories).trim() !== ''
+            ? Number(body.calories)
+            : null,
+        avg_hr:
+          body.avg_hr != null && String(body.avg_hr).trim() !== ''
+            ? Number(body.avg_hr)
+            : null,
+        max_hr:
+          body.max_hr != null && String(body.max_hr).trim() !== ''
+            ? Number(body.max_hr)
+            : null,
+        activity_type: body.activity_type
+          ? String(body.activity_type)
+          : null,
+      });
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        portal: decorateMemberPortal(
+          store,
+          store.clients[ci],
+          buildMemberPortalPayloadBase(store, store.clients[ci]),
+          meta
+        ),
+        message: 'Watch session saved',
+      });
+    }
+
+    if (action === 'garmin_start') {
+      if (!garminConfigured()) {
+        return NextResponse.json(
+          {
+            error:
+              'Garmin Connect is not enabled for this gym yet. You can still log Apple Watch / Garmin stats after class.',
+            garmin_available: false,
+          },
+          { status: 400 }
+        );
+      }
+      const origin = request.headers.get('origin') || undefined;
+      const redirectUri = garminRedirectUri(origin || undefined);
+      const pkce = newPkcePair();
+      const state = `gmn.${companyId}.${client.id}.${Date.now().toString(36)}`;
+      store.garmin_oauth_pending = [
+        {
+          state,
+          client_id: client.id,
+          portal_token: token,
+          code_verifier: pkce.verifier,
+          created_at: now,
+        },
+        ...(store.garmin_oauth_pending || []).filter(
+          (p) => Date.now() - new Date(p.created_at).getTime() < 30 * 60 * 1000
+        ),
+      ].slice(0, 20);
+      await saveStore(companyId, meta, store);
+      const url = new URL(GARMIN_AUTHORIZE_URL);
+      url.searchParams.set('response_type', 'code');
+      url.searchParams.set('client_id', String(process.env.GARMIN_CLIENT_ID));
+      url.searchParams.set('redirect_uri', redirectUri);
+      url.searchParams.set('state', state);
+      url.searchParams.set('code_challenge', pkce.challenge);
+      url.searchParams.set('code_challenge_method', 'S256');
+      return NextResponse.json({
+        success: true,
+        authorize_url: url.toString(),
+      });
+    }
+
+    if (action === 'garmin_import' || action === 'watch_import') {
+      const garmin = store.clients[ci].wearable?.garmin;
+      if (!garmin?.connected || !garmin.access_token) {
+        return NextResponse.json(
+          {
+            error: 'Connect Garmin first, or log the session from your watch.',
+            need_connect: true,
+          },
+          { status: 400 }
+        );
+      }
+      const origin = request.headers.get('origin') || undefined;
+      const redirectUri = garminRedirectUri(origin);
+      const fresh = await ensureGarminAccess(garmin, redirectUri);
+      store.clients[ci] = {
+        ...store.clients[ci],
+        wearable: { ...(store.clients[ci].wearable || {}), garmin: fresh },
+      };
+      const to = Math.floor(Date.now() / 1000);
+      const from = to - 36 * 3600;
+      const activities = await pullGarminActivities(
+        String(fresh.access_token),
+        from,
+        to
+      );
+      let imported = 0;
+      for (const act of activities) {
+        const input = garminActivityToWatchInput(client.id, act);
+        if (!input) continue;
+        const matched = matchWatchToSession(
+          store,
+          client.id,
+          input.started_at,
+          input.duration_min
+        );
+        applyWatchSessionToStore(store, {
+          ...input,
+          session_id: matched.session_id,
+          booking_id: matched.booking_id,
+        });
+        imported += 1;
+      }
+      store.clients[ci] = {
+        ...store.clients[ci],
+        wearable: {
+          ...(store.clients[ci].wearable || {}),
+          garmin: { ...fresh, last_sync_at: now },
+        },
+      };
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        imported,
+        portal: decorateMemberPortal(
+          store,
+          store.clients[ci],
+          buildMemberPortalPayloadBase(store, store.clients[ci]),
+          meta
+        ),
+        message:
+          imported > 0
+            ? `Imported ${imported} Garmin activit${imported === 1 ? 'y' : 'ies'}`
+            : 'No new Garmin activities in the last day',
+      });
+    }
+
+    if (action === 'garmin_disconnect') {
+      store.clients[ci] = {
+        ...store.clients[ci],
+        wearable: { ...(store.clients[ci].wearable || {}), garmin: null },
+      };
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        portal: decorateMemberPortal(
+          store,
+          store.clients[ci],
+          buildMemberPortalPayloadBase(store, store.clients[ci]),
+          meta
+        ),
+        message: 'Garmin disconnected',
       });
     }
 

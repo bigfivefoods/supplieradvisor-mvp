@@ -208,9 +208,7 @@ export function sessionRosterNames(
     .filter(
       (b) =>
         b.session_id === sessionId &&
-        (b.status === 'booked' ||
-          b.status === 'attended' ||
-          b.status === 'waitlist')
+        b.status !== 'cancelled'
     )
     .map((b) => {
       const cl = store.clients.find((c) => c.id === b.client_id);

@@ -3029,6 +3029,8 @@ function upsert(
       feedback_requested_at: prev?.feedback_requested_at ?? null,
       feedback_submitted_at: prev?.feedback_submitted_at ?? null,
       feedback_id: prev?.feedback_id ?? null,
+      coach_feedback: prev?.coach_feedback ?? null,
+      coach_feedback_at: prev?.coach_feedback_at ?? null,
     };
     // Status transition: cancel → promote waitlist
     if (

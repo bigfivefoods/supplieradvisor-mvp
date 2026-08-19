@@ -3,12 +3,30 @@
  * from linked Advisor brands (medical, dental, physio, psychiatry, gym).
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { loadAdvisorModuleStore } from '@/lib/business/company-data';
-import { readMedicalgraphFromMetadata } from '@/lib/clinic/medicalgraph';
-import { readPhysiographFromMetadata } from '@/lib/clinic/physiograph';
-import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
-import { readPsychiatrygraphFromMetadata } from '@/lib/clinic/psychiatrygraph';
-import { readFitgraphFromMetadata } from '@/lib/fitness/fitgraph';
+import {
+  loadAdvisorModuleStore,
+  saveAdvisorModuleStore,
+} from '@/lib/business/company-data';
+import {
+  readMedicalgraphFromMetadata,
+  writeMedicalgraphToMetadata,
+} from '@/lib/clinic/medicalgraph';
+import {
+  readPhysiographFromMetadata,
+  writePhysiographToMetadata,
+} from '@/lib/clinic/physiograph';
+import {
+  readDentalgraphFromMetadata,
+  writeDentalgraphToMetadata,
+} from '@/lib/dental/dentalgraph';
+import {
+  readPsychiatrygraphFromMetadata,
+  writePsychiatrygraphToMetadata,
+} from '@/lib/clinic/psychiatrygraph';
+import {
+  readFitgraphFromMetadata,
+  writeFitgraphToMetadata,
+} from '@/lib/fitness/fitgraph';
 import { readHiregraphFromMetadata } from '@/lib/hire/hiregraph';
 import { readRetailgraphFromMetadata } from '@/lib/retail/retailgraph';
 import { buildPatientMedicalShare } from '@/lib/clinic/medical-share';
@@ -24,9 +42,111 @@ import type {
   B2cCareRecord,
 } from '@/lib/b2c/care-types';
 import { publishedAnnouncements } from '@/lib/services/member-announcements';
-
+import {
+  buildPublicFeedbackPath,
+  ensureClientRatingTokens,
+} from '@/lib/services/booking-feedback';
 function isClinicKindHref(kind: string) {
   return ['physio', 'dental', 'medical', 'psychiatry'].includes(kind);
+}
+
+function daysAgoIso(iso: string, days: number) {
+  const d = new Date(`${iso}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+type ClinicCareKey =
+  | 'physiograph'
+  | 'dentalgraph'
+  | 'medicalgraph'
+  | 'psychiatrygraph';
+
+type ClinicCareStore = {
+  patients: Array<{
+    id: string;
+    follow_ups?: Parameters<typeof followUpsAsAdvice>[0];
+    share_medical?: boolean;
+  }>;
+  bookings: Array<{
+    id: string;
+    patient_id: string;
+    appointment_id: string;
+    status?: string;
+    feedback_token?: string | null;
+    feedback_submitted_at?: string | null;
+  }>;
+  appointments: Array<{
+    id: string;
+    date: string;
+    start_time?: string;
+    status?: string;
+    service_id?: string | null;
+  }>;
+  services: Array<{ id: string; name: string }>;
+  announcements?: Parameters<typeof publishedAnnouncements>[0];
+  visit_notes?: Array<{
+    person_id: string;
+    private?: boolean;
+    appointment_id?: string | null;
+    booking_id?: string | null;
+    body?: string | null;
+  }>;
+};
+
+async function loadClinicCareStore(
+  companyId: number,
+  kind: string
+): Promise<{ clinicKey: ClinicCareKey; store: ClinicCareStore } | null> {
+  if (kind === 'physio') {
+    const { store } = await loadAdvisorModuleStore(
+      companyId,
+      'physiograph',
+      (meta: Record<string, unknown>) => readPhysiographFromMetadata(meta)
+    );
+    return { clinicKey: 'physiograph', store: store as ClinicCareStore };
+  }
+  if (kind === 'dental') {
+    const { store } = await loadAdvisorModuleStore(
+      companyId,
+      'dentalgraph',
+      (meta: Record<string, unknown>) => readDentalgraphFromMetadata(meta)
+    );
+    return { clinicKey: 'dentalgraph', store: store as ClinicCareStore };
+  }
+  if (kind === 'medical') {
+    const { store } = await loadAdvisorModuleStore(
+      companyId,
+      'medicalgraph',
+      (meta: Record<string, unknown>) => readMedicalgraphFromMetadata(meta)
+    );
+    return { clinicKey: 'medicalgraph', store: store as ClinicCareStore };
+  }
+  if (kind === 'psychiatry') {
+    const { store } = await loadAdvisorModuleStore(
+      companyId,
+      'psychiatrygraph',
+      (meta: Record<string, unknown>) => readPsychiatrygraphFromMetadata(meta)
+    );
+    return { clinicKey: 'psychiatrygraph', store: store as ClinicCareStore };
+  }
+  return null;
+}
+
+function writeClinicCareStore(
+  clinicKey: ClinicCareKey,
+  store: ClinicCareStore
+): Record<string, unknown> {
+  if (clinicKey === 'physiograph') {
+    return writePhysiographToMetadata({}, store as never);
+  }
+  if (clinicKey === 'dentalgraph') {
+    return writeDentalgraphToMetadata({}, store as never);
+  }
+  if (clinicKey === 'medicalgraph') {
+    return writeMedicalgraphToMetadata({}, store as never);
+  }
+  return writePsychiatrygraphToMetadata({}, store as never);
 }
 
 export type { B2cCareAnnouncement, B2cCareBooking, B2cCareClinic, B2cCareRecord };
@@ -80,6 +200,18 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
       const store = readFitgraphFromMetadata(meta);
       const client = store.clients.find((c) => c.id === mem.ref_id);
       if (!client) continue;
+      const gymDirty = ensureClientRatingTokens(store.bookings, (b) => {
+        const s = store.sessions.find((x) => x.id === b.session_id);
+        return s ? { date: s.date, start_time: s.start_time } : null;
+      });
+      if (gymDirty) {
+        await saveAdvisorModuleStore(
+          Number(mem.company_id),
+          'fitgraph',
+          store,
+          writeFitgraphToMetadata
+        );
+      }
       for (const a of publishedAnnouncements(store.announcements, 4)) {
         announcements.push({
           id: a.id,
@@ -99,7 +231,9 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
           continue;
         }
         const ses = store.sessions.find((s) => s.id === b.session_id);
-        if (!ses || ses.date < today) continue;
+        if (!ses) continue;
+        const past = ses.date < today || b.status === 'attended';
+        if (past && ses.date < daysAgoIso(today, -21)) continue;
         const ct = store.class_types.find((t) => t.id === ses.class_type_id);
         bookings.push({
           id: b.id,
@@ -109,6 +243,16 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
           when: `${ses.date} ${ses.start_time || ''}`.trim(),
           status: String(b.status),
           href: `${mem.portal_path}${mem.portal_path.includes('?') ? '&' : '?'}tab=mine`,
+          past,
+          feedback_href:
+            b.feedback_token && !b.feedback_submitted_at
+              ? buildPublicFeedbackPath(
+                  'fitgraph',
+                  Number(mem.company_id),
+                  b.feedback_token
+                )
+              : null,
+          feedback_done: Boolean(b.feedback_submitted_at),
         });
       }
       continue;
@@ -154,29 +298,26 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
       continue;
     }
 
-    const clinicKey =
-      mem.kind === 'physio'
-        ? 'physiograph'
-        : mem.kind === 'dental'
-          ? 'dentalgraph'
-          : mem.kind === 'medical'
-            ? 'medicalgraph'
-            : 'psychiatrygraph';
-    const clinicRead =
-      mem.kind === 'physio'
-        ? readPhysiographFromMetadata
-        : mem.kind === 'dental'
-          ? readDentalgraphFromMetadata
-          : mem.kind === 'medical'
-            ? readMedicalgraphFromMetadata
-            : readPsychiatrygraphFromMetadata;
-    const { store } = await loadAdvisorModuleStore(
+    const loadedClinic = await loadClinicCareStore(
       Number(mem.company_id),
-      clinicKey,
-      clinicRead
+      mem.kind
     );
+    if (!loadedClinic) continue;
+    const { clinicKey, store } = loadedClinic;
     const patient = (store.patients || []).find((p) => p.id === mem.ref_id);
     if (!patient) continue;
+    const clinicDirty = ensureClientRatingTokens(store.bookings, (b) => {
+      const a = store.appointments.find((x) => x.id === b.appointment_id);
+      return a ? { date: a.date, start_time: a.start_time } : null;
+    });
+    if (clinicDirty) {
+      await saveAdvisorModuleStore(
+        Number(mem.company_id),
+        clinicKey,
+        store,
+        (_meta, next) => writeClinicCareStore(clinicKey, next)
+      );
+    }
 
     for (const a of publishedAnnouncements(store.announcements, 4)) {
       announcements.push({
@@ -238,6 +379,15 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
         href: `${mem.portal_path}${mem.portal_path.includes('?') ? '&' : '?'}tab=${past ? 'history' : 'mine'}`,
         past,
         notes: note?.body || undefined,
+        feedback_href:
+          b.feedback_token && !b.feedback_submitted_at
+            ? buildPublicFeedbackPath(
+                clinicKey,
+                Number(mem.company_id),
+                b.feedback_token
+              )
+            : null,
+        feedback_done: Boolean(b.feedback_submitted_at),
       });
     }
   }

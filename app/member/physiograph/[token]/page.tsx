@@ -31,6 +31,10 @@ import {
 } from '@/components/advisors/MemberPortalInvoices';
 import { MemberPortalClaims, type MemberPortalClaim } from '@/components/advisors/MemberPortalClaims';
 import { MemberMedicalShare } from '@/components/services/MemberMedicalShare';
+import {
+  MemberRateLink,
+  publicRatePath,
+} from '@/components/advisors/MemberRateLink';
 import type {
   SharedAdviceNote,
   SharedTreatmentPlan,
@@ -110,6 +114,8 @@ type Portal = {
     start_time: string;
     service_name: string;
     practitioner_name?: string;
+    feedback_token?: string | null;
+    feedback_submitted_at?: string | null;
   }>;
   open_count: number;
   invoices?: MemberPortalInvoice[];
@@ -567,6 +573,15 @@ export default function MemberPhysiographPortalPage() {
                     <span className="text-[10px] font-black uppercase text-slate-600">
                       {b.status}
                     </span>
+                    <MemberRateLink
+                      href={publicRatePath(
+                        'physiograph',
+                        companyId,
+                        b.feedback_token
+                      )}
+                      submitted={Boolean(b.feedback_submitted_at)}
+                      label="Rate this visit (optional)"
+                    />
                   </div>
                   {(b.status === 'booked' || b.status === 'waitlist') && (
                     <button

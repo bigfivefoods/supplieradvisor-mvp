@@ -2,17 +2,20 @@
 
 import Link from 'next/link';
 import type { PatientVisitHistoryItem } from '@/lib/clinic/visit-history';
+import { MemberRateLink } from '@/components/advisors/MemberRateLink';
 
 export function PatientVisitHistory({
   visits,
   emptyLabel = 'No visits on file yet.',
   calendarHref,
   showPrivate = false,
+  rateHref,
 }: {
   visits: PatientVisitHistoryItem[];
   emptyLabel?: string;
   calendarHref?: (visit: PatientVisitHistoryItem) => string;
   showPrivate?: boolean;
+  rateHref?: (visit: PatientVisitHistoryItem) => string | null;
 }) {
   if (!visits.length) {
     return (
@@ -82,6 +85,13 @@ export function PatientVisitHistory({
             >
               Open this appointment
             </Link>
+          ) : null}
+          {rateHref && !v.upcoming ? (
+            <MemberRateLink
+              href={rateHref(v)}
+              submitted={Boolean(v.feedback_submitted_at)}
+              label="Rate this visit (optional)"
+            />
           ) : null}
         </li>
       ))}

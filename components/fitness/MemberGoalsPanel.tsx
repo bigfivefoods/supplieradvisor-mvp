@@ -1,0 +1,398 @@
+'use client';
+
+import { useState } from 'react';
+import { Target, Watch } from 'lucide-react';
+import {
+  MEMBER_GOAL_PRESETS,
+  type MemberGoalView,
+} from '@/lib/fitness/member-goals';
+
+export function MemberGoalsPanel({
+  goals,
+  wearable,
+  watchSessions,
+  pastClasses,
+  busy,
+  onSaveGoal,
+  onLogActual,
+  onWatchLog,
+  onGarminConnect,
+  onGarminImport,
+  onGarminDisconnect,
+  color = '#E8E830',
+}: {
+  goals: MemberGoalView[];
+  wearable?: {
+    garmin_available?: boolean;
+    garmin_connected?: boolean;
+    last_sync_at?: string | null;
+  } | null;
+  watchSessions?: Array<{
+    id: string;
+    source: string;
+    started_at: string;
+    duration_min?: number | null;
+    distance_km?: number | null;
+    calories?: number | null;
+    avg_hr?: number | null;
+    activity_type?: string | null;
+  }>;
+  pastClasses?: Array<{
+    booking_id: string;
+    class_name: string;
+    date: string;
+    start_time: string;
+  }>;
+  busy?: boolean;
+  onSaveGoal: (v: {
+    kind: string;
+    title: string;
+    start_value: string;
+    target_value: string;
+    target_date: string;
+    unit: string;
+  }) => void | Promise<void>;
+  onLogActual: (goalId: string, value: string) => void | Promise<void>;
+  onWatchLog: (v: {
+    booking_id: string;
+    source: string;
+    duration_min: string;
+    distance_km: string;
+    calories: string;
+    avg_hr: string;
+  }) => void | Promise<void>;
+  onGarminConnect: () => void | Promise<void>;
+  onGarminImport: () => void | Promise<void>;
+  onGarminDisconnect: () => void | Promise<void>;
+  color?: string;
+}) {
+  const [kind, setKind] = useState('weight');
+  const preset = MEMBER_GOAL_PRESETS.find((p) => p.kind === kind) || MEMBER_GOAL_PRESETS[0];
+  const [title, setTitle] = useState(preset.title);
+  const [startValue, setStartValue] = useState('');
+  const [targetValue, setTargetValue] = useState('');
+  const [targetDate, setTargetDate] = useState('');
+  const [unit, setUnit] = useState(preset.unit);
+  const [actualDraft, setActualDraft] = useState<Record<string, string>>({});
+  const [watchBooking, setWatchBooking] = useState(pastClasses?.[0]?.booking_id || '');
+  const [watchSource, setWatchSource] = useState('garmin');
+  const [watchDur, setWatchDur] = useState('');
+  const [watchKm, setWatchKm] = useState('');
+  const [watchCal, setWatchCal] = useState('');
+  const [watchHr, setWatchHr] = useState('');
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 text-yellow-800">
+        <Target className="h-4 w-4" />
+        <h2 className="text-sm font-black">Your goals</h2>
+      </div>
+      <p className="text-xs text-slate-600">
+        Set a target, a date, and log actuals as you go — lose weight, improve
+        BMI, run 5 km, or your own number.
+      </p>
+
+      {goals.length === 0 ? (
+        <p className="text-sm text-slate-500">No goals yet. Pick one below.</p>
+      ) : (
+        <ul className="space-y-2">
+          {goals.map((g) => (
+            <li
+              key={g.id}
+              className="rounded-2xl border border-yellow-200 bg-white p-3 space-y-2"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-black text-slate-900">{g.title}</p>
+                  <p className="text-[11px] text-slate-500">
+                    {g.status}
+                    {g.target_date ? ` · by ${g.target_date}` : ''}
+                  </p>
+                </div>
+                {g.progress_pct != null ? (
+                  <span className="text-xs font-black text-yellow-800">
+                    {g.progress_pct}%
+                  </span>
+                ) : null}
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-xl bg-slate-50 px-2 py-1.5">
+                  <p className="text-[9px] font-black uppercase text-slate-400">
+                    Start
+                  </p>
+                  <p className="text-sm font-black">
+                    {g.start_value ?? '—'}
+                    {g.unit ? ` ${g.unit}` : ''}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-yellow-50 px-2 py-1.5">
+                  <p className="text-[9px] font-black uppercase text-yellow-700">
+                    Actual
+                  </p>
+                  <p className="text-sm font-black">
+                    {g.actual ?? '—'}
+                    {g.unit ? ` ${g.unit}` : ''}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-slate-50 px-2 py-1.5">
+                  <p className="text-[9px] font-black uppercase text-slate-400">
+                    Target
+                  </p>
+                  <p className="text-sm font-black">
+                    {g.target_value ?? '—'}
+                    {g.unit ? ` ${g.unit}` : ''}
+                  </p>
+                </div>
+              </div>
+              {g.progress_pct != null ? (
+                <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${g.progress_pct}%`,
+                      background: color,
+                    }}
+                  />
+                </div>
+              ) : null}
+              {g.status === 'active' ? (
+                <div className="flex gap-2">
+                  <input
+                    className="flex-1 rounded-xl border border-slate-200 px-3 py-1.5 text-sm"
+                    inputMode="decimal"
+                    placeholder={`Actual${g.unit ? ` (${g.unit})` : ''}`}
+                    value={actualDraft[g.id] || ''}
+                    onChange={(e) =>
+                      setActualDraft((cur) => ({ ...cur, [g.id]: e.target.value }))
+                    }
+                  />
+                  <button
+                    type="button"
+                    disabled={busy || !actualDraft[g.id]}
+                    onClick={() => void onLogActual(g.id, actualDraft[g.id])}
+                    className="rounded-xl bg-slate-900 px-3 py-1.5 text-[11px] font-black text-white disabled:opacity-50"
+                  >
+                    Log
+                  </button>
+                </div>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
+        <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+          New goal
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {MEMBER_GOAL_PRESETS.map((p) => (
+            <button
+              key={p.kind}
+              type="button"
+              onClick={() => {
+                setKind(p.kind);
+                setTitle(p.title);
+                setUnit(p.unit);
+              }}
+              className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
+                kind === p.kind
+                  ? 'border-yellow-600 bg-[#E8E830] text-slate-900'
+                  : 'border-slate-200 bg-white text-slate-700'
+              }`}
+            >
+              {p.title}
+            </button>
+          ))}
+        </div>
+        <input
+          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+          placeholder="Goal name"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+            inputMode="decimal"
+            placeholder={`Start ${unit || ''}`.trim()}
+            value={startValue}
+            onChange={(e) => setStartValue(e.target.value)}
+          />
+          <input
+            className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+            inputMode="decimal"
+            placeholder={`Target ${unit || ''}`.trim()}
+            value={targetValue}
+            onChange={(e) => setTargetValue(e.target.value)}
+          />
+        </div>
+        <input
+          type="date"
+          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+          value={targetDate}
+          onChange={(e) => setTargetDate(e.target.value)}
+        />
+        <button
+          type="button"
+          disabled={busy || !title.trim()}
+          onClick={() =>
+            void onSaveGoal({
+              kind,
+              title,
+              start_value: startValue,
+              target_value: targetValue,
+              target_date: targetDate,
+              unit,
+            })
+          }
+          className="w-full rounded-xl bg-[#E8E830] py-2 text-sm font-black text-slate-900 disabled:opacity-50"
+        >
+          Save goal
+        </button>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
+        <div className="flex items-center gap-2 text-slate-800">
+          <Watch className="h-4 w-4" />
+          <h3 className="text-sm font-black">Watch after class</h3>
+        </div>
+        <p className="text-[11px] text-slate-500">
+          Garmin Connect can send the session automatically when the gym has
+          connected Garmin. Apple Watch and Wear OS cannot be read from this
+          PWA — log duration, distance and heart rate here after class.
+        </p>
+        {wearable?.garmin_connected ? (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void onGarminImport()}
+              className="rounded-xl bg-slate-900 px-3 py-2 text-[11px] font-black text-white disabled:opacity-50"
+            >
+              Import from Garmin
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void onGarminDisconnect()}
+              className="rounded-xl border border-slate-200 px-3 py-2 text-[11px] font-bold"
+            >
+              Disconnect
+            </button>
+            {wearable.last_sync_at ? (
+              <span className="text-[10px] text-slate-400 self-center">
+                Last sync {wearable.last_sync_at.slice(0, 16).replace('T', ' ')}
+              </span>
+            ) : null}
+          </div>
+        ) : wearable?.garmin_available ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void onGarminConnect()}
+            className="rounded-xl bg-slate-900 px-3 py-2 text-[11px] font-black text-white disabled:opacity-50"
+          >
+            Connect Garmin
+          </button>
+        ) : (
+          <p className="text-[11px] text-slate-500">
+            Garmin Connect is ready when the gym adds Garmin developer
+            credentials. You can still log watch stats below.
+          </p>
+        )}
+
+        {(pastClasses || []).length > 0 ? (
+          <>
+            <select
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              value={watchBooking}
+              onChange={(e) => setWatchBooking(e.target.value)}
+            >
+              {(pastClasses || []).map((c) => (
+                <option key={c.booking_id} value={c.booking_id}>
+                  {c.date} {c.start_time.slice(0, 5)} · {c.class_name}
+                </option>
+              ))}
+            </select>
+            <select
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              value={watchSource}
+              onChange={(e) => setWatchSource(e.target.value)}
+            >
+              <option value="garmin">Garmin</option>
+              <option value="apple_watch">Apple Watch</option>
+              <option value="wear_os">Wear OS / Pixel Watch</option>
+              <option value="manual">Other / manual</option>
+            </select>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                placeholder="Minutes"
+                inputMode="decimal"
+                value={watchDur}
+                onChange={(e) => setWatchDur(e.target.value)}
+              />
+              <input
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                placeholder="Distance km"
+                inputMode="decimal"
+                value={watchKm}
+                onChange={(e) => setWatchKm(e.target.value)}
+              />
+              <input
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                placeholder="Calories"
+                inputMode="decimal"
+                value={watchCal}
+                onChange={(e) => setWatchCal(e.target.value)}
+              />
+              <input
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                placeholder="Avg HR"
+                inputMode="decimal"
+                value={watchHr}
+                onChange={(e) => setWatchHr(e.target.value)}
+              />
+            </div>
+            <button
+              type="button"
+              disabled={busy || !watchBooking}
+              onClick={() =>
+                void onWatchLog({
+                  booking_id:
+                    watchBooking || pastClasses?.[0]?.booking_id || '',
+                  source: watchSource,
+                  duration_min: watchDur,
+                  distance_km: watchKm,
+                  calories: watchCal,
+                  avg_hr: watchHr,
+                })
+              }
+              className="w-full rounded-xl border border-yellow-300 bg-yellow-50 py-2 text-sm font-black text-yellow-950 disabled:opacity-50"
+            >
+              Save watch session
+            </button>
+          </>
+        ) : (
+          <p className="text-[11px] text-slate-500">
+            After you attend a class, log the watch numbers here.
+          </p>
+        )}
+
+        {(watchSessions || []).length > 0 ? (
+          <ul className="space-y-1 pt-1">
+            {(watchSessions || []).slice(0, 5).map((w) => (
+              <li key={w.id} className="text-[11px] text-slate-600">
+                {w.started_at.slice(0, 16).replace('T', ' ')} · {w.source}
+                {w.duration_min != null ? ` · ${w.duration_min} min` : ''}
+                {w.distance_km != null ? ` · ${w.distance_km} km` : ''}
+                {w.avg_hr != null ? ` · ${w.avg_hr} bpm` : ''}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </div>
+  );
+}

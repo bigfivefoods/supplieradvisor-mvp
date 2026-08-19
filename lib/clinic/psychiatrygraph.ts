@@ -632,7 +632,9 @@ export function buildPatientPortalPayload(
     .filter((b) => {
       if (b.patient_id !== patient.id || b.status === 'cancelled') return false;
       const a = store.appointments.find((x) => x.id === b.appointment_id);
-      return a && a.date >= start;
+      if (!a) return false;
+      if (a.date >= start) return true;
+      return Boolean(b.feedback_token && !b.feedback_submitted_at);
     })
     .map((b) => {
       const a = store.appointments.find((x) => x.id === b.appointment_id)!;
@@ -649,6 +651,8 @@ export function buildPatientPortalPayload(
         location: a.location,
         waitlist_offered_at: b.waitlist_offered_at || null,
         waitlist_accepted_at: b.waitlist_accepted_at || null,
+        feedback_token: b.feedback_token || null,
+        feedback_submitted_at: b.feedback_submitted_at || null,
       };
     })
     .sort((a, b) =>

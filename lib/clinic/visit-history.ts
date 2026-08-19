@@ -28,6 +28,8 @@ export type PatientVisitHistoryItem = {
     instructions?: string | null;
     status?: string | null;
   }>;
+  feedback_token?: string | null;
+  feedback_submitted_at?: string | null;
 };
 
 type HistoryBooking = {
@@ -35,6 +37,8 @@ type HistoryBooking = {
   appointment_id: string;
   patient_id?: string | null;
   status?: string;
+  feedback_token?: string | null;
+  feedback_submitted_at?: string | null;
 };
 
 type HistoryAppointment = {
@@ -142,6 +146,8 @@ export function buildPatientVisitHistory(opts: {
       upcoming,
       notes,
       scripts,
+      feedback_token: b.feedback_token || null,
+      feedback_submitted_at: b.feedback_submitted_at || null,
     });
   }
   rows.sort((x, y) =>

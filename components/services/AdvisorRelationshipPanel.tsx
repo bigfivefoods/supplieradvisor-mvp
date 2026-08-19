@@ -250,7 +250,17 @@ export function AdvisorRelationshipPanel({
                 className="text-xs font-medium text-slate-800 dark:text-slate-100 flex items-center gap-2"
               >
                 <Target className="w-3 h-3 text-yellow-600 shrink-0" />
-                {g.title}
+                <span>
+                  {g.title}
+                  {g.current_value != null || g.target_value != null ? (
+                    <span className="text-slate-400 font-normal">
+                      {' '}
+                      · {g.current_value ?? g.start_value ?? '—'}
+                      {g.unit ? ` ${g.unit}` : ''} → {g.target_value ?? '—'}
+                      {g.unit ? ` ${g.unit}` : ''}
+                    </span>
+                  ) : null}
+                </span>
                 {g.target_date ? (
                   <span className="text-[10px] text-slate-400">
                     by {g.target_date}

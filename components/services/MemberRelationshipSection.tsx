@@ -30,6 +30,10 @@ export type MemberRelationshipPayload = {
     title: string;
     target_date?: string | null;
     status?: string;
+    unit?: string | null;
+    start_value?: number | null;
+    target_value?: number | null;
+    current_value?: number | null;
   }>;
   ledger?: {
     member_view?: {
@@ -92,6 +96,14 @@ export function MemberRelationshipSection({
                 className="text-xs font-semibold text-slate-800 dark:text-slate-100"
               >
                 {g.title}
+                {g.current_value != null || g.target_value != null ? (
+                  <span className="text-slate-400 font-normal">
+                    {' '}
+                    · {g.current_value ?? '—'}
+                    {g.unit ? ` ${g.unit}` : ''} / {g.target_value ?? '—'}
+                    {g.unit ? ` ${g.unit}` : ''}
+                  </span>
+                ) : null}
                 {g.target_date ? (
                   <span className="text-slate-400 font-normal">
                     {' '}

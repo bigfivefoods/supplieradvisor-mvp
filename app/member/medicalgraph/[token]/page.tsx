@@ -32,6 +32,10 @@ import {
 import { MemberPortalClaims, type MemberPortalClaim } from '@/components/advisors/MemberPortalClaims';
 import { MemberMedicalShare } from '@/components/services/MemberMedicalShare';
 import { PatientVisitHistory } from '@/components/clinic/PatientVisitHistory';
+import {
+  MemberRateLink,
+  publicRatePath,
+} from '@/components/advisors/MemberRateLink';
 import type {
   SharedAdviceNote,
   SharedTreatmentPlan,
@@ -110,6 +114,8 @@ type Portal = {
     start_time: string;
     service_name: string;
     practitioner_name?: string;
+    feedback_token?: string | null;
+    feedback_submitted_at?: string | null;
   }>;
   visit_history?: import('@/lib/clinic/visit-history').PatientVisitHistoryItem[];
   open_count: number;
@@ -568,6 +574,9 @@ export default function MemberMedicalgraphPortalPage() {
             <PatientVisitHistory
               visits={portal.visit_history || []}
               emptyLabel="No past visits yet. After you attend, notes and scripts appear here."
+              rateHref={(v) =>
+                publicRatePath('medicalgraph', companyId, v.feedback_token)
+              }
             />
           </div>
         )}
@@ -598,6 +607,15 @@ export default function MemberMedicalgraphPortalPage() {
                     <span className="text-[10px] font-black uppercase text-slate-600">
                       {b.status}
                     </span>
+                    <MemberRateLink
+                      href={publicRatePath(
+                        'medicalgraph',
+                        companyId,
+                        b.feedback_token
+                      )}
+                      submitted={Boolean(b.feedback_submitted_at)}
+                      label="Rate this visit (optional)"
+                    />
                   </div>
                   {(b.status === 'booked' || b.status === 'waitlist') && (
                     <button
@@ -629,6 +647,9 @@ export default function MemberMedicalgraphPortalPage() {
             <PatientVisitHistory
               visits={portal.visit_history || []}
               emptyLabel="No past visits on this profile yet."
+              rateHref={(v) =>
+                publicRatePath('medicalgraph', companyId, v.feedback_token)
+              }
             />
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">

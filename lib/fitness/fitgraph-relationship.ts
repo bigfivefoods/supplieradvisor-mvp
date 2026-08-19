@@ -43,6 +43,7 @@ export type FitGoalCheckIn = {
   by_id?: string | null;
   note?: string;
   metric_value?: number | null;
+  source?: string;
 };
 
 export type FitGoal = {
@@ -54,8 +55,16 @@ export type FitGoal = {
   description?: string;
   category: FitGoalCategory | string;
   status: FitGoalStatus | string;
+  /** weight, bmi, run_5k, distance, workouts_week, custom */
+  kind?: string | null;
+  /** decrease = lose/faster · increase = more sessions / longer distance */
+  direction?: 'increase' | 'decrease' | string | null;
   /** Optional numeric target */
   target_value?: number | null;
+  /** Baseline when the goal was set */
+  start_value?: number | null;
+  /** Latest actual (mirrors last check-in) */
+  current_value?: number | null;
   unit?: string | null;
   start_date?: string | null;
   target_date?: string | null;

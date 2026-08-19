@@ -658,6 +658,8 @@ export function buildPatientPortalPayload(
         location: v.location,
         waitlist_offered_at: b?.waitlist_offered_at || null,
         waitlist_accepted_at: b?.waitlist_accepted_at || null,
+        feedback_token: b?.feedback_token || null,
+        feedback_submitted_at: b?.feedback_submitted_at || null,
       };
     });
 

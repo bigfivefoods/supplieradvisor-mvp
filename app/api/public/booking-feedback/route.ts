@@ -35,6 +35,7 @@ import {
 import { logoUrlFromSettings, pickCompanyLogoUrl } from '@/lib/business/company-logo';
 import {
   upsertServiceFeedback,
+  bookingEligibleForClientRating,
   type FeedbackModule,
   type ServiceFeedback,
 } from '@/lib/services/booking-feedback';
@@ -96,8 +97,16 @@ type Resolved = {
   module: FeedbackModule;
 };
 
-function feedbackStatusOk(status?: string) {
-  return status === 'attended' || status === 'booked';
+function feedbackStatusOk(
+  status?: string,
+  date?: string | null,
+  startTime?: string | null
+) {
+  return bookingEligibleForClientRating({
+    status,
+    date,
+    startTime,
+  });
 }
 
 type ClinicFeedbackStore = {
@@ -110,6 +119,11 @@ type ClinicFeedbackStore = {
     feedback_submitted_at?: string | null;
     feedback_id?: string | null;
   }>;
+  appointments?: Array<{
+    id: string;
+    date?: string;
+    start_time?: string;
+  }>;
   patients: Array<{ id: string; name?: string; email?: string | null }>;
   appointment_feedback?: ServiceFeedback[];
 };
@@ -119,7 +133,11 @@ function applyClinicVisitFeedback<T extends ClinicFeedbackStore>(
   opts: {
     token: string;
     now: string;
-    statusOk: (status?: string) => boolean;
+    statusOk: (
+      status?: string,
+      date?: string | null,
+      startTime?: string | null
+    ) => boolean;
     body: Record<string, unknown>;
     includePractice?: boolean;
   }
@@ -128,7 +146,14 @@ function applyClinicVisitFeedback<T extends ClinicFeedbackStore>(
   | { kind: 'already' }
   | { kind: 'saved'; feedbackId: string } {
   const booking = store.bookings.find((b) => b.feedback_token === opts.token);
-  if (!booking || !opts.statusOk(booking.status)) return { kind: 'invalid' };
+  const appt = (store.appointments || []).find(
+    (a) => a.id === booking?.appointment_id
+  );
+  if (
+    !booking ||
+    !opts.statusOk(booking.status, appt?.date, appt?.start_time)
+  )
+    return { kind: 'invalid' };
   if (booking.feedback_submitted_at) return { kind: 'already' };
   const patient = store.patients.find((p) => p.id === booking.patient_id);
   const { list, row } = upsertServiceFeedback(store.appointment_feedback, {
@@ -187,8 +212,12 @@ function resolveFit(
   token: string
 ): Resolved | null {
   const booking = store.bookings.find((b) => b.feedback_token === token);
-  if (!booking || booking.status !== 'attended') return null;
-  const session = store.sessions.find((s) => s.id === booking.session_id);
+  const session = store.sessions.find((s) => s.id === booking?.session_id);
+  if (
+    !booking ||
+    !feedbackStatusOk(booking.status, session?.date, session?.start_time)
+  )
+    return null;
   const ct = session
     ? store.class_types.find((c) => c.id === session.class_type_id)
     : null;
@@ -213,8 +242,12 @@ function resolvePhysio(
   token: string
 ): Resolved | null {
   const booking = store.bookings.find((b) => b.feedback_token === token);
-  if (!booking || booking.status !== 'attended') return null;
-  const apt = store.appointments.find((a) => a.id === booking.appointment_id);
+  const apt = store.appointments.find((a) => a.id === booking?.appointment_id);
+  if (
+    !booking ||
+    !feedbackStatusOk(booking.status, apt?.date, apt?.start_time)
+  )
+    return null;
   const svc = apt
     ? store.services.find((s) => s.id === apt.service_id)
     : null;
@@ -239,8 +272,12 @@ function resolveDental(
   token: string
 ): Resolved | null {
   const booking = store.bookings.find((b) => b.feedback_token === token);
-  if (!booking || booking.status !== 'attended') return null;
-  const apt = store.appointments.find((a) => a.id === booking.appointment_id);
+  const apt = store.appointments.find((a) => a.id === booking?.appointment_id);
+  if (
+    !booking ||
+    !feedbackStatusOk(booking.status, apt?.date, apt?.start_time)
+  )
+    return null;
   const svc = apt
     ? store.services.find((s) => s.id === apt.service_id)
     : null;
@@ -265,8 +302,12 @@ function resolveMedical(
   token: string
 ): Resolved | null {
   const booking = store.bookings.find((b) => b.feedback_token === token);
-  if (!booking || !feedbackStatusOk(booking.status)) return null;
-  const apt = store.appointments.find((a) => a.id === booking.appointment_id);
+  const apt = store.appointments.find((a) => a.id === booking?.appointment_id);
+  if (
+    !booking ||
+    !feedbackStatusOk(booking.status, apt?.date, apt?.start_time)
+  )
+    return null;
   const svc = apt
     ? store.services.find((s) => s.id === apt.service_id)
     : null;
@@ -292,8 +333,12 @@ function resolvePsychiatry(
   token: string
 ): Resolved | null {
   const booking = store.bookings.find((b) => b.feedback_token === token);
-  if (!booking || booking.status !== 'attended') return null;
-  const apt = store.appointments.find((a) => a.id === booking.appointment_id);
+  const apt = store.appointments.find((a) => a.id === booking?.appointment_id);
+  if (
+    !booking ||
+    !feedbackStatusOk(booking.status, apt?.date, apt?.start_time)
+  )
+    return null;
   const svc = apt
     ? store.services.find((s) => s.id === apt.service_id)
     : null;
@@ -413,7 +458,11 @@ export async function POST(request: NextRequest) {
     if (module === 'fitgraph') {
       const store = readFitgraphFromMetadata(meta);
       const booking = store.bookings.find((b) => b.feedback_token === token);
-      if (!booking || booking.status !== 'attended') {
+      const session = store.sessions.find((s) => s.id === booking?.session_id);
+      if (
+        !booking ||
+        !feedbackStatusOk(booking.status, session?.date, session?.start_time)
+      ) {
         return NextResponse.json({ error: 'Invalid feedback link' }, { status: 404 });
       }
       if (booking.feedback_submitted_at) {
@@ -459,7 +508,13 @@ export async function POST(request: NextRequest) {
     if (module === 'physiograph') {
       const store = readPhysiographFromMetadata(meta);
       const booking = store.bookings.find((b) => b.feedback_token === token);
-      if (!booking || booking.status !== 'attended') {
+      const apt = store.appointments.find(
+        (a) => a.id === booking?.appointment_id
+      );
+      if (
+        !booking ||
+        !feedbackStatusOk(booking.status, apt?.date, apt?.start_time)
+      ) {
         return NextResponse.json({ error: 'Invalid feedback link' }, { status: 404 });
       }
       if (booking.feedback_submitted_at) {
@@ -527,7 +582,7 @@ export async function POST(request: NextRequest) {
       const result = applyClinicVisitFeedback(store, {
         token,
         now,
-        statusOk: (status) => status === 'attended',
+        statusOk: feedbackStatusOk,
         body,
         includePractice: true,
       });
@@ -544,7 +599,11 @@ export async function POST(request: NextRequest) {
     // dentalgraph
     const store = readDentalgraphFromMetadata(meta);
     const booking = store.bookings.find((b) => b.feedback_token === token);
-    if (!booking || booking.status !== 'attended') {
+    const apt = store.appointments.find((a) => a.id === booking?.appointment_id);
+    if (
+      !booking ||
+      !feedbackStatusOk(booking.status, apt?.date, apt?.start_time)
+    ) {
       return NextResponse.json({ error: 'Invalid feedback link' }, { status: 404 });
     }
     if (booking.feedback_submitted_at) {

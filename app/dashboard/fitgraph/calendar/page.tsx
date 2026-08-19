@@ -19,6 +19,7 @@ import {
 } from '@/components/fitness/FitForm';
 import { sessionBookingCount } from '@/lib/fitness/fitgraph';
 import { sessionRosterNames } from '@/lib/fitness/class-allocate';
+import { ClassBookedRoster } from '@/components/fitness/ClassBookedRoster';
 import { ProgrammeView } from '@/components/fitness/ProgrammeView';
 import {
   hydrateProgramme,
@@ -560,10 +561,10 @@ export default function CalendarPage() {
   const memberChoices = useMemo(() => {
     if (!store) return [];
     const q = memberQuery.trim().toLowerCase();
+    if (q.length < 2) return [];
     return (store.clients || [])
       .filter((c) => c.active !== false)
       .filter((c) => {
-        if (!q) return true;
         return (
           c.name.toLowerCase().includes(q) ||
           String(c.email || '')
@@ -574,8 +575,46 @@ export default function CalendarPage() {
             .includes(q)
         );
       })
-      .slice(0, 80);
+      .slice(0, 20);
   }, [store, memberQuery]);
+
+  const rosterFor = (sessionId: string) => {
+    if (!store) return [];
+    return store.bookings
+      .filter((b) => b.session_id === sessionId && b.status !== 'cancelled')
+      .map((b) => {
+        const cl = store.clients.find((c) => c.id === b.client_id);
+        return {
+          booking_id: b.id,
+          client_id: b.client_id,
+          name: b.family_member_name || cl?.name || b.guest_name || b.client_id,
+          status: b.status,
+          coach_feedback: b.coach_feedback || null,
+        };
+      });
+  };
+
+  const markRoster = async (
+    bookingId: string,
+    status: 'attended' | 'no_show' | 'booked'
+  ) => {
+    try {
+      await post({
+        action: 'mark_attendance',
+        booking_id: bookingId,
+        status,
+      });
+      toast.success(
+        status === 'attended'
+          ? 'Marked attended — member can rate the class'
+          : status === 'no_show'
+            ? 'Marked no-show'
+            : 'Back on the booked roster'
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not update attendance');
+    }
+  };
 
   const toggleAddMember = (id: string) => {
     setAddMemberIds((ids) =>
@@ -758,7 +797,7 @@ export default function CalendarPage() {
               selectedSessionId
                 ? form.session_kind === 'coach_personal'
                   ? 'Coach’s own training or blocked diary time'
-                  : 'Edit details, coach and members here'
+                  : 'Edit details, coach and the booked roster'
                 : 'Group class, private PT, or coach personal time'
             }
             onClose={closeEditor}
@@ -772,7 +811,7 @@ export default function CalendarPage() {
                   d: selectedSessionId ? 'Details · time' : 'Kind · when · room',
                 },
                 { n: '2', t: 'Assign coach', d: 'Required for PT / block' },
-                { n: '3', t: 'Add members', d: 'Classes & PT only' },
+                { n: '3', t: 'Booked members', d: 'Roster for this class' },
               ].map((s) => (
                 <div
                   key={s.n}
@@ -1203,89 +1242,27 @@ export default function CalendarPage() {
               {(() => {
                 const s = store.sessions.find((x) => x.id === selectedSessionId);
                 if (!s) return null;
-                const booked = sessionBookingCount(store, s.id);
-                const roster = store.bookings.filter(
-                  (b) =>
-                    b.session_id === s.id && b.status !== 'cancelled'
-                );
+                const roster = rosterFor(s.id);
                 return (
-                  <div className="rounded-xl border border-sky-200 bg-sky-50/50 px-3 py-2 space-y-2 dark:border-sky-800 dark:bg-sky-950/30">
-                    <p className="text-[10px] font-black uppercase tracking-wide text-sky-800 dark:text-sky-200">
-                      Members on this class
-                      {addMemberIds.length
-                        ? ` · ${addMemberIds.length} selected`
-                        : ` · ${booked} booked`}
-                    </p>
-                    {roster.length > 0 ? (
-                      <p className="text-[11px] text-slate-600 dark:text-slate-300">
-                        Already on class:{' '}
-                        {roster
-                          .map((b) => {
-                            const cl = store.clients.find(
-                              (c) => c.id === b.client_id
-                            );
-                            return (
-                              b.family_member_name || cl?.name || b.client_id
-                            );
-                          })
-                          .join(', ')}
-                      </p>
-                    ) : null}
-                    <input
-                      className={fc()}
-                      placeholder="Search members…"
-                      value={memberQuery}
-                      onChange={(e) => setMemberQuery(e.target.value)}
+                  <>
+                    <ClassBookedRoster
+                      roster={roster}
+                      addQuery={memberQuery}
+                      onAddQuery={setMemberQuery}
+                      addChoices={memberChoices.map((c) => ({
+                        id: c.id,
+                        name: c.name,
+                        already: roster.some((b) => b.client_id === c.id),
+                      }))}
+                      selectedIds={addMemberIds}
+                      onToggleAdd={toggleAddMember}
+                      onBook={() => void saveMembersOnSession(s.id)}
+                      onMark={(id, status) => void markRoster(id, status)}
+                      saving={saving}
                     />
-                    <div className="max-h-40 overflow-y-auto rounded-lg border border-sky-100 bg-white divide-y divide-slate-100 dark:border-sky-900 dark:bg-slate-950 dark:divide-slate-800">
-                      {memberChoices.map((c) => {
-                        const already = roster.some(
-                          (b) => b.client_id === c.id
-                        );
-                        const on = addMemberIds.includes(c.id);
-                        return (
-                          <label
-                            key={c.id}
-                            className={`flex items-start gap-2 px-2.5 py-1.5 text-sm ${
-                              already
-                                ? 'opacity-50'
-                                : 'cursor-pointer hover:bg-sky-50 dark:hover:bg-sky-950/40'
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              className="mt-1"
-                              disabled={already}
-                              checked={already || on}
-                              onChange={() =>
-                                !already && toggleAddMember(c.id)
-                              }
-                            />
-                            <span>
-                              <span className="font-semibold">{c.name}</span>
-                              {already ? (
-                                <span className="text-[10px] text-slate-500">
-                                  {' '}
-                                  · already booked
-                                </span>
-                              ) : null}
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                    <button
-                      type="button"
-                      disabled={saving || !addMemberIds.length}
-                      className="rounded-xl bg-sky-600 text-white px-3 py-2 text-xs font-bold disabled:opacity-50"
-                      onClick={() => void saveMembersOnSession(s.id)}
-                    >
-                      {addMemberIds.length
-                        ? `Book ${addMemberIds.length} member(s)`
-                        : 'Book selected members'}
-                    </button>
                     <p className="text-[11px] text-slate-500">
-                      Gym invoices are monthly memberships, not per class.{' '}
+                      Only members booked on this class appear here — not the
+                      whole gym.{' '}
                       <Link
                         href="/dashboard/fitgraph/accounts"
                         className="font-bold text-yellow-800 underline"
@@ -1293,7 +1270,7 @@ export default function CalendarPage() {
                         Send this month’s invoices
                       </Link>
                     </p>
-                  </div>
+                  </>
                 );
               })()}
             </div>
@@ -1484,22 +1461,38 @@ export default function CalendarPage() {
                         </select>
                       </div>
 
-                      {/* Step 3 — members */}
+                      {/* Step 3 — booked members only */}
                       {kind === 'coach_personal' ? (
                         <p className="text-[11px] text-indigo-700 dark:text-indigo-300">
                           Personal block — members cannot book this slot.
                         </p>
                       ) : managing ? (
-                        <div className="rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 px-3 py-2 space-y-2">
+                        <ClassBookedRoster
+                          roster={rosterFor(s.id)}
+                          addQuery={memberQuery}
+                          onAddQuery={setMemberQuery}
+                          addChoices={memberChoices.map((c) => ({
+                            id: c.id,
+                            name: c.name,
+                            already: roster.some((b) => b.client_id === c.id),
+                          }))}
+                          selectedIds={addMemberIds}
+                          onToggleAdd={toggleAddMember}
+                          onBook={() => void saveMembersOnSession(s.id)}
+                          onMark={(id, status) => void markRoster(id, status)}
+                          saving={saving}
+                        />
+                      ) : (
+                        <div className="rounded-xl border border-sky-100 dark:border-sky-900 bg-sky-50/40 dark:bg-sky-950/20 px-3 py-2">
                           <p className="text-[10px] font-black uppercase tracking-wide text-sky-800 dark:text-sky-200">
-                            Step 3 · Add members
-                            {addMemberIds.length
-                              ? ` · ${addMemberIds.length} selected`
-                              : ''}
+                            Booked members · {booked}
                           </p>
-                          {roster.length > 0 ? (
-                            <p className="text-[11px] text-slate-600 dark:text-slate-300">
-                              Already on class:{' '}
+                          {roster.length === 0 ? (
+                            <p className="text-[11px] text-slate-500 mt-1">
+                              Nobody booked yet.
+                            </p>
+                          ) : (
+                            <p className="text-[11px] text-slate-700 dark:text-slate-200 mt-1">
                               {roster
                                 .map((b) => {
                                   const cl = store.clients.find(
@@ -1508,79 +1501,24 @@ export default function CalendarPage() {
                                   return (
                                     b.family_member_name ||
                                     cl?.name ||
+                                    b.guest_name ||
                                     b.client_id
                                   );
                                 })
                                 .join(', ')}
                             </p>
-                          ) : null}
-                          <input
-                            className={fc()}
-                            placeholder="Search members…"
-                            value={memberQuery}
-                            onChange={(e) => setMemberQuery(e.target.value)}
-                          />
-                          <div className="max-h-40 overflow-y-auto rounded-lg border border-sky-100 dark:border-sky-900 bg-white dark:bg-slate-950 divide-y divide-slate-100 dark:divide-slate-800">
-                            {memberChoices.map((c) => {
-                              const already = roster.some(
-                                (b) => b.client_id === c.id
-                              );
-                              const on = addMemberIds.includes(c.id);
-                              return (
-                                <label
-                                  key={c.id}
-                                  className={`flex items-start gap-2 px-2.5 py-1.5 text-sm ${
-                                    already
-                                      ? 'opacity-50'
-                                      : 'cursor-pointer hover:bg-sky-50 dark:hover:bg-sky-950/40'
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    className="mt-1"
-                                    disabled={already}
-                                    checked={already || on}
-                                    onChange={() =>
-                                      !already && toggleAddMember(c.id)
-                                    }
-                                  />
-                                  <span>
-                                    <span className="font-semibold">
-                                      {c.name}
-                                    </span>
-                                    {already ? (
-                                      <span className="text-[10px] text-slate-500">
-                                        {' '}
-                                        · already booked
-                                      </span>
-                                    ) : null}
-                                  </span>
-                                </label>
-                              );
-                            })}
-                          </div>
+                          )}
                           <button
                             type="button"
-                            disabled={saving || !addMemberIds.length}
-                            className="rounded-xl bg-sky-600 text-white px-3 py-2 text-xs font-bold disabled:opacity-50"
-                            onClick={() => void saveMembersOnSession(s.id)}
+                            className="mt-1 text-[11px] font-bold text-sky-700 dark:text-sky-300 underline"
+                            onClick={() => {
+                              openSession(s.id);
+                              setAddMemberIds([]);
+                            }}
                           >
-                            {addMemberIds.length
-                              ? `Book ${addMemberIds.length} member(s)`
-                              : 'Book selected members'}
+                            Open roster
                           </button>
                         </div>
-                      ) : (
-                        <button
-                          type="button"
-                          className="text-[11px] font-bold text-sky-700 dark:text-sky-300 underline"
-                          onClick={() => {
-                            openSession(s.id);
-                            setAddMemberIds([]);
-                          }}
-                        >
-                          Step 3 · Add members ({booked} on class)
-                        </button>
                       )}
                     </div>
                   </ListRowCard>
@@ -1626,7 +1564,14 @@ export default function CalendarPage() {
                     coach?.name || '—',
                     s.location || '—',
                     s.capacity ?? '—',
-                    sessionBookingCount(store, s.id),
+                    (() => {
+                      const names = sessionRosterNames(store, s.id);
+                      const n = sessionBookingCount(store, s.id);
+                      if (!names.length) return `${n}`;
+                      return names.length <= 2
+                        ? `${n} · ${names.join(', ')}`
+                        : `${n} · ${names.slice(0, 2).join(', ')} +${names.length - 2}`;
+                    })(),
                     s.public ? 'Public' : 'Private',
                     s.status,
                   ],

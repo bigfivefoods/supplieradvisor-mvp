@@ -9,18 +9,14 @@ import { useParams } from 'next/navigation';
 import {
   Activity,
   AlertTriangle,
-  CalendarDays,
-  Check,
   CheckCircle2,
   CreditCard,
   Loader2,
-  MapPin,
   MessageSquare,
   MessageSquareHeart,
   QrCode,
   Send,
   User,
-  Users,
   X,
 } from 'lucide-react';
 import { GymShopPay } from '@/components/fitness/GymShopPay';
@@ -32,6 +28,9 @@ import {
 } from '@/components/fitness/MemberDebitBankFields';
 import type { GymShopItem } from '@/lib/fitness/gym-shop';
 import { MemberRelationshipSection } from '@/components/services/MemberRelationshipSection';
+import { MemberGoalsPanel } from '@/components/fitness/MemberGoalsPanel';
+import { MemberOpenDiaryWeek } from '@/components/fitness/MemberOpenDiaryWeek';
+import type { MemberGoalView } from '@/lib/fitness/member-goals';
 import { ProgrammeView } from '@/components/fitness/ProgrammeView';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
@@ -87,6 +86,7 @@ type MyBooking = {
   upcoming?: boolean;
   feedback_token?: string | null;
   feedback_submitted_at?: string | null;
+  coach_feedback?: string | null;
   programme?: import('@/lib/fitness/movements').FitHydratedProgramme | null;
 };
 
@@ -247,6 +247,23 @@ type Portal = {
     }>;
   }>;
   invoices?: MemberPortalInvoice[];
+  goals?: MemberGoalView[];
+  wearable?: {
+    garmin_available?: boolean;
+    garmin_connected?: boolean;
+    last_sync_at?: string | null;
+  } | null;
+  watch_sessions?: Array<{
+    id: string;
+    source: string;
+    started_at: string;
+    duration_min?: number | null;
+    distance_km?: number | null;
+    calories?: number | null;
+    avg_hr?: number | null;
+    activity_type?: string | null;
+  }>;
+  diary_open?: boolean;
 };
 
 export default function MemberFitgraphPortalPage() {
@@ -350,6 +367,14 @@ export default function MemberFitgraphPortalPage() {
       raw === 'profile'
     ) {
       setTab(raw);
+    }
+    const garmin = new URLSearchParams(window.location.search).get('garmin');
+    if (garmin === 'connected') {
+      setMsg('Garmin connected — import after class or wait for auto-sync');
+      setTab('progress');
+    } else if (garmin === 'error') {
+      setError('Garmin connect did not finish. You can still log watch stats.');
+      setTab('progress');
     }
   }, []);
 
@@ -1089,135 +1114,19 @@ export default function MemberFitgraphPortalPage() {
         {tab === 'open' && (
           <div className="space-y-3">
             <p className="text-sm text-slate-600">
-              Classes with open vacancies — book a spot or request to join the
-              waitlist when full.
+              Open diary — this week. Pick a day, then a time that suits you.
             </p>
-            {portal.open_classes.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-                No public classes in the next 4 weeks yet.
-              </div>
-            ) : (
-              <div className="grid gap-3 md:grid-cols-2">
-              {portal.open_classes.map((c) => (
-                <div
-                  key={c.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-black text-slate-900">{c.class_name}</p>
-                      <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                        <CalendarDays className="w-3.5 h-3.5" />
-                        {formatDay(c.date, c.start_time)}
-                      </p>
-                      {c.coach_name ? (
-                        <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                          <User className="w-3.5 h-3.5" />
-                          {c.coach_name}
-                        </p>
-                      ) : null}
-                      {c.location ? (
-                        <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5" />
-                          {c.location}
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="text-right shrink-0">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${
-                          c.my_status
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : c.full
-                              ? 'bg-rose-100 text-rose-800'
-                              : 'bg-emerald-100 text-emerald-800'
-                        }`}
-                      >
-                        <Users className="w-3 h-3" />
-                        {c.my_status
-                          ? c.my_status
-                          : c.full
-                            ? 'Full'
-                            : `${c.spots_left} left`}
-                      </span>
-                    </div>
-                  </div>
-                  {c.class_plan ? (
-                    <p className="text-[11px] text-slate-600 mt-2 leading-snug">
-                      {c.class_plan}
-                    </p>
-                  ) : null}
-                  {c.programme ? (
-                    <div className="mt-3">
-                      <ProgrammeView programme={c.programme} compact />
-                    </div>
-                  ) : null}
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {c.my_status ? (
-                      <>
-                        <span className="inline-flex items-center gap-1 text-xs font-bold text-yellow-700">
-                          <Check className="w-3.5 h-3.5" />
-                          You&apos;re {c.my_status}
-                        </span>
-                        {c.my_booking_id &&
-                        c.my_status !== 'attended' &&
-                        c.my_status !== 'waitlist' ? (
-                          <button
-                            type="button"
-                            disabled={busyId === c.my_booking_id}
-                            onClick={() => void cancel(c.my_booking_id!)}
-                            className="text-xs font-bold text-rose-600 inline-flex items-center gap-1"
-                          >
-                            <X className="w-3.5 h-3.5" /> Cancel
-                          </button>
-                        ) : null}
-                      </>
-                    ) : portal.allow_booking && c.can_book === false ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          selectTab(c.need_debit_bank ? 'profile' : 'join')
-                        }
-                        className="rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-bold text-white"
-                      >
-                        {c.need_debit_bank
-                          ? 'Add bank details'
-                          : c.book_hint || 'Subscribe to this class'}
-                      </button>
-                    ) : portal.allow_booking ? (
-                      c.full ? (
-                        <button
-                          type="button"
-                          disabled={busyId === c.id}
-                          onClick={() => void book(c.id, true)}
-                          className="rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-50"
-                        >
-                          {busyId === c.id ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
-                          ) : (
-                            'Request join (waitlist)'
-                          )}
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={busyId === c.id}
-                          onClick={() => void book(c.id, false)}
-                          className="rounded-xl bg-yellow-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-yellow-700 disabled:opacity-50"
-                        >
-                          {busyId === c.id ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
-                          ) : (
-                            'Book this class'
-                          )}
-                        </button>
-                      )
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-              </div>
-            )}
+            <MemberOpenDiaryWeek
+              slots={portal.open_classes}
+              allowBooking={portal.allow_booking}
+              diaryOpen={portal.diary_open !== false}
+              busyId={busyId}
+              onBook={(id, waitlist) => void book(id, waitlist)}
+              onCancel={(id) => void cancel(id)}
+              onNeedSubscribe={(needBank) =>
+                selectTab(needBank ? 'profile' : 'join')
+              }
+            />
           </div>
         )}
 
@@ -1278,6 +1187,11 @@ export default function MemberFitgraphPortalPage() {
                                 Add to calendar
                               </a>
                             ) : null}
+                            {b.coach_feedback ? (
+                              <p className="mt-1 text-[11px] text-slate-600">
+                                Coach: {b.coach_feedback}
+                              </p>
+                            ) : null}
                             {b.feedback_token &&
                             companyId != null &&
                             !b.feedback_submitted_at ? (
@@ -1286,11 +1200,11 @@ export default function MemberFitgraphPortalPage() {
                                 href={`/f/fitgraph/${companyId}/${encodeURIComponent(b.feedback_token)}`}
                               >
                                 <MessageSquareHeart className="h-3.5 w-3.5" />
-                                Leave feedback
+                                Rate this class (optional)
                               </a>
                             ) : b.feedback_submitted_at ? (
                               <p className="mt-1 text-[11px] font-semibold text-emerald-700">
-                                Feedback sent
+                                Thanks — rating sent
                               </p>
                             ) : null}
                             {b.programme ? (
@@ -1351,6 +1265,117 @@ export default function MemberFitgraphPortalPage() {
                 </p>
               </div>
             </div>
+
+            <MemberGoalsPanel
+              goals={portal.goals || []}
+              wearable={portal.wearable}
+              watchSessions={portal.watch_sessions}
+              pastClasses={portal.my_bookings
+                .filter((b) => b.upcoming === false || b.status === 'attended')
+                .slice(0, 12)
+                .map((b) => ({
+                  booking_id: b.booking_id,
+                  class_name: b.class_name,
+                  date: b.date,
+                  start_time: b.start_time,
+                }))}
+              busy={busyId === 'goals'}
+              onSaveGoal={async (v) => {
+                setBusyId('goals');
+                setError(null);
+                try {
+                  const data = await post({
+                    action: 'upsert_goal',
+                    kind: v.kind,
+                    title: v.title,
+                    start_value: v.start_value,
+                    target_value: v.target_value,
+                    target_date: v.target_date,
+                    unit: v.unit,
+                  });
+                  setMsg(data.message || 'Goal saved');
+                } catch (e: unknown) {
+                  setError(e instanceof Error ? e.message : 'Could not save goal');
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+              onLogActual={async (goalId, value) => {
+                setBusyId('goals');
+                setError(null);
+                try {
+                  const data = await post({
+                    action: 'log_goal',
+                    goal_id: goalId,
+                    value,
+                  });
+                  setMsg(data.message || 'Actual saved');
+                } catch (e: unknown) {
+                  setError(e instanceof Error ? e.message : 'Could not log actual');
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+              onWatchLog={async (v) => {
+                setBusyId('goals');
+                setError(null);
+                try {
+                  const data = await post({
+                    action: 'watch_log',
+                    booking_id: v.booking_id,
+                    source: v.source,
+                    duration_min: v.duration_min,
+                    distance_km: v.distance_km,
+                    calories: v.calories,
+                    avg_hr: v.avg_hr,
+                  });
+                  setMsg(data.message || 'Watch session saved');
+                } catch (e: unknown) {
+                  setError(e instanceof Error ? e.message : 'Could not save watch');
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+              onGarminConnect={async () => {
+                setBusyId('goals');
+                setError(null);
+                try {
+                  const data = await post({ action: 'garmin_start' });
+                  if (data.authorize_url) {
+                    window.location.href = String(data.authorize_url);
+                    return;
+                  }
+                } catch (e: unknown) {
+                  setError(e instanceof Error ? e.message : 'Garmin connect failed');
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+              onGarminImport={async () => {
+                setBusyId('goals');
+                setError(null);
+                try {
+                  const data = await post({ action: 'garmin_import' });
+                  setMsg(data.message || 'Garmin import done');
+                } catch (e: unknown) {
+                  setError(e instanceof Error ? e.message : 'Garmin import failed');
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+              onGarminDisconnect={async () => {
+                setBusyId('goals');
+                try {
+                  const data = await post({ action: 'garmin_disconnect' });
+                  setMsg(data.message || 'Garmin disconnected');
+                } catch (e: unknown) {
+                  setError(e instanceof Error ? e.message : 'Could not disconnect');
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+              color={color}
+            />
 
             <MemberRelationshipSection
               relationship={portal.relationship}
@@ -1434,7 +1459,7 @@ export default function MemberFitgraphPortalPage() {
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-2">
                 <div className="flex items-center gap-2 text-amber-950">
                   <MessageSquareHeart className="h-4 w-4" />
-                  <h2 className="text-sm font-black">Feedback waiting</h2>
+                  <h2 className="text-sm font-black">Rate a class (optional)</h2>
                 </div>
                 <ul className="space-y-1.5">
                   {(portal.progress?.pending_feedback || []).map((f) => (
@@ -1448,7 +1473,7 @@ export default function MemberFitgraphPortalPage() {
                           {f.date ? ` · ${f.date}` : ''}
                         </span>
                         <span className="text-[11px] font-black text-yellow-800">
-                          Leave feedback
+                          Rate this class
                         </span>
                       </a>
                     </li>

@@ -99,6 +99,97 @@ export function issueFeedbackPrompt<T extends BookingFeedbackPrompt>(
   };
 }
 
+export function sessionHasEnded(
+  date?: string | null,
+  startTime?: string | null,
+  now: Date | string = new Date()
+): boolean {
+  const d = String(date || '').slice(0, 10);
+  if (!d) return false;
+  const clock = new Date(now);
+  if (d < clock.toISOString().slice(0, 10)) return true;
+  if (d > clock.toISOString().slice(0, 10)) return false;
+  const t = String(startTime || '00:00').slice(0, 5);
+  const at = new Date(`${d}T${t}:00`);
+  if (Number.isNaN(at.getTime())) return true;
+  return at.getTime() <= clock.getTime();
+}
+
+/** Members / patients may rate after they attended, or after the slot has passed. */
+export function bookingEligibleForClientRating(opts: {
+  status?: string | null;
+  submittedAt?: string | null;
+  date?: string | null;
+  startTime?: string | null;
+  now?: Date | string;
+}): boolean {
+  if (opts.submittedAt) return false;
+  const status = String(opts.status || '');
+  if (
+    status === 'cancelled' ||
+    status === 'waitlist' ||
+    status === 'no_show'
+  ) {
+    return false;
+  }
+  if (status === 'attended') return true;
+  if (status === 'booked') {
+    return sessionHasEnded(opts.date, opts.startTime, opts.now);
+  }
+  return false;
+}
+
+/**
+ * Issue a public rating token in place when the visit/class can be rated.
+ * Returns true when a new token was written.
+ */
+export function ensureClientRatingTokens<
+  T extends BookingFeedbackPrompt & { status?: string },
+>(
+  bookings: T[],
+  eventFor: (
+    booking: T
+  ) => { date?: string | null; start_time?: string | null } | null | undefined,
+  now = new Date().toISOString()
+): boolean {
+  let dirty = false;
+  const clock = new Date(now);
+  for (const booking of bookings) {
+    if (booking.feedback_token || booking.feedback_submitted_at) continue;
+    const ev = eventFor(booking);
+    if (
+      !bookingEligibleForClientRating({
+        status: booking.status,
+        submittedAt: booking.feedback_submitted_at,
+        date: ev?.date,
+        startTime: ev?.start_time,
+        now: clock,
+      })
+    ) {
+      continue;
+    }
+    Object.assign(booking, issueFeedbackPrompt(booking, now));
+    dirty = true;
+  }
+  return dirty;
+}
+
+export function clientRatingFields(
+  booking: BookingFeedbackPrompt,
+  share = true
+): {
+  feedback_token: string | null;
+  feedback_submitted_at: string | null;
+} {
+  if (!share) {
+    return { feedback_token: null, feedback_submitted_at: null };
+  }
+  return {
+    feedback_token: booking.feedback_token || null,
+    feedback_submitted_at: booking.feedback_submitted_at || null,
+  };
+}
+
 export function buildPublicFeedbackPath(
   module: FeedbackModule,
   companyId: number,
@@ -204,7 +295,7 @@ export function pendingFeedbackCount(
 ): number {
   return bookings.filter(
     (b) =>
-      b.status === 'attended' &&
+      (b.status === 'attended' || b.status === 'booked') &&
       b.feedback_token &&
       !b.feedback_submitted_at
   ).length;

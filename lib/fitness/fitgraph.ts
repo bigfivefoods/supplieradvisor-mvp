@@ -21,6 +21,7 @@ import { healthSummaryLabel } from '@/lib/health/body-map';
 import { buildRelationshipSummary } from '@/lib/fitness/fitgraph-relationship';
 import { publishedAnnouncements } from '@/lib/services/member-announcements';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
+import { bookingEligibleForClientRating } from '@/lib/services/booking-feedback';
 import { compactWorkingHours } from '@/lib/schedule/working-hours';
 import {
   SYS_COACH_TIME_CODE,
@@ -499,6 +500,10 @@ export type FitClient = {
   debit_bank?: import('@/lib/fitness/member-debit-bank').FitMemberDebitBank;
   /** Injury, pain, modifications & goals for coach awareness */
   health?: FitClientHealth;
+  /** Garmin Connect + watch session ingest (tokens stay server-side). */
+  wearable?: {
+    garmin?: import('@/lib/fitness/wearable-types').GarminConnection | null;
+  };
   active?: boolean;
   created_at: string;
   updated_at: string;
@@ -658,6 +663,9 @@ export type FitBooking = {
   feedback_requested_at?: string | null;
   feedback_submitted_at?: string | null;
   feedback_id?: string | null;
+  /** Optional note from the coach to this member after class */
+  coach_feedback?: string | null;
+  coach_feedback_at?: string | null;
 };
 
 /** Gym-level website / portal settings */
@@ -1325,6 +1333,9 @@ export interface FitgraphStore {
   programmes?: FitProgramme[];
   /** Paid membership / programme checkouts */
   gym_sales?: import('@/lib/fitness/gym-shop').GymSale[];
+  /** Watch / Garmin sessions logged after class */
+  watch_sessions?: import('@/lib/fitness/wearable-types').FitWatchSession[];
+  garmin_oauth_pending?: import('@/lib/fitness/wearable-types').GarminOauthPending[];
   settings?: FitPublicSettings;
   updated_at?: string;
 }
@@ -1487,6 +1498,8 @@ export function emptyFitgraphStore(): FitgraphStore {
     movements: [],
     programmes: [],
     gym_sales: [],
+    watch_sessions: [],
+    garmin_oauth_pending: [],
     settings: defaultPublicSettings(),
   };
 }
@@ -1530,6 +1543,8 @@ export function readFitgraphFromMetadata(
     'consent_shares',
     'movements',
     'programmes',
+    'watch_sessions',
+    'garmin_oauth_pending',
   ]) {
     if (Array.isArray(extra[key])) {
       (e as unknown as Record<string, unknown>)[key] = extra[key];
@@ -1695,6 +1710,7 @@ export function buildMemberPortalPayload(
             feedback_submitted_at: shareFeedback
               ? b.feedback_submitted_at || null
               : null,
+            coach_feedback: b.coach_feedback || null,
             programme: programmeForSessionPayload(store, s, {
               memberFacing: true,
             }),
@@ -1928,6 +1944,11 @@ function buildMemberFacingProgress(
       title: g.title,
       target_date: g.target_date,
       status: g.status,
+      unit: g.unit ?? null,
+      start_value: g.start_value ?? null,
+      target_value: g.target_value ?? null,
+      current_value: g.current_value ?? null,
+      kind: g.kind || null,
     })),
     ledger: raw.ledger,
   };
@@ -1954,13 +1975,17 @@ function buildMemberFacingProgress(
 
 function pendingFeedbackForClient(store: FitgraphStore, client: FitClient) {
   return (store.bookings || [])
-    .filter(
-      (b) =>
-        b.client_id === client.id &&
-        b.status === 'attended' &&
-        b.feedback_token &&
-        !b.feedback_submitted_at
-    )
+    .filter((b) => {
+      if (b.client_id !== client.id || !b.feedback_token || b.feedback_submitted_at)
+        return false;
+      const s = store.sessions.find((x) => x.id === b.session_id);
+      return bookingEligibleForClientRating({
+        status: b.status,
+        submittedAt: b.feedback_submitted_at,
+        date: s?.date,
+        startTime: s?.start_time,
+      });
+    })
     .map((b) => {
       const s = store.sessions.find((x) => x.id === b.session_id);
       const ct = s ? classTypeById(store, s.class_type_id) : null;
@@ -2356,6 +2381,8 @@ export type CoachRosterRow = {
   health?: FitClientHealth;
   injured?: boolean;
   health_label?: string;
+  coach_feedback?: string | null;
+  coach_feedback_at?: string | null;
 };
 
 export type CoachSessionCard = {
@@ -2451,6 +2478,8 @@ export function buildCoachPortalPayload(
                 .filter(Boolean)
                 .join(' · ') || (client.health.injured ? 'Injured' : '')
             : '',
+          coach_feedback: b.coach_feedback || null,
+          coach_feedback_at: b.coach_feedback_at || null,
         };
       });
       const planned = roster.filter(
