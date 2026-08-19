@@ -3,6 +3,7 @@
  * from linked Advisor brands (medical, dental, physio, psychiatry, gym).
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { loadAdvisorModuleStore } from '@/lib/business/company-data';
 import { readMedicalgraphFromMetadata } from '@/lib/clinic/medicalgraph';
 import { readPhysiographFromMetadata } from '@/lib/clinic/physiograph';
 import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
@@ -153,14 +154,27 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
       continue;
     }
 
-    const store =
+    const clinicKey =
       mem.kind === 'physio'
-        ? readPhysiographFromMetadata(meta)
+        ? 'physiograph'
         : mem.kind === 'dental'
-          ? readDentalgraphFromMetadata(meta)
+          ? 'dentalgraph'
           : mem.kind === 'medical'
-            ? readMedicalgraphFromMetadata(meta)
-            : readPsychiatrygraphFromMetadata(meta);
+            ? 'medicalgraph'
+            : 'psychiatrygraph';
+    const clinicRead =
+      mem.kind === 'physio'
+        ? readPhysiographFromMetadata
+        : mem.kind === 'dental'
+          ? readDentalgraphFromMetadata
+          : mem.kind === 'medical'
+            ? readMedicalgraphFromMetadata
+            : readPsychiatrygraphFromMetadata;
+    const { store } = await loadAdvisorModuleStore(
+      Number(mem.company_id),
+      clinicKey,
+      clinicRead
+    );
     const patient = (store.patients || []).find((p) => p.id === mem.ref_id);
     if (!patient) continue;
 

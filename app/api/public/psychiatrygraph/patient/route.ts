@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
 import {
+  PSYCHIATRYGRAPH_META_KEY,
   PSYCHIATRYGRAPH_PATIENT_TOKENS_KEY,
   appointmentBookingCount,
   buildPatientPortalPayload,
@@ -74,7 +75,15 @@ async function resolvePatient(token: string): Promise<{
     prof.metadata && typeof prof.metadata === 'object'
       ? { ...(prof.metadata as Record<string, unknown>) }
       : {};
-  const store = readPsychiatrygraphFromMetadata(meta);
+  const { loadAdvisorModuleStore } = await import(
+    '@/lib/business/company-data'
+  );
+  const loaded = await loadAdvisorModuleStore(
+    companyId,
+    PSYCHIATRYGRAPH_META_KEY,
+    readPsychiatrygraphFromMetadata
+  );
+  const store = loaded.store;
   applyCompanyLogoToSettings(store, pickCompanyLogoUrl(prof));
   const patient = store.patients.find((p) => p.portal_token === clean);
   if (!patient || patient.active === false) return null;

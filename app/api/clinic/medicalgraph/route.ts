@@ -1085,6 +1085,7 @@ export async function POST(request: NextRequest) {
             appointment_id: body.appointment_id
               ? String(body.appointment_id)
               : null,
+            author_name: body.author_name != null ? String(body.author_name) : null,
             pain_score:
               body.pain_score != null ? Number(body.pain_score) : null,
             function_score:

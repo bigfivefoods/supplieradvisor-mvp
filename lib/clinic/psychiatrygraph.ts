@@ -24,6 +24,7 @@ import { ensureSystemPersonalService } from '@/lib/clinic/appointment-kind';
 import { toPortalOpenSlots } from '@/lib/services/advisor-member-calendar';
 import { clinicCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
 import { normalizeClinicRooms } from '@/lib/clinic/clinic-rooms';
+import { copyStoredClinicArrays } from '@/lib/clinic/hydrate-clinic-store';
 import {
   snapshotContractorCommercial,
   type ContractorCommercialFields,
@@ -519,6 +520,11 @@ export function emptyPsychiatrygraphStore(): PsychiatrygraphStore {
     packages: [],
     appointments: [],
     bookings: [],
+    waitlist_queue: [],
+    care_packs: [],
+    treatment_plans: [],
+    visit_notes: [],
+    outcome_scores: [],
     threads: [],
     appointment_feedback: [],
     announcements: [],
@@ -535,12 +541,10 @@ export function readPsychiatrygraphFromMetadata(
   const raw = meta[PSYCHIATRYGRAPH_META_KEY];
   if (!raw || typeof raw !== 'object') return emptyPsychiatrygraphStore();
   const s = raw as Partial<PsychiatrygraphStore>;
-  const e = emptyPsychiatrygraphStore();
-  for (const key of Object.keys(e) as Array<keyof PsychiatrygraphStore>) {
-    if (key === 'updated_at' || key === 'settings') continue;
-    const v = s[key];
-    (e as Record<string, unknown>)[key] = Array.isArray(v) ? v : [];
-  }
+  const e = copyStoredClinicArrays(
+    emptyPsychiatrygraphStore(),
+    s as Record<string, unknown>
+  );
   e.settings = {
     ...defaultPublicSettings(),
     ...(s.settings && typeof s.settings === 'object' ? s.settings : {}),

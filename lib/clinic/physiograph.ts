@@ -23,6 +23,7 @@ import { ensureSystemPersonalService } from '@/lib/clinic/appointment-kind';
 import { toPortalOpenSlots } from '@/lib/services/advisor-member-calendar';
 import { clinicCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
 import { normalizeClinicRooms } from '@/lib/clinic/clinic-rooms';
+import { copyStoredClinicArrays } from '@/lib/clinic/hydrate-clinic-store';
 import {
   ensureSystemClinicMovements,
   listedClinicMovements,
@@ -532,6 +533,11 @@ export function emptyPhysiographStore(): PhysiographStore {
     appointments: [],
     bookings: [],
     movements: [],
+    waitlist_queue: [],
+    care_packs: [],
+    treatment_plans: [],
+    visit_notes: [],
+    outcome_scores: [],
     threads: [],
     appointment_feedback: [],
     announcements: [],
@@ -548,12 +554,10 @@ export function readPhysiographFromMetadata(
   const raw = meta[PHYSIOGRAPH_META_KEY];
   if (!raw || typeof raw !== 'object') return emptyPhysiographStore();
   const s = raw as Partial<PhysiographStore>;
-  const e = emptyPhysiographStore();
-  for (const key of Object.keys(e) as Array<keyof PhysiographStore>) {
-    if (key === 'updated_at' || key === 'settings') continue;
-    const v = s[key];
-    (e as Record<string, unknown>)[key] = Array.isArray(v) ? v : [];
-  }
+  const e = copyStoredClinicArrays(
+    emptyPhysiographStore(),
+    s as Record<string, unknown>
+  );
   e.settings = {
     ...defaultPublicSettings(),
     ...(s.settings && typeof s.settings === 'object' ? s.settings : {}),

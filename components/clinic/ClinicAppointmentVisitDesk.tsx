@@ -329,6 +329,7 @@ export function ClinicAppointmentVisitDesk({
         body,
         booking_id: row.bookingId,
         appointment_id: appointmentId,
+        author_name: treatingName || undefined,
         private: true,
         pain_score: pain === '' ? null : Number(pain),
         function_score: fn === '' ? null : Number(fn),
