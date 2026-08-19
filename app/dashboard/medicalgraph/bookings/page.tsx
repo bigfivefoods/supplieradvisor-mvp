@@ -118,7 +118,7 @@ export default function BookingsPage() {
     <MedicalgraphWorkbench
       title="Bookings"
       titleAccent="front desk"
-      description="Book patients onto diary slots. Work the next-available waitlist queue. Mark attended for feedback links, or open Script to add a prescription on the patient record for that visit."
+      description="Book patients onto diary slots. Patients get a branded MedicalAdvisor reminder before the visit, then a rating email after. Mark attended to send feedback immediately."
     >
       {loading || !store ? (
         <LoadingBlock />

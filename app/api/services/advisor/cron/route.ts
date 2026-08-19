@@ -13,6 +13,12 @@ import { appendAdvisorEvent } from '@/lib/services/advisor-events';
 import { getResend, getResendFrom, getAppUrl } from '@/lib/resend';
 import { readFitgraphFromMetadata, writeFitgraphToMetadata } from '@/lib/fitness/fitgraph';
 import { readDentalgraphFromMetadata, writeDentalgraphToMetadata } from '@/lib/dental/dentalgraph';
+import {
+  readMedicalgraphFromMetadata,
+  writeMedicalgraphToMetadata,
+} from '@/lib/clinic/medicalgraph';
+import { applyCompanyLogoToSettings } from '@/lib/business/company-logo';
+import { clinicSendReminders } from '@/lib/services/clinic-advisor-actions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,7 +28,8 @@ type ModuleKey = 'fitgraph' | 'dentalgraph' | 'physiograph' | 'medicalgraph' | '
 
 async function runForCompany(
   companyId: number,
-  meta: Record<string, unknown>
+  meta: Record<string, unknown>,
+  profile?: { logo_url?: string | null; trading_name?: string | null }
 ): Promise<{
   companyId: number;
   reminders: number;
@@ -63,6 +70,8 @@ async function runForCompany(
           location: session.location,
           manageUrl,
           moduleLabel: 'GymAdvisor®',
+          moduleKey: 'fitgraph',
+          logoUrl: profile?.logo_url || store.settings?.company_logo_url,
         });
         emailed = result.ok;
       }
@@ -149,6 +158,8 @@ async function runForCompany(
           location: appt.location,
           manageUrl,
           moduleLabel: 'DentalAdvisor®',
+          moduleKey: 'dentalgraph',
+          logoUrl: profile?.logo_url || store.settings?.company_logo_url,
         });
         emailed = result.ok;
       }
@@ -181,8 +192,28 @@ async function runForCompany(
     nextMeta = writeDentalgraphToMetadata(nextMeta, store);
   }
 
+  // —— MedicalAdvisor (branded pre + post session) ——
+  if (meta.medicalgraph) {
+    modules.push('medicalgraph');
+    const store = readMedicalgraphFromMetadata(meta);
+    applyCompanyLogoToSettings(store, profile?.logo_url || null);
+    const { sent } = await clinicSendReminders(
+      store,
+      {
+        moduleLabel: 'MedicalAdvisor®',
+        portalPath: 'medicalgraph',
+        brandFallback: profile?.trading_name || 'Practice',
+        companyId,
+        logoUrl: profile?.logo_url || store.settings?.company_logo_url || null,
+      },
+      now
+    );
+    reminders += sent;
+    nextMeta = writeMedicalgraphToMetadata(nextMeta, store);
+  }
+
   // Clinic modules — generic structure
-  for (const key of ['physiograph', 'medicalgraph', 'psychiatrygraph'] as ModuleKey[]) {
+  for (const key of ['physiograph', 'psychiatrygraph'] as ModuleKey[]) {
     const raw = meta[key];
     if (!raw || typeof raw !== 'object') continue;
     modules.push(key);
@@ -212,7 +243,7 @@ async function runForCompany(
         platform_user_id?: string | null;
       }>;
       services?: Array<{ id: string; name: string }>;
-      settings?: { brand_name?: string };
+      settings?: { brand_name?: string; company_logo_url?: string | null };
     };
     const label =
       key === 'physiograph'
@@ -243,6 +274,8 @@ async function runForCompany(
           location: appt.location,
           manageUrl,
           moduleLabel: label,
+          moduleKey: key,
+          logoUrl: profile?.logo_url || store.settings?.company_logo_url,
         });
         emailed = result.ok;
       }
@@ -312,7 +345,7 @@ async function run(request: NextRequest) {
   // Scan recent profiles — filter in process for advisor metadata keys
   const { data: rows, error } = await supabase
     .from('profiles')
-    .select('id, metadata, updated_at')
+    .select('id, metadata, updated_at, logo_url, trading_name')
     .order('updated_at', { ascending: false })
     .limit(400);
 
@@ -344,7 +377,11 @@ async function run(request: NextRequest) {
         Number(row.id),
         (row.metadata && typeof row.metadata === 'object'
           ? { ...(row.metadata as Record<string, unknown>) }
-          : {}) as Record<string, unknown>
+          : {}) as Record<string, unknown>,
+        {
+          logo_url: (row as { logo_url?: string | null }).logo_url,
+          trading_name: (row as { trading_name?: string | null }).trading_name,
+        }
       );
       totalReminders += r.reminders;
       totalPackWarn += r.pack_warnings;

@@ -78,6 +78,9 @@ export default function PatientsPage() {
   const [form, setForm] = useState<PatientForm>(blankForm);
   const [editing, setEditing] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [patientsOpen, setPatientsOpen] = useState(true);
+  const [sharedOpen, setSharedOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [listEditId, setListEditId] = useState<string | null>(null);
 
   const openEdit = (p: MedicalPatient) => {
@@ -250,13 +253,6 @@ export default function PatientsPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <AdvisorMemberAppInvite
-            kind="medical"
-            companyId={companyId}
-            brand={store.settings?.brand_name}
-            audience="patients"
-          />
-          <AdvisorIncomingShares companyId={companyId} />
           <StatRow
             items={[
               {
@@ -271,7 +267,7 @@ export default function PatientsPage() {
             ]}
           />
           <AdvisorExpandablePanel
-            title={editing ? 'Edit patient' : 'Add patient'}
+            title={editing ? 'Edit patient' : 'Add new patient'}
             description={
               editing
                 ? 'Update contact details. Ailments live on the patient chart.'
@@ -468,8 +464,6 @@ export default function PatientsPage() {
               inputClass={fc()}
             />
           </FormCard>
-          </AdvisorExpandablePanel>
-
           {editing && form.id ? (
             <AdvisorProfileShare
               companyId={companyId}
@@ -482,10 +476,17 @@ export default function PatientsPage() {
               }
             />
           ) : null}
-          <p className="text-[11px] text-slate-500 -mb-2">
-            Press <strong>Edit</strong> on a row to change list fields. Press{' '}
-            <strong>Done</strong> to lock the row. Use the full form or Chart for more.
-          </p>
+          </AdvisorExpandablePanel>
+
+          <AdvisorExpandablePanel
+            title={`Existing patients · ${store.patients.length}`}
+            description="Press Edit on a row to change list fields. Done locks the row. Use Profile or Chart for more."
+            open={patientsOpen}
+            onToggle={() => setPatientsOpen((v) => !v)}
+            accentClass="border-emerald-200 bg-white dark:border-emerald-800 dark:bg-neutral-950"
+            titleClass="text-emerald-950 dark:text-emerald-50"
+            hintClass="text-emerald-800/80 dark:text-emerald-200/80"
+          >
           <DataTable
             headers={[
               'Code',
@@ -681,6 +682,41 @@ export default function PatientsPage() {
               void post({ entity: 'patients', action: 'delete', id });
             }}
           />
+          </AdvisorExpandablePanel>
+
+          <AdvisorExpandablePanel
+            title="Shared patients"
+            description="Profiles members have consented to share with this desk from another practice."
+            open={sharedOpen}
+            onToggle={() => setSharedOpen((v) => !v)}
+            accentClass="border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/30"
+            titleClass="text-emerald-950 dark:text-emerald-50"
+            hintClass="text-emerald-800/80 dark:text-emerald-200/80"
+          >
+            <AdvisorIncomingShares
+              companyId={companyId}
+              embedded
+              showEmpty
+            />
+          </AdvisorExpandablePanel>
+
+          <AdvisorExpandablePanel
+            title="Invite a patient"
+            description="QR and link for SA Member so a patient can join this practice from their phone."
+            open={inviteOpen}
+            onToggle={() => setInviteOpen((v) => !v)}
+            accentClass="border-sky-200 bg-sky-50/50 dark:border-sky-800 dark:bg-sky-950/30"
+            titleClass="text-sky-950 dark:text-sky-50"
+            hintClass="text-sky-800/80 dark:text-sky-200/80"
+          >
+            <AdvisorMemberAppInvite
+              kind="medical"
+              companyId={companyId}
+              brand={store.settings?.brand_name}
+              audience="patients"
+              embedded
+            />
+          </AdvisorExpandablePanel>
         </div>
       )}
     </MedicalgraphWorkbench>

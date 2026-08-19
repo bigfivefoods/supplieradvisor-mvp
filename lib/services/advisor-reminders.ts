@@ -2,6 +2,7 @@
  * Booking reminder emails for GymAdvisor + clinic Advisors.
  */
 import { getResend, getResendFrom, getAppUrl } from '@/lib/resend';
+import { sendAdvisorSessionEmail } from '@/lib/services/advisor-branded-email';
 
 export type ReminderTarget = {
   to: string;
@@ -15,67 +16,34 @@ export type ReminderTarget = {
   manageUrl?: string;
   icsUrl?: string;
   moduleLabel?: string;
+  moduleKey?: string;
+  logoUrl?: string | null;
+  practitionerName?: string | null;
 };
 
 export async function sendBookingReminderEmail(
   target: ReminderTarget
 ): Promise<{ ok: boolean; error?: string }> {
-  try {
-    const resend = getResend();
-    if (!resend) {
-      return { ok: false, error: 'Email not configured (RESEND_API_KEY)' };
-    }
-    const app = getAppUrl();
-    const when = `${target.date} at ${target.start_time.slice(0, 5)}`;
-    const subject = `Reminder: ${target.eventTitle} · ${when}`;
-    const manage = target.manageUrl
-      ? target.manageUrl.startsWith('http')
-        ? target.manageUrl
-        : `${app}${target.manageUrl}`
-      : app;
-    const html = `
-      <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#0f172a">
-        <p style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#64748b">
-          ${escapeHtml(target.moduleLabel || 'SupplierAdvisor')} · Reminder
-        </p>
-        <h1 style="font-size:20px;margin:8px 0 12px">Hi ${escapeHtml(target.personName)},</h1>
-        <p style="font-size:15px;line-height:1.5;color:#334155">
-          This is a reminder for your booking at
-          <strong>${escapeHtml(target.brand)}</strong>.
-        </p>
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin:16px 0">
-          <p style="margin:0;font-weight:700;font-size:16px">${escapeHtml(target.eventTitle)}</p>
-          <p style="margin:8px 0 0;color:#475569">${escapeHtml(when)}</p>
-          ${
-            target.location
-              ? `<p style="margin:4px 0 0;color:#64748b">${escapeHtml(target.location)}</p>`
-              : ''
-          }
-        </div>
-        <p style="font-size:14px">
-          <a href="${escapeHtml(manage)}" style="color:#7c3aed;font-weight:700">View / manage booking</a>
-        </p>
-        <p style="font-size:12px;color:#94a3b8;margin-top:24px">
-          Powered by SupplierAdvisor®
-        </p>
-      </div>
-    `;
-    const { error } = await resend.emails.send({
-      from: getResendFrom(),
-      to: target.to,
-      subject,
-      html,
-    });
-    if (error) {
-      return { ok: false, error: error.message || 'Send failed' };
-    }
-    return { ok: true };
-  } catch (e: unknown) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : 'Reminder failed',
-    };
-  }
+  const app = getAppUrl();
+  const manage = target.manageUrl
+    ? target.manageUrl.startsWith('http')
+      ? target.manageUrl
+      : `${app}${target.manageUrl}`
+    : app;
+  return sendAdvisorSessionEmail(target.to, {
+    kind: 'pre',
+    personName: target.personName,
+    brand: target.brand,
+    eventTitle: target.eventTitle,
+    date: target.date,
+    start_time: target.start_time,
+    location: target.location,
+    practitionerName: target.practitionerName,
+    logoUrl: target.logoUrl,
+    ctaUrl: manage,
+    moduleKey: target.moduleKey,
+    moduleLabel: target.moduleLabel,
+  });
 }
 
 function escapeHtml(s: string): string {

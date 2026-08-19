@@ -38,6 +38,8 @@ type Props = {
   onRefresh: () => void;
   accentClass?: string;
   calendarHref?: string;
+  /** Skip outer card chrome when a parent already provides the frame. */
+  embedded?: boolean;
 };
 
 export function AdvisorWaitlistDesk({
@@ -47,6 +49,7 @@ export function AdvisorWaitlistDesk({
   onRefresh,
   accentClass = 'border-sky-200',
   calendarHref,
+  embedded,
 }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const openQueue = useMemo(
@@ -95,7 +98,11 @@ export function AdvisorWaitlistDesk({
 
   return (
     <div
-      className={`rounded-3xl border ${accentClass} bg-white dark:bg-slate-950 p-4 sm:p-5 space-y-4`}
+      className={
+        embedded
+          ? 'space-y-4'
+          : `rounded-3xl border ${accentClass} bg-white dark:bg-slate-950 p-4 sm:p-5 space-y-4`
+      }
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>

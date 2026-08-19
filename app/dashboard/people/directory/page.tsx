@@ -26,6 +26,7 @@ import {
   type HrEmployee,
 } from '@/lib/hr/types';
 import { formatMoney } from '@/lib/accounting/types';
+import { suggestOrgCode } from '@/lib/people/org-code';
 
 type CostOpt = { id: number; code?: string | null; name: string };
 
@@ -84,6 +85,13 @@ function DirectoryInner() {
   const [unsynced, setUnsynced] = useState<
     Array<{ id: string; name: string; module: string }>
   >([]);
+  const [quickName, setQuickName] = useState({
+    bu: '',
+    wc: '',
+    ws: '',
+    asset: '',
+  });
+  const [quickBusy, setQuickBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -113,40 +121,42 @@ function DirectoryInner() {
     void load();
   }, [load]);
 
-  useEffect(() => {
+  const loadOrg = useCallback(async () => {
     if (!companyId) return;
     const qs = `companyId=${companyId}`;
-    void (async () => {
-      try {
-        const [buR, wcR, wsR, asR] = await Promise.all([
-          fetch(`/api/manufacturing/business-units?${qs}`),
-          fetch(`/api/manufacturing/work-centers?${qs}`),
-          fetch(`/api/manufacturing/work-stations?${qs}`),
-          fetch(`/api/manufacturing/assets?${qs}`),
-        ]);
-        const [buJ, wcJ, wsJ, asJ] = await Promise.all([
-          buR.json(),
-          wcR.json(),
-          wsR.json(),
-          asR.json(),
-        ]);
-        const map = (rows: Array<Record<string, unknown>> = []) =>
-          rows
-            .map((r) => ({
-              id: Number(r.id),
-              code: r.code != null ? String(r.code) : null,
-              name: String(r.name || r.code || `#${r.id}`),
-            }))
-            .filter((o) => o.id > 0);
-        setBus(map(buJ.businessUnits));
-        setWcs(map(wcJ.workCenters));
-        setWss(map(wsJ.workStations));
-        setAssets(map(asJ.assets));
-      } catch {
-        /* soft */
-      }
-    })();
+    try {
+      const [buR, wcR, wsR, asR] = await Promise.all([
+        fetch(`/api/manufacturing/business-units?${qs}`),
+        fetch(`/api/manufacturing/work-centers?${qs}`),
+        fetch(`/api/manufacturing/work-stations?${qs}`),
+        fetch(`/api/manufacturing/assets?${qs}`),
+      ]);
+      const [buJ, wcJ, wsJ, asJ] = await Promise.all([
+        buR.json(),
+        wcR.json(),
+        wsR.json(),
+        asR.json(),
+      ]);
+      const map = (rows: Array<Record<string, unknown>> = []) =>
+        rows
+          .map((r) => ({
+            id: Number(r.id),
+            code: r.code != null ? String(r.code) : null,
+            name: String(r.name || r.code || `#${r.id}`),
+          }))
+          .filter((o) => o.id > 0);
+      setBus(map(buJ.businessUnits));
+      setWcs(map(wcJ.workCenters));
+      setWss(map(wsJ.workStations));
+      setAssets(map(asJ.assets));
+    } catch {
+      /* soft */
+    }
   }, [companyId]);
+
+  useEffect(() => {
+    void loadOrg();
+  }, [loadOrg]);
 
   const filtered = useMemo(() => employees, [employees]);
 
@@ -196,6 +206,66 @@ function DirectoryInner() {
       manager_id: e.manager_id ? String(e.manager_id) : '',
     });
     setShowForm(true);
+  }
+
+  async function quickCreate(
+    kind: 'bu' | 'wc' | 'ws' | 'asset',
+    nameRaw: string
+  ) {
+    const name = nameRaw.trim();
+    if (!name) {
+      toast.error('Name required');
+      return;
+    }
+    const path =
+      kind === 'bu'
+        ? '/api/manufacturing/business-units'
+        : kind === 'wc'
+          ? '/api/manufacturing/work-centers'
+          : kind === 'ws'
+            ? '/api/manufacturing/work-stations'
+            : '/api/manufacturing/assets';
+    const prefix =
+      kind === 'bu' ? 'BU' : kind === 'wc' ? 'WC' : kind === 'ws' ? 'ST' : 'AST';
+    setQuickBusy(kind);
+    try {
+      const res = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          name,
+          code: suggestOrgCode(name, prefix),
+          ...(kind === 'asset' ? { asset_type: 'equipment' } : {}),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Could not add');
+        return;
+      }
+      const created =
+        data.businessUnit ||
+        data.workCenter ||
+        data.workStation ||
+        data.asset;
+      const id = Number(created?.id);
+      await loadOrg();
+      if (id > 0) {
+        if (kind === 'bu')
+          setForm((f) => ({ ...f, business_unit_id: String(id) }));
+        if (kind === 'wc')
+          setForm((f) => ({ ...f, work_center_id: String(id) }));
+        if (kind === 'ws')
+          setForm((f) => ({ ...f, work_station_id: String(id) }));
+        if (kind === 'asset')
+          setForm((f) => ({ ...f, asset_id: String(id) }));
+      }
+      setQuickName((q) => ({ ...q, [kind]: '' }));
+      toast.success('Added — selected on this person');
+    } finally {
+      setQuickBusy(null);
+    }
   }
 
   async function save(ev: React.FormEvent) {
@@ -347,10 +417,10 @@ function DirectoryInner() {
           Refresh
         </button>
         <Link
-          href="/dashboard/manufacturing/cost-centres"
+          href="/dashboard/people/organisation"
           className="text-xs font-semibold text-[#00b4d8] underline"
         >
-          Cost centres
+          Organisation (BU · centres · assets)
         </Link>
       </div>
 
@@ -679,9 +749,17 @@ function DirectoryInner() {
                   Organisation & cost allocation
                 </h4>
                 <p className="text-[11px] text-violet-900/70 mb-3">
-                  <strong>Business unit is required.</strong> Set who they report
-                  to for the organogram. Work centre / station / asset refine
-                  cost placement.
+                  <strong>Business unit is required.</strong> Create those lists
+                  here if they are empty, or manage them in{' '}
+                  <Link
+                    href="/dashboard/people/organisation"
+                    className="font-bold underline"
+                  >
+                    People → Organisation
+                  </Link>
+                  . Work centre / station / asset refine cost placement.
+                  Medical equipment can also be added on a room in Medical
+                  Advisor → Rooms.
                 </p>
                 <div className="grid sm:grid-cols-2 gap-3">
                   <label className="block text-xs font-semibold text-violet-950 sm:col-span-2">
@@ -722,6 +800,26 @@ function DirectoryInner() {
                         </option>
                       ))}
                     </select>
+                    {bus.length === 0 ? (
+                      <span className="mt-1 flex gap-1">
+                        <input
+                          className="w-full rounded-xl border border-violet-100 bg-white px-2 py-1.5 text-xs"
+                          placeholder="New BU e.g. Consulting"
+                          value={quickName.bu}
+                          onChange={(e) =>
+                            setQuickName((q) => ({ ...q, bu: e.target.value }))
+                          }
+                        />
+                        <button
+                          type="button"
+                          disabled={quickBusy === 'bu'}
+                          onClick={() => void quickCreate('bu', quickName.bu)}
+                          className="shrink-0 rounded-xl bg-violet-700 px-2 py-1.5 text-[10px] font-black text-white disabled:opacity-50"
+                        >
+                          Add
+                        </button>
+                      </span>
+                    ) : null}
                   </label>
                   <label className="block text-xs font-semibold text-violet-950">
                     Work centre
@@ -740,6 +838,26 @@ function DirectoryInner() {
                         </option>
                       ))}
                     </select>
+                    {wcs.length === 0 ? (
+                      <span className="mt-1 flex gap-1">
+                        <input
+                          className="w-full rounded-xl border border-violet-100 bg-white px-2 py-1.5 text-xs"
+                          placeholder="New centre e.g. Outpatients"
+                          value={quickName.wc}
+                          onChange={(e) =>
+                            setQuickName((q) => ({ ...q, wc: e.target.value }))
+                          }
+                        />
+                        <button
+                          type="button"
+                          disabled={quickBusy === 'wc'}
+                          onClick={() => void quickCreate('wc', quickName.wc)}
+                          className="shrink-0 rounded-xl bg-violet-700 px-2 py-1.5 text-[10px] font-black text-white disabled:opacity-50"
+                        >
+                          Add
+                        </button>
+                      </span>
+                    ) : null}
                   </label>
                   <label className="block text-xs font-semibold text-violet-950">
                     Work station
@@ -758,6 +876,26 @@ function DirectoryInner() {
                         </option>
                       ))}
                     </select>
+                    {wss.length === 0 ? (
+                      <span className="mt-1 flex gap-1">
+                        <input
+                          className="w-full rounded-xl border border-violet-100 bg-white px-2 py-1.5 text-xs"
+                          placeholder="New station e.g. Desk 1"
+                          value={quickName.ws}
+                          onChange={(e) =>
+                            setQuickName((q) => ({ ...q, ws: e.target.value }))
+                          }
+                        />
+                        <button
+                          type="button"
+                          disabled={quickBusy === 'ws'}
+                          onClick={() => void quickCreate('ws', quickName.ws)}
+                          className="shrink-0 rounded-xl bg-violet-700 px-2 py-1.5 text-[10px] font-black text-white disabled:opacity-50"
+                        >
+                          Add
+                        </button>
+                      </span>
+                    ) : null}
                   </label>
                   <label className="block text-xs font-semibold text-violet-950">
                     Asset
@@ -776,6 +914,35 @@ function DirectoryInner() {
                         </option>
                       ))}
                     </select>
+                    {assets.length === 0 ? (
+                      <span className="mt-1 flex gap-1">
+                        <input
+                          className="w-full rounded-xl border border-violet-100 bg-white px-2 py-1.5 text-xs"
+                          placeholder="New asset e.g. ECG"
+                          value={quickName.asset}
+                          onChange={(e) =>
+                            setQuickName((q) => ({
+                              ...q,
+                              asset: e.target.value,
+                            }))
+                          }
+                        />
+                        <button
+                          type="button"
+                          disabled={quickBusy === 'asset'}
+                          onClick={() =>
+                            void quickCreate('asset', quickName.asset)
+                          }
+                          className="shrink-0 rounded-xl bg-violet-700 px-2 py-1.5 text-[10px] font-black text-white disabled:opacity-50"
+                        >
+                          Add
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="mt-1 block text-[10px] font-normal text-violet-800/70">
+                        Add more in Organisation or on a Medical Advisor room.
+                      </span>
+                    )}
                   </label>
                 </div>
               </section>

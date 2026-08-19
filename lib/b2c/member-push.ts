@@ -67,7 +67,13 @@ export async function notifyBookingReminderPush(opts: {
   const r = await notifyLinkedMember({
     platformUserId: opts.platformUserId,
     title: `Reminder · ${opts.title}`,
-    body: [opts.brand, when].filter(Boolean).join(' · '),
+    body: [
+      opts.brand,
+      when,
+      'Please update your SA Member profile and list any ailments before you arrive.',
+    ]
+      .filter(Boolean)
+      .join(' · '),
     url: opts.portalPath || '/me',
     tag: `reminder-${opts.date}-${opts.start_time}`,
     topic: 'bookings',

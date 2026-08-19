@@ -23,6 +23,7 @@ import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { ensureSystemPersonalService } from '@/lib/clinic/appointment-kind';
 import { toPortalOpenSlots } from '@/lib/services/advisor-member-calendar';
 import { clinicCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
+import { normalizeClinicRooms } from '@/lib/clinic/clinic-rooms';
 
 export const MEDICALGRAPH_MODULE_ID = 'medicalgraph' as const;
 export const MEDICALGRAPH_META_KEY = 'medicalgraph';
@@ -412,6 +413,7 @@ export type MedicalBooking = {
   feedback_requested_at?: string | null;
   feedback_submitted_at?: string | null;
   feedback_id?: string | null;
+  post_session_emailed_at?: string | null;
 };
 
 export type MedicalPublicSettings = {
@@ -438,10 +440,11 @@ export type MedicalPublicSettings = {
   pcns_number?: string;
   billing_email?: string;
   embed_primary_color?: string;
+  company_logo_url?: string | null;
   practitioner_disciplines?: string[];
   /** Clinic open days & hours for schedule calendar */
   working_hours?: import('@/lib/schedule/working-hours').WorkingHours;
-  rooms?: string[];
+  rooms?: import('@/lib/clinic/clinic-rooms').ClinicRoom[] | string[];
   reschedule_policy?: import('@/lib/services/advisor-reschedule').ReschedulePolicy;
   marketplace?: {
     listed?: boolean;
@@ -539,6 +542,7 @@ export function readMedicalgraphFromMetadata(
     ...defaultPublicSettings(),
     ...(s.settings && typeof s.settings === 'object' ? s.settings : {}),
   };
+  e.settings.rooms = normalizeClinicRooms(e.settings.rooms);
   if (!e.settings.public_token) {
     e.settings.public_token = defaultPublicSettings().public_token;
   }
@@ -814,6 +818,7 @@ export function summariseMedicalgraph(store: MedicalgraphStore) {
     ).length,
     bookingsOpen: openBookings.length,
     websiteEnabled: store.settings?.enabled === true,
+    roomCount: (store.settings?.rooms || []).length,
     threadCount: (store.threads || []).filter((t) => !t.archived).length,
     unreadMessages: totalUnread(store.threads || [], 'desk', 'desk'),
     pendingFeedback: (store.bookings || []).filter(

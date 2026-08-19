@@ -102,6 +102,8 @@ type Props = {
   /** Dark portal styling */
   dark?: boolean;
   inputClass?: string;
+  /** Nested card chrome inside Add patient / Add member (default on). */
+  framed?: boolean;
 };
 
 export function InjuryProfileFields({
@@ -111,6 +113,7 @@ export function InjuryProfileFields({
   clinical = false,
   dark = false,
   inputClass,
+  framed = true,
 }: Props) {
   const fc =
     inputClass ||
@@ -151,8 +154,14 @@ export function InjuryProfileFields({
       ? 'Mark body region, side and status so every practitioner and front desk knows how to progress care safely.'
       : 'Mark where they are injured and how to adapt sessions — coaches stay aligned so members improve safely.';
 
+  const frame = framed
+    ? dark
+      ? 'rounded-2xl border border-amber-900/70 bg-amber-950/30 p-4'
+      : 'rounded-2xl border border-teal-200 bg-teal-50/50 p-4 dark:border-teal-800 dark:bg-teal-950/30'
+    : '';
+
   return (
-    <div className="space-y-3 sm:col-span-2 lg:col-span-3">
+    <div className={`space-y-3 sm:col-span-2 lg:col-span-3 ${frame}`}>
       <div>
         <p className={label}>Injury & recovery awareness</p>
         <p

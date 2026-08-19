@@ -38,6 +38,11 @@ export type ClinicBookingRow = {
   reminder_count?: number;
   waitlist_offered_at?: string | null;
   waitlist_accepted_at?: string | null;
+  feedback_token?: string | null;
+  feedback_requested_at?: string | null;
+  feedback_submitted_at?: string | null;
+  feedback_id?: string | null;
+  post_session_emailed_at?: string | null;
 };
 
 export type ClinicAppointmentRow = {
@@ -45,9 +50,11 @@ export type ClinicAppointmentRow = {
   service_id: string;
   date: string;
   start_time: string;
+  end_time?: string | null;
   status: string;
   location?: string;
   duration_min?: number | null;
+  practitioner_id?: string | null;
 };
 
 export type ClinicPatientRow = {
@@ -81,7 +88,11 @@ export type ClinicAdvisorStoreLike = {
   services: ClinicServiceRow[];
   appointment_feedback?: ClinicFeedbackRow[];
   treatment_plans?: import('@/lib/services/advisor-clinical').TreatmentPlan[];
-  settings?: { brand_name?: string } | null;
+  settings?: {
+    brand_name?: string;
+    company_logo_url?: string | null;
+  } | null;
+  practitioners?: Array<{ id: string; name: string }>;
 };
 
 export type ClinicModuleConfig = {
@@ -91,6 +102,7 @@ export type ClinicModuleConfig = {
   brandFallback: string;
   recallAfterDays?: number;
   companyId?: number;
+  logoUrl?: string | null;
 };
 
 export async function clinicSendReminders(
@@ -131,6 +143,14 @@ export async function clinicSendReminders(
         location: appt.location,
         manageUrl,
         moduleLabel: cfg.moduleLabel,
+        moduleKey: cfg.portalPath,
+        logoUrl:
+          cfg.logoUrl ||
+          store.settings?.company_logo_url ||
+          null,
+        practitionerName: store.practitioners?.find(
+          (p) => p.id === appt.practitioner_id
+        )?.name,
       });
       emailed = result.ok;
     }
@@ -210,6 +230,97 @@ export async function clinicSendReminders(
     ).patient;
     sent += 1;
   }
+  if (cfg.portalPath === 'medicalgraph') {
+    const post = await clinicSendPostSessionEmails(store, cfg, now);
+    sent += post.sent;
+    skipped += post.skipped;
+  }
+  return { sent, skipped };
+}
+
+export async function clinicSendPostSessionEmails(
+  store: ClinicAdvisorStoreLike,
+  cfg: ClinicModuleConfig,
+  now = new Date().toISOString()
+): Promise<{ sent: number; skipped: number }> {
+  const { needsPostSessionEmail, sendAdvisorSessionEmail } = await import(
+    '@/lib/services/advisor-branded-email'
+  );
+  const { issueFeedbackPrompt, buildPublicFeedbackPath } = await import(
+    '@/lib/services/booking-feedback'
+  );
+  const companyId = Number(cfg.companyId) || 0;
+  let sent = 0;
+  let skipped = 0;
+  const nowMs = new Date(now).getTime() || Date.now();
+  for (const b of store.bookings) {
+    const appt = store.appointments.find((a) => a.id === b.appointment_id);
+    if (!appt) {
+      skipped++;
+      continue;
+    }
+    if (!needsPostSessionEmail(b, appt, nowMs)) {
+      skipped++;
+      continue;
+    }
+    const patient = store.patients.find((p) => p.id === b.patient_id);
+    if (!patient?.email && !patient?.platform_user_id) {
+      skipped++;
+      continue;
+    }
+    const issued = issueFeedbackPrompt(b, now);
+    b.feedback_token = issued.feedback_token;
+    b.feedback_requested_at = issued.feedback_requested_at;
+    const svc = store.services.find((s) => s.id === appt.service_id);
+    const feedbackPath =
+      companyId > 0 && b.feedback_token
+        ? buildPublicFeedbackPath(
+            cfg.portalPath as 'medicalgraph',
+            companyId,
+            b.feedback_token
+          )
+        : patient.portal_token
+          ? `/member/${cfg.portalPath}/${patient.portal_token}`
+          : '/me';
+    let emailed = false;
+    if (patient.email) {
+      const result = await sendAdvisorSessionEmail(patient.email, {
+        kind: 'post',
+        personName: b.family_member_name || patient.name || 'Patient',
+        brand: store.settings?.brand_name || cfg.brandFallback,
+        eventTitle: svc?.name || 'Appointment',
+        date: appt.date,
+        start_time: appt.start_time,
+        location: appt.location,
+        practitionerName: store.practitioners?.find(
+          (p) => p.id === appt.practitioner_id
+        )?.name,
+        logoUrl: cfg.logoUrl || store.settings?.company_logo_url || null,
+        ctaUrl: feedbackPath,
+        moduleKey: cfg.portalPath,
+        moduleLabel: cfg.moduleLabel,
+      });
+      emailed = result.ok;
+    }
+    const pushed = patient.platform_user_id
+      ? (
+          await notifyLinkedMember({
+            platformUserId: patient.platform_user_id,
+            title: `How was your visit at ${store.settings?.brand_name || cfg.brandFallback}?`,
+            body: 'Rate the session and the practice — it takes a minute.',
+            url: feedbackPath,
+            tag: `post-session-${b.id}`,
+            topic: 'care',
+          })
+        ).sent
+      : 0;
+    if (emailed || pushed > 0) {
+      b.post_session_emailed_at = now;
+      sent++;
+    } else {
+      skipped++;
+    }
+  }
   return { sent, skipped };
 }
 
@@ -287,6 +398,13 @@ export async function clinicMarkAttendance(
         store.patients[pi],
         applyAttendanceToPersonStats(store.patients[pi], status, now)
       );
+    }
+    if (status === 'attended' && cfg.portalPath === 'medicalgraph') {
+      const { issueFeedbackPrompt } = await import(
+        '@/lib/services/booking-feedback'
+      );
+      Object.assign(booking, issueFeedbackPrompt(booking, now));
+      await clinicSendPostSessionEmails(store, cfg, now);
     }
     if (status === 'attended' && store.treatment_plans?.length) {
       const { progressTreatmentPlanOnAttend } = await import(

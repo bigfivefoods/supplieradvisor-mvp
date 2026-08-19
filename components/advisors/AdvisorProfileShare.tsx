@@ -23,8 +23,12 @@ type Incoming = {
 
 export function AdvisorIncomingShares({
   companyId,
+  embedded,
+  showEmpty,
 }: {
   companyId: number;
+  embedded?: boolean;
+  showEmpty?: boolean;
 }) {
   const { withAuthJson } = useApiAuth();
   const [rows, setRows] = useState<Incoming[]>([]);
@@ -47,17 +51,38 @@ export function AdvisorIncomingShares({
     };
   }, [companyId, withAuthJson]);
 
-  if (loading || !rows.length) return null;
+  if (loading) {
+    if (!showEmpty) return null;
+    return <p className="text-sm text-slate-500">Loading shared profiles…</p>;
+  }
+  if (!rows.length) {
+    if (!showEmpty) return null;
+    return (
+      <p className="text-sm text-slate-500">
+        No patient profiles have been shared with this desk yet.
+      </p>
+    );
+  }
 
   return (
-    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-800 dark:bg-emerald-950/30">
-      <p className="text-[10px] font-black uppercase tracking-wide text-emerald-800 dark:text-emerald-200">
-        Shared with you
-      </p>
-      <p className="mt-0.5 text-[11px] text-slate-500">
-        Members consented to share these profiles with this desk.
-      </p>
-      <ul className="mt-3 space-y-2">
+    <div
+      className={
+        embedded
+          ? 'space-y-3'
+          : 'rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-800 dark:bg-emerald-950/30'
+      }
+    >
+      {embedded ? null : (
+        <>
+          <p className="text-[10px] font-black uppercase tracking-wide text-emerald-800 dark:text-emerald-200">
+            Shared with you
+          </p>
+          <p className="mt-0.5 text-[11px] text-slate-500">
+            Members consented to share these profiles with this desk.
+          </p>
+        </>
+      )}
+      <ul className={embedded ? 'space-y-2' : 'mt-3 space-y-2'}>
         {rows.map((r) => (
           <li
             key={r.share_id}

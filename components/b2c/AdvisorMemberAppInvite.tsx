@@ -35,11 +35,13 @@ export function AdvisorMemberAppInvite({
   companyId,
   brand,
   audience = 'members',
+  embedded,
 }: {
   kind: MemberAppJoinKind;
   companyId: number;
   brand?: string | null;
   audience?: 'members' | 'patients' | 'customers' | 'suppliers';
+  embedded?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const origin =
@@ -83,7 +85,13 @@ export function AdvisorMemberAppInvite({
   };
 
   return (
-    <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-4 sm:p-5 dark:border-sky-800 dark:from-sky-950/40 dark:to-neutral-950">
+    <div
+      className={
+        embedded
+          ? ''
+          : 'rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-4 sm:p-5 dark:border-sky-800 dark:from-sky-950/40 dark:to-neutral-950'
+      }
+    >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
         <div className="mx-auto shrink-0 rounded-2xl border border-sky-100 bg-white p-2.5 shadow-sm dark:border-sky-900 sm:mx-0 sm:p-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}

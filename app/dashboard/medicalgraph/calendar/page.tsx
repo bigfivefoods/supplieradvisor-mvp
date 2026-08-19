@@ -33,6 +33,8 @@ import {
 import { ClinicDiaryKindFields } from '@/components/clinic/ClinicDiaryKindFields';
 import { ClinicAppointmentVisitDesk } from '@/components/clinic/ClinicAppointmentVisitDesk';
 import { appointmentVisitPatients } from '@/lib/clinic/appointment-visit';
+import { clinicRoomNames } from '@/lib/clinic/clinic-rooms';
+import { AdvisorExpandablePanel } from '@/components/advisors/AdvisorExpandablePanel';
 import {
   appointmentKindLabel,
   appointmentKindOf,
@@ -70,6 +72,7 @@ export default function CalendarPage() {
   const [recurrence, setRecurrence] = useState<RecurrenceFormValue>(
     emptyRecurrenceForm
   );
+  const [waitlistOpen, setWaitlistOpen] = useState(true);
 
   const closeEditor = () => {
     setEditorOpen(false);
@@ -445,7 +448,7 @@ export default function CalendarPage() {
     <MedicalgraphWorkbench
       title="Calendar"
       titleAccent="main practice diary"
-      description="Main medical diary: click an appointment to open (view/edit · book patient). Click empty time to schedule. Desk waitlist is on this page and under Desk · bookings. Exclusive clinician books — no double-booking."
+      description="Main medical diary: click an appointment to open (view/edit · book patient). Click empty time to schedule. Waitlist and working hours sit below the calendar. Exclusive clinician books — no double-booking."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -471,51 +474,6 @@ export default function CalendarPage() {
               },
             ]}
           />
-
-          <AdvisorWaitlistDesk
-            queue={deskQueue}
-            slotWaitlist={deskSlotWaitlist}
-            accentClass="border-emerald-200"
-            post={async (body) => {
-              await post(body);
-            }}
-            onRefresh={() => {
-              void load();
-            }}
-            calendarHref="/dashboard/medicalgraph/calendar"
-          />
-
-          <p className="text-xs text-slate-500 -mt-2">
-            Front desk tools:{' '}
-            <Link
-              href="/dashboard/medicalgraph/bookings"
-              className="font-bold text-emerald-700 underline"
-            >
-              Desk · bookings
-            </Link>{' '}
-            (mark attended, feedback links) · this calendar is the main diary.
-          </p>
-
-          <WorkingHoursEditor
-            value={workingHours}
-            defaultCollapsed
-            onSave={saveHours}
-            saving={saving}
-            title="Clinic working hours"
-            description="Open days and times for this medical practice. Closed days are dimmed; day view uses your open window."
-            accentClass="border-emerald-200 dark:border-emerald-800"
-          />
-
-          <div className="flex flex-wrap items-center gap-2 -mt-2">
-            <PracticeProfilePdfButton
-              companyId={companyId}
-              module="medicalgraph"
-              label="Download practice PDF"
-            />
-            <span className="text-[11px] text-slate-500">
-              Practice sheet (hours, team, services). Schedule PDFs: A4 PDF on the calendar.
-            </span>
-          </div>
 
           <PracticeScheduleCalendar
             title="Clinic schedule"
@@ -579,6 +537,61 @@ export default function CalendarPage() {
             >
               + New appointment
             </button>
+          </div>
+
+          <AdvisorExpandablePanel
+            title={`Waiting list · ${deskQueue.length}`}
+            description="Next-available queue and people waiting on a full slot. Collapse when you only need the diary."
+            open={waitlistOpen}
+            onToggle={() => setWaitlistOpen((v) => !v)}
+            accentClass="border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/30"
+            titleClass="text-emerald-950 dark:text-emerald-50"
+            hintClass="text-emerald-800/80 dark:text-emerald-200/80"
+          >
+            <AdvisorWaitlistDesk
+              queue={deskQueue}
+              slotWaitlist={deskSlotWaitlist}
+              accentClass="border-emerald-200"
+              embedded
+              post={async (body) => {
+                await post(body);
+              }}
+              onRefresh={() => {
+                void load();
+              }}
+              calendarHref="/dashboard/medicalgraph/calendar"
+            />
+            <p className="text-xs text-slate-500">
+              Front desk tools:{' '}
+              <Link
+                href="/dashboard/medicalgraph/bookings"
+                className="font-bold text-emerald-700 underline"
+              >
+                Desk · bookings
+              </Link>{' '}
+              (mark attended, feedback links) · this calendar is the main diary.
+            </p>
+          </AdvisorExpandablePanel>
+
+          <WorkingHoursEditor
+            value={workingHours}
+            defaultCollapsed
+            onSave={saveHours}
+            saving={saving}
+            title="Clinic working hours"
+            description="Open days and times for this medical practice. Closed days are dimmed; day view uses your open window."
+            accentClass="border-emerald-200 dark:border-emerald-800"
+          />
+
+          <div className="flex flex-wrap items-center gap-2 -mt-2">
+            <PracticeProfilePdfButton
+              companyId={companyId}
+              module="medicalgraph"
+              label="Download practice PDF"
+            />
+            <span className="text-[11px] text-slate-500">
+              Practice sheet (hours, team, services). Schedule PDFs: A4 PDF on the calendar.
+            </span>
           </div>
 
           <ScheduleEventPeek
@@ -719,7 +732,7 @@ export default function CalendarPage() {
                   setForm((f) => ({ ...f, duration_min: e.target.value }))
                 }
               />
-              {(store.settings?.rooms || []).length > 0 ? (
+              {clinicRoomNames(store.settings?.rooms).length > 0 ? (
                 <select
                   className={fc()}
                   value={form.location}
@@ -728,25 +741,35 @@ export default function CalendarPage() {
                   }
                 >
                   <option value="">Room / resource…</option>
-                  {(store.settings?.rooms || []).map((r) => (
+                  {clinicRoomNames(store.settings?.rooms).map((r) => (
                     <option key={r} value={r}>
                       {r}
                     </option>
                   ))}
                   {form.location &&
-                  !(store.settings?.rooms || []).includes(form.location) ? (
+                  !clinicRoomNames(store.settings?.rooms).includes(
+                    form.location
+                  ) ? (
                     <option value={form.location}>{form.location}</option>
                   ) : null}
                 </select>
               ) : (
-                <input
-                  className={fc()}
-                  placeholder="Location / room (set list under Website)"
-                  value={form.location}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, location: e.target.value }))
-                  }
-                />
+                <div className="space-y-1">
+                  <input
+                    className={fc()}
+                    placeholder="Location / room"
+                    value={form.location}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, location: e.target.value }))
+                    }
+                  />
+                  <Link
+                    href="/dashboard/medicalgraph/rooms"
+                    className="text-[11px] font-bold text-emerald-700 underline"
+                  >
+                    Add rooms
+                  </Link>
+                </div>
               )}
               {selectedId ? (
                 <select

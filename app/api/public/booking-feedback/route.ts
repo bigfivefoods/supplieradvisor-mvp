@@ -23,6 +23,17 @@ import {
   type DentalgraphStore,
 } from '@/lib/dental/dentalgraph';
 import {
+  readMedicalgraphFromMetadata,
+  writeMedicalgraphToMetadata,
+  type MedicalgraphStore,
+} from '@/lib/clinic/medicalgraph';
+import {
+  readPsychiatrygraphFromMetadata,
+  writePsychiatrygraphToMetadata,
+  type PsychiatrygraphStore,
+} from '@/lib/clinic/psychiatrygraph';
+import { logoUrlFromSettings, pickCompanyLogoUrl } from '@/lib/business/company-logo';
+import {
   upsertServiceFeedback,
   type FeedbackModule,
   type ServiceFeedback,
@@ -48,7 +59,7 @@ async function loadCompany(companyId: number) {
   const supabase = getSupabaseServer();
   const { data: prof } = await supabase
     .from('profiles')
-    .select('id, trading_name, legal_name, metadata')
+    .select('id, trading_name, legal_name, metadata, logo_url')
     .eq('id', companyId)
     .maybeSingle();
   if (!prof) return null;
@@ -59,6 +70,7 @@ async function loadCompany(companyId: number) {
   return {
     meta,
     brand: String(prof.trading_name || prof.legal_name || 'Practice'),
+    logo_url: pickCompanyLogoUrl(prof),
   };
 }
 
@@ -73,6 +85,7 @@ async function saveMeta(companyId: number, meta: Record<string, unknown>) {
 
 type Resolved = {
   brand: string;
+  logo_url?: string | null;
   bookingId: string;
   eventId: string;
   eventLabel: string;
@@ -82,6 +95,10 @@ type Resolved = {
   alreadySubmitted: boolean;
   module: FeedbackModule;
 };
+
+function feedbackStatusOk(status?: string) {
+  return status === 'attended' || status === 'booked';
+}
 
 function resolveFit(
   store: FitgraphStore,
@@ -161,6 +178,59 @@ function resolveDental(
   };
 }
 
+function resolveMedical(
+  store: MedicalgraphStore,
+  token: string
+): Resolved | null {
+  const booking = store.bookings.find((b) => b.feedback_token === token);
+  if (!booking || !feedbackStatusOk(booking.status)) return null;
+  const apt = store.appointments.find((a) => a.id === booking.appointment_id);
+  const svc = apt
+    ? store.services.find((s) => s.id === apt.service_id)
+    : null;
+  const patient = store.patients.find((p) => p.id === booking.patient_id);
+  return {
+    brand: store.settings?.brand_name || 'Practice',
+    logo_url: logoUrlFromSettings(store.settings),
+    bookingId: booking.id,
+    eventId: booking.appointment_id,
+    eventLabel: apt
+      ? `${apt.date} ${apt.start_time} · ${svc?.name || 'Appointment'}`
+      : 'Appointment',
+    personName: patient?.name || 'Patient',
+    personEmail: patient?.email,
+    personId: booking.patient_id,
+    alreadySubmitted: Boolean(booking.feedback_submitted_at),
+    module: 'medicalgraph',
+  };
+}
+
+function resolvePsychiatry(
+  store: PsychiatrygraphStore,
+  token: string
+): Resolved | null {
+  const booking = store.bookings.find((b) => b.feedback_token === token);
+  if (!booking || booking.status !== 'attended') return null;
+  const apt = store.appointments.find((a) => a.id === booking.appointment_id);
+  const svc = apt
+    ? store.services.find((s) => s.id === apt.service_id)
+    : null;
+  const patient = store.patients.find((p) => p.id === booking.patient_id);
+  return {
+    brand: store.settings?.brand_name || 'Practice',
+    bookingId: booking.id,
+    eventId: booking.appointment_id,
+    eventLabel: apt
+      ? `${apt.date} ${apt.start_time} · ${svc?.name || 'Appointment'}`
+      : 'Appointment',
+    personName: patient?.name || 'Patient',
+    personEmail: patient?.email,
+    personId: booking.patient_id,
+    alreadySubmitted: Boolean(booking.feedback_submitted_at),
+    module: 'psychiatrygraph',
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const ip = clientIp(request);
@@ -193,6 +263,13 @@ export async function GET(request: NextRequest) {
       resolved = resolveFit(readFitgraphFromMetadata(loaded.meta), token);
     } else if (module === 'physiograph') {
       resolved = resolvePhysio(readPhysiographFromMetadata(loaded.meta), token);
+    } else if (module === 'medicalgraph') {
+      resolved = resolveMedical(readMedicalgraphFromMetadata(loaded.meta), token);
+    } else if (module === 'psychiatrygraph') {
+      resolved = resolvePsychiatry(
+        readPsychiatrygraphFromMetadata(loaded.meta),
+        token
+      );
     } else {
       resolved = resolveDental(readDentalgraphFromMetadata(loaded.meta), token);
     }
@@ -207,6 +284,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       brand: resolved.brand || loaded.brand,
+      logo_url: resolved.logo_url || loaded.logo_url || null,
       module,
       event_label: resolved.eventLabel,
       person_name: resolved.personName,
@@ -339,6 +417,66 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         message: 'Thanks — your feedback helps the clinic improve',
+        feedback_id: row.id,
+      });
+    }
+
+    if (module === 'medicalgraph' || module === 'psychiatrygraph') {
+      const store =
+        module === 'medicalgraph'
+          ? readMedicalgraphFromMetadata(meta)
+          : readPsychiatrygraphFromMetadata(meta);
+      const booking = store.bookings.find((b) => b.feedback_token === token);
+      const statusOk =
+        module === 'medicalgraph'
+          ? feedbackStatusOk(booking?.status)
+          : booking?.status === 'attended';
+      if (!booking || !statusOk) {
+        return NextResponse.json({ error: 'Invalid feedback link' }, { status: 404 });
+      }
+      if (booking.feedback_submitted_at) {
+        return NextResponse.json({
+          success: true,
+          message: 'Feedback already submitted — thank you',
+          already_submitted: true,
+        });
+      }
+      const patient = store.patients.find((p) => p.id === booking.patient_id);
+      const { list, row } = upsertServiceFeedback(store.appointment_feedback, {
+        booking_id: booking.id,
+        event_id: booking.appointment_id,
+        role: 'patient',
+        person_id: booking.patient_id,
+        author_name:
+          body.author_name != null
+            ? String(body.author_name)
+            : patient?.name,
+        author_email:
+          body.author_email != null
+            ? String(body.author_email)
+            : patient?.email,
+        feeling: body.feeling,
+        intensity: body.intensity,
+        enjoyment: body.enjoyment,
+        would_return: body.would_return ?? body.practice,
+        practice: body.practice,
+        comment: body.comment != null ? String(body.comment) : undefined,
+        tags: Array.isArray(body.tags)
+          ? (body.tags as unknown[]).map(String)
+          : undefined,
+      } as Omit<ServiceFeedback, 'id' | 'created_at' | 'updated_at'>);
+      store.appointment_feedback = list;
+      booking.feedback_submitted_at = now;
+      booking.feedback_id = row.id;
+      await saveMeta(
+        companyId,
+        module === 'medicalgraph'
+          ? writeMedicalgraphToMetadata(meta, store)
+          : writePsychiatrygraphToMetadata(meta, store)
+      );
+      return NextResponse.json({
+        success: true,
+        message: 'Thanks — your feedback helps the practice improve',
         feedback_id: row.id,
       });
     }

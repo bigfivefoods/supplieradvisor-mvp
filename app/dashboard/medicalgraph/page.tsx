@@ -79,6 +79,14 @@ const MODULES: HubModule[] = [
     accent: 'from-violet-50 to-white border-violet-100',
   },
   {
+    href: '/dashboard/medicalgraph/rooms',
+    icon: Hospital,
+    code: '05b',
+    title: 'Rooms',
+    desc: 'Consult rooms, surgeries, and equipment in each room.',
+    accent: 'from-emerald-50 to-white border-emerald-100',
+  },
+  {
     href: '/dashboard/medicalgraph/bookings',
     icon: ClipboardCheck,
     code: '06',

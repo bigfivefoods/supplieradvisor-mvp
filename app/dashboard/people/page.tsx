@@ -88,6 +88,14 @@ const MODULES: HubModule[] = [
     accent: 'from-cyan-50 to-white border-cyan-100',
   },
   {
+    href: '/dashboard/people/organisation',
+    icon: Building2,
+    code: '02b',
+    title: 'Organisation',
+    desc: 'Add business units, work centres, stations and assets used when you add staff.',
+    accent: 'from-indigo-50 to-white border-indigo-100',
+  },
+  {
     href: '/dashboard/people/performance',
     icon: Star,
     code: '03',

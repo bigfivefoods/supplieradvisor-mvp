@@ -37,6 +37,8 @@ export type ServiceFeedback = {
   enjoyment?: number;
   /** Would return / rebook 1–5 */
   would_return?: number;
+  /** Rate the practice (front desk, rooms, overall) 1–5 */
+  practice?: number;
   comment?: string;
   tags?: string[];
   created_at: string;
@@ -136,6 +138,10 @@ export function upsertServiceFeedback(
     input.would_return != null
       ? clampScore(input.would_return, 1, 5, 3)
       : undefined;
+  const practice =
+    input.practice != null
+      ? clampScore(input.practice, 1, 5, 3)
+      : undefined;
 
   const matchIdx = rows.findIndex((f) => {
     if (f.booking_id === input.booking_id && f.role === input.role) return true;
@@ -157,6 +163,7 @@ export function upsertServiceFeedback(
       intensity,
       enjoyment,
       would_return,
+      practice: practice ?? prev.practice,
       comment: input.comment != null ? String(input.comment) : prev.comment,
       tags: Array.isArray(input.tags) ? input.tags.map(String) : prev.tags,
       author_name: input.author_name ?? prev.author_name,
@@ -180,6 +187,7 @@ export function upsertServiceFeedback(
     intensity,
     enjoyment,
     would_return,
+    practice,
     comment: input.comment != null ? String(input.comment) : undefined,
     tags: Array.isArray(input.tags) ? input.tags.map(String) : undefined,
     created_at: input.created_at || now,

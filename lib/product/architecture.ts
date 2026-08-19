@@ -925,6 +925,11 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
         desc: 'Diary',
       },
       {
+        name: 'Rooms',
+        href: '/dashboard/medicalgraph/rooms',
+        desc: 'Consult rooms · equipment',
+      },
+      {
         name: 'Bookings',
         href: '/dashboard/medicalgraph/bookings',
         desc: 'Book · attend',

@@ -276,13 +276,23 @@ export default function WebsitePage() {
           </FormCard>
           
           <AdvisorRoomsCard
-            rooms={store.settings?.rooms || []}
+            rooms={
+              (store.settings?.rooms || []).map((r) =>
+                typeof r === 'string' ? r : r.name
+              )
+            }
             saving={saving}
             accentClass="border-rose-200"
+            hint="Quick list. Open Rooms for notes, equipment, and which practitioners use each consult room."
             onSave={async (rooms) => {
+              const { mergeClinicRoomNames } = await import(
+                '@/lib/clinic/clinic-rooms'
+              );
               await post({
                 action: 'update_settings',
-                settings: { rooms },
+                settings: {
+                  rooms: mergeClinicRoomNames(store.settings?.rooms, rooms),
+                },
               });
             }}
           />

@@ -301,7 +301,7 @@ export default function OrgChartPage() {
               <p className="text-sm text-neutral-600 py-6 text-center">
                 No business units yet.{' '}
                 <Link
-                  href="/dashboard/manufacturing/cost-centres"
+                  href="/dashboard/people/organisation"
                   className="font-bold text-[#00b4d8] underline"
                 >
                   Create business units

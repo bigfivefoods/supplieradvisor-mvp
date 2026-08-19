@@ -68,8 +68,18 @@ import {
 import { normalizeRecordShares } from '@/lib/clinic/record-shares';
 import { applyClinicFollowUp } from '@/lib/clinic/follow-up-action';
 import { mergeInviteFieldsFromRecord } from '@/lib/services/member-invite';
+import { loadCompanyProfileChrome } from '@/lib/business/company-data';
 
 export const runtime = 'nodejs';
+
+async function companyLogoUrl(companyId: number): Promise<string | null> {
+  try {
+    const chrome = await loadCompanyProfileChrome(companyId);
+    return chrome.logoUrl;
+  } catch {
+    return null;
+  }
+}
 
 type Entity =
   | 'practitioners'
@@ -270,6 +280,10 @@ export async function POST(request: NextRequest) {
         },
         companyId
       );
+      if (patch.rooms !== undefined) {
+        const { normalizeClinicRooms } = await import('@/lib/clinic/clinic-rooms');
+        store.settings.rooms = normalizeClinicRooms(patch.rooms);
+      }
       if (body.rotate_token === true) {
         store.settings.public_token = `medg_${companyId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
       }
@@ -823,6 +837,7 @@ export async function POST(request: NextRequest) {
           portalPath: 'medicalgraph',
           brandFallback: 'Practice',
           companyId,
+          logoUrl: await companyLogoUrl(companyId),
         },
         now
       );
@@ -860,6 +875,8 @@ export async function POST(request: NextRequest) {
           moduleLabel: 'MedicalAdvisor®',
           portalPath: 'medicalgraph',
           brandFallback: 'Practice',
+          companyId,
+          logoUrl: await companyLogoUrl(companyId),
         },
       });
       if (!result.ok) {
@@ -1839,6 +1856,7 @@ function upsert(
       feedback_requested_at: prev?.feedback_requested_at ?? null,
       feedback_submitted_at: prev?.feedback_submitted_at ?? null,
       feedback_id: prev?.feedback_id ?? null,
+      post_session_emailed_at: prev?.post_session_emailed_at ?? null,
     };
     if (
       prev &&
