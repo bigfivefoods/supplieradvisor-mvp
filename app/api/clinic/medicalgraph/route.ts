@@ -295,7 +295,11 @@ export async function POST(request: NextRequest) {
               ? (body.practitioner_ids as unknown[]).map(String)
               : undefined,
             asset_ids: Array.isArray(body.asset_ids)
-              ? (body.asset_ids as unknown[])
+              ? (body.asset_ids as unknown[]).flatMap((x) => {
+                  if (typeof x === 'number' && Number.isFinite(x)) return [x];
+                  const n = Number(x);
+                  return Number.isFinite(n) ? [n] : [];
+                })
               : undefined,
           });
           store.settings.rooms = result.rooms;
