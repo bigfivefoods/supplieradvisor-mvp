@@ -96,8 +96,38 @@ export function MovementLibraryBrowse({
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [movements, query, category, modality, muscle, pattern, scoring]);
 
+  const narrowed =
+    category !== 'All' ||
+    modality !== 'All' ||
+    muscle !== 'All' ||
+    pattern !== 'All' ||
+    scoring !== 'All' ||
+    query.trim().length > 0;
+  const visibleCap = narrowed ? 800 : 200;
+
+  const categoryChips = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const m of movements) {
+      if (m.active === false) continue;
+      const key = String(m.category || 'Other');
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    const preferred = MOVEMENT_CATEGORY_META.map((c) => c.id);
+    const rest = [...counts.keys()]
+      .filter((k) => !preferred.includes(k) && k !== 'Other')
+      .sort((a, b) => a.localeCompare(b));
+    return [...preferred, ...rest, 'Other']
+      .filter((id, i, arr) => arr.indexOf(id) === i)
+      .filter((id) => (counts.get(id) || 0) > 0)
+      .map((id) => ({
+        id,
+        n: counts.get(id) || 0,
+        hint: MOVEMENT_CATEGORY_META.find((c) => c.id === id)?.hint,
+      }));
+  }, [movements]);
+
   const grouped = useMemo(() => {
-    const visible = filtered.slice(0, 120);
+    const visible = filtered.slice(0, visibleCap);
     const map = new Map<string, FitMovement[]>();
     for (const m of visible) {
       const key = m.muscle_group || m.category || 'Other';
@@ -112,14 +142,16 @@ export function MovementLibraryBrowse({
     ];
     const keys = [
       ...order.filter((id) => map.has(id)),
-      ...[...map.keys()].filter((k) => !order.includes(k as typeof order[number])),
+      ...[...map.keys()]
+        .filter((k) => !order.includes(k as (typeof order)[number]))
+        .sort((a, b) => a.localeCompare(b)),
     ];
     return keys.map((id) => ({
       id,
       hint: `${(map.get(id) || []).length} shown`,
       items: map.get(id) || [],
     }));
-  }, [filtered]);
+  }, [filtered, visibleCap]);
 
   const open = movements.find((m) => m.id === openId) || null;
   const openMedia = open
@@ -231,9 +263,10 @@ export function MovementLibraryBrowse({
           ))}
         </select>
       </div>
-      {filtered.length > 120 ? (
+      {filtered.length > visibleCap ? (
         <p className="text-[11px] text-slate-500">
-          Showing 120 of {filtered.length}. Narrow with search or filters.
+          Showing {visibleCap} of {filtered.length}. Search or pick a category
+          to see the rest.
         </p>
       ) : null}
       <div className="flex flex-wrap gap-1.5">
@@ -244,23 +277,17 @@ export function MovementLibraryBrowse({
         >
           All ({movements.filter((m) => m.active !== false).length})
         </button>
-        {MOVEMENT_CATEGORY_META.map((c) => {
-          const n = movements.filter(
-            (m) => m.active !== false && m.category === c.id
-          ).length;
-          if (!n && c.id === 'Other') return null;
-          return (
-            <button
-              key={c.id}
-              type="button"
-              className={chip(category === c.id)}
-              onClick={() => setCategory(c.id)}
-              title={c.hint}
-            >
-              {c.id} ({n})
-            </button>
-          );
-        })}
+        {categoryChips.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            className={chip(category === c.id)}
+            onClick={() => setCategory(c.id)}
+            title={c.hint}
+          >
+            {c.id} ({c.n})
+          </button>
+        ))}
       </div>
 
       {grouped.length === 0 ? (

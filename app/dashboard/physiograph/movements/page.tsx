@@ -82,7 +82,7 @@ export default function PhysioMovementsPage() {
     <PhysiographWorkbench
       title="Movements"
       titleAccent="floor"
-      description="2,520-exercise catalogue plus physio rehab extras. Every movement has a still and a 5-second clip — replace either, then share from a visit to the client PWA."
+      description="Same GymAdvisor exercise catalogue plus physio rehab extras. Every movement has a still and a 5-second clip — replace either, then share from a visit to the client PWA."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -95,7 +95,12 @@ export default function PhysioMovementsPage() {
                 value: Number(summary?.movementCount) || movements.length,
               },
               { label: 'Clinic-added', value: customCount },
-              { label: 'Categories', value: CLINIC_MOVEMENT_CATEGORIES.length },
+              {
+                label: 'Categories',
+                value: new Set(
+                  movements.map((m) => m.category).filter(Boolean)
+                ).size,
+              },
             ]}
           />
 

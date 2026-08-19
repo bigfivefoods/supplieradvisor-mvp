@@ -8,6 +8,10 @@ import {
   isExerciseCatalogCode,
   mergeCatalogWithOverrides,
 } from '@/lib/movements/exercise-catalog';
+import {
+  SYSTEM_MOVEMENT_CATALOG,
+  catalogIdForCode,
+} from '@/lib/fitness/movement-catalog';
 
 export const CLINIC_MOVEMENT_CATEGORIES = [
   'Neck / cervical',
@@ -266,11 +270,32 @@ export function isSystemClinicMovement(m: {
   const id = String(m.id || '');
   return (
     code.startsWith('PHY_MOV_') ||
+    code.startsWith('SYS_MOV_') ||
     code.startsWith('EX_') ||
     id.startsWith('cmov_sys_') ||
+    id.startsWith('mov_sys_') ||
     id.startsWith('mov_ex_') ||
     isExerciseCatalogCode(code)
   );
+}
+
+/** GymAdvisor built-in library, merged at read time (not stored on the clinic). */
+function gymSystemMovementOverrides(): ClinicMovement[] {
+  const now = '1970-01-01T00:00:00.000Z';
+  return SYSTEM_MOVEMENT_CATALOG.map((d) => ({
+    id: catalogIdForCode(d.code),
+    code: d.code,
+    name: d.name,
+    category: d.category,
+    equipment: d.equipment,
+    muscles: d.muscles,
+    level: d.level,
+    overview: d.overview,
+    details: d.details,
+    system: true,
+    active: true,
+    created_at: now,
+  }));
 }
 
 export function ensureSystemClinicMovements(store: {
@@ -314,23 +339,28 @@ export function ensureSystemClinicMovements(store: {
   return added;
 }
 
-/** Full library: 2,520-exercise catalogue + physio rehab extras / overrides. */
+/** Full library: GymAdvisor catalogue + physio rehab extras / overrides. */
 export function listedClinicMovements(store: {
   movements?: ClinicMovement[] | null;
 }): ClinicMovement[] {
   const now = new Date().toISOString();
-  return mergeCatalogWithOverrides(store.movements || [], (row, override) => {
+  const overrides = [
+    ...gymSystemMovementOverrides(),
+    ...(store.movements || []),
+  ];
+  return mergeCatalogWithOverrides(overrides, (row, override) => {
     const customImage = String(override?.image_url || '').trim();
     const customVideo = String(override?.video_url || '').trim();
     return {
       id: override?.id || row.id,
       code: row.code,
       name: override?.name || row.name,
-      category: override?.category || row.muscle_group || row.category,
+      category: override?.category || row.category,
       modality: override?.modality || row.modality,
       muscle_group: override?.muscle_group || row.muscle_group,
       movement_pattern: override?.movement_pattern || row.movement_pattern,
       scoring: override?.scoring || row.scoring,
+      tags: override?.tags,
       equipment: override?.equipment || row.equipment,
       muscles: override?.muscles || row.muscles,
       level: override?.level || row.level,

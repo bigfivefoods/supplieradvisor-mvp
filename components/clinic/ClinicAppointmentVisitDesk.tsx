@@ -180,6 +180,18 @@ export function ClinicAppointmentVisitDesk({
   );
   const sharedMoves = activeSharedMovements(row?.sharedMovements);
   const catalog = (movements || []).filter((m) => m.active !== false);
+  const moveCategoryOptions = useMemo(() => {
+    const seen = new Set<string>(CLINIC_MOVEMENT_CATEGORIES);
+    const extra: string[] = [];
+    for (const m of catalog) {
+      const cat = String(m.category || '').trim();
+      if (!cat || seen.has(cat)) continue;
+      seen.add(cat);
+      extra.push(cat);
+    }
+    extra.sort((a, b) => a.localeCompare(b));
+    return [...CLINIC_MOVEMENT_CATEGORIES, ...extra];
+  }, [catalog]);
   const filteredMoves = useMemo(() => {
     const q = moveQuery.trim().toLowerCase();
     return catalog.filter((m) => {
@@ -187,6 +199,9 @@ export function ClinicAppointmentVisitDesk({
       if (!q) return true;
       return (
         m.name.toLowerCase().includes(q) ||
+        String(m.category || '')
+          .toLowerCase()
+          .includes(q) ||
         String(m.overview || '')
           .toLowerCase()
           .includes(q) ||
@@ -988,8 +1003,8 @@ export function ClinicAppointmentVisitDesk({
                 value={moveCategory}
                 onChange={(e) => setMoveCategory(e.target.value)}
               >
-                <option value="">All regions</option>
-                {CLINIC_MOVEMENT_CATEGORIES.map((c) => (
+                <option value="">All regions / patterns</option>
+                {moveCategoryOptions.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -1000,12 +1015,18 @@ export function ClinicAppointmentVisitDesk({
                 value={moveId}
                 onChange={(e) => setMoveId(e.target.value)}
               >
-                <option value="">Select a movement</option>
-                {filteredMoves.slice(0, 80).map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.category} · {m.name}
-                  </option>
-                ))}
+                <option value="">
+                  {filteredMoves.length
+                    ? `Select a movement (${filteredMoves.length})`
+                    : 'Select a movement'}
+                </option>
+                {filteredMoves
+                  .slice(0, moveQuery.trim() || moveCategory ? 500 : 160)
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.category} · {m.name}
+                    </option>
+                  ))}
               </select>
             </div>
             {pickedMove ? (
