@@ -146,7 +146,6 @@ export default function MedicalRoomsPage() {
       practitioner_ids: [...(room.practitioner_ids || [])],
       asset_ids: [...(room.asset_ids || [])],
     });
-    setAddOpen(false);
     setNewAssetName('');
   };
 
