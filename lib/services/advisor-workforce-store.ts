@@ -15,21 +15,18 @@ import {
   readPhysiographFromMetadata,
   writePhysiographToMetadata,
   type PhysioPractitioner,
-  type PhysiographStore,
 } from '@/lib/clinic/physiograph';
 import {
   MEDICALGRAPH_META_KEY,
   readMedicalgraphFromMetadata,
   writeMedicalgraphToMetadata,
   type MedicalPractitioner,
-  type MedicalgraphStore,
 } from '@/lib/clinic/medicalgraph';
 import {
   PSYCHIATRYGRAPH_META_KEY,
   readPsychiatrygraphFromMetadata,
   writePsychiatrygraphToMetadata,
   type PsychiatryPractitioner,
-  type PsychiatrygraphStore,
 } from '@/lib/clinic/psychiatrygraph';
 import {
   DENTALGRAPH_META_KEY,
@@ -275,22 +272,23 @@ function wrap(opts: {
   };
 }
 
-function wrapClinic(
+type ClinicWorkforceStore = {
+  settings?: { brand_name?: string } | null;
+  practitioners: Array<
+    PhysioPractitioner | MedicalPractitioner | PsychiatryPractitioner
+  >;
+};
+
+function wrapClinic<TStore extends ClinicWorkforceStore>(
   companyId: number,
   module: AdvisorWorkforceModule,
   brand: string,
-  store:
-    | PhysiographStore
-    | MedicalgraphStore
-    | PsychiatrygraphStore,
+  store: TStore,
   io: {
     key: string;
     write: (
       meta: Record<string, unknown>,
-      store:
-        | PhysiographStore
-        | MedicalgraphStore
-        | PsychiatrygraphStore
+      store: TStore
     ) => Record<string, unknown>;
   }
 ): AdvisorWorkforceBundle {
