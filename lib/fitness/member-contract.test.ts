@@ -97,6 +97,32 @@ const serah = store.clients.find((c) => /shange/i.test(c.name))!;
 assert.equal(serah.contract_kind, 'group');
 assert.equal(serah.private_client === true, false);
 assert.equal(serah.contracts?.[0].kind, 'group');
+
+const withBank = applyContractToClient(
+  {
+    id: 'cli_bank',
+    code: 'B1',
+    name: 'Serah Shange',
+    created_at: now,
+    updated_at: now,
+  },
+  {
+    kind: 'group',
+    name: 'Serah Shange',
+    account_holder: 'Serah Shange',
+    account_type: 'CURRENT/CHEQUE',
+    account_number: '18465671637',
+    bank_name: 'Discovery',
+    debit_amount_zar: 475,
+    source_id: 'bank1',
+  },
+  now
+);
+assert.equal(withBank.debit_bank?.bank_name, 'Discovery Bank');
+assert.equal(withBank.debit_bank?.account_number, '18465671637');
+assert.equal(withBank.debit_bank?.branch_code, '679000');
+assert.equal(withBank.debit_bank?.account_type, 'cheque');
+assert.equal(withBank.contracts?.[0].account_number, '18465671637');
 const mike = store.clients.find((c) => /gouweloos/i.test(c.name))!;
 assert.equal(mike.private_client, true);
 

@@ -87,7 +87,40 @@ export function parseDebitAccountType(raw: unknown): DebitAccountType | '' {
     .toLowerCase();
   if (v === 'current' || v === 'cheque') return v === 'current' ? 'current' : 'cheque';
   if (v === 'savings' || v === 'transmission') return v;
+  if (v.includes('sav')) return 'savings';
+  if (v.includes('trans')) return 'transmission';
+  if (v.includes('cheq') || v.includes('current')) return 'cheque';
   return '';
+}
+
+/** Match a Jotform / free-text bank name to the SA debit-order table. */
+export function matchSaDebitBank(
+  name: string
+): { name: string; branch_code: string } | null {
+  const n = String(name || '')
+    .toLowerCase()
+    .replace(/\bbank\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+  if (!n) return null;
+  for (const b of SA_DEBIT_BANKS) {
+    if (b.name === 'Other') continue;
+    const bn = b.name
+      .toLowerCase()
+      .replace(/\bbank\b/g, ' ')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+    if (
+      bn === n ||
+      bn.startsWith(n) ||
+      n.startsWith(bn) ||
+      bn.includes(n) ||
+      n.includes(bn)
+    ) {
+      return b;
+    }
+  }
+  return null;
 }
 
 export function applyMemberDebitBank(

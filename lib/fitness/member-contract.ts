@@ -2,7 +2,11 @@
  * Gym membership onboarding contracts (group class vs private).
  * PAR-Q + identity live on the member profile for the gym owner only.
  */
-import { applyMemberDebitBank } from '@/lib/fitness/member-debit-bank';
+import {
+  applyMemberDebitBank,
+  matchSaDebitBank,
+  parseDebitAccountType,
+} from '@/lib/fitness/member-debit-bank';
 import {
   defaultPublicSettings,
   newId,
@@ -101,6 +105,11 @@ export type FitMemberContract = {
   class_option?: string | null;
   class_amount_zar?: number | null;
   debit_amount_zar?: number | null;
+  account_holder?: string | null;
+  account_type?: string | null;
+  account_number?: string | null;
+  bank_name?: string | null;
+  branch_code?: string | null;
   terms_accepted?: boolean;
   parq_accepted?: boolean;
   parq?: FitParqAnswers;
@@ -198,6 +207,11 @@ export function contractFromSubmission(
       sub.class_amount_zar != null ? Number(sub.class_amount_zar) : null,
     debit_amount_zar:
       sub.debit_amount_zar != null ? Number(sub.debit_amount_zar) : null,
+    account_holder: sub.account_holder || null,
+    account_type: sub.account_type || null,
+    account_number: sub.account_number || null,
+    bank_name: sub.bank_name || null,
+    branch_code: matchSaDebitBank(String(sub.bank_name || ''))?.branch_code || null,
     terms_accepted: sub.terms_accepted !== false,
     parq_accepted: sub.parq_accepted !== false,
     parq: sub.parq || {},
@@ -216,6 +230,49 @@ function fill(cur: string | null | undefined, next?: string | null): string | un
   if (!n) return cur || undefined;
   if (!String(cur || '').trim()) return n;
   return cur || undefined;
+}
+
+function stampImportedDebitBank(
+  client: FitClient,
+  sub: FitContractSubmission,
+  now: string
+) {
+  const matched = matchSaDebitBank(String(sub.bank_name || ''));
+  const bankName =
+    matched?.name || String(sub.bank_name || '').trim() || 'Other';
+  const branch = matched?.branch_code || '';
+  const type =
+    parseDebitAccountType(sub.account_type) ||
+    (/sav/i.test(String(sub.account_type || '')) ? 'savings' : 'cheque');
+  const scratch: FitClient = { ...client, debit_bank: client.debit_bank };
+  const applied = applyMemberDebitBank(
+    scratch,
+    {
+      account_holder: sub.account_holder || sub.name,
+      bank_name: bankName,
+      account_number: sub.account_number || '',
+      branch_code: branch,
+      account_type: type,
+      debit_order_authorised: true,
+    },
+    now
+  );
+  if (applied.ok && scratch.debit_bank) {
+    client.debit_bank = scratch.debit_bank;
+    return;
+  }
+  const acct = String(sub.account_number || '').replace(/\D/g, '');
+  if (!acct && !bankName) return;
+  client.debit_bank = {
+    account_holder: String(sub.account_holder || sub.name || '').trim(),
+    bank_name: bankName,
+    account_number: acct,
+    branch_code: branch,
+    account_type: type,
+    debit_order_authorised: true,
+    authorised_at: now,
+    updated_at: now,
+  };
 }
 
 export function applyContractToClient(
@@ -261,26 +318,8 @@ export function applyContractToClient(
   }
   next.medical = medical;
 
-  if (kind === 'group' && (sub.account_number || sub.bank_name)) {
-    const scratch: FitClient = {
-      ...next,
-      debit_bank: next.debit_bank,
-    };
-    const applied = applyMemberDebitBank(
-      scratch,
-      {
-        account_holder: sub.account_holder || sub.name,
-        bank_name: sub.bank_name || 'Other',
-        account_number: sub.account_number || '',
-        branch_code: '',
-        account_type: /sav/i.test(String(sub.account_type || ''))
-          ? 'savings'
-          : 'cheque',
-        debit_order_authorised: true,
-      },
-      now
-    );
-    if (applied.ok) next.debit_bank = scratch.debit_bank;
+  if (sub.account_number || sub.bank_name) {
+    stampImportedDebitBank(next, sub, now);
   }
 
   const parq = sub.parq || {};

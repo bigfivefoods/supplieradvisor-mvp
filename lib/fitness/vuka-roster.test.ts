@@ -40,6 +40,11 @@ assert.ok(store.clients.some((c) => /gouweloos/i.test(c.name)));
 const aimee = store.clients.find((c) => /aimee le roux/i.test(c.name))!;
 assert.ok((aimee.contracts || []).length >= 1);
 assert.equal(aimee.contracts?.[0].parq != null, true);
+const serah = store.clients.find((c) => /serah shange/i.test(c.name));
+if (serah) {
+  assert.ok(serah.debit_bank?.account_number);
+  assert.ok(serah.debit_bank?.bank_name);
+}
 assert.equal(
   store.membership_plans.some(
     (p) => String(p.code || '').startsWith('VUKA_DESK_')

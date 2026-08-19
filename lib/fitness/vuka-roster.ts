@@ -170,9 +170,9 @@ function resolvePlan(
   );
 }
 
-export const VUKA_CONTRACTS_IMPORT = String(
+export const VUKA_CONTRACTS_IMPORT = `${String(
   (generated as { import_version?: string }).import_version || '2026-08-19'
-);
+)}-bank`;
 export const VUKA_CONTRACT_SUBMISSIONS = ((
   generated as { submissions?: FitContractSubmission[] }
 ).submissions || []) as FitContractSubmission[];

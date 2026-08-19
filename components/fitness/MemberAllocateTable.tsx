@@ -13,6 +13,10 @@ import {
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
 import { listSubscribeClasses } from '@/lib/fitness/vuka-class-catalog';
+import {
+  MemberMembershipFacts,
+  memberImportedSummaryLine,
+} from '@/components/fitness/MemberMembershipFacts';
 
 type PostFn = (body: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
@@ -147,7 +151,7 @@ export function MemberAllocateTable({
       .filter((c) => c.active !== false)
       .filter((c) =>
         needle
-          ? `${c.name} ${c.code} ${c.email || ''} ${c.phone || ''} ${c.notes || ''}`
+          ? `${c.name} ${c.code} ${c.email || ''} ${c.phone || ''} ${c.notes || ''} ${c.id_number || ''} ${c.occupation || ''} ${c.debit_bank?.bank_name || ''} ${c.debit_bank?.account_number || ''}`
               .toLowerCase()
               .includes(needle)
           : true
@@ -551,6 +555,10 @@ export function MemberAllocateTable({
                             ? ' · member'
                             : ''}
                     </div>
+                    <div className="mt-0.5 text-[11px] font-semibold text-slate-600 dark:text-yellow-100/90">
+                      {memberImportedSummaryLine(c) ||
+                        'No imported bank / ID on file'}
+                    </div>
                   </div>
                   <div className="min-w-[14rem] flex-[2]">
                     {d.member && selected.length ? (
@@ -710,6 +718,8 @@ export function MemberAllocateTable({
                         }
                       />
                     </label>
+
+                    <MemberMembershipFacts client={c} />
 
                     <div className="flex flex-wrap gap-4">
                       <label className="flex items-center gap-2 text-sm font-bold">
