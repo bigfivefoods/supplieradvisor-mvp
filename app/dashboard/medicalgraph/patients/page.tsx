@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Copy, Link2, Mail, Pencil, X } from 'lucide-react';
+import { AdvisorExpandablePanel } from '@/components/advisors/AdvisorExpandablePanel';
 import {
   LoadingBlock,
   MedicalgraphWorkbench,
@@ -76,6 +77,7 @@ export default function PatientsPage() {
   const { companyId, store, loading, saving, post, summary } = useMedicalgraph();
   const [form, setForm] = useState<PatientForm>(blankForm);
   const [editing, setEditing] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [listEditId, setListEditId] = useState<string | null>(null);
 
   const openEdit = (p: MedicalPatient) => {
@@ -96,6 +98,7 @@ export default function PatientsPage() {
       send_wallet_invite: !p.invite_sent_at,
     });
     setEditing(true);
+    setAddOpen(true);
   };
 
 
@@ -177,6 +180,7 @@ export default function PatientsPage() {
       );
     setForm(blankForm());
     setEditing(false);
+    setAddOpen(false);
   };
 
   const injuredCount =
@@ -266,6 +270,19 @@ export default function PatientsPage() {
               { label: 'Injured / recovering', value: injuredCount },
             ]}
           />
+          <AdvisorExpandablePanel
+            title={editing ? 'Edit patient' : 'Add patient'}
+            description={
+              editing
+                ? 'Update contact details. Ailments live on the patient chart.'
+                : 'Register a patient. Capture ailments on their chart after saving.'
+            }
+            open={addOpen || editing}
+            onToggle={() => setAddOpen((v) => !v)}
+            accentClass="border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/30"
+            titleClass="text-emerald-950 dark:text-emerald-50"
+            hintClass="text-emerald-800/80 dark:text-emerald-200/80"
+          >
           <FormCard
             title={editing ? 'Edit patient profile' : 'Add patient'}
             description={
@@ -285,6 +302,7 @@ export default function PatientsPage() {
                   onClick={() => {
                     setForm(blankForm());
                     setEditing(false);
+                    setAddOpen(false);
                   }}
                 >
                   <X className="w-3.5 h-3.5" /> Cancel edit
@@ -450,6 +468,7 @@ export default function PatientsPage() {
               inputClass={fc()}
             />
           </FormCard>
+          </AdvisorExpandablePanel>
 
           {editing && form.id ? (
             <AdvisorProfileShare

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Copy, Link2, Mail, Pencil, X } from 'lucide-react';
+import { AdvisorExpandablePanel } from '@/components/advisors/AdvisorExpandablePanel';
 import {
   LoadingBlock,
   DentalgraphWorkbench,
@@ -71,6 +72,7 @@ export default function PatientsPage() {
   const { companyId, store, loading, saving, post, summary } = useDentalgraph();
   const [form, setForm] = useState<PatientForm>(blankForm);
   const [editing, setEditing] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [listEditId, setListEditId] = useState<string | null>(null);
 
   const openEdit = (p: DentalPatient) => {
@@ -90,6 +92,7 @@ export default function PatientsPage() {
       popia_consent: !!p.popia_consent_at,
     });
     setEditing(true);
+    setAddOpen(true);
   };
 
 
@@ -158,6 +161,7 @@ export default function PatientsPage() {
     toast.success(form.id ? 'Patient profile updated' : 'Patient saved');
     setForm(blankForm());
     setEditing(false);
+    setAddOpen(false);
   };
 
   const injuredCount =
@@ -253,6 +257,19 @@ export default function PatientsPage() {
               { label: 'Active clinical notes', value: injuredCount },
             ]}
           />
+          <AdvisorExpandablePanel
+            title={editing ? 'Edit patient' : 'Add patient'}
+            description={
+              editing
+                ? 'Update contact details. Dental ailments live on the patient chart.'
+                : 'Register a patient. Capture dental ailments on their chart after saving.'
+            }
+            open={addOpen || editing}
+            onToggle={() => setAddOpen((v) => !v)}
+            accentClass="border-sky-200 bg-sky-50/50 dark:border-sky-800 dark:bg-sky-950/30"
+            titleClass="text-sky-950 dark:text-sky-50"
+            hintClass="text-sky-800/80 dark:text-sky-200/80"
+          >
           <FormCard
             title={editing ? 'Edit patient profile' : 'Add patient'}
             description={
@@ -272,6 +289,7 @@ export default function PatientsPage() {
                   onClick={() => {
                     setForm(blankForm());
                     setEditing(false);
+                    setAddOpen(false);
                   }}
                 >
                   <X className="w-3.5 h-3.5" /> Cancel edit
@@ -428,6 +446,7 @@ export default function PatientsPage() {
               inputClass={fc()}
             />
           </FormCard>
+          </AdvisorExpandablePanel>
 
           {editing && form.id ? (
             <AdvisorProfileShare

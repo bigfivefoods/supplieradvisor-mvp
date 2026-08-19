@@ -143,6 +143,42 @@ export function MemberMedicalShare({
               label="Chronic conditions"
               value={share!.chronic_conditions}
             />
+            {Array.isArray(share!.conditions) &&
+            (share!.conditions as unknown[]).length > 0 ? (
+              <div className="mb-2">
+                <dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                  Conditions
+                </dt>
+                <dd className="mt-1 space-y-1.5">
+                  {(
+                    share!.conditions as Array<{
+                      label?: string;
+                      status?: string;
+                      notes?: string;
+                    }>
+                  ).map((c, i) => (
+                    <div
+                      key={`${c.label || i}`}
+                      className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                    >
+                      <p className="font-semibold text-slate-900">
+                        {c.label}
+                        {c.status ? (
+                          <span className="ml-2 text-[10px] font-black uppercase text-slate-400">
+                            {c.status}
+                          </span>
+                        ) : null}
+                      </p>
+                      {c.notes ? (
+                        <p className="mt-0.5 whitespace-pre-wrap text-xs text-slate-600">
+                          {c.notes}
+                        </p>
+                      ) : null}
+                    </div>
+                  ))}
+                </dd>
+              </div>
+            ) : null}
             <Field label="Diagnosis" value={share!.diagnosis_notes} />
             <Field label="Advice / care notes" value={share!.care_notes} />
             <Field label="Progress notes" value={share!.progress_notes} />

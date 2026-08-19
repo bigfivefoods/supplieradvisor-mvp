@@ -2,6 +2,10 @@
  * Shared body / injury vocabulary for GymAdvisor clients and PhysioAdvisor patients.
  * Coaches and practitioners use this so the floor knows what to adapt.
  */
+import {
+  normalizeConditions,
+  normalizeShareFlags,
+} from '@/lib/health/ailments';
 
 export const BODY_REGIONS = [
   'Head / neck',
@@ -62,6 +66,10 @@ export type PersonHealthProfile = {
   functional_limitations?: string;
   progress_notes?: string;
   treatment_goals?: string;
+  /** Module-specific conditions (physio / medical / dental / psychiatry) */
+  conditions?: import('@/lib/health/ailments').PatientCondition[];
+  /** Which clinical notes the member may see */
+  share?: import('@/lib/health/ailments').ClinicalShareFlags;
   updated_at?: string;
   /** e.g. coach:Priya · desk · prac:Johan */
   updated_by?: string;
@@ -184,6 +192,12 @@ export function mergeHealthProfile(
   if (src.treatment_goals !== undefined) {
     next.treatment_goals = String(src.treatment_goals ?? '');
   }
+  if (src.conditions !== undefined) {
+    next.conditions = normalizeConditions(src.conditions);
+  }
+  if (src.share !== undefined) {
+    next.share = normalizeShareFlags(src.share);
+  }
 
   // Auto-flag injured when areas or non-none status present
   if (
@@ -225,11 +239,19 @@ export function healthSummaryLabel(
   if (
     !h.injured &&
     (!h.injury_areas || h.injury_areas.length === 0) &&
+    !(h.conditions || []).some((c) => c.status !== 'resolved') &&
     (status === '' || status === 'none' || status === 'cleared')
   ) {
     return status === 'cleared' ? 'Cleared' : 'OK';
   }
-  const areas = (h.injury_areas || []).slice(0, 2).join(', ') || 'Injury';
+  const cond = (h.conditions || [])
+    .filter((c) => c.status !== 'resolved')
+    .slice(0, 2)
+    .map((c) => c.label);
+  const areas =
+    (h.injury_areas || []).slice(0, 2).join(', ') ||
+    cond.join(', ') ||
+    'Injury';
   const side =
     h.injury_side && h.injury_side !== 'n/a'
       ? ` (${String(h.injury_side).slice(0, 1).toUpperCase()})`
@@ -246,5 +268,6 @@ export function isInjured(h?: PersonHealthProfile | null): boolean {
   if (h.injured === true) return true;
   const st = (h.injury_status || '').toLowerCase();
   if (st === 'acute' || st === 'recovering' || st === 'chronic') return true;
+  if ((h.conditions || []).some((c) => c.status !== 'resolved')) return true;
   return Array.isArray(h.injury_areas) && h.injury_areas.length > 0 && st !== 'cleared';
 }

@@ -12,6 +12,7 @@ import { PatientMedicalChart } from '@/components/clinic/PatientMedicalChart';
 import { AdvisorTreatmentPlanPanel } from '@/components/services/AdvisorTreatmentPlanPanel';
 import { PatientRecordSharePanel } from '@/components/services/PatientRecordSharePanel';
 import { PatientFollowUpDesk } from '@/components/clinic/PatientFollowUpDesk';
+import { PatientAilmentDesk } from '@/components/clinic/PatientAilmentDesk';
 import { AdvisorProfileShare } from '@/components/advisors/AdvisorProfileShare';
 import { healthSummaryLabel } from '@/lib/health/body-map';
 
@@ -115,6 +116,19 @@ export default function PsychiatryPatientRecordPage() {
             ) : null}
           </div>
           
+          <PatientAilmentDesk
+            module="psychiatry"
+            patientId={patient.id}
+            clinical={patient.clinical}
+            diagnosisNotes={patient.diagnosis_notes}
+            post={post}
+            saving={saving}
+            accent="rose"
+            onSaved={() => {
+              void load();
+            }}
+          />
+
           <AdvisorTreatmentPlanPanel
             personId={patient.id}
             personLabel={patient.name}

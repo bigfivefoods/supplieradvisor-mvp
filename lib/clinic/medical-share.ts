@@ -2,6 +2,11 @@
  * Safe patient-facing medical summary for portals and SA Member.
  * Full charts stay on the practice; this is allergies, aid, scripts, notes.
  */
+import {
+  shareFlagOn,
+  type ClinicalShareFlags,
+  type PatientCondition,
+} from '@/lib/health/ailments';
 
 export type SharedAdviceNote = {
   id: string;
@@ -46,6 +51,8 @@ export function buildPatientMedicalShare(patient: {
     treatment_goals?: string | null;
     functional_limitations?: string | null;
     contraindications?: string | null;
+    conditions?: PatientCondition[];
+    share?: ClinicalShareFlags;
   } | null;
   medical?: {
     allergies?: string | null;
@@ -69,31 +76,60 @@ export function buildPatientMedicalShare(patient: {
   if (patient.share_medical === false) return null;
   const clinical = patient.clinical;
   const medical = patient.medical;
+  const flags = clinical?.share;
+  const explicit = Boolean(flags && Object.keys(flags).length);
+  const allow = (key: Parameters<typeof shareFlagOn>[1]) =>
+    shareFlagOn(flags, key, explicit);
   const summary: Record<string, unknown> = {};
+  if (allow('conditions') && clinical?.conditions?.length) {
+    const shared = clinical.conditions.filter((c) => c.share !== false);
+    if (shared.length) {
+      summary.conditions = shared.map((c) => ({
+        label: c.label,
+        status: c.status,
+        notes: c.notes || undefined,
+        onset: c.onset || undefined,
+      }));
+    }
+  }
   if (clinical?.injury_status) summary.injury_status = clinical.injury_status;
-  if (clinical?.injury_areas && Array.isArray(clinical.injury_areas) && clinical.injury_areas.length) {
+  if (
+    allow('injury_areas') &&
+    clinical?.injury_areas &&
+    Array.isArray(clinical.injury_areas) &&
+    clinical.injury_areas.length
+  ) {
     summary.injury_areas = clinical.injury_areas;
   }
-  if (clinical?.injury_notes) summary.injury_notes = clinical.injury_notes;
-  if (clinical?.diagnosis_notes || patient.diagnosis_notes) {
+  if (allow('injury_notes') && clinical?.injury_notes) {
+    summary.injury_notes = clinical.injury_notes;
+  }
+  if (
+    allow('diagnosis_notes') &&
+    (clinical?.diagnosis_notes || patient.diagnosis_notes)
+  ) {
     summary.diagnosis_notes =
       clinical?.diagnosis_notes || patient.diagnosis_notes;
   }
-  if (clinical?.training_modifications) {
+  if (allow('training_modifications') && clinical?.training_modifications) {
     summary.care_notes = clinical.training_modifications;
   }
-  if (clinical?.goals) summary.goals = clinical.goals;
-  if (clinical?.treatment_goals) {
+  if (allow('goals') && clinical?.goals) summary.goals = clinical.goals;
+  if (allow('treatment_goals') && clinical?.treatment_goals) {
     summary.treatment_goals = clinical.treatment_goals;
   }
-  if (clinical?.progress_notes) summary.progress_notes = clinical.progress_notes;
-  if (clinical?.functional_limitations) {
+  if (allow('progress_notes') && clinical?.progress_notes) {
+    summary.progress_notes = clinical.progress_notes;
+  }
+  if (allow('functional_limitations') && clinical?.functional_limitations) {
     summary.functional_limitations = clinical.functional_limitations;
   }
-  if (clinical?.contraindications) {
+  if (allow('contraindications') && clinical?.contraindications) {
     summary.contraindications = clinical.contraindications;
   }
-  if (clinical?.pain_score != null) summary.pain_score = clinical.pain_score;
+  if (allow('pain_score') && clinical?.pain_score != null) {
+    summary.pain_score = clinical.pain_score;
+  }
   if (medical?.allergies) summary.allergies = medical.allergies;
   if (medical?.chronic_conditions) {
     summary.chronic_conditions = medical.chronic_conditions;

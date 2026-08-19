@@ -25,6 +25,8 @@ import { FitContractDocsPanel } from '@/components/fitness/FitContractDocs';
 import { PersonQualificationsEditor } from '@/components/services/PersonQualificationsEditor';
 import { AdvisorPersonInviteRow } from '@/components/advisors/AdvisorPersonInviteRow';
 import { AdvisorEngagementField } from '@/components/advisors/AdvisorEngagementField';
+import { AdvisorExpandablePanel } from '@/components/advisors/AdvisorExpandablePanel';
+import { resolveAdvisorEngagement } from '@/lib/services/advisor-workforce';
 import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
 import type { PersonQualification } from '@/lib/services/person-qualifications';
 import {
@@ -80,6 +82,7 @@ type ProfileDraft = {
   photo_url: string;
   can_manage: boolean;
   active: boolean;
+  engagement: 'employed' | 'contractor';
 };
 
 function emptyForm() {
@@ -118,6 +121,7 @@ function profileFromPerson(p: PsychiatryPractitioner): ProfileDraft {
     photo_url: p.photo_url || '',
     can_manage: p.can_manage !== false,
     active: p.active !== false && !p.end_date,
+    engagement: resolveAdvisorEngagement(p),
   };
 }
 
@@ -142,6 +146,8 @@ export default function PractitionersPage() {
   const [historyOpen, setHistoryOpen] = useState<Record<string, boolean>>({});
   const [endNote, setEndNote] = useState<Record<string, string>>({});
   const [newSkill, setNewSkill] = useState('');
+  const [skillsOpen, setSkillsOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [onlyIncomplete, setOnlyIncomplete] = useState(false);
   const [editSkillFrom, setEditSkillFrom] = useState<string | null>(null);
   const [editSkillTo, setEditSkillTo] = useState('');
@@ -435,6 +441,7 @@ export default function PractitionersPage() {
         photo_url: pr.photo_url.trim() || '',
         can_manage: pr.can_manage,
         active: pr.active,
+        engagement: pr.engagement || 'contractor',
         start_date: p.start_date ?? undefined,
         end_date: p.end_date ?? null,
         rate_zar: p.rate_zar ?? null,
@@ -540,293 +547,6 @@ export default function PractitionersPage() {
               { label: 'Skills', value: skillOptions.length },
             ]}
           />
-
-          {/* Owner-managed skills / disciplines catalogue */}
-          <div className="rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4 space-y-3 dark:border-indigo-700/50 dark:bg-indigo-950/40">
-            <div>
-              <h3 className="text-sm font-black text-indigo-950 dark:text-indigo-50">
-                Skills & disciplines
-              </h3>
-              <p className="text-[11px] text-indigo-900/80 dark:text-indigo-200/80 mt-0.5">
-                Create and edit the list practitioners can pick from. Renaming
-                updates every practitioner who has that skill.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {skillOptions.map((s) => (
-                <div
-                  key={s}
-                  className="inline-flex items-center gap-1 rounded-full border border-indigo-300 bg-white pl-2.5 pr-1 py-0.5 text-[11px] font-bold text-indigo-950 dark:border-indigo-600 dark:bg-indigo-950 dark:text-indigo-100"
-                >
-                  {editSkillFrom === s ? (
-                    <input
-                      className="w-28 rounded-md border border-indigo-400 bg-white px-1.5 py-0.5 text-[11px] font-bold dark:bg-indigo-900"
-                      value={editSkillTo}
-                      autoFocus
-                      onChange={(e) => setEditSkillTo(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') void saveRenameSkill();
-                        if (e.key === 'Escape') {
-                          setEditSkillFrom(null);
-                          setEditSkillTo('');
-                        }
-                      }}
-                    />
-                  ) : (
-                    <span>{s}</span>
-                  )}
-                  {editSkillFrom === s ? (
-                    <>
-                      <button
-                        type="button"
-                        disabled={saving}
-                        onClick={() => void saveRenameSkill()}
-                        className="rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] text-white"
-                      >
-                        Save
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditSkillFrom(null);
-                          setEditSkillTo('');
-                        }}
-                        className="rounded-full px-1.5 py-0.5 text-[10px] text-slate-600 dark:text-indigo-200"
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        title="Edit name"
-                        disabled={saving}
-                        onClick={() => {
-                          setEditSkillFrom(s);
-                          setEditSkillTo(s);
-                        }}
-                        className="rounded-full p-1 hover:bg-indigo-100 dark:hover:bg-indigo-900"
-                      >
-                        <Pencil className="w-3 h-3" />
-                      </button>
-                      <button
-                        type="button"
-                        title="Remove from list"
-                        disabled={saving}
-                        onClick={() => void removeSkill(s)}
-                        className="rounded-full p-1 text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <input
-                className={fc() + ' max-w-xs'}
-                placeholder="New skill (e.g. Manual therapy)"
-                value={newSkill}
-                onChange={(e) => setNewSkill(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    void addSkill();
-                  }
-                }}
-              />
-              <button
-                type="button"
-                disabled={saving || !newSkill.trim()}
-                onClick={() => void addSkill()}
-                className="inline-flex items-center gap-1 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add skill
-              </button>
-            </div>
-          </div>
-
-          <FormCard
-            title="Add practitioner"
-            onSubmit={() => void add()}
-            saving={saving}
-          >
-            <input
-              className={fc()}
-              placeholder="Code"
-              value={form.code}
-              onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
-            />
-            <input
-              className={fc()}
-              placeholder="Name *"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            />
-            <label className="block">
-              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-800 dark:text-indigo-300">
-                Login email *
-              </span>
-              <input
-                className={fc() + ' mt-1'}
-                type="email"
-                autoComplete="email"
-                placeholder="name@practice.co.za"
-                value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-              />
-              <span className="mt-0.5 block text-[10px] text-slate-500 dark:text-indigo-200/70">
-                They sign in with this email to use the app.
-              </span>
-            </label>
-            <label className="block">
-              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-800 dark:text-indigo-300">
-                ID / passport *
-              </span>
-              <input
-                className={fc() + ' mt-1'}
-                placeholder="SA ID or passport number"
-                value={form.id_number}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, id_number: e.target.value }))
-                }
-              />
-              <span className="mt-0.5 block text-[10px] text-slate-500 dark:text-indigo-200/70">
-                VerifyNow for SA ID · Didit for passport.
-              </span>
-            </label>
-            <input
-              className={fc()}
-              placeholder="Phone"
-              value={form.phone}
-              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-            />
-            <AdvisorEngagementField
-              value={form.engagement}
-              onChange={(engagement) =>
-                setForm((f) => ({ ...f, engagement }))
-              }
-              disabled={saving}
-            />
-            <label className="block">
-              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-800 dark:text-indigo-300">
-                Start date
-              </span>
-              <input
-                className={fc() + ' mt-1'}
-                type="date"
-                value={form.start_date}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, start_date: e.target.value }))
-                }
-              />
-            </label>
-            <label className="block">
-              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-800 dark:text-indigo-300">
-                End date (optional)
-              </span>
-              <input
-                className={fc() + ' mt-1'}
-                type="date"
-                value={form.end_date}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, end_date: e.target.value }))
-                }
-              />
-            </label>
-            <label className="block">
-              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-800 dark:text-indigo-300">
-                Rate (ZAR)
-              </span>
-              <input
-                className={fc() + ' mt-1'}
-                type="number"
-                min={0}
-                step="0.01"
-                placeholder="e.g. 750"
-                value={form.rate_zar}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, rate_zar: e.target.value }))
-                }
-              />
-            </label>
-            <label className="block">
-              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-800 dark:text-indigo-300">
-                Rate basis
-              </span>
-              <select
-                className={fc() + ' mt-1'}
-                value={form.rate_basis}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, rate_basis: e.target.value }))
-                }
-              >
-                {PRACTITIONER_RATE_BASES.map((b) => (
-                  <option key={b} value={b}>
-                    {b.replace(/_/g, ' ')}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <input
-              className={fc()}
-              placeholder="Rate note (optional, e.g. incl. travel)"
-              value={form.rate_note}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, rate_note: e.target.value }))
-              }
-            />
-            <div className="sm:col-span-2 lg:col-span-3">
-              <p className="text-[10px] font-black uppercase tracking-wider text-indigo-800 dark:text-indigo-300 mb-1.5">
-                Skills / disciplines (select all that apply)
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {skillOptions.map((s) => {
-                  const on = form.disciplines.includes(s);
-                  return (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => toggleSkill(s)}
-                      className={`rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors ${
-                        on
-                          ? 'border-indigo-600 bg-indigo-600 text-white'
-                          : 'border-indigo-200 bg-white text-indigo-900 dark:border-indigo-600 dark:bg-indigo-950 dark:text-indigo-100'
-                      }`}
-                    >
-                      {s}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <ProfilePhotoField
-              companyId={companyId}
-              value={form.photo_url}
-              onChange={(url) => setForm((f) => ({ ...f, photo_url: url }))}
-              kind="practitioner_photo"
-              label="Practitioner photo"
-              description="Upload a headshot for the bio and clinic website (JPG/PNG/WebP · under 8MB)."
-              disabled={saving}
-              accentClass="border-indigo-300 dark:border-indigo-500"
-            />
-            <textarea
-              className={fc() + ' min-h-[3.5rem] resize-y sm:col-span-2'}
-              placeholder="Public bio (patients see this on website)"
-              value={form.public_bio}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, public_bio: e.target.value }))
-              }
-            />
-            <textarea
-              className={fc() + ' min-h-[3rem] resize-y sm:col-span-2'}
-              placeholder="Internal notes / full bio (clinic office)"
-              value={form.bio}
-              onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))}
-            />
-          </FormCard>
 
           <div className="space-y-2">
             {(() => {
@@ -976,6 +696,17 @@ export default function PractitionersPage() {
                         >
                           {isActive ? 'Active' : 'Ended'}
                         </span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${
+                            resolveAdvisorEngagement(p) === 'employed'
+                              ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200'
+                              : 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200'
+                          }`}
+                        >
+                          {resolveAdvisorEngagement(p) === 'employed'
+                            ? 'Permanent'
+                            : 'Contract'}
+                        </span>
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-indigo-200/80">
                         {(p.disciplines || []).join(', ') || '—'}
@@ -1093,6 +824,13 @@ export default function PractitionersPage() {
                                 }
                               />
                             </label>
+                            <AdvisorEngagementField
+                              value={profile.engagement}
+                              onChange={(engagement) =>
+                                setProfile(p.id, { engagement })
+                              }
+                              disabled={saving}
+                            />
                             <div className="sm:col-span-2">
                               <ProfilePhotoField
                                 companyId={companyId}
@@ -1417,10 +1155,318 @@ export default function PractitionersPage() {
             })}
             {store.practitioners.length === 0 ? (
               <p className="text-sm text-slate-500 dark:text-indigo-200/70 py-6 text-center">
-                No practitioners yet — add one above.
+                No practitioners yet — add one below.
               </p>
             ) : null}
           </div>
+
+          <AdvisorExpandablePanel
+            title="Add skills"
+            description="Create and edit the catalogue practitioners can pick from."
+            open={skillsOpen}
+            onToggle={() => setSkillsOpen((v) => !v)}
+            accentClass="border-rose-200 bg-rose-50/70 dark:border-rose-700/50 dark:bg-rose-950/40"
+            titleClass="text-rose-950 dark:text-rose-50"
+            hintClass="text-rose-900/80 dark:text-rose-200/80"
+          >
+          {/* Owner-managed skills / disciplines catalogue */}
+          <div className="rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4 space-y-3 dark:border-indigo-700/50 dark:bg-indigo-950/40">
+            <div>
+              <h3 className="text-sm font-black text-indigo-950 dark:text-indigo-50">
+                Skills & disciplines
+              </h3>
+              <p className="text-[11px] text-indigo-900/80 dark:text-indigo-200/80 mt-0.5">
+                Create and edit the list practitioners can pick from. Renaming
+                updates every practitioner who has that skill.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {skillOptions.map((s) => (
+                <div
+                  key={s}
+                  className="inline-flex items-center gap-1 rounded-full border border-indigo-300 bg-white pl-2.5 pr-1 py-0.5 text-[11px] font-bold text-indigo-950 dark:border-indigo-600 dark:bg-indigo-950 dark:text-indigo-100"
+                >
+                  {editSkillFrom === s ? (
+                    <input
+                      className="w-28 rounded-md border border-indigo-400 bg-white px-1.5 py-0.5 text-[11px] font-bold dark:bg-indigo-900"
+                      value={editSkillTo}
+                      autoFocus
+                      onChange={(e) => setEditSkillTo(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void saveRenameSkill();
+                        if (e.key === 'Escape') {
+                          setEditSkillFrom(null);
+                          setEditSkillTo('');
+                        }
+                      }}
+                    />
+                  ) : (
+                    <span>{s}</span>
+                  )}
+                  {editSkillFrom === s ? (
+                    <>
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => void saveRenameSkill()}
+                        className="rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] text-white"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditSkillFrom(null);
+                          setEditSkillTo('');
+                        }}
+                        className="rounded-full px-1.5 py-0.5 text-[10px] text-slate-600 dark:text-indigo-200"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        title="Edit name"
+                        disabled={saving}
+                        onClick={() => {
+                          setEditSkillFrom(s);
+                          setEditSkillTo(s);
+                        }}
+                        className="rounded-full p-1 hover:bg-indigo-100 dark:hover:bg-indigo-900"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        title="Remove from list"
+                        disabled={saving}
+                        onClick={() => void removeSkill(s)}
+                        className="rounded-full p-1 text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <input
+                className={fc() + ' max-w-xs'}
+                placeholder="New skill (e.g. Manual therapy)"
+                value={newSkill}
+                onChange={(e) => setNewSkill(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void addSkill();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                disabled={saving || !newSkill.trim()}
+                onClick={() => void addSkill()}
+                className="inline-flex items-center gap-1 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add skill
+              </button>
+            </div>
+          </div>
+          </AdvisorExpandablePanel>
+
+          <AdvisorExpandablePanel
+            title="Add a new practitioner"
+            description="Name, contact, contract or permanent, rates, and bio."
+            open={addOpen}
+            onToggle={() => setAddOpen((v) => !v)}
+            accentClass="border-rose-200 bg-rose-50/70 dark:border-rose-700/50 dark:bg-rose-950/40"
+            titleClass="text-rose-950 dark:text-rose-50"
+            hintClass="text-rose-900/80 dark:text-rose-200/80"
+          >
+          <FormCard
+            title="Add practitioner"
+            onSubmit={() => void add()}
+            saving={saving}
+          >
+            <input
+              className={fc()}
+              placeholder="Code"
+              value={form.code}
+              onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
+            />
+            <input
+              className={fc()}
+              placeholder="Name *"
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            />
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-800 dark:text-indigo-300">
+                Login email *
+              </span>
+              <input
+                className={fc() + ' mt-1'}
+                type="email"
+                autoComplete="email"
+                placeholder="name@practice.co.za"
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+              />
+              <span className="mt-0.5 block text-[10px] text-slate-500 dark:text-indigo-200/70">
+                They sign in with this email to use the app.
+              </span>
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-800 dark:text-indigo-300">
+                ID / passport *
+              </span>
+              <input
+                className={fc() + ' mt-1'}
+                placeholder="SA ID or passport number"
+                value={form.id_number}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, id_number: e.target.value }))
+                }
+              />
+              <span className="mt-0.5 block text-[10px] text-slate-500 dark:text-indigo-200/70">
+                VerifyNow for SA ID · Didit for passport.
+              </span>
+            </label>
+            <input
+              className={fc()}
+              placeholder="Phone"
+              value={form.phone}
+              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+            />
+            <AdvisorEngagementField
+              value={form.engagement}
+              onChange={(engagement) =>
+                setForm((f) => ({ ...f, engagement }))
+              }
+              disabled={saving}
+            />
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-800 dark:text-indigo-300">
+                Start date
+              </span>
+              <input
+                className={fc() + ' mt-1'}
+                type="date"
+                value={form.start_date}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, start_date: e.target.value }))
+                }
+              />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-800 dark:text-indigo-300">
+                End date (optional)
+              </span>
+              <input
+                className={fc() + ' mt-1'}
+                type="date"
+                value={form.end_date}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, end_date: e.target.value }))
+                }
+              />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-800 dark:text-indigo-300">
+                Rate (ZAR)
+              </span>
+              <input
+                className={fc() + ' mt-1'}
+                type="number"
+                min={0}
+                step="0.01"
+                placeholder="e.g. 750"
+                value={form.rate_zar}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, rate_zar: e.target.value }))
+                }
+              />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-800 dark:text-indigo-300">
+                Rate basis
+              </span>
+              <select
+                className={fc() + ' mt-1'}
+                value={form.rate_basis}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, rate_basis: e.target.value }))
+                }
+              >
+                {PRACTITIONER_RATE_BASES.map((b) => (
+                  <option key={b} value={b}>
+                    {b.replace(/_/g, ' ')}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <input
+              className={fc()}
+              placeholder="Rate note (optional, e.g. incl. travel)"
+              value={form.rate_note}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, rate_note: e.target.value }))
+              }
+            />
+            <div className="sm:col-span-2 lg:col-span-3">
+              <p className="text-[10px] font-black uppercase tracking-wider text-indigo-800 dark:text-indigo-300 mb-1.5">
+                Skills / disciplines (select all that apply)
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {skillOptions.map((s) => {
+                  const on = form.disciplines.includes(s);
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => toggleSkill(s)}
+                      className={`rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors ${
+                        on
+                          ? 'border-indigo-600 bg-indigo-600 text-white'
+                          : 'border-indigo-200 bg-white text-indigo-900 dark:border-indigo-600 dark:bg-indigo-950 dark:text-indigo-100'
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <ProfilePhotoField
+              companyId={companyId}
+              value={form.photo_url}
+              onChange={(url) => setForm((f) => ({ ...f, photo_url: url }))}
+              kind="practitioner_photo"
+              label="Practitioner photo"
+              description="Upload a headshot for the bio and clinic website (JPG/PNG/WebP · under 8MB)."
+              disabled={saving}
+              accentClass="border-indigo-300 dark:border-indigo-500"
+            />
+            <textarea
+              className={fc() + ' min-h-[3.5rem] resize-y sm:col-span-2'}
+              placeholder="Public bio (patients see this on website)"
+              value={form.public_bio}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, public_bio: e.target.value }))
+              }
+            />
+            <textarea
+              className={fc() + ' min-h-[3rem] resize-y sm:col-span-2'}
+              placeholder="Internal notes / full bio (clinic office)"
+              value={form.bio}
+              onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))}
+            />
+          </FormCard>
+          </AdvisorExpandablePanel>
+
         </div>
       )}
     </PsychiatrygraphWorkbench>

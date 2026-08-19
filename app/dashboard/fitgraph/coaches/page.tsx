@@ -35,6 +35,8 @@ import {
 import { FitContractDocsPanel } from '@/components/fitness/FitContractDocs';
 import { AdvisorPersonInviteRow } from '@/components/advisors/AdvisorPersonInviteRow';
 import { AdvisorEngagementField } from '@/components/advisors/AdvisorEngagementField';
+import { AdvisorExpandablePanel } from '@/components/advisors/AdvisorExpandablePanel';
+import { resolveAdvisorEngagement } from '@/lib/services/advisor-workforce';
 import { PersonQualificationsEditor } from '@/components/services/PersonQualificationsEditor';
 import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
 import type { PersonQualification } from '@/lib/services/person-qualifications';
@@ -143,6 +145,8 @@ export default function CoachesPage() {
   const [historyOpen, setHistoryOpen] = useState<Record<string, boolean>>({});
   const [endNote, setEndNote] = useState<Record<string, string>>({});
   const [newSpecialty, setNewSpecialty] = useState('');
+  const [skillsOpen, setSkillsOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [editSpecialtyFrom, setEditSpecialtyFrom] = useState<string | null>(
     null
   );
@@ -592,302 +596,6 @@ export default function CoachesPage() {
             ]}
           />
 
-          {/* Owner-managed specialty catalogue */}
-          <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 space-y-3 dark:border-amber-700/50 dark:bg-amber-950/40">
-            <div>
-              <h3 className="text-sm font-black text-amber-950 dark:text-amber-50">
-                Coach specialties
-              </h3>
-              <p className="text-[11px] text-amber-900/80 dark:text-amber-200/80 mt-0.5">
-                Create and edit the list coaches can pick from. Renaming updates
-                every coach who has that specialty.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {specialtyOptions.map((s) => (
-                <div
-                  key={s}
-                  className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-white pl-2.5 pr-1 py-0.5 text-[11px] font-bold text-amber-950 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-100"
-                >
-                  {editSpecialtyFrom === s ? (
-                    <input
-                      className="w-28 rounded-md border border-amber-400 bg-white px-1.5 py-0.5 text-[11px] font-bold dark:bg-amber-900"
-                      value={editSpecialtyTo}
-                      autoFocus
-                      onChange={(e) => setEditSpecialtyTo(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') void saveRenameSpecialty();
-                        if (e.key === 'Escape') {
-                          setEditSpecialtyFrom(null);
-                          setEditSpecialtyTo('');
-                        }
-                      }}
-                    />
-                  ) : (
-                    <span>{s}</span>
-                  )}
-                  {editSpecialtyFrom === s ? (
-                    <>
-                      <button
-                        type="button"
-                        disabled={saving}
-                        onClick={() => void saveRenameSpecialty()}
-                        className="rounded-full bg-amber-600 px-2 py-0.5 text-[10px] text-white"
-                      >
-                        Save
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditSpecialtyFrom(null);
-                          setEditSpecialtyTo('');
-                        }}
-                        className="rounded-full px-1.5 py-0.5 text-[10px] text-slate-600 dark:text-amber-200"
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        title="Edit name"
-                        disabled={saving}
-                        onClick={() => {
-                          setEditSpecialtyFrom(s);
-                          setEditSpecialtyTo(s);
-                        }}
-                        className="rounded-full p-1 hover:bg-amber-100 dark:hover:bg-amber-900"
-                      >
-                        <Pencil className="w-3 h-3" />
-                      </button>
-                      <button
-                        type="button"
-                        title="Remove from list"
-                        disabled={saving}
-                        onClick={() => void removeSpecialty(s)}
-                        className="rounded-full p-1 text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <input
-                className={fc() + ' max-w-xs'}
-                placeholder="New specialty (e.g. Mobility)"
-                value={newSpecialty}
-                onChange={(e) => setNewSpecialty(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    void addSpecialty();
-                  }
-                }}
-              />
-              <button
-                type="button"
-                disabled={saving || !newSpecialty.trim()}
-                onClick={() => void addSpecialty()}
-                className="inline-flex items-center gap-1 rounded-xl bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-50"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add specialty
-              </button>
-            </div>
-          </div>
-
-          <FormCard
-            tone="coach"
-            title="Add coach"
-            onSubmit={() => void add()}
-            saving={saving}
-          >
-            <input
-              className={fc()}
-              placeholder="Code"
-              value={form.code}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, code: e.target.value }))
-              }
-            />
-            <input
-              className={fc()}
-              placeholder="Name"
-              value={form.name}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, name: e.target.value }))
-              }
-            />
-            <label className="block">
-              <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
-                Login email *
-              </span>
-              <input
-                className={fc() + ' mt-1'}
-                type="email"
-                autoComplete="email"
-                placeholder="name@studio.co.za"
-                value={form.email}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, email: e.target.value }))
-                }
-              />
-              <span className="mt-0.5 block text-[10px] text-slate-500 dark:text-amber-200/70">
-                They sign in with this email to use the app.
-              </span>
-            </label>
-            <label className="block">
-              <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
-                ID / passport *
-              </span>
-              <input
-                className={fc() + ' mt-1'}
-                placeholder="SA ID or passport number"
-                value={form.id_number}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, id_number: e.target.value }))
-                }
-              />
-              <span className="mt-0.5 block text-[10px] text-slate-500 dark:text-amber-200/70">
-                VerifyNow for SA ID · Didit for passport.
-              </span>
-            </label>
-            <input
-              className={fc()}
-              placeholder="Phone"
-              value={form.phone}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, phone: e.target.value }))
-              }
-            />
-            <AdvisorEngagementField
-              value={form.engagement}
-              onChange={(engagement) =>
-                setForm((f) => ({ ...f, engagement }))
-              }
-              disabled={saving}
-            />
-            <label className="block">
-              <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
-                Start date
-              </span>
-              <input
-                className={fc() + ' mt-1'}
-                type="date"
-                value={form.start_date}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, start_date: e.target.value }))
-                }
-              />
-            </label>
-            <label className="block">
-              <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
-                End date (optional)
-              </span>
-              <input
-                className={fc() + ' mt-1'}
-                type="date"
-                value={form.end_date}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, end_date: e.target.value }))
-                }
-              />
-            </label>
-            <label className="block">
-              <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
-                Rate (ZAR)
-              </span>
-              <input
-                className={fc() + ' mt-1'}
-                type="number"
-                min={0}
-                step="0.01"
-                placeholder="e.g. 350"
-                value={form.rate_zar}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, rate_zar: e.target.value }))
-                }
-              />
-            </label>
-            <label className="block">
-              <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
-                Rate basis
-              </span>
-              <select
-                className={fc() + ' mt-1'}
-                value={form.rate_basis}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, rate_basis: e.target.value }))
-                }
-              >
-                {COACH_RATE_BASES.map((b) => (
-                  <option key={b} value={b}>
-                    {b.replace(/_/g, ' ')}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <input
-              className={fc()}
-              placeholder="Rate note (optional, e.g. incl. travel)"
-              value={form.rate_note}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, rate_note: e.target.value }))
-              }
-            />
-            <div className="sm:col-span-2 lg:col-span-3">
-              <p className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 mb-1.5">
-                Specialties (select all that apply)
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {specialtyOptions.map((s) => {
-                  const on = form.specialties.includes(s);
-                  return (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => toggleSpecialty(s)}
-                      className={`rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors ${
-                        on
-                          ? 'border-amber-500 bg-amber-500 text-white'
-                          : 'border-amber-200 bg-white text-amber-900 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-100'
-                      }`}
-                    >
-                      {s}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <ProfilePhotoField
-              companyId={companyId}
-              value={form.photo_url}
-              onChange={(url) => setForm((f) => ({ ...f, photo_url: url }))}
-              kind="coach_photo"
-              label="Coach photo"
-              description="Upload a headshot for the coach bio and website (JPG/PNG/WebP · under 8MB)."
-              disabled={saving}
-              accentClass="border-amber-300 dark:border-amber-500"
-            />
-            <textarea
-              className={fc() + ' min-h-[3.5rem] resize-y sm:col-span-2'}
-              placeholder="Public bio (members see this on website)"
-              value={form.public_bio}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, public_bio: e.target.value }))
-              }
-            />
-            <textarea
-              className={fc() + ' min-h-[3rem] resize-y sm:col-span-2'}
-              placeholder="Internal notes / full bio (gym office)"
-              value={form.bio}
-              onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))}
-            />
-          </FormCard>
-
           <div className="space-y-2">
             {(() => {
               const incomplete = store.coaches.filter(needsAdvisorIdentity).length;
@@ -954,6 +662,17 @@ export default function CoachesPage() {
                           }`}
                         >
                           {isActive ? 'Active' : 'Ended'}
+                        </span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${
+                            resolveAdvisorEngagement(c) === 'employed'
+                              ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200'
+                              : 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200'
+                          }`}
+                        >
+                          {resolveAdvisorEngagement(c) === 'employed'
+                            ? 'Permanent'
+                            : 'Contract'}
                         </span>
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-amber-200/80">
@@ -1527,6 +1246,323 @@ export default function CoachesPage() {
               void post({ entity: 'coaches', action: 'delete', id })
             }
           />
+
+          <AdvisorExpandablePanel
+            title="Add specialties"
+            description="Create and edit the list coaches can pick from."
+            open={skillsOpen}
+            onToggle={() => setSkillsOpen((v) => !v)}
+            accentClass="border-amber-200 bg-amber-50/70 dark:border-amber-700/50 dark:bg-amber-950/40"
+            titleClass="text-amber-950 dark:text-amber-50"
+            hintClass="text-amber-900/80 dark:text-amber-200/80"
+          >
+          {/* Owner-managed specialty catalogue */}
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 space-y-3 dark:border-amber-700/50 dark:bg-amber-950/40">
+            <div>
+              <h3 className="text-sm font-black text-amber-950 dark:text-amber-50">
+                Coach specialties
+              </h3>
+              <p className="text-[11px] text-amber-900/80 dark:text-amber-200/80 mt-0.5">
+                Create and edit the list coaches can pick from. Renaming updates
+                every coach who has that specialty.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {specialtyOptions.map((s) => (
+                <div
+                  key={s}
+                  className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-white pl-2.5 pr-1 py-0.5 text-[11px] font-bold text-amber-950 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-100"
+                >
+                  {editSpecialtyFrom === s ? (
+                    <input
+                      className="w-28 rounded-md border border-amber-400 bg-white px-1.5 py-0.5 text-[11px] font-bold dark:bg-amber-900"
+                      value={editSpecialtyTo}
+                      autoFocus
+                      onChange={(e) => setEditSpecialtyTo(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void saveRenameSpecialty();
+                        if (e.key === 'Escape') {
+                          setEditSpecialtyFrom(null);
+                          setEditSpecialtyTo('');
+                        }
+                      }}
+                    />
+                  ) : (
+                    <span>{s}</span>
+                  )}
+                  {editSpecialtyFrom === s ? (
+                    <>
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => void saveRenameSpecialty()}
+                        className="rounded-full bg-amber-600 px-2 py-0.5 text-[10px] text-white"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditSpecialtyFrom(null);
+                          setEditSpecialtyTo('');
+                        }}
+                        className="rounded-full px-1.5 py-0.5 text-[10px] text-slate-600 dark:text-amber-200"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        title="Edit name"
+                        disabled={saving}
+                        onClick={() => {
+                          setEditSpecialtyFrom(s);
+                          setEditSpecialtyTo(s);
+                        }}
+                        className="rounded-full p-1 hover:bg-amber-100 dark:hover:bg-amber-900"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        title="Remove from list"
+                        disabled={saving}
+                        onClick={() => void removeSpecialty(s)}
+                        className="rounded-full p-1 text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <input
+                className={fc() + ' max-w-xs'}
+                placeholder="New specialty (e.g. Mobility)"
+                value={newSpecialty}
+                onChange={(e) => setNewSpecialty(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void addSpecialty();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                disabled={saving || !newSpecialty.trim()}
+                onClick={() => void addSpecialty()}
+                className="inline-flex items-center gap-1 rounded-xl bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-50"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add specialty
+              </button>
+            </div>
+          </div>
+          </AdvisorExpandablePanel>
+
+          <AdvisorExpandablePanel
+            title="Add a new coach"
+            description="Name, contact, contract or permanent, rates, and bio."
+            open={addOpen}
+            onToggle={() => setAddOpen((v) => !v)}
+            accentClass="border-amber-200 bg-amber-50/70 dark:border-amber-700/50 dark:bg-amber-950/40"
+            titleClass="text-amber-950 dark:text-amber-50"
+            hintClass="text-amber-900/80 dark:text-amber-200/80"
+          >
+          <FormCard
+            tone="coach"
+            title="Add coach"
+            onSubmit={() => void add()}
+            saving={saving}
+          >
+            <input
+              className={fc()}
+              placeholder="Code"
+              value={form.code}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, code: e.target.value }))
+              }
+            />
+            <input
+              className={fc()}
+              placeholder="Name"
+              value={form.name}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, name: e.target.value }))
+              }
+            />
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                Login email *
+              </span>
+              <input
+                className={fc() + ' mt-1'}
+                type="email"
+                autoComplete="email"
+                placeholder="name@studio.co.za"
+                value={form.email}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, email: e.target.value }))
+                }
+              />
+              <span className="mt-0.5 block text-[10px] text-slate-500 dark:text-amber-200/70">
+                They sign in with this email to use the app.
+              </span>
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                ID / passport *
+              </span>
+              <input
+                className={fc() + ' mt-1'}
+                placeholder="SA ID or passport number"
+                value={form.id_number}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, id_number: e.target.value }))
+                }
+              />
+              <span className="mt-0.5 block text-[10px] text-slate-500 dark:text-amber-200/70">
+                VerifyNow for SA ID · Didit for passport.
+              </span>
+            </label>
+            <input
+              className={fc()}
+              placeholder="Phone"
+              value={form.phone}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, phone: e.target.value }))
+              }
+            />
+            <AdvisorEngagementField
+              value={form.engagement}
+              onChange={(engagement) =>
+                setForm((f) => ({ ...f, engagement }))
+              }
+              disabled={saving}
+            />
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                Start date
+              </span>
+              <input
+                className={fc() + ' mt-1'}
+                type="date"
+                value={form.start_date}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, start_date: e.target.value }))
+                }
+              />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                End date (optional)
+              </span>
+              <input
+                className={fc() + ' mt-1'}
+                type="date"
+                value={form.end_date}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, end_date: e.target.value }))
+                }
+              />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                Rate (ZAR)
+              </span>
+              <input
+                className={fc() + ' mt-1'}
+                type="number"
+                min={0}
+                step="0.01"
+                placeholder="e.g. 350"
+                value={form.rate_zar}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, rate_zar: e.target.value }))
+                }
+              />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                Rate basis
+              </span>
+              <select
+                className={fc() + ' mt-1'}
+                value={form.rate_basis}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, rate_basis: e.target.value }))
+                }
+              >
+                {COACH_RATE_BASES.map((b) => (
+                  <option key={b} value={b}>
+                    {b.replace(/_/g, ' ')}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <input
+              className={fc()}
+              placeholder="Rate note (optional, e.g. incl. travel)"
+              value={form.rate_note}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, rate_note: e.target.value }))
+              }
+            />
+            <div className="sm:col-span-2 lg:col-span-3">
+              <p className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 mb-1.5">
+                Specialties (select all that apply)
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {specialtyOptions.map((s) => {
+                  const on = form.specialties.includes(s);
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => toggleSpecialty(s)}
+                      className={`rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors ${
+                        on
+                          ? 'border-amber-500 bg-amber-500 text-white'
+                          : 'border-amber-200 bg-white text-amber-900 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-100'
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <ProfilePhotoField
+              companyId={companyId}
+              value={form.photo_url}
+              onChange={(url) => setForm((f) => ({ ...f, photo_url: url }))}
+              kind="coach_photo"
+              label="Coach photo"
+              description="Upload a headshot for the coach bio and website (JPG/PNG/WebP · under 8MB)."
+              disabled={saving}
+              accentClass="border-amber-300 dark:border-amber-500"
+            />
+            <textarea
+              className={fc() + ' min-h-[3.5rem] resize-y sm:col-span-2'}
+              placeholder="Public bio (members see this on website)"
+              value={form.public_bio}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, public_bio: e.target.value }))
+              }
+            />
+            <textarea
+              className={fc() + ' min-h-[3rem] resize-y sm:col-span-2'}
+              placeholder="Internal notes / full bio (gym office)"
+              value={form.bio}
+              onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))}
+            />
+          </FormCard>
+          </AdvisorExpandablePanel>
+
         </div>
       )}
     </FitgraphWorkbench>

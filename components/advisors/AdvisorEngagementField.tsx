@@ -35,10 +35,10 @@ export function AdvisorEngagementField({
             onChange={() => onChange('contractor')}
           />
           <span>
-            <span className="block font-bold">Contractor · work app</span>
+            <span className="block font-bold">Contract</span>
             <span className="mt-0.5 block text-[11px] text-slate-500">
-              Independent. They use the phone work app to run their diary,
-              see gym-booked slots, and book members with them.
+              Independent contractor. They use the phone work app to run
+              their diary, see booked slots, and book members with them.
             </span>
           </span>
         </label>
@@ -57,9 +57,10 @@ export function AdvisorEngagementField({
             onChange={() => onChange('employed')}
           />
           <span>
-            <span className="block font-bold">Employed · workspace</span>
+            <span className="block font-bold">Permanent</span>
             <span className="mt-0.5 block text-[11px] text-slate-500">
-              Full-time staff. They join the company desktop (B2B) and People.
+              Permanent / employed staff. They join the company desktop (B2B)
+              and People.
             </span>
           </span>
         </label>
