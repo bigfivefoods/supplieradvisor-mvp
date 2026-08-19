@@ -400,7 +400,7 @@ export async function POST(request: NextRequest) {
               const { upsertMedicalClaim } = await import(
                 '@/lib/clinic/patient-medical'
               );
-              const med = upsertMedicalClaim(p!.medical, {
+              const med = upsertMedicalClaim(p?.medical ?? undefined, {
                 ...c,
                 charge_id: published.charge.id,
               });
