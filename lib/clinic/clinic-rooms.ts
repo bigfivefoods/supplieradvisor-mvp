@@ -179,7 +179,7 @@ export function applyClinicRoomAction(
       ? (body.practitioner_ids as unknown[]).map(String)
       : undefined,
     asset_ids: Array.isArray(body.asset_ids)
-      ? (body.asset_ids as unknown[])
+      ? normalizeRoomAssetIds(body.asset_ids)
       : undefined,
   });
   return result.rooms;
