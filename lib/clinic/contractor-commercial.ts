@@ -416,10 +416,15 @@ export function validateContractorCommercialDraft(
   return null;
 }
 
+type ContractorCommercialStringKey =
+  | 'contractor_payment_option'
+  | 'contractor_payment_method'
+  | 'charge_out_basis';
+
 function mergeOptionalString(
   rec: Record<string, unknown>,
   prev: ContractorCommercialFields | null | undefined,
-  key: keyof ContractorCommercialFields
+  key: ContractorCommercialStringKey
 ): string | null | undefined {
   if (rec[key] !== undefined) {
     const v = rec[key];
