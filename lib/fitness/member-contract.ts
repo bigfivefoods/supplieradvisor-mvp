@@ -4,6 +4,7 @@
  */
 import { applyMemberDebitBank } from '@/lib/fitness/member-debit-bank';
 import {
+  defaultPublicSettings,
   newId,
   type FitClient,
   type FitgraphStore,
@@ -341,10 +342,7 @@ export function applyContractSubmissions(
       changed = true;
     }
     if (!store.settings) {
-      store.settings = {
-        timezone: 'Africa/Johannesburg',
-        currency: 'ZAR',
-      };
+      store.settings = defaultPublicSettings();
     }
     if (opts.importVersion) {
       store.settings.vuka_contracts_import = opts.importVersion;
