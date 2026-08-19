@@ -39,7 +39,10 @@ import { AdvisorBillingClarityCard } from '@/components/services/AdvisorBillingC
 import { AdvisorMemberJoinInbox } from '@/components/advisors/AdvisorMemberJoinInbox';
 import { AdvisorCommandBookingCards } from '@/components/advisors/AdvisorCommandBookingCards';
 import { MemberSpecialDatesPanel } from '@/components/fitness/MemberSpecialDatesPanel';
-import { memberSpecialDates } from '@/lib/fitness/member-special-dates';
+import {
+  memberSpecialDates,
+  type SpecialDatePerson,
+} from '@/lib/fitness/member-special-dates';
 
 function hubModules(
   hasFrontDesk: boolean,
@@ -234,17 +237,7 @@ function Inner() {
       status: string;
       family_member_name?: string | null;
     }>;
-    clients?: Array<{
-      id: string;
-      name: string;
-      date_of_birth?: string | null;
-      start_date?: string | null;
-      created_at?: string;
-      coach_id?: string | null;
-      active?: boolean;
-      passport?: { date_of_birth?: string | null };
-      medical?: { date_of_birth?: string | null };
-    }>;
+    clients?: SpecialDatePerson[];
     coaches?: Array<{ id: string; name: string }>;
     class_types?: Array<{ id: string; name: string }>;
     settings?: { brand_name?: string; class_subscribe?: boolean } | null;
@@ -365,7 +358,7 @@ function Inner() {
   };
 
   const today = new Date().toISOString().slice(0, 10);
-  const specialDates = memberSpecialDates(store?.clients || [], {
+  const specialDates = memberSpecialDates(store?.clients ?? [], {
     from: today,
     days: 14,
   });

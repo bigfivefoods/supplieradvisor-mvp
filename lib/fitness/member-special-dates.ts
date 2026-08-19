@@ -26,19 +26,17 @@ export type MemberSpecialDate = {
   label: string;
 };
 
-export type SpecialDatePerson = Pick<
-  FitClient,
-  | 'id'
-  | 'name'
-  | 'date_of_birth'
-  | 'start_date'
-  | 'coach_id'
-  | 'active'
-  | 'passport'
-  | 'medical'
-> & {
-  /** Desk records always have this; Command hub payloads may omit it. */
-  created_at?: string;
+/** Subset used for birthdays / anniversaries. Command hub sends this without created_at. */
+export type SpecialDatePerson = {
+  id: string;
+  name: string;
+  date_of_birth?: string | null;
+  start_date?: string | null;
+  created_at?: string | null;
+  coach_id?: string | null;
+  active?: boolean;
+  passport?: { date_of_birth?: string | null } | null;
+  medical?: { date_of_birth?: string | null } | null;
 };
 
 function addDays(iso: string, n: number): string {
