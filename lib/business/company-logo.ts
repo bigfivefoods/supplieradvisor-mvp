@@ -19,9 +19,10 @@ export function applyCompanyLogoToSettings(
   };
 }
 
-export function logoUrlFromSettings(
-  settings?: { company_logo_url?: string | null } | null
-): string | null {
-  const s = String(settings?.company_logo_url || '').trim();
+export function logoUrlFromSettings(settings?: unknown): string | null {
+  if (!settings || typeof settings !== 'object') return null;
+  const s = String(
+    (settings as { company_logo_url?: unknown }).company_logo_url || ''
+  ).trim();
   return s || null;
 }

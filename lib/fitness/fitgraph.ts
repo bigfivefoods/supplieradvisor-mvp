@@ -701,6 +701,8 @@ export type FitPublicSettings = {
   contact_email?: string;
   contact_phone?: string;
   embed_primary_color?: string;
+  /** Copied from My Business profile for branded session emails */
+  company_logo_url?: string | null;
   /**
    * Owner-uploaded PDF contracts for the gym profile
    * (membership T&Cs, waivers, studio agreements).

@@ -455,6 +455,8 @@ export type DentalPublicSettings = {
   pcns_number?: string;
   billing_email?: string;
   embed_primary_color?: string;
+  /** Copied from My Business profile for branded session emails */
+  company_logo_url?: string | null;
   staff_roles?: string[];
   /** Practice open days & hours for schedule calendar */
   working_hours?: import('@/lib/schedule/working-hours').WorkingHours;
