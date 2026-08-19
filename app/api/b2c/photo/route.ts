@@ -12,6 +12,7 @@ import {
   loadB2cProfile,
   saveB2cProfile,
 } from '@/lib/b2c/profile-store';
+import { PORTAL_PHOTO_SAVED_MESSAGE } from '@/lib/services/portal-profile';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -84,11 +85,20 @@ export async function POST(request: NextRequest) {
       (await loadB2cProfile(userId)) || (await ensureB2cProfile(userId));
     profile.photo_url = publicUrl;
     await saveB2cProfile(profile);
+    try {
+      const { pushHouseholdToLinkedDesks } = await import(
+        '@/lib/b2c/wallet-household'
+      );
+      await pushHouseholdToLinkedDesks(profile);
+    } catch {
+      /* desk stamp is best-effort */
+    }
 
     return NextResponse.json({
       success: true,
       url: publicUrl,
       profile,
+      message: PORTAL_PHOTO_SAVED_MESSAGE,
     });
   } catch (e: unknown) {
     return NextResponse.json(

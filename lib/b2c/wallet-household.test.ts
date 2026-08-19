@@ -4,12 +4,18 @@
 import assert from 'node:assert/strict';
 import {
   applySnapshotToPerson,
+  absorbPersonIntoSnapshot,
   familyFingerprint,
   isPlaceholderName,
+  mergeDeskIdentityIntoProfile,
   mergeFamilyLists,
   type WalletHouseholdSnapshot,
 } from './wallet-household';
 import type { FamilyMember } from '@/lib/services/family-members';
+import {
+  PORTAL_PHOTO_SAVED_MESSAGE,
+  portalProfileSaveMessage,
+} from '@/lib/services/portal-profile';
 
 const fam = (
   id: string,
@@ -133,5 +139,65 @@ const medical = applySnapshotToPerson(
   { preferWallet: true }
 );
 assert.equal(medical.person.medical?.id_number, '8001015009087');
+
+const absorbed = absorbPersonIntoSnapshot(
+  {
+    full_name: 'Craig Richardson',
+    email: 'craig@bigfivefoods.com',
+    phone: null,
+    photo_url: null,
+    city: null,
+    id_number: null,
+    family: [],
+    passport: { country: 'South Africa' },
+  },
+  { id: 'cli_1', name: 'Craig', photo_url: 'https://cdn.example/new.jpg' }
+);
+assert.equal(absorbed.photo_url, 'https://cdn.example/new.jpg');
+
+const wallet = mergeDeskIdentityIntoProfile(
+  {
+    user_id: 'did:privy:craig',
+    email: 'craig@bigfivefoods.com',
+    full_name: 'Craig',
+    phone: null,
+    photo_url: null,
+    city: null,
+    id_number: null,
+    family: [],
+    memberships: [],
+    metadata: {},
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  },
+  { id: 'cli_1', name: 'Craig Richardson', photo_url: 'https://cdn.example/pwa.jpg' }
+);
+assert.equal(wallet.photo_url, 'https://cdn.example/pwa.jpg');
+assert.equal(wallet.full_name, 'Craig Richardson');
+
+assert.equal(
+  portalProfileSaveMessage(
+    { emailChanged: false },
+    { photo_url: 'https://cdn.example/pwa.jpg' },
+    'gym records'
+  ),
+  PORTAL_PHOTO_SAVED_MESSAGE
+);
+assert.equal(
+  portalProfileSaveMessage(
+    { emailChanged: true },
+    { photo_url: 'https://cdn.example/pwa.jpg', name: 'Craig' },
+    'gym records'
+  ),
+  'Profile updated — email synced to your wallet and gym records'
+);
+assert.equal(
+  portalProfileSaveMessage(
+    { emailChanged: false },
+    { name: 'Craig', photo_url: 'https://cdn.example/pwa.jpg' },
+    'clinic records'
+  ),
+  'Profile updated on your wallet and shared with your Advisors'
+);
 
 console.log('wallet-household tests ok');

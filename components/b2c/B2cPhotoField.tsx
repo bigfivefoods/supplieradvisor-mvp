@@ -3,6 +3,10 @@
 import { useRef, useState } from 'react';
 import { Camera, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  PORTAL_PHOTO_SAVED_MESSAGE,
+  PORTAL_PHOTO_SHARE_HINT,
+} from '@/lib/services/portal-profile';
 
 export function B2cPhotoField({
   value,
@@ -36,7 +40,11 @@ export function B2cPhotoField({
         throw new Error(data.error || 'Upload failed');
       }
       onChange(String(data.url));
-      toast.success('Photo saved');
+      toast.success(
+        typeof data.message === 'string' && data.message
+          ? data.message
+          : PORTAL_PHOTO_SAVED_MESSAGE
+      );
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Upload failed');
     } finally {
@@ -73,7 +81,7 @@ export function B2cPhotoField({
           Profile photo
         </p>
         <p className="text-[11px] text-slate-500 dark:text-neutral-400">
-          JPG, PNG or WebP · under 8MB
+          {PORTAL_PHOTO_SHARE_HINT}
         </p>
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           <button

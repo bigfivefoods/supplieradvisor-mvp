@@ -8,6 +8,28 @@ import {
   type PatientMedicalRecord,
 } from '@/lib/clinic/patient-medical';
 
+/** Shown under member/patient PWA photo upload. */
+export const PORTAL_PHOTO_SHARE_HINT =
+  'This photo is saved on your SA Member wallet and shared with your other Advisors (gyms and clinics you have joined).';
+
+export const PORTAL_PHOTO_SAVED_MESSAGE =
+  'Photo saved on your wallet and shared with your Advisors';
+
+/** Confirm copy after a portal profile save (wallet write-through + desk stamp). */
+export function portalProfileSaveMessage(
+  result: { emailChanged: boolean },
+  body: Record<string, unknown>,
+  deskLabel: string
+): string {
+  if (result.emailChanged) {
+    return `Profile updated — email synced to your wallet and ${deskLabel}`;
+  }
+  if (body.photo_url !== undefined && body.name == null) {
+    return PORTAL_PHOTO_SAVED_MESSAGE;
+  }
+  return 'Profile updated on your wallet and shared with your Advisors';
+}
+
 export function normalizePortalEmail(
   raw: unknown
 ): string | undefined | null {

@@ -605,7 +605,7 @@ export async function POST(request: NextRequest) {
             : 'Could not link system user',
         });
       }
-      const { applyPortalProfileUpdate } = await import(
+      const { applyPortalProfileUpdate, portalProfileSaveMessage } = await import(
         '@/lib/services/portal-profile'
       );
       const result = applyPortalProfileUpdate(c, body, {
@@ -634,9 +634,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         portal: buildMemberPortalPayloadBase(store, c),
-        message: result.emailChanged
-          ? 'Profile updated — email synced to your wallet and gym records'
-          : 'Profile updated on your wallet',
+        message: portalProfileSaveMessage(result, body, 'gym records'),
       });
     }
 

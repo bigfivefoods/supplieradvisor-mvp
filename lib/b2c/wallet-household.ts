@@ -12,6 +12,7 @@ import {
 } from '@/lib/services/family-members';
 import type { B2cMembership, B2cProfile } from '@/lib/b2c/types';
 import {
+  ensureB2cProfile,
   loadB2cProfile,
   loadB2cProfileByEmail,
   saveB2cProfile,
@@ -723,14 +724,11 @@ export async function maybeHydratePortalPerson<T extends DeskPerson>(
   };
 }
 
-export async function writeThroughPortalIdentity(
+/** Copy desk identity (including photo) onto the SA Member wallet profile. */
+export function mergeDeskIdentityIntoProfile(
+  profile: B2cProfile,
   person: DeskPerson
-): Promise<void> {
-  const profile = await resolveWalletProfile({
-    userId: person.platform_user_id,
-    email: person.email,
-  });
-  if (!profile) return;
+): B2cProfile {
   let next = { ...profile };
   if (person.name && !isPlaceholderName(person.name)) {
     next.full_name = person.name;
@@ -746,6 +744,25 @@ export async function writeThroughPortalIdentity(
       metadata: { ...(next.metadata || {}), identity: person.identity },
     };
   }
+  return next;
+}
+
+export async function writeThroughPortalIdentity(
+  person: DeskPerson
+): Promise<void> {
+  let profile = await resolveWalletProfile({
+    userId: person.platform_user_id,
+    email: person.email,
+  });
+  if (!profile && person.platform_user_id) {
+    profile = await ensureB2cProfile(person.platform_user_id, {
+      email: person.email || null,
+      full_name: person.name || null,
+      phone: person.phone || null,
+    });
+  }
+  if (!profile) return;
+  const next = mergeDeskIdentityIntoProfile(profile, person);
   await saveB2cProfile(next);
   await pushHouseholdToLinkedDesks(next);
 }

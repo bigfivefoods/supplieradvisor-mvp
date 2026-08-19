@@ -289,7 +289,7 @@ export async function POST(request: NextRequest) {
 
     if (action === 'update_profile') {
       const p = store.patients[pi];
-      const { applyPortalProfileUpdate } = await import(
+      const { applyPortalProfileUpdate, portalProfileSaveMessage } = await import(
         '@/lib/services/portal-profile'
       );
       const result = applyPortalProfileUpdate(p, body, {
@@ -312,9 +312,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         portal: buildPatientPortalPayload(store, p),
-        message: result.emailChanged
-          ? 'Profile updated — email synced to your wallet and clinic records'
-          : 'Profile updated on your wallet',
+        message: portalProfileSaveMessage(result, body, 'clinic records'),
       });
     }
 

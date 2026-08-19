@@ -48,6 +48,10 @@ import {
 } from '@/components/advisors/MemberPortalInvoices';
 import { gymBrandColor } from '@/lib/fitness/fitgraph';
 import type { MemberAnnouncementPublic } from '@/lib/services/member-announcements';
+import {
+  PORTAL_PHOTO_SAVED_MESSAGE,
+  PORTAL_PHOTO_SHARE_HINT,
+} from '@/lib/services/portal-profile';
 
 const MEMBER_TOKEN_KEY = 'sa_fitgraph_member_token';
 
@@ -1569,18 +1573,32 @@ export default function MemberFitgraphPortalPage() {
             ) : null}
             <p className="text-sm font-black text-slate-900">Your profile</p>
             <p className="text-xs text-slate-500">
-              Changes sync to the gym desk. Email is usually the parent/guardian
-              contact for invites and care messages — add kids under Family
-              members.
+              Changes sync to the gym desk and your SA Member wallet. Email is
+              usually the parent/guardian contact for invites and care messages
+              — add kids under Family members.
             </p>
             {companyId != null ? (
               <ProfilePhotoField
                 companyId={companyId}
                 value={photoUrl}
-                onChange={setPhotoUrl}
+                onChange={(url) => {
+                  setPhotoUrl(url);
+                  void post({ action: 'update_profile', photo_url: url })
+                    .then((data) => {
+                      setError(null);
+                      setMsg(
+                        (data.message as string) || PORTAL_PHOTO_SAVED_MESSAGE
+                      );
+                    })
+                    .catch((e: unknown) => {
+                      setError(
+                        e instanceof Error ? e.message : 'Could not share photo'
+                      );
+                    });
+                }}
                 kind="client_photo"
                 label="Your photo"
-                description="Update your member photo (JPG/PNG/WebP · under 8MB)."
+                description={PORTAL_PHOTO_SHARE_HINT}
                 disabled={busyId === 'profile'}
                 accentClass="border-yellow-300"
               />
