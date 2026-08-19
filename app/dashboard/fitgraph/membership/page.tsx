@@ -34,8 +34,8 @@ export default function MembershipAllocatePage() {
       titleAccent="members · private clients"
       description={
         classSubscribe
-          ? 'A person can be a member, a private client, or both. Tick every class they are booked to, then Save — they land on the calendar for those classes.'
-          : 'A person can be a member, a private client, or both. Members get a plan and a class actual rate. Private clients get a coach and a private rate.'
+          ? 'Open a person, tick the classes they attend, and Save. Each class shows the standard list price and the actual rate you charge them. Contact details save with the booking — they land on the calendar for those classes.'
+          : 'Open a person, pick their plan, and Save. The plan has a standard list price and an actual rate you charge them. Private clients get a coach and a private rate. Contact details save with the booking.'
       }
     >
       {loading || !store ? (

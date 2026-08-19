@@ -882,6 +882,28 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      const chargesRaw = body.charges_by_plan_id;
+      let chargesByPlanId: Record<string, number | null> | undefined;
+      if (chargesRaw && typeof chargesRaw === 'object' && !Array.isArray(chargesRaw)) {
+        chargesByPlanId = {};
+        for (const [planId, raw] of Object.entries(
+          chargesRaw as Record<string, unknown>
+        )) {
+          if (!planId) continue;
+          if (raw === '' || raw == null) {
+            chargesByPlanId[planId] = null;
+            continue;
+          }
+          const n = Number(raw);
+          if (!Number.isFinite(n)) {
+            return NextResponse.json(
+              { error: 'Class actual rate must be a number' },
+              { status: 400 }
+            );
+          }
+          chargesByPlanId[planId] = n;
+        }
+      }
       const privateRaw = body.private_rate_zar;
       const privateRateZar =
         privateRaw === '' || privateRaw == null
@@ -908,11 +930,24 @@ export async function POST(request: NextRequest) {
       const planIds = Array.isArray(body.plan_ids)
         ? (body.plan_ids as unknown[]).map((id) => String(id || '')).filter(Boolean)
         : undefined;
+      const person =
+        body.name !== undefined ||
+        body.email !== undefined ||
+        body.phone !== undefined ||
+        body.notes !== undefined
+          ? {
+              name: body.name != null ? String(body.name) : undefined,
+              email: body.email != null ? String(body.email) : undefined,
+              phone: body.phone != null ? String(body.phone) : undefined,
+              notes: body.notes != null ? String(body.notes) : undefined,
+            }
+          : undefined;
       const result = allocateMemberToClass(store, {
         clientId: String(body.client_id || ''),
         planId: body.plan_id ? String(body.plan_id) : planIds?.[0] || null,
         planIds,
         chargedZar,
+        chargesByPlanId,
         privateRateZar,
         status,
         kind: String(body.kind || '') === 'private' ? 'private' : 'member',
@@ -921,6 +956,7 @@ export async function POST(request: NextRequest) {
           ? body.private_client === true
           : undefined,
         coachId: body.coach_id ? String(body.coach_id) : null,
+        person,
         now,
       });
       if ('error' in result) {

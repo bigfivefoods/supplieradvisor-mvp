@@ -10,6 +10,7 @@ import {
   formatScheduleLabel,
   parseBilledZar,
   parseScheduleHint,
+  resolveAllocatedCharge,
   scheduleClassOnCalendar,
   sessionRosterNames,
   suggestClassSchedule,
@@ -295,5 +296,61 @@ assert.equal(ada.private_rate_zar, 800);
 assert.equal(ada.agreed_rate_zar, 475);
 assert.equal(both.subscription?.plan_id, boot.id);
 assert.equal(both.subscription?.charged_zar, 475);
+
+assert.equal(
+  resolveAllocatedCharge(fsf, { planIds: [fsf.id], chargedZar: 775 }),
+  775
+);
+assert.equal(
+  resolveAllocatedCharge(boot, {
+    planIds: [fsf.id, boot.id],
+    chargedZar: 775,
+  }),
+  Number(boot.price_zar)
+);
+assert.equal(
+  resolveAllocatedCharge(boot, {
+    planIds: [fsf.id, boot.id],
+    chargesByPlanId: { [boot.id]: 400 },
+  }),
+  400
+);
+
+const perClass = allocateMemberToClass(store, {
+  clientId: 'cli_bev',
+  member: true,
+  privateClient: true,
+  planIds: [fsf.id, boot.id],
+  chargesByPlanId: { [fsf.id]: 800, [boot.id]: 400 },
+  coachId: 'coh_pat',
+  privateRateZar: 900,
+  person: {
+    name: 'Beverly',
+    email: 'bev@test.com',
+    phone: '0821110000',
+    notes: 'Sibling rate',
+  },
+  now: '2026-08-17T10:00:00.000Z',
+});
+if ('error' in perClass) throw new Error(perClass.error);
+const bevSaved = store.clients.find((c) => c.id === 'cli_bev')!;
+assert.equal(bevSaved.name, 'Beverly');
+assert.equal(bevSaved.email, 'bev@test.com');
+assert.equal(bevSaved.phone, '0821110000');
+assert.match(String(bevSaved.notes), /Sibling rate/);
+assert.equal(bevSaved.private_rate_zar, 900);
+assert.equal(bevSaved.agreed_rate_zar, 1200);
+assert.equal(
+  store.subscriptions.find(
+    (s) => s.client_id === 'cli_bev' && s.plan_id === fsf.id
+  )?.charged_zar,
+  800
+);
+assert.equal(
+  store.subscriptions.find(
+    (s) => s.client_id === 'cli_bev' && s.plan_id === boot.id
+  )?.charged_zar,
+  400
+);
 
 console.log('class-allocate.test.ts ok');

@@ -309,13 +309,13 @@ function gymCharge(
   privatePt: boolean
 ): number {
   if (privatePt) return money(client?.private_rate_zar);
+  if (charged != null && Number.isFinite(Number(charged))) return money(charged);
   if (
     client?.agreed_rate_zar != null &&
     Number.isFinite(Number(client.agreed_rate_zar))
   ) {
     return money(client.agreed_rate_zar);
   }
-  if (charged != null && Number.isFinite(Number(charged))) return money(charged);
   return money(plan?.price_zar);
 }
 

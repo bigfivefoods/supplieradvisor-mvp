@@ -327,14 +327,33 @@ function bookMemberOntoUpcoming(
   return n;
 }
 
-function resolveCharge(
-  chargedZar: number | null | undefined,
-  plan: FitMembershipPlan
-): number {
-  if (chargedZar != null && Number.isFinite(Number(chargedZar))) {
-    return Number(chargedZar);
+/** Actual billed amount for one class: per-class override, else list price. */
+export function resolveAllocatedCharge(
+  plan: Pick<FitMembershipPlan, 'id' | 'price_zar'>,
+  opts: {
+    chargedZar?: number | null;
+    chargesByPlanId?: Record<string, number | null>;
+    planIds: string[];
   }
-  return Number(plan.price_zar) || 0;
+): number {
+  const override = opts.chargesByPlanId?.[plan.id];
+  if (override != null && Number.isFinite(Number(override))) {
+    return Number(override);
+  }
+  const isPrimary = opts.planIds.length <= 1 || opts.planIds[0] === plan.id;
+  if (
+    isPrimary &&
+    opts.chargedZar != null &&
+    Number.isFinite(Number(opts.chargedZar))
+  ) {
+    return Number(opts.chargedZar);
+  }
+  const list = Number(plan.price_zar) || 0;
+  if (list > 0) return list;
+  if (opts.chargedZar != null && Number.isFinite(Number(opts.chargedZar))) {
+    return Number(opts.chargedZar);
+  }
+  return 0;
 }
 
 export function allocateMemberToClass(
@@ -353,8 +372,17 @@ export function allocateMemberToClass(
     bookUpcoming?: boolean;
     /** When set, the member is on exactly these classes (others are cancelled). */
     planIds?: string[] | null;
+    /** Per-class actual charged (ZAR). Missing keys fall back to list price. */
+    chargesByPlanId?: Record<string, number | null>;
     /** Keep other class subscriptions (used when adding one class to a roster). */
     replaceOtherPlans?: boolean;
+    /** Optional contact fields saved with the allocation. */
+    person?: {
+      name?: string;
+      email?: string;
+      phone?: string;
+      notes?: string;
+    };
   }
 ):
   | { error: string }
@@ -419,6 +447,23 @@ export function allocateMemberToClass(
     }
   }
 
+  if (opts.person) {
+    if (opts.person.name != null && String(opts.person.name).trim()) {
+      client.name = String(opts.person.name).trim();
+    }
+    if (opts.person.email !== undefined) {
+      const email = String(opts.person.email || '').trim();
+      client.email = email || undefined;
+    }
+    if (opts.person.phone !== undefined) {
+      const phone = String(opts.person.phone || '').trim();
+      client.phone = phone || undefined;
+    }
+    if (opts.person.notes !== undefined) {
+      client.notes = String(opts.person.notes || '');
+    }
+  }
+
   client.private_client = isPrivate;
   client.coach_id = isPrivate
     ? coachId
@@ -433,13 +478,6 @@ export function allocateMemberToClass(
     client.private_rate_zar = privateRate;
   }
   if (
-    isMember &&
-    opts.chargedZar != null &&
-    Number.isFinite(Number(opts.chargedZar))
-  ) {
-    client.agreed_rate_zar = Number(opts.chargedZar);
-    client.notes = applyChargedNote(client.notes, Number(opts.chargedZar));
-  } else if (
     !isMember &&
     privateRate != null &&
     Number.isFinite(privateRate)
@@ -466,7 +504,12 @@ export function allocateMemberToClass(
   if (!plan) {
     return { subscription: null, booked: 0, cancelled: 0 };
   }
-  const charge = resolveCharge(opts.chargedZar, plan);
+  const chargeOpts = {
+    chargedZar: opts.chargedZar,
+    chargesByPlanId: opts.chargesByPlanId,
+    planIds,
+  };
+  const charge = resolveAllocatedCharge(plan, chargeOpts);
   const status = opts.status || 'active';
   let sub =
     store.subscriptions.find(
@@ -514,8 +557,7 @@ export function allocateMemberToClass(
     }
   }
 
-  client.notes = applyChargedNote(client.notes, charge);
-  client.agreed_rate_zar = charge;
+  let totalCharge = charge;
   if (plan.addon !== true) {
     client.membership_plan_id = plan.id;
     client.membership_status =
@@ -544,9 +586,11 @@ export function allocateMemberToClass(
       store.subscriptions.find(
         (s) => s.client_id === client.id && s.plan_id === extraPlan.id
       ) || null;
-    const extraCharge = Number(extraPlan.price_zar) || charge;
+    const extraCharge = resolveAllocatedCharge(extraPlan, chargeOpts);
+    totalCharge += extraCharge;
     if (extra) {
       extra.status = status;
+      extra.charged_zar = extraCharge;
       extra.updated_at = now;
       if (!extra.started_at) extra.started_at = today;
     } else {
@@ -567,6 +611,10 @@ export function allocateMemberToClass(
       booked += bookMemberOntoUpcoming(store, client, extraPlan, today, now);
     }
   }
+
+  client.notes = applyChargedNote(client.notes, totalCharge);
+  client.agreed_rate_zar = totalCharge;
+  client.updated_at = now;
 
   return { subscription: sub, booked, cancelled };
 }

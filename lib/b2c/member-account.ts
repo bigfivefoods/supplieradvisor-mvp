@@ -212,25 +212,29 @@ export function collectSuggestions(
     );
     for (const client of store.clients || []) {
       if (client.active === false) continue;
-      const sub = (store.subscriptions || []).find(
+      const liveSubs = (store.subscriptions || []).filter(
         (s) =>
           s.client_id === client.id &&
           (s.status === 'active' ||
             s.status === 'trialing' ||
             s.status === 'past_due')
       );
+      const sub = liveSubs[0];
       const plan = plans.find(
         (p) => p.id === (sub?.plan_id || client.membership_plan_id)
       );
-      const isMember = Boolean(sub || client.membership_plan_id);
-      const classZar = isMember
-        ? sub
-          ? subscriptionChargeZar(sub, plan)
-          : client.agreed_rate_zar != null &&
-              Number.isFinite(Number(client.agreed_rate_zar))
+      const isMember = Boolean(liveSubs.length || client.membership_plan_id);
+      const classZar = liveSubs.length
+        ? liveSubs.reduce((n, s) => {
+            const p = plans.find((x) => x.id === s.plan_id);
+            return n + subscriptionChargeZar(s, p);
+          }, 0)
+        : isMember
+          ? client.agreed_rate_zar != null &&
+            Number.isFinite(Number(client.agreed_rate_zar))
             ? Number(client.agreed_rate_zar)
             : Number(plan?.price_zar) || 0
-        : 0;
+          : 0;
       const privateZar =
         client.private_client && Number(client.private_rate_zar) > 0
           ? Number(client.private_rate_zar)
@@ -238,7 +242,14 @@ export function collectSuggestions(
       const amount = classZar + privateZar;
       if (!(amount > 0)) continue;
       const parts: string[] = [];
-      if (isMember) parts.push(plan?.name || 'Membership');
+      if (isMember) {
+        const classNames = liveSubs
+          .map((s) => plans.find((p) => p.id === s.plan_id)?.name)
+          .filter((n): n is string => Boolean(n));
+        parts.push(
+          classNames.length ? classNames.join(' + ') : plan?.name || 'Membership'
+        );
+      }
       if (privateZar > 0) parts.push('Private');
       out.push({
         source: 'subscription',
