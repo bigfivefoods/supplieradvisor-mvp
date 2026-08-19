@@ -117,16 +117,29 @@ export function applyClinicianVisitCare(
   if (action === 'medical_script_upsert') {
     try {
       const rec = (body.script || body.record || body) as Record<string, unknown>;
+      const str = (key: string) =>
+        rec[key] != null && rec[key] !== '' ? String(rec[key]) : undefined;
       patient.medical = upsertPatientScript(
         patient.medical ?? undefined,
         {
-          ...rec,
-          prescribed_by:
-            rec.prescribed_by != null
-              ? String(rec.prescribed_by)
-              : clinicianName,
+          kind: str('kind'),
+          medication: str('medication'),
+          strength: str('strength'),
+          dose: str('dose'),
+          frequency: str('frequency'),
+          route: str('route'),
+          duration: str('duration'),
+          quantity: str('quantity'),
+          repeats: rec.repeats as number | string | null | undefined,
+          instructions: str('instructions'),
+          diagnosis: str('diagnosis'),
+          prescribed_by: str('prescribed_by') || clinicianName,
           practitioner_id: clinicianId,
-          appointment_id: appointmentId || rec.appointment_id,
+          appointment_id: appointmentId || str('appointment_id') || null,
+          booking_id: str('booking_id') || null,
+          prescribed_at: str('prescribed_at') || null,
+          status: str('status'),
+          notes: str('notes'),
         },
         now
       );
