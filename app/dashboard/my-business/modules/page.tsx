@@ -129,7 +129,12 @@ function ModulesInner() {
           ? (profile.metadata as Record<string, unknown>)
           : {};
       setMetadata(meta);
-      setEnabled(extractEnabledModulesFromMetadata(meta));
+      setEnabled(
+        extractEnabledModulesFromMetadata(meta, {
+          companyId,
+          companyName: String(profile.trading_name || ''),
+        })
+      );
       const packSel = readPackagingFromMetadata(meta);
       setSelectedPacks(packSel?.packIds || []);
       setPacksDirty(false);
@@ -349,7 +354,12 @@ function ModulesInner() {
           ? (data.profile.metadata as Record<string, unknown>)
           : nextMeta;
       setMetadata(savedMeta);
-      setEnabled(extractEnabledModulesFromMetadata(savedMeta));
+      setEnabled(
+        extractEnabledModulesFromMetadata(savedMeta, {
+          companyId,
+          companyName: String(data.profile?.trading_name || tradingName || ''),
+        })
+      );
       setDirty(false);
       window.dispatchEvent(new Event('sa:company-changed'));
       if (!silent) toast.success('Workspace modules saved');

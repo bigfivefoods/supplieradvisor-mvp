@@ -16,6 +16,7 @@ import {
 import {
   isModuleEnabled,
   normalizeEnabledModules,
+  resolveVisibleModules,
   type EnabledModulesMap,
 } from '@/lib/business/company-modules';
 import { advisorLandingPath } from '@/lib/brand/advisor-skins';
@@ -134,12 +135,19 @@ export function useCompanyRole(): CompanyRoleState {
       setRights(String(mem.rights || ''));
       setMemberId(mem.memberId != null ? Number(mem.memberId) : null);
       setCanManageTeam(Boolean(mem.canManageTeam));
-      setEnabledModules(normalizeEnabledModules(data.enabledModules));
-      setPackaging(
+      const packagingNext =
         data.packaging && typeof data.packaging === 'object'
           ? (data.packaging as PackagingSelection)
-          : null
+          : null;
+      setEnabledModules(
+        resolveVisibleModules({
+          stored: data.enabledModules,
+          packaging: packagingNext,
+          companyId: selectedId,
+          companyName: data.companyName != null ? String(data.companyName) : null,
+        })
       );
+      setPackaging(packagingNext);
       setBusinessType(
         data.businessType != null ? String(data.businessType) : null
       );

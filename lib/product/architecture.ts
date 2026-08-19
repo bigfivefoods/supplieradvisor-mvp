@@ -1612,10 +1612,10 @@ export function readPackagingFromMetadata(
   if (!meta || typeof meta !== 'object') return null;
   const entityTypeId = meta.os_entity_type != null ? String(meta.os_entity_type) : '';
   const sectorId = meta.os_sector != null ? String(meta.os_sector) : '';
-  if (!entityTypeId && !sectorId) return null;
   const packIds = Array.isArray(meta.industry_packs)
     ? meta.industry_packs.map(String)
     : [];
+  if (!entityTypeId && !sectorId && packIds.length === 0) return null;
   const moduleIds = Array.isArray(meta.industry_modules)
     ? meta.industry_modules.map(String)
     : [];

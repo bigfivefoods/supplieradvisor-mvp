@@ -13,6 +13,7 @@ import {
 } from '@/lib/product/architecture';
 import { getIndustry } from '@/lib/product/business-catalogue';
 import { applyAdvisorCoreCompanions } from '@/lib/product/advisor-core-unlocks';
+import { isFounderLifetimeCompany } from '@/lib/billing/lifetime';
 
 /** Always visible — cannot be turned off in company profile */
 export const ALWAYS_ON_MODULE_IDS = ['home', 'my-business', 'guide'] as const;
@@ -396,6 +397,101 @@ export type WorkspaceModuleGroup = {
 const CORE_ID_SET = new Set<string>(CORE_WORKSPACE_MODULE_IDS);
 const VERTICAL_ID_SET = new Set<string>(VERTICAL_MODULE_IDS);
 
+function uniqueStrings(ids: readonly string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const id of ids) {
+    const v = String(id || '').trim();
+    if (!v || seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+  }
+  return out;
+}
+
+/** Pack ids stored on chrome / profile metadata (including industry → pack). */
+export function industryPackIdsFromMetadata(metadata: unknown): string[] {
+  const meta =
+    metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>)
+      : {};
+  const packs = Array.isArray(meta.industry_packs)
+    ? meta.industry_packs.map(String)
+    : [];
+  const industries = [
+    ...(meta.os_industry != null ? [String(meta.os_industry)] : []),
+    ...(Array.isArray(meta.os_industries)
+      ? meta.os_industries.map(String)
+      : []),
+  ];
+  for (const id of industries) {
+    const packIds = getIndustry(id)?.packIds || [];
+    for (const pid of packIds) packs.push(String(pid));
+  }
+  return uniqueStrings(packs);
+}
+
+export function failOpenEnabledModules(): EnabledModulesMap {
+  const map = normalizeEnabledModules(null);
+  for (const id of Object.keys(map)) map[id] = true;
+  return applyAdvisorCoreCompanions(map);
+}
+
+/**
+ * Keep pack / founder Advisor hubs visible in the sidenav.
+ * Slim chrome writes (sidenav order only) used to drop enabled_modules,
+ * and missing Advisor keys default off — VUKA then lost GymAdvisor.
+ */
+export function applyAdvisorVisibility(opts: {
+  map: EnabledModulesMap;
+  packIds?: readonly string[] | null;
+  companyId?: number | null;
+  companyName?: string | null;
+}): EnabledModulesMap {
+  const next: EnabledModulesMap = { ...opts.map };
+  for (const pid of opts.packIds || []) {
+    const pack = getIndustryPack(String(pid));
+    if (!pack) continue;
+    for (const id of appModulesUnlockedByPack(pack)) {
+      if (VERTICAL_ID_SET.has(id)) next[id] = true;
+    }
+  }
+  if (
+    isFounderLifetimeCompany({
+      id: opts.companyId,
+      tradingName: opts.companyName,
+      legalName: opts.companyName,
+    }) &&
+    /vuka/i.test(String(opts.companyName || ''))
+  ) {
+    next.fitgraph = true;
+  }
+  if (Number(opts.companyId) === 110) {
+    next.fitgraph = true;
+  }
+  return applyAdvisorCoreCompanions(next);
+}
+
+export function resolveVisibleModules(opts: {
+  stored?: unknown;
+  packaging?: { packIds?: string[] | null } | null;
+  metadata?: unknown;
+  companyId?: number | null;
+  companyName?: string | null;
+}): EnabledModulesMap {
+  const map = normalizeEnabledModules(opts.stored);
+  const packIds = uniqueStrings([
+    ...(opts.packaging?.packIds || []),
+    ...industryPackIdsFromMetadata(opts.metadata),
+  ]);
+  return applyAdvisorVisibility({
+    map,
+    packIds,
+    companyId: opts.companyId,
+    companyName: opts.companyName,
+  });
+}
+
 function uniqueExistingIds(
   ids: readonly string[],
   known: Set<string>
@@ -625,13 +721,19 @@ export function normalizeEnabledModules(
 }
 
 export function extractEnabledModulesFromMetadata(
-  metadata: unknown
+  metadata: unknown,
+  opts?: { companyId?: number | null; companyName?: string | null }
 ): EnabledModulesMap {
   const meta =
     metadata && typeof metadata === 'object' && !Array.isArray(metadata)
       ? (metadata as Record<string, unknown>)
       : {};
-  return normalizeEnabledModules(meta.enabled_modules);
+  return resolveVisibleModules({
+    stored: meta.enabled_modules,
+    metadata: meta,
+    companyId: opts?.companyId,
+    companyName: opts?.companyName,
+  });
 }
 
 export function isModuleEnabled(

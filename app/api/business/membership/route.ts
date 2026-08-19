@@ -15,8 +15,9 @@ import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
   extractEnabledModulesFromMetadata,
+  failOpenEnabledModules,
   listCompanyModuleOptions,
-  normalizeEnabledModules,
+  resolveVisibleModules,
 } from '@/lib/business/company-modules';
 import {
   effectiveModulesForMember,
@@ -66,7 +67,7 @@ export async function GET(request: NextRequest) {
     const roleMeta = TEAM_ROLE_OPTIONS.find((r) => r.value === mem.role);
 
     // Slim chrome only — do not pull Advisor module blobs for sidenav.
-    let companyModules = normalizeEnabledModules(null);
+    let companyModules = failOpenEnabledModules();
     let packaging: Record<string, unknown> | null = null;
     let businessType: string | null = null;
     let logoUrl: string | null = null;
@@ -75,10 +76,13 @@ export async function GET(request: NextRequest) {
     try {
       const profile = await loadCompanyProfileChrome(companyId);
       companyMeta = profile.chrome;
-      companyModules = extractEnabledModulesFromMetadata(profile.chrome);
+      companyName = profile.companyName;
+      companyModules = extractEnabledModulesFromMetadata(profile.chrome, {
+        companyId,
+        companyName,
+      });
       businessType = profile.businessType;
       logoUrl = profile.logoUrl;
-      companyName = profile.companyName;
       const { readPackagingFromMetadata } = await import(
         '@/lib/product/architecture'
       );
@@ -86,8 +90,15 @@ export async function GET(request: NextRequest) {
         string,
         unknown
       > | null;
+      companyModules = resolveVisibleModules({
+        stored: companyModules,
+        packaging,
+        metadata: profile.chrome,
+        companyId,
+        companyName,
+      });
     } catch {
-      /* soft — fail open all modules */
+      /* soft — fail open all modules, including Advisor hubs */
     }
 
     // What this user sees after login = company modules ∩ optional per-user allow-list

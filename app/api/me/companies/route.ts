@@ -326,7 +326,10 @@ export async function POST(request: NextRequest) {
           /^supplier\s*advisor$/i.test(String(p.trading_name || '').trim());
         const meta =
           p.metadata && typeof p.metadata === 'object' ? p.metadata : {};
-        const enabledModules = extractEnabledModulesFromMetadata(meta);
+        const enabledModules = extractEnabledModulesFromMetadata(meta, {
+          companyId: Number(p.id),
+          companyName: String(p.trading_name || p.legal_name || ''),
+        });
         const packIds = readPackagingFromMetadata(meta)?.packIds || [];
         const sidebarOrder = extractSidebarModuleOrder(
           (bu as { permissions?: unknown } | undefined)?.permissions

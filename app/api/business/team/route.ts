@@ -65,7 +65,15 @@ export async function GET(request: NextRequest) {
     }
 
     const companyModules = extractEnabledModulesFromMetadata(
-      company?.metadata
+      company?.metadata,
+      {
+        companyId,
+        companyName: String(
+          (company as { trading_name?: string | null } | null)?.trading_name ||
+            (company as { legal_name?: string | null } | null)?.legal_name ||
+            ''
+        ),
+      }
     );
     const list = (members || []).map((m) => {
       const perms = (m as { permissions?: unknown }).permissions;

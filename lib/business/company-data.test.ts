@@ -5,12 +5,30 @@ import assert from 'node:assert/strict';
 import {
   COMPANY_CHROME_META_KEYS,
   isMissingRelation,
+  mergeCompanyChromeLayers,
   splitModuleWriteSlice,
 } from './company-data';
 
 assert.ok(COMPANY_CHROME_META_KEYS.includes('enabled_modules'));
 assert.ok(COMPANY_CHROME_META_KEYS.includes('user_sidebar_orders'));
 assert.ok(!COMPANY_CHROME_META_KEYS.includes('fitgraph' as never));
+
+const mergedChrome = mergeCompanyChromeLayers(
+  {
+    enabled_modules: { fitgraph: true },
+    industry_packs: ['fitness_gym'],
+  },
+  { user_sidebar_orders: { u1: ['home', 'fitgraph'] } }
+);
+assert.equal(
+  (mergedChrome.enabled_modules as { fitgraph?: boolean }).fitgraph,
+  true
+);
+assert.deepEqual(mergedChrome.industry_packs, ['fitness_gym']);
+assert.deepEqual(
+  (mergedChrome.user_sidebar_orders as { u1?: string[] }).u1,
+  ['home', 'fitgraph']
+);
 
 assert.equal(isMissingRelation({ code: '42P01', message: 'x' }), true);
 assert.equal(
