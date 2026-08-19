@@ -49,6 +49,35 @@ function clinicStore(kind: AdvisorShareKind, meta: Record<string, unknown>) {
   return readMedicalgraphFromMetadata(meta);
 }
 
+function clinicPeople(
+  store: ReturnType<typeof clinicStore>
+): Array<{ id: string; name: string }> {
+  if ('staff' in store && Array.isArray(store.staff)) {
+    return store.staff.map((p) => ({ id: p.id, name: p.name }));
+  }
+  if ('practitioners' in store && Array.isArray(store.practitioners)) {
+    return store.practitioners.map((p) => ({ id: p.id, name: p.name }));
+  }
+  return [];
+}
+
+function clinicAppointmentsForHistory(store: ReturnType<typeof clinicStore>) {
+  return (store.appointments || []).map((a) => {
+    const staffId = 'staff_id' in a ? a.staff_id : null;
+    const pracId = 'practitioner_id' in a ? a.practitioner_id : null;
+    return {
+      id: a.id,
+      date: a.date,
+      start_time: a.start_time,
+      end_time: a.end_time,
+      location: a.location,
+      service_id: a.service_id,
+      practitioner_id: pracId || staffId || null,
+      status: a.status,
+    };
+  });
+}
+
 export function buildPracticeReferralSnapshot(opts: {
   companyName: string;
   kind: AdvisorShareKind;
@@ -100,11 +129,12 @@ export function buildPracticeReferralSnapshot(opts: {
     const history = buildPatientVisitHistory({
       patientId: patient.id,
       bookings: store.bookings,
-      appointments: store.appointments,
+      appointments: clinicAppointmentsForHistory(store),
       services: store.services,
-      practitioners: store.practitioners,
+      practitioners: clinicPeople(store),
       visitNotes: store.visit_notes,
-      scripts: patient.medical?.scripts,
+      scripts:
+        'medical' in patient ? patient.medical?.scripts : undefined,
       patientFacing: true,
     });
     snapshot.visits = history.slice(0, 20).map((v) => ({
