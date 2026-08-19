@@ -18,6 +18,7 @@ import { AdvisorDeskInviteCard } from '@/components/advisors/AdvisorDeskInviteCa
 import { AdvisorPayoutSettings } from '@/components/advisors/AdvisorPayoutSettings';
 import { AdvisorMemberCalendarShareCard } from '@/components/advisors/AdvisorMemberCalendarShareCard';
 import { AdvisorPortalManager } from '@/components/advisors/AdvisorPortalManager';
+import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import type { WorkingHours } from '@/lib/schedule/working-hours';
 
 export default function WebsitePage() {
@@ -93,6 +94,8 @@ export default function WebsitePage() {
       ) : (
         <div className="space-y-6">
           <AdvisorPortalManager
+            module="dentalgraph"
+            logoUrl={logoUrlFromSettings(store.settings)}
             eyebrow="DentalAdvisor®"
             values={{
               enabled: form.enabled,

@@ -15,6 +15,7 @@ import { AdvisorPayoutSettings } from '@/components/advisors/AdvisorPayoutSettin
 import { AdvisorEmbedSnippet } from '@/components/services/AdvisorEmbedSnippet';
 import { hirePublicEmbedPath } from '@/lib/hire/hiregraph';
 import { AdvisorPortalManager } from '@/components/advisors/AdvisorPortalManager';
+import { logoUrlFromSettings } from '@/lib/business/company-logo';
 
 export default function HiregraphWebsitePage() {
   const { companyId, store, loading, saving, post, summary } = useHiregraph();
@@ -95,6 +96,8 @@ export default function HiregraphWebsitePage() {
       ) : (
         <div className="space-y-6">
           <AdvisorPortalManager
+            module="hiregraph"
+            logoUrl={logoUrlFromSettings(store.settings)}
             eyebrow="HireAdvisor®"
             values={{
               enabled: form.enabled,

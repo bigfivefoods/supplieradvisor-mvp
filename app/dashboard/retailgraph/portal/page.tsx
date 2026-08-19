@@ -41,7 +41,7 @@ export default function RetailgraphPortalPage() {
     <RetailgraphRequired>
       <RetailgraphPage
         title="View portal"
-        description="Preview your RetailAdvisor® portal and choose which sections are public."
+        description="See the shopper PWA and the optional public website. Choose which sections appear on the site."
       >
         {loading || !store || !companyId ? (
           <Loader2 className="h-5 w-5 animate-spin text-orange-600" />

@@ -17,6 +17,8 @@ import { toast } from 'sonner';
 import { WorkingHoursEditor } from '@/components/schedule/WorkingHoursEditor';
 import type { WorkingHours } from '@/lib/schedule/working-hours';
 import { AdvisorPayAccepted } from '@/components/billing/ApplePayAccepted';
+import { AdvisorGrowPreviews } from '@/components/advisors/AdvisorGrowPreviews';
+import type { AdvisorPortalModule } from '@/lib/advisors/portal-sections';
 
 export type AdvisorPortalValues = {
   enabled: boolean;
@@ -44,6 +46,8 @@ export function AdvisorPortalManager({
   bookingLabel = 'Allow online booking',
   showCity = true,
   showBooking = true,
+  module,
+  logoUrl,
 }: {
   eyebrow: string;
   values: AdvisorPortalValues;
@@ -52,6 +56,9 @@ export function AdvisorPortalManager({
   saving?: boolean;
   /** Public path, e.g. /embed/hire/{token} */
   portalPath?: string | null;
+  /** When set, shows the member/client PWA and website preview. */
+  module?: AdvisorPortalModule;
+  logoUrl?: string | null;
   hours?: WorkingHours | null;
   onHoursSave?: (next: WorkingHours) => void | Promise<void>;
   hoursSaving?: boolean;
@@ -221,6 +228,25 @@ export function AdvisorPortalManager({
             </ul>
           </div>
         </div>
+
+        {module ? (
+          <AdvisorGrowPreviews
+            module={module}
+            eyebrow={eyebrow}
+            settings={{
+              enabled: values.enabled,
+              brand_name: values.brand_name,
+              public_bio: values.public_bio,
+              website_url: values.website_url,
+              embed_primary_color: values.color,
+              company_logo_url: logoUrl,
+            }}
+            embedPath={portalPath || ''}
+            websiteHref=""
+            websiteEnabled={values.enabled === true}
+            placement="website-settings"
+          />
+        ) : null}
 
         <form
           className="grid gap-3 sm:grid-cols-2"

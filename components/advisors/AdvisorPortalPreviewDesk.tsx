@@ -2,6 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
+import { AdvisorGrowPreviews } from '@/components/advisors/AdvisorGrowPreviews';
+import {
+  growPreviewCopy,
+  type GrowPreviewSettings,
+} from '@/lib/advisors/grow-preview';
 import {
   PORTAL_SECTIONS,
   readPortalSectionMap,
@@ -21,12 +26,13 @@ export function AdvisorPortalPreviewDesk({
   module: AdvisorPortalModule;
   eyebrow: string;
   embedPath: string;
-  settings?: PortalSectionSettings | null;
+  settings?: (PortalSectionSettings & GrowPreviewSettings) | null;
   onSave: (sections: Record<string, boolean>) => void | Promise<void>;
   saving?: boolean;
   websiteHref: string;
 }) {
   const catalog = PORTAL_SECTIONS[module];
+  const copy = growPreviewCopy(module);
   const [draft, setDraft] = useState<Record<string, boolean>>(() =>
     readPortalSectionMap(module, settings)
   );
@@ -54,13 +60,25 @@ export function AdvisorPortalPreviewDesk({
   return (
     <div className="space-y-5">
       <p className="text-xs text-slate-600 dark:text-slate-300">
-        This is the public {eyebrow} portal customers see. Tick what to show,
-        save, then refresh the preview.
+        Two surfaces: the {copy.audienceSingular} app on their phone, and an
+        optional public website. Tick what to show on the website, save, then
+        the live preview refreshes if you have published it.
       </p>
+
+      <AdvisorGrowPreviews
+        module={module}
+        eyebrow={eyebrow}
+        settings={settings}
+        embedPath={embedPath}
+        websiteHref={websiteHref}
+        websiteEnabled={settings?.enabled === true}
+        frameKey={frameKey}
+        placement="view-portal"
+      />
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-950">
         <p className="mb-3 text-[10px] font-black uppercase tracking-wider text-slate-500">
-          Show on portal
+          Show on website
         </p>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {catalog.map((s) => (
@@ -102,7 +120,7 @@ export function AdvisorPortalPreviewDesk({
               className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold dark:border-white/15"
             >
               <ExternalLink className="h-3.5 w-3.5" />
-              Open live portal
+              Open live website
             </a>
           ) : (
             <a
@@ -114,28 +132,6 @@ export function AdvisorPortalPreviewDesk({
           )}
         </div>
       </div>
-
-      {liveHref ? (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-black">
-          <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-500 dark:border-white/10 dark:bg-neutral-950">
-            <span>Preview · as a customer sees it</span>
-            <span className="truncate font-mono font-medium text-slate-400">
-              {liveHref}
-            </span>
-          </div>
-          <iframe
-            key={frameKey}
-            title={`${eyebrow} portal preview`}
-            src={liveHref}
-            className="h-[70vh] min-h-[480px] w-full bg-white"
-          />
-        </div>
-      ) : (
-        <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
-          Save Website once to issue a public link, then this page previews
-          your portal.
-        </p>
-      )}
     </div>
   );
 }

@@ -19,8 +19,8 @@ export default function HiregraphPortalPage() {
   return (
     <HiregraphWorkbench
       title="View portal"
-      titleAccent="what hirers see"
-      description="Preview your HireAdvisor® portal and choose which sections are public."
+      titleAccent="hirer app · website"
+      description="See the hirer PWA and the optional public website. Choose which sections appear on the site."
     >
       {loading || !store ? (
         <LoadingBlock />

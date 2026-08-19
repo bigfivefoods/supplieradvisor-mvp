@@ -1,0 +1,27 @@
+/**
+ * Run: npx --yes tsx lib/advisors/grow-preview.test.ts
+ */
+import assert from 'node:assert/strict';
+import { growPreviewCopy, growWebsiteNav } from './grow-preview';
+
+const gym = growPreviewCopy('fitgraph');
+assert.equal(gym.audienceSingular, 'member');
+assert.ok(gym.pwaTabs.includes('Book'));
+assert.equal(gym.pwaActiveTab, 'Book');
+
+const physio = growPreviewCopy('physiograph');
+assert.equal(physio.audienceSingular, 'patient');
+assert.ok(physio.pwaTabs.includes('Open diary'));
+
+assert.deepEqual(growWebsiteNav('fitgraph').slice(0, 2), [
+  'Class timetable',
+  'Coaches',
+]);
+assert.ok(growWebsiteNav('medicalgraph').includes('Open diary'));
+assert.ok(growWebsiteNav('hiregraph').includes('Catalogue'));
+assert.ok(growWebsiteNav('retailgraph').includes('Shop'));
+assert.equal(growPreviewCopy('fitgraph').showWeekDiary, true);
+assert.equal(growPreviewCopy('hiregraph').showWeekDiary, false);
+assert.equal(growPreviewCopy('hiregraph').color, '#0891b2');
+
+console.log('grow-preview.test.ts ok');

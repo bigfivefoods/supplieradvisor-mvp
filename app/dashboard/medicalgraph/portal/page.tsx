@@ -19,8 +19,8 @@ export default function MedicalgraphPortalPage() {
   return (
     <MedicalgraphWorkbench
       title="View portal"
-      titleAccent="what patients see"
-      description="Preview your MedicalAdvisor® portal and choose which sections are public."
+      titleAccent="patient app · website"
+      description="See the patient PWA and the optional public website. Choose which sections appear on the site."
     >
       {loading || !store ? (
         <LoadingBlock />

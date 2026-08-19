@@ -23,6 +23,7 @@ import { AdvisorDeskInviteCard } from '@/components/advisors/AdvisorDeskInviteCa
 import { AdvisorPayoutSettings } from '@/components/advisors/AdvisorPayoutSettings';
 import { gymRequiresPaidMembership } from '@/lib/fitness/gym-shop';
 import { AdvisorPortalManager } from '@/components/advisors/AdvisorPortalManager';
+import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { AdvisorMemberCalendarShareCard } from '@/components/advisors/AdvisorMemberCalendarShareCard';
 import type { WorkingHours } from '@/lib/schedule/working-hours';
 
@@ -158,6 +159,8 @@ export default function FitgraphWebsitePage() {
       ) : (
         <div className="space-y-6">
           <AdvisorPortalManager
+            module="fitgraph"
+            logoUrl={logoUrlFromSettings(store.settings)}
             eyebrow="GymAdvisor®"
             values={{
               enabled: form.enabled,

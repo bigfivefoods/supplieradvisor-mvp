@@ -16,6 +16,7 @@ import { AdvisorDeskInviteCard } from '@/components/advisors/AdvisorDeskInviteCa
 import { AdvisorPayoutSettings } from '@/components/advisors/AdvisorPayoutSettings';
 import { AdvisorMemberCalendarShareCard } from '@/components/advisors/AdvisorMemberCalendarShareCard';
 import { AdvisorPortalManager } from '@/components/advisors/AdvisorPortalManager';
+import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import type { WorkingHours } from '@/lib/schedule/working-hours';
 import { AdvisorEmbedSnippet } from '@/components/services/AdvisorEmbedSnippet';
 
@@ -92,6 +93,8 @@ export default function WebsitePage() {
       ) : (
         <div className="space-y-6">
           <AdvisorPortalManager
+            module="medicalgraph"
+            logoUrl={logoUrlFromSettings(store.settings)}
             eyebrow="MedicalAdvisor®"
             values={{
               enabled: form.enabled,

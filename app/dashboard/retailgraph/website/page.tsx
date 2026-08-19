@@ -13,6 +13,7 @@ import { AdvisorDeskInviteCard } from '@/components/advisors/AdvisorDeskInviteCa
 import { AdvisorPayoutSettings } from '@/components/advisors/AdvisorPayoutSettings';
 import { AdvisorEmbedSnippet } from '@/components/services/AdvisorEmbedSnippet';
 import { AdvisorPortalManager } from '@/components/advisors/AdvisorPortalManager';
+import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import type { RetailgraphStore } from '@/lib/retail/retailgraph';
 
 export default function RetailgraphWebsitePage() {
@@ -115,6 +116,8 @@ export default function RetailgraphWebsitePage() {
         ) : (
           <div className="space-y-6">
             <AdvisorPortalManager
+              module="retailgraph"
+              logoUrl={logoUrlFromSettings(store.settings)}
               eyebrow="RetailAdvisor®"
               values={{
                 enabled: form.enabled,

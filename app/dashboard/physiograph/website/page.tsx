@@ -18,6 +18,7 @@ import { AdvisorPayoutSettings } from '@/components/advisors/AdvisorPayoutSettin
 import { AdvisorMemberCalendarShareCard } from '@/components/advisors/AdvisorMemberCalendarShareCard';
 import { AdvisorEmbedSnippet } from '@/components/services/AdvisorEmbedSnippet';
 import { AdvisorPortalManager } from '@/components/advisors/AdvisorPortalManager';
+import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import type { WorkingHours } from '@/lib/schedule/working-hours';
 
 export default function WebsitePage() {
@@ -93,6 +94,8 @@ export default function WebsitePage() {
       ) : (
         <div className="space-y-6">
           <AdvisorPortalManager
+            module="physiograph"
+            logoUrl={logoUrlFromSettings(store.settings)}
             eyebrow="PhysioAdvisor®"
             values={{
               enabled: form.enabled,

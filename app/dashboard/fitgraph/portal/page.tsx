@@ -19,8 +19,8 @@ export default function FitgraphPortalPage() {
   return (
     <FitgraphWorkbench
       title="View portal"
-      titleAccent="what customers see"
-      description="Preview your GymAdvisor® portal and choose which sections are public."
+      titleAccent="member app · website"
+      description="See the member PWA and the optional public website. Choose which sections appear on the site."
     >
       {loading || !store ? (
         <LoadingBlock />
