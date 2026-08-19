@@ -130,7 +130,10 @@ export function applyClinicianVisitCare(
           route: str('route'),
           duration: str('duration'),
           quantity: str('quantity'),
-          repeats: rec.repeats as number | string | null | undefined,
+          repeats:
+            rec.repeats === '' || rec.repeats == null
+              ? null
+              : Number(rec.repeats),
           instructions: str('instructions'),
           diagnosis: str('diagnosis'),
           prescribed_by: str('prescribed_by') || clinicianName,
