@@ -7,7 +7,7 @@ export function copyStoredClinicArrays<T extends object>(
   empty: T,
   stored: Record<string, unknown> | null | undefined
 ): T {
-  const e = { ...(empty as T & Record<string, unknown>) };
+  const e: Record<string, unknown> = { ...(empty as Record<string, unknown>) };
   const src =
     stored && typeof stored === 'object' && !Array.isArray(stored)
       ? stored
