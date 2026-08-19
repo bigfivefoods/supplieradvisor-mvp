@@ -67,7 +67,14 @@ const snap: WalletHouseholdSnapshot = {
   city: 'Johannesburg',
   id_number: '8001015009087',
   family: vuka,
-  passport: { city: 'Johannesburg', country: 'South Africa' },
+  passport: {
+    city: 'Johannesburg',
+    country: 'South Africa',
+    date_of_birth: '1980-01-01',
+    emergency_name: 'Pat',
+    emergency_phone: '0830000000',
+    emergency_relationship: 'spouse',
+  },
 };
 
 const stamped = applySnapshotToPerson(
@@ -87,6 +94,10 @@ assert.equal(stamped.person.photo_url, 'https://cdn.example/craig.jpg');
 assert.equal(stamped.person.id_number, '8001015009087');
 assert.equal(stamped.person.family?.length, 1);
 assert.equal(stamped.person.family?.[0].name, 'Alex');
+assert.equal(stamped.person.date_of_birth, '1980-01-01');
+assert.equal(stamped.person.next_of_kin, 'Pat');
+assert.equal(stamped.person.next_of_kin_phone, '0830000000');
+assert.equal(stamped.person.passport?.emergency_name, 'Pat');
 
 const already = applySnapshotToPerson(stamped.person, snap, {
   preferWallet: true,

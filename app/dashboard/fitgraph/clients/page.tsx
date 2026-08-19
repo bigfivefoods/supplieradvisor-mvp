@@ -33,6 +33,7 @@ import {
   healthToForm,
   type InjuryFormState,
 } from '@/components/health/InjuryProfileFields';
+import { GymMemberProfileDesk } from '@/components/fitness/GymMemberProfileDesk';
 import { AdvisorTreatmentPlanPanel } from '@/components/services/AdvisorTreatmentPlanPanel';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
@@ -73,6 +74,10 @@ type ClientForm = {
   private_client: boolean;
   coach_id: string;
   start_date: string;
+  date_of_birth: string;
+  next_of_kin: string;
+  next_of_kin_phone: string;
+  next_of_kin_relationship: string;
   emergency_contact: string;
   notes: string;
   health: InjuryFormState;
@@ -91,6 +96,10 @@ const blankForm = (): ClientForm => ({
   private_client: false,
   coach_id: '',
   start_date: new Date().toISOString().slice(0, 10),
+  date_of_birth: '',
+  next_of_kin: '',
+  next_of_kin_phone: '',
+  next_of_kin_relationship: '',
   emergency_contact: '',
   notes: '',
   health: emptyInjuryForm(),
@@ -122,6 +131,15 @@ export default function ClientsPage() {
       coach_id: c.coach_id || '',
       start_date:
         c.start_date || new Date().toISOString().slice(0, 10),
+      date_of_birth: c.date_of_birth || c.passport?.date_of_birth || '',
+      next_of_kin:
+        c.next_of_kin || c.passport?.emergency_name || '',
+      next_of_kin_phone:
+        c.next_of_kin_phone || c.passport?.emergency_phone || '',
+      next_of_kin_relationship:
+        c.next_of_kin_relationship ||
+        c.passport?.emergency_relationship ||
+        '',
       emergency_contact: c.emergency_contact || '',
       notes: c.notes || '',
       health: healthToForm(c.health),
@@ -166,13 +184,22 @@ export default function ClientsPage() {
         private_client: form.private_client === true,
         coach_id: form.coach_id || null,
         start_date: form.start_date,
-        emergency_contact: form.emergency_contact,
+        date_of_birth: form.date_of_birth || null,
+        next_of_kin: form.next_of_kin,
+        next_of_kin_phone: form.next_of_kin_phone,
+        next_of_kin_relationship: form.next_of_kin_relationship,
+        emergency_contact:
+          form.emergency_contact ||
+          [form.next_of_kin, form.next_of_kin_relationship, form.next_of_kin_phone]
+            .filter(Boolean)
+            .join(' · '),
         notes: form.notes,
         debit_bank: form.debit_bank.account_number
           ? form.debit_bank
           : undefined,
-        health,
-        health_updated_by: 'desk',
+        ...(editing
+          ? {}
+          : { health, health_updated_by: 'desk' }),
       },
     });
     toast.success(form.id ? 'Client profile updated' : 'Client saved');
@@ -366,7 +393,7 @@ export default function ClientsPage() {
     <FitgraphWorkbench
       title="Clients / members"
       titleAccent="member book"
-      description="Member register with plan, private-client flag, and coach. Edit code, name, type, plan, status, and coach directly in the list — use Edit for the full profile, injury notes, and portal tools."
+      description="Member register. Open Profile for birthday, next of kin, PWA passport, join history, monthly statements, ailments, and PBs."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -600,22 +627,58 @@ export default function ClientsPage() {
                 </span>
               </span>
             </label>
+            <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
+              Membership start
+              <input
+                className={fc() + ' mt-1'}
+                type="date"
+                value={form.start_date}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, start_date: e.target.value }))
+                }
+              />
+            </label>
+            <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
+              Birthday
+              <input
+                className={fc() + ' mt-1'}
+                type="date"
+                value={form.date_of_birth}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, date_of_birth: e.target.value }))
+                }
+              />
+            </label>
+            <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
+              Next of kin
+              <input
+                className={fc() + ' mt-1'}
+                placeholder="Name"
+                value={form.next_of_kin}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, next_of_kin: e.target.value }))
+                }
+              />
+            </label>
             <input
               className={fc()}
-              type="date"
-              value={form.start_date}
+              placeholder="Next of kin phone"
+              value={form.next_of_kin_phone}
               onChange={(e) =>
-                setForm((f) => ({ ...f, start_date: e.target.value }))
+                setForm((f) => ({
+                  ...f,
+                  next_of_kin_phone: e.target.value,
+                }))
               }
             />
             <input
               className={fc()}
-              placeholder="Emergency contact"
-              value={form.emergency_contact}
+              placeholder="Relationship (spouse, parent…)"
+              value={form.next_of_kin_relationship}
               onChange={(e) =>
                 setForm((f) => ({
                   ...f,
-                  emergency_contact: e.target.value,
+                  next_of_kin_relationship: e.target.value,
                 }))
               }
             />
@@ -644,35 +707,32 @@ export default function ClientsPage() {
               }
             />
 
-            {editing && store.clients.find((x) => x.id === form.id)?.family?.length ? (
-              <div className="sm:col-span-2 lg:col-span-3 rounded-2xl border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 p-3">
-                <p className="text-[10px] font-black uppercase tracking-wide text-sky-800 dark:text-sky-200 mb-1.5">
-                  Family members (from member portal)
-                </p>
-                <ul className="space-y-1 text-sm text-slate-700 dark:text-slate-200">
-                  {(store.clients.find((x) => x.id === form.id)?.family || [])
-                    .filter((m) => m.active !== false)
-                    .map((m) => (
-                      <li key={m.id} className="flex flex-wrap gap-x-2 gap-y-0.5">
-                        <span className="font-semibold">{m.name}</span>
-                        <span className="text-xs text-slate-500 capitalize">
-                          {m.relationship}
-                          {m.is_minor ? ' · minor' : ''}
-                          {m.date_of_birth ? ` · DOB ${m.date_of_birth}` : ''}
-                          {m.id_number ? ` · ID ${m.id_number}` : ''}
-                        </span>
-                      </li>
-                    ))}
-                </ul>
-              </div>
+            {!editing ? (
+              <InjuryProfileFields
+                variant="coach"
+                value={form.health}
+                onChange={(health) => setForm((f) => ({ ...f, health }))}
+                inputClass={fc()}
+              />
             ) : null}
-            <InjuryProfileFields
-              variant="coach"
-              value={form.health}
-              onChange={(health) => setForm((f) => ({ ...f, health }))}
-              inputClass={fc()}
-            />
           </FormCard>
+
+          {editing && form.id
+            ? store.clients
+                .filter((x) => x.id === form.id)
+                .map((person) => (
+                  <GymMemberProfileDesk
+                    key={person.id}
+                    client={person}
+                    store={store}
+                    post={post}
+                    saving={saving}
+                    onRefresh={() => {
+                      void load();
+                    }}
+                  />
+                ))
+            : null}
 
           {editing && form.id ? (
             <AdvisorTreatmentPlanPanel

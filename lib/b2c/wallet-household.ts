@@ -76,7 +76,12 @@ export type DeskPerson = {
   family?: FamilyMember[];
   medical?: { id_number?: string; [k: string]: unknown } | null;
   identity?: PersonIdentityVerification | null;
+  date_of_birth?: string | null;
+  next_of_kin?: string;
+  next_of_kin_phone?: string;
+  next_of_kin_relationship?: string;
   emergency_contact?: string;
+  passport?: MemberPassport;
   notes?: string;
   health?: import('@/lib/health/body-map').PersonHealthProfile;
   popia_consent_at?: string | null;
@@ -276,10 +281,15 @@ export function applySnapshotToPerson<T extends DeskPerson>(
   }
   if (pass.share_health_with_advisors !== false) {
     const health = healthFromPassport(pass);
-    const prevHealth = JSON.stringify(next.health || {});
-    const nextHealth = JSON.stringify({ ...(next.health || {}), ...health });
-    if (prevHealth !== nextHealth) {
-      next.health = { ...(next.health || {}), ...health };
+    const prevHealth = next.health || {};
+    const healthSame =
+      Boolean(prevHealth.injured) === Boolean(health.injured) &&
+      String(prevHealth.injury_notes || '') === String(health.injury_notes || '') &&
+      String(prevHealth.training_modifications || '') ===
+        String(health.training_modifications || '') &&
+      String(prevHealth.goals || '') === String(health.goals || '');
+    if (!healthSame) {
+      next.health = { ...prevHealth, ...health };
       changed = true;
     }
     const medical = {
@@ -317,6 +327,36 @@ export function applySnapshotToPerson<T extends DeskPerson>(
       next.medical = medical;
       changed = true;
     }
+  }
+  const hasPassport = Object.values(pass).some(
+    (v) => v != null && v !== '' && v !== false
+  );
+  if (hasPassport) {
+    const prevPass = JSON.stringify(next.passport || {});
+    const nextPass = JSON.stringify({ ...(next.passport || {}), ...pass });
+    if (prevPass !== nextPass) {
+      next.passport = { ...(next.passport || {}), ...pass };
+      changed = true;
+    }
+  }
+  if (pass.date_of_birth && next.date_of_birth !== pass.date_of_birth) {
+    next.date_of_birth = pass.date_of_birth;
+    changed = true;
+  }
+  if (pass.emergency_name && next.next_of_kin !== pass.emergency_name) {
+    next.next_of_kin = pass.emergency_name;
+    changed = true;
+  }
+  if (pass.emergency_phone && next.next_of_kin_phone !== pass.emergency_phone) {
+    next.next_of_kin_phone = pass.emergency_phone;
+    changed = true;
+  }
+  if (
+    pass.emergency_relationship &&
+    next.next_of_kin_relationship !== pass.emergency_relationship
+  ) {
+    next.next_of_kin_relationship = pass.emergency_relationship;
+    changed = true;
   }
   if (pass.popia_consent && !next.popia_consent_at) {
     next.popia_consent_at = new Date().toISOString();

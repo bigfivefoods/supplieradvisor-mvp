@@ -36,6 +36,13 @@ const ACCENT: Record<
   string,
   { panel: string; title: string; hint: string; btn: string }
 > = {
+  yellow: {
+    panel:
+      'border-yellow-200 bg-yellow-50/50 dark:border-yellow-800 dark:bg-yellow-950/30',
+    title: 'text-yellow-950 dark:text-yellow-50',
+    hint: 'text-yellow-800/80 dark:text-yellow-200/80',
+    btn: 'bg-yellow-400 hover:bg-yellow-500 !text-yellow-950',
+  },
   teal: {
     panel:
       'border-teal-200 bg-teal-50/50 dark:border-teal-800 dark:bg-teal-950/30',
@@ -91,6 +98,8 @@ export function PatientAilmentDesk({
   post,
   saving,
   accent = 'teal',
+  entity = 'patients',
+  healthKey = 'clinical',
   onSaved,
 }: {
   module: AilmentModule;
@@ -99,7 +108,9 @@ export function PatientAilmentDesk({
   diagnosisNotes?: string | null;
   post: (body: Record<string, unknown>) => Promise<unknown>;
   saving?: boolean;
-  accent?: 'teal' | 'emerald' | 'sky' | 'rose';
+  accent?: 'teal' | 'emerald' | 'sky' | 'rose' | 'yellow';
+  entity?: 'patients' | 'clients';
+  healthKey?: 'clinical' | 'health';
   onSaved?: () => void;
 }) {
   const skin = ACCENT[accent] || ACCENT.teal;
@@ -166,18 +177,27 @@ export function PatientAilmentDesk({
           conditions.some((c) => c.status !== 'resolved') ||
           false,
       };
+      const record: Record<string, unknown> = {
+        id: patientId,
+        [healthKey]: next,
+        share_medical: true,
+      };
+      if (healthKey === 'clinical') {
+        record.diagnosis_notes = next.diagnosis_notes;
+        record.clinical_updated_by = 'desk';
+      } else {
+        record.health_updated_by = 'desk';
+      }
       await post({
-        entity: 'patients',
+        entity,
         action: 'upsert',
-        record: {
-          id: patientId,
-          clinical: next,
-          diagnosis_notes: next.diagnosis_notes,
-          clinical_updated_by: 'desk',
-          share_medical: true,
-        },
+        record,
       });
-      toast.success('Saved to the patient and member profile');
+      toast.success(
+        entity === 'clients'
+          ? 'Saved to the member profile'
+          : 'Saved to the patient and member profile'
+      );
       onSaved?.();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not save');
@@ -317,10 +337,10 @@ export function PatientAilmentDesk({
           </p>
         )}
 
-        {module === 'physio' ? (
+        {module === 'physio' || module === 'gym' ? (
           <InjuryProfileFields
-            variant="clinic"
-            clinical
+            variant={module === 'gym' ? 'coach' : 'clinic'}
+            clinical={module !== 'gym'}
             value={injury}
             onChange={setInjury}
             inputClass={inp}

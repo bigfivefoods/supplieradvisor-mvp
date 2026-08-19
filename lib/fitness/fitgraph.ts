@@ -427,6 +427,27 @@ export function reopenCoachEngagement(
  */
 export type FitClientHealth = import('@/lib/health/body-map').PersonHealthProfile;
 
+export type FitMemberJoinEvent = {
+  id: string;
+  at: string;
+  kind:
+    | 'created'
+    | 'joined_pwa'
+    | 'invite_sent'
+    | 'invite_accepted'
+    | 'wallet_linked'
+    | 'membership_started'
+    | 'plan_changed'
+    | 'frozen'
+    | 'unfrozen'
+    | 'cancelled'
+    | 'reactivated'
+    | string;
+  title: string;
+  note?: string;
+  source?: 'desk' | 'pwa' | 'invite' | 'system' | string;
+};
+
 export type FitClient = {
   id: string;
   code: string;
@@ -491,7 +512,19 @@ export type FitClient = {
   agreed_rate_zar?: number | null;
   /** Agreed private / PT rate with the assigned coach (ZAR / month). */
   private_rate_zar?: number | null;
+  /** Birthday (YYYY-MM-DD) — from SA Member PWA passport or desk. */
+  date_of_birth?: string | null;
+  /** Next of kin / emergency (from PWA passport.emergency_* or desk). */
+  next_of_kin?: string;
+  next_of_kin_phone?: string;
+  next_of_kin_relationship?: string;
   emergency_contact?: string;
+  /** Snapshot of the SA Member wallet passport stamped onto this desk. */
+  passport?: import('@/lib/b2c/member-passport').MemberPassport;
+  /** Medical-style demographics stamped from the PWA passport. */
+  medical?: import('@/lib/clinic/patient-medical').PatientMedicalRecord;
+  /** Explicit join / membership events (PWA, invite, freeze, desk). */
+  join_events?: FitMemberJoinEvent[];
   notes?: string;
   /**
    * Bank account for the gym owner to set up a debit order.

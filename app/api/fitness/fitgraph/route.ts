@@ -101,6 +101,9 @@ import {
   setClassMembers,
   updateClassDesk,
 } from '@/lib/fitness/class-allocate';
+import { appendJoinEvent } from '@/lib/fitness/member-profile';
+import { parseMemberPassport } from '@/lib/b2c/member-passport';
+import { mergeMedicalRecord } from '@/lib/clinic/patient-medical';
 
 export const runtime = 'nodejs';
 
@@ -515,6 +518,13 @@ export async function POST(request: NextRequest) {
       client.invite_email = email;
       client.invite_sent_at = nowIso;
       client.invite_accepted_at = null;
+      client.join_events = appendJoinEvent(client, {
+        at: nowIso,
+        kind: 'invite_sent',
+        title: 'SA Member invite sent',
+        note: email,
+        source: 'invite',
+      });
       client.invite_expires_at = inviteExpiryIso(14);
       client.share_schedule =
         body.share_schedule !== undefined
@@ -1504,6 +1514,15 @@ export async function POST(request: NextRequest) {
         client.membership_frozen_at = null;
         client.membership_freeze_until = null;
       }
+      client.join_events = appendJoinEvent(client, {
+        at: now,
+        kind: freeze ? 'frozen' : 'unfrozen',
+        title: freeze ? 'Membership frozen' : 'Membership unfrozen',
+        note: freeze && client.membership_freeze_until
+          ? `Until ${client.membership_freeze_until}`
+          : undefined,
+        source: 'desk',
+      });
       client.updated_at = now;
       await saveStore(companyId, meta, store);
       return NextResponse.json({
@@ -2627,6 +2646,41 @@ function upsert(
             ? String(rec.emergency_contact)
             : undefined
           : prev?.emergency_contact,
+      date_of_birth:
+        rec.date_of_birth !== undefined
+          ? rec.date_of_birth
+            ? String(rec.date_of_birth).slice(0, 10)
+            : null
+          : prev?.date_of_birth ?? null,
+      next_of_kin:
+        rec.next_of_kin !== undefined
+          ? rec.next_of_kin
+            ? String(rec.next_of_kin)
+            : undefined
+          : prev?.next_of_kin,
+      next_of_kin_phone:
+        rec.next_of_kin_phone !== undefined
+          ? rec.next_of_kin_phone
+            ? String(rec.next_of_kin_phone)
+            : undefined
+          : prev?.next_of_kin_phone,
+      next_of_kin_relationship:
+        rec.next_of_kin_relationship !== undefined
+          ? rec.next_of_kin_relationship
+            ? String(rec.next_of_kin_relationship)
+            : undefined
+          : prev?.next_of_kin_relationship,
+      passport:
+        rec.passport !== undefined && rec.passport && typeof rec.passport === 'object'
+          ? parseMemberPassport(rec.passport)
+          : prev?.passport,
+      medical:
+        rec.medical !== undefined
+          ? mergeMedicalRecord(prev?.medical, rec.medical)
+          : prev?.medical,
+      join_events: Array.isArray(rec.join_events)
+        ? (rec.join_events as FitClient['join_events'])
+        : prev?.join_events,
       notes:
         rec.notes !== undefined
           ? rec.notes
@@ -2645,6 +2699,24 @@ function upsert(
       created_at: prev?.created_at || now,
       updated_at: now,
     };
+    if (!prev) {
+      row.join_events = appendJoinEvent(row, {
+        at: now,
+        kind: 'created',
+        title: 'Added to the gym book',
+        source: 'desk',
+      });
+    } else if (
+      row.start_date &&
+      row.start_date !== prev.start_date
+    ) {
+      row.join_events = appendJoinEvent(row, {
+        at: now,
+        kind: 'membership_started',
+        title: `Membership start ${row.start_date}`,
+        source: 'desk',
+      });
+    }
     if (i >= 0) store.clients[i] = row;
     else store.clients.push(row);
   } else if (entity === 'membership_plans') {

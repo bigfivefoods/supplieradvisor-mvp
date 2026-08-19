@@ -7,12 +7,16 @@ import { mergeHealthProfile } from './body-map';
 import {
   MEDICAL_AILMENTS,
   PHYSIO_AILMENTS,
+  GYM_AILMENTS,
   DENTAL_AILMENTS,
   PSYCHIATRY_AILMENTS,
+  ailmentsForModule,
   normalizeConditions,
 } from './ailments';
 
 assert.ok(PHYSIO_AILMENTS.length > 20);
+assert.ok(GYM_AILMENTS.length > PHYSIO_AILMENTS.length);
+assert.equal(ailmentsForModule('gym'), GYM_AILMENTS);
 assert.ok(MEDICAL_AILMENTS.some((a) => a.label.includes('Hypertension')));
 assert.ok(DENTAL_AILMENTS.some((a) => a.label.includes('Periodontitis')));
 assert.ok(PSYCHIATRY_AILMENTS.some((a) => a.label.includes('anxiety')));

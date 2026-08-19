@@ -7,7 +7,8 @@ export type AilmentModule =
   | 'physio'
   | 'medical'
   | 'dental'
-  | 'psychiatry';
+  | 'psychiatry'
+  | 'gym';
 
 export type PatientConditionStatus = 'active' | 'monitoring' | 'resolved';
 
@@ -188,10 +189,23 @@ export const PSYCHIATRY_AILMENTS: readonly AilmentCatalogItem[] = [
   { category: 'Other', label: 'Other mental health' },
 ];
 
+export const GYM_AILMENTS: readonly AilmentCatalogItem[] = [
+  ...PHYSIO_AILMENTS,
+  { category: 'Medical flags', label: 'Asthma' },
+  { category: 'Medical flags', label: 'Hypertension' },
+  { category: 'Medical flags', label: 'Diabetes' },
+  { category: 'Medical flags', label: 'Heart condition' },
+  { category: 'Medical flags', label: 'Epilepsy' },
+  { category: 'Medical flags', label: 'Pregnancy / postnatal' },
+  { category: 'Medical flags', label: 'Allergy / anaphylaxis' },
+  { category: 'Other', label: 'Other / see notes' },
+];
+
 export function ailmentsForModule(
   module: AilmentModule
 ): readonly AilmentCatalogItem[] {
   if (module === 'physio') return PHYSIO_AILMENTS;
+  if (module === 'gym') return GYM_AILMENTS;
   if (module === 'medical') return MEDICAL_AILMENTS;
   if (module === 'dental') return DENTAL_AILMENTS;
   return PSYCHIATRY_AILMENTS;
@@ -199,6 +213,7 @@ export function ailmentsForModule(
 
 export function ailmentDeskTitle(module: AilmentModule): string {
   if (module === 'physio') return 'Physical issues & rehab';
+  if (module === 'gym') return 'Ailments & injuries';
   if (module === 'medical') return 'Medical conditions (GP)';
   if (module === 'dental') return 'Dental ailments';
   return 'Psychiatry & mental health';
@@ -207,6 +222,9 @@ export function ailmentDeskTitle(module: AilmentModule): string {
 export function ailmentDeskHint(module: AilmentModule): string {
   if (module === 'physio') {
     return 'MSK, post-op and load issues. Tick what to share on the member PWA and portal.';
+  }
+  if (module === 'gym') {
+    return 'From the member PWA plus desk notes. Coaches see this on the floor — tick what the member may see.';
   }
   if (module === 'medical') {
     return 'GP and chronic conditions. Tick the notes the patient may see on their profile.';

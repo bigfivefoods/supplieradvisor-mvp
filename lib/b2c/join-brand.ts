@@ -41,6 +41,11 @@ import {
   readFitgraphFromMetadata,
   writeFitgraphToMetadata,
 } from '@/lib/fitness/fitgraph';
+import { appendJoinEvent } from '@/lib/fitness/member-profile';
+import {
+  newDeskNotice,
+  pushDeskNotice,
+} from '@/lib/services/advisor-member-calendar';
 import {
   hireCustomerPortalPath,
   issueCustomerPortal,
@@ -384,6 +389,7 @@ async function joinGym(opts: {
       personMatch(c, opts.email, opts.phone, opts.userId)
   );
   const now = new Date().toISOString();
+  const created = !client;
   if (!client) {
     client = {
       id: newFitId('cli'),
@@ -406,11 +412,32 @@ async function joinGym(opts: {
   if (opts.email && !client.email) client.email = opts.email;
   if (opts.phone && !client.phone) client.phone = opts.phone;
   if (!client.name) client.name = opts.displayName;
+  if (!client.start_date) client.start_date = now.slice(0, 10);
   client = await stampSnapshotOnPerson(client, opts.profile);
   client.invite_status = 'accepted';
   client.invite_accepted_at = now;
+  client.join_events = appendJoinEvent(client, {
+    at: now,
+    kind: created ? 'joined_pwa' : 'wallet_linked',
+    title: created ? 'Joined from SA Member' : 'Linked SA Member wallet',
+    source: 'pwa',
+  });
   client.updated_at = now;
   if (!client.created_at) client.created_at = now;
+  store.desk_notices = pushDeskNotice(
+    store.desk_notices,
+    newDeskNotice({
+      kind: 'member_joined',
+      person_id: client.id,
+      person_name: client.name,
+      email: client.email,
+      phone: client.phone,
+      source: 'pwa',
+      note: created
+        ? 'New member from SA Member'
+        : 'Linked their SA Member wallet',
+    })
+  );
   const ci = store.clients.findIndex((c) => c.id === client!.id);
   if (ci >= 0) store.clients[ci] = client;
   const meta = writeFitgraphToMetadata(opts.company.meta, store);
