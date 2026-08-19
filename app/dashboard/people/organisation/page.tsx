@@ -34,29 +34,28 @@ type Tab = 'units' | 'centres' | 'stations' | 'assets';
 
 function asRows(raw: unknown): Row[] {
   if (!Array.isArray(raw)) return [];
-  return raw
-    .map((r) => {
-      if (!r || typeof r !== 'object') return null;
-      const o = r as Record<string, unknown>;
-      const id = Number(o.id);
-      if (!Number.isFinite(id) || id <= 0) return null;
-      return {
-        id,
-        code: o.code != null ? String(o.code) : null,
-        name: o.name != null ? String(o.name) : null,
-        description: o.description != null ? String(o.description) : null,
-        cost_centre_code:
-          o.cost_centre_code != null ? String(o.cost_centre_code) : null,
-        business_unit_id:
-          o.business_unit_id != null ? Number(o.business_unit_id) : null,
-        work_center_id:
-          o.work_center_id != null ? Number(o.work_center_id) : null,
-        serial_number:
-          o.serial_number != null ? String(o.serial_number) : null,
-        asset_type: o.asset_type != null ? String(o.asset_type) : null,
-      } satisfies Row;
-    })
-    .filter((x): x is Row => !!x);
+  const out: Row[] = [];
+  for (const r of raw) {
+    if (!r || typeof r !== 'object') continue;
+    const o = r as Record<string, unknown>;
+    const id = Number(o.id);
+    if (!Number.isFinite(id) || id <= 0) continue;
+    out.push({
+      id,
+      code: o.code != null ? String(o.code) : null,
+      name: o.name != null ? String(o.name) : null,
+      description: o.description != null ? String(o.description) : null,
+      cost_centre_code:
+        o.cost_centre_code != null ? String(o.cost_centre_code) : null,
+      business_unit_id:
+        o.business_unit_id != null ? Number(o.business_unit_id) : null,
+      work_center_id:
+        o.work_center_id != null ? Number(o.work_center_id) : null,
+      serial_number: o.serial_number != null ? String(o.serial_number) : null,
+      asset_type: o.asset_type != null ? String(o.asset_type) : null,
+    });
+  }
+  return out;
 }
 
 export default function PeopleOrganisationPage() {
