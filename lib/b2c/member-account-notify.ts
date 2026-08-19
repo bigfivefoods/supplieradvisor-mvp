@@ -1,11 +1,18 @@
 /**
- * Notify the Advisor desk when a member pays or uploads proof.
+ * Notify the Advisor desk when a member pays or uploads proof,
+ * and notify the member when an Advisor raises an invoice.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { pushToCompany } from '@/lib/push/web-push';
 import { resolveCompanyEmails } from '@/lib/billing/company-emails';
-import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
-import { formatZar } from '@/lib/b2c/member-account-types';
+import { getAppUrl, getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
+import {
+  formatZar,
+  type AdvisorAccountModule,
+  type MemberAccountCharge,
+} from '@/lib/b2c/member-account-types';
+import { notifyLinkedMember } from '@/lib/b2c/member-push';
+import { sendAdvisorInvoiceEmail } from '@/lib/services/advisor-branded-email';
 
 export async function notifyAdvisorOfMemberPayment(opts: {
   companyId: number;
@@ -80,5 +87,59 @@ export async function notifyAdvisorOfMemberPayment(opts: {
     });
   } catch (err) {
     console.warn('[member-account notify]', err);
+  }
+}
+
+export async function notifyMemberOfAdvisorInvoice(opts: {
+  companyId: number;
+  companyName: string;
+  brand?: string | null;
+  logoUrl?: string | null;
+  module: AdvisorAccountModule;
+  charge: MemberAccountCharge;
+  portalPath?: string | null;
+}): Promise<{ emailed: boolean; pushed: number }> {
+  const brand = opts.brand || opts.companyName || 'Your Advisor';
+  const amount = formatZar(opts.charge.amount_zar);
+  const inv = opts.charge.invoice_number || '';
+  const walletUrl = `${getAppUrl()}/me?tab=account`;
+
+  let pushed = 0;
+  try {
+    const r = await notifyLinkedMember({
+      platformUserId: opts.charge.member_user_id,
+      title: inv ? `Invoice ${inv} from ${brand}` : `Invoice from ${brand}`,
+      body: `${opts.charge.description} · ${amount}. Open SA Member to view and pay.`,
+      url: '/me?tab=account',
+      tag: `invoice-${opts.charge.id}`,
+      topic: 'bookings',
+    });
+    pushed = r.sent;
+  } catch {
+    /* soft */
+  }
+
+  const to = String(opts.charge.member_email || '').trim();
+  if (!to.includes('@')) return { emailed: false, pushed };
+
+  try {
+    const sent = await sendAdvisorInvoiceEmail(to, {
+      personName: opts.charge.member_name,
+      brand,
+      description: opts.charge.description,
+      amountLabel: amount,
+      invoiceNumber: inv || null,
+      dueDate: opts.charge.due_date || null,
+      logoUrl: opts.logoUrl || null,
+      ctaUrl: walletUrl,
+      moduleKey: opts.module,
+    });
+    if (!sent.ok) {
+      console.warn('[member-account] invoice email', sent.error);
+    }
+    return { emailed: sent.ok, pushed };
+  } catch (err) {
+    console.warn('[member-account] invoice email', err);
+    return { emailed: false, pushed };
   }
 }

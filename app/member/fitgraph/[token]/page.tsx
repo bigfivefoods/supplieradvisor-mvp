@@ -42,6 +42,11 @@ import { B2cAutoLinkBanner } from '@/components/b2c/B2cAutoLinkBanner';
 import { MemberAnnouncementsFeed } from '@/components/services/MemberAnnouncementsFeed';
 import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
 import { MemberAdvisorShell } from '@/components/advisors/MemberAdvisorShell';
+import {
+  MemberPortalInvoices,
+  mergePortalInvoices,
+  type MemberPortalInvoice,
+} from '@/components/advisors/MemberPortalInvoices';
 import { gymBrandColor } from '@/lib/fitness/fitgraph';
 import type { MemberAnnouncementPublic } from '@/lib/services/member-announcements';
 
@@ -241,6 +246,7 @@ type Portal = {
       created_at: string;
     }>;
   }>;
+  invoices?: MemberPortalInvoice[];
 };
 
 export default function MemberFitgraphPortalPage() {
@@ -372,7 +378,7 @@ export default function MemberFitgraphPortalPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Could not confirm payment');
         if (cancelled) return;
-        if (data.portal) setPortal(data.portal);
+        if (data.portal) setPortal((prev) => mergePortalInvoices(data.portal, prev));
         setMsg(data.message || 'Payment recorded — membership is active');
         setTab('join');
         try {
@@ -448,7 +454,7 @@ export default function MemberFitgraphPortalPage() {
       }
       throw new Error(data.error || 'Request failed');
     }
-    if (data.portal) setPortal(data.portal);
+    if (data.portal) setPortal((prev) => mergePortalInvoices(data.portal, prev));
     return data;
   };
 
@@ -562,7 +568,7 @@ export default function MemberFitgraphPortalPage() {
         gym_token: gymToken || undefined,
       });
       setMsg(data.message || 'Checked in');
-      if (data.portal) setPortal(data.portal);
+      if (data.portal) setPortal((prev) => mergePortalInvoices(data.portal, prev));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Check-in failed');
     } finally {
@@ -714,6 +720,7 @@ export default function MemberFitgraphPortalPage() {
           brand={portal.brand}
           tone="yellow"
         />
+        <MemberPortalInvoices invoices={portal.invoices} />
         {portal.require_debit_bank && !portal.bank?.complete ? (
           <button
             type="button"
@@ -1611,7 +1618,7 @@ export default function MemberFitgraphPortalPage() {
                     action: 'family_upsert',
                     member,
                   });
-                  if (data.portal) setPortal(data.portal);
+                  if (data.portal) setPortal((prev) => mergePortalInvoices(data.portal, prev));
                   setMsg(data.message || 'Family member saved');
                 } finally {
                   setBusyId(null);
@@ -1624,7 +1631,7 @@ export default function MemberFitgraphPortalPage() {
                     action: 'family_remove',
                     member_id: id,
                   });
-                  if (data.portal) setPortal(data.portal);
+                  if (data.portal) setPortal((prev) => mergePortalInvoices(data.portal, prev));
                   setMsg(data.message || 'Removed');
                 } finally {
                   setBusyId(null);

@@ -162,7 +162,8 @@ export function B2cMemberAccounts({
   if (!rows.length) {
     return (
       <p className="rounded-2xl bg-slate-50 px-3 py-2 text-[12px] text-slate-600">
-        Link a gym, clinic or hire desk to see your account and pay from here.
+        When a clinic or gym sends you an invoice, it appears here — and in
+      your email. Open it to pay by card or send proof of payment.
       </p>
     );
   }

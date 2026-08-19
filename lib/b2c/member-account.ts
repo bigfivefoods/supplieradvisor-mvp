@@ -60,28 +60,39 @@ export function writeMemberAccountStore(
   };
 }
 
-export function chargesForMember(
-  store: MemberAccountStore,
+export function chargeMatchesMember(
+  c: MemberAccountCharge,
   opts: {
-    kind: AdvisorAccountKind;
+    kind?: AdvisorAccountKind | null;
     ref_id?: string | null;
     email?: string | null;
     userId?: string | null;
   }
-): MemberAccountCharge[] {
+): boolean {
+  if (opts.kind && c.kind !== opts.kind) return false;
   const ref = String(opts.ref_id || '').trim();
   const email = String(opts.email || '')
     .trim()
     .toLowerCase();
   const uid = String(opts.userId || '').trim();
-  return store.charges.filter((c) => {
-    if (c.kind !== opts.kind) return false;
-    if (ref && String(c.ref_id) === ref) return true;
-    if (uid && c.member_user_id && c.member_user_id === uid) return true;
-    if (email && c.member_email && String(c.member_email).toLowerCase() === email)
-      return true;
-    return false;
-  });
+  if (!ref && !email && !uid) return false;
+  if (ref && String(c.ref_id) === ref) return true;
+  if (uid && c.member_user_id && c.member_user_id === uid) return true;
+  if (email && c.member_email && String(c.member_email).toLowerCase() === email)
+    return true;
+  return false;
+}
+
+export function chargesForMember(
+  store: MemberAccountStore,
+  opts: {
+    kind?: AdvisorAccountKind | null;
+    ref_id?: string | null;
+    email?: string | null;
+    userId?: string | null;
+  }
+): MemberAccountCharge[] {
+  return store.charges.filter((c) => chargeMatchesMember(c, opts));
 }
 
 export function paymentsForCharges(

@@ -10,7 +10,11 @@ import {
 } from '@/lib/auth/api-auth';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { loadB2cProfile } from '@/lib/b2c/profile-store';
-import { isWalletVisibleMembership } from '@/lib/b2c/company-modules';
+import {
+  hasPersonalWalletDesk,
+  isHiddenPersonalWalletCompany,
+  isWalletVisibleMembership,
+} from '@/lib/b2c/company-modules';
 import {
   loadBusinessWorkspaceSummary,
   operatorCompanyIds,
@@ -90,22 +94,32 @@ export async function GET(request: NextRequest) {
       operated = new Set();
     }
     const filterCompany = Number(request.nextUrl.searchParams.get('companyId'));
-    const memberships = (profile.memberships || []).filter((m) => {
+    const visible = (profile.memberships || []).filter((m) => {
       if (!isWalletVisibleMembership(m, operated)) return false;
-      if (!isAdvisorMembership(m)) return false;
       if (Number.isFinite(filterCompany) && filterCompany > 0) {
         return m.company_id === filterCompany;
       }
       return true;
-    }) as Array<B2cMembership & { kind: AdvisorAccountKind }>;
+    });
 
     const accounts = [];
     const seen = new Set<string>();
-    for (const m of memberships) {
+    const usedCharges = new Set<string>();
+    const companies = new Map<number, Awaited<ReturnType<typeof loadWalletCompany>>>();
+
+    async function companyOf(id: number) {
+      if (companies.has(id)) return companies.get(id)!;
+      const row = await loadWalletCompany(id);
+      companies.set(id, row);
+      return row;
+    }
+
+    for (const m of visible) {
+      if (!isAdvisorMembership(m)) continue;
       const key = `${m.company_id}:${m.kind}:${m.ref_id}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      const company = await loadWalletCompany(m.company_id);
+      const company = await companyOf(m.company_id);
       if (!company) continue;
       const store = readMemberAccountStore(company.meta);
       const charges = chargesForMember(store, {
@@ -114,6 +128,7 @@ export async function GET(request: NextRequest) {
         email: profile.email,
         userId: profile.user_id,
       });
+      for (const c of charges) usedCharges.add(c.id);
       const payments = paymentsForCharges(
         store,
         charges.map((c) => c.id)
@@ -134,6 +149,102 @@ export async function GET(request: NextRequest) {
         charges,
         payments,
       });
+    }
+
+    const extraCompanyIds = new Set<number>();
+    for (const m of visible) extraCompanyIds.add(m.company_id);
+    const email = String(profile.email || '')
+      .trim()
+      .toLowerCase();
+    if (email.includes('@')) {
+      try {
+        const supabase = getSupabaseServer();
+        const { data: hits } = await supabase
+          .from('customers')
+          .select('profile_id, trading_name')
+          .ilike('email', email)
+          .limit(40);
+        for (const row of hits || []) {
+          const cid = Number(row.profile_id);
+          if (!Number.isFinite(cid) || cid <= 0) continue;
+          if (Number.isFinite(filterCompany) && filterCompany > 0 && cid !== filterCompany) {
+            continue;
+          }
+          if (
+            isHiddenPersonalWalletCompany({
+              company_id: cid,
+              name: row.trading_name,
+            })
+          ) {
+            continue;
+          }
+          extraCompanyIds.add(cid);
+        }
+      } catch {
+        /* CRM lookup is best-effort */
+      }
+    }
+
+    for (const companyId of extraCompanyIds) {
+      const company = await companyOf(companyId);
+      if (!company) continue;
+      if (
+        isHiddenPersonalWalletCompany({
+          company_id: company.id,
+          name: company.name,
+        })
+      ) {
+        continue;
+      }
+      if (operated.has(company.id) && !hasPersonalWalletDesk(company.meta)) {
+        continue;
+      }
+      const store = readMemberAccountStore(company.meta);
+      const leftover = chargesForMember(store, {
+        email: profile.email,
+        userId: profile.user_id,
+      }).filter((c) => c.status !== 'void' && !usedCharges.has(c.id));
+      if (!leftover.length) continue;
+      const groups = new Map<string, typeof leftover>();
+      for (const c of leftover) {
+        const key = `${c.kind}:${c.ref_id}`;
+        const list = groups.get(key) || [];
+        list.push(c);
+        groups.set(key, list);
+      }
+      const mems = visible.filter((m) => m.company_id === companyId);
+      for (const group of groups.values()) {
+        const lead = group[0];
+        const key = `${companyId}:${lead.kind}:${lead.ref_id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        for (const c of group) usedCharges.add(c.id);
+        const mem =
+          mems.find(
+            (m) => m.kind === lead.kind && m.ref_id === lead.ref_id
+          ) ||
+          mems.find((m) => m.kind === lead.kind) ||
+          mems[0];
+        accounts.push({
+          company_id: companyId,
+          brand: mem?.brand || mem?.company_name || company.name,
+          kind: lead.kind,
+          ref_id: lead.ref_id,
+          portal_path: mem?.portal_path || '/me?tab=account',
+          summary: summarizeCharges(
+            companyId,
+            String(mem?.brand || mem?.company_name || company.name),
+            lead.kind,
+            lead.ref_id,
+            group
+          ),
+          charges: group,
+          payments: paymentsForCharges(
+            store,
+            group.map((c) => c.id)
+          ),
+        });
+      }
     }
 
     return NextResponse.json({ success: true, accounts });
@@ -211,15 +322,8 @@ export async function POST(request: NextRequest) {
     }
 
     const memberships = (profile.memberships || []).filter(
-      (m): m is B2cMembership & { kind: AdvisorAccountKind } =>
-        m.company_id === companyId && isAdvisorMembership(m)
+      (m) => m.company_id === companyId && m.active !== false
     );
-    if (!memberships.length) {
-      return NextResponse.json(
-        { error: 'This wallet is not linked to that Advisor' },
-        { status: 403 }
-      );
-    }
 
     const company = await loadWalletCompany(companyId);
     if (!company) {
@@ -236,7 +340,14 @@ export async function POST(request: NextRequest) {
           .filter(Boolean);
 
     const allowed = new Set<string>();
+    for (const c of chargesForMember(store, {
+      email: profile.email,
+      userId: profile.user_id,
+    })) {
+      allowed.add(c.id);
+    }
     for (const m of memberships) {
+      if (!isAdvisorMembership(m)) continue;
       for (const c of chargesForMember(store, {
         kind: m.kind,
         ref_id: m.ref_id,
@@ -245,6 +356,12 @@ export async function POST(request: NextRequest) {
       })) {
         allowed.add(c.id);
       }
+    }
+    if (!memberships.length && !allowed.size) {
+      return NextResponse.json(
+        { error: 'This wallet is not linked to that Advisor' },
+        { status: 403 }
+      );
     }
     const selected = openChargesByIds(
       store,
@@ -281,7 +398,7 @@ export async function POST(request: NextRequest) {
         amountCents: Math.round(amountZar * 100),
         currency: 'ZAR',
         reference,
-        callbackUrl: `${getAppUrl()}/me?tab=memberships&pay=1&ref=${encodeURIComponent(reference)}&companyId=${companyId}`,
+        callbackUrl: `${getAppUrl()}/me?tab=account&pay=1&ref=${encodeURIComponent(reference)}&companyId=${companyId}`,
         subaccount: split.subaccount,
         bearer: split.bearer,
         metadata: {

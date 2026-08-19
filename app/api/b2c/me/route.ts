@@ -133,7 +133,10 @@ export async function GET(request: NextRequest) {
 
     let activity: Awaited<ReturnType<typeof buildB2cActivity>> = [];
     try {
-      activity = await buildB2cActivity(memberships);
+      activity = await buildB2cActivity(memberships, {
+        email: profile.email,
+        userId: profile.user_id,
+      });
     } catch {
       activity = [];
     }

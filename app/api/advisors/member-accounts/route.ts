@@ -23,7 +23,10 @@ import {
   suggestionToCharge,
   writeMemberAccountStore,
 } from '@/lib/b2c/member-account';
-import { attachInvoiceToCharge } from '@/lib/b2c/member-account-ar';
+import {
+  chargeRaisedMessage,
+  publishAdvisorCharge,
+} from '@/lib/b2c/member-account-link';
 import { confirmMemberAccountPayment } from '@/lib/b2c/member-account-pay';
 import {
   MODULE_TO_KIND,
@@ -51,6 +54,7 @@ type MemberOpt = {
   ref_id: string;
   name: string;
   email?: string | null;
+  platform_user_id?: string | null;
 };
 
 function listMembers(
@@ -62,6 +66,7 @@ function listMembers(
       ref_id: c.id,
       name: c.name,
       email: c.email || null,
+      platform_user_id: c.platform_user_id || null,
     }));
   }
   if (module === 'retailgraph') {
@@ -97,6 +102,7 @@ function listMembers(
     ref_id: p.id,
     name: p.name,
     email: p.email || null,
+    platform_user_id: p.platform_user_id || null,
   }));
 }
 
@@ -236,16 +242,22 @@ export async function POST(request: NextRequest) {
           due_date: body.due_date ? String(body.due_date) : null,
         }),
         created_by: gate.userId,
+        member_user_id: member?.platform_user_id || null,
       };
-      charge = await attachInvoiceToCharge(companyId, charge);
+      const published = await publishAdvisorCharge({
+        company,
+        module: moduleRaw,
+        charge,
+      });
+      charge = published.charge;
+      company.meta = published.meta;
       store = addCharge(store, charge);
       await persist();
       return NextResponse.json({
         success: true,
         charge,
-        message: charge.invoice_number
-          ? `Charged ${charge.member_name} · ${charge.invoice_number}`
-          : `Charged ${charge.member_name}`,
+        emailed: published.emailed,
+        message: chargeRaisedMessage(charge, published.emailed),
       });
     }
 
@@ -265,13 +277,20 @@ export async function POST(request: NextRequest) {
       let charge = {
         ...suggestionToCharge(match, gate.userId),
       };
-      charge = await attachInvoiceToCharge(companyId, charge);
+      const published = await publishAdvisorCharge({
+        company,
+        module: moduleRaw,
+        charge,
+      });
+      charge = published.charge;
+      company.meta = published.meta;
       store = addCharge(store, charge);
       await persist();
       return NextResponse.json({
         success: true,
         charge,
-        message: `Added ${charge.description} to ${charge.member_name}`,
+        emailed: published.emailed,
+        message: chargeRaisedMessage(charge, published.emailed),
       });
     }
 
@@ -281,18 +300,27 @@ export async function POST(request: NextRequest) {
         (s) => !billed.has(s.source_id)
       );
       let n = 0;
+      let emailed = 0;
       for (const s of suggestions) {
-        let charge = suggestionToCharge(s, gate.userId);
-        charge = await attachInvoiceToCharge(companyId, charge);
-        store = addCharge(store, charge);
+        const published = await publishAdvisorCharge({
+          company,
+          module: moduleRaw,
+          charge: suggestionToCharge(s, gate.userId),
+        });
+        company.meta = published.meta;
+        store = addCharge(store, published.charge);
         n += 1;
+        if (published.emailed) emailed += 1;
       }
       await persist();
       return NextResponse.json({
         success: true,
         billed: n,
+        emailed,
         message: n
-          ? `Added ${n} charge${n === 1 ? '' : 's'} to member accounts`
+          ? `Added ${n} charge${n === 1 ? '' : 's'} to member accounts${
+              emailed ? ` · emailed ${emailed}` : ''
+            }`
           : 'Nothing new to bill',
       });
     }

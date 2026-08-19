@@ -23,6 +23,7 @@ import {
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
 import { notifyPatientBookingPush } from '@/lib/b2c/member-push';
+import { portalInvoicesForPerson } from '@/lib/b2c/member-account-portal';
 import {
   applyCompanyLogoToSettings,
   pickCompanyLogoUrl,
@@ -184,6 +185,12 @@ function decorateMemberPortal(
     bank: gymCollectsDebitBank(store)
       ? memberDebitBankPublic(client)
       : null,
+    invoices: portalInvoicesForPerson(meta, {
+      kind: 'gym',
+      refId: client.id,
+      email: client.email,
+      userId: client.platform_user_id,
+    }),
   };
 }
 

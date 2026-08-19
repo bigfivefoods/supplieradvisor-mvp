@@ -7,6 +7,7 @@ import {
   appointmentEndMs,
   escapeEmailHtml,
   needsPostSessionEmail,
+  renderAdvisorInvoiceEmail,
   renderAdvisorSessionEmail,
 } from './advisor-branded-email';
 
@@ -99,5 +100,22 @@ assert.equal(
   needsPostSessionEmail({ status: 'cancelled' }, appt, after),
   false
 );
+
+const invoice = renderAdvisorInvoiceEmail({
+  personName: 'Ada',
+  brand: 'Balance',
+  description: 'Physio consult · 2026-08-19',
+  amountLabel: 'R850',
+  invoiceNumber: 'INV-1001',
+  dueDate: '2026-08-19',
+  ctaUrl: '/me?tab=account',
+  moduleKey: 'physiograph',
+});
+assert.match(invoice.subject, /INV-1001/);
+assert.match(invoice.subject, /Balance/);
+assert.match(invoice.html, /PhysioAdvisor®/);
+assert.match(invoice.html, /Invoice ready, Ada/);
+assert.match(invoice.html, /View invoice in SA Member/);
+assert.match(invoice.html, /R850/);
 
 console.log('advisor-branded-email.test.ts ok');

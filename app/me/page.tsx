@@ -911,6 +911,30 @@ function MeAppInner() {
           </section>
 
           <section>
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-black text-slate-900">Invoices</h2>
+              <button
+                type="button"
+                onClick={() => goTab('account')}
+                className="text-[11px] font-bold text-[#0077b6]"
+              >
+                Account
+              </button>
+            </div>
+            <B2cMemberAccounts
+              focusCompanyId={focusAccount}
+              onLoaded={(list) => {
+                const map: Record<number, number> = {};
+                for (const row of list) {
+                  map[row.company_id] =
+                    (map[row.company_id] || 0) + (row.summary.open_zar || 0);
+                }
+                setAccountDueByCompany(map);
+              }}
+            />
+          </section>
+
+          <section>
             <h2 className="mb-2 text-sm font-black text-slate-900">
               Do this now
             </h2>
@@ -1401,6 +1425,29 @@ function MeAppInner() {
             brands) open from the building icon — they are not listed as
             places here.
           </div>
+
+          <section className="rounded-3xl border border-amber-200 bg-white p-4 shadow-sm">
+            <h2 className="text-sm font-black text-slate-900">
+              Invoices from your Advisors
+            </h2>
+            <p className="mt-1 text-[12px] text-slate-500">
+              A clinic or gym invoice lands here and in your email. Pay by
+              card or send proof of payment.
+            </p>
+            <div className="mt-3">
+              <B2cMemberAccounts
+                focusCompanyId={focusAccount}
+                onLoaded={(list) => {
+                  const map: Record<number, number> = {};
+                  for (const row of list) {
+                    map[row.company_id] =
+                      (map[row.company_id] || 0) + (row.summary.open_zar || 0);
+                  }
+                  setAccountDueByCompany(map);
+                }}
+              />
+            </div>
+          </section>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <B2cPhotoField

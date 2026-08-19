@@ -138,13 +138,25 @@ export async function GET(request: NextRequest) {
     } catch {
       /* wallet hydrate is best-effort */
     }
+    const { withPortalInvoices } = await import(
+      '@/lib/b2c/member-account-portal'
+    );
     return NextResponse.json({
       success: true,
-      portal: buildPatientPortalPayload(
-        resolved.store,
-        resolved.patient,
-        request.nextUrl.searchParams.get('from') || undefined,
-        request.nextUrl.searchParams.get('to') || undefined
+      portal: withPortalInvoices(
+        buildPatientPortalPayload(
+          resolved.store,
+          resolved.patient,
+          request.nextUrl.searchParams.get('from') || undefined,
+          request.nextUrl.searchParams.get('to') || undefined
+        ),
+        resolved.meta,
+        {
+          kind: 'psychiatry',
+          refId: resolved.patient.id,
+          email: resolved.patient.email,
+          userId: resolved.patient.platform_user_id,
+        }
       ),
       companyId: resolved.companyId,
     });

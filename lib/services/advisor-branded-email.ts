@@ -50,6 +50,20 @@ export const ADVISOR_EMAIL_SKINS: Record<string, AdvisorEmailSkin> = {
     accentDark: '#5b21b6',
     accentSoft: '#f5f3ff',
   },
+  hiregraph: {
+    moduleKey: 'hiregraph',
+    product: 'HireAdvisor®',
+    accent: '#ea580c',
+    accentDark: '#9a3412',
+    accentSoft: '#fff7ed',
+  },
+  retailgraph: {
+    moduleKey: 'retailgraph',
+    product: 'RetailAdvisor®',
+    accent: '#d97706',
+    accentDark: '#92400e',
+    accentSoft: '#fffbeb',
+  },
 };
 
 export function advisorEmailSkin(
@@ -62,6 +76,8 @@ export function advisorEmailSkin(
   if (raw.includes('dental')) return ADVISOR_EMAIL_SKINS.dentalgraph;
   if (raw.includes('psych')) return ADVISOR_EMAIL_SKINS.psychiatrygraph;
   if (raw.includes('gym') || raw.includes('fit')) return ADVISOR_EMAIL_SKINS.fitgraph;
+  if (raw.includes('hire')) return ADVISOR_EMAIL_SKINS.hiregraph;
+  if (raw.includes('retail')) return ADVISOR_EMAIL_SKINS.retailgraph;
   return ADVISOR_EMAIL_SKINS.medicalgraph;
 }
 
@@ -244,6 +260,130 @@ function tryResend() {
     return getResend();
   } catch {
     return null;
+  }
+}
+
+export type AdvisorInvoiceEmailInput = {
+  personName: string;
+  brand: string;
+  description: string;
+  amountLabel: string;
+  invoiceNumber?: string | null;
+  dueDate?: string | null;
+  logoUrl?: string | null;
+  ctaUrl: string;
+  moduleKey?: string | null;
+};
+
+export function renderAdvisorInvoiceEmail(input: AdvisorInvoiceEmailInput): {
+  subject: string;
+  html: string;
+} {
+  const skin = advisorEmailSkin(input.moduleKey);
+  const brand = input.brand || skin.product;
+  const name = input.personName || 'there';
+  const logo = absolutePublicUrl(input.logoUrl);
+  const cta = absolutePublicUrl(input.ctaUrl) || `${getAppUrl()}/me?tab=account`;
+  const inv = input.invoiceNumber ? String(input.invoiceNumber) : '';
+  const subject = inv
+    ? `Invoice ${inv} from ${brand} · ${input.amountLabel}`
+    : `Invoice from ${brand} · ${input.amountLabel}`;
+  const logoBlock = logo
+    ? `<img src="${escapeEmailHtml(logo)}" alt="${escapeEmailHtml(brand)}" width="160" style="max-width:160px;max-height:56px;height:auto;display:block;margin:0 auto 12px;border:0;" />`
+    : `<div style="width:52px;height:52px;border-radius:16px;background:rgba(255,255,255,.16);color:#fff;font-weight:800;font-size:18px;line-height:52px;margin:0 auto 12px;">${escapeEmailHtml(
+        (brand.replace(/[^A-Za-z0-9]/g, ' ').trim()[0] || 'A').toUpperCase()
+      )}</div>`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<body style="margin:0;padding:0;background:#f1f5f4;font-family:Georgia,'Times New Roman',serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f4;padding:28px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;background:#ffffff;border-radius:22px;overflow:hidden;border:1px solid #d1fae5;">
+          <tr>
+            <td style="background:${skin.accent};padding:28px 28px 22px;text-align:center;">
+              ${logoBlock}
+              <div style="font-family:system-ui,-apple-system,sans-serif;font-size:11px;letter-spacing:.18em;font-weight:800;text-transform:uppercase;color:#ecfdf5;">
+                ${escapeEmailHtml(skin.product)}
+              </div>
+              <div style="font-family:Georgia,'Times New Roman',serif;color:#ffffff;font-size:24px;font-weight:700;margin-top:8px;line-height:1.25;">
+                ${escapeEmailHtml(brand)}
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px 28px 8px;font-family:system-ui,-apple-system,sans-serif;color:#0f172a;">
+              <h1 style="margin:0 0 10px;font-size:22px;line-height:1.3;">Invoice ready, ${escapeEmailHtml(name)}</h1>
+              <p style="margin:0 0 18px;font-size:15px;line-height:1.6;color:#334155;">
+                <strong>${escapeEmailHtml(brand)}</strong> sent you an invoice. It is on your SA Member profile so you can view it, pay by card, or send proof of payment.
+              </p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${skin.accentSoft};border:1px solid #a7f3d0;border-radius:16px;">
+                <tr>
+                  <td style="padding:16px 18px;">
+                    <p style="margin:0;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:${skin.accentDark};">${inv ? escapeEmailHtml(inv) : 'Invoice'}</p>
+                    <p style="margin:8px 0 0;font-size:17px;font-weight:800;color:#064e3b;">${escapeEmailHtml(input.description)}</p>
+                    <p style="margin:8px 0 0;font-size:22px;font-weight:800;color:#0f172a;">${escapeEmailHtml(input.amountLabel)}</p>
+                    ${
+                      input.dueDate
+                        ? `<p style="margin:6px 0 0;font-size:13px;color:#64748b;">Due ${escapeEmailHtml(input.dueDate)}</p>`
+                        : ''
+                    }
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:22px 0 8px;text-align:center;">
+                <a href="${escapeEmailHtml(cta)}" style="display:inline-block;background:${skin.accent};color:#ffffff;text-decoration:none;font-family:system-ui,-apple-system,sans-serif;font-weight:800;font-size:14px;padding:13px 26px;border-radius:999px;">
+                  View invoice in SA Member
+                </a>
+              </p>
+              <p style="margin:18px 0 0;font-size:12px;line-height:1.5;color:#94a3b8;text-align:center;">
+                ${escapeEmailHtml(skin.product)} · powered by SupplierAdvisor®
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 28px 24px;font-family:system-ui,-apple-system,sans-serif;font-size:11px;color:#94a3b8;text-align:center;">
+              Sent on behalf of ${escapeEmailHtml(brand)}. Replies go to SupplierAdvisor.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  return { subject, html };
+}
+
+export async function sendAdvisorInvoiceEmail(
+  to: string,
+  input: AdvisorInvoiceEmailInput
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const resend = tryResend();
+    if (!resend) {
+      return { ok: false, error: 'Email not configured (RESEND_API_KEY)' };
+    }
+    if (!to || !to.includes('@')) {
+      return { ok: false, error: 'No email' };
+    }
+    const { subject, html } = renderAdvisorInvoiceEmail(input);
+    const { error } = await resend.emails.send({
+      from: getResendFrom(),
+      replyTo: getResendReplyTo(),
+      to,
+      subject,
+      html,
+    });
+    if (error) return { ok: false, error: error.message || 'Send failed' };
+    return { ok: true };
+  } catch (e: unknown) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Send failed',
+    };
   }
 }
 

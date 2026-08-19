@@ -33,9 +33,11 @@ export type B2cActivityItem = {
 };
 
 export async function buildB2cActivity(
-  memberships: B2cMembership[]
+  memberships: B2cMembership[],
+  opts?: { email?: string | null; userId?: string | null }
 ): Promise<B2cActivityItem[]> {
   const items: B2cActivityItem[] = [];
+  const dueSeen = new Set<string>();
   const today = new Date().toISOString().slice(0, 10);
   const companyCache = new Map<
     number,
@@ -63,26 +65,31 @@ export async function buildB2cActivity(
     try {
       const raw = await meta(mem.company_id);
 
-      if (isAdvisorAccountKind(mem.kind)) {
+      if (isAdvisorAccountKind(mem.kind) || mem.kind === 'account') {
         const acct = readMemberAccountStore(raw);
         const mine = chargesForMember(acct, {
-          kind: mem.kind,
+          kind: isAdvisorAccountKind(mem.kind) ? mem.kind : null,
           ref_id: mem.ref_id,
-          email: mem.email,
+          email: opts?.email || mem.email,
+          userId: opts?.userId || null,
         });
         const openZar = mine
           .filter((c) => c.status === 'open')
           .reduce((n, c) => n + (Number(c.amount_zar) || 0), 0);
         if (openZar > 0) {
-          items.push({
-            id: `acct-${mem.company_id}-${mem.kind}-${mem.ref_id}`,
-            kind: mem.kind,
-            tone: 'alert',
-            title: `${formatZar(openZar)} due`,
-            subtitle: `${brand} · ${kindAccountLabel(mem.kind)}`,
-            href: `/me?tab=memberships&account=${mem.company_id}`,
-            badge: 'Pay',
-          });
+          const dueKey = `${mem.company_id}:${mine[0]?.kind || mem.kind}`;
+          if (!dueSeen.has(dueKey)) {
+            dueSeen.add(dueKey);
+            items.push({
+              id: `acct-${mem.company_id}-${mem.kind}-${mem.ref_id}`,
+              kind: mem.kind,
+              tone: 'alert',
+              title: `${formatZar(openZar)} due`,
+              subtitle: `${brand} · ${kindAccountLabel(mine[0]?.kind || mem.kind)}`,
+              href: `/me?tab=account&account=${mem.company_id}`,
+              badge: 'Pay',
+            });
+          }
         }
       }
 

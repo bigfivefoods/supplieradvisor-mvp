@@ -25,6 +25,11 @@ import { B2cAutoLinkBanner } from '@/components/b2c/B2cAutoLinkBanner';
 import { MemberAnnouncementsFeed } from '@/components/services/MemberAnnouncementsFeed';
 import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
 import { MemberAdvisorShell } from '@/components/advisors/MemberAdvisorShell';
+import {
+  MemberPortalInvoices,
+  mergePortalInvoices,
+  type MemberPortalInvoice,
+} from '@/components/advisors/MemberPortalInvoices';
 import { MemberMedicalShare } from '@/components/services/MemberMedicalShare';
 import type {
   SharedAdviceNote,
@@ -119,6 +124,7 @@ type Portal = {
     remaining: number;
     expires_at?: string | null;
   }>;
+  invoices?: MemberPortalInvoice[];
 };
 
 export default function MemberDentalgraphPortalPage() {
@@ -194,7 +200,7 @@ export default function MemberDentalgraphPortalPage() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Request failed');
-    if (data.portal) setPortal(data.portal);
+    if (data.portal) setPortal((prev) => mergePortalInvoices(data.portal, prev));
     return data;
   };
 
@@ -381,6 +387,7 @@ export default function MemberDentalgraphPortalPage() {
           brand={portal.brand}
           tone="sky"
         />
+        <MemberPortalInvoices invoices={portal.invoices} />
         {(msg || error) && (
           <div
             className={`rounded-xl border px-3 py-2 text-sm ${
@@ -644,7 +651,7 @@ export default function MemberDentalgraphPortalPage() {
               });
               const data = await res.json();
               if (!res.ok) throw new Error(data.error || 'Failed');
-              if (data.portal) setPortal(data.portal);
+              if (data.portal) setPortal((prev) => mergePortalInvoices(data.portal, prev));
               return data;
             }}
             onDone={() => void load()}
@@ -788,7 +795,7 @@ export default function MemberDentalgraphPortalPage() {
                     action: 'family_upsert',
                     member,
                   });
-                  if (data.portal) setPortal(data.portal);
+                  if (data.portal) setPortal((prev) => mergePortalInvoices(data.portal, prev));
                   setMsg(data.message || 'Family member saved');
                 } finally {
                   setBusyId(null);
@@ -801,7 +808,7 @@ export default function MemberDentalgraphPortalPage() {
                     action: 'family_remove',
                     member_id: id,
                   });
-                  if (data.portal) setPortal(data.portal);
+                  if (data.portal) setPortal((prev) => mergePortalInvoices(data.portal, prev));
                   setMsg(data.message || 'Removed');
                 } finally {
                   setBusyId(null);
