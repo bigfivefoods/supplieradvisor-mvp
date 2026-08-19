@@ -11,7 +11,6 @@ import type { FitMovement } from '@/lib/fitness/movements';
 import { videoEmbedSrc } from '@/lib/fitness/movements';
 import { movementDisplayDescription } from '@/lib/fitness/movement-art';
 import { MovementThumb } from '@/components/fitness/MovementThumb';
-import { MovementImageReplace } from '@/components/fitness/MovementImageReplace';
 import { MovementMediaFields } from '@/components/fitness/MovementMediaFields';
 import {
   EXERCISE_MODALITIES,
@@ -440,16 +439,6 @@ export function MovementLibraryBrowse({
                         }
                       }}
                       dark={dark}
-                    />
-                  ) : onSaveImage ? (
-                    <MovementImageReplace
-                      dark={dark}
-                      companyId={companyId}
-                      uploadFile={uploadFile}
-                      hasCustomImage={Boolean(open.image_url)}
-                      onReplace={async (url) => {
-                        await onSaveImage?.(open, url);
-                      }}
                     />
                   ) : null}
                 </>
