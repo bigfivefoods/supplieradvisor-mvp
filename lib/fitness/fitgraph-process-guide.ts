@@ -176,9 +176,9 @@ export const PROCESS_PHASES: ProcessPhase[] = [
       },
       {
         n: '4b',
-        title: 'Coach calendar · concurrent',
+        title: 'Gym calendar',
         who: 'Owner / coach',
-        desc: 'Week plan, series, class plan text; optional concurrent coaches on large floors.',
+        desc: 'Week plan, series, class plan text, and coach diaries on one gym calendar.',
       },
       {
         n: '4c',

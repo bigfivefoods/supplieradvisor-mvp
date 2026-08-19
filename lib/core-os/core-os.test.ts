@@ -156,7 +156,7 @@ const p360 = assemblePeople360({
 });
 assert.equal(p360.workforce, 'contractor');
 assert.equal(p360.on_leave, true);
-assert.equal(p360.diary_href, '/dashboard/fitgraph/coach-calendar');
+assert.equal(p360.diary_href, '/dashboard/fitgraph/calendar');
 
 // 3. Finance VAT + debit + recurring
 const vat = splitInclusiveVat(910);

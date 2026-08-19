@@ -49,16 +49,8 @@ function hubModules(
     icon: UserRound,
     code: '01',
     title: 'Coaches',
-    desc: 'Trainers, specialties, coach portal links to share classes.',
+    desc: 'Contract or permanent, commercial terms, work PWA.',
     accent: 'from-yellow-50 to-white border-yellow-100',
-  },
-  {
-    href: '/dashboard/fitgraph/coach-calendar',
-    icon: CalendarDays,
-    code: '01b',
-    title: 'Coach calendar',
-    desc: 'Per-coach plan, actual attendance, bespoke & weekly series.',
-    accent: 'from-amber-50 to-white border-amber-100',
   },
   {
     href: '/dashboard/fitgraph/clients',
@@ -529,7 +521,7 @@ function Inner() {
           },
           {
             t: 'Calendar · plan vs actual',
-            b: 'Schedule coaches, class plans and series; mark who came vs planned; B2C join links for members.',
+            b: 'One gym diary for all coaches: class plans, series, attendance, and B2C join links.',
           },
           {
             t: 'Feedback · reports',

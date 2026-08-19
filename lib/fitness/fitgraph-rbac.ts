@@ -427,7 +427,7 @@ export const FIT_SCREEN_ACCESS: Record<
     coach: true,
     member: false,
     desk: true,
-    notes: 'Coach sees own calendar only',
+    notes: 'Redirects to gym calendar',
   },
   '/dashboard/fitgraph/clients': {
     owner: true,
@@ -459,7 +459,7 @@ export const FIT_SCREEN_ACCESS: Record<
     coach: true,
     member: false,
     desk: true,
-    notes: 'Coach: own sessions; write if can_manage_classes',
+    notes: 'Single gym diary; coach: own sessions if can_manage_classes',
   },
   '/dashboard/fitgraph/bookings': {
     owner: true,

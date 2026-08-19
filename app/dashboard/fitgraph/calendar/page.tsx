@@ -1312,13 +1312,6 @@ export default function CalendarPage() {
             </Link>{' '}
             ·{' '}
             <Link
-              href="/dashboard/fitgraph/coach-calendar"
-              className="font-bold text-yellow-700 underline"
-            >
-              Coach calendar
-            </Link>{' '}
-            ·{' '}
-            <Link
               href="/dashboard/fitgraph/bookings"
               className="font-bold text-yellow-700 underline"
             >

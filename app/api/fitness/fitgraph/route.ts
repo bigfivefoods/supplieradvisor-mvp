@@ -11,6 +11,7 @@ import {
 } from '@/lib/services/advisor-booking';
 import { findRoomDiaryConflict } from '@/lib/services/clinic-public-calendar';
 import { mergePersonInviteFromRecord } from '@/lib/services/advisor-workforce';
+import { mergeContractorCommercialFromRecord } from '@/lib/clinic/contractor-commercial';
 import {
   attendanceByClass,
   buildClassJoinPath,
@@ -2397,6 +2398,7 @@ function upsert(
         rec.rate_note != null
           ? String(rec.rate_note)
           : prev?.rate_note,
+      ...mergeContractorCommercialFromRecord(prev, rec),
       contracts: Array.isArray(rec.contracts)
         ? (rec.contracts as FitCoach['contracts'])
         : prev?.contracts || [],

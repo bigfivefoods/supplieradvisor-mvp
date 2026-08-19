@@ -43,6 +43,10 @@ import {
   listedFitMovements,
 } from '@/lib/fitness/movement-catalog';
 import {
+  snapshotContractorCommercial,
+  type ContractorCommercialFields,
+} from '@/lib/clinic/contractor-commercial';
+import {
   gymRequiresDebitBank,
   memberDebitBankComplete,
 } from '@/lib/fitness/member-debit-bank';
@@ -249,8 +253,10 @@ export const COACH_RATE_BASES = [
   'hourly',
   'per_class',
   'per_session',
+  'per_appointment',
   'monthly',
   'fixed',
+  'package',
 ] as const;
 
 export type FitCoachRateBasis = (typeof COACH_RATE_BASES)[number] | string;
@@ -267,7 +273,7 @@ export type FitCoachEngagement = {
   /** Rate at time of closing this stint (ZAR) */
   rate_zar?: number | null;
   rate_basis?: FitCoachRateBasis;
-};
+} & ContractorCommercialFields;
 
 /** PDF (or doc) contract attached to gym profile or coach engagement */
 export type FitContractDoc = {
@@ -342,7 +348,8 @@ export type FitCoach = {
   /** Closed past engagements (keep history when coach returns) */
   history?: FitCoachEngagement[];
   created_at: string;
-} & import('@/lib/services/advisor-workforce').AdvisorPersonInviteFields;
+} & import('@/lib/services/advisor-workforce').AdvisorPersonInviteFields &
+  ContractorCommercialFields;
 
 /** Who put this session on the coach diary. */
 export function sessionScheduledBy(session: {
@@ -387,11 +394,7 @@ export function closeCoachEngagement(
       end_date: end,
       note: opts?.note,
       ended_reason: opts?.reason,
-      rate_zar:
-        coach.rate_zar != null && Number.isFinite(Number(coach.rate_zar))
-          ? Number(coach.rate_zar)
-          : null,
-      rate_basis: coach.rate_basis || undefined,
+      ...snapshotContractorCommercial(coach),
     });
   }
   hist.sort((a, b) => b.start_date.localeCompare(a.start_date));

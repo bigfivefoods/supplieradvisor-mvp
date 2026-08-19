@@ -36,7 +36,18 @@ import { FitContractDocsPanel } from '@/components/fitness/FitContractDocs';
 import { AdvisorPersonInviteRow } from '@/components/advisors/AdvisorPersonInviteRow';
 import { AdvisorEngagementField } from '@/components/advisors/AdvisorEngagementField';
 import { AdvisorExpandablePanel } from '@/components/advisors/AdvisorExpandablePanel';
+import { AdvisorContractorCommercialFields } from '@/components/advisors/AdvisorContractorCommercialFields';
 import { resolveAdvisorEngagement } from '@/lib/services/advisor-workforce';
+import {
+  draftFromContractorCommercial,
+  emptyContractorCommercialDraft,
+  formatClinicZar,
+  formatContractorCommercialLine,
+  recordFromContractorCommercialDraft,
+  summariseContractorCommercial,
+  validateContractorCommercialDraft,
+  type ContractorCommercialDraft,
+} from '@/lib/clinic/contractor-commercial';
 import { PersonQualificationsEditor } from '@/components/services/PersonQualificationsEditor';
 import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
 import type { PersonQualification } from '@/lib/services/person-qualifications';
@@ -61,10 +72,7 @@ function formatEngagement(c: FitCoach) {
 type CoachDraft = {
   start_date: string;
   end_date: string;
-  rate_zar: string;
-  rate_basis: string;
-  rate_note: string;
-};
+} & ContractorCommercialDraft;
 
 type ProfileDraft = {
   code: string;
@@ -95,9 +103,7 @@ function emptyForm() {
     photo_url: '',
     start_date: todayIso(),
     end_date: '',
-    rate_zar: '',
-    rate_basis: 'per_class',
-    rate_note: '',
+    ...emptyContractorCommercialDraft({ rate_basis: 'per_class' }),
     engagement: 'contractor' as 'employed' | 'contractor',
   };
 }
@@ -212,12 +218,10 @@ export default function CoachesPage() {
       start_date:
         c.start_date || (c.created_at ? c.created_at.slice(0, 10) : todayIso()),
       end_date: c.end_date || '',
-      rate_zar:
-        c.rate_zar != null && Number.isFinite(Number(c.rate_zar))
-          ? String(c.rate_zar)
-          : '',
-      rate_basis: String(c.rate_basis || 'per_class'),
-      rate_note: c.rate_note || '',
+      ...draftFromContractorCommercial({
+        ...c,
+        rate_basis: c.rate_basis || 'per_class',
+      }),
     };
   };
 
@@ -230,12 +234,10 @@ export default function CoachesPage() {
           coach?.start_date ||
           (coach?.created_at ? coach.created_at.slice(0, 10) : todayIso()),
         end_date: coach?.end_date || '',
-        rate_zar:
-          coach?.rate_zar != null && Number.isFinite(Number(coach.rate_zar))
-            ? String(coach.rate_zar)
-            : '',
-        rate_basis: String(coach?.rate_basis || 'per_class'),
-        rate_note: coach?.rate_note || '',
+        ...draftFromContractorCommercial({
+          ...(coach || {}),
+          rate_basis: coach?.rate_basis || 'per_class',
+        }),
       };
       return { ...prev, [id]: { ...seeded, ...patch } };
     });
@@ -253,6 +255,13 @@ export default function CoachesPage() {
     if (!form.id_number.trim()) {
       toast.error('ID / passport number required for VerifyNow or Didit');
       return;
+    }
+    if (form.engagement !== 'employed') {
+      const commercialErr = validateContractorCommercialDraft(form);
+      if (commercialErr) {
+        toast.error(commercialErr);
+        return;
+      }
     }
     await post({
       entity: 'coaches',
@@ -272,9 +281,7 @@ export default function CoachesPage() {
         can_manage_classes: true,
         start_date: form.start_date || todayIso(),
         end_date: form.end_date || null,
-        rate_zar: form.rate_zar === '' ? null : Number(form.rate_zar),
-        rate_basis: form.rate_basis || 'per_class',
-        rate_note: form.rate_note || undefined,
+        ...recordFromContractorCommercialDraft(form),
         engagement: form.engagement || 'contractor',
       },
     });
@@ -294,8 +301,9 @@ export default function CoachesPage() {
       toast.error('End date cannot be before start date');
       return;
     }
-    if (d.rate_zar !== '' && Number.isNaN(Number(d.rate_zar))) {
-      toast.error('Rate must be a number (ZAR)');
+    const commercialErr = validateContractorCommercialDraft(d);
+    if (commercialErr) {
+      toast.error(commercialErr);
       return;
     }
     await post({
@@ -307,9 +315,7 @@ export default function CoachesPage() {
         name: c.name,
         start_date: d.start_date,
         end_date: d.end_date || null,
-        rate_zar: d.rate_zar === '' ? null : Number(d.rate_zar),
-        rate_basis: d.rate_basis || 'per_class',
-        rate_note: d.rate_note || '',
+        ...recordFromContractorCommercialDraft(d),
         ended_note: endNote[c.id] || undefined,
       },
     });
@@ -551,12 +557,13 @@ export default function CoachesPage() {
     store?.coaches.filter((c) => c.active !== false && !c.end_date).length || 0;
   const endedCount =
     store?.coaches.filter((c) => c.end_date || c.active === false).length || 0;
+  const contractorTerms = summariseContractorCommercial(store?.coaches || []);
 
   return (
     <FitgraphWorkbench
       title="Coaches"
       titleAccent="trainers"
-      description="Add coaches and choose Contractor (work app diary) or Employed (company workspace). Contractors see gym-booked slots and can book members with them on their phone."
+      description="Add coaches as Contract (work PWA) or Permanent (company desktop). Contracted coaches get commercial pay-in, charge-out and practice keep — same as MedicalAdvisor."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -564,10 +571,10 @@ export default function CoachesPage() {
         <div className="space-y-6">
           <div className="flex flex-wrap gap-2">
             <Link
-              href="/dashboard/fitgraph/coach-calendar"
+              href="/dashboard/fitgraph/calendar"
               className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 dark:!border-amber-400 dark:!bg-amber-950 dark:text-amber-200"
             >
-              <CalendarDays className="w-3.5 h-3.5" /> Open coach calendar
+              <CalendarDays className="w-3.5 h-3.5" /> Open gym calendar
             </Link>
           </div>
           <StatRow
@@ -584,6 +591,13 @@ export default function CoachesPage() {
               {
                 label: 'Ended / inactive',
                 value: endedCount,
+              },
+              {
+                label: 'Avg practice keep',
+                value:
+                  contractorTerms.avgKeep != null
+                    ? formatClinicZar(contractorTerms.avgKeep)
+                    : '—',
               },
               {
                 label: 'Specialties',
@@ -686,7 +700,10 @@ export default function CoachesPage() {
                       <div className="text-[11px] font-semibold text-amber-900/90 dark:text-amber-200 mt-0.5">
                         {formatEngagement(c)}
                         {' · '}
-                        {formatCoachRate(c.rate_zar, c.rate_basis)}
+                        {resolveAdvisorEngagement(c) === 'contractor'
+                          ? formatContractorCommercialLine(c) ||
+                            formatCoachRate(c.rate_zar, c.rate_basis)
+                          : formatCoachRate(c.rate_zar, c.rate_basis)}
                       </div>
                     </div>
                     <ChevronDown
@@ -1023,6 +1040,8 @@ export default function CoachesPage() {
                               }
                             />
                           </label>
+                          {resolveAdvisorEngagement(profile) !== 'contractor' ? (
+                            <>
                           <label className="block">
                             <span className="text-[10px] text-slate-600 dark:text-amber-200/70">
                               Rate (ZAR)
@@ -1057,7 +1076,24 @@ export default function CoachesPage() {
                               ))}
                             </select>
                           </label>
+                            </>
+                          ) : null}
                         </div>
+                        {resolveAdvisorEngagement(profile) === 'contractor' ? (
+                          <div className="mt-2">
+                            <AdvisorContractorCommercialFields
+                              compact
+                              value={draft}
+                              onChange={(patch) => setDraft(c.id, patch)}
+                              inputClass={fc()}
+                              labelClass="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300"
+                              hintClass="text-[11px] text-slate-500 dark:text-amber-200/70"
+                              accentClass="border-amber-200 bg-amber-50/80 dark:border-amber-700/50 dark:bg-amber-950/30"
+                              rateBases={COACH_RATE_BASES}
+                              disabled={saving}
+                            />
+                          </div>
+                        ) : (
                         <input
                           className={fc() + ' mt-2'}
                           placeholder="Rate note (optional)"
@@ -1066,6 +1102,7 @@ export default function CoachesPage() {
                             setDraft(c.id, { rate_note: e.target.value })
                           }
                         />
+                        )}
                         <input
                           className={fc() + ' mt-2'}
                           placeholder="Note when ending (optional)"
@@ -1129,14 +1166,16 @@ export default function CoachesPage() {
                                 <span className="font-bold">Current (ended):</span>{' '}
                                 {c.start_date || '—'} → {c.end_date}
                                 {' · '}
-                                {formatCoachRate(c.rate_zar, c.rate_basis)}
+                                {formatContractorCommercialLine(c) ||
+                                  formatCoachRate(c.rate_zar, c.rate_basis)}
                               </li>
                             ) : (
                               <li className="text-[11px] text-slate-700 dark:text-amber-100">
                                 <span className="font-bold">Current:</span>{' '}
                                 {c.start_date || '—'} → present
                                 {' · '}
-                                {formatCoachRate(c.rate_zar, c.rate_basis)}
+                                {formatContractorCommercialLine(c) ||
+                                  formatCoachRate(c.rate_zar, c.rate_basis)}
                               </li>
                             )}
                             {hist.length === 0 ? (
@@ -1153,7 +1192,8 @@ export default function CoachesPage() {
                                     {h.start_date} → {h.end_date}
                                   </span>
                                   {' · '}
-                                  {formatCoachRate(h.rate_zar, h.rate_basis)}
+                                  {formatContractorCommercialLine(h) ||
+                                    formatCoachRate(h.rate_zar, h.rate_basis)}
                                   {h.ended_reason
                                     ? ` · ${h.ended_reason}`
                                     : ''}
@@ -1366,7 +1406,7 @@ export default function CoachesPage() {
 
           <AdvisorExpandablePanel
             title="Add a new coach"
-            description="Name, contact, contract or permanent, rates, and bio."
+            description="Name, contact, contract or permanent, commercial payment terms, and bio."
             open={addOpen}
             onToggle={() => setAddOpen((v) => !v)}
             accentClass="border-amber-200 bg-amber-50/70 dark:border-amber-700/50 dark:bg-amber-950/40"
@@ -1470,6 +1510,19 @@ export default function CoachesPage() {
                 }
               />
             </label>
+            {form.engagement === 'contractor' ? (
+              <AdvisorContractorCommercialFields
+                value={form}
+                onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+                inputClass={fc()}
+                labelClass="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300"
+                hintClass="text-[11px] text-slate-500 dark:text-amber-200/70"
+                accentClass="border-amber-200 bg-amber-50/80 dark:border-amber-700/50 dark:bg-amber-950/30"
+                rateBases={COACH_RATE_BASES}
+                disabled={saving}
+              />
+            ) : (
+              <>
             <label className="block">
               <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
                 Rate (ZAR)
@@ -1512,6 +1565,8 @@ export default function CoachesPage() {
                 setForm((f) => ({ ...f, rate_note: e.target.value }))
               }
             />
+              </>
+            )}
             <div className="sm:col-span-2 lg:col-span-3">
               <p className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 mb-1.5">
                 Specialties (select all that apply)

@@ -183,10 +183,10 @@ const PHASES: Phase[] = [
       {
         id: 'coach-cal',
         n: '4b',
-        title: 'Coach calendar · concurrent',
+        title: 'Gym calendar',
         who: 'Owner / coach',
-        desc: 'Week plan, series, class plan text; optional concurrent coaches on large floors.',
-        href: '/dashboard/fitgraph/coach-calendar',
+        desc: 'Week plan, series, class plan text, and coach diaries on one gym calendar.',
+        href: '/dashboard/fitgraph/calendar',
         icon: CalendarDays,
       },
       {
@@ -220,7 +220,7 @@ const PHASES: Phase[] = [
         title: 'Remind · plan vs actual',
         who: 'Coach / desk',
         desc: '24h reminders; mark attended / no-show; soft-block high no-show risk.',
-        href: '/dashboard/fitgraph/coach-calendar',
+        href: '/dashboard/fitgraph/calendar',
         icon: ClipboardCheck,
       },
       {

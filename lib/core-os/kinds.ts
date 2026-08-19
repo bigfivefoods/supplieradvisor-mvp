@@ -52,7 +52,7 @@ export const CUSTOMER_KIND_LABEL: Record<CoreCustomerKind, string> = {
 };
 
 export const DIARY_HREF: Record<string, string> = {
-  fitgraph: '/dashboard/fitgraph/coach-calendar',
+  fitgraph: '/dashboard/fitgraph/calendar',
   physiograph: '/dashboard/physiograph/calendar',
   dentalgraph: '/dashboard/dentalgraph/calendar',
   medicalgraph: '/dashboard/medicalgraph/calendar',

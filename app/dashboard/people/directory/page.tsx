@@ -488,7 +488,7 @@ function DirectoryInner() {
                           ) : null}
                           {e.metadata.service_module === 'fitgraph' ? (
                             <Link
-                              href="/dashboard/fitgraph/coach-calendar"
+                              href="/dashboard/fitgraph/calendar"
                               className="text-[10px] font-bold text-[#0077b6]"
                             >
                               Diary

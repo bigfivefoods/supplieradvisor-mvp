@@ -667,8 +667,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
      */
     steps: [
       { name: 'Command', href: '/dashboard/fitgraph', exact: true, desc: 'Gym OS · People · CRM · Finance', section: 'Home' },
-      { name: 'Coaches', href: '/dashboard/fitgraph/coaches', desc: 'Trainers · portal links', section: 'People' },
-      { name: 'Coach calendar', href: '/dashboard/fitgraph/coach-calendar', desc: 'Plan · actual · series', section: 'People' },
+      { name: 'Coaches', href: '/dashboard/fitgraph/coaches', desc: 'Trainers · contract or permanent', section: 'People' },
       { name: 'Clients', href: '/dashboard/fitgraph/clients', desc: 'Members & status', section: 'People' },
       { name: 'Classes', href: '/dashboard/fitgraph/memberships', desc: 'Edit class · coach · calendar', section: 'Services' },
       { name: 'Membership', href: '/dashboard/fitgraph/membership', desc: 'Member and/or private · class · coach · rates', section: 'Services' },
