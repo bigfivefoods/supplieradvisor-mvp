@@ -31,6 +31,7 @@ import {
   buildDeskSlotWaitlist,
 } from '@/lib/services/advisor-waitlist-desk';
 import { clinicRoomNames } from '@/lib/clinic/clinic-rooms';
+import { AdvisorExpandablePanel } from '@/components/advisors/AdvisorExpandablePanel';
 import { ClinicDiaryKindFields } from '@/components/clinic/ClinicDiaryKindFields';
 import { ClinicAppointmentVisitDesk } from '@/components/clinic/ClinicAppointmentVisitDesk';
 import { appointmentVisitPatients } from '@/lib/clinic/appointment-visit';
@@ -71,6 +72,9 @@ export default function CalendarPage() {
   const [recurrence, setRecurrence] = useState<RecurrenceFormValue>(
     emptyRecurrenceForm
   );
+  const [statsOpen, setStatsOpen] = useState(true);
+  const [calendarOpen, setCalendarOpen] = useState(true);
+  const [waitlistOpen, setWaitlistOpen] = useState(true);
 
   const closeEditor = () => {
     setEditorOpen(false);
@@ -446,56 +450,150 @@ export default function CalendarPage() {
     <PhysiographWorkbench
       title="Calendar"
       titleAccent="main clinic diary"
-      description="Main physio diary: click an appointment to open (view/edit · book patient). Click empty time to schedule. Desk waitlist is on this page and under Desk · bookings. Exclusive clinician books — no double-booking."
+      description="Stats, then this week’s clinic diary, then waitlist, then working hours. Click an appointment to open it. Exclusive clinician books — no double-booking."
     >
       {loading || !store ? (
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow
-            items={[
-              {
-                label: 'Today',
-                value: Number(summary?.appointmentsToday) || 0,
-              },
-              {
-                label: 'Upcoming',
-                value: Number(summary?.appointmentsUpcoming) || 0,
-              },
-              {
-                label: 'Waitlist queue',
-                value: deskQueue.length,
-              },
-              {
-                label: 'On board',
-                value: events.filter((e) => e.status === 'scheduled').length,
-              },
-            ]}
-          />
+          <AdvisorExpandablePanel
+            title={`Today ${Number(summary?.appointmentsToday) || 0} · Upcoming ${Number(summary?.appointmentsUpcoming) || 0} · Waitlist ${deskQueue.length} · On board ${events.filter((e) => e.status === 'scheduled').length}`}
+            description="Diary counts for this clinic. Collapse to focus on the week view."
+            open={statsOpen}
+            onToggle={() => setStatsOpen((v) => !v)}
+            accentClass="border-teal-200 bg-teal-50/50 dark:border-teal-800 dark:bg-teal-950/30"
+            titleClass="text-teal-950 dark:text-teal-50"
+            hintClass="text-teal-800/80 dark:text-teal-200/80"
+          >
+            <StatRow
+              items={[
+                {
+                  label: 'Today',
+                  value: Number(summary?.appointmentsToday) || 0,
+                },
+                {
+                  label: 'Upcoming',
+                  value: Number(summary?.appointmentsUpcoming) || 0,
+                },
+                {
+                  label: 'Waitlist queue',
+                  value: deskQueue.length,
+                },
+                {
+                  label: 'On board',
+                  value: events.filter((e) => e.status === 'scheduled').length,
+                },
+              ]}
+            />
+          </AdvisorExpandablePanel>
 
-          <AdvisorWaitlistDesk
-            queue={deskQueue}
-            slotWaitlist={deskSlotWaitlist}
-            accentClass="border-teal-200"
-            post={async (body) => {
-              await post(body);
-            }}
-            onRefresh={() => {
-              void load();
-            }}
-            calendarHref="/dashboard/physiograph/calendar"
-          />
+          <AdvisorExpandablePanel
+            title="Clinic schedule · this week"
+            description="Default is this week. Click an appointment to open it; click empty time to schedule."
+            open={calendarOpen}
+            onToggle={() => setCalendarOpen((v) => !v)}
+            accentClass="border-teal-200 bg-white dark:border-teal-800 dark:bg-neutral-950"
+            titleClass="text-teal-950 dark:text-teal-50"
+            hintClass="text-teal-800/80 dark:text-teal-200/80"
+          >
+            <PracticeScheduleCalendar
+              title="Clinic schedule"
+              defaultView="week"
+              printBrand={
+                store.settings?.brand_name || 'PhysioAdvisor · SupplierAdvisor'
+              }
+              pdfExport={{
+                companyId,
+                module: 'physiograph',
+                personId: personFilter || null,
+              }}
+              accent="teal"
+              events={events}
+              people={people}
+              peopleLabel="Practitioner"
+              workingHours={workingHours}
+              diaryScope={diaryScope}
+              onDiaryScopeChange={(scope) => {
+                setDiaryScope(scope);
+                if (scope === 'practice') setPersonFilter('');
+              }}
+              showDiaryScopeToggle
+              personFilter={personFilter}
+              onPersonFilterChange={(id) => {
+                setPersonFilter(id);
+                if (id) setForm((f) => ({ ...f, practitioner_id: id }));
+              }}
+              initialDate={form.date}
+              emptyLabel="No appointments"
+              slotHint="Click empty time to add an appointment or personal / leave block"
+              selectedEventId={selectedId}
+              onSelectDate={(date) => setForm((f) => ({ ...f, date }))}
+              onSelectSlot={(slot) => {
+                startCreate({
+                  date: slot.date,
+                  start_time: slot.start_time.slice(0, 5),
+                  practitioner_id:
+                    slot.person_id || personFilter || undefined,
+                });
+                toast.message('New diary slot', {
+                  description: `${slot.date} at ${slot.start_time.slice(0, 5)} — appointment or own time`,
+                });
+              }}
+              onSelectEvent={(ev) => {
+                openAppointment(ev.id);
+                toast.message('Appointment open', {
+                  description: `${ev.start_time.slice(0, 5)} · ${ev.title} — edit in the pop-out`,
+                });
+              }}
+            />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-slate-500">
+                Switch to day or month from the diary toolbar. Expand to fill
+                the screen.
+              </p>
+              <button
+                type="button"
+                className="rounded-xl border border-teal-300 bg-white px-3 py-2 text-xs font-bold text-teal-800"
+                onClick={() => startCreate({ date: form.date })}
+              >
+                + New appointment
+              </button>
+            </div>
+          </AdvisorExpandablePanel>
 
-          <p className="text-xs text-slate-500 -mt-2">
-            Front desk tools:{' '}
-            <Link
-              href="/dashboard/physiograph/bookings"
-              className="font-bold text-teal-700 underline"
-            >
-              Desk · bookings
-            </Link>{' '}
-            (mark attended, feedback links) · this calendar is the main diary.
-          </p>
+          <AdvisorExpandablePanel
+            title={`Waitlist & next-available queue · ${deskQueue.length}`}
+            description="People waiting on a full slot and the next-available practice queue. Open by default."
+            open={waitlistOpen}
+            onToggle={() => setWaitlistOpen((v) => !v)}
+            accentClass="border-teal-200 bg-teal-50/50 dark:border-teal-800 dark:bg-teal-950/30"
+            titleClass="text-teal-950 dark:text-teal-50"
+            hintClass="text-teal-800/80 dark:text-teal-200/80"
+          >
+            <AdvisorWaitlistDesk
+              queue={deskQueue}
+              slotWaitlist={deskSlotWaitlist}
+              accentClass="border-teal-200"
+              embedded
+              post={async (body) => {
+                await post(body);
+              }}
+              onRefresh={() => {
+                void load();
+              }}
+              calendarHref="/dashboard/physiograph/calendar"
+            />
+            <p className="text-xs text-slate-500">
+              Front desk tools:{' '}
+              <Link
+                href="/dashboard/physiograph/bookings"
+                className="font-bold text-teal-700 underline"
+              >
+                Desk · bookings
+              </Link>{' '}
+              (mark attended, feedback links) · this calendar is the main diary.
+            </p>
+          </AdvisorExpandablePanel>
 
           <WorkingHoursEditor
             value={workingHours}
@@ -516,70 +614,6 @@ export default function CalendarPage() {
             <span className="text-[11px] text-slate-500">
               Practice sheet (hours, team, services). Schedule PDFs: A4 PDF on the calendar.
             </span>
-          </div>
-
-          <PracticeScheduleCalendar
-            title="Clinic schedule"
-            printBrand={
-              store.settings?.brand_name || 'PhysioAdvisor · SupplierAdvisor'
-            }
-            pdfExport={{
-              companyId,
-              module: 'physiograph',
-              personId: personFilter || null,
-            }}
-            accent="teal"
-            events={events}
-            people={people}
-            peopleLabel="Practitioner"
-            workingHours={workingHours}
-            diaryScope={diaryScope}
-            onDiaryScopeChange={(scope) => {
-              setDiaryScope(scope);
-              if (scope === 'practice') setPersonFilter('');
-            }}
-            showDiaryScopeToggle
-            personFilter={personFilter}
-            onPersonFilterChange={(id) => {
-              setPersonFilter(id);
-              if (id) setForm((f) => ({ ...f, practitioner_id: id }));
-            }}
-            initialDate={form.date}
-            emptyLabel="No appointments"
-            slotHint="Click empty time to add an appointment or personal / leave block"
-            selectedEventId={selectedId}
-            onSelectDate={(date) => setForm((f) => ({ ...f, date }))}
-            onSelectSlot={(slot) => {
-              startCreate({
-                date: slot.date,
-                start_time: slot.start_time.slice(0, 5),
-                practitioner_id:
-                  slot.person_id || personFilter || undefined,
-              });
-              toast.message('New diary slot', {
-                description: `${slot.date} at ${slot.start_time.slice(0, 5)} — appointment or own time`,
-              });
-            }}
-            onSelectEvent={(ev) => {
-              openAppointment(ev.id);
-              toast.message('Appointment open', {
-                description: `${ev.start_time.slice(0, 5)} · ${ev.title} — edit in the pop-out`,
-              });
-            }}
-          />
-
-          <div className="flex flex-wrap items-center justify-between gap-2 -mt-2">
-            <p className="text-xs text-slate-500">
-              Click an appointment to edit it in a pop-out. Expand the calendar
-              to fill the screen. Use the month name to jump months.
-            </p>
-            <button
-              type="button"
-              className="rounded-xl border border-teal-300 bg-white px-3 py-2 text-xs font-bold text-teal-800"
-              onClick={() => startCreate({ date: form.date })}
-            >
-              + New appointment
-            </button>
           </div>
 
           <ScheduleEventPeek
