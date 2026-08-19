@@ -23,5 +23,11 @@ assert.ok(growWebsiteNav('retailgraph').includes('Shop'));
 assert.equal(growPreviewCopy('fitgraph').showWeekDiary, true);
 assert.equal(growPreviewCopy('hiregraph').showWeekDiary, false);
 assert.equal(growPreviewCopy('hiregraph').color, '#0891b2');
+assert.equal(growPreviewCopy('fitgraph').staffRole, 'contracted coach');
+assert.equal(
+  growPreviewCopy('medicalgraph').staffRole,
+  'contracted practitioner'
+);
+assert.equal(growPreviewCopy('hiregraph').staffRole, null);
 
 console.log('grow-preview.test.ts ok');

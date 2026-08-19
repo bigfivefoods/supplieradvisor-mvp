@@ -15,13 +15,13 @@ import {
   ChevronRight,
   Loader2,
   Plus,
-  Repeat,
   User,
   UserPlus,
   UserX,
   Users,
   X,
 } from 'lucide-react';
+import { MemberPortalWeekCalendar } from '@/components/advisors/MemberPortalWeekCalendar';
 
 type RosterRow = {
   booking_id: string;
@@ -458,57 +458,25 @@ export default function ClinicianPortalPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-7 gap-2">
-          {days.map((d) => {
-            const list = portal.by_date?.[d] || [];
-            const label = new Date(d + 'T12:00:00').toLocaleDateString(
-              undefined,
-              { weekday: 'short', day: 'numeric' }
-            );
-            return (
-              <div
-                key={d}
-                className="rounded-2xl border border-slate-800 bg-slate-900/80 p-2 min-h-[6.5rem]"
-              >
-                <div className="text-[10px] font-black uppercase text-sky-400/90 mb-1.5">
-                  {label}
-                </div>
-                <div className="space-y-1">
-                  {list.length === 0 ? (
-                    <p className="text-[10px] text-slate-600 text-center py-3">
-                      —
-                    </p>
-                  ) : (
-                    list.map((card) => (
-                      <button
-                        key={card.appointment.id}
-                        type="button"
-                        onClick={() => setOpenId(card.appointment.id)}
-                        className="w-full text-left rounded-xl border border-slate-700 bg-slate-950/60 px-2 py-1.5 hover:border-sky-500/60"
-                      >
-                        <div className="text-[11px] font-black tabular-nums text-sky-200">
-                          {String(card.appointment.start_time).slice(0, 5)}
-                        </div>
-                        <div className="text-[10px] font-semibold truncate">
-                          {card.service_name || 'Appointment'}
-                        </div>
-                        <div className="text-[9px] text-slate-500 flex gap-1 items-center">
-                          <span>
-                            P{card.planned}/{card.capacity}
-                          </span>
-                          <span>A{card.attended}</span>
-                          {card.appointment.series_id ? (
-                            <Repeat className="w-2.5 h-2.5 text-sky-500" />
-                          ) : null}
-                        </div>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <MemberPortalWeekCalendar
+          theme="dark"
+          color="#38bdf8"
+          hideNav
+          weekStart={weekStart}
+          events={days.flatMap((d) =>
+            (portal.by_date?.[d] || []).map((card) => ({
+              id: card.appointment.id,
+              date: d,
+              start_time: String(card.appointment.start_time).slice(0, 5),
+              duration_min: card.appointment.duration_min,
+              title: card.service_name || 'Appointment',
+              person: `P${card.planned}/${card.capacity}`,
+              my_status: 'scheduled',
+            }))
+          )}
+          onSelect={(ev) => setOpenId(ev.id)}
+          emptyLabel="No appointments this week. Tap New appointment to add one."
+        />
 
         {portal.appointments.length === 0 && (
           <p className="text-center text-slate-500 py-10 text-sm">

@@ -25,6 +25,7 @@ import { B2cAutoLinkBanner } from '@/components/b2c/B2cAutoLinkBanner';
 import { MemberAnnouncementsFeed } from '@/components/services/MemberAnnouncementsFeed';
 import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
 import { MemberAdvisorShell } from '@/components/advisors/MemberAdvisorShell';
+import { ClinicMemberDiary } from '@/components/clinic/ClinicMemberDiary';
 import {
   MemberPortalInvoices,
   mergePortalInvoices,
@@ -527,102 +528,23 @@ export default function MemberDentalgraphPortalPage() {
               ))}
             </div>
 
-            {(() => {
-              const slots = portal.open_slots.filter((s) => {
+            <ClinicMemberDiary
+              slots={portal.open_slots.filter((s) => {
                 if (slotFilter === 'preferred') return s.is_preferred_clinician;
                 if (slotFilter === 'other') return !s.is_preferred_clinician;
                 return true;
-              });
-              if (slots.length === 0) {
-                return (
-                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-                    {slotFilter === 'preferred'
-                      ? 'No open times with your regular clinician — try Other clinicians or join the waitlist.'
-                      : 'No public diary slots in the next 4 weeks. Ask the practice to publish open slots, or join the waitlist above.'}
-                  </div>
-                );
+              })}
+              bookings={portal.my_bookings}
+              color={color}
+              allowBooking={portal.allow_booking}
+              busyId={busyId}
+              onBook={(id, waitlist) => void book(id, waitlist)}
+              emptyLabel={
+                slotFilter === 'preferred'
+                  ? 'No open times with your regular clinician this week — try Other clinicians or the waitlist.'
+                  : 'No public diary slots this week. Ask the practice to publish open slots, or join the waitlist.'
               }
-              return (
-                <div className="grid gap-3 md:grid-cols-2">
-                {slots.map((s) => (
-                <div
-                  key={s.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <p className="font-black text-slate-900">{s.service_name}</p>
-                    {s.is_preferred_clinician ? (
-                      <span className="rounded-full bg-sky-100 text-sky-800 px-2 py-0.5 text-[10px] font-black uppercase">
-                        Your clinician
-                      </span>
-                    ) : s.clinician_name ? (
-                      <span className="rounded-full bg-slate-100 text-slate-600 px-2 py-0.5 text-[10px] font-bold uppercase">
-                        Other clinician
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                    <CalendarDays className="w-3.5 h-3.5" />
-                    {formatDay(s.date, s.start_time)}
-                  </p>
-                  {s.clinician_name ? (
-                    <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                      <Smile className="w-3.5 h-3.5" />
-                      {s.clinician_name}
-                    </p>
-                  ) : null}
-                  {s.location ? (
-                    <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5" />
-                      {s.location}
-                    </p>
-                  ) : null}
-                  <div className="mt-3 flex flex-wrap gap-2 items-center">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${
-                        s.my_status === 'waitlist'
-                          ? 'bg-amber-100 text-amber-900'
-                          : s.my_status
-                            ? 'bg-sky-100 text-sky-800'
-                            : s.full
-                              ? 'bg-rose-100 text-rose-800'
-                              : 'bg-emerald-100 text-emerald-800'
-                      }`}
-                    >
-                      {s.my_status === 'waitlist' && s.waitlist_position
-                        ? `Waitlist #${s.waitlist_position}`
-                        : s.my_status || (s.full ? 'Full' : 'Open')}
-                    </span>
-                    {s.my_status ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-sky-700">
-                        <Check className="w-3.5 h-3.5" /> You&apos;re{' '}
-                        {s.my_status}
-                        {s.my_status === 'waitlist'
-                          ? ' — practice notified'
-                          : ''}
-                      </span>
-                    ) : portal.allow_booking ? (
-                      <button
-                        type="button"
-                        disabled={busyId === s.id}
-                        onClick={() => void book(s.id, s.full)}
-                        className="rounded-xl bg-sky-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
-                      >
-                        {busyId === s.id
-                          ? '…'
-                          : s.full
-                            ? 'Join waitlist (notify desk)'
-                            : s.is_preferred_clinician
-                              ? 'Book appointment'
-                              : 'Book this clinician'}
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-                ))}
-                </div>
-              );
-            })()}
+            />
           </div>
         )}
 

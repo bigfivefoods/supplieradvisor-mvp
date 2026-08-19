@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarDays, Globe, Smartphone } from 'lucide-react';
+import { CalendarDays, Globe, Smartphone, UserRound } from 'lucide-react';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { advisorBrandInk } from '@/components/advisors/AdvisorPublicSite';
 import {
@@ -165,6 +165,71 @@ function MemberPwaMock({
   );
 }
 
+function StaffPwaMock({
+  copy,
+  brand,
+  color,
+}: {
+  copy: GrowPreviewCopy;
+  brand: string;
+  color: string;
+}) {
+  const ink = advisorBrandInk(color);
+  return (
+    <div className="flex h-full flex-col bg-slate-950 text-slate-100">
+      <div
+        className="px-3 pb-3 pt-7"
+        style={{
+          background: `linear-gradient(160deg, ${color} 0%, #0f172a 72%)`,
+          color: ink,
+        }}
+      >
+        <p className="text-[8px] font-black uppercase tracking-[0.16em] opacity-70">
+          {copy.staffEyebrow}
+        </p>
+        <p className="mt-1 truncate text-[13px] font-black">{brand}</p>
+        <p className="text-[9px] opacity-80">Jordan · contracted</p>
+      </div>
+      <div className="flex-1 space-y-2 p-2.5">
+        <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+          Today
+        </p>
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5">
+          <p className="text-[12px] font-black">{copy.staffSample}</p>
+          <p className="mt-1 text-[9px] text-slate-400">
+            Diary · mark attended · message
+          </p>
+        </div>
+        <div className="grid grid-cols-7 gap-0.5">
+          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+            <div
+              key={`${d}-${i}`}
+              className={`rounded-lg py-1 text-center text-[8px] font-black ${
+                i === 1 ? '' : 'bg-white/5 text-slate-500'
+              }`}
+              style={i === 1 ? { backgroundColor: color, color: ink } : undefined}
+            >
+              {d}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="grid grid-cols-5 border-t border-white/10 bg-slate-950 pb-2 pt-1">
+        {copy.staffTabs.map((t, i) => (
+          <span
+            key={t}
+            className={`text-center text-[7px] font-black ${
+              i === 1 ? 'text-white' : 'text-slate-500'
+            }`}
+          >
+            {t}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function WebsiteMock({
   copy,
   brand,
@@ -287,7 +352,11 @@ export function AdvisorGrowPreviews({
     !onWebsitePage && published && Boolean(liveHref);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div
+      className={`grid gap-6 lg:grid-cols-2 ${
+        copy.staffRole ? 'xl:grid-cols-3' : ''
+      }`}
+    >
       <section className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-950">
         <div className="flex items-start gap-2">
           <Smartphone className="mt-0.5 h-4 w-4 text-slate-500" />
@@ -310,6 +379,27 @@ export function AdvisorGrowPreviews({
           />
         </PhoneChrome>
       </section>
+
+      {copy.staffRole ? (
+        <section className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-950">
+          <div className="flex items-start gap-2">
+            <UserRound className="mt-0.5 h-4 w-4 text-slate-500" />
+            <div>
+              <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                {copy.staffRole} PWA
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                What a contracted {copy.staffRole.replace('contracted ', '')}{' '}
+                sees on their phone — today&apos;s floor, week diary, people,
+                inbox. Issued from People, not the public website.
+              </p>
+            </div>
+          </div>
+          <PhoneChrome label={`${copy.staffEyebrow} · contracted access`}>
+            <StaffPwaMock copy={copy} brand={brand} color={color} />
+          </PhoneChrome>
+        </section>
+      ) : null}
 
       <section className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-950">
         <div className="flex items-start gap-2">

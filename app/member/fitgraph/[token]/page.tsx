@@ -277,7 +277,6 @@ export default function MemberFitgraphPortalPage() {
   const [tab, setTab] = useState<
     | 'checkin'
     | 'join'
-    | 'plans'
     | 'open'
     | 'mine'
     | 'progress'
@@ -432,7 +431,6 @@ export default function MemberFitgraphPortalPage() {
     id:
       | 'checkin'
       | 'join'
-      | 'plans'
       | 'open'
       | 'mine'
       | 'progress'
@@ -644,11 +642,10 @@ export default function MemberFitgraphPortalPage() {
       tab={tab}
       onTab={(id) => selectTab(id as typeof tab)}
       tabs={[
-        { id: 'checkin', label: 'Check in' },
-        { id: 'join', label: portal.class_subscribe ? 'Subscribe' : 'Join & pay' },
-        { id: 'plans', label: portal.class_subscribe ? 'My classes' : 'My plans' },
         { id: 'open', label: 'Book' },
-        { id: 'mine', label: 'My classes' },
+        { id: 'mine', label: 'My bookings' },
+        { id: 'join', label: portal.class_subscribe ? 'Subscribe' : 'Join & pay' },
+        { id: 'checkin', label: 'Check in' },
         { id: 'progress', label: 'Progress' },
         {
           id: 'messages',
@@ -657,7 +654,7 @@ export default function MemberFitgraphPortalPage() {
         },
         {
           id: 'profile',
-          label: 'Profile',
+          label: 'My profile',
           badge:
             portal.require_debit_bank && !portal.bank?.complete
               ? 1
@@ -665,8 +662,7 @@ export default function MemberFitgraphPortalPage() {
         },
       ]}
       header={
-        <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-          <div>
+        <div>
           <MemberPortalBrandLockup
             logoUrl={portal.logo_url}
             brand={portal.brand}
@@ -704,36 +700,9 @@ export default function MemberFitgraphPortalPage() {
                 {portal.client.coach_name
                   ? ` · Coach ${portal.client.coach_name}`
                   : ''}
+                {` · ${portal.open_count} open spots`}
               </p>
             </div>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-bold">
-            <span className="rounded-full bg-white/20 px-2.5 py-1">
-              {portal.open_count} open spots
-            </span>
-            <span className="rounded-full bg-white/20 px-2.5 py-1">
-              {portal.upcoming_count ??
-                portal.my_bookings.filter((b) => b.upcoming !== false)
-                  .length}{' '}
-              upcoming classes
-            </span>
-            {(portal.messages_unread || 0) > 0 ? (
-              <span className="rounded-full bg-amber-400 text-amber-950 px-2.5 py-1">
-                {portal.messages_unread} new message
-                {(portal.messages_unread || 0) === 1 ? '' : 's'}
-              </span>
-            ) : (portal.threads || []).length > 0 ? (
-              <span className="rounded-full bg-white/20 px-2.5 py-1">
-                {(portal.threads || []).length} message thread
-                {(portal.threads || []).length === 1 ? '' : 's'}
-              </span>
-            ) : null}
-            {portal.full_count > 0 ? (
-              <span className="rounded-full bg-white/20 px-2.5 py-1">
-                {portal.full_count} full (waitlist)
-              </span>
-            ) : null}
-          </div>
           </div>
         </div>
       }
@@ -827,12 +796,6 @@ export default function MemberFitgraphPortalPage() {
                 .map((s) => s.plan_id)
                 .filter((id): id is string => Boolean(id))}
             />
-          </div>
-        )}
-
-        {tab === 'plans' && (
-          <div className="space-y-3">
-            <h2 className="text-sm font-black">Classes I subscribe to</h2>
             {(portal.subscriptions || []).length ? (
               <ul className="space-y-2">
                 {portal.subscriptions!.map((s) => (
@@ -856,18 +819,7 @@ export default function MemberFitgraphPortalPage() {
                   </li>
                 ))}
               </ul>
-            ) : (
-              <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
-                No class subscriptions yet.{' '}
-                <button
-                  type="button"
-                  className="font-bold text-yellow-800 underline"
-                  onClick={() => selectTab('join')}
-                >
-                  Subscribe to a class
-                </button>
-              </p>
-            )}
+            ) : null}
             {portal.class_report ? (
               <ClassSubscriptionReport
                 report={portal.class_report}
@@ -1114,13 +1066,15 @@ export default function MemberFitgraphPortalPage() {
         {tab === 'open' && (
           <div className="space-y-3">
             <p className="text-sm text-slate-600">
-              Open diary — this week. Pick a day, then a time that suits you.
+              This week’s class diary. Tap a class on the calendar to book or
+              join the waitlist.
             </p>
             <MemberOpenDiaryWeek
               slots={portal.open_classes}
               allowBooking={portal.allow_booking}
               diaryOpen={portal.diary_open !== false}
               busyId={busyId}
+              color={color}
               onBook={(id, waitlist) => void book(id, waitlist)}
               onCancel={(id) => void cancel(id)}
               onNeedSubscribe={(needBank) =>

@@ -54,6 +54,7 @@ import {
 } from '@/components/services/AdvisorWorkPwaChrome';
 import { ProgrammeView } from '@/components/fitness/ProgrammeView';
 import { ClassSubscriptionReport } from '@/components/fitness/ClassSubscriptionReport';
+import { MemberPortalWeekCalendar } from '@/components/advisors/MemberPortalWeekCalendar';
 import type {
   FitHydratedProgramme,
   FitMovement,
@@ -924,71 +925,32 @@ export default function CoachFitgraphPortalPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-7 gap-2">
-          {days.map((d) => {
-            const list = (portal.by_date?.[d] || []).filter(matchesCal);
-            const label = new Date(d + 'T12:00:00').toLocaleDateString(
-              undefined,
-              { weekday: 'short', day: 'numeric' }
-            );
-            return (
-              <div
-                key={d}
-                className="rounded-2xl border border-slate-800 bg-slate-900/80 p-2 min-h-[6.5rem]"
-              >
-                <div className="text-[10px] font-black uppercase text-amber-400/90 mb-1.5">
-                  {label}
-                </div>
-                <div className="space-y-1">
-                  {list.length === 0 ? (
-                    <p className="text-[10px] text-slate-600 text-center py-3">—</p>
-                  ) : (
-                    list.map((card) => (
-                      <button
-                        key={card.session.id}
-                        type="button"
-                        onClick={() => setOpenId(card.session.id)}
-                        className="w-full text-left rounded-xl border border-slate-700 bg-slate-950/60 px-2 py-1.5 hover:border-amber-500/60"
-                      >
-                        <div className="text-[11px] font-black tabular-nums text-amber-200">
-                          {card.session.start_time}
-                          {card.session.end_time
-                            ? `–${card.session.end_time}`
-                            : ''}
-                        </div>
-                        <div className="text-[10px] font-semibold truncate">
-                          {card.session.session_kind === 'coach_personal'
-                            ? card.session.notes?.split('\n')[0] ||
-                              'Personal time'
-                            : card.session.session_kind === 'private_pt'
-                              ? `PT · ${card.class_name || 'PT'}`
-                              : card.class_name || 'Class'}
-                        </div>
-                        <div className="text-[8px] font-black uppercase tracking-wide text-amber-400/80">
-                          {slotBadge(card)}
-                        </div>
-                        <div className="text-[9px] text-slate-500 flex gap-1 items-center">
-                          <span>
-                            P{card.planned}/{card.capacity}
-                          </span>
-                          <span>A{card.attended}</span>
-                          {card.session.series_id ? (
-                            <Repeat className="w-2.5 h-2.5 text-amber-500" />
-                          ) : null}
-                        </div>
-                        {card.session.class_plan ? (
-                          <p className="text-[9px] text-amber-200/80 line-clamp-2 mt-0.5">
-                            {card.session.class_plan}
-                          </p>
-                        ) : null}
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <MemberPortalWeekCalendar
+          theme="dark"
+          color="#E8E830"
+          hideNav
+          weekStart={weekStart}
+          events={days.flatMap((d) =>
+            (portal.by_date?.[d] || []).filter(matchesCal).map((card) => ({
+              id: card.session.id,
+              date: d,
+              start_time: String(card.session.start_time).slice(0, 5),
+              end_time: card.session.end_time
+                ? String(card.session.end_time).slice(0, 5)
+                : null,
+              title:
+                card.session.session_kind === 'coach_personal'
+                  ? card.session.notes?.split('\n')[0] || 'Personal time'
+                  : card.session.session_kind === 'private_pt'
+                    ? `PT · ${card.class_name || 'PT'}`
+                    : card.class_name || 'Class',
+              person: slotBadge(card),
+              my_status: 'scheduled',
+            }))
+          )}
+          onSelect={(ev) => setOpenId(ev.id)}
+          emptyLabel="Nothing this week. Tap Class / PT / block to add a class, private PT, or your own training."
+        />
 
         {portal.sessions.length === 0 && (
           <p className="text-center text-slate-500 py-10 text-sm">
