@@ -75,6 +75,8 @@ export default function CalendarPage() {
   const [recurrence, setRecurrence] = useState<RecurrenceFormValue>(
     emptyRecurrenceForm
   );
+  const [statsOpen, setStatsOpen] = useState(true);
+  const [calendarOpen, setCalendarOpen] = useState(true);
   const [waitlistOpen, setWaitlistOpen] = useState(true);
   const [slotEditorOpen, setSlotEditorOpen] = useState(true);
 
@@ -468,100 +470,120 @@ export default function CalendarPage() {
     <MedicalgraphWorkbench
       title="Calendar"
       titleAccent="main practice diary"
-      description="Main medical diary: click an appointment to open (view/edit · book patient). Click empty time to schedule. Waitlist and working hours sit below the calendar. Exclusive clinician books — no double-booking."
+      description="Stats, then this week’s clinic diary, then waitlist, then working hours. Click an appointment to open it. Exclusive clinician books — no double-booking."
     >
       {loading || !store ? (
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow
-            items={[
-              {
-                label: 'Today',
-                value: Number(summary?.appointmentsToday) || 0,
-              },
-              {
-                label: 'Upcoming',
-                value: Number(summary?.appointmentsUpcoming) || 0,
-              },
-              {
-                label: 'Waitlist queue',
-                value: deskQueue.length,
-              },
-              {
-                label: 'On board',
-                value: events.filter((e) => e.status === 'scheduled').length,
-              },
-            ]}
-          />
-
-          <PracticeScheduleCalendar
-            title="Clinic schedule"
-            printBrand={
-              store.settings?.brand_name || 'MedicalAdvisor · SupplierAdvisor'
-            }
-            pdfExport={{
-              companyId,
-              module: 'medicalgraph',
-              personId: personFilter || null,
-            }}
-            accent="emerald"
-            events={events}
-            people={people}
-            peopleLabel="Practitioner"
-            workingHours={workingHours}
-            diaryScope={diaryScope}
-            onDiaryScopeChange={(scope) => {
-              setDiaryScope(scope);
-              if (scope === 'practice') setPersonFilter('');
-            }}
-            showDiaryScopeToggle
-            personFilter={personFilter}
-            onPersonFilterChange={(id) => {
-              setPersonFilter(id);
-              if (id) setForm((f) => ({ ...f, practitioner_id: id }));
-            }}
-            initialDate={form.date}
-            emptyLabel="No appointments"
-            slotHint="Click empty time to add · click an appointment to open"
-            selectedEventId={selectedId}
-            onSelectDate={(date) => setForm((f) => ({ ...f, date }))}
-            onSelectSlot={(slot) => {
-              startCreate({
-                date: slot.date,
-                start_time: slot.start_time.slice(0, 5),
-                practitioner_id:
-                  slot.person_id || personFilter || undefined,
-              });
-              toast.message('New appointment slot', {
-                description: `${slot.date} at ${slot.start_time.slice(0, 5)} — finish details in the pop-out`,
-              });
-            }}
-            onSelectEvent={(ev) => {
-              openAppointment(ev.id);
-              toast.message('Appointment open', {
-                description: `${ev.start_time.slice(0, 5)} · ${ev.title} — edit in the pop-out`,
-              });
-            }}
-          />
-
-          <div className="flex flex-wrap items-center justify-between gap-2 -mt-2">
-            <p className="text-xs text-slate-500">
-              Click an appointment to edit it in a pop-out. Expand the calendar
-              to fill the screen. Use the month name to jump months.
-            </p>
-            <button
-              type="button"
-              className="rounded-xl border border-emerald-300 bg-white px-3 py-2 text-xs font-bold text-emerald-800"
-              onClick={() => startCreate({ date: form.date })}
-            >
-              + New appointment
-            </button>
-          </div>
+          <AdvisorExpandablePanel
+            title={`Today ${Number(summary?.appointmentsToday) || 0} · Upcoming ${Number(summary?.appointmentsUpcoming) || 0} · Waitlist ${deskQueue.length} · On board ${events.filter((e) => e.status === 'scheduled').length}`}
+            description="Diary counts for this practice. Collapse to focus on the week view."
+            open={statsOpen}
+            onToggle={() => setStatsOpen((v) => !v)}
+            accentClass="border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/30"
+            titleClass="text-emerald-950 dark:text-emerald-50"
+            hintClass="text-emerald-800/80 dark:text-emerald-200/80"
+          >
+            <StatRow
+              items={[
+                {
+                  label: 'Today',
+                  value: Number(summary?.appointmentsToday) || 0,
+                },
+                {
+                  label: 'Upcoming',
+                  value: Number(summary?.appointmentsUpcoming) || 0,
+                },
+                {
+                  label: 'Waitlist queue',
+                  value: deskQueue.length,
+                },
+                {
+                  label: 'On board',
+                  value: events.filter((e) => e.status === 'scheduled').length,
+                },
+              ]}
+            />
+          </AdvisorExpandablePanel>
 
           <AdvisorExpandablePanel
-            title={`Waiting list · ${deskQueue.length}`}
-            description="Next-available queue and people waiting on a full slot. Collapse when you only need the diary."
+            title="Clinic schedule · this week"
+            description="Default is this week. Click an appointment to open it; click empty time to schedule."
+            open={calendarOpen}
+            onToggle={() => setCalendarOpen((v) => !v)}
+            accentClass="border-emerald-200 bg-white dark:border-emerald-800 dark:bg-neutral-950"
+            titleClass="text-emerald-950 dark:text-emerald-50"
+            hintClass="text-emerald-800/80 dark:text-emerald-200/80"
+          >
+            <PracticeScheduleCalendar
+              title="Clinic schedule"
+              defaultView="week"
+              printBrand={
+                store.settings?.brand_name || 'MedicalAdvisor · SupplierAdvisor'
+              }
+              pdfExport={{
+                companyId,
+                module: 'medicalgraph',
+                personId: personFilter || null,
+              }}
+              accent="emerald"
+              events={events}
+              people={people}
+              peopleLabel="Practitioner"
+              workingHours={workingHours}
+              diaryScope={diaryScope}
+              onDiaryScopeChange={(scope) => {
+                setDiaryScope(scope);
+                if (scope === 'practice') setPersonFilter('');
+              }}
+              showDiaryScopeToggle
+              personFilter={personFilter}
+              onPersonFilterChange={(id) => {
+                setPersonFilter(id);
+                if (id) setForm((f) => ({ ...f, practitioner_id: id }));
+              }}
+              initialDate={form.date}
+              emptyLabel="No appointments"
+              slotHint="Click empty time to add · click an appointment to open"
+              selectedEventId={selectedId}
+              onSelectDate={(date) => setForm((f) => ({ ...f, date }))}
+              onSelectSlot={(slot) => {
+                startCreate({
+                  date: slot.date,
+                  start_time: slot.start_time.slice(0, 5),
+                  practitioner_id:
+                    slot.person_id || personFilter || undefined,
+                });
+                toast.message('New appointment slot', {
+                  description: `${slot.date} at ${slot.start_time.slice(0, 5)} — finish details in the pop-out`,
+                });
+              }}
+              onSelectEvent={(ev) => {
+                openAppointment(ev.id);
+                toast.message('Appointment open', {
+                  description: `${ev.start_time.slice(0, 5)} · ${ev.title} — edit in the pop-out`,
+                });
+              }}
+            />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-slate-500">
+                Switch to day or month from the diary toolbar. Expand to fill
+                the screen.
+              </p>
+              <button
+                type="button"
+                className="rounded-xl border border-emerald-300 bg-white px-3 py-2 text-xs font-bold text-emerald-800"
+                onClick={() => startCreate({ date: form.date })}
+              >
+                + New appointment
+              </button>
+            </div>
+          </AdvisorExpandablePanel>
+
+          <AdvisorExpandablePanel
+            title={`Waitlist & next-available queue · ${deskQueue.length}`}
+            description="People waiting on a full slot and the next-available practice queue. Open by default."
             open={waitlistOpen}
             onToggle={() => setWaitlistOpen((v) => !v)}
             accentClass="border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/30"
