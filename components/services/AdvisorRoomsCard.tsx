@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { DoorOpen, Loader2, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -11,6 +12,7 @@ type Props = {
   accentClass?: string;
   label?: string;
   hint?: string;
+  manageHref?: string;
 };
 
 /**
@@ -23,12 +25,18 @@ export function AdvisorRoomsCard({
   accentClass = 'border-slate-200',
   label = 'Rooms & resources',
   hint = 'Surgeries, bays, studios or chairs. Pick one when scheduling so the diary shows where the visit runs.',
+  manageHref,
 }: Props) {
   const [rooms, setRooms] = useState(() =>
     (initial || []).map((r) => String(r).trim()).filter(Boolean)
   );
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
+  const initialKey = (initial || []).join('\0');
+
+  useEffect(() => {
+    setRooms((initial || []).map((r) => String(r).trim()).filter(Boolean));
+  }, [initialKey, initial]);
 
   const add = () => {
     const n = draft.trim();
@@ -68,6 +76,14 @@ export function AdvisorRoomsCard({
             {label}
           </p>
           <p className="text-[11px] text-slate-500">{hint}</p>
+          {manageHref ? (
+            <Link
+              href={manageHref}
+              className="mt-1 inline-block text-[11px] font-bold text-emerald-700 underline"
+            >
+              Open Rooms desk
+            </Link>
+          ) : null}
         </div>
       </div>
 

@@ -330,6 +330,12 @@ function Inner() {
               <CalendarDays className="w-4 h-4" /> Diary
             </Link>
             <Link
+              href="/dashboard/medicalgraph/rooms"
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
+            >
+              <Hospital className="w-4 h-4" /> Rooms
+            </Link>
+            <Link
               href="/dashboard/medicalgraph/website"
               className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
             >

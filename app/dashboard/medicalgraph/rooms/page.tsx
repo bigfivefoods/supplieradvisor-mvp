@@ -33,7 +33,7 @@ function emptyForm() {
 export default function MedicalRoomsPage() {
   const { companyId, store, loading, saving, post, summary } = useMedicalgraph();
   const [form, setForm] = useState(emptyForm);
-  const [addOpen, setAddOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [assets, setAssets] = useState<CompanyAsset[]>([]);
   const [newAssetName, setNewAssetName] = useState('');
@@ -314,9 +314,23 @@ export default function MedicalRoomsPage() {
 
           <div className="space-y-2">
             {rooms.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/40 px-4 py-6 text-center text-sm text-slate-500 dark:border-emerald-800 dark:bg-emerald-950/20">
-                No rooms yet — add Surgery 1, Consult 2, Procedure bay…
-              </p>
+              <div className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/40 px-4 py-6 text-center dark:border-emerald-800 dark:bg-emerald-950/20">
+                <p className="text-sm text-slate-600 dark:text-emerald-100">
+                  No rooms yet — add Surgery 1, Consult 2, Procedure bay…
+                </p>
+                <button
+                  type="button"
+                  className="mt-3 inline-flex items-center gap-1 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-black text-white"
+                  onClick={() => {
+                    setAddOpen(true);
+                    setEditingId(null);
+                    setForm(emptyForm());
+                  }}
+                >
+                  <Plus className="h-3 w-3" />
+                  Add a room
+                </button>
+              </div>
             ) : (
               rooms.map((room) => {
                 const assigned = practitioners.filter((p) =>

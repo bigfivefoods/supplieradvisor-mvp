@@ -806,29 +806,29 @@ export default function CalendarPage() {
                   setForm((f) => ({ ...f, duration_min: e.target.value }))
                 }
               />
-              {clinicRoomNames(store.settings?.rooms).length > 0 ? (
-                <select
-                  className={fc()}
-                  value={form.location}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, location: e.target.value }))
-                  }
-                >
-                  <option value="">Room / resource…</option>
-                  {clinicRoomNames(store.settings?.rooms).map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                  {form.location &&
-                  !clinicRoomNames(store.settings?.rooms).includes(
-                    form.location
-                  ) ? (
-                    <option value={form.location}>{form.location}</option>
-                  ) : null}
-                </select>
-              ) : (
-                <div className="space-y-1">
+              <div className="space-y-1">
+                {clinicRoomNames(store.settings?.rooms).length > 0 ? (
+                  <select
+                    className={fc()}
+                    value={form.location}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, location: e.target.value }))
+                    }
+                  >
+                    <option value="">Room / resource…</option>
+                    {clinicRoomNames(store.settings?.rooms).map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                    {form.location &&
+                    !clinicRoomNames(store.settings?.rooms).includes(
+                      form.location
+                    ) ? (
+                      <option value={form.location}>{form.location}</option>
+                    ) : null}
+                  </select>
+                ) : (
                   <input
                     className={fc()}
                     placeholder="Location / room"
@@ -837,14 +837,16 @@ export default function CalendarPage() {
                       setForm((f) => ({ ...f, location: e.target.value }))
                     }
                   />
-                  <Link
-                    href="/dashboard/medicalgraph/rooms"
-                    className="text-[11px] font-bold text-emerald-700 underline"
-                  >
-                    Add rooms
-                  </Link>
-                </div>
-              )}
+                )}
+                <Link
+                  href="/dashboard/medicalgraph/rooms"
+                  className="text-[11px] font-bold text-emerald-700 underline"
+                >
+                  {clinicRoomNames(store.settings?.rooms).length
+                    ? 'Manage rooms'
+                    : 'Add rooms on the Rooms desk'}
+                </Link>
+              </div>
               {selectedId ? (
                 <select
                   className={fc()}

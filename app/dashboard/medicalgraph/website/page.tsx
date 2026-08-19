@@ -283,6 +283,7 @@ export default function WebsitePage() {
             }
             saving={saving}
             accentClass="border-rose-200"
+            manageHref="/dashboard/medicalgraph/rooms"
             hint="Quick list. Open Rooms for notes, equipment, and which practitioners use each consult room."
             onSave={async (rooms) => {
               const { mergeClinicRoomNames } = await import(

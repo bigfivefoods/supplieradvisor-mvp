@@ -889,6 +889,22 @@ export function seedDemoMedicalgraph(
       contact_email: 'hello@citycare.example',
       contact_phone: '+27 11 000 4444',
       public_bio: 'Family medicine & primary care — consultations, chronic care and procedures.',
+      rooms: [
+        {
+          id: 'room_consult_1',
+          name: 'Consult 1',
+          notes: 'GP consults',
+          practitioner_ids: [p1],
+          active: true,
+        },
+        {
+          id: 'room_surgery_1',
+          name: 'Surgery 1',
+          notes: 'Minor procedures',
+          practitioner_ids: [p1, p2],
+          active: true,
+        },
+      ],
     },
     practitioners: [
       {
@@ -1015,7 +1031,7 @@ export function seedDemoMedicalgraph(
         date: d(0),
         start_time: '09:00',
         duration_min: 60,
-        location: 'Room 1',
+        location: 'Consult 1',
         status: 'scheduled',
         public: true,
         created_at: now,
@@ -1027,7 +1043,7 @@ export function seedDemoMedicalgraph(
         date: d(1),
         start_time: '14:00',
         duration_min: 45,
-        location: 'Gym floor',
+        location: 'Surgery 1',
         status: 'scheduled',
         public: true,
         created_at: now,
