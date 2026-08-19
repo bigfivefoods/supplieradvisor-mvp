@@ -3,6 +3,7 @@
 import { Loader2 } from 'lucide-react';
 import type { GymShopItem } from '@/lib/fitness/gym-shop';
 import { AdvisorPayAccepted } from '@/components/billing/ApplePayAccepted';
+import { advisorBrandInk } from '@/lib/advisors/brand-ink';
 
 export function GymShopPay({
   items,
@@ -45,7 +46,7 @@ export function GymShopPay({
     items.some((i) => i.kind === 'membership' && Boolean(i.schedule_label));
   if (!items.length) {
     return (
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-slate-500 dark:text-slate-400">
         {classMode
           ? 'No classes are open for subscription yet. Ask the gym to publish the timetable.'
           : 'No memberships or programmes are for sale yet. Ask the gym to publish a priced plan.'}
@@ -57,19 +58,19 @@ export function GymShopPay({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         {classMode ? (
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
             Subscribe to the class or classes you train. Your monthly fee is
             the total of those classes
             {requirePaid ? ' — then you or a coach book each session' : ''}.
             Card, Apple Pay (Safari / iPhone) or EFT.
           </p>
         ) : requirePaid ? (
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
             Pay first — then you can book classes. Card, Apple Pay (Safari /
             iPhone), EFT and other Paystack methods.
           </p>
         ) : (
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
             Buy a membership or programme. Pay with card, Apple Pay (Safari /
             iPhone) or EFT.
           </p>
@@ -93,20 +94,20 @@ export function GymShopPay({
       {!hideIdentity ? (
         <div className="grid gap-2 sm:grid-cols-3">
           <input
-            className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+            className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-neutral-900"
             placeholder="Your name *"
             value={name}
             onChange={(e) => onName(e.target.value)}
           />
           <input
-            className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+            className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-neutral-900"
             placeholder="Email *"
             type="email"
             value={email}
             onChange={(e) => onEmail(e.target.value)}
           />
           <input
-            className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+            className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-neutral-900"
             placeholder="Phone / WhatsApp"
             value={phone}
             onChange={(e) => onPhone(e.target.value)}
@@ -121,7 +122,7 @@ export function GymShopPay({
           return (
             <div
               key={`${item.kind}:${item.id}`}
-              className="flex flex-col rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm"
+              className="flex flex-col rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-white/10 dark:bg-neutral-900"
             >
               <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                 {item.kind === 'programme'
@@ -170,8 +171,8 @@ export function GymShopPay({
               <button
                 type="button"
                 disabled={busy || !payoutReady || !name.trim() || !email.includes('@')}
-                className="mt-3 rounded-xl py-2 text-xs font-black text-white disabled:opacity-50"
-                style={{ backgroundColor: color }}
+                className="mt-3 min-h-11 rounded-xl py-2 text-xs font-black disabled:opacity-50"
+                style={{ backgroundColor: color, color: advisorBrandInk(color) }}
                 onClick={() => onBuy(item)}
               >
                 {busy ? (

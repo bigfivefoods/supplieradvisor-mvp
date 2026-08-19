@@ -8,16 +8,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
   Activity,
-  AlertTriangle,
-  CheckCircle2,
+  CalendarDays,
   CreditCard,
+  Dumbbell,
   Loader2,
   MessageSquare,
   MessageSquareHeart,
   QrCode,
   Send,
   User,
-  X,
 } from 'lucide-react';
 import { GymShopPay } from '@/components/fitness/GymShopPay';
 import { ClassSubscriptionReport } from '@/components/fitness/ClassSubscriptionReport';
@@ -47,13 +46,32 @@ import {
   type MemberPortalInvoice,
 } from '@/components/advisors/MemberPortalInvoices';
 import { gymBrandColor } from '@/lib/fitness/fitgraph';
+import { advisorBrandInk } from '@/lib/advisors/brand-ink';
 import type { MemberAnnouncementPublic } from '@/lib/services/member-announcements';
 import {
   PORTAL_PHOTO_SAVED_MESSAGE,
   PORTAL_PHOTO_SHARE_HINT,
 } from '@/lib/services/portal-profile';
+import {
+  GymCalendarLink,
+  GymCheckinPass,
+  GymFlash,
+  GymNextUpCard,
+  GymSectionTitle,
+  GymStat,
+  gymFormatDay,
+} from '@/components/fitness/GymMemberPwaUi';
 
 const MEMBER_TOKEN_KEY = 'sa_fitgraph_member_token';
+
+type MemberTab =
+  | 'checkin'
+  | 'join'
+  | 'open'
+  | 'mine'
+  | 'progress'
+  | 'messages'
+  | 'profile';
 
 type OpenClass = {
   id: string;
@@ -282,15 +300,7 @@ export default function MemberFitgraphPortalPage() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [tab, setTab] = useState<
-    | 'checkin'
-    | 'join'
-    | 'open'
-    | 'mine'
-    | 'progress'
-    | 'messages'
-    | 'profile'
-  >('open');
+  const [tab, setTab] = useState<MemberTab>('open');
   const [buyingId, setBuyingId] = useState<string | null>(null);
   const [checkinBusy, setCheckinBusy] = useState(false);
   const [checkinScan, setCheckinScan] = useState('');
@@ -360,6 +370,12 @@ export default function MemberFitgraphPortalPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!msg) return;
+    const t = window.setTimeout(() => setMsg(null), 4500);
+    return () => window.clearTimeout(t);
+  }, [msg]);
 
   useEffect(() => {
     const raw = new URLSearchParams(window.location.search).get('tab');
@@ -435,16 +451,7 @@ export default function MemberFitgraphPortalPage() {
     };
   }, [token]);
 
-  const selectTab = (
-    id:
-      | 'checkin'
-      | 'join'
-      | 'open'
-      | 'mine'
-      | 'progress'
-      | 'messages'
-      | 'profile'
-  ) => {
+  const selectTab = (id: MemberTab) => {
     setTab(id);
     setError(null);
     setMsg(null);
@@ -620,21 +627,29 @@ export default function MemberFitgraphPortalPage() {
   };
 
   const color = gymBrandColor(portal?.primary_color);
+  const ink = advisorBrandInk(color);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="w-8 h-8 animate-spin text-yellow-600" />
+      <div className="flex min-h-[100dvh] flex-col bg-gradient-to-b from-yellow-50 to-slate-100 dark:from-slate-950 dark:to-black">
+        <div className="h-36 animate-pulse bg-yellow-300/80" />
+        <div className="flex flex-1 items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
+        </div>
       </div>
     );
   }
 
   if (error && !portal) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-        <div className="max-w-md rounded-2xl border border-rose-200 bg-white p-6 text-center">
-          <p className="font-black text-slate-900">Member portal unavailable</p>
-          <p className="text-sm text-slate-600 mt-2">{error}</p>
+      <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 p-6 dark:bg-black">
+        <div className="max-w-md rounded-3xl border border-rose-200 bg-white p-6 text-center dark:border-rose-500/40 dark:bg-neutral-900">
+          <p className="font-black text-slate-900 dark:text-white">
+            Member portal unavailable
+          </p>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            {error}
+          </p>
         </div>
       </div>
     );
@@ -642,51 +657,101 @@ export default function MemberFitgraphPortalPage() {
 
   if (!portal) return null;
 
-  const formatDay = (date: string, time: string) => {
-    try {
-      const d = new Date(`${date}T12:00:00`);
-      return `${d.toLocaleDateString(undefined, {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-      })} · ${time}`;
-    } catch {
-      return `${date} · ${time}`;
-    }
-  };
+  const formatDay = gymFormatDay;
+  const needPay =
+    Boolean(portal.require_paid_membership) &&
+    portal.paid_access === false &&
+    !(portal.subscriptions || []).length;
+  const needBank = Boolean(portal.require_debit_bank && !portal.bank?.complete);
+  const nextClass = (portal.my_bookings || []).find(
+    (b) =>
+      b.upcoming !== false &&
+      b.status !== 'cancelled' &&
+      b.rsvp !== 'not_coming'
+  );
+  const youTab = tab === 'join' || tab === 'messages' || tab === 'profile';
+  const joinLabel = portal.class_subscribe ? 'Subscribe' : 'Join & pay';
 
   return (
     <MemberAdvisorShell
       color={color}
       fromClass="from-yellow-50"
       tab={tab}
-      onTab={(id) => selectTab(id as typeof tab)}
+      onTab={selectTab}
+      mobileNav="bottom"
       tabs={[
-        { id: 'open', label: 'Book' },
-        { id: 'mine', label: 'My bookings' },
-        { id: 'join', label: portal.class_subscribe ? 'Subscribe' : 'Join & pay' },
-        { id: 'checkin', label: 'Check in' },
-        { id: 'progress', label: 'Progress' },
+        { id: 'open', label: 'Book', icon: <CalendarDays /> },
+        { id: 'mine', label: 'Classes', icon: <Dumbbell /> },
+        { id: 'join', label: joinLabel, icon: <CreditCard /> },
+        {
+          id: 'checkin',
+          label: 'Check in',
+          icon: <QrCode />,
+          emphasis: true,
+        },
+        { id: 'progress', label: 'Progress', icon: <Activity /> },
         {
           id: 'messages',
-          label: 'Messages',
+          label: 'Inbox',
+          icon: <MessageSquare />,
           badge: portal.messages_unread || undefined,
         },
         {
           id: 'profile',
-          label: 'My profile',
-          badge:
-            portal.require_debit_bank && !portal.bank?.complete
-              ? 1
-              : undefined,
+          label: 'You',
+          icon: <User />,
+          badge: needBank ? 1 : undefined,
         },
       ]}
+      mobileTabs={
+        needPay
+          ? [
+              { id: 'open', label: 'Book', icon: <CalendarDays /> },
+              { id: 'join', label: joinLabel, icon: <CreditCard /> },
+              {
+                id: 'checkin',
+                label: 'Check in',
+                icon: <QrCode />,
+                emphasis: true,
+              },
+              { id: 'mine', label: 'Classes', icon: <Dumbbell /> },
+              {
+                id: 'profile',
+                label: 'You',
+                icon: <User />,
+                badge:
+                  (portal.messages_unread || 0) + (needBank ? 1 : 0) ||
+                  undefined,
+                covers: ['messages', 'profile'],
+              },
+            ]
+          : [
+              { id: 'open', label: 'Book', icon: <CalendarDays /> },
+              { id: 'mine', label: 'Classes', icon: <Dumbbell /> },
+              {
+                id: 'checkin',
+                label: 'Check in',
+                icon: <QrCode />,
+                emphasis: true,
+              },
+              { id: 'progress', label: 'Progress', icon: <Activity /> },
+              {
+                id: 'profile',
+                label: 'You',
+                icon: <User />,
+                badge:
+                  (portal.messages_unread || 0) + (needBank ? 1 : 0) ||
+                  undefined,
+                covers: ['join', 'messages', 'profile'],
+              },
+            ]
+      }
       header={
         <div>
           <MemberPortalBrandLockup
             logoUrl={portal.logo_url}
             brand={portal.brand}
-            eyebrow="Member portal · GymAdvisor®"
+            eyebrow="Member · GymAdvisor®"
           />
           <div className="mt-4 flex items-center gap-3">
             {portal.client.photo_url ? (
@@ -694,15 +759,15 @@ export default function MemberFitgraphPortalPage() {
               <img
                 src={portal.client.photo_url}
                 alt=""
-                className="h-12 w-12 rounded-full object-cover border-2 border-white/40"
+                className="h-12 w-12 rounded-full object-cover ring-2 ring-white/50"
               />
             ) : (
-              <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
-                <User className="w-6 h-6" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20">
+                <User className="h-6 w-6" />
               </div>
             )}
-            <div>
-              <p className="font-bold inline-flex flex-wrap items-center gap-2">
+            <div className="min-w-0">
+              <p className="inline-flex flex-wrap items-center gap-2 font-bold">
                 {portal.client.name}
                 <VerifiedBadge
                   verified={portal.client.identity?.is_verified}
@@ -711,62 +776,100 @@ export default function MemberFitgraphPortalPage() {
                   className="!bg-white/20 !text-white !border-white/30"
                 />
               </p>
-              <p className="text-xs text-white/85">
+              <p className="truncate text-xs text-white/85">
                 {(portal.subscriptions || []).length
                   ? portal.subscriptions!.map((s) => s.plan_name).join(' · ')
                   : [portal.client.plan_name, portal.client.membership_status]
                       .filter(Boolean)
                       .join(' · ') || 'Member'}
                 {portal.client.coach_name
-                  ? ` · Coach ${portal.client.coach_name}`
+                  ? ` · ${portal.client.coach_name}`
                   : ''}
-                {` · ${portal.open_count} open spots`}
               </p>
+              {nextClass ? (
+                <button
+                  type="button"
+                  onClick={() => selectTab('mine')}
+                  className="mt-1 text-left text-[11px] font-bold text-white/90 underline"
+                >
+                  Next: {nextClass.class_name} ·{' '}
+                  {formatDay(nextClass.date, nextClass.start_time)}
+                </button>
+              ) : (
+                <p className="mt-1 text-[11px] font-semibold text-white/75">
+                  {portal.open_count} open spots this week
+                </p>
+              )}
             </div>
           </div>
         </div>
       }
     >
         <PopiaConsentNotice brand={portal.brand} />
-        <B2cAutoLinkBanner token={token} tone="yellow" />
-        <MemberAnnouncementsFeed
-          items={portal.announcements}
-          brand={portal.brand}
-          tone="yellow"
-        />
-        <MemberPortalInvoices invoices={portal.invoices} />
-        {portal.require_debit_bank && !portal.bank?.complete ? (
+        {needBank ? (
           <button
             type="button"
             onClick={() => selectTab('profile')}
-            className="w-full rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs font-bold text-amber-950"
+            className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-left text-xs font-bold text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-100"
           >
-            Complete your membership: add bank details for the gym debit
-            order.
+            Complete membership — add bank details for the gym debit order.
           </button>
         ) : null}
-        {(msg || error) && (
-          <div
-            className={`rounded-xl border px-3 py-2 text-sm ${
-              error
-                ? 'border-rose-200 bg-rose-50 text-rose-800'
-                : 'border-emerald-200 bg-emerald-50 text-emerald-900'
-            }`}
-          >
-            {error || msg}
+        {tab === 'open' || tab === 'checkin' || youTab ? (
+          <MemberAnnouncementsFeed
+            items={portal.announcements}
+            brand={portal.brand}
+            tone="yellow"
+          />
+        ) : null}
+        {tab === 'join' || tab === 'profile' ? (
+          <MemberPortalInvoices invoices={portal.invoices} />
+        ) : null}
+        {tab === 'profile' ? (
+          <B2cAutoLinkBanner token={token} tone="yellow" />
+        ) : null}
+        <GymFlash error={error} msg={msg} />
+
+        {youTab ? (
+          <div className="flex gap-1 rounded-2xl border border-slate-200 bg-white p-1 dark:border-white/10 dark:bg-neutral-900 md:hidden">
+            {(
+              [
+                ['join', joinLabel],
+                ['messages', 'Inbox'],
+                ['profile', 'Profile'],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => selectTab(id)}
+                className="min-h-9 flex-1 rounded-xl px-2 text-[11px] font-black"
+                style={
+                  tab === id ? { backgroundColor: color, color: ink } : undefined
+                }
+              >
+                {label}
+                {id === 'messages' && portal.messages_unread
+                  ? ` (${portal.messages_unread})`
+                  : ''}
+              </button>
+            ))}
           </div>
-        )}
+        ) : null}
 
         {tab === 'join' && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-yellow-800">
-              <CreditCard className="h-4 w-4" />
-              <h2 className="text-sm font-black">
-                {portal.class_subscribe
-                  ? 'Subscribe to classes'
-                  : 'Memberships & programmes'}
-              </h2>
-            </div>
+            <GymSectionTitle
+              hint={
+                portal.class_subscribe
+                  ? 'Pick the class or classes you train. Your monthly fee is the total.'
+                  : 'Memberships and programmes you can pay for here.'
+              }
+            >
+              {portal.class_subscribe
+                ? 'Subscribe to classes'
+                : 'Memberships & programmes'}
+            </GymSectionTitle>
             {portal.class_subscribe && (portal.subscriptions || []).length ? (
               <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">
                 You are subscribed to{' '}
@@ -851,91 +954,34 @@ export default function MemberFitgraphPortalPage() {
         )}
 
         {tab === 'checkin' && (
-          <div className="space-y-3">
-            <div className="rounded-2xl border border-yellow-200 bg-white p-4">
-              <div className="flex items-center gap-2 text-yellow-800">
-                <QrCode className="h-4 w-4" />
-                <h2 className="text-sm font-black">Gym door check-in</h2>
-              </div>
-              <p className="mt-2 text-xs text-slate-600">
-                At reception, scan the gym&apos;s QR with your phone camera (or
-                paste the code below). Your membership status is shared with the
-                gym — paid / unpaid / frozen.
-              </p>
-              {portal.access ? (
-                <div
-                  className={`mt-3 rounded-xl border px-3 py-2 text-xs ${
-                    portal.access.level === 'blocked'
-                      ? 'border-rose-200 bg-rose-50 text-rose-900'
-                      : portal.access.payment_ok
-                        ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-                        : 'border-amber-200 bg-amber-50 text-amber-950'
-                  }`}
-                >
-                  <p className="font-bold">
-                    Membership: {portal.access.membership_status}
-                    {portal.access.subscription_status
-                      ? ` · sub ${portal.access.subscription_status}`
-                      : ''}
-                  </p>
-                  {portal.access.alert ? (
-                    <p className="mt-1 flex items-start gap-1">
-                      <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-                      {portal.access.alert}
-                    </p>
-                  ) : (
-                    <p className="mt-1">Dues look current — good to train.</p>
-                  )}
-                </div>
-              ) : null}
-              <label className="mt-3 block text-xs font-bold text-slate-700">
-                Gym QR code or check-in URL (optional)
-                <input
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-mono"
-                  value={checkinScan}
-                  onChange={(e) => setCheckinScan(e.target.value)}
-                  placeholder="Paste fg_… token or full check-in link"
-                />
-              </label>
-              <button
-                type="button"
-                disabled={checkinBusy}
-                onClick={() => void doCheckIn()}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-yellow-600 py-3 text-sm font-black text-white disabled:opacity-50"
-              >
-                {checkinBusy ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4" />
-                )}
-                I&apos;m at the gym — check in
-              </button>
-              {portal.gym_checkin?.path ? (
-                <a
-                  href={`${portal.gym_checkin.path}?member=${encodeURIComponent(token)}`}
-                  className="mt-2 block text-center text-xs font-bold text-yellow-700 underline"
-                >
-                  Open gym door page (scan-friendly)
-                </a>
-              ) : null}
-              <p className="mt-3 text-[11px] text-slate-500">
-                Tip: add this portal to your home screen (PWA) for one-tap class
-                booking and check-in.
-              </p>
-            </div>
-          </div>
+          <GymCheckinPass
+            brand={portal.brand}
+            membership={portal.access?.membership_status}
+            plan={portal.access?.plan_name || portal.client.plan_name}
+            paymentOk={portal.access?.payment_ok}
+            blocked={portal.access?.level === 'blocked'}
+            alert={portal.access?.alert}
+            scan={checkinScan}
+            onScan={setCheckinScan}
+            onCheckin={() => void doCheckIn()}
+            busy={checkinBusy}
+            doorHref={
+              portal.gym_checkin?.path
+                ? `${portal.gym_checkin.path}?member=${encodeURIComponent(token)}`
+                : null
+            }
+            color={color}
+          />
         )}
 
         {tab === 'messages' && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-yellow-800">
-              <MessageSquare className="w-4 h-4" />
-              <h2 className="text-sm font-black">Messages with your coaches</h2>
-            </div>
+            <GymSectionTitle hint="When your coach writes, it shows here — and we email you if a profile address is on file.">
+              Messages with your coaches
+            </GymSectionTitle>
             {(portal.threads || []).length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-                No messages yet. When your coach writes to you, it will show
-                here — and we email you if your profile has an address.
+              <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm text-slate-500 dark:border-white/15 dark:bg-neutral-900">
+                No messages yet. Your coaches will appear here.
               </div>
             ) : (
               <>
@@ -951,10 +997,10 @@ export default function MemberFitgraphPortalPage() {
                             thread_id: t.id,
                           }).then(() => void load());
                         }}
-                        className={`w-full text-left rounded-2xl border px-3 py-3 ${
+                        className={`w-full rounded-2xl border px-3 py-3 text-left ${
                           msgThreadId === t.id
-                            ? 'border-yellow-400 bg-yellow-50'
-                            : 'border-slate-200 bg-white'
+                            ? 'border-slate-900 bg-slate-50 dark:border-white dark:bg-white/10'
+                            : 'border-slate-200 bg-white dark:border-white/10 dark:bg-neutral-900'
                         }`}
                       >
                         <p className="text-sm font-black text-slate-900 truncate">
@@ -978,7 +1024,7 @@ export default function MemberFitgraphPortalPage() {
                     (portal.threads || [])[0];
                   if (!thr) return null;
                   return (
-                    <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-3">
+                    <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
                       <p className="text-xs font-bold text-slate-500">
                         {thr.title || thr.subject || 'Conversation'}
                       </p>
@@ -1006,7 +1052,7 @@ export default function MemberFitgraphPortalPage() {
                       </div>
                       <div className="flex gap-2">
                         <input
-                          className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                          className="min-h-11 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-neutral-950"
                           placeholder="Reply…"
                           value={msgReply}
                           onChange={(e) => setMsgReply(e.target.value)}
@@ -1039,7 +1085,8 @@ export default function MemberFitgraphPortalPage() {
                               })
                               .finally(() => setBusyId(null));
                           }}
-                          className="rounded-xl bg-[#E8E830] text-slate-900 px-3 py-2 disabled:opacity-50"
+                          className="rounded-xl px-3 py-2 disabled:opacity-50"
+                          style={{ backgroundColor: color, color: ink }}
                         >
                           <Send className="w-4 h-4" />
                         </button>
@@ -1054,12 +1101,12 @@ export default function MemberFitgraphPortalPage() {
 
         {(portal.client?.family || []).filter((m) => m.active !== false).length > 0 &&
         (tab === 'open') ? (
-          <div className="rounded-2xl border border-yellow-200 bg-white p-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
             <label className="text-[10px] font-bold uppercase text-slate-500">
               Book for
             </label>
             <select
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold"
+              className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-white/10 dark:bg-neutral-950"
               value={bookForFamilyId}
               onChange={(e) => setBookForFamilyId(e.target.value)}
             >
@@ -1077,18 +1124,32 @@ export default function MemberFitgraphPortalPage() {
           </div>
         ) : null}
         {!portal.allow_booking && tab === 'open' ? (
-          <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-            Online booking is currently paused by the gym. You can still view
-            your bookings.
+          <p className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-100">
+            Online booking is paused by the gym. You can still view your
+            classes.
           </p>
         ) : null}
 
         {tab === 'open' && (
           <div className="space-y-3">
-            <p className="text-sm text-slate-600">
-              This week’s class diary. Tap a class on the calendar to book or
-              join the waitlist.
-            </p>
+            {nextClass ? (
+              <GymNextUpCard
+                className={nextClass.class_name}
+                date={nextClass.date}
+                startTime={nextClass.start_time}
+                location={nextClass.location}
+                coach={nextClass.coach_name}
+                rsvp={nextClass.rsvp}
+                bookingId={nextClass.booking_id}
+                busy={busyId === nextClass.booking_id}
+                color={color}
+                onOpen={() => selectTab('mine')}
+                onRsvp={(coming) => void rsvp(nextClass.booking_id, coming)}
+              />
+            ) : null}
+            <GymSectionTitle hint="Pick a day, then book or join the waitlist. Your booked classes are highlighted.">
+              Class diary
+            </GymSectionTitle>
             <MemberOpenDiaryWeek
               slots={portal.open_classes}
               allowBooking={portal.allow_booking}
@@ -1107,16 +1168,15 @@ export default function MemberFitgraphPortalPage() {
 
         {tab === 'mine' && (
           <div className="space-y-4">
-            <p className="text-sm text-slate-600">
-              Classes you have booked. Before class, say if you’re coming so the
-              gym can free the spot if you can’t make it.
-            </p>
+            <GymSectionTitle hint="Tell the gym if you’re coming so they can free the spot if you can’t make it.">
+              My classes
+            </GymSectionTitle>
             {portal.my_bookings.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+              <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm text-slate-500 dark:border-white/15 dark:bg-neutral-900">
                 No booked classes yet.{' '}
                 <button
                   type="button"
-                  className="font-bold text-yellow-800 underline"
+                  className="font-black text-slate-900 underline dark:text-white"
                   onClick={() => selectTab('open')}
                 >
                   Book a class
@@ -1137,13 +1197,13 @@ export default function MemberFitgraphPortalPage() {
                       {rows.map((b) => (
                         <div
                           key={b.booking_id}
-                          className="rounded-2xl border border-slate-200 bg-white p-4 flex items-start justify-between gap-3"
+                          className="flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900"
                         >
-                          <div>
-                            <p className="font-black text-slate-900">
+                          <div className="min-w-0">
+                            <p className="font-black text-slate-900 dark:text-white">
                               {b.class_name}
                             </p>
-                            <p className="text-xs text-slate-500 mt-0.5">
+                            <p className="mt-0.5 text-xs text-slate-500">
                               {formatDay(b.date, b.start_time)}
                             </p>
                             {b.coach_name ? (
@@ -1151,7 +1211,7 @@ export default function MemberFitgraphPortalPage() {
                                 {b.coach_name}
                               </p>
                             ) : null}
-                            <span className="inline-block mt-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase text-slate-700">
+                            <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase text-slate-700 dark:bg-white/10 dark:text-slate-200">
                               {b.rsvp === 'coming'
                                 ? 'Coming'
                                 : b.rsvp === 'not_coming'
@@ -1159,12 +1219,13 @@ export default function MemberFitgraphPortalPage() {
                                   : b.status}
                             </span>
                             {b.upcoming !== false ? (
-                              <a
-                                className="block mt-1 text-[10px] font-bold text-yellow-700 underline"
-                                href={`/api/public/advisor/ics?module=fitgraph&date=${encodeURIComponent(b.date)}&start=${encodeURIComponent(b.start_time)}&title=${encodeURIComponent(b.class_name)}&duration=45`}
-                              >
-                                Add to calendar
-                              </a>
+                              <div className="mt-1.5">
+                                <GymCalendarLink
+                                  date={b.date}
+                                  start={b.start_time}
+                                  title={b.class_name}
+                                />
+                              </div>
                             ) : null}
                             {b.coach_feedback ||
                             b.coach_member_feeling != null ||
@@ -1184,7 +1245,7 @@ export default function MemberFitgraphPortalPage() {
                             companyId != null &&
                             !b.feedback_submitted_at ? (
                               <a
-                                className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-yellow-800 underline"
+                                className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-slate-800 underline dark:text-white"
                                 href={`/f/fitgraph/${companyId}/${encodeURIComponent(b.feedback_token)}`}
                               >
                                 <MessageSquareHeart className="h-3.5 w-3.5" />
@@ -1212,21 +1273,21 @@ export default function MemberFitgraphPortalPage() {
                                     type="button"
                                     disabled={busyId === b.booking_id}
                                     onClick={() => void rsvp(b.booking_id, true)}
-                                    className={`rounded-xl px-2 py-1 text-[11px] font-black ${
+                                    className={`min-h-10 rounded-xl px-3 text-[11px] font-black ${
                                       b.rsvp === 'coming'
                                         ? 'bg-emerald-600 text-white'
-                                        : 'border border-emerald-200 text-emerald-800'
+                                        : 'border border-emerald-200 text-emerald-800 dark:border-emerald-500/40 dark:text-emerald-200'
                                     }`}
                                   >
-                                    I’m coming
+                                    I&apos;m coming
                                   </button>
                                   <button
                                     type="button"
                                     disabled={busyId === b.booking_id}
                                     onClick={() => void rsvp(b.booking_id, false)}
-                                    className="text-[11px] font-bold text-rose-600"
+                                    className="min-h-9 rounded-xl px-3 text-[11px] font-bold text-rose-600"
                                   >
-                                    Can’t make it
+                                    Can&apos;t make it
                                   </button>
                                 </>
                               ) : (
@@ -1234,7 +1295,7 @@ export default function MemberFitgraphPortalPage() {
                                   type="button"
                                   disabled={busyId === b.booking_id}
                                   onClick={() => void rsvp(b.booking_id, true)}
-                                  className="rounded-xl border border-yellow-300 px-2 py-1 text-[11px] font-black text-yellow-800"
+                                  className="min-h-10 rounded-xl border border-slate-300 px-3 text-[11px] font-black text-slate-800 dark:border-white/20 dark:text-white"
                                 >
                                   I can come
                                 </button>
@@ -1253,35 +1314,22 @@ export default function MemberFitgraphPortalPage() {
 
         {tab === 'progress' && (
           <div className="space-y-4">
-            <p className="text-sm text-slate-600">
-              Your attendance, goals, coach notes, and class feedback at{' '}
-              {portal.brand}.
-            </p>
+            <GymSectionTitle hint={`Attendance, goals, coach notes and class feedback at ${portal.brand}.`}>
+              Your training
+            </GymSectionTitle>
             <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-2xl border border-yellow-200 bg-white px-3 py-2.5 text-center">
-                <p className="text-lg font-black text-slate-900">
-                  {portal.progress?.attended_30d ?? 0}
-                </p>
-                <p className="text-[10px] font-bold uppercase text-slate-500">
-                  Classes · 30d
-                </p>
-              </div>
-              <div className="rounded-2xl border border-yellow-200 bg-white px-3 py-2.5 text-center">
-                <p className="text-lg font-black text-slate-900">
-                  {portal.progress?.attended_count ?? 0}
-                </p>
-                <p className="text-[10px] font-bold uppercase text-slate-500">
-                  Attended
-                </p>
-              </div>
-              <div className="rounded-2xl border border-yellow-200 bg-white px-3 py-2.5 text-center">
-                <p className="text-lg font-black text-slate-900">
-                  {portal.progress?.check_ins_30d ?? 0}
-                </p>
-                <p className="text-[10px] font-bold uppercase text-slate-500">
-                  Check-ins
-                </p>
-              </div>
+              <GymStat
+                value={portal.progress?.attended_30d ?? 0}
+                label="Classes · 30d"
+              />
+              <GymStat
+                value={portal.progress?.attended_count ?? 0}
+                label="Attended"
+              />
+              <GymStat
+                value={portal.progress?.check_ins_30d ?? 0}
+                label="Check-ins"
+              />
             </div>
 
             <MemberGoalsPanel
@@ -1401,8 +1449,8 @@ export default function MemberFitgraphPortalPage() {
             />
 
             {(portal.packs || []).length > 0 ? (
-              <div className="rounded-2xl border border-yellow-200 bg-white p-4">
-                <p className="text-[10px] font-black uppercase text-yellow-700 mb-1">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900">
+                <p className="mb-1 text-[10px] font-black uppercase text-slate-500">
                   Session packs
                 </p>
                 <ul className="space-y-1">
@@ -1422,8 +1470,8 @@ export default function MemberFitgraphPortalPage() {
             (portal.progress.health.goals ||
               portal.progress.health.training_modifications ||
               portal.progress.health.summary) ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
-                <div className="flex items-center gap-2 text-yellow-800">
+              <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900">
+                <div className="flex items-center gap-2 text-slate-800 dark:text-white">
                   <Activity className="h-4 w-4" />
                   <h2 className="text-sm font-black">Training notes</h2>
                 </div>
@@ -1448,8 +1496,8 @@ export default function MemberFitgraphPortalPage() {
             ) : null}
 
             {(portal.progress?.coach_notes || []).length > 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
-                <h2 className="text-sm font-black text-slate-900">
+              <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900">
+                <h2 className="text-sm font-black text-slate-900 dark:text-white">
                   Coach notes
                 </h2>
                 <ul className="space-y-2">
@@ -1474,8 +1522,8 @@ export default function MemberFitgraphPortalPage() {
 
             {(portal.progress?.pending_feedback || []).length > 0 &&
             companyId != null ? (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-2">
-                <div className="flex items-center gap-2 text-amber-950">
+              <div className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/40 dark:bg-amber-950/40">
+                <div className="flex items-center gap-2 text-amber-950 dark:text-amber-100">
                   <MessageSquareHeart className="h-4 w-4" />
                   <h2 className="text-sm font-black">Rate a class (optional)</h2>
                 </div>
@@ -1501,8 +1549,8 @@ export default function MemberFitgraphPortalPage() {
             ) : null}
 
             {(portal.progress?.my_feedback || []).length > 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
-                <h2 className="text-sm font-black text-slate-900">
+              <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900">
+                <h2 className="text-sm font-black text-slate-900 dark:text-white">
                   Your class feedback
                 </h2>
                 <ul className="space-y-2">
@@ -1535,23 +1583,25 @@ export default function MemberFitgraphPortalPage() {
         )}
 
         {tab === 'profile' && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
+          <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900">
+            <GymSectionTitle hint="Changes sync to the gym desk and your SA Member wallet.">
+              Your profile
+            </GymSectionTitle>
             <button
               type="button"
               onClick={() => selectTab('progress')}
-              className="w-full rounded-xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-left"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left dark:border-white/10 dark:bg-white/5"
             >
-              <p className="text-xs font-black text-yellow-950">
+              <p className="text-xs font-black text-slate-900 dark:text-white">
                 Attendance, goals & feedback
               </p>
-              <p className="text-[11px] text-slate-600">
-                Open Progress for classes attended, coach notes, and your
-                feedback.
+              <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                Classes attended, coach notes, and your ratings.
               </p>
             </button>
             {(portal.packs || []).length > 0 ? (
-              <div className="rounded-xl border border-yellow-100 bg-yellow-50/50 px-3 py-2 mb-3">
-                <p className="text-[10px] font-black uppercase text-yellow-700 mb-1">Session packs</p>
+              <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/10 dark:bg-white/5">
+                <p className="mb-1 text-[10px] font-black uppercase text-slate-500">Session packs</p>
                 <ul className="space-y-1">
                   {(portal.packs || []).map((p) => (
                     <li key={p.id} className="text-xs font-semibold text-slate-700">
@@ -1571,11 +1621,9 @@ export default function MemberFitgraphPortalPage() {
                 gym sets up a debit order from these details.
               </div>
             ) : null}
-            <p className="text-sm font-black text-slate-900">Your profile</p>
             <p className="text-xs text-slate-500">
-              Changes sync to the gym desk and your SA Member wallet. Email is
-              usually the parent/guardian contact for invites and care messages
-              — add kids under Family members.
+              Email is usually the parent/guardian contact for invites and care
+              messages — add kids under Family members.
             </p>
             {companyId != null ? (
               <ProfilePhotoField
@@ -1608,7 +1656,7 @@ export default function MemberFitgraphPortalPage() {
                 Name
               </span>
               <input
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-neutral-950"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
@@ -1618,7 +1666,7 @@ export default function MemberFitgraphPortalPage() {
                 Email
               </span>
               <input
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-neutral-950"
                 type="email"
                 autoComplete="email"
                 value={email}
@@ -1633,7 +1681,7 @@ export default function MemberFitgraphPortalPage() {
                 Phone
               </span>
               <input
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-neutral-950"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
               />
@@ -1643,7 +1691,7 @@ export default function MemberFitgraphPortalPage() {
                 ID number
               </span>
               <input
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-neutral-950"
                 inputMode="numeric"
                 autoComplete="off"
                 placeholder="SA ID / passport"
@@ -1719,14 +1767,15 @@ export default function MemberFitgraphPortalPage() {
               type="button"
               disabled={busyId === 'profile'}
               onClick={() => void saveProfile()}
-              className="w-full rounded-xl bg-yellow-600 py-2.5 text-sm font-bold text-white hover:bg-yellow-700 disabled:opacity-50"
+              className="min-h-12 w-full rounded-2xl text-sm font-black disabled:opacity-50"
+              style={{ backgroundColor: color, color: ink }}
             >
               {busyId === 'profile' ? 'Saving…' : 'Save profile'}
             </button>
           </div>
         )}
 
-        <p className="text-center text-[10px] text-slate-400 pb-8">
+        <p className="pb-4 text-center text-[10px] text-slate-400">
           Powered by GymAdvisor® · SupplierAdvisor
         </p>
     </MemberAdvisorShell>

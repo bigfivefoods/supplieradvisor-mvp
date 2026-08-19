@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
-import { advisorBrandInk } from '@/components/advisors/AdvisorPublicSite';
+import { advisorBrandInk } from '@/lib/advisors/brand-ink';
 import { addDaysIso } from '@/lib/schedule/recurrence';
 import {
   hourRange,
