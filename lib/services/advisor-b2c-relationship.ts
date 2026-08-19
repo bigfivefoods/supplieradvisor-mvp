@@ -27,6 +27,8 @@ export type ClinicalShareScope =
   | 'scripts'
   | 'clinical_notes'
   | 'imaging_docs'
+  | 'visit_history'
+  | 'practice_info'
   | 'full_chart';
 
 export const CLINICAL_SHARE_SCOPE_LABEL: Record<ClinicalShareScope, string> = {
@@ -35,6 +37,8 @@ export const CLINICAL_SHARE_SCOPE_LABEL: Record<ClinicalShareScope, string> = {
   scripts: 'Active scripts',
   clinical_notes: 'Clinical notes',
   imaging_docs: 'Documents & imaging',
+  visit_history: 'Visit history',
+  practice_info: 'Referring practice details',
   full_chart: 'Full chart (restricted)',
 };
 
@@ -48,6 +52,8 @@ export const PROFESSIONAL_SHARE_DEFAULT_SCOPES: ClinicalShareScope[] = [
   'summary',
   'treatment_plan',
   'scripts',
+  'visit_history',
+  'practice_info',
 ];
 
 export type RelationshipLevel =

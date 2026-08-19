@@ -8,6 +8,8 @@ export type B2cCareBooking = {
   when: string;
   status: string;
   href: string;
+  past?: boolean;
+  notes?: string;
 };
 
 export type B2cCareRecord = {

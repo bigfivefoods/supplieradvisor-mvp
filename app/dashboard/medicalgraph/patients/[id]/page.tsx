@@ -15,6 +15,8 @@ import { PatientFollowUpDesk } from '@/components/clinic/PatientFollowUpDesk';
 import { PatientAilmentDesk } from '@/components/clinic/PatientAilmentDesk';
 import { AdvisorProfileShare } from '@/components/advisors/AdvisorProfileShare';
 import { healthSummaryLabel } from '@/lib/health/body-map';
+import { buildPatientVisitHistory } from '@/lib/clinic/visit-history';
+import { PatientVisitHistory } from '@/components/clinic/PatientVisitHistory';
 
 export default function MedicalPatientRecordPage() {
   const { id } = useParams() as { id: string };
@@ -29,37 +31,30 @@ export default function MedicalPatientRecordPage() {
     (p) => p.id === patient?.practitioner_id
   );
 
-  const appointments = useMemo(() => {
+  const visitHistory = useMemo(() => {
     if (!store || !patient) return [];
-    const bookedApptIds = new Set(
-      store.bookings
-        .filter((b) => b.patient_id === patient.id && b.status !== 'cancelled')
-        .map((b) => b.appointment_id)
-    );
-    return store.appointments
-      .filter(
-        (a) =>
-          bookedApptIds.has(a.id) ||
-          a.date >= new Date().toISOString().slice(0, 10)
-      )
-      .slice()
-      .sort((a, b) =>
-        a.date === b.date
-          ? a.start_time.localeCompare(b.start_time)
-          : b.date.localeCompare(a.date)
-      )
-      .slice(0, 40)
-      .map((a) => {
-        const svc = store.services.find((s) => s.id === a.service_id);
-        const p = store.practitioners.find((x) => x.id === a.practitioner_id);
-        return {
-          id: a.id,
-          label: `${a.date} ${a.start_time} · ${svc?.name || 'Visit'}${
-            p ? ` · ${p.name}` : ''
-          }`,
-        };
-      });
+    return buildPatientVisitHistory({
+      patientId: patient.id,
+      bookings: store.bookings,
+      appointments: store.appointments,
+      services: store.services,
+      practitioners: store.practitioners,
+      visitNotes: store.visit_notes,
+      scripts: patient.medical?.scripts,
+      patientFacing: false,
+    });
   }, [store, patient]);
+
+  const appointments = useMemo(
+    () =>
+      visitHistory.map((v) => ({
+        id: v.appointment_id,
+        label: `${v.date} ${v.start_time} · ${v.service_name}${
+          v.practitioner_name ? ` · ${v.practitioner_name}` : ''
+        }`,
+      })),
+    [visitHistory]
+  );
 
   const practitioners = useMemo(
     () =>
@@ -116,6 +111,24 @@ export default function MedicalPatientRecordPage() {
             ) : null}
           </div>
           
+          <div className="space-y-2">
+            <p className="text-sm font-black text-slate-900 dark:text-white">
+              Visit history
+            </p>
+            <p className="text-[12px] text-slate-500">
+              Past and upcoming visits. The patient sees the same history on SA
+              Member (without private notes).
+            </p>
+            <PatientVisitHistory
+              visits={visitHistory}
+              showPrivate
+              emptyLabel="No bookings yet for this patient."
+              calendarHref={(v) =>
+                `/dashboard/medicalgraph/calendar?appointment=${encodeURIComponent(v.appointment_id)}`
+              }
+            />
+          </div>
+
           <PatientAilmentDesk
             module="medical"
             patientId={patient.id}
@@ -162,6 +175,8 @@ export default function MedicalPatientRecordPage() {
               .filter((p) => p.active !== false)
               .map((p) => ({ id: p.id, name: p.name }))}
             consentOnFile={Boolean(patient.popia_consent_at)}
+            email={patient.email}
+            platformUserId={patient.platform_user_id}
             disabled={saving}
             onChange={async (next) => {
               await post({

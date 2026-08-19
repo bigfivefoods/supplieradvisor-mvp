@@ -4,7 +4,7 @@
  * MedicalAdvisor® patient portal — registered patients book open diary slots.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import {
   CalendarDays,
   Check,
@@ -25,6 +25,7 @@ import { MemberAnnouncementsFeed } from '@/components/services/MemberAnnouncemen
 import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
 import { MemberAdvisorShell } from '@/components/advisors/MemberAdvisorShell';
 import { MemberMedicalShare } from '@/components/services/MemberMedicalShare';
+import { PatientVisitHistory } from '@/components/clinic/PatientVisitHistory';
 import type {
   SharedAdviceNote,
   SharedTreatmentPlan,
@@ -104,11 +105,13 @@ type Portal = {
     service_name: string;
     practitioner_name?: string;
   }>;
+  visit_history?: import('@/lib/clinic/visit-history').PatientVisitHistoryItem[];
   open_count: number;
 };
 
 export default function MemberMedicalgraphPortalPage() {
   const { token } = useParams() as { token: string };
+  const search = useSearchParams();
   const [portal, setPortal] = useState<Portal | null>(null);
   const [companyId, setCompanyId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -116,7 +119,7 @@ export default function MemberMedicalgraphPortalPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [tab, setTab] = useState<
-    'open' | 'mine' | 'care' | 'messages' | 'profile'
+    'open' | 'mine' | 'history' | 'care' | 'messages' | 'profile'
   >('open');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -156,6 +159,20 @@ export default function MemberMedicalgraphPortalPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const t = search.get('tab');
+    if (
+      t === 'open' ||
+      t === 'mine' ||
+      t === 'history' ||
+      t === 'care' ||
+      t === 'messages' ||
+      t === 'profile'
+    ) {
+      setTab(t);
+    }
+  }, [search]);
 
   useEffect(() => {
     const raw = new URLSearchParams(window.location.search).get('tab');
@@ -301,6 +318,7 @@ export default function MemberMedicalgraphPortalPage() {
       tabs={[
         { id: 'open', label: 'Book' },
         { id: 'mine', label: 'My bookings' },
+        { id: 'history', label: 'Visit history' },
         { id: 'care', label: 'My records' },
         { id: 'messages', label: 'Messages' },
         { id: 'profile', label: 'My profile' },
@@ -530,6 +548,20 @@ export default function MemberMedicalgraphPortalPage() {
           />
         )}
 
+        {tab === 'history' && (
+          <div className="space-y-3">
+            <p className="text-sm font-black text-slate-900">Visit history</p>
+            <p className="text-xs text-slate-500">
+              Past appointments and visit notes the practice has shared with you.
+              Your clinician sees the same record on your chart.
+            </p>
+            <PatientVisitHistory
+              visits={portal.visit_history || []}
+              emptyLabel="No past visits yet. After you attend, notes and scripts appear here."
+            />
+          </div>
+        )}
+
         {tab === 'mine' && (
           <div className="space-y-3">
             {portal.my_bookings.length === 0 ? (
@@ -582,6 +614,13 @@ export default function MemberMedicalgraphPortalPage() {
             tone="emerald"
             heading="Medical info, advice & scripts"
           />
+          <div className="space-y-2">
+            <p className="text-sm font-black text-slate-900">Visit history</p>
+            <PatientVisitHistory
+              visits={portal.visit_history || []}
+              emptyLabel="No past visits on this profile yet."
+            />
+          </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
             <p className="text-sm font-black text-slate-900">Your profile</p>
             <p className="text-xs text-slate-500">

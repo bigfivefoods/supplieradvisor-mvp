@@ -13,11 +13,14 @@ import {
 } from '@/lib/b2c/profile-share-types';
 
 type Incoming = {
-  share_id: string;
+  share_id?: string;
+  id?: string;
   from_company_name: string;
   from_kind: AdvisorShareKind;
-  member_name: string;
+  member_name?: string;
+  patient_name?: string;
   status: string;
+  note?: string | null;
   snapshot: ProfileShareSnapshot | null;
 };
 
@@ -36,11 +39,25 @@ export function AdvisorIncomingShares({
 
   useEffect(() => {
     let cancelled = false;
-    void withAuthJson<{ incoming?: Incoming[] }>(
-      `/api/advisors/profile-shares?companyId=${companyId}`
-    )
-      .then((data) => {
-        if (!cancelled) setRows(data.incoming || []);
+    void Promise.all([
+      withAuthJson<{ incoming?: Incoming[] }>(
+        `/api/advisors/profile-shares?companyId=${companyId}`
+      ),
+      withAuthJson<{ inbound?: Incoming[] }>(
+        `/api/clinic/practice-referral?companyId=${companyId}`
+      ),
+    ])
+      .then(([shares, refs]) => {
+        if (cancelled) return;
+        const seen = new Set<string>();
+        const next: Incoming[] = [];
+        for (const r of [...(refs.inbound || []), ...(shares.incoming || [])]) {
+          const key = `${r.from_company_name}:${r.snapshot?.name || r.patient_name || r.member_name}:${r.note || ''}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          next.push(r);
+        }
+        setRows(next);
       })
       .catch(() => {})
       .finally(() => {
@@ -78,37 +95,70 @@ export function AdvisorIncomingShares({
             Shared with you
           </p>
           <p className="mt-0.5 text-[11px] text-slate-500">
-            Members consented to share these profiles with this desk.
+            Patients another practice referred to you — only the details they
+            consented to share.
           </p>
         </>
       )}
       <ul className={embedded ? 'space-y-2' : 'mt-3 space-y-2'}>
-        {rows.map((r) => (
+        {rows.map((r) => {
+          const snap = r.snapshot;
+          const name = snap?.name || r.patient_name || r.member_name;
+          return (
           <li
-            key={r.share_id}
+            key={r.id || r.share_id || name}
             className="rounded-xl border border-emerald-100 bg-white p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950/40"
           >
             <p className="font-black text-slate-900 dark:text-emerald-50">
-              {r.snapshot?.name || r.member_name}
+              {name}
             </p>
             <p className="text-[11px] text-slate-500">
-              From {r.from_company_name} · {SHARE_KIND_LABEL[r.from_kind]}
+              From {snap?.practice?.brand || r.from_company_name} ·{' '}
+              {SHARE_KIND_LABEL[r.from_kind]}
+              {snap?.practice?.referring_practitioner
+                ? ` · ${snap.practice.referring_practitioner}`
+                : ''}
             </p>
-            {r.snapshot?.health ? (
+            {r.note || snap?.referral_reason ? (
               <p className="mt-1 text-[12px] text-slate-700 dark:text-emerald-100">
-                {r.snapshot.health}
+                {r.note || snap?.referral_reason}
               </p>
             ) : null}
-            {r.snapshot?.medical ? (
+            {snap?.health ? (
+              <p className="mt-1 text-[12px] text-slate-700 dark:text-emerald-100">
+                {snap.health}
+              </p>
+            ) : null}
+            {snap?.medical?.allergies ? (
               <p className="mt-1 text-[11px] text-slate-600">
-                Medical summary on file (allergies, scripts, aid).
+                Allergies: {String(snap.medical.allergies)}
               </p>
             ) : null}
-            {r.snapshot?.email ? (
-              <p className="mt-1 text-[11px] text-slate-500">{r.snapshot.email}</p>
+            {snap?.practice ? (
+              <p className="mt-1 text-[11px] text-slate-500">
+                {[
+                  snap.practice.contact_phone,
+                  snap.practice.contact_email,
+                  snap.practice.city,
+                  snap.practice.practice_number
+                    ? `Prac. ${snap.practice.practice_number}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+            ) : null}
+            {snap?.visits?.length ? (
+              <p className="mt-1 text-[11px] text-slate-500">
+                Last visit: {snap.visits[0].date} · {snap.visits[0].service_name}
+              </p>
+            ) : null}
+            {snap?.email ? (
+              <p className="mt-1 text-[11px] text-slate-500">{snap.email}</p>
             ) : null}
           </li>
-        ))}
+          );
+        })}
       </ul>
     </div>
   );

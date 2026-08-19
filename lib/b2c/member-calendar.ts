@@ -28,6 +28,9 @@ export async function buildMemberCalendar(
   const horizon = new Date();
   horizon.setDate(horizon.getDate() + 90);
   const until = horizon.toISOString().slice(0, 10);
+  const historyStart = new Date();
+  historyStart.setMonth(historyStart.getMonth() - 18);
+  const historyFrom = historyStart.toISOString().slice(0, 10);
   const cache = new Map<number, Record<string, unknown>>();
 
   async function meta(companyId: number) {
@@ -149,7 +152,7 @@ export async function buildMemberCalendar(
           if (b.status === 'cancelled') continue;
           const apt = appointments.find((a) => a.id === b.appointment_id);
           if (!apt || apt.status === 'cancelled') continue;
-          if (apt.date < today || apt.date > until) continue;
+          if (apt.date < historyFrom || apt.date > until) continue;
           const start = String(apt.start_time || '09:00').slice(0, 5);
           events.push({
             id: `clinic-${b.id}`,

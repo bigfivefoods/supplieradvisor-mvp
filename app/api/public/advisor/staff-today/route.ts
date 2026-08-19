@@ -536,35 +536,34 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      for (const cfg of [
-        {
-          key: 'physiograph' as const,
-          read: readPhysiographFromMetadata,
-          write: writePhysiographToMetadata,
+      const clinicAttendance = <
+        TStore extends {
+          practitioners: Array<{ id: string; portal_token?: string | null }>;
+          bookings: Array<{
+            id: string;
+            status: string;
+            patient_id: string;
+          }>;
+          patients: Array<{ id: string }>;
+          care_packs?: Parameters<typeof consumePackSession>[0];
         },
-        {
-          key: 'medicalgraph' as const,
-          read: readMedicalgraphFromMetadata,
-          write: writeMedicalgraphToMetadata,
-        },
-        {
-          key: 'psychiatrygraph' as const,
-          read: readPsychiatrygraphFromMetadata,
-          write: writePsychiatrygraphToMetadata,
-        },
-      ]) {
-        if (module !== cfg.key || !meta0[cfg.key]) continue;
-        const store = cfg.read(meta0);
+      >(
+        key: 'physiograph' | 'medicalgraph' | 'psychiatrygraph',
+        read: (meta: Record<string, unknown>) => TStore,
+        write: (
+          meta: Record<string, unknown>,
+          store: TStore
+        ) => Record<string, unknown>
+      ) => {
+        if (module !== key || !meta0[key]) return null;
+        const store = read(meta0);
         const prac = store.practitioners.find(
           (c) => c.portal_token === token
         );
-        if (!prac) continue;
+        if (!prac) return null;
         const booking = store.bookings.find((b) => b.id === bookingId);
         if (!booking) {
-          return NextResponse.json(
-            { error: 'Booking not found' },
-            { status: 404 }
-          );
+          return { error: 'Booking not found' as const };
         }
         const now = new Date().toISOString();
         const prev = booking.status;
@@ -596,14 +595,42 @@ export async function POST(req: NextRequest) {
           });
           store.care_packs = packs;
         }
-        const meta = cfg.write(meta0, store);
+        return {
+          meta: write(meta0, store),
+          booking: { id: booking.id, status: booking.status },
+        };
+      };
+
+      const clinicSaved =
+        clinicAttendance(
+          'physiograph',
+          readPhysiographFromMetadata,
+          writePhysiographToMetadata
+        ) ||
+        clinicAttendance(
+          'medicalgraph',
+          readMedicalgraphFromMetadata,
+          writeMedicalgraphToMetadata
+        ) ||
+        clinicAttendance(
+          'psychiatrygraph',
+          readPsychiatrygraphFromMetadata,
+          writePsychiatrygraphToMetadata
+        );
+      if (clinicSaved) {
+        if ('error' in clinicSaved) {
+          return NextResponse.json(
+            { error: clinicSaved.error },
+            { status: 404 }
+          );
+        }
         await supabase
           .from('profiles')
-          .update({ metadata: meta, updated_at: now })
+          .update({ metadata: clinicSaved.meta, updated_at: new Date().toISOString() })
           .eq('id', row.id);
         return NextResponse.json({
           success: true,
-          booking: { id: booking.id, status: booking.status },
+          booking: clinicSaved.booking,
         });
       }
     }

@@ -112,7 +112,7 @@ export function B2cCarePanel() {
       ) : null}
       {bookings.length > 0 ? (
         <ul className="space-y-2">
-          {bookings.slice(0, 5).map((b) => (
+          {bookings.slice(0, 12).map((b) => (
             <li key={b.id}>
               <Link
                 href={b.href}
@@ -127,7 +127,13 @@ export function B2cCarePanel() {
                   </span>
                   <span className="block truncate text-[11px] text-slate-500">
                     {b.brand} · {b.when}
+                    {b.past ? ' · past visit' : ''}
                   </span>
+                  {b.notes ? (
+                    <span className="mt-0.5 line-clamp-2 block text-[11px] text-slate-600">
+                      {b.notes}
+                    </span>
+                  ) : null}
                 </span>
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
                   {b.status}

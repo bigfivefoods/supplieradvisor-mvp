@@ -24,6 +24,7 @@ import { ensureSystemPersonalService } from '@/lib/clinic/appointment-kind';
 import { toPortalOpenSlots } from '@/lib/services/advisor-member-calendar';
 import { clinicCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
 import { normalizeClinicRooms } from '@/lib/clinic/clinic-rooms';
+import { buildPatientVisitHistory } from '@/lib/clinic/visit-history';
 
 export const MEDICALGRAPH_MODULE_ID = 'medicalgraph' as const;
 export const MEDICALGRAPH_META_KEY = 'medicalgraph';
@@ -621,34 +622,36 @@ export function buildPatientPortalPayload(
     to: end,
   });
 
-  const my_bookings = store.bookings
-    .filter((b) => {
-      if (b.patient_id !== patient.id || b.status === 'cancelled') return false;
-      const a = store.appointments.find((x) => x.id === b.appointment_id);
-      return a && a.date >= start;
-    })
-    .map((b) => {
-      const a = store.appointments.find((x) => x.id === b.appointment_id)!;
-      const svc = store.services.find((s) => s.id === a.service_id);
-      const prac = store.practitioners.find((p) => p.id === a.practitioner_id);
+  const visit_history = buildPatientVisitHistory({
+    patientId: patient.id,
+    bookings: store.bookings,
+    appointments: store.appointments,
+    services: store.services,
+    practitioners: store.practitioners,
+    visitNotes: store.visit_notes,
+    scripts: patient.medical?.scripts,
+    patientFacing: true,
+    today: start,
+  });
+  const my_bookings = visit_history
+    .filter((v) => v.upcoming)
+    .slice()
+    .reverse()
+    .map((v) => {
+      const b = store.bookings.find((x) => x.id === v.booking_id);
       return {
-        booking_id: b.id,
-        status: b.status,
-        appointment_id: a.id,
-        date: a.date,
-        start_time: a.start_time,
-        service_name: svc?.name || 'Appointment',
-        practitioner_name: prac?.name,
-        location: a.location,
-        waitlist_offered_at: b.waitlist_offered_at || null,
-        waitlist_accepted_at: b.waitlist_accepted_at || null,
+        booking_id: v.booking_id,
+        status: v.status,
+        appointment_id: v.appointment_id,
+        date: v.date,
+        start_time: v.start_time,
+        service_name: v.service_name,
+        practitioner_name: v.practitioner_name,
+        location: v.location,
+        waitlist_offered_at: b?.waitlist_offered_at || null,
+        waitlist_accepted_at: b?.waitlist_accepted_at || null,
       };
-    })
-    .sort((a, b) =>
-      a.date === b.date
-        ? a.start_time.localeCompare(b.start_time)
-        : a.date.localeCompare(b.date)
-    );
+    });
 
   return {
     logo_url: logoUrlFromSettings(
@@ -717,6 +720,7 @@ export function buildPatientPortalPayload(
       medical: patient.share_medical !== false,
     },
     my_bookings,
+    visit_history: visit_history.filter((v) => !v.upcoming),
     open_count: open_slots.filter((s) => !s.full).length,
     full_count: open_slots.filter((s) => s.full && !s.my_status).length,
     threads: portalThreadsForPerson(store.threads, 'patient', patient.id),

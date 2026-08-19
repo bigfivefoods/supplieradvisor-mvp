@@ -205,8 +205,15 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
     for (const b of store.bookings || []) {
       if (b.patient_id !== patient.id || b.status === 'cancelled') continue;
       const appt = store.appointments.find((a) => a.id === b.appointment_id);
-      if (!appt || appt.date < today) continue;
+      if (!appt || appt.status === 'cancelled') continue;
       const svc = store.services.find((s) => s.id === appt.service_id);
+      const past = appt.date < today || b.status === 'attended' || b.status === 'no_show';
+      const note = (store.visit_notes || []).find(
+        (n) =>
+          n.person_id === patient.id &&
+          n.private !== true &&
+          (n.appointment_id === appt.id || n.booking_id === b.id)
+      );
       bookings.push({
         id: b.id,
         kind: mem.kind,
@@ -214,18 +221,23 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
         title: svc?.name || 'Appointment',
         when: `${appt.date} ${appt.start_time || ''}`.trim(),
         status: String(b.status),
-        href: bookHref,
+        href: `${mem.portal_path}${mem.portal_path.includes('?') ? '&' : '?'}tab=${past ? 'history' : 'mine'}`,
+        past,
+        notes: note?.body || undefined,
       });
     }
   }
 
-  bookings.sort((a, b) => a.when.localeCompare(b.when));
+  bookings.sort((a, b) => {
+    if (Boolean(a.past) !== Boolean(b.past)) return a.past ? 1 : -1;
+    return b.when.localeCompare(a.when);
+  });
   announcements.sort((a, b) => {
     if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
     return a.title.localeCompare(b.title);
   });
   return {
-    bookings: bookings.slice(0, 20),
+    bookings: bookings.slice(0, 30),
     records,
     clinics,
     announcements: announcements.slice(0, 8),

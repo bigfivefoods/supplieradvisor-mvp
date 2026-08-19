@@ -10,6 +10,8 @@ const SCOPES = new Set([
   'scripts',
   'clinical_notes',
   'imaging_docs',
+  'visit_history',
+  'practice_info',
   'full_chart',
 ]);
 

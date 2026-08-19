@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   LoadingBlock,
@@ -48,6 +49,8 @@ import {
 export default function CalendarPage() {
   const { companyId, store, loading, saving, post, summary, load } =
     useMedicalgraph();
+  const search = useSearchParams();
+  const openedFromUrl = useRef(false);
   const [personFilter, setPersonFilter] = useState('');
   const [diaryScope, setDiaryScope] = useState<DiaryScope>('practice');
   /** null = create mode; set = open appointment for view/edit (main practice diary) */
@@ -73,6 +76,7 @@ export default function CalendarPage() {
     emptyRecurrenceForm
   );
   const [waitlistOpen, setWaitlistOpen] = useState(true);
+  const [slotEditorOpen, setSlotEditorOpen] = useState(true);
 
   const closeEditor = () => {
     setEditorOpen(false);
@@ -107,6 +111,13 @@ export default function CalendarPage() {
       patient_id: '',
       family_member_id: '',
     });
+    const booked = (store?.bookings || []).some(
+      (b) =>
+        b.appointment_id === a.id &&
+        b.status !== 'cancelled' &&
+        b.patient_id
+    );
+    setSlotEditorOpen(!booked);
     setEditorOpen(true);
   };
 
@@ -135,8 +146,17 @@ export default function CalendarPage() {
       patient_id: '',
       family_member_id: '',
     }));
+    setSlotEditorOpen(true);
     setEditorOpen(true);
   };
+
+  useEffect(() => {
+    const id = search.get('appointment');
+    if (!id || !store || openedFromUrl.current) return;
+    if (!store.appointments.some((a) => a.id === id)) return;
+    openedFromUrl.current = true;
+    openAppointment(id);
+  }, [store, search]);
 
   const events: ScheduleEvent[] = useMemo(() => {
     if (!store) return [];
@@ -603,7 +623,9 @@ export default function CalendarPage() {
             }
             subtitle={
               selectedId
-                ? 'Edit this slot, book a patient, then complete notes, script, invoice or claim'
+                ? rosterOnSelected.length
+                  ? 'This visit — notes, script, invoice and claim. Edit the slot only if you need to move it.'
+                  : 'Open appointment. Book a patient onto this slot, then complete the visit.'
                 : 'New appointment on the diary'
             }
             onClose={closeEditor}
@@ -612,7 +634,7 @@ export default function CalendarPage() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs text-slate-500">
                 {selectedId
-                  ? 'Viewing / editing open appointment. Save changes, or book another patient onto this slot.'
+                  ? 'This appointment is open. Visit notes sit above. Expand Edit this slot only to move the time or room.'
                   : 'Create a new appointment, or click an existing one on the calendar to open it.'}
               </p>
               {selectedId ? (
@@ -636,6 +658,58 @@ export default function CalendarPage() {
               ) : null}
             </div>
 
+            {selectedId && form.appointment_kind !== 'personal' ? (
+              <ClinicAppointmentVisitDesk
+                module="medicalgraph"
+                companyId={companyId}
+                appointmentId={selectedId}
+                date={form.date}
+                startTime={form.start_time}
+                serviceName={
+                  store.services.find((s) => s.id === form.service_id)?.name
+                }
+                serviceId={form.service_id || null}
+                servicePriceZar={
+                  store.services.find((s) => s.id === form.service_id)
+                    ?.price_zar
+                }
+                treatingName={
+                  store.practitioners.find((p) => p.id === form.practitioner_id)
+                    ?.name
+                }
+                treatingId={form.practitioner_id || null}
+                patients={appointmentVisitPatients({
+                  appointmentId: selectedId,
+                  bookings: store.bookings,
+                  patients: store.patients,
+                })}
+                visitNotes={store.visit_notes}
+                post={post}
+                saving={saving}
+                accent="emerald"
+                onRefresh={() => {
+                  void load();
+                }}
+              />
+            ) : null}
+
+            <AdvisorExpandablePanel
+              title={
+                selectedId
+                  ? 'Edit this slot'
+                  : 'Schedule appointment'
+              }
+              description={
+                selectedId
+                  ? 'Move time, room or practitioner. Do not use this to create a new visit.'
+                  : 'New diary slot. Optionally book a patient now.'
+              }
+              open={slotEditorOpen}
+              onToggle={() => setSlotEditorOpen((v) => !v)}
+              accentClass="border-emerald-200 bg-white dark:border-emerald-800 dark:bg-neutral-950"
+              titleClass="text-emerald-950 dark:text-emerald-50"
+              hintClass="text-emerald-800/80 dark:text-emerald-200/80"
+            >
             <FormCard
               title={
                 selectedId
@@ -880,40 +954,7 @@ export default function CalendarPage() {
                 </p>
               ) : null}
             </FormCard>
-            {selectedId && form.appointment_kind !== 'personal' ? (
-              <ClinicAppointmentVisitDesk
-                module="medicalgraph"
-                companyId={companyId}
-                appointmentId={selectedId}
-                date={form.date}
-                startTime={form.start_time}
-                serviceName={
-                  store.services.find((s) => s.id === form.service_id)?.name
-                }
-                serviceId={form.service_id || null}
-                servicePriceZar={
-                  store.services.find((s) => s.id === form.service_id)
-                    ?.price_zar
-                }
-                treatingName={
-                  store.practitioners.find((p) => p.id === form.practitioner_id)
-                    ?.name
-                }
-                treatingId={form.practitioner_id || null}
-                patients={appointmentVisitPatients({
-                  appointmentId: selectedId,
-                  bookings: store.bookings,
-                  patients: store.patients,
-                })}
-                visitNotes={store.visit_notes}
-                post={post}
-                saving={saving}
-                accent="emerald"
-                onRefresh={() => {
-                  void load();
-                }}
-              />
-            ) : null}
+            </AdvisorExpandablePanel>
           </div>
           </ScheduleEventPeek>
 
@@ -925,6 +966,7 @@ export default function CalendarPage() {
               'Practitioner',
               'Status',
               'Public',
+              '',
             ]}
             rows={[...store.appointments]
               .sort((a, b) =>
@@ -946,6 +988,16 @@ export default function CalendarPage() {
                     prac?.name || '—',
                     a.status,
                     a.public ? 'Yes' : 'No',
+                    (
+                      <button
+                        key="open"
+                        type="button"
+                        className="text-[11px] font-bold text-emerald-700"
+                        onClick={() => openAppointment(a.id)}
+                      >
+                        Open
+                      </button>
+                    ),
                   ],
                 };
               })}

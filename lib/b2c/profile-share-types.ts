@@ -32,6 +32,26 @@ export type ProfileShareSnapshot = {
   health?: string;
   medical?: Record<string, unknown> | null;
   captured_at: string;
+  scopes?: string[];
+  referral_reason?: string | null;
+  practice?: {
+    brand: string;
+    module: AdvisorShareKind;
+    contact_email?: string | null;
+    contact_phone?: string | null;
+    city?: string | null;
+    website?: string | null;
+    practice_number?: string | null;
+    referring_practitioner?: string | null;
+  };
+  visits?: Array<{
+    date: string;
+    start_time?: string;
+    service_name: string;
+    practitioner_name?: string;
+    status?: string;
+    notes?: string;
+  }>;
 };
 
 export type ProfileShare = {

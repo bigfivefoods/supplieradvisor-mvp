@@ -331,6 +331,18 @@ function minutesFromMidnight(t: string): number {
   return (h || 0) * 60 + (m || 0);
 }
 
+/** Prefer opening an existing block when the click lands on its time. */
+export function eventAtMinute(
+  events: ScheduleEvent[],
+  minute: number
+): ScheduleEvent | undefined {
+  return events.find((ev) => {
+    const start = minutesFromMidnight(ev.start_time);
+    const end = minutesFromMidnight(endTime(ev));
+    return minute >= start && minute < Math.max(start + 5, end);
+  });
+}
+
 function formatDayLabel(date: string, opts?: { weekday?: boolean }) {
   const d = parseIso(date);
   return d.toLocaleDateString(undefined, {
@@ -1069,6 +1081,11 @@ export function PracticeScheduleCalendar({
       const hh = Math.floor(clamped / 60);
       const mm = clamped % 60;
       const start_time = `${pad(hh)}:${pad(mm)}`;
+      const existing = eventAtMinute(dayEv, clamped);
+      if (existing) {
+        onSelectEvent?.(existing);
+        return;
+      }
       onSelectSlot?.({
         date,
         start_time,
@@ -1738,6 +1755,7 @@ export function PracticeScheduleCalendar({
                         <button
                           key={ev.id}
                           type="button"
+                          data-schedule-event
                           onClick={(e) => {
                             e.stopPropagation();
                             onSelectEvent?.(ev);

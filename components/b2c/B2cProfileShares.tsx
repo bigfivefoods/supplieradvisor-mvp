@@ -135,6 +135,9 @@ export function B2cProfileShares() {
             {SHARE_KIND_LABEL[s.from_kind]} profile with {s.to_company_name} (
             {SHARE_KIND_LABEL[s.to_kind]}).
           </p>
+          {s.note ? (
+            <p className="mt-1 text-[12px] text-slate-700">{s.note}</p>
+          ) : null}
           <div className="mt-2 flex flex-wrap gap-2">
             <button
               type="button"
