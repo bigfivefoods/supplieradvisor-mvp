@@ -359,10 +359,10 @@ export default function MemberFitgraphPortalPage() {
 
   useEffect(() => {
     const raw = new URLSearchParams(window.location.search).get('tab');
-    if (
+    if (raw === 'plans' || raw === 'join') {
+      setTab('join');
+    } else if (
       raw === 'checkin' ||
-      raw === 'join' ||
-      raw === 'plans' ||
       raw === 'open' ||
       raw === 'mine' ||
       raw === 'progress' ||
