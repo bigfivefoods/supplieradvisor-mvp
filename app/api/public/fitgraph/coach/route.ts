@@ -1023,6 +1023,8 @@ export async function POST(request: NextRequest) {
         coachId: coach.id,
         coachName: coach.name,
         comment: String(body.comment || body.note || ''),
+        feeling: body.feeling,
+        rating: body.rating,
       });
       if (!result.ok) {
         return NextResponse.json({ error: result.error }, { status: 400 });

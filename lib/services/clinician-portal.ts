@@ -139,7 +139,12 @@ export type ClinicianStoreLike = {
     health?: unknown;
     booking_soft_block?: boolean;
     no_show_count?: number;
+    medical?: unknown;
+    client_notes?: unknown;
+    shared_movements?: unknown;
   }>;
+  visit_notes?: unknown[];
+  movements?: unknown[] | null;
   services: Array<{
     id: string;
     code?: string;
@@ -329,6 +334,10 @@ export function buildClinicianPortalPayload(
       soft_block: p.booking_soft_block === true,
       no_show_count: p.no_show_count || 0,
       clinical: p.clinical || p.health,
+      medical: (p as { medical?: unknown }).medical || null,
+      client_notes: (p as { client_notes?: unknown[] }).client_notes || [],
+      shared_movements:
+        (p as { shared_movements?: unknown[] }).shared_movements || [],
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -365,6 +374,8 @@ export function buildClinicianPortalPayload(
     patients,
     services,
     rooms: clinicRoomNames(store.settings?.rooms),
+    visit_notes: Array.isArray(store.visit_notes) ? store.visit_notes : [],
+    movements: module === 'physiograph' ? store.movements || [] : [],
   };
 }
 

@@ -74,6 +74,8 @@ type RosterRow = {
   injured?: boolean;
   health_label?: string;
   coach_feedback?: string | null;
+  coach_member_feeling?: number | null;
+  coach_member_rating?: number | null;
 };
 
 type PortalSession = {
@@ -282,6 +284,7 @@ export default function CoachFitgraphPortalPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
+  const [librarySessionId, setLibrarySessionId] = useState<string | null>(null);
   const [guestFor, setGuestFor] = useState<string | null>(null);
   const [guestName, setGuestName] = useState('');
   const [memberFor, setMemberFor] = useState('');
@@ -289,6 +292,10 @@ export default function CoachFitgraphPortalPage() {
   const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, string>>(
     {}
   );
+  const [feelingDrafts, setFeelingDrafts] = useState<Record<string, string>>(
+    {}
+  );
+  const [ratingDrafts, setRatingDrafts] = useState<Record<string, string>>({});
   const [create, setCreate] = useState({
     session_kind: 'class' as FitSessionKind,
     class_type_id: '',
@@ -1243,13 +1250,23 @@ export default function CoachFitgraphPortalPage() {
                     )
                   }
                 >
-                  <option value="">Programme (optional)…</option>
+                  <option value="">Class movements / programme…</option>
                   {(portal.programmes || []).map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
                     </option>
                   ))}
                 </select>
+                <button
+                  type="button"
+                  className="w-full rounded-xl border border-amber-500/40 px-3 py-2 text-[11px] font-black text-amber-200"
+                  onClick={() => {
+                    setLibrarySessionId(openCard.session.id);
+                    setShowLibrary(true);
+                  }}
+                >
+                  Add movements for this class
+                </button>
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-wider text-amber-400 mb-1">
                     Class plan · activities
@@ -1413,14 +1430,76 @@ export default function CoachFitgraphPortalPage() {
                       </div>
                       {r.actual === 'attended' || r.actual === 'pending' ? (
                         <div className="w-full pt-1 space-y-1">
-                          {r.coach_feedback ? (
+                          {r.coach_feedback ||
+                          r.coach_member_feeling != null ||
+                          r.coach_member_rating != null ? (
                             <p className="text-[11px] text-amber-200/90">
-                              Your note: {r.coach_feedback}
+                              {r.coach_member_feeling != null
+                                ? `Felt ${r.coach_member_feeling}/5`
+                                : ''}
+                              {r.coach_member_rating != null
+                                ? `${r.coach_member_feeling != null ? ' · ' : ''}Rated ${r.coach_member_rating}/5`
+                                : ''}
+                              {r.coach_feedback
+                                ? `${r.coach_member_feeling != null || r.coach_member_rating != null ? ' — ' : ''}${r.coach_feedback}`
+                                : ''}
                             </p>
                           ) : null}
+                          <div className="grid grid-cols-2 gap-2">
+                            <label className="text-[10px] font-bold text-slate-400">
+                              How they felt
+                              <select
+                                className="mt-0.5 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-[11px] text-slate-100"
+                                value={
+                                  feelingDrafts[r.booking_id] ??
+                                  (r.coach_member_feeling != null
+                                    ? String(r.coach_member_feeling)
+                                    : '')
+                                }
+                                onChange={(e) =>
+                                  setFeelingDrafts((cur) => ({
+                                    ...cur,
+                                    [r.booking_id]: e.target.value,
+                                  }))
+                                }
+                              >
+                                <option value="">—</option>
+                                <option value="1">1 tired</option>
+                                <option value="2">2 low</option>
+                                <option value="3">3 ok</option>
+                                <option value="4">4 good</option>
+                                <option value="5">5 strong</option>
+                              </select>
+                            </label>
+                            <label className="text-[10px] font-bold text-slate-400">
+                              Rate member
+                              <select
+                                className="mt-0.5 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-[11px] text-slate-100"
+                                value={
+                                  ratingDrafts[r.booking_id] ??
+                                  (r.coach_member_rating != null
+                                    ? String(r.coach_member_rating)
+                                    : '')
+                                }
+                                onChange={(e) =>
+                                  setRatingDrafts((cur) => ({
+                                    ...cur,
+                                    [r.booking_id]: e.target.value,
+                                  }))
+                                }
+                              >
+                                <option value="">—</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5 excellent</option>
+                              </select>
+                            </label>
+                          </div>
                           <textarea
                             className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-[11px] min-h-[2.5rem]"
-                            placeholder="Optional feedback for this member after class"
+                            placeholder="Note for this member (saved on their profile)"
                             value={
                               feedbackDrafts[r.booking_id] ??
                               r.coach_feedback ??
@@ -1435,13 +1514,7 @@ export default function CoachFitgraphPortalPage() {
                           />
                           <button
                             type="button"
-                            disabled={
-                              busy ||
-                              !(
-                                feedbackDrafts[r.booking_id] ||
-                                r.coach_feedback
-                              )?.trim()
-                            }
+                            disabled={busy}
                             className="rounded-lg bg-amber-500/90 px-2 py-1 text-[10px] font-black text-amber-950 disabled:opacity-50"
                             onClick={() =>
                               void post({
@@ -1451,10 +1524,18 @@ export default function CoachFitgraphPortalPage() {
                                   feedbackDrafts[r.booking_id] ??
                                   r.coach_feedback ??
                                   '',
+                                feeling:
+                                  feelingDrafts[r.booking_id] ||
+                                  r.coach_member_feeling ||
+                                  undefined,
+                                rating:
+                                  ratingDrafts[r.booking_id] ||
+                                  r.coach_member_rating ||
+                                  undefined,
                               })
                             }
                           >
-                            Save member feedback
+                            Save to member profile
                           </button>
                         </div>
                       ) : null}
@@ -2645,7 +2726,11 @@ export default function CoachFitgraphPortalPage() {
             start_time: c.session.start_time,
             class_type_id: c.session.class_type_id,
           }))}
-          onClose={() => setShowLibrary(false)}
+          focusSessionId={librarySessionId}
+          onClose={() => {
+            setShowLibrary(false);
+            setLibrarySessionId(null);
+          }}
           onChanged={() => void load()}
         />
       ) : null}

@@ -87,6 +87,8 @@ type MyBooking = {
   feedback_token?: string | null;
   feedback_submitted_at?: string | null;
   coach_feedback?: string | null;
+  coach_member_feeling?: number | null;
+  coach_member_rating?: number | null;
   programme?: import('@/lib/fitness/movements').FitHydratedProgramme | null;
 };
 
@@ -1141,9 +1143,18 @@ export default function MemberFitgraphPortalPage() {
                                 Add to calendar
                               </a>
                             ) : null}
-                            {b.coach_feedback ? (
+                            {b.coach_feedback ||
+                            b.coach_member_feeling != null ||
+                            b.coach_member_rating != null ? (
                               <p className="mt-1 text-[11px] text-slate-600">
-                                Coach: {b.coach_feedback}
+                                Coach
+                                {b.coach_member_feeling != null
+                                  ? ` · felt ${b.coach_member_feeling}/5`
+                                  : ''}
+                                {b.coach_member_rating != null
+                                  ? ` · rated you ${b.coach_member_rating}/5`
+                                  : ''}
+                                {b.coach_feedback ? `: ${b.coach_feedback}` : ''}
                               </p>
                             ) : null}
                             {b.feedback_token &&

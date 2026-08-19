@@ -327,6 +327,8 @@ export async function POST(req: NextRequest) {
             coachId: coach.id,
             coachName: coach.name,
             comment: String(body.comment || body.note || ''),
+            feeling: body.feeling,
+            rating: body.rating,
             now,
           });
           if (!result.ok) {

@@ -50,6 +50,10 @@ import {
   staffTokenMapKey,
 } from '@/lib/services/clinician-portal';
 import {
+  CLINICIAN_VISIT_CARE_ACTIONS,
+  applyClinicianVisitCare,
+} from '@/lib/services/clinician-visit-care';
+import {
   applySeriesPatch,
   resolveSeriesEditIds,
   type SeriesEditScope,
@@ -766,6 +770,29 @@ export async function POST(req: NextRequest) {
         ...portalJson(resolved, from, to),
         feedback_path: feedbackPath,
         message: `Marked ${nextStatus.replace('_', ' ')}`,
+      });
+    }
+
+    if (
+      (CLINICIAN_VISIT_CARE_ACTIONS as readonly string[]).includes(action)
+    ) {
+      const result = applyClinicianVisitCare(
+        store as never,
+        mod,
+        clinician.id,
+        clinician.name,
+        body
+      );
+      if (!result.ok) {
+        return NextResponse.json(
+          { error: result.error },
+          { status: result.status || 400 }
+        );
+      }
+      await save(resolved);
+      return NextResponse.json({
+        ...portalJson(resolved, from, to),
+        message: result.message,
       });
     }
 

@@ -666,6 +666,10 @@ export type FitBooking = {
   /** Optional note from the coach to this member after class */
   coach_feedback?: string | null;
   coach_feedback_at?: string | null;
+  /** How the member seemed after class (1–5), logged by the coach */
+  coach_member_feeling?: number | null;
+  /** Coach’s rating of this member in the class (1–5) */
+  coach_member_rating?: number | null;
 };
 
 /** Gym-level website / portal settings */
@@ -1711,6 +1715,8 @@ export function buildMemberPortalPayload(
               ? b.feedback_submitted_at || null
               : null,
             coach_feedback: b.coach_feedback || null,
+            coach_member_feeling: b.coach_member_feeling ?? null,
+            coach_member_rating: b.coach_member_rating ?? null,
             programme: programmeForSessionPayload(store, s, {
               memberFacing: true,
             }),
@@ -2480,6 +2486,8 @@ export function buildCoachPortalPayload(
             : '',
           coach_feedback: b.coach_feedback || null,
           coach_feedback_at: b.coach_feedback_at || null,
+          coach_member_feeling: b.coach_member_feeling ?? null,
+          coach_member_rating: b.coach_member_rating ?? null,
         };
       });
       const planned = roster.filter(

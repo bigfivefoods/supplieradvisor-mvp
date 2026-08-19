@@ -31,6 +31,7 @@ export function CoachMovementStudio({
   programmes,
   classTypes,
   sessions,
+  focusSessionId,
   onClose,
   onChanged,
 }: {
@@ -40,10 +41,13 @@ export function CoachMovementStudio({
   programmes: FitProgramme[];
   classTypes: ClassType[];
   sessions: SessionLite[];
+  focusSessionId?: string | null;
   onClose: () => void;
   onChanged: () => void;
 }) {
-  const [tab, setTab] = useState<'movements' | 'programmes'>('movements');
+  const [tab, setTab] = useState<'movements' | 'programmes'>(
+    focusSessionId ? 'programmes' : 'movements'
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -65,7 +69,7 @@ export function CoachMovementStudio({
     description: '',
     kind: 'class' as FitProgrammeKind,
     class_type_ids: [] as string[],
-    session_ids: [] as string[],
+    session_ids: (focusSessionId ? [focusSessionId] : []) as string[],
     personal_for_coach: false,
     items: [] as FitProgrammeItem[],
   });

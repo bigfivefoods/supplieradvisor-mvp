@@ -22,6 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import { MemberPortalWeekCalendar } from '@/components/advisors/MemberPortalWeekCalendar';
+import { ClinicianPwaVisitCare } from '@/components/clinic/ClinicianPwaVisitCare';
 
 type RosterRow = {
   booking_id: string;
@@ -84,6 +85,9 @@ type Portal = {
     email?: string;
     soft_block?: boolean;
     no_show_count?: number;
+    medical?: import('@/lib/clinic/patient-medical').PatientMedicalRecord | null;
+    client_notes?: import('@/lib/clinic/clinic-movements').PatientClientNote[];
+    shared_movements?: import('@/lib/clinic/clinic-movements').PatientMovementShare[];
   }>;
   services: Array<{
     id: string;
@@ -92,6 +96,8 @@ type Portal = {
     default_duration_min?: number;
   }>;
   rooms?: string[];
+  visit_notes?: import('@/lib/services/advisor-clinical').VisitNote[];
+  movements?: import('@/lib/clinic/clinic-movements').ClinicMovement[];
 };
 
 function mondayOf(iso: string) {
@@ -737,6 +743,18 @@ export default function ClinicianPortalPage() {
                 </ul>
               )}
             </div>
+
+            <ClinicianPwaVisitCare
+              module={mod}
+              appointmentId={openCard.appointment.id}
+              clinicianName={portal.clinician.name}
+              roster={openCard.roster}
+              patients={portal.patients}
+              visitNotes={portal.visit_notes}
+              movements={portal.movements}
+              busy={busy}
+              post={async (body) => post(body)}
+            />
 
             <div className="flex flex-wrap gap-2 items-end border-t border-slate-800 pt-3">
               <select
