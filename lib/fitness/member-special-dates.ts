@@ -32,12 +32,14 @@ export type SpecialDatePerson = Pick<
   | 'name'
   | 'date_of_birth'
   | 'start_date'
-  | 'created_at'
   | 'coach_id'
   | 'active'
   | 'passport'
   | 'medical'
->;
+> & {
+  /** Desk records always have this; Command hub payloads may omit it. */
+  created_at?: string;
+};
 
 function addDays(iso: string, n: number): string {
   const d = new Date(`${iso}T12:00:00.000Z`);
