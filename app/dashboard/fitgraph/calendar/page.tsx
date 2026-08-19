@@ -56,9 +56,13 @@ import {
   type RecurrenceFormValue,
 } from '@/components/schedule/RecurrenceFields';
 import { normalizeWorkingHours } from '@/lib/schedule/working-hours';
+import { AdvisorExpandablePanel } from '@/components/advisors/AdvisorExpandablePanel';
+import { AdvisorWaitlistDesk } from '@/components/services/AdvisorWaitlistDesk';
+import { buildDeskSlotWaitlist } from '@/lib/services/advisor-waitlist-desk';
 
 export default function CalendarPage() {
-  const { companyId, store, loading, saving, post, summary } = useFitgraph();
+  const { companyId, store, loading, saving, post, summary, load } =
+    useFitgraph();
   const classSubscribe = store ? storeUsesClassSubscribe(store) : false;
   const classCatalogueHref = classSubscribe
     ? '/dashboard/fitgraph/memberships'
@@ -97,6 +101,9 @@ export default function CalendarPage() {
   const [recurrence, setRecurrence] = useState<RecurrenceFormValue>(
     emptyRecurrenceForm
   );
+  const [statsOpen, setStatsOpen] = useState(true);
+  const [calendarOpen, setCalendarOpen] = useState(true);
+  const [waitlistOpen, setWaitlistOpen] = useState(true);
 
   const blankCreateForm = () => ({
     session_kind: 'class' as FitSessionKind,
@@ -274,6 +281,26 @@ export default function CalendarPage() {
     () => normalizeWorkingHours(store?.settings?.working_hours),
     [store?.settings?.working_hours]
   );
+
+  const deskSlotWaitlist = useMemo(() => {
+    if (!store) return [];
+    return buildDeskSlotWaitlist({
+      bookings: store.bookings,
+      appointments: store.sessions.map((s) => ({
+        id: s.id,
+        date: s.date,
+        start_time: s.start_time,
+        service_id: s.class_type_id,
+        practitioner_id: s.coach_id,
+      })),
+      people: store.clients,
+      services: store.class_types,
+      clinicians: store.coaches,
+    });
+  }, [store]);
+
+  const waitlistCount =
+    store?.bookings.filter((b) => b.status === 'waitlist').length || 0;
 
   const saveHours = async (hours: typeof workingHours) => {
     await post({
@@ -684,29 +711,145 @@ export default function CalendarPage() {
     <FitgraphWorkbench
       title="Calendar"
       titleAccent="main gym diary"
-      description="Main gym calendar: expand to fill the screen, step months, and click a class or block to edit it. Click empty time to add a class, private PT, or a coach’s own training. Multiple coaches can run at the same time."
+      description="Stats, then this week’s gym diary, then waitlist, then working hours. Click a class to open it. Multiple coaches can run at the same time."
     >
       {loading || !store ? (
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <StatRow tone="owner"
-            items={[
-              { label: 'On selected day', value: daySessions.length },
-              {
-                label: 'Today (hub)',
-                value: Number(summary?.sessionsToday) || 0,
-              },
-              {
-                label: 'Public upcoming',
-                value: Number(summary?.publicSessionsUpcoming) || 0,
-              },
-              {
-                label: 'Coaches',
-                value: schedulePeople.length,
-              },
-            ]}
-          />
+          <AdvisorExpandablePanel
+            title={`Today ${Number(summary?.sessionsToday) || 0} · Upcoming ${Number(summary?.sessionsUpcoming) || 0} · Waitlist ${waitlistCount} · On board ${scheduleEvents.filter((e) => e.status === 'scheduled').length}`}
+            description="Diary counts for this gym. Collapse to focus on the week view."
+            open={statsOpen}
+            onToggle={() => setStatsOpen((v) => !v)}
+            accentClass="border-yellow-200 bg-yellow-50/50 dark:border-yellow-800 dark:bg-yellow-950/30"
+            titleClass="text-yellow-950 dark:text-yellow-50"
+            hintClass="text-yellow-800/80 dark:text-yellow-200/80"
+          >
+            <StatRow
+              tone="owner"
+              items={[
+                {
+                  label: 'Today',
+                  value: Number(summary?.sessionsToday) || 0,
+                },
+                {
+                  label: 'Upcoming',
+                  value: Number(summary?.sessionsUpcoming) || 0,
+                },
+                {
+                  label: 'Waitlist',
+                  value: waitlistCount,
+                },
+                {
+                  label: 'On board',
+                  value: scheduleEvents.filter((e) => e.status === 'scheduled')
+                    .length,
+                },
+              ]}
+            />
+          </AdvisorExpandablePanel>
+
+          <AdvisorExpandablePanel
+            title="Gym schedule · this week"
+            description="Default is this week. Click a class to open it; click empty time to schedule a class, private PT, or personal block."
+            open={calendarOpen}
+            onToggle={() => setCalendarOpen((v) => !v)}
+            accentClass="border-yellow-200 bg-white dark:border-yellow-800 dark:bg-neutral-950"
+            titleClass="text-yellow-950 dark:text-yellow-50"
+            hintClass="text-yellow-800/80 dark:text-yellow-200/80"
+          >
+            <PracticeScheduleCalendar
+              title="Gym schedule"
+              defaultView="week"
+              printBrand={
+                store.settings?.brand_name || 'GymAdvisor · SupplierAdvisor'
+              }
+              pdfExport={{
+                companyId: companyId || '',
+                module: 'fitgraph',
+                personId: personFilter || null,
+              }}
+              accent="yellow"
+              events={scheduleEvents}
+              people={schedulePeople}
+              peopleLabel="Coach"
+              workingHours={workingHours}
+              diaryScope={diaryScope}
+              onDiaryScopeChange={(scope) => {
+                setDiaryScope(scope);
+                if (scope === 'practice') setPersonFilter('');
+              }}
+              showDiaryScopeToggle
+              personFilter={personFilter}
+              onPersonFilterChange={(id) => {
+                setPersonFilter(id);
+                if (id) setForm((f) => ({ ...f, coach_id: id }));
+              }}
+              initialDate={day}
+              emptyLabel="No sessions"
+              slotHint="Click empty time to add a class, PT, or personal block"
+              selectedEventId={selectedSessionId}
+              onSelectDate={(date) => {
+                setDay(date);
+                setForm((f) => ({ ...f, date }));
+              }}
+              onSelectSlot={pickSlot}
+              onSelectEvent={(ev) => {
+                openSession(ev.id);
+                toast.message('Class open', {
+                  description: `${ev.start_time.slice(0, 5)} · ${ev.title} — edit in the pop-out`,
+                });
+              }}
+            />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-slate-500">
+                Switch to day or month from the diary toolbar. Expand to fill
+                the screen.
+              </p>
+              <button
+                type="button"
+                className="rounded-xl border border-yellow-300 bg-white px-3 py-2 text-xs font-bold text-yellow-800 dark:border-yellow-600 dark:bg-yellow-950 dark:text-yellow-100"
+                onClick={() => startCreateMode({ date: day })}
+              >
+                + Class / PT / block
+              </button>
+            </div>
+          </AdvisorExpandablePanel>
+
+          <AdvisorExpandablePanel
+            title={`Waitlist · ${waitlistCount}`}
+            description="Members waiting on a full class. Open by default."
+            open={waitlistOpen}
+            onToggle={() => setWaitlistOpen((v) => !v)}
+            accentClass="border-yellow-200 bg-yellow-50/50 dark:border-yellow-800 dark:bg-yellow-950/30"
+            titleClass="text-yellow-950 dark:text-yellow-50"
+            hintClass="text-yellow-800/80 dark:text-yellow-200/80"
+          >
+            <AdvisorWaitlistDesk
+              queue={[]}
+              slotWaitlist={deskSlotWaitlist}
+              accentClass="border-yellow-200"
+              embedded
+              post={async (body) => {
+                await post(body);
+              }}
+              onRefresh={() => {
+                void load();
+              }}
+              calendarHref="/dashboard/fitgraph/calendar"
+            />
+            <p className="text-xs text-slate-500">
+              Front desk tools:{' '}
+              <Link
+                href="/dashboard/fitgraph/bookings"
+                className="font-bold text-yellow-700 underline"
+              >
+                Desk · bookings
+              </Link>{' '}
+              (mark attended, feedback links) · this calendar is the main diary.
+            </p>
+          </AdvisorExpandablePanel>
 
           <WorkingHoursEditor
             value={workingHours}
@@ -725,63 +868,9 @@ export default function CalendarPage() {
               label="Download gym practice PDF"
             />
             <span className="text-[11px] text-slate-500">
-              Full practice sheet (hours, coaches, classes). Calendar PDFs are on
-              the grid · A4 PDF.
+              Practice sheet (hours, coaches, classes). Schedule PDFs: A4 PDF on
+              the calendar.
             </span>
-          </div>
-
-          <PracticeScheduleCalendar
-            title="Class schedule"
-            printBrand={
-              store.settings?.brand_name || 'GymAdvisor · SupplierAdvisor'
-            }
-            pdfExport={{
-              companyId: companyId || '',
-              module: 'fitgraph',
-              personId: personFilter || null,
-            }}
-            accent="yellow"
-            events={scheduleEvents}
-            people={schedulePeople}
-            peopleLabel="Coach"
-            workingHours={workingHours}
-            diaryScope={diaryScope}
-            onDiaryScopeChange={(scope) => {
-              setDiaryScope(scope);
-              if (scope === 'practice') setPersonFilter('');
-            }}
-            showDiaryScopeToggle
-            personFilter={personFilter}
-            onPersonFilterChange={(id) => {
-              setPersonFilter(id);
-              if (id) setForm((f) => ({ ...f, coach_id: id }));
-            }}
-            initialDate={day}
-            emptyLabel="No sessions"
-            slotHint="Click empty time to add a class, PT, or personal block"
-            selectedEventId={selectedSessionId}
-            onSelectDate={(date) => {
-              setDay(date);
-              setForm((f) => ({ ...f, date }));
-            }}
-            onSelectSlot={pickSlot}
-            onSelectEvent={(ev) => {
-              openSession(ev.id);
-            }}
-          />
-
-          <div className="flex flex-wrap items-center justify-between gap-2 -mt-2">
-            <p className="text-xs text-slate-500">
-              Click a class or personal block to edit it. Expand the calendar to
-              fill the screen. Use the month name to jump months.
-            </p>
-            <button
-              type="button"
-              className="rounded-xl border border-yellow-300 bg-white px-3 py-2 text-xs font-bold text-yellow-800 dark:border-yellow-600 dark:bg-yellow-950 dark:text-yellow-100"
-              onClick={() => startCreateMode({ date: day })}
-            >
-              + Class / PT / block
-            </button>
           </div>
 
           <ScheduleEventPeek
