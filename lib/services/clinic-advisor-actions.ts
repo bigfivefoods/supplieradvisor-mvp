@@ -18,6 +18,7 @@ import {
   notifyLinkedMember,
 } from '@/lib/b2c/member-push';
 import { notifyFollowUpCheckIn } from '@/lib/clinic/notify-follow-up';
+import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import {
   computeOutcomes,
   recallCandidates,
@@ -146,7 +147,7 @@ export async function clinicSendReminders(
         moduleKey: cfg.portalPath,
         logoUrl:
           cfg.logoUrl ||
-          store.settings?.company_logo_url ||
+          logoUrlFromSettings(store.settings) ||
           null,
         practitionerName: store.practitioners?.find(
           (p) => p.id === appt.practitioner_id
@@ -295,7 +296,7 @@ export async function clinicSendPostSessionEmails(
         practitionerName: store.practitioners?.find(
           (p) => p.id === appt.practitioner_id
         )?.name,
-        logoUrl: cfg.logoUrl || store.settings?.company_logo_url || null,
+        logoUrl: cfg.logoUrl || logoUrlFromSettings(store.settings),
         ctaUrl: feedbackPath,
         moduleKey: cfg.portalPath,
         moduleLabel: cfg.moduleLabel,
@@ -471,7 +472,7 @@ export async function notifyPromotedWaitlist(
       manageUrl,
       moduleLabel: cfg.moduleLabel,
       moduleKey: cfg.portalPath,
-      logoUrl: cfg.logoUrl || store.settings?.company_logo_url || null,
+      logoUrl: cfg.logoUrl || logoUrlFromSettings(store.settings),
     });
   }
   await notifyLinkedMember({

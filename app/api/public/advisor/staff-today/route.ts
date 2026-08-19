@@ -31,6 +31,7 @@ import {
   type PersonNoShowStats,
 } from '@/lib/services/advisor-booking';
 import { sendWaitlistOfferEmail } from '@/lib/services/advisor-reminders';
+import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import {
   consumePackSession,
   fitPtPackToLedger,
@@ -377,7 +378,7 @@ export async function POST(req: NextRequest) {
                 location: session.location,
                 moduleLabel: 'GymAdvisor®',
                 moduleKey: 'fitgraph',
-                logoUrl: store.settings?.company_logo_url || null,
+                logoUrl: logoUrlFromSettings(store.settings),
               });
             }
           }

@@ -442,6 +442,8 @@ export type PsychiatryPublicSettings = {
   billing_email?: string;
   claims_switch?: import('@/lib/clinic/medical-aid-switch').PracticeClaimsSwitch;
   embed_primary_color?: string;
+  /** Copied from My Business profile for branded client emails */
+  company_logo_url?: string | null;
   practitioner_disciplines?: string[];
   /** Clinic open days & hours for schedule calendar */
   working_hours?: import('@/lib/schedule/working-hours').WorkingHours;

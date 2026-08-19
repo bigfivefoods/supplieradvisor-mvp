@@ -156,6 +156,7 @@ export type ClinicianStoreLike = {
     public_token?: string;
     enabled?: boolean;
     rooms?: unknown;
+    company_logo_url?: string | null;
   } | null;
 };
 

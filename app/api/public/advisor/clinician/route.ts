@@ -31,6 +31,7 @@ import {
   buildPublicFeedbackPath,
 } from '@/lib/services/booking-feedback';
 import { sendWaitlistOfferEmail } from '@/lib/services/advisor-reminders';
+import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { findClinicianDiaryConflict } from '@/lib/schedule/clinician-diary';
 import {
   type ClinicianModule,
@@ -650,7 +651,7 @@ export async function POST(req: NextRequest) {
               : undefined,
             moduleLabel: clinicianModuleLabel(mod),
             moduleKey: mod,
-            logoUrl: store.settings?.company_logo_url || null,
+            logoUrl: logoUrlFromSettings(store.settings),
           });
         }
       }
@@ -739,7 +740,7 @@ export async function POST(req: NextRequest) {
               location: appt.location,
               moduleLabel: clinicianModuleLabel(mod),
               moduleKey: mod,
-              logoUrl: store.settings?.company_logo_url || null,
+              logoUrl: logoUrlFromSettings(store.settings),
             });
           }
         }
