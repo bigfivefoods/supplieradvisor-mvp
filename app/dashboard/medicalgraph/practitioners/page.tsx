@@ -26,7 +26,18 @@ import { PersonQualificationsEditor } from '@/components/services/PersonQualific
 import { AdvisorPersonInviteRow } from '@/components/advisors/AdvisorPersonInviteRow';
 import { AdvisorEngagementField } from '@/components/advisors/AdvisorEngagementField';
 import { AdvisorExpandablePanel } from '@/components/advisors/AdvisorExpandablePanel';
+import { AdvisorContractorCommercialFields } from '@/components/advisors/AdvisorContractorCommercialFields';
 import { resolveAdvisorEngagement } from '@/lib/services/advisor-workforce';
+import {
+  draftFromContractorCommercial,
+  emptyContractorCommercialDraft,
+  formatClinicZar,
+  formatContractorCommercialLine,
+  recordFromContractorCommercialDraft,
+  summariseContractorCommercial,
+  validateContractorCommercialDraft,
+  type ContractorCommercialDraft,
+} from '@/lib/clinic/contractor-commercial';
 import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
 import type { PersonQualification } from '@/lib/services/person-qualifications';
 import {
@@ -65,10 +76,7 @@ async function copyStaffToday(tok: string) {
 type DateDraft = {
   start_date: string;
   end_date: string;
-  rate_zar: string;
-  rate_basis: string;
-  rate_note: string;
-};
+} & ContractorCommercialDraft;
 
 type ProfileDraft = {
   code: string;
@@ -98,9 +106,7 @@ function emptyForm() {
     photo_url: '',
     start_date: todayIso(),
     end_date: '',
-    rate_zar: '',
-    rate_basis: 'per_session',
-    rate_note: '',
+    ...emptyContractorCommercialDraft(),
     engagement: 'contractor' as 'employed' | 'contractor',
   };
 }
@@ -215,12 +221,7 @@ export default function PractitionersPage() {
         p.start_date ||
         (p.created_at ? p.created_at.slice(0, 10) : todayIso()),
       end_date: p.end_date || '',
-      rate_zar:
-        p.rate_zar != null && Number.isFinite(Number(p.rate_zar))
-          ? String(p.rate_zar)
-          : '',
-      rate_basis: String(p.rate_basis || 'per_session'),
-      rate_note: p.rate_note || '',
+      ...draftFromContractorCommercial(p),
     };
   };
 
@@ -233,12 +234,7 @@ export default function PractitionersPage() {
           person?.start_date ||
           (person?.created_at ? person.created_at.slice(0, 10) : todayIso()),
         end_date: person?.end_date || '',
-        rate_zar:
-          person?.rate_zar != null && Number.isFinite(Number(person.rate_zar))
-            ? String(person.rate_zar)
-            : '',
-        rate_basis: String(person?.rate_basis || 'per_session'),
-        rate_note: person?.rate_note || '',
+        ...draftFromContractorCommercial(person || {}),
       };
       return { ...prev, [id]: { ...seeded, ...patch } };
     });
@@ -256,6 +252,13 @@ export default function PractitionersPage() {
     if (!form.id_number.trim()) {
       toast.error('ID / passport number required for VerifyNow or Didit');
       return;
+    }
+    if (form.engagement !== 'employed') {
+      const commercialErr = validateContractorCommercialDraft(form);
+      if (commercialErr) {
+        toast.error(commercialErr);
+        return;
+      }
     }
     await post({
       entity: 'practitioners',
@@ -275,9 +278,7 @@ export default function PractitionersPage() {
         can_manage: true,
         start_date: form.start_date || todayIso(),
         end_date: form.end_date || null,
-        rate_zar: form.rate_zar === '' ? null : Number(form.rate_zar),
-        rate_basis: form.rate_basis || 'per_session',
-        rate_note: form.rate_note || undefined,
+        ...recordFromContractorCommercialDraft(form),
         engagement: form.engagement || 'contractor',
       },
     });
@@ -295,8 +296,9 @@ export default function PractitionersPage() {
       toast.error('End date cannot be before start date');
       return;
     }
-    if (d.rate_zar !== '' && Number.isNaN(Number(d.rate_zar))) {
-      toast.error('Rate must be a number (ZAR)');
+    const commercialErr = validateContractorCommercialDraft(d);
+    if (commercialErr) {
+      toast.error(commercialErr);
       return;
     }
     await post({
@@ -308,9 +310,7 @@ export default function PractitionersPage() {
         name: p.name,
         start_date: d.start_date,
         end_date: d.end_date || null,
-        rate_zar: d.rate_zar === '' ? null : Number(d.rate_zar),
-        rate_basis: d.rate_basis || 'per_session',
-        rate_note: d.rate_note || '',
+        ...recordFromContractorCommercialDraft(d),
         ended_note: endNote[p.id] || undefined,
       },
     });
@@ -523,6 +523,9 @@ export default function PractitionersPage() {
   const endedCount =
     store?.practitioners.filter((p) => p.end_date || p.active === false)
       .length || 0;
+  const contractorTerms = summariseContractorCommercial(
+    store?.practitioners || []
+  );
 
   return (
     <MedicalgraphWorkbench
@@ -544,6 +547,13 @@ export default function PractitionersPage() {
               },
               { label: 'Active now', value: activeCount },
               { label: 'Ended / inactive', value: endedCount },
+              {
+                label: 'Avg practice keep',
+                value:
+                  contractorTerms.avgKeep != null
+                    ? formatClinicZar(contractorTerms.avgKeep)
+                    : '—',
+              },
               { label: 'Skills', value: skillOptions.length },
             ]}
           />
@@ -719,7 +729,10 @@ export default function PractitionersPage() {
                       <div className="text-[11px] font-semibold text-emerald-900/90 dark:text-emerald-200 mt-0.5">
                         {formatEngagement(p)}
                         {' · '}
-                        {formatPractitionerRate(p.rate_zar, p.rate_basis)}
+                        {resolveAdvisorEngagement(p) === 'contractor'
+                          ? formatContractorCommercialLine(p) ||
+                            formatPractitionerRate(p.rate_zar, p.rate_basis)
+                          : formatPractitionerRate(p.rate_zar, p.rate_basis)}
                       </div>
                     </div>
                     <ChevronDown
@@ -973,6 +986,8 @@ export default function PractitionersPage() {
                               }
                             />
                           </label>
+                          {resolveAdvisorEngagement(profile) !== 'contractor' ? (
+                            <>
                           <label className="block">
                             <span className="text-[10px] text-slate-600 dark:text-emerald-200/70">
                               Rate (ZAR)
@@ -1006,7 +1021,24 @@ export default function PractitionersPage() {
                               ))}
                             </select>
                           </label>
+                            </>
+                          ) : null}
                         </div>
+                        {resolveAdvisorEngagement(profile) === 'contractor' ? (
+                          <div className="mt-2">
+                            <AdvisorContractorCommercialFields
+                              compact
+                              value={draft}
+                              onChange={(patch) => setDraft(p.id, patch)}
+                              inputClass={fc()}
+                              labelClass="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300"
+                              hintClass="text-[11px] text-slate-500 dark:text-emerald-200/70"
+                              accentClass="border-amber-200 bg-amber-50/80 dark:border-amber-700/50 dark:bg-amber-950/30"
+                              rateBases={PRACTITIONER_RATE_BASES}
+                              disabled={saving}
+                            />
+                          </div>
+                        ) : (
                         <input
                           className={fc() + ' mt-2'}
                           placeholder="Rate note (optional)"
@@ -1015,6 +1047,7 @@ export default function PractitionersPage() {
                             setDraft(p.id, { rate_note: e.target.value })
                           }
                         />
+                        )}
                         <input
                           className={fc() + ' mt-2'}
                           placeholder="Note when ending (optional)"
@@ -1077,14 +1110,16 @@ export default function PractitionersPage() {
                                 <span className="font-bold">Current (ended):</span>{' '}
                                 {p.start_date || '—'} → {p.end_date}
                                 {' · '}
-                                {formatPractitionerRate(p.rate_zar, p.rate_basis)}
+                                {formatContractorCommercialLine(p) ||
+                                  formatPractitionerRate(p.rate_zar, p.rate_basis)}
                               </li>
                             ) : (
                               <li className="text-[11px] text-slate-700 dark:text-emerald-100">
                                 <span className="font-bold">Current:</span>{' '}
                                 {p.start_date || '—'} → present
                                 {' · '}
-                                {formatPractitionerRate(p.rate_zar, p.rate_basis)}
+                                {formatContractorCommercialLine(p) ||
+                                  formatPractitionerRate(p.rate_zar, p.rate_basis)}
                               </li>
                             )}
                             {hist.length === 0 ? (
@@ -1101,7 +1136,8 @@ export default function PractitionersPage() {
                                     {h.start_date} → {h.end_date}
                                   </span>
                                   {' · '}
-                                  {formatPractitionerRate(h.rate_zar, h.rate_basis)}
+                                  {formatContractorCommercialLine(h) ||
+                                    formatPractitionerRate(h.rate_zar, h.rate_basis)}
                                   {h.ended_reason
                                     ? ` · ${h.ended_reason}`
                                     : ''}
@@ -1279,7 +1315,7 @@ export default function PractitionersPage() {
 
           <AdvisorExpandablePanel
             title="Add a new practitioner"
-            description="Name, contact, contract or permanent, rates, and bio."
+            description="Name, contact, contract or permanent, commercial payment terms, and bio."
             open={addOpen}
             onToggle={() => setAddOpen((v) => !v)}
             accentClass="border-emerald-200 bg-emerald-50/70 dark:border-emerald-700/50 dark:bg-emerald-950/40"
@@ -1374,6 +1410,19 @@ export default function PractitionersPage() {
                 }
               />
             </label>
+            {form.engagement === 'contractor' ? (
+              <AdvisorContractorCommercialFields
+                value={form}
+                onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+                inputClass={fc()}
+                labelClass="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300"
+                hintClass="text-[11px] text-slate-500 dark:text-emerald-200/70"
+                accentClass="border-amber-200 bg-amber-50/80 dark:border-amber-700/50 dark:bg-amber-950/30"
+                rateBases={PRACTITIONER_RATE_BASES}
+                disabled={saving}
+              />
+            ) : (
+              <>
             <label className="block">
               <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
                 Rate (ZAR)
@@ -1416,6 +1465,8 @@ export default function PractitionersPage() {
                 setForm((f) => ({ ...f, rate_note: e.target.value }))
               }
             />
+              </>
+            )}
             <div className="sm:col-span-2 lg:col-span-3">
               <p className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 mb-1.5">
                 Skills / disciplines (select all that apply)

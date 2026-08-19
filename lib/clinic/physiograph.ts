@@ -23,6 +23,11 @@ import { ensureSystemPersonalService } from '@/lib/clinic/appointment-kind';
 import { toPortalOpenSlots } from '@/lib/services/advisor-member-calendar';
 import { clinicCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
 import { normalizeClinicRooms } from '@/lib/clinic/clinic-rooms';
+import { ensureSystemClinicMovements } from '@/lib/clinic/clinic-movements';
+import {
+  snapshotContractorCommercial,
+  type ContractorCommercialFields,
+} from '@/lib/clinic/contractor-commercial';
 
 export const PHYSIOGRAPH_MODULE_ID = 'physiograph' as const;
 export const PHYSIOGRAPH_META_KEY = 'physiograph';
@@ -74,7 +79,7 @@ export type PhysioEngagement = {
   ended_reason?: string;
   rate_zar?: number | null;
   rate_basis?: PhysioRateBasis;
-};
+} & ContractorCommercialFields;
 
 /** PDF (or doc) contract attached to a practitioner engagement */
 export type PhysioContractDoc = {
@@ -137,7 +142,8 @@ export type PhysioPractitioner = {
   /** Can manage own diary slots */
   can_manage?: boolean;
   created_at: string;
-} & import('@/lib/services/advisor-workforce').AdvisorPersonInviteFields;
+} & import('@/lib/services/advisor-workforce').AdvisorPersonInviteFields &
+  ContractorCommercialFields;
 
 export function formatPractitionerRate(
   rateZar?: number | null,
@@ -174,11 +180,7 @@ export function closePractitionerEngagement(
       end_date: end,
       note: opts?.note,
       ended_reason: opts?.reason,
-      rate_zar:
-        person.rate_zar != null && Number.isFinite(Number(person.rate_zar))
-          ? Number(person.rate_zar)
-          : null,
-      rate_basis: person.rate_basis || undefined,
+      ...snapshotContractorCommercial(person),
     });
   }
   hist.sort((a, b) => b.start_date.localeCompare(a.start_date));
@@ -327,6 +329,10 @@ export type PhysioPatient = {
   diagnosis_notes?: string;
   emergency_contact?: string;
   notes?: string;
+  /** Notes the clinician wrote for the client (shown on PWA / portal) */
+  client_notes?: import('@/lib/clinic/clinic-movements').PatientClientNote[];
+  /** Rehab movements shared with this client */
+  shared_movements?: import('@/lib/clinic/clinic-movements').PatientMovementShare[];
   /** Injury, diagnosis, pain, goals, contraindications */
   clinical?: PhysioClinicalProfile;
   /** Full medical chart: aid, documents, claims */
@@ -469,6 +475,8 @@ export type PhysiographStore = {
   patients: PhysioPatient[];
   services: PhysioService[];
   packages: PhysioPackage[];
+  /** Rehab movement library (catalog + clinic-added) */
+  movements?: import('@/lib/clinic/clinic-movements').ClinicMovement[];
   appointments: PhysioAppointment[];
   bookings: PhysioBooking[];
   waitlist_queue?: import('@/lib/services/clinic-waitlist').ClinicWaitlistQueueEntry[];
@@ -518,6 +526,7 @@ export function emptyPhysiographStore(): PhysiographStore {
     packages: [],
     appointments: [],
     bookings: [],
+    movements: [],
     threads: [],
     appointment_feedback: [],
     announcements: [],
@@ -549,6 +558,8 @@ export function readPhysiographFromMetadata(
     e.settings.public_token = defaultPublicSettings().public_token;
   }
   e.services = ensureSystemPersonalService(e.services);
+  e.movements = Array.isArray(s.movements) ? s.movements : e.movements || [];
+  ensureSystemClinicMovements(e);
   e.updated_at = s.updated_at ? String(s.updated_at) : undefined;
   return e;
 }
@@ -663,9 +674,7 @@ export function buildPatientPortalPayload(
         )
     : [];
 
-  const medical_share = shareMedical
-    ? buildPatientMedicalShare(patient)
-    : null;
+  const medical_share = buildPatientMedicalShare(patient);
 
   return {
     logo_url: logoUrlFromSettings(
@@ -711,12 +720,10 @@ export function buildPatientPortalPayload(
     },
     medical_share,
     announcements: publishedAnnouncements(store.announcements),
-    shared_advice: shareMedical
-      ? [
-          ...buildSharedAdvice(store.visit_notes, patient.id),
-          ...followUpsAsAdvice(patient.follow_ups),
-        ]
-      : [],
+    shared_advice: [
+      ...buildSharedAdvice(store.visit_notes, patient.id),
+      ...followUpsAsAdvice(patient.follow_ups),
+    ],
     follow_ups: shareMedical
       ? patientFacingFollowUps(patient.follow_ups)
       : [],
@@ -842,6 +849,8 @@ export function summarisePhysiograph(store: PhysiographStore) {
     bookingsOpen: openBookings.length,
     websiteEnabled: store.settings?.enabled === true,
     roomCount: (store.settings?.rooms || []).length,
+    movementCount: (store.movements || []).filter((m) => m.active !== false)
+      .length,
     threadCount: (store.threads || []).filter((t) => !t.archived).length,
     unreadMessages: totalUnread(store.threads || [], 'desk', 'desk'),
     pendingFeedback: (store.bookings || []).filter(

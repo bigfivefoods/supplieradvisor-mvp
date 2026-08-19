@@ -23,6 +23,10 @@ import { ensureSystemPersonalService } from '@/lib/clinic/appointment-kind';
 import { toPortalOpenSlots } from '@/lib/services/advisor-member-calendar';
 import { clinicCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
 import { normalizeClinicRooms } from '@/lib/clinic/clinic-rooms';
+import {
+  snapshotContractorCommercial,
+  type ContractorCommercialFields,
+} from '@/lib/clinic/contractor-commercial';
 
 export const DENTALGRAPH_MODULE_ID = 'dentalgraph' as const;
 export const DENTALGRAPH_META_KEY = 'dentalgraph';
@@ -92,7 +96,7 @@ export type DentalEngagement = {
   ended_reason?: string;
   rate_zar?: number | null;
   rate_basis?: DentalRateBasis;
-};
+} & ContractorCommercialFields;
 
 /** PDF (or doc) contract attached to a staff engagement */
 export type DentalContractDoc = {
@@ -155,7 +159,8 @@ export type DentalStaff = {
   /** Can manage own diary slots */
   can_manage?: boolean;
   created_at: string;
-} & import('@/lib/services/advisor-workforce').AdvisorPersonInviteFields;
+} & import('@/lib/services/advisor-workforce').AdvisorPersonInviteFields &
+  ContractorCommercialFields;
 
 export function formatStaffRate(
   rateZar?: number | null,
@@ -192,11 +197,7 @@ export function closeStaffEngagement(
       end_date: end,
       note: opts?.note,
       ended_reason: opts?.reason,
-      rate_zar:
-        person.rate_zar != null && Number.isFinite(Number(person.rate_zar))
-          ? Number(person.rate_zar)
-          : null,
-      rate_basis: person.rate_basis || undefined,
+      ...snapshotContractorCommercial(person),
     });
   }
   hist.sort((a, b) => b.start_date.localeCompare(a.start_date));
@@ -342,6 +343,8 @@ export type DentalPatient = {
   diagnosis_notes?: string;
   emergency_contact?: string;
   notes?: string;
+  /** Notes the clinician wrote for the client (shown on PWA / portal) */
+  client_notes?: import('@/lib/clinic/clinic-movements').PatientClientNote[];
   /** Injury, diagnosis, pain, goals, contraindications */
   clinical?: DentalClinicalProfile;
   /** Full medical chart: aid, documents, claims */
@@ -683,9 +686,7 @@ export function buildDentalPatientPortalPayload(
         )
     : [];
 
-  const medical_share = shareMedical
-    ? buildPatientMedicalShare(patient)
-    : null;
+  const medical_share = buildPatientMedicalShare(patient);
 
   return {
     logo_url: logoUrlFromSettings(

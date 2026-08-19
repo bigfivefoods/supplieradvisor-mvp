@@ -25,6 +25,10 @@ import { toPortalOpenSlots } from '@/lib/services/advisor-member-calendar';
 import { clinicCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
 import { normalizeClinicRooms } from '@/lib/clinic/clinic-rooms';
 import { buildPatientVisitHistory } from '@/lib/clinic/visit-history';
+import {
+  snapshotContractorCommercial,
+  type ContractorCommercialFields,
+} from '@/lib/clinic/contractor-commercial';
 
 export const MEDICALGRAPH_MODULE_ID = 'medicalgraph' as const;
 export const MEDICALGRAPH_META_KEY = 'medicalgraph';
@@ -76,7 +80,7 @@ export type MedicalEngagement = {
   ended_reason?: string;
   rate_zar?: number | null;
   rate_basis?: MedicalRateBasis;
-};
+} & ContractorCommercialFields;
 
 /** PDF (or doc) contract attached to a practitioner engagement */
 export type MedicalContractDoc = {
@@ -139,7 +143,8 @@ export type MedicalPractitioner = {
   /** Can manage own diary slots */
   can_manage?: boolean;
   created_at: string;
-} & import('@/lib/services/advisor-workforce').AdvisorPersonInviteFields;
+} & import('@/lib/services/advisor-workforce').AdvisorPersonInviteFields &
+  ContractorCommercialFields;
 
 export function formatPractitionerRate(
   rateZar?: number | null,
@@ -176,11 +181,7 @@ export function closePractitionerEngagement(
       end_date: end,
       note: opts?.note,
       ended_reason: opts?.reason,
-      rate_zar:
-        person.rate_zar != null && Number.isFinite(Number(person.rate_zar))
-          ? Number(person.rate_zar)
-          : null,
-      rate_basis: person.rate_basis || undefined,
+      ...snapshotContractorCommercial(person),
     });
   }
   hist.sort((a, b) => b.start_date.localeCompare(a.start_date));
@@ -324,6 +325,8 @@ export type MedicalPatient = {
   diagnosis_notes?: string;
   emergency_contact?: string;
   notes?: string;
+  /** Notes the clinician wrote for the client (shown on PWA / portal) */
+  client_notes?: import('@/lib/clinic/clinic-movements').PatientClientNote[];
   /** Injury, diagnosis, pain, goals, contraindications */
   clinical?: MedicalClinicalProfile;
   /** Full medical chart: aid, documents, claims */

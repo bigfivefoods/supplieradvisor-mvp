@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { mergePersonInviteFromRecord } from '@/lib/services/advisor-workforce';
+import { mergeContractorCommercialFromRecord } from '@/lib/clinic/contractor-commercial';
 import {
   requireCompanyAccess,
   legacyPrivyFrom,
@@ -67,6 +68,7 @@ import {
 } from '@/lib/clinic/patient-medical';
 import { normalizeRecordShares } from '@/lib/clinic/record-shares';
 import { applyClinicFollowUp } from '@/lib/clinic/follow-up-action';
+import { upsertClientNote } from '@/lib/clinic/clinic-movements';
 import { mergeInviteFieldsFromRecord } from '@/lib/services/member-invite';
 
 export const runtime = 'nodejs';
@@ -980,6 +982,41 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (action === 'upsert_client_note') {
+      const patientId = String(body.patient_id || body.person_id || '');
+      const pi = store.patients.findIndex((p) => p.id === patientId);
+      if (pi < 0) {
+        return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+      }
+      try {
+        const note = upsertClientNote(store.patients[pi], {
+          body: String(body.body || body.notes || ''),
+          appointment_id: body.appointment_id
+            ? String(body.appointment_id)
+            : null,
+          booking_id: body.booking_id ? String(body.booking_id) : null,
+          author_name:
+            body.author_name != null ? String(body.author_name) : null,
+          now,
+        });
+        store.patients[pi].updated_at = now;
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          store,
+          summary: summarisePsychiatrygraph(store),
+          analysis: analysis(store),
+          note,
+          message: 'Note saved to the client profile',
+        });
+      } catch (e: unknown) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : 'Could not save client note' },
+          { status: 400 }
+        );
+      }
+    }
+
     if (
       action === 'upsert_visit_note' ||
       action === 'record_outcome' ||
@@ -1047,6 +1084,7 @@ export async function POST(request: NextRequest) {
             function_score:
               body.function_score != null ? Number(body.function_score) : null,
             soap: body.soap,
+            private: body.private === false ? false : true,
             now,
           })
         );
@@ -1593,6 +1631,7 @@ function upsert(
           : prev?.rate_basis ?? 'per_session',
       rate_note:
         rec.rate_note != null ? String(rec.rate_note) : prev?.rate_note,
+      ...mergeContractorCommercialFromRecord(prev, rec),
       start_date: startDate,
       end_date: endDate,
       contracts: Array.isArray(rec.contracts)
@@ -1740,6 +1779,7 @@ function upsert(
       identity: prev?.identity,
       family: prev?.family,
       follow_ups: prev?.follow_ups,
+      client_notes: prev?.client_notes,
       start_date:
         rec.start_date !== undefined
           ? rec.start_date

@@ -24,6 +24,10 @@ import { ensureSystemPersonalService } from '@/lib/clinic/appointment-kind';
 import { toPortalOpenSlots } from '@/lib/services/advisor-member-calendar';
 import { clinicCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
 import { normalizeClinicRooms } from '@/lib/clinic/clinic-rooms';
+import {
+  snapshotContractorCommercial,
+  type ContractorCommercialFields,
+} from '@/lib/clinic/contractor-commercial';
 
 export const PSYCHIATRYGRAPH_MODULE_ID = 'psychiatrygraph' as const;
 export const PSYCHIATRYGRAPH_META_KEY = 'psychiatrygraph';
@@ -75,7 +79,7 @@ export type PsychiatryEngagement = {
   ended_reason?: string;
   rate_zar?: number | null;
   rate_basis?: PsychiatryRateBasis;
-};
+} & ContractorCommercialFields;
 
 /** PDF (or doc) contract attached to a practitioner engagement */
 export type PsychiatryContractDoc = {
@@ -138,7 +142,8 @@ export type PsychiatryPractitioner = {
   /** Can manage own diary slots */
   can_manage?: boolean;
   created_at: string;
-} & import('@/lib/services/advisor-workforce').AdvisorPersonInviteFields;
+} & import('@/lib/services/advisor-workforce').AdvisorPersonInviteFields &
+  ContractorCommercialFields;
 
 export function formatPractitionerRate(
   rateZar?: number | null,
@@ -175,11 +180,7 @@ export function closePractitionerEngagement(
       end_date: end,
       note: opts?.note,
       ended_reason: opts?.reason,
-      rate_zar:
-        person.rate_zar != null && Number.isFinite(Number(person.rate_zar))
-          ? Number(person.rate_zar)
-          : null,
-      rate_basis: person.rate_basis || undefined,
+      ...snapshotContractorCommercial(person),
     });
   }
   hist.sort((a, b) => b.start_date.localeCompare(a.start_date));
@@ -323,6 +324,8 @@ export type PsychiatryPatient = {
   diagnosis_notes?: string;
   emergency_contact?: string;
   notes?: string;
+  /** Notes the clinician wrote for the client (shown on PWA / portal) */
+  client_notes?: import('@/lib/clinic/clinic-movements').PatientClientNote[];
   /** Injury, diagnosis, pain, goals, contraindications */
   clinical?: PsychiatryClinicalProfile;
   /** Full medical chart: aid, documents, claims */

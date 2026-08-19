@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { mergePersonInviteFromRecord } from '@/lib/services/advisor-workforce';
+import { mergeContractorCommercialFromRecord } from '@/lib/clinic/contractor-commercial';
 import {
   requireCompanyAccess,
   legacyPrivyFrom,
@@ -67,6 +68,11 @@ import {
 } from '@/lib/clinic/patient-medical';
 import { normalizeRecordShares } from '@/lib/clinic/record-shares';
 import { applyClinicFollowUp } from '@/lib/clinic/follow-up-action';
+import {
+  shareMovementWithPatient,
+  upsertClientNote,
+  upsertClinicMovement,
+} from '@/lib/clinic/clinic-movements';
 import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import {
   buildServiceMemberInviteLink,
@@ -87,7 +93,8 @@ type Entity =
   | 'services'
   | 'packages'
   | 'appointments'
-  | 'bookings';
+  | 'bookings'
+  | 'movements';
 
 async function loadStore(companyId: number) {
   return loadAdvisorModuleStore(
@@ -1073,6 +1080,101 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (action === 'upsert_client_note') {
+      const patientId = String(body.patient_id || body.person_id || '');
+      const pi = store.patients.findIndex((p) => p.id === patientId);
+      if (pi < 0) {
+        return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+      }
+      try {
+        const note = upsertClientNote(store.patients[pi], {
+          body: String(body.body || body.notes || ''),
+          appointment_id: body.appointment_id
+            ? String(body.appointment_id)
+            : null,
+          booking_id: body.booking_id ? String(body.booking_id) : null,
+          author_name: body.author_name != null ? String(body.author_name) : null,
+          now,
+        });
+        store.patients[pi].updated_at = now;
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          store,
+          summary: summarisePhysiograph(store),
+          analysis: analysis(store),
+          note,
+          message: 'Note saved to the client profile',
+        });
+      } catch (e: unknown) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : 'Could not save client note' },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (action === 'share_movement') {
+      const patientId = String(body.patient_id || '');
+      const pi = store.patients.findIndex((p) => p.id === patientId);
+      if (pi < 0) {
+        return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+      }
+      const movementId = String(body.movement_id || '');
+      const movement = (store.movements || []).find((m) => m.id === movementId);
+      if (!movement) {
+        return NextResponse.json({ error: 'Movement not found' }, { status: 404 });
+      }
+      const share = shareMovementWithPatient(store.patients[pi], {
+        movement,
+        sets: body.sets != null ? String(body.sets) : null,
+        reps: body.reps != null ? String(body.reps) : null,
+        hold: body.hold != null ? String(body.hold) : null,
+        frequency: body.frequency != null ? String(body.frequency) : null,
+        notes: body.notes != null ? String(body.notes) : undefined,
+        appointment_id: body.appointment_id
+          ? String(body.appointment_id)
+          : null,
+        booking_id: body.booking_id ? String(body.booking_id) : null,
+        shared_by: body.shared_by != null ? String(body.shared_by) : null,
+        now,
+      });
+      store.patients[pi].updated_at = now;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summarisePhysiograph(store),
+        analysis: analysis(store),
+        share,
+        message: `Shared ${movement.name} with ${store.patients[pi].name}`,
+      });
+    }
+
+    if (action === 'stop_shared_movement') {
+      const patientId = String(body.patient_id || '');
+      const shareId = String(body.share_id || body.id || '');
+      const pi = store.patients.findIndex((p) => p.id === patientId);
+      if (pi < 0) {
+        return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+      }
+      const list = store.patients[pi].shared_movements || [];
+      const row = list.find((m) => m.id === shareId);
+      if (!row) {
+        return NextResponse.json({ error: 'Share not found' }, { status: 404 });
+      }
+      row.status = 'stopped';
+      store.patients[pi].updated_at = now;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summarisePhysiograph(store),
+        analysis: analysis(store),
+        message: 'Movement removed from the client profile',
+      });
+    }
+
     if (
       action === 'upsert_visit_note' ||
       action === 'record_outcome' ||
@@ -1140,6 +1242,7 @@ export async function POST(request: NextRequest) {
             function_score:
               body.function_score != null ? Number(body.function_score) : null,
             soap: body.soap,
+            private: body.private === false ? false : true,
             now,
           })
         );
@@ -1711,6 +1814,7 @@ function upsert(
           : prev?.rate_basis ?? 'per_session',
       rate_note:
         rec.rate_note != null ? String(rec.rate_note) : prev?.rate_note,
+      ...mergeContractorCommercialFromRecord(prev, rec),
       start_date: startDate,
       end_date: endDate,
       contracts: Array.isArray(rec.contracts)
@@ -1864,6 +1968,8 @@ function upsert(
       identity: prev?.identity,
       family: prev?.family,
       follow_ups: prev?.follow_ups,
+      client_notes: prev?.client_notes,
+      shared_movements: prev?.shared_movements,
       start_date:
         rec.start_date !== undefined
           ? rec.start_date
@@ -2039,5 +2145,8 @@ function upsert(
     }
     if (i >= 0) store.bookings[i] = row;
     else store.bookings.push(row);
+  } else if (entity === 'movements') {
+    if (!store.movements) store.movements = [];
+    upsertClinicMovement(store.movements, rec, now, newId);
   }
 }
