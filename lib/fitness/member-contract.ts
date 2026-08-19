@@ -394,7 +394,7 @@ export function applyContractSubmissions(
       changed = true;
     }
     const before = JSON.stringify(client);
-    let next = {
+    let next: FitClient = {
       ...client,
       active: true,
       membership_status:
