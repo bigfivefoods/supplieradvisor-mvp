@@ -3,30 +3,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Copy, Download, Link2, Mail, Pencil, Upload, X } from 'lucide-react';
+import { ChevronDown, Download, Upload, X } from 'lucide-react';
 import {
   FitgraphWorkbench,
   LoadingBlock,
   useFitgraph,
 } from '@/components/fitness/FitgraphWorkbench';
-import {
-  DataTable,
-  FormCard,
-  StatRow,
-  fc,
-} from '@/components/fitness/FitForm';
+import { FormCard, fc } from '@/components/fitness/FitForm';
 import { MEMBERSHIP_STATUSES, type FitClient } from '@/lib/fitness/fitgraph';
 import {
   gymCollectsDebitBank,
   gymRequiresDebitBank,
-  memberDebitBankComplete,
 } from '@/lib/fitness/member-debit-bank';
 import {
   emptyDebitBankForm,
   MemberDebitBankFields,
   type DebitBankForm,
 } from '@/components/fitness/MemberDebitBankFields';
-import { healthSummaryLabel, isInjured } from '@/lib/health/body-map';
+import { isInjured } from '@/lib/health/body-map';
 import {
   InjuryProfileFields,
   emptyInjuryForm,
@@ -35,6 +29,10 @@ import {
   type InjuryFormState,
 } from '@/components/health/InjuryProfileFields';
 import { GymMemberProfileDesk } from '@/components/fitness/GymMemberProfileDesk';
+import {
+  GymClientDeskList,
+  type ClientListFilter,
+} from '@/components/fitness/GymClientDeskList';
 import { AdvisorTreatmentPlanPanel } from '@/components/services/AdvisorTreatmentPlanPanel';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
@@ -43,11 +41,7 @@ import {
   AdvisorIncomingShares,
   AdvisorProfileShare,
 } from '@/components/advisors/AdvisorProfileShare';
-import {
-  InlineSelect,
-  InlineText,
-  InlineToggleSelect,
-} from '@/components/services/InlineListFields';
+
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -117,6 +111,9 @@ export default function ClientsPage() {
   const [editing, setEditing] = useState(false);
   /** Row id with list inline editors open (toggle via Edit / Done) */
   const [listEditId, setListEditId] = useState<string | null>(null);
+  const [listOpen, setListOpen] = useState(true);
+  const [listFilter, setListFilter] = useState<ClientListFilter>('all');
+  const [injuryOpen, setInjuryOpen] = useState(false);
 
   const openEdit = (c: FitClient) => {
     setForm({
@@ -158,6 +155,11 @@ export default function ClientsPage() {
         : emptyDebitBankForm(),
     });
     setEditing(true);
+    requestAnimationFrame(() => {
+      document
+        .getElementById('gym-client-form')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   };
 
   const openId = search.get('open');
@@ -215,6 +217,7 @@ export default function ClientsPage() {
     toast.success(form.id ? 'Client profile updated' : 'Client saved');
     setForm(blankForm());
     setEditing(false);
+    setInjuryOpen(false);
   };
 
   /** Inline list save — only patches visible columns */
@@ -398,6 +401,10 @@ export default function ClientsPage() {
     store?.clients.filter((c) => isInjured(c.health)).length || 0;
   const privateCount =
     store?.clients.filter((c) => c.private_client === true).length || 0;
+  const pickFilter = (next: ClientListFilter) => {
+    setListFilter(next);
+    setListOpen(true);
+  };
 
   return (
     <FitgraphWorkbench
@@ -409,50 +416,97 @@ export default function ClientsPage() {
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <AdvisorMemberAppInvite
-            kind="gym"
-            companyId={companyId}
-            brand={store.settings?.brand_name}
-            audience="members"
-          />
-          <AdvisorIncomingShares companyId={companyId} />
-          <StatRow
-            tone="member"
-            items={[
-              { label: 'Clients', value: Number(summary?.clientCount) || 0 },
-              { label: 'Active', value: Number(summary?.activeMembers) || 0 },
-              { label: 'Private clients', value: privateCount },
-              { label: 'Injured / recovering', value: injuredCount },
-            ]}
-          />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {(
+              [
+                {
+                  id: 'all' as const,
+                  label: 'Clients',
+                  value: Number(summary?.clientCount) || store.clients.length,
+                },
+                {
+                  id: 'active' as const,
+                  label: 'Active',
+                  value: Number(summary?.activeMembers) || 0,
+                },
+                {
+                  id: 'private' as const,
+                  label: 'Private clients',
+                  value: privateCount,
+                },
+                {
+                  id: 'injured' as const,
+                  label: 'Injured / recovering',
+                  value: injuredCount,
+                },
+              ]
+            ).map((item) => {
+              const on = listFilter === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => pickFilter(item.id)}
+                  className={`rounded-2xl border px-4 py-3 text-left ${
+                    on
+                      ? 'border-sky-500 bg-sky-100 ring-2 ring-sky-300 dark:border-cyan-400 dark:bg-cyan-900'
+                      : 'border-cyan-200 bg-white dark:border-cyan-400 dark:bg-cyan-950'
+                  }`}
+                >
+                  <div className="text-[10px] font-black uppercase tracking-wide text-sky-700/80 dark:text-cyan-300/80">
+                    {item.label}
+                  </div>
+                  <div className="text-xl font-black tabular-nums text-slate-900 dark:text-cyan-50">
+                    {item.value}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
 
-          <div className="rounded-2xl border border-sky-200 bg-sky-50/70 p-4 dark:border-sky-700/50 dark:bg-sky-950/40">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-black text-sky-950 dark:text-sky-100">
-                  Client list (.xlsx)
-                </h3>
-                <p className="text-[11px] text-sky-900/80 dark:text-sky-200/80 mt-0.5 max-w-xl">
-                  Download your current members, or a blank template. Coaches can
-                  also update injury profiles from the coach portal.
-                </p>
-              </div>
+          <GymClientDeskList
+            clients={store.clients}
+            plans={store.membership_plans}
+            coaches={store.coaches}
+            collectBank={gymCollectsDebitBank(store)}
+            requireBank={gymRequiresDebitBank(store)}
+            saving={saving}
+            listEditId={listEditId}
+            setListEditId={setListEditId}
+            filter={listFilter}
+            onFilter={pickFilter}
+            open={listOpen}
+            onOpenChange={setListOpen}
+            onPatch={(client, patch) => void patchClient(client, patch)}
+            onFreeze={(c, freeze) => void freezeMembership(c, freeze)}
+            onInvite={(c) => void inviteMember(c)}
+            onCopyPortal={(tok) => void copyPortal(tok)}
+            onIssuePortal={(id) => void issuePortal(id)}
+            onProfile={openEdit}
+            onDelete={(c) => {
+              if (!confirm(`Remove ${c.name || 'this member'} from the book?`)) {
+                return;
+              }
+              if (listEditId === c.id) setListEditId(null);
+              void post({ entity: 'clients', action: 'delete', id: c.id });
+            }}
+            toolbar={
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => downloadXlsx('clients')}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-sky-300 bg-white px-3 py-1.5 text-xs font-bold text-sky-900 hover:bg-sky-100 dark:border-sky-600 dark:bg-sky-950 dark:text-sky-100 dark:hover:bg-sky-900"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-sky-300 bg-white px-3 py-1.5 text-xs font-bold text-sky-900 hover:bg-sky-100 dark:border-sky-600 dark:bg-sky-950 dark:text-sky-100"
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  Download list
+                  <Download className="h-3.5 w-3.5" />
+                  Download
                 </button>
                 <button
                   type="button"
                   onClick={() => downloadXlsx('clients_template')}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-sky-300 bg-white px-3 py-1.5 text-xs font-bold text-sky-900 hover:bg-sky-100 dark:border-sky-600 dark:bg-sky-950 dark:text-sky-100 dark:hover:bg-sky-900"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-sky-300 bg-white px-3 py-1.5 text-xs font-bold text-sky-900 hover:bg-sky-100 dark:border-sky-600 dark:bg-sky-950 dark:text-sky-100"
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  Blank template
+                  <Download className="h-3.5 w-3.5" />
+                  Template
                 </button>
                 <button
                   type="button"
@@ -460,7 +514,7 @@ export default function ClientsPage() {
                   onClick={() => fileRef.current?.click()}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-sky-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-sky-700 disabled:opacity-50"
                 >
-                  <Upload className="w-3.5 h-3.5" />
+                  <Upload className="h-3.5 w-3.5" />
                   {importing ? 'Importing…' : 'Upload .xlsx'}
                 </button>
                 <input
@@ -474,9 +528,10 @@ export default function ClientsPage() {
                   }}
                 />
               </div>
-            </div>
-          </div>
+            }
+          />
 
+          <div id="gym-client-form">
           <FormCard
             tone="member"
             title={editing ? 'Edit client profile' : 'Add client / member'}
@@ -718,14 +773,45 @@ export default function ClientsPage() {
             />
 
             {!editing ? (
-              <InjuryProfileFields
-                variant="coach"
-                value={form.health}
-                onChange={(health) => setForm((f) => ({ ...f, health }))}
-                inputClass={fc()}
-              />
+              <div className="sm:col-span-2 lg:col-span-3">
+                <button
+                  type="button"
+                  onClick={() => setInjuryOpen((v) => !v)}
+                  className="flex w-full items-center justify-between gap-2 rounded-2xl border border-teal-200 bg-teal-50/70 px-3 py-2.5 text-left dark:border-teal-800 dark:bg-teal-950/40"
+                  aria-expanded={injuryOpen}
+                >
+                  <span>
+                    <span className="flex items-center gap-2 text-sm font-black text-teal-950 dark:text-teal-100">
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform ${
+                          injuryOpen ? '' : '-rotate-90'
+                        }`}
+                      />
+                      Injury & recovery
+                    </span>
+                    <span className="mt-0.5 block text-[11px] text-slate-500">
+                      {form.health.injured
+                        ? 'Injured / managing an ailment — open to edit details'
+                        : 'Closed by default. Open only if this member needs session modifications.'}
+                    </span>
+                  </span>
+                </button>
+                {injuryOpen ? (
+                  <div className="mt-2">
+                    <InjuryProfileFields
+                      variant="coach"
+                      value={form.health}
+                      onChange={(health) =>
+                        setForm((f) => ({ ...f, health }))
+                      }
+                      inputClass={fc()}
+                    />
+                  </div>
+                ) : null}
+              </div>
             ) : null}
           </FormCard>
+          </div>
 
           {editing && form.id
             ? store.clients
@@ -788,365 +874,12 @@ export default function ClientsPage() {
             />
           ) : null}
 
-          <p className="text-[11px] text-slate-500 -mb-2">
-            Press <strong>Edit</strong> on a row to change code, name, type,
-            plan, status, and coach. Press <strong>Done</strong> to lock the
-            row. <strong>Profile</strong> opens the full form.
-          </p>
-
-          <DataTable
-            tone="member"
-            headers={[
-              '',
-              'Code',
-              'Name',
-              'Type',
-              'Plan',
-              'Status',
-              ...(store && gymCollectsDebitBank(store) ? ['Debit'] : []),
-              'Coach',
-              'Injury / recovery',
-              'Portal',
-              '',
-            ]}
-            rows={store.clients.map((c) => {
-              const plan = store.membership_plans.find(
-                (p) => p.id === c.membership_plan_id
-              );
-              const coach = store.coaches.find((x) => x.id === c.coach_id);
-              const injured = isInjured(c.health);
-              const isPrivate = c.private_client === true;
-              const rowEditing = listEditId === c.id;
-              return {
-                id: c.id,
-                cells: [
-                  c.photo_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={c.photo_url}
-                      alt=""
-                      className="h-8 w-8 rounded-full object-cover border border-sky-200"
-                    />
-                  ) : (
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-400">
-                      —
-                    </span>
-                  ),
-                  rowEditing ? (
-                    <InlineText
-                      key="code"
-                      value={c.code || ''}
-                      placeholder="Code"
-                      onSave={(code) => void patchClient(c, { code })}
-                      disabled={saving}
-                    />
-                  ) : (
-                    <span key="code" className="font-semibold">
-                      {c.code || '—'}
-                    </span>
-                  ),
-                  (
-                    <span
-                      key="n"
-                      className="inline-flex flex-col gap-1 min-w-[8rem]"
-                    >
-                      {rowEditing ? (
-                        <InlineText
-                          value={c.name || ''}
-                          placeholder="Name"
-                          wide
-                          onSave={(name) => void patchClient(c, { name })}
-                          disabled={saving}
-                        />
-                      ) : (
-                        <span className="font-semibold">{c.name || '—'}</span>
-                      )}
-                      <span className="inline-flex flex-wrap items-center gap-1">
-                        {c.identity?.status === 'verified' ? (
-                          <span
-                            className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
-                            title={
-                              c.identity.verified_name
-                                ? `Verified: ${c.identity.verified_name}`
-                                : 'Identity verified'
-                            }
-                          >
-                            ✓ ID
-                          </span>
-                        ) : null}
-                        {(c.family || []).filter((m) => m.active !== false)
-                          .length > 0 ? (
-                          <span
-                            className="rounded-full bg-sky-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-sky-800 dark:bg-sky-950 dark:text-sky-200"
-                            title={(c.family || [])
-                              .filter((m) => m.active !== false)
-                              .map((m) => m.name)
-                              .join(', ')}
-                          >
-                            +
-                            {
-                              (c.family || []).filter((m) => m.active !== false)
-                                .length
-                            }{' '}
-                            family
-                          </span>
-                        ) : null}
-                        {c.booking_soft_block ? (
-                          <span
-                            className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-900"
-                            title={`${c.no_show_count || 0} no-shows`}
-                          >
-                            no-show risk
-                          </span>
-                        ) : null}
-                      </span>
-                    </span>
-                  ),
-                  rowEditing ? (
-                    <InlineToggleSelect
-                      key="type"
-                      value={isPrivate}
-                      trueLabel="Private client"
-                      falseLabel="Gym member"
-                      disabled={saving}
-                      onSave={(private_client) =>
-                        void patchClient(c, { private_client })
-                      }
-                    />
-                  ) : (
-                    <span
-                      key="type"
-                      className={
-                        isPrivate
-                          ? 'inline-flex rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-yellow-900 dark:bg-yellow-950 dark:text-yellow-200'
-                          : 'inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300'
-                      }
-                      title={
-                        isPrivate
-                          ? coach
-                            ? `Private client of ${coach.name}`
-                            : 'Private client — assign a coach'
-                          : 'General gym member'
-                      }
-                    >
-                      {isPrivate ? 'Private client' : 'Gym member'}
-                    </span>
-                  ),
-                  rowEditing ? (
-                    <InlineSelect
-                      key="plan"
-                      value={c.membership_plan_id || ''}
-                      emptyLabel="No plan"
-                      disabled={saving}
-                      options={store.membership_plans.map((p) => ({
-                        value: p.id,
-                        label: `${p.code} · ${p.name}`,
-                      }))}
-                      onSave={(membership_plan_id) =>
-                        void patchClient(c, {
-                          membership_plan_id: membership_plan_id || null,
-                        })
-                      }
-                    />
-                  ) : (
-                    <span key="plan">{plan?.code || '—'}</span>
-                  ),
-                  (
-                    <span key="ms" className="inline-flex flex-col gap-1">
-                      {rowEditing ? (
-                        <InlineSelect
-                          value={c.membership_status || 'active'}
-                          allowEmpty={false}
-                          disabled={saving}
-                          options={MEMBERSHIP_STATUSES.map((s) => ({
-                            value: s,
-                            label: s,
-                          }))}
-                          onSave={(membership_status) =>
-                            void patchClient(c, { membership_status })
-                          }
-                        />
-                      ) : (
-                        <span>{c.membership_status || '—'}</span>
-                      )}
-                      <button
-                        type="button"
-                        className="text-[10px] font-bold text-yellow-700 underline text-left"
-                        onClick={() =>
-                          void freezeMembership(
-                            c,
-                            c.membership_status !== 'frozen'
-                          )
-                        }
-                      >
-                        {c.membership_status === 'frozen'
-                          ? 'Unfreeze'
-                          : 'Freeze'}
-                      </button>
-                    </span>
-                  ),
-                  ...(store && gymCollectsDebitBank(store)
-                    ? [
-                        memberDebitBankComplete(c) ? (
-                          <span
-                            key="bank"
-                            className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-800"
-                          >
-                            On file
-                          </span>
-                        ) : (
-                          <span
-                            key="bank"
-                            className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase text-amber-900"
-                          >
-                            {gymRequiresDebitBank(store)
-                              ? 'Needed'
-                              : 'Missing'}
-                          </span>
-                        ),
-                      ]
-                    : []),
-                  rowEditing ? (
-                    <InlineSelect
-                      key="coach"
-                      value={c.coach_id || ''}
-                      emptyLabel={
-                        isPrivate ? 'Coach required…' : 'No coach'
-                      }
-                      disabled={saving}
-                      options={store.coaches
-                        .filter((x) => x.active !== false)
-                        .map((x) => ({
-                          value: x.id,
-                          label: x.name,
-                        }))}
-                      onSave={(coach_id) =>
-                        void patchClient(c, {
-                          coach_id: coach_id || null,
-                        })
-                      }
-                    />
-                  ) : (
-                    <span
-                      key="coach"
-                      className={
-                        coach
-                          ? 'font-semibold text-slate-800 dark:text-slate-100'
-                          : isPrivate
-                            ? 'text-[11px] font-bold text-amber-700 dark:text-amber-300'
-                            : 'text-[11px] text-slate-400'
-                      }
-                      title={
-                        coach
-                          ? isPrivate
-                            ? `Private coach: ${coach.name}`
-                            : `Assigned coach: ${coach.name}`
-                          : isPrivate
-                            ? 'Private client needs a coach'
-                            : 'No coach assigned'
-                      }
-                    >
-                      {coach?.name ||
-                        (isPrivate ? 'Coach unassigned' : '—')}
-                    </span>
-                  ),
-                  (
-                    <span
-                      key="h"
-                      className={
-                        injured
-                          ? 'inline-flex rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800 dark:bg-rose-950 dark:text-rose-200'
-                          : 'text-[11px] text-slate-500'
-                      }
-                      title={c.health?.training_modifications || c.health?.injury_notes || ''}
-                    >
-                      {healthSummaryLabel(c.health)}
-                    </span>
-                  ),
-                  (
-                    <div key="p" className="flex flex-wrap gap-1">
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 dark:text-indigo-300"
-                        onClick={() => void inviteMember(c)}
-                        title="Email invite so they can join as a member and open their portal"
-                      >
-                        <Mail className="w-3 h-3" />
-                        {c.invite_status === 'pending'
-                          ? 'Resend invite'
-                          : c.invite_status === 'accepted'
-                            ? 'Re-invite'
-                            : 'Invite'}
-                      </button>
-                      {c.invite_status ? (
-                        <span
-                          className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full ${
-                            c.invite_status === 'accepted'
-                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200'
-                              : c.invite_status === 'pending'
-                                ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200'
-                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
-                          }`}
-                        >
-                          {c.invite_status}
-                        </span>
-                      ) : null}
-                      {c.portal_token ? (
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 text-[11px] font-bold text-yellow-700 dark:text-yellow-300"
-                          onClick={() => void copyPortal(c.portal_token!)}
-                          title="Copy member portal link"
-                        >
-                          <Copy className="w-3 h-3" /> Copy
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-yellow-800 dark:text-yellow-200"
-                        onClick={() => void issuePortal(c.id)}
-                        title="Issue member portal so they can book open classes"
-                      >
-                        <Link2 className="w-3 h-3" />
-                        {c.portal_token ? 'Re-issue' : 'Issue portal'}
-                      </button>
-                    </div>
-                  ),
-                  (
-                    <span key="e" className="inline-flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        className={`inline-flex items-center gap-1 text-[11px] font-bold ${
-                          rowEditing
-                            ? 'text-emerald-700 dark:text-emerald-300'
-                            : 'text-sky-700 dark:text-cyan-300'
-                        }`}
-                        onClick={() =>
-                          setListEditId((id) =>
-                            id === c.id ? null : c.id
-                          )
-                        }
-                      >
-                        <Pencil className="w-3 h-3" />
-                        {rowEditing ? 'Done' : 'Edit'}
-                      </button>
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300"
-                        onClick={() => openEdit(c)}
-                        title="Open full profile form"
-                      >
-                        Profile
-                      </button>
-                    </span>
-                  ),
-                ],
-              };
-            })}
-            onDelete={(id) => {
-              if (listEditId === id) setListEditId(null);
-              void post({ entity: 'clients', action: 'delete', id });
-            }}
+          <AdvisorIncomingShares companyId={companyId} />
+          <AdvisorMemberAppInvite
+            kind="gym"
+            companyId={companyId}
+            brand={store.settings?.brand_name}
+            audience="members"
           />
         </div>
       )}
