@@ -28,6 +28,7 @@ import {
 import {
   applyAttendanceToPersonStats,
   promoteNextWaitlist,
+  type PersonNoShowStats,
 } from '@/lib/services/advisor-booking';
 import { sendWaitlistOfferEmail } from '@/lib/services/advisor-reminders';
 import {
@@ -544,7 +545,7 @@ export async function POST(req: NextRequest) {
             status: string;
             patient_id: string;
           }>;
-          patients: Array<{ id: string }>;
+          patients: Array<PersonNoShowStats & { id: string }>;
           care_packs?: Parameters<typeof consumePackSession>[0];
         },
       >(
