@@ -662,7 +662,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     resource: 'operations',
     /**
      * GymAdvisor® — tertiary / services gym OS
-     * (coaches, clients, memberships, subscriptions, classes, calendar,
+     * (coaches, clients, memberships, classes, calendar,
      * website embed, coach portal, bookings, check-ins).
      */
     steps: [
@@ -671,8 +671,6 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Clients', href: '/dashboard/fitgraph/clients', desc: 'Members & status', section: 'People' },
       { name: 'Classes', href: '/dashboard/fitgraph/memberships', desc: 'Edit class · coach · calendar', section: 'Services' },
       { name: 'Membership', href: '/dashboard/fitgraph/membership', desc: 'Member and/or private · class · coach · rates', section: 'Services' },
-      { name: 'Subscriptions', href: '/dashboard/fitgraph/subscriptions', desc: 'Edit status · charged rate', section: 'Services' },
-      { name: 'Class types', href: '/dashboard/fitgraph/classes', desc: 'Catalogue for standard gyms', section: 'Services' },
       { name: 'Movements', href: '/dashboard/fitgraph/movements', desc: 'Exercise library · video', section: 'Services' },
       { name: 'Programmes', href: '/dashboard/fitgraph/programmes', desc: 'Class & PT programmes', section: 'Services' },
       { name: 'Calendar', href: '/dashboard/fitgraph/calendar', desc: 'Schedule coaches · public', section: 'Floor' },

@@ -42,12 +42,12 @@ export default function MembershipsPage() {
 
   return (
     <FitgraphWorkbench
-      title={classSubscribe ? 'Classes' : 'Membership plans'}
-      titleAccent={classSubscribe ? 'edit · coach · calendar' : '& PT packs'}
+      title={classSubscribe ? 'Classes' : 'Memberships'}
+      titleAccent={classSubscribe ? 'roster · coach · calendar' : 'plans · PT packs'}
       description={
         classSubscribe
-          ? 'Edit any class in the list. Assign a coach on the row. Open a row to change times, repeats, and put it on the calendar.'
-          : 'Edit plans in the list. Members must pay first (Paystack / Apple Pay) before they can book. Assign desk-issued plans on Membership.'
+          ? 'The class list. Open a row to set times, put it on the calendar, and save which members are booked to it.'
+          : 'Plans in a list. Members pay first, then you allocate them on Membership. Open a plan to edit it.'
       }
     >
       {loading || !store ? (
@@ -81,23 +81,17 @@ export default function MembershipsPage() {
               {store.settings.joining_fee_note || ''}
             </p>
           ) : null}
-          <p className="text-xs text-slate-600 dark:text-slate-300">
+          <p className="rounded-2xl border border-yellow-100 bg-yellow-50/70 px-4 py-3 text-xs text-slate-700 dark:border-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-100">
             {classSubscribe ? (
               <>
-                Save a row to keep name, rate and when. Coach applies to upcoming
-                diary dates.{' '}
+                Tick members on a class and press <strong>Save booked members</strong> —
+                they stay booked on the calendar. You can also save a member’s
+                classes from{' '}
                 <a
                   href="/dashboard/fitgraph/membership"
-                  className="font-bold text-yellow-700 underline dark:text-yellow-300"
+                  className="font-bold text-yellow-800 underline dark:text-yellow-200"
                 >
                   Membership
-                </a>{' '}
-                allocates people. They show on{' '}
-                <a
-                  href="/dashboard/fitgraph/calendar"
-                  className="font-bold text-yellow-700 underline dark:text-yellow-300"
-                >
-                  Calendar
                 </a>
                 .
               </>
@@ -106,7 +100,7 @@ export default function MembershipsPage() {
                 Allocate people on{' '}
                 <a
                   href="/dashboard/fitgraph/membership"
-                  className="font-bold text-yellow-700 underline dark:text-yellow-300"
+                  className="font-bold text-yellow-800 underline dark:text-yellow-200"
                 >
                   Membership
                 </a>

@@ -1,7 +1,7 @@
 'use client';
 
-import { Fragment, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { ChevronDown, ChevronRight, Plus, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { fc } from '@/components/fitness/FitForm';
 import {
@@ -105,6 +105,8 @@ export function ClassDeskTable({
     start_time: '06:00',
     end_time: '07:00',
   });
+  const [rosterIds, setRosterIds] = useState<Record<string, string[]>>({});
+  const [memberQuery, setMemberQuery] = useState('');
 
   const coaches = useMemo(
     () => (store.coaches || []).filter((c) => c.active !== false),
@@ -134,10 +136,23 @@ export function ClassDeskTable({
     setDrafts((d) => ({ ...d, [id]: { ...current, ...patch } }));
   };
 
+  const membersOnPlan = (planId: string) =>
+    (store.subscriptions || [])
+      .filter(
+        (s) =>
+          s.plan_id === planId &&
+          (s.status === 'active' || s.status === 'trialing')
+      )
+      .map((s) => s.client_id);
+
   const openEditor = (p: FitMembershipPlan) => {
     const next = openId === p.id ? null : p.id;
     setOpenId(next);
     setAdding(false);
+    setMemberQuery('');
+    if (next) {
+      setRosterIds((cur) => ({ ...cur, [p.id]: membersOnPlan(p.id) }));
+    }
     if (next && !p.unlocks_all_classes) {
       const hint = suggestClassSchedule(store, p);
       const cover = calendarCoverage(store, p, todayIso);
@@ -320,6 +335,30 @@ export function ClassDeskTable({
     }
   };
 
+  const saveMembers = async (p: FitMembershipPlan) => {
+    setBusyId(`mem-${p.id}`);
+    try {
+      const data = await post({
+        action: 'set_class_members',
+        plan_id: p.id,
+        client_ids: rosterIds[p.id] || membersOnPlan(p.id),
+      });
+      toast.success((data?.message as string) || 'Members saved on this class');
+    } catch {
+      /* toast */
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const toggleRoster = (planId: string, clientId: string) => {
+    const current = rosterIds[planId] || membersOnPlan(planId);
+    const next = current.includes(clientId)
+      ? current.filter((id) => id !== clientId)
+      : [...current, clientId];
+    setRosterIds((cur) => ({ ...cur, [planId]: next }));
+  };
+
   const remove = async (id: string) => {
     if (!confirm('Remove this class? Members stay on the book; diary dates stay until you delete them on Calendar.')) {
       return;
@@ -335,9 +374,6 @@ export function ClassDeskTable({
       setBusyId(null);
     }
   };
-
-  const rowClass =
-    'border-t border-slate-100 dark:border-white/10 align-middle';
 
   const renderEditor = (
     d: Draft,
@@ -514,6 +550,58 @@ export function ClassDeskTable({
           </div>
         ) : null}
 
+        {opts.plan && !opts.isNew ? (
+          <div className="rounded-2xl border border-sky-200 bg-white px-3 py-3 space-y-2 dark:border-sky-800 dark:bg-slate-950">
+            <p className="text-[10px] font-black uppercase tracking-wide text-sky-800 dark:text-sky-200 flex items-center gap-1">
+              <Users className="w-3.5 h-3.5" />
+              Members booked to this class
+            </p>
+            <input
+              className={fc()}
+              placeholder="Search members…"
+              value={memberQuery}
+              onChange={(e) => setMemberQuery(e.target.value)}
+            />
+            <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 rounded-xl border border-slate-100 dark:divide-slate-800 dark:border-slate-800">
+              {(store.clients || [])
+                .filter((c) => c.active !== false)
+                .filter((c) => {
+                  const q = memberQuery.trim().toLowerCase();
+                  if (!q) return true;
+                  return `${c.name} ${c.code}`.toLowerCase().includes(q);
+                })
+                .slice(0, 80)
+                .map((c) => {
+                  const ids =
+                    rosterIds[opts.plan!.id] || membersOnPlan(opts.plan!.id);
+                  const on = ids.includes(c.id);
+                  return (
+                    <label
+                      key={c.id}
+                      className="flex items-center gap-2 px-2.5 py-1.5 text-sm cursor-pointer hover:bg-sky-50 dark:hover:bg-sky-950/40"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={() => toggleRoster(opts.plan!.id, c.id)}
+                      />
+                      <span className="font-semibold">{c.name}</span>
+                      <span className="text-[10px] text-slate-500">{c.code}</span>
+                    </label>
+                  );
+                })}
+            </div>
+            <button
+              type="button"
+              disabled={saving && busyId === `mem-${opts.plan.id}`}
+              className="rounded-xl bg-sky-600 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
+              onClick={() => void saveMembers(opts.plan!)}
+            >
+              Save booked members
+            </button>
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
@@ -590,187 +678,114 @@ export function ClassDeskTable({
         </p>
       ) : null}
 
-      <div className="overflow-x-auto rounded-2xl border border-yellow-200 bg-white dark:!border-yellow-400 dark:!bg-yellow-950 dark:ring-1 dark:ring-yellow-500/40">
-        <table className="w-full min-w-[880px] text-sm">
-          <thead className="bg-yellow-50 text-left text-[10px] font-black uppercase tracking-wider text-yellow-900 dark:bg-yellow-900/50 dark:text-yellow-200">
-            <tr>
-              <th className="w-8 px-2 py-2.5" />
-              <th className="px-2 py-2.5">Name</th>
-              <th className="px-2 py-2.5">When</th>
-              <th className="px-2 py-2.5">Price</th>
-              {classSubscribe ? (
-                <th className="px-2 py-2.5">Coach</th>
-              ) : (
-                <th className="px-2 py-2.5">Billing</th>
-              )}
-              {classSubscribe ? (
-                <th className="px-2 py-2.5">On calendar</th>
-              ) : null}
-              <th className="px-2 py-2.5">Web</th>
-              <th className="px-2 py-2.5" />
-            </tr>
-          </thead>
-          <tbody>
-            {adding ? (
-              <tr className={rowClass}>
-                <td colSpan={classSubscribe ? 8 : 7} className="p-0">
-                  {renderEditor(
-                    addDraft,
-                    (patch) => setAddDraft((d) => ({ ...d, ...patch })),
-                    { isNew: true }
-                  )}
-                </td>
-              </tr>
-            ) : null}
-            {plans.length === 0 && !adding ? (
-              <tr>
-                <td
-                  colSpan={classSubscribe ? 8 : 7}
-                  className="px-3 py-10 text-center text-slate-500"
-                >
-                  Nothing here yet. Add a {classSubscribe ? 'class' : 'plan'}.
-                </td>
-              </tr>
-            ) : (
-              plans.map((p) => {
-                const d = draftFor(p);
-                const cover = calendarCoverage(store, p, todayIso);
-                const open = openId === p.id;
-                return (
-                  <Fragment key={p.id}>
-                    <tr className={rowClass}>
-                      <td className="px-2 py-1.5">
-                        <button
-                          type="button"
-                          className="p-1 text-yellow-800 dark:text-yellow-200"
-                          onClick={() => openEditor(p)}
-                          title={open ? 'Collapse' : 'Edit'}
-                        >
-                          {open ? (
-                            <ChevronDown className="w-4 h-4" />
-                          ) : (
-                            <ChevronRight className="w-4 h-4" />
-                          )}
-                        </button>
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <input
-                          className={fc()}
-                          value={d.name}
-                          onChange={(e) => setRow(p.id, { name: e.target.value })}
-                        />
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <input
-                          className={fc()}
-                          value={d.schedule_label}
-                          placeholder="When"
-                          onChange={(e) =>
-                            setRow(p.id, { schedule_label: e.target.value })
-                          }
-                        />
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <input
-                          className={`${fc()} max-w-[7rem] tabular-nums`}
-                          type="number"
-                          value={d.price_zar}
-                          onChange={(e) =>
-                            setRow(p.id, { price_zar: e.target.value })
-                          }
-                        />
-                      </td>
-                      <td className="px-2 py-1.5">
-                        {classSubscribe ? (
-                          p.unlocks_all_classes ? (
-                            <span className="text-xs text-slate-400">—</span>
-                          ) : (
-                            <select
-                              className={fc()}
-                              value={d.coach_id}
-                              disabled={saving && busyId === p.id}
-                              onChange={(e) =>
-                                void assignCoach(p, e.target.value)
-                              }
-                            >
-                              <option value="">Coach…</option>
-                              {coaches.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.name}
-                                </option>
-                              ))}
-                            </select>
-                          )
-                        ) : (
-                          <select
-                            className={fc()}
-                            value={d.billing}
-                            onChange={(e) =>
-                              setRow(p.id, { billing: e.target.value })
-                            }
-                          >
-                            <option value="monthly">Monthly</option>
-                            <option value="weekly">Weekly</option>
-                            <option value="annual">Annual</option>
-                            <option value="pack">Pack</option>
-                            <option value="drop_in">Drop-in</option>
-                          </select>
-                        )}
-                      </td>
-                      {classSubscribe ? (
-                        <td className="px-2 py-1.5 text-[11px] text-slate-600 dark:text-yellow-100/80 whitespace-nowrap">
-                          {p.unlocks_all_classes
-                            ? 'All adult classes'
-                            : cover.count
-                              ? `${cover.count} · next ${cover.next?.date || ''}`
-                              : 'Not on calendar'}
-                        </td>
-                      ) : null}
-                      <td className="px-2 py-1.5">
-                        <input
-                          type="checkbox"
-                          checked={d.public}
-                          onChange={(e) =>
-                            setRow(p.id, { public: e.target.checked })
-                          }
-                        />
-                      </td>
-                      <td className="px-2 py-1.5 text-right whitespace-nowrap">
-                        <button
-                          type="button"
-                          disabled={saving && busyId === p.id}
-                          className="rounded-lg bg-yellow-400 px-2.5 py-1 text-[11px] font-black text-yellow-950 disabled:opacity-50"
-                          onClick={() => void savePlan(p.id, draftFor(p))}
-                        >
-                          Save
-                        </button>
-                        <button
-                          type="button"
-                          className="ml-1 p-1 text-rose-600 dark:text-rose-300"
-                          title="Delete"
-                          onClick={() => void remove(p.id)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                    {open ? (
-                      <tr>
-                        <td colSpan={classSubscribe ? 8 : 7} className="p-0">
-                          {renderEditor(
-                            d,
-                            (patch) => setRow(p.id, patch),
-                            { plan: p }
-                          )}
-                        </td>
-                      </tr>
-                    ) : null}
-                  </Fragment>
-                );
-              })
+      <div className="space-y-2">
+        {adding ? (
+          <div className="overflow-hidden rounded-2xl border border-yellow-300 bg-white shadow-sm dark:border-yellow-700 dark:bg-yellow-950">
+            {renderEditor(
+              addDraft,
+              (patch) => setAddDraft((d) => ({ ...d, ...patch })),
+              { isNew: true }
             )}
-          </tbody>
-        </table>
+          </div>
+        ) : null}
+        {plans.length === 0 && !adding ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-12 text-center text-sm text-slate-500">
+            Nothing here yet. Add a {classSubscribe ? 'class' : 'plan'}.
+          </div>
+        ) : (
+          plans.map((p) => {
+            const d = draftFor(p);
+            const cover = calendarCoverage(store, p, todayIso);
+            const open = openId === p.id;
+            const bookedN = membersOnPlan(p.id).length;
+            const coachName = coaches.find((c) => c.id === d.coach_id)?.name;
+            return (
+              <div
+                key={p.id}
+                className="overflow-hidden rounded-2xl border border-yellow-200 bg-white shadow-sm dark:border-yellow-700 dark:bg-yellow-950"
+              >
+                <div className="flex flex-wrap items-center gap-3 px-3 py-3">
+                  <button
+                    type="button"
+                    className="rounded-xl border border-yellow-200 p-1.5 text-yellow-800 dark:border-yellow-700 dark:text-yellow-200"
+                    onClick={() => openEditor(p)}
+                    title={open ? 'Collapse' : 'Edit'}
+                  >
+                    {open ? (
+                      <ChevronDown className="w-4 h-4" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4" />
+                    )}
+                  </button>
+                  <div className="min-w-[12rem] flex-1">
+                    <input
+                      className="w-full rounded-xl border border-transparent bg-transparent px-1 text-sm font-black text-slate-900 focus:border-yellow-300 focus:bg-white dark:text-yellow-50"
+                      value={d.name}
+                      onChange={(e) => setRow(p.id, { name: e.target.value })}
+                    />
+                    <p className="px-1 text-[11px] text-slate-500 dark:text-yellow-200/80">
+                      {d.schedule_label || 'No schedule yet'}
+                      {coachName ? ` · ${coachName}` : ''}
+                      {d.public ? ' · website' : ''}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-black tabular-nums text-slate-900 dark:text-yellow-50">
+                      R{Number(d.price_zar || 0).toLocaleString('en-ZA', {
+                        minimumFractionDigits: 0,
+                      })}
+                      <span className="text-[10px] font-bold text-slate-500">
+                        /{d.billing === 'monthly' ? 'mo' : d.billing}
+                      </span>
+                    </p>
+                    <p className="text-[11px] font-bold text-sky-800 dark:text-sky-200">
+                      {bookedN} booked
+                      {classSubscribe && !p.unlocks_all_classes
+                        ? cover.count
+                          ? ` · ${cover.count} upcoming`
+                          : ' · off calendar'
+                        : ''}
+                    </p>
+                  </div>
+                  {classSubscribe && !p.unlocks_all_classes ? (
+                    <select
+                      className="rounded-xl border border-yellow-200 bg-yellow-50 px-2 py-1.5 text-xs dark:border-yellow-700 dark:bg-yellow-900"
+                      value={d.coach_id}
+                      disabled={saving && busyId === p.id}
+                      onChange={(e) => void assignCoach(p, e.target.value)}
+                    >
+                      <option value="">Coach…</option>
+                      {coaches.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+                  <button
+                    type="button"
+                    disabled={saving && busyId === p.id}
+                    className="rounded-xl bg-[#E8E830] px-3 py-1.5 text-[11px] font-black text-slate-900 disabled:opacity-50"
+                    onClick={() => void savePlan(p.id, draftFor(p))}
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    className="p-1.5 text-rose-600 dark:text-rose-300"
+                    title="Delete"
+                    onClick={() => void remove(p.id)}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                {open
+                  ? renderEditor(d, (patch) => setRow(p.id, patch), { plan: p })
+                  : null}
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );

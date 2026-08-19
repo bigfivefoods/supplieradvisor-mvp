@@ -146,6 +146,22 @@ assert.equal(
   'cancelled'
 );
 
+const multi = allocateMemberToClass(store, {
+  clientId: 'cli_ada',
+  planIds: [fsf.id, boot.id],
+  chargedZar: 775,
+  now: '2026-08-17T10:00:00.000Z',
+});
+if ('error' in multi) throw new Error(multi.error);
+assert.equal(
+  store.subscriptions.filter(
+    (s) =>
+      s.client_id === 'cli_ada' &&
+      (s.status === 'active' || s.status === 'trialing')
+  ).length,
+  2
+);
+
 store.subscriptions.push({
   id: 'sub_bev_fsf',
   client_id: 'cli_bev',

@@ -34,7 +34,7 @@ export default function MembershipAllocatePage() {
       titleAccent="members · private clients"
       description={
         classSubscribe
-          ? 'A person can be a member, a private client, or both. Members get a class and a class actual rate. Private clients get a coach and a private rate.'
+          ? 'A person can be a member, a private client, or both. Tick every class they are booked to, then Save — they land on the calendar for those classes.'
           : 'A person can be a member, a private client, or both. Members get a plan and a class actual rate. Private clients get a coach and a private rate.'
       }
     >

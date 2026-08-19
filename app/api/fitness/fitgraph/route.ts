@@ -98,6 +98,7 @@ import { applyMemberDebitBank } from '@/lib/fitness/member-debit-bank';
 import {
   allocateMemberToClass,
   scheduleClassOnCalendar,
+  setClassMembers,
   updateClassDesk,
 } from '@/lib/fitness/class-allocate';
 
@@ -904,9 +905,13 @@ export async function POST(request: NextRequest) {
           : undefined;
       const flagsExplicit =
         body.member !== undefined || body.private_client !== undefined;
+      const planIds = Array.isArray(body.plan_ids)
+        ? (body.plan_ids as unknown[]).map((id) => String(id || '')).filter(Boolean)
+        : undefined;
       const result = allocateMemberToClass(store, {
         clientId: String(body.client_id || ''),
-        planId: body.plan_id ? String(body.plan_id) : null,
+        planId: body.plan_id ? String(body.plan_id) : planIds?.[0] || null,
+        planIds,
         chargedZar,
         privateRateZar,
         status,
@@ -935,6 +940,34 @@ export async function POST(request: NextRequest) {
                 result.booked === 1 ? '' : 'es'
               } on the calendar`
             : 'Allocated',
+      });
+    }
+
+    if (action === 'set_class_members') {
+      const clientIds = Array.isArray(body.client_ids)
+        ? (body.client_ids as unknown[]).map((id) => String(id || '')).filter(Boolean)
+        : [];
+      const result = setClassMembers(store, {
+        planId: String(body.plan_id || ''),
+        clientIds,
+        now,
+      });
+      if ('error' in result) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        members: result.members,
+        booked: result.booked,
+        dropped: result.dropped,
+        message:
+          result.members === 1
+            ? 'Saved 1 member on this class'
+            : `Saved ${result.members} members on this class`,
       });
     }
 
@@ -2121,9 +2154,9 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        (store as unknown as Record<string, unknown>)[key] = list.filter(
-          (row: { id?: string }) => row.id !== id
-        );
+        (store as unknown as Record<string, unknown>)[key] = (
+          list as Array<{ id?: string }>
+        ).filter((row) => row.id !== id);
         // Drop bookings tied to a removed class
         if (entity === 'sessions') {
           store.bookings = (store.bookings || []).filter(

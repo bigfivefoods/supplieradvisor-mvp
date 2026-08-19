@@ -351,6 +351,10 @@ export function allocateMemberToClass(
     coachId?: string | null;
     now?: string;
     bookUpcoming?: boolean;
+    /** When set, the member is on exactly these classes (others are cancelled). */
+    planIds?: string[] | null;
+    /** Keep other class subscriptions (used when adding one class to a roster). */
+    replaceOtherPlans?: boolean;
   }
 ):
   | { error: string }
@@ -386,7 +390,19 @@ export function allocateMemberToClass(
   if (isPrivate && !coachId) {
     return { error: 'Select the coach for this private client' };
   }
-  const planId = opts.planId ? String(opts.planId) : '';
+  const planIds = [
+    ...new Set(
+      (Array.isArray(opts.planIds) && opts.planIds.length
+        ? opts.planIds
+        : opts.planId
+          ? [opts.planId]
+          : []
+      )
+        .map((id) => String(id || ''))
+        .filter(Boolean)
+    ),
+  ];
+  const planId = planIds[0] || '';
   if (isMember && !planId) {
     return { error: 'Select a class' };
   }
@@ -395,6 +411,12 @@ export function allocateMemberToClass(
     : null;
   if (planId && (!plan || plan.active === false)) {
     return { error: 'Class not found' };
+  }
+  for (const id of planIds) {
+    const p = store.membership_plans.find((x) => x.id === id);
+    if (!p || p.active === false) {
+      return { error: 'Class not found' };
+    }
   }
 
   client.private_client = isPrivate;
@@ -475,11 +497,14 @@ export function allocateMemberToClass(
   }
 
   let cancelled = 0;
-  if (plan.addon !== true) {
+  const keepIds = new Set(planIds);
+  const replaceOthers = opts.replaceOtherPlans !== false;
+  if (replaceOthers && plan.addon !== true) {
     for (const other of store.subscriptions) {
       if (other.id === sub.id) continue;
       if (other.client_id !== client.id) continue;
       if (other.status !== 'active' && other.status !== 'trialing') continue;
+      if (keepIds.has(other.plan_id)) continue;
       const otherPlan = store.membership_plans.find((p) => p.id === other.plan_id);
       if (otherPlan?.addon === true) continue;
       other.status = 'cancelled';
@@ -507,12 +532,90 @@ export function allocateMemberToClass(
   client.updated_at = now;
 
   const live = status === 'active' || status === 'trialing';
-  const booked =
+  let booked =
     opts.bookUpcoming === false || !live
       ? 0
       : bookMemberOntoUpcoming(store, client, plan, today, now);
 
+  for (const extraId of planIds.slice(1)) {
+    const extraPlan = store.membership_plans.find((p) => p.id === extraId);
+    if (!extraPlan) continue;
+    let extra =
+      store.subscriptions.find(
+        (s) => s.client_id === client.id && s.plan_id === extraPlan.id
+      ) || null;
+    const extraCharge = Number(extraPlan.price_zar) || charge;
+    if (extra) {
+      extra.status = status;
+      extra.updated_at = now;
+      if (!extra.started_at) extra.started_at = today;
+    } else {
+      extra = {
+        id: newId('sub'),
+        client_id: client.id,
+        plan_id: extraPlan.id,
+        status,
+        started_at: today,
+        auto_renew: true,
+        charged_zar: extraCharge,
+        created_at: now,
+        updated_at: now,
+      };
+      store.subscriptions.push(extra);
+    }
+    if (opts.bookUpcoming !== false && live) {
+      booked += bookMemberOntoUpcoming(store, client, extraPlan, today, now);
+    }
+  }
+
   return { subscription: sub, booked, cancelled };
+}
+
+export function setClassMembers(
+  store: FitgraphStore,
+  opts: {
+    planId: string;
+    clientIds: string[];
+    now?: string;
+  }
+): { error: string } | { members: number; booked: number; dropped: number } {
+  const now = opts.now || new Date().toISOString();
+  const today = now.slice(0, 10);
+  const plan = store.membership_plans.find((p) => p.id === opts.planId);
+  if (!plan || plan.active === false) {
+    return { error: 'Class not found' };
+  }
+  const want = new Set(
+    opts.clientIds
+      .map((id) => String(id || ''))
+      .filter((id) => store.clients.some((c) => c.id === id && c.active !== false))
+  );
+  let dropped = 0;
+  for (const sub of store.subscriptions) {
+    if (sub.plan_id !== plan.id) continue;
+    if (sub.status !== 'active' && sub.status !== 'trialing') continue;
+    if (want.has(sub.client_id)) continue;
+    sub.status = 'cancelled';
+    sub.cancel_at = today;
+    sub.updated_at = now;
+    dropped += 1;
+  }
+  let booked = 0;
+  for (const clientId of want) {
+    const client = store.clients.find((c) => c.id === clientId);
+    const result = allocateMemberToClass(store, {
+      clientId,
+      planId: plan.id,
+      member: true,
+      privateClient: client?.private_client === true,
+      coachId: client?.coach_id || plan.default_coach_id || null,
+      replaceOtherPlans: false,
+      bookUpcoming: true,
+      now,
+    });
+    if (!('error' in result)) booked += result.booked;
+  }
+  return { members: want.size, booked, dropped };
 }
 
 function resolveSeriesId(

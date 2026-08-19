@@ -195,13 +195,11 @@ function hubModules(
     accent: 'from-emerald-50 to-white border-emerald-100',
   },
   ];
-  return classSubscribe
-    ? all.filter(
-        (m) =>
-          m.href !== '/dashboard/fitgraph/classes' &&
-          m.href !== '/dashboard/fitgraph/subscriptions'
-      )
-    : all;
+  return all.filter(
+    (m) =>
+      m.href !== '/dashboard/fitgraph/classes' &&
+      m.href !== '/dashboard/fitgraph/subscriptions'
+  );
 }
 
 export default function FitgraphHubPage() {
