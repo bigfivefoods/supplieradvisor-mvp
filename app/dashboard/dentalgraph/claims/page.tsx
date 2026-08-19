@@ -8,7 +8,7 @@ export default function DentalAidClaimsPage() {
     <DentalgraphWorkbench
       title="Medical-aid claims"
       titleAccent="submit to scheme"
-      description="Draft claims from attended visits, print a claim pack, email it to the scheme, and record paid or rejected."
+      description="Draft claims from attended visits, validate PCNS / ICD-10 / tariff, submit to MediKredit (sandbox until accredited), import ERA, and show co-pay on SA Member."
     >
       <MedicalAidClaimsDesk module="dentalgraph" accent="sky" />
     </DentalgraphWorkbench>

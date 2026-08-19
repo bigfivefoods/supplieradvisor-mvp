@@ -23,9 +23,11 @@ export const MEDICAL_AID_CLAIM_STATUSES = [
   'draft',
   'ready',
   'submitted',
+  'accepted',
   'paid',
   'rejected',
   'partial',
+  'cancelled',
 ] as const;
 
 export type MedicalAidClaimStatus =
@@ -49,6 +51,7 @@ export const COMMON_MEDICAL_SCHEMES = [
 
 export type MedicalAidDetails = {
   scheme_name?: string;
+  scheme_code?: string;
   plan_name?: string;
   membership_number?: string;
   dependent_code?: string;
@@ -62,6 +65,8 @@ export type MedicalAidDetails = {
   employer?: string;
   contact_phone?: string;
   notes?: string;
+  /** ISO timestamp when the patient consented to scheme data sharing */
+  claims_consent_at?: string | null;
 };
 
 export type MedicalRecordDoc = {
@@ -74,6 +79,32 @@ export type MedicalRecordDoc = {
   notes?: string;
 };
 
+export type MedicalAidClaimLine = {
+  tariff_code: string;
+  description?: string;
+  quantity?: number;
+  unit_price?: number;
+  amount?: number;
+  icd10?: string;
+  nappi?: string;
+  modifiers?: string;
+};
+
+export type MedicalAidClaimAudit = {
+  at: string;
+  action: string;
+  actor?: string | null;
+  note?: string;
+};
+
+export type MedicalAidEraPayment = {
+  id: string;
+  payment_date: string;
+  amount_paid: number;
+  reference?: string;
+  notes?: string;
+};
+
 export type MedicalAidClaim = {
   id: string;
   claim_number?: string;
@@ -81,18 +112,34 @@ export type MedicalAidClaim = {
   /** Date of service YYYY-MM-DD */
   service_date?: string | null;
   amount_zar?: number | null;
+  patient_portion?: number | null;
+  scheme_portion?: number | null;
   /** Procedure / tariff code (e.g. NHRPL) */
   tariff_code?: string;
   /** ICD-10 diagnosis code */
   diagnosis_code?: string;
+  diagnosis_codes?: string[];
+  line_items?: MedicalAidClaimLine[];
+  scheme_code?: string;
   auth_number?: string;
   booking_id?: string | null;
   appointment_id?: string | null;
   treating_name?: string;
   notes?: string;
   submitted_at?: string | null;
+  responded_at?: string | null;
+  paid_at?: string | null;
   /** Scheme response / rejection reason */
   response_notes?: string;
+  rejection_codes?: string[];
+  switch_provider?: 'medikredit' | 'manual';
+  switch_mode?: 'sandbox' | 'live';
+  switch_tracking_number?: string | null;
+  switch_response_raw?: string | null;
+  invoice_id?: number | null;
+  charge_id?: string | null;
+  era?: MedicalAidEraPayment[];
+  audit?: MedicalAidClaimAudit[];
   /** Linked medical document ids (e.g. account, referral) */
   attachment_ids?: string[];
   created_at: string;
@@ -276,10 +323,14 @@ export function removeMedicalDocument(
 
 export function upsertMedicalClaim(
   medical: PatientMedicalRecord | undefined,
-  rec: Partial<Omit<MedicalAidClaim, 'amount_zar'>> & {
+  rec: Partial<
+    Omit<MedicalAidClaim, 'amount_zar' | 'patient_portion' | 'scheme_portion'>
+  > & {
     id?: string;
     /** Forms may send '' or string numbers */
     amount_zar?: number | string | null;
+    patient_portion?: number | string | null;
+    scheme_portion?: number | string | null;
   },
   now = new Date().toISOString()
 ): PatientMedicalRecord {
@@ -338,7 +389,10 @@ export function upsertMedicalClaim(
         : prev?.treating_name,
     notes: rec.notes != null ? String(rec.notes) : prev?.notes,
     submitted_at:
-      status === 'submitted' || status === 'paid' || status === 'partial'
+      status === 'submitted' ||
+      status === 'accepted' ||
+      status === 'paid' ||
+      status === 'partial'
         ? prev?.submitted_at || now
         : status === 'draft' || status === 'ready'
           ? null
@@ -350,6 +404,73 @@ export function upsertMedicalClaim(
     attachment_ids: Array.isArray(rec.attachment_ids)
       ? (rec.attachment_ids as string[])
       : prev?.attachment_ids || [],
+    diagnosis_codes: Array.isArray(rec.diagnosis_codes)
+      ? rec.diagnosis_codes.map(String).filter(Boolean)
+      : rec.diagnosis_code
+        ? [String(rec.diagnosis_code)]
+        : prev?.diagnosis_codes,
+    line_items: Array.isArray(rec.line_items)
+      ? (rec.line_items as MedicalAidClaimLine[])
+      : prev?.line_items,
+    scheme_code:
+      rec.scheme_code != null ? String(rec.scheme_code) : prev?.scheme_code,
+    patient_portion:
+      rec.patient_portion !== undefined
+        ? rec.patient_portion === null || rec.patient_portion === ''
+          ? null
+          : Number(rec.patient_portion)
+        : prev?.patient_portion ?? null,
+    scheme_portion:
+      rec.scheme_portion !== undefined
+        ? rec.scheme_portion === null || rec.scheme_portion === ''
+          ? null
+          : Number(rec.scheme_portion)
+        : prev?.scheme_portion ?? null,
+    rejection_codes: Array.isArray(rec.rejection_codes)
+      ? rec.rejection_codes.map(String)
+      : prev?.rejection_codes,
+    switch_provider: rec.switch_provider || prev?.switch_provider,
+    switch_mode: rec.switch_mode || prev?.switch_mode,
+    switch_tracking_number:
+      rec.switch_tracking_number !== undefined
+        ? rec.switch_tracking_number
+          ? String(rec.switch_tracking_number)
+          : null
+        : prev?.switch_tracking_number ?? null,
+    switch_response_raw:
+      rec.switch_response_raw !== undefined
+        ? rec.switch_response_raw
+          ? String(rec.switch_response_raw)
+          : null
+        : prev?.switch_response_raw ?? null,
+    invoice_id:
+      rec.invoice_id !== undefined
+        ? rec.invoice_id
+          ? Number(rec.invoice_id)
+          : null
+        : prev?.invoice_id ?? null,
+    charge_id:
+      rec.charge_id !== undefined
+        ? rec.charge_id
+          ? String(rec.charge_id)
+          : null
+        : prev?.charge_id ?? null,
+    responded_at:
+      rec.responded_at !== undefined
+        ? rec.responded_at
+          ? String(rec.responded_at)
+          : null
+        : prev?.responded_at ?? null,
+    paid_at:
+      rec.paid_at !== undefined
+        ? rec.paid_at
+          ? String(rec.paid_at)
+          : null
+        : prev?.paid_at ?? null,
+    era: Array.isArray(rec.era) ? (rec.era as MedicalAidEraPayment[]) : prev?.era,
+    audit: Array.isArray(rec.audit)
+      ? (rec.audit as MedicalAidClaimAudit[])
+      : prev?.audit,
     created_at: prev?.created_at || now,
     updated_at: now,
   };

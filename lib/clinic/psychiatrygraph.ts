@@ -437,6 +437,7 @@ export type PsychiatryPublicSettings = {
   vat_number?: string;
   pcns_number?: string;
   billing_email?: string;
+  claims_switch?: import('@/lib/clinic/medical-aid-switch').PracticeClaimsSwitch;
   embed_primary_color?: string;
   practitioner_disciplines?: string[];
   /** Clinic open days & hours for schedule calendar */

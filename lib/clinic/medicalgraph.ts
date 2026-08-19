@@ -440,6 +440,7 @@ export type MedicalPublicSettings = {
   vat_number?: string;
   pcns_number?: string;
   billing_email?: string;
+  claims_switch?: import('@/lib/clinic/medical-aid-switch').PracticeClaimsSwitch;
   embed_primary_color?: string;
   company_logo_url?: string | null;
   practitioner_disciplines?: string[];

@@ -99,7 +99,12 @@ export async function buildMedicalAidClaimPdf(opts: {
     y = kv(doc, y, 'Date of service', claim.service_date);
     y = kv(doc, y, 'Treating clinician', claim.treating_name);
     y = kv(doc, y, 'Tariff / procedure', claim.tariff_code);
-    y = kv(doc, y, 'ICD-10', claim.diagnosis_code);
+    y = kv(
+      doc,
+      y,
+      'ICD-10',
+      (claim.diagnosis_codes || [claim.diagnosis_code]).filter(Boolean).join(', ')
+    );
     y = kv(
       doc,
       y,
@@ -110,6 +115,27 @@ export async function buildMedicalAidClaimPdf(opts: {
           })}`
         : '—'
     );
+    y = kv(
+      doc,
+      y,
+      'Scheme portion',
+      claim.scheme_portion != null
+        ? `R${Number(claim.scheme_portion).toLocaleString('en-ZA', {
+            minimumFractionDigits: 2,
+          })}`
+        : '—'
+    );
+    y = kv(
+      doc,
+      y,
+      'Patient co-pay',
+      claim.patient_portion != null
+        ? `R${Number(claim.patient_portion).toLocaleString('en-ZA', {
+            minimumFractionDigits: 2,
+          })}`
+        : '—'
+    );
+    y = kv(doc, y, 'Switch tracking', claim.switch_tracking_number);
     y = kv(doc, y, 'Notes', claim.notes);
     y += 16;
 

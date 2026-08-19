@@ -29,6 +29,7 @@ import {
   mergePortalInvoices,
   type MemberPortalInvoice,
 } from '@/components/advisors/MemberPortalInvoices';
+import { MemberPortalClaims, type MemberPortalClaim } from '@/components/advisors/MemberPortalClaims';
 import { MemberMedicalShare } from '@/components/services/MemberMedicalShare';
 import { PatientVisitHistory } from '@/components/clinic/PatientVisitHistory';
 import type {
@@ -113,6 +114,7 @@ type Portal = {
   visit_history?: import('@/lib/clinic/visit-history').PatientVisitHistoryItem[];
   open_count: number;
   invoices?: MemberPortalInvoice[];
+  claims?: MemberPortalClaim[];
 };
 
 export default function MemberMedicalgraphPortalPage() {
@@ -374,6 +376,7 @@ export default function MemberMedicalgraphPortalPage() {
           tone="indigo"
         />
         <MemberPortalInvoices invoices={portal.invoices} />
+        <MemberPortalClaims claims={portal.claims} />
         {(msg || error) && (
           <div
             className={`rounded-xl border px-3 py-2 text-sm ${

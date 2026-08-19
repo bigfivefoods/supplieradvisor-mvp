@@ -26,8 +26,11 @@ import {
   writePsychiatrygraphToMetadata,
 } from '@/lib/clinic/psychiatrygraph';
 import {
+  applyClaimAmend,
   applyClaimOutcome,
   applyClaimSubmit,
+  applyEraToClaim,
+  applySwitchResult,
   billingFromSettings,
   claimKpis,
   collectPracticeClaims,
@@ -35,6 +38,12 @@ import {
   unclaimedAttendedVisits,
   type ClinicClaimsModule,
 } from '@/lib/clinic/medical-aid-claims';
+import { validateMedicalAidClaim } from '@/lib/clinic/medical-aid-claim-validate';
+import {
+  pollMedicalAidSwitch,
+  submitToMedicalAidSwitch,
+  type PracticeClaimsSwitch,
+} from '@/lib/clinic/medical-aid-switch';
 import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import { buildMedicalAidClaimPdf } from '@/lib/clinic/medical-aid-claim-pdf';
 
@@ -181,6 +190,30 @@ export async function POST(request: NextRequest) {
       settings.vat_number = String(body.vat_number || '');
       settings.pcns_number = String(body.pcns_number || '');
       settings.billing_email = String(body.billing_email || '');
+      const prevSwitch = settings.claims_switch || {};
+      const nextSwitch: PracticeClaimsSwitch = {
+        provider:
+          String(body.switch_provider || prevSwitch.provider || 'medikredit') ===
+          'manual'
+            ? 'manual'
+            : 'medikredit',
+        mode:
+          String(body.switch_mode || prevSwitch.mode || 'sandbox') === 'live'
+            ? 'live'
+            : 'sandbox',
+        pcns_verified:
+          body.pcns_verified === true || prevSwitch.pcns_verified === true,
+        username:
+          body.switch_username != null
+            ? String(body.switch_username)
+            : prevSwitch.username || null,
+        secret_enc: prevSwitch.secret_enc || null,
+        last_submitted_at: prevSwitch.last_submitted_at || null,
+      };
+      if (body.switch_secret) {
+        nextSwitch.secret_enc = `set:${String(body.switch_secret).slice(0, 4)}…`;
+      }
+      settings.claims_switch = nextSwitch;
       await save(companyId, module, meta, store);
       return NextResponse.json({
         success: true,
@@ -215,9 +248,61 @@ export async function POST(request: NextRequest) {
     const patientId = String(body.patient_id || '');
     const claimId = String(body.claim_id || '');
 
-    if (action === 'submit') {
-      const next = applyClaimSubmit(store, patientId, claimId, now);
+    if (action === 'submit' || action === 'resubmit') {
+      const patient = store.patients.find((p) => p.id === patientId);
+      const claim = (patient?.medical?.claims || []).find((c) => c.id === claimId);
+      if (!patient || !claim) {
+        return NextResponse.json({ error: 'Claim not found' }, { status: 404 });
+      }
+      const billing = billingFromSettings(store.settings);
+      const check = validateMedicalAidClaim({
+        claim,
+        medical: patient.medical,
+        billing,
+        requireConsent: false,
+      });
+      if (!check.ok) {
+        return NextResponse.json(
+          {
+            error: check.errors[0] || 'Claim is not ready to submit',
+            errors: check.errors,
+            warnings: check.warnings,
+          },
+          { status: 400 }
+        );
+      }
+      const sw = store.settings?.claims_switch || {
+        provider: 'medikredit' as const,
+        mode: 'sandbox' as const,
+      };
+      const switched = await submitToMedicalAidSwitch({
+        claim,
+        medical: patient.medical,
+        billing,
+        patientName: patient.name,
+        patientCode: patient.code,
+        switch: sw,
+      });
+      if (switched.ok) {
+        const numbered = applyClaimSubmit(store, patientId, claimId, now);
+        store.patients = numbered.patients as typeof store.patients;
+      }
+      const next = applySwitchResult(
+        store,
+        patientId,
+        claimId,
+        {
+          ...switched,
+          provider: sw.provider === 'manual' ? 'manual' : 'medikredit',
+          mode: sw.mode === 'live' ? 'live' : 'sandbox',
+        },
+        gate.userId,
+        now
+      );
       store.patients = next.patients as typeof store.patients;
+      if (store.settings?.claims_switch) {
+        store.settings.claims_switch.last_submitted_at = now;
+      }
       await save(companyId, module, meta, store);
       const row = collectPracticeClaims(store).find(
         (r) => r.claim.id === claimId
@@ -240,7 +325,7 @@ export async function POST(request: NextRequest) {
             to,
             replyTo: getResendReplyTo(),
             subject: `Medical-aid claim ${row.claim.claim_number} · ${row.patient_name}`,
-            text: `${LABELS[module]} claim pack for ${row.patient_name} (${row.scheme || 'scheme'}).\nAmount: R${row.claim.amount_zar ?? '—'}\nService: ${row.claim.service_date || '—'}`,
+            text: `${LABELS[module]} claim pack for ${row.patient_name} (${row.scheme || 'scheme'}).\nAmount: R${row.claim.amount_zar ?? '—'}\nService: ${row.claim.service_date || '—'}\nTracking: ${row.claim.switch_tracking_number || '—'}`,
             attachments: [
               {
                 filename: `${row.claim.claim_number || 'claim'}.pdf`,
@@ -253,15 +338,230 @@ export async function POST(request: NextRequest) {
           console.warn('[medical-aid-claim email]', err);
         }
       }
+      let copay = false;
+      const portion = Number(row?.claim.patient_portion);
+      if (switched.ok && portion > 0 && patient.email) {
+        try {
+          const { publishAdvisorCharge } = await import(
+            '@/lib/b2c/member-account-link'
+          );
+          const { loadWalletCompany } = await import('@/lib/b2c/load-company');
+          const { suggestionToCharge, addCharge, readMemberAccountStore, writeMemberAccountStore } =
+            await import('@/lib/b2c/member-account');
+          const { MODULE_TO_KIND } = await import(
+            '@/lib/b2c/member-account-types'
+          );
+          const company = await loadWalletCompany(companyId);
+          if (company) {
+            const kind = MODULE_TO_KIND[module];
+            const published = await publishAdvisorCharge({
+              company,
+              module,
+              charge: {
+                ...suggestionToCharge({
+                  source: 'visit',
+                  source_id: `claim:${claimId}`,
+                  kind,
+                  ref_id: patientId,
+                  member_name: patient.name,
+                  member_email: patient.email,
+                  description: `Medical-aid co-pay · ${row?.claim.claim_number || 'claim'}`,
+                  amount_zar: portion,
+                  due_date: now.slice(0, 10),
+                }),
+              },
+            });
+            company.meta = published.meta;
+            const ledger = addCharge(
+              readMemberAccountStore(company.meta),
+              published.charge
+            );
+            const { saveWalletCompanyMeta } = await import('@/lib/b2c/load-company');
+            await saveWalletCompanyMeta(
+              companyId,
+              writeMemberAccountStore(company.meta, ledger)
+            );
+            const stamped = applySwitchResult(
+              store,
+              patientId,
+              claimId,
+              {
+                status: (row?.claim.status as 'submitted' | 'accepted' | 'rejected') || 'submitted',
+                tracking_number: row?.claim.switch_tracking_number || undefined,
+                message: row?.claim.response_notes || '',
+                raw: row?.claim.switch_response_raw || '{}',
+              },
+              gate.userId,
+              now
+            );
+            const p = stamped.patients.find((x) => x.id === patientId);
+            const c = (p?.medical?.claims || []).find((x) => x.id === claimId);
+            if (c) {
+              const { upsertMedicalClaim } = await import(
+                '@/lib/clinic/patient-medical'
+              );
+              const med = upsertMedicalClaim(p!.medical, {
+                ...c,
+                charge_id: published.charge.id,
+              });
+              store.patients = store.patients.map((x) =>
+                x.id === patientId ? { ...x, medical: med } : x
+              ) as typeof store.patients;
+              await save(companyId, module, meta, store);
+            }
+            copay = true;
+          }
+        } catch (err) {
+          console.warn('[medical-aid-claim copay]', err);
+        }
+      }
+      try {
+        const supabase = getSupabaseServer();
+        await supabase.from('activity_log').insert({
+          profile_id: companyId,
+          actor_user_id: gate.userId,
+          action: 'medical_aid.claim_submit',
+          entity_type: 'medical_aid_claim',
+          entity_id: claimId,
+          summary: switched.message,
+          metadata: {
+            tracking: switched.tracking_number || null,
+            status: switched.status,
+          },
+        });
+      } catch {
+        /* optional */
+      }
       return NextResponse.json({
-        success: true,
+        success: switched.ok,
         claims: collectPracticeClaims(store),
         visits: unclaimedAttendedVisits(store),
         kpis: claimKpis(collectPracticeClaims(store)),
+        errors: check.errors,
+        warnings: check.warnings,
         emailed,
-        message: emailed
-          ? `Claim submitted and emailed to ${to}`
-          : 'Claim marked submitted — download the pack to send to the scheme',
+        copay,
+        message: switched.ok
+          ? [
+              switched.message,
+              emailed ? `Pack emailed to ${to}` : null,
+              copay ? `Co-pay ${portion} raised on SA Member` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')
+          : switched.message,
+      });
+    }
+
+    if (action === 'amend') {
+      const patch = (body.claim || body.patch || {}) as Record<string, unknown>;
+      const next = applyClaimAmend(
+        store,
+        patientId,
+        claimId,
+        {
+          tariff_code: patch.tariff_code != null ? String(patch.tariff_code) : undefined,
+          diagnosis_code:
+            patch.diagnosis_code != null ? String(patch.diagnosis_code) : undefined,
+          diagnosis_codes: Array.isArray(patch.diagnosis_codes)
+            ? patch.diagnosis_codes.map(String)
+            : patch.diagnosis_code
+              ? String(patch.diagnosis_code)
+                  .split(/[,;]+/)
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+              : undefined,
+          amount_zar:
+            patch.amount_zar != null ? Number(patch.amount_zar) : undefined,
+          patient_portion:
+            patch.patient_portion != null
+              ? Number(patch.patient_portion)
+              : undefined,
+          scheme_portion:
+            patch.scheme_portion != null
+              ? Number(patch.scheme_portion)
+              : undefined,
+          auth_number:
+            patch.auth_number != null ? String(patch.auth_number) : undefined,
+          notes: patch.notes != null ? String(patch.notes) : undefined,
+          line_items: Array.isArray(patch.line_items)
+            ? (patch.line_items as never)
+            : undefined,
+        },
+        gate.userId,
+        now
+      );
+      store.patients = next.patients as typeof store.patients;
+      await save(companyId, module, meta, store);
+      return NextResponse.json({
+        success: true,
+        claims: collectPracticeClaims(store),
+        kpis: claimKpis(collectPracticeClaims(store)),
+        message: 'Claim updated',
+      });
+    }
+
+    if (action === 'ingest_era') {
+      const tracking = String(body.tracking_number || body.claim_number || '');
+      const applied = applyEraToClaim(
+        store,
+        tracking,
+        {
+          amount_paid: Number(body.amount_paid),
+          payment_date: body.payment_date
+            ? String(body.payment_date)
+            : undefined,
+          reference: body.reference ? String(body.reference) : undefined,
+          notes: body.notes ? String(body.notes) : undefined,
+        },
+        now
+      );
+      store.patients = applied.store.patients as typeof store.patients;
+      await save(companyId, module, meta, store);
+      return NextResponse.json({
+        success: true,
+        claims: collectPracticeClaims(store),
+        kpis: claimKpis(collectPracticeClaims(store)),
+        message: `ERA matched ${applied.claim.claim_number || tracking} · ${applied.claim.status}`,
+      });
+    }
+
+    if (action === 'poll_status') {
+      const patient = store.patients.find((p) => p.id === patientId);
+      const claim = (patient?.medical?.claims || []).find((c) => c.id === claimId);
+      if (!claim?.switch_tracking_number) {
+        return NextResponse.json(
+          { error: 'No switch tracking number on this claim' },
+          { status: 400 }
+        );
+      }
+      const polled = await pollMedicalAidSwitch({
+        tracking_number: claim.switch_tracking_number,
+        switch: store.settings?.claims_switch || { mode: 'sandbox' },
+        claim,
+      });
+      if (polled.ok && (polled.status === 'accepted' || polled.status === 'rejected')) {
+        const next = applySwitchResult(
+          store,
+          patientId,
+          claimId,
+          {
+            status: polled.status,
+            tracking_number: claim.switch_tracking_number,
+            message: polled.message,
+            raw: polled.raw,
+          },
+          gate.userId,
+          now
+        );
+        store.patients = next.patients as typeof store.patients;
+        await save(companyId, module, meta, store);
+      }
+      return NextResponse.json({
+        success: true,
+        claims: collectPracticeClaims(store),
+        kpis: claimKpis(collectPracticeClaims(store)),
+        message: polled.message,
       });
     }
 

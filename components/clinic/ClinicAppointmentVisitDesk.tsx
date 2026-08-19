@@ -189,6 +189,7 @@ export function ClinicAppointmentVisitDesk({
     amount_zar: defaultAmount,
     tariff_code: '',
     diagnosis_code: '',
+    patient_portion: '',
     auth_number: medical?.medical_aid?.auth_number || '',
     notes: serviceName || '',
     email: '',
@@ -365,6 +366,12 @@ export function ClinicAppointmentVisitDesk({
           amount_zar: Number.isFinite(amount) && amount > 0 ? amount : null,
           tariff_code: claim.tariff_code || undefined,
           diagnosis_code: claim.diagnosis_code || undefined,
+          diagnosis_codes: claim.diagnosis_code
+            ? claim.diagnosis_code.split(/[,;]+/).map((s) => s.trim()).filter(Boolean)
+            : undefined,
+          patient_portion: claim.patient_portion
+            ? Number(claim.patient_portion)
+            : undefined,
           auth_number: claim.auth_number || undefined,
           treating_name: treatingName || undefined,
           booking_id: row.bookingId,
@@ -839,10 +846,21 @@ export function ClinicAppointmentVisitDesk({
               />
               <input
                 className={inp}
-                placeholder="ICD-10"
+                placeholder="ICD-10 (e.g. J06.9)"
                 value={claim.diagnosis_code}
                 onChange={(e) =>
                   setClaim((c) => ({ ...c, diagnosis_code: e.target.value }))
+                }
+              />
+              <input
+                className={inp}
+                placeholder="Patient co-pay (ZAR)"
+                type="number"
+                min={0}
+                step="0.01"
+                value={claim.patient_portion}
+                onChange={(e) =>
+                  setClaim((c) => ({ ...c, patient_portion: e.target.value }))
                 }
               />
               <input

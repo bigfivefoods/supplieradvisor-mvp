@@ -141,22 +141,28 @@ export async function GET(request: NextRequest) {
     const { withPortalInvoices } = await import(
       '@/lib/b2c/member-account-portal'
     );
+    const { withPortalClaims } = await import(
+      '@/lib/clinic/medical-aid-claims'
+    );
     return NextResponse.json({
       success: true,
-      portal: withPortalInvoices(
-        buildPatientPortalPayload(
-          resolved.store,
-          resolved.patient,
-          request.nextUrl.searchParams.get('from') || undefined,
-          request.nextUrl.searchParams.get('to') || undefined
+      portal: withPortalClaims(
+        withPortalInvoices(
+          buildPatientPortalPayload(
+            resolved.store,
+            resolved.patient,
+            request.nextUrl.searchParams.get('from') || undefined,
+            request.nextUrl.searchParams.get('to') || undefined
+          ),
+          resolved.meta,
+          {
+            kind: 'psychiatry',
+            refId: resolved.patient.id,
+            email: resolved.patient.email,
+            userId: resolved.patient.platform_user_id,
+          }
         ),
-        resolved.meta,
-        {
-          kind: 'psychiatry',
-          refId: resolved.patient.id,
-          email: resolved.patient.email,
-          userId: resolved.patient.platform_user_id,
-        }
+        resolved.patient.medical
       ),
       companyId: resolved.companyId,
     });

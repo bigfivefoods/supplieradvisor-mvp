@@ -129,6 +129,7 @@ export function PatientMedicalChart({
     option_code: medical?.medical_aid?.option_code || '',
     employer: medical?.medical_aid?.employer || '',
     notes: medical?.medical_aid?.notes || '',
+    claims_consent_at: medical?.medical_aid?.claims_consent_at || null,
   }));
   const [claim, setClaim] = useState({
     claim_number: '',
@@ -550,6 +551,21 @@ export function PatientMedicalChart({
               setAid((a) => ({ ...a, option_code: e.target.value }))
             }
           />
+          <label className="flex items-center gap-2 text-sm font-medium sm:col-span-2">
+            <input
+              type="checkbox"
+              checked={Boolean(aid.claims_consent_at)}
+              onChange={(e) =>
+                setAid((a) => ({
+                  ...a,
+                  claims_consent_at: e.target.checked
+                    ? new Date().toISOString()
+                    : null,
+                }))
+              }
+            />
+            Patient consents to sharing medical-aid data for claims
+          </label>
           <label className="flex items-center gap-2 text-sm font-medium sm:col-span-2">
             <input
               type="checkbox"

@@ -455,6 +455,7 @@ export type DentalPublicSettings = {
   vat_number?: string;
   pcns_number?: string;
   billing_email?: string;
+  claims_switch?: import('@/lib/clinic/medical-aid-switch').PracticeClaimsSwitch;
   embed_primary_color?: string;
   /** Copied from My Business profile for branded session emails */
   company_logo_url?: string | null;

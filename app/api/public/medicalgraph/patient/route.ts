@@ -139,9 +139,13 @@ export async function GET(request: NextRequest) {
     const { withPortalInvoices } = await import(
       '@/lib/b2c/member-account-portal'
     );
+    const { withPortalClaims } = await import(
+      '@/lib/clinic/medical-aid-claims'
+    );
     return NextResponse.json({
       success: true,
-      portal: withPortalInvoices(
+      portal: withPortalClaims(
+        withPortalInvoices(
         buildPatientPortalPayload(
           resolved.store,
           resolved.patient,
@@ -155,6 +159,8 @@ export async function GET(request: NextRequest) {
           email: resolved.patient.email,
           userId: resolved.patient.platform_user_id,
         }
+        ),
+        resolved.patient.medical
       ),
       companyId: resolved.companyId,
     });

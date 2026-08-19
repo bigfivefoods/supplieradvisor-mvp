@@ -29,6 +29,7 @@ import {
   mergePortalInvoices,
   type MemberPortalInvoice,
 } from '@/components/advisors/MemberPortalInvoices';
+import { MemberPortalClaims, type MemberPortalClaim } from '@/components/advisors/MemberPortalClaims';
 import { MemberMedicalShare } from '@/components/services/MemberMedicalShare';
 import type {
   SharedAdviceNote,
@@ -111,6 +112,7 @@ type Portal = {
   }>;
   open_count: number;
   invoices?: MemberPortalInvoice[];
+  claims?: MemberPortalClaim[];
 };
 
 export default function MemberPsychiatrygraphPortalPage() {
@@ -356,6 +358,7 @@ export default function MemberPsychiatrygraphPortalPage() {
           tone="rose"
         />
         <MemberPortalInvoices invoices={portal.invoices} />
+        <MemberPortalClaims claims={portal.claims} />
         {(msg || error) && (
           <div
             className={`rounded-xl border px-3 py-2 text-sm ${
