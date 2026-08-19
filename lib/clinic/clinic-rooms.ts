@@ -102,3 +102,60 @@ export function mergeClinicRoomNames(
   }
   return out;
 }
+
+export function upsertClinicRoom(
+  raw: unknown,
+  input: {
+    id?: string | null;
+    name: string;
+    notes?: string | null;
+    practitioner_ids?: string[] | null;
+    asset_ids?: Array<string | number> | null;
+  }
+): { rooms: ClinicRoom[]; room: ClinicRoom; created: boolean } {
+  const rooms = normalizeClinicRooms(raw);
+  const name = String(input.name || '').trim();
+  if (!name) throw new Error('Room name required');
+  const id = String(input.id || '').trim();
+  const clash = rooms.find(
+    (r) => r.name.toLowerCase() === name.toLowerCase() && r.id !== id
+  );
+  if (clash) throw new Error('A room with that name already exists');
+  if (id) {
+    const i = rooms.findIndex((r) => r.id === id);
+    if (i < 0) throw new Error('Room not found');
+    const room: ClinicRoom = {
+      ...rooms[i],
+      name,
+      notes:
+        input.notes != null
+          ? String(input.notes).trim() || undefined
+          : rooms[i].notes,
+      practitioner_ids: Array.isArray(input.practitioner_ids)
+        ? input.practitioner_ids.map((x) => String(x || '').trim()).filter(Boolean)
+        : rooms[i].practitioner_ids,
+      asset_ids: Array.isArray(input.asset_ids)
+        ? normalizeRoomAssetIds(input.asset_ids)
+        : rooms[i].asset_ids,
+      active: true,
+    };
+    const next = [...rooms];
+    next[i] = room;
+    return { rooms: next, room, created: false };
+  }
+  const room: ClinicRoom = {
+    id: newClinicRoomId(),
+    name,
+    notes: input.notes != null ? String(input.notes).trim() || undefined : undefined,
+    practitioner_ids: Array.isArray(input.practitioner_ids)
+      ? input.practitioner_ids.map((x) => String(x || '').trim()).filter(Boolean)
+      : [],
+    asset_ids: normalizeRoomAssetIds(input.asset_ids),
+    active: true,
+  };
+  return { rooms: [...rooms, room], room, created: true };
+}
+
+export function removeClinicRoom(raw: unknown, id: string): ClinicRoom[] {
+  return normalizeClinicRooms(raw).filter((r) => r.id !== String(id || ''));
+}

@@ -270,6 +270,57 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (
+      action === 'add_room' ||
+      action === 'update_room' ||
+      action === 'remove_room'
+    ) {
+      const {
+        upsertClinicRoom,
+        removeClinicRoom,
+      } = await import('@/lib/clinic/clinic-rooms');
+      store.settings = store.settings || defaultPublicSettings(companyId);
+      try {
+        if (action === 'remove_room') {
+          store.settings.rooms = removeClinicRoom(
+            store.settings.rooms,
+            String(body.room_id || body.id || '')
+          );
+        } else {
+          const result = upsertClinicRoom(store.settings.rooms, {
+            id: action === 'update_room' ? String(body.id || body.room_id || '') : undefined,
+            name: String(body.name || ''),
+            notes: body.notes != null ? String(body.notes) : undefined,
+            practitioner_ids: Array.isArray(body.practitioner_ids)
+              ? (body.practitioner_ids as unknown[]).map(String)
+              : undefined,
+            asset_ids: Array.isArray(body.asset_ids)
+              ? (body.asset_ids as unknown[])
+              : undefined,
+          });
+          store.settings.rooms = result.rooms;
+        }
+      } catch (e: unknown) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : 'Room save failed' },
+          { status: 400 }
+        );
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseMedicalgraph(store),
+        analysis: analysis(store),
+        message:
+          action === 'remove_room'
+            ? 'Room removed'
+            : action === 'update_room'
+              ? 'Room updated'
+              : 'Room added',
+      });
+    }
+
     if (action === 'update_settings') {
       const patch = (body.settings || body.record || {}) as Partial<MedicalPublicSettings>;
       store.settings = ensurePublicToken(

@@ -10,9 +10,7 @@ import {
   useMedicalgraph,
 } from '@/components/clinic/MedicalgraphWorkbench';
 import { FormCard, ListRowCard, StatRow, fc } from '@/components/clinic/MedicalForm';
-import { AdvisorExpandablePanel } from '@/components/advisors/AdvisorExpandablePanel';
 import {
-  newClinicRoomId,
   normalizeClinicRooms,
   type ClinicRoom,
 } from '@/lib/clinic/clinic-rooms';
@@ -33,7 +31,6 @@ function emptyForm() {
 export default function MedicalRoomsPage() {
   const { companyId, store, loading, saving, post, summary } = useMedicalgraph();
   const [form, setForm] = useState(emptyForm);
-  const [addOpen, setAddOpen] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [assets, setAssets] = useState<CompanyAsset[]>([]);
   const [newAssetName, setNewAssetName] = useState('');
@@ -70,37 +67,29 @@ export default function MedicalRoomsPage() {
     (p) => p.active !== false
   );
 
-  const saveRooms = async (next: ClinicRoom[]) => {
-    await post({
-      action: 'update_settings',
-      settings: { rooms: next },
-    });
-  };
-
   const add = async () => {
+    if (editingId) {
+      toast.message('Close the room you are editing first');
+      return;
+    }
     const name = form.name.trim();
     if (!name) {
       toast.error('Room name required');
       return;
     }
-    if (rooms.some((r) => r.name.toLowerCase() === name.toLowerCase())) {
-      toast.error('A room with that name already exists');
-      return;
-    }
-    await saveRooms([
-      ...rooms,
-      {
-        id: newClinicRoomId(),
+    try {
+      await post({
+        action: 'add_room',
         name,
         notes: form.notes.trim() || undefined,
         practitioner_ids: form.practitioner_ids,
         asset_ids: form.asset_ids,
-        active: true,
-      },
-    ]);
-    toast.success('Room added');
-    setForm(emptyForm());
-    setAddOpen(false);
+      });
+      toast.success('Room added');
+      setForm(emptyForm());
+    } catch {
+      /* toast from post() */
+    }
   };
 
   const saveEdit = async (id: string) => {
@@ -117,22 +106,21 @@ export default function MedicalRoomsPage() {
       toast.error('A room with that name already exists');
       return;
     }
-    await saveRooms(
-      rooms.map((r) =>
-        r.id === id
-          ? {
-              ...r,
-              name,
-              notes: form.notes.trim() || undefined,
-              practitioner_ids: form.practitioner_ids,
-              asset_ids: form.asset_ids,
-            }
-          : r
-      )
-    );
-    toast.success('Room updated');
-    setEditingId(null);
-    setForm(emptyForm());
+    try {
+      await post({
+        action: 'update_room',
+        id,
+        name,
+        notes: form.notes.trim() || undefined,
+        practitioner_ids: form.practitioner_ids,
+        asset_ids: form.asset_ids,
+      });
+      toast.success('Room updated');
+      setEditingId(null);
+      setForm(emptyForm());
+    } catch {
+      /* toast from post() */
+    }
   };
 
   const remove = async (id: string) => {
@@ -141,8 +129,12 @@ export default function MedicalRoomsPage() {
     if (!confirm(`Remove room “${room.name}”? Diary slots keep the old name until you reassign them.`)) {
       return;
     }
-    await saveRooms(rooms.filter((r) => r.id !== id));
-    toast.success('Room removed');
+    try {
+      await post({ action: 'remove_room', room_id: id });
+      toast.success('Room removed');
+    } catch {
+      /* toast from post() */
+    }
   };
 
   const startEdit = (room: ClinicRoom) => {
@@ -312,6 +304,72 @@ export default function MedicalRoomsPage() {
             ]}
           />
 
+          <FormCard
+            title="Add a room"
+            description="Consult rooms, surgeries and procedure bays. Assign equipment so it is on this room and the company asset list."
+            onSubmit={() => void add()}
+            saving={saving}
+            submitLabel="Add room"
+          >
+            <input
+              className={fc()}
+              placeholder="Name * (e.g. Surgery 1)"
+              value={editingId ? '' : form.name}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, name: e.target.value }))
+              }
+              disabled={Boolean(editingId)}
+            />
+            <input
+              className={fc()}
+              placeholder="Notes (optional)"
+              value={editingId ? '' : form.notes}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, notes: e.target.value }))
+              }
+              disabled={Boolean(editingId)}
+            />
+            <div className="sm:col-span-2 lg:col-span-3">
+              <p className="mb-1 text-[10px] font-black uppercase text-slate-400">
+                Usual practitioners (optional)
+              </p>
+              {practitioners.length === 0 ? (
+                <p className="text-[12px] text-slate-500">
+                  Add practitioners first, then assign them here.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {practitioners.map((p) => {
+                    const on =
+                      !editingId && form.practitioner_ids.includes(p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        disabled={Boolean(editingId)}
+                        onClick={() => togglePrac(p.id)}
+                        className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
+                          on
+                            ? 'border-emerald-700 bg-emerald-700 text-white'
+                            : 'border-slate-200 bg-white text-slate-700'
+                        }`}
+                      >
+                        {p.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            {editingId ? (
+              <p className="sm:col-span-2 lg:col-span-3 text-[12px] text-slate-500">
+                Finish editing the room below, or close Edit to add a new room.
+              </p>
+            ) : (
+              assetPicker
+            )}
+          </FormCard>
+
           <div className="space-y-2">
             {rooms.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/40 px-4 py-6 text-center dark:border-emerald-800 dark:bg-emerald-950/20">
@@ -322,7 +380,6 @@ export default function MedicalRoomsPage() {
                   type="button"
                   className="mt-3 inline-flex items-center gap-1 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-black text-white"
                   onClick={() => {
-                    setAddOpen(true);
                     setEditingId(null);
                     setForm(emptyForm());
                   }}
@@ -438,76 +495,6 @@ export default function MedicalRoomsPage() {
               })
             )}
           </div>
-
-          <AdvisorExpandablePanel
-            title="Add a room"
-            description="Consult rooms, surgeries and procedure bays. Assign or add equipment so it is on this room and on the company asset list."
-            open={addOpen}
-            onToggle={() => {
-              setAddOpen((v) => !v);
-              setEditingId(null);
-              setForm(emptyForm());
-              setNewAssetName('');
-            }}
-            accentClass="border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/30"
-            titleClass="text-emerald-950 dark:text-emerald-50"
-            hintClass="text-emerald-800/80 dark:text-emerald-200/80"
-          >
-            <FormCard
-              title="New room"
-              onSubmit={() => void add()}
-              saving={saving}
-              submitLabel="Add room"
-            >
-              <input
-                className={fc()}
-                placeholder="Name * (e.g. Surgery 1)"
-                value={form.name}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, name: e.target.value }))
-                }
-              />
-              <input
-                className={fc()}
-                placeholder="Notes (optional)"
-                value={form.notes}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, notes: e.target.value }))
-                }
-              />
-              <div className="sm:col-span-2 lg:col-span-3">
-                <p className="mb-1 text-[10px] font-black uppercase text-slate-400">
-                  Usual practitioners (optional)
-                </p>
-                {practitioners.length === 0 ? (
-                  <p className="text-[12px] text-slate-500">
-                    Add practitioners first, then assign them here.
-                  </p>
-                ) : (
-                  <div className="flex flex-wrap gap-1.5">
-                    {practitioners.map((p) => {
-                      const on = form.practitioner_ids.includes(p.id);
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => togglePrac(p.id)}
-                          className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
-                            on
-                              ? 'border-emerald-700 bg-emerald-700 text-white'
-                              : 'border-slate-200 bg-white text-slate-700'
-                          }`}
-                        >
-                          {p.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-              {assetPicker}
-            </FormCard>
-          </AdvisorExpandablePanel>
 
           <p className="text-[11px] text-slate-500">
             Assign a room when you schedule on the{' '}

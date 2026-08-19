@@ -37,6 +37,7 @@ import {
   type HubModule,
 } from '@/components/chrome/CommandHubChrome';
 import { AdvisorCommandBookingCards } from '@/components/advisors/AdvisorCommandBookingCards';
+import { MedicalAddRoomCard } from '@/components/clinic/MedicalAddRoomCard';
 
 const MODULES: HubModule[] = [
   {
@@ -396,6 +397,30 @@ function Inner() {
               calendarHref="/dashboard/medicalgraph/calendar"
             />
           </HubTelemetryGrid>
+          <div className="mt-4">
+            <MedicalAddRoomCard
+              rooms={
+                (store as { settings?: { rooms?: unknown } } | null)?.settings
+                  ?.rooms
+              }
+              saving={false}
+              onAdd={async (name) => {
+                const res = await fetch('/api/clinic/medicalgraph', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    companyId,
+                    action: 'add_room',
+                    name,
+                  }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Add room failed');
+                setStore(data.store || null);
+                setSummary(data.summary || null);
+              }}
+            />
+          </div>
           <div className="space-y-4 mb-6 mt-6">
             <AdvisorOutcomesPanel
               outcomes={outcomes}
