@@ -6,6 +6,7 @@ import {
   CalendarDays,
   ClipboardCheck,
   CreditCard,
+  Dumbbell,
   Globe,
   HeartPulse,
   Hospital,
@@ -86,6 +87,14 @@ const MODULES: HubModule[] = [
     code: '05b',
     title: 'Rooms',
     desc: 'Floor: add rooms, assets, assign practitioners.',
+    accent: 'from-emerald-50 to-white border-emerald-100',
+  },
+  {
+    href: '/dashboard/physiograph/movements',
+    icon: Dumbbell,
+    code: '05c',
+    title: 'Movements',
+    desc: 'Rehab library to share with clients.',
     accent: 'from-emerald-50 to-white border-emerald-100',
   },
   {

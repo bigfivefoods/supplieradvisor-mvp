@@ -29,14 +29,37 @@ function formatShare(summary: Record<string, unknown>) {
     'progress_notes',
     'treatment_goals',
     'active_scripts',
+    'client_notes',
+    'shared_movements',
   ];
   return keys
     .filter((k) => summary[k])
     .slice(0, 4)
     .map((k) => ({
-      label: k.replace(/_/g, ' '),
+      label:
+        k === 'active_scripts'
+          ? 'rehab / scripts'
+          : k === 'client_notes'
+            ? 'notes for you'
+            : k === 'shared_movements'
+              ? 'movements'
+              : k.replace(/_/g, ' '),
       value: Array.isArray(summary[k])
-        ? (summary[k] as unknown[]).join(', ')
+        ? (summary[k] as unknown[])
+            .map((item) =>
+              item && typeof item === 'object'
+                ? String(
+                    (item as { title?: string; name?: string; line?: string; body?: string })
+                      .line ||
+                      (item as { title?: string }).title ||
+                      (item as { name?: string }).name ||
+                      (item as { body?: string }).body ||
+                      ''
+                  )
+                : String(item)
+            )
+            .filter(Boolean)
+            .join(', ')
         : typeof summary[k] === 'object' && summary[k]
           ? Object.values(summary[k] as Record<string, unknown>)
               .filter(Boolean)

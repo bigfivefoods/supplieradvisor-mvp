@@ -65,23 +65,45 @@ export function buildPatientMedicalShare(patient: {
     } | null;
     scripts?: Array<{
       status?: string | null;
+      kind?: string | null;
       medication?: string | null;
       strength?: string | null;
       dose?: string | null;
       frequency?: string | null;
+      duration?: string | null;
       instructions?: string | null;
     }> | null;
   } | null;
+  client_notes?: Array<{
+    id: string;
+    body: string;
+    created_at?: string;
+    author_name?: string | null;
+  }> | null;
+  shared_movements?: Array<{
+    id: string;
+    movement_name: string;
+    category?: string;
+    overview?: string;
+    details?: string;
+    sets?: string | null;
+    reps?: string | null;
+    hold?: string | null;
+    frequency?: string | null;
+    notes?: string;
+    status?: string;
+    shared_at?: string;
+  }> | null;
 }): Record<string, unknown> | null {
-  if (patient.share_medical === false) return null;
+  const shareChart = patient.share_medical !== false;
+  const summary: Record<string, unknown> = {};
   const clinical = patient.clinical;
   const medical = patient.medical;
   const flags = clinical?.share;
   const explicit = Boolean(flags && Object.keys(flags).length);
   const allow = (key: Parameters<typeof shareFlagOn>[1]) =>
     shareFlagOn(flags, key, explicit);
-  const summary: Record<string, unknown> = {};
-  if (allow('conditions') && clinical?.conditions?.length) {
+  if (shareChart && allow('conditions') && clinical?.conditions?.length) {
     const shared = clinical.conditions.filter((c) => c.share !== false);
     if (shared.length) {
       summary.conditions = shared.map((c) => ({
@@ -92,67 +114,99 @@ export function buildPatientMedicalShare(patient: {
       }));
     }
   }
-  if (clinical?.injury_status) summary.injury_status = clinical.injury_status;
-  if (
-    allow('injury_areas') &&
-    clinical?.injury_areas &&
-    Array.isArray(clinical.injury_areas) &&
-    clinical.injury_areas.length
-  ) {
-    summary.injury_areas = clinical.injury_areas;
-  }
-  if (allow('injury_notes') && clinical?.injury_notes) {
-    summary.injury_notes = clinical.injury_notes;
-  }
-  if (
-    allow('diagnosis_notes') &&
-    (clinical?.diagnosis_notes || patient.diagnosis_notes)
-  ) {
-    summary.diagnosis_notes =
-      clinical?.diagnosis_notes || patient.diagnosis_notes;
-  }
-  if (allow('training_modifications') && clinical?.training_modifications) {
-    summary.care_notes = clinical.training_modifications;
-  }
-  if (allow('goals') && clinical?.goals) summary.goals = clinical.goals;
-  if (allow('treatment_goals') && clinical?.treatment_goals) {
-    summary.treatment_goals = clinical.treatment_goals;
-  }
-  if (allow('progress_notes') && clinical?.progress_notes) {
-    summary.progress_notes = clinical.progress_notes;
-  }
-  if (allow('functional_limitations') && clinical?.functional_limitations) {
-    summary.functional_limitations = clinical.functional_limitations;
-  }
-  if (allow('contraindications') && clinical?.contraindications) {
-    summary.contraindications = clinical.contraindications;
-  }
-  if (allow('pain_score') && clinical?.pain_score != null) {
-    summary.pain_score = clinical.pain_score;
-  }
-  if (medical?.allergies) summary.allergies = medical.allergies;
-  if (medical?.chronic_conditions) {
-    summary.chronic_conditions = medical.chronic_conditions;
-  }
-  if (medical?.current_meds) summary.current_meds = medical.current_meds;
-  if (medical?.medical_aid?.scheme_name) {
-    summary.medical_aid = {
-      scheme_name: medical.medical_aid.scheme_name,
-      plan_name: medical.medical_aid.plan_name,
-      membership_number: medical.medical_aid.membership_number
-        ? `••••${String(medical.medical_aid.membership_number).slice(-4)}`
-        : undefined,
-    };
+  if (shareChart) {
+    if (clinical?.injury_status) summary.injury_status = clinical.injury_status;
+    if (
+      allow('injury_areas') &&
+      clinical?.injury_areas &&
+      Array.isArray(clinical.injury_areas) &&
+      clinical.injury_areas.length
+    ) {
+      summary.injury_areas = clinical.injury_areas;
+    }
+    if (allow('injury_notes') && clinical?.injury_notes) {
+      summary.injury_notes = clinical.injury_notes;
+    }
+    if (
+      allow('diagnosis_notes') &&
+      (clinical?.diagnosis_notes || patient.diagnosis_notes)
+    ) {
+      summary.diagnosis_notes =
+        clinical?.diagnosis_notes || patient.diagnosis_notes;
+    }
+    if (allow('training_modifications') && clinical?.training_modifications) {
+      summary.care_notes = clinical.training_modifications;
+    }
+    if (allow('goals') && clinical?.goals) summary.goals = clinical.goals;
+    if (allow('treatment_goals') && clinical?.treatment_goals) {
+      summary.treatment_goals = clinical.treatment_goals;
+    }
+    if (allow('progress_notes') && clinical?.progress_notes) {
+      summary.progress_notes = clinical.progress_notes;
+    }
+    if (allow('functional_limitations') && clinical?.functional_limitations) {
+      summary.functional_limitations = clinical.functional_limitations;
+    }
+    if (allow('contraindications') && clinical?.contraindications) {
+      summary.contraindications = clinical.contraindications;
+    }
+    if (allow('pain_score') && clinical?.pain_score != null) {
+      summary.pain_score = clinical.pain_score;
+    }
+    if (medical?.allergies) summary.allergies = medical.allergies;
+    if (medical?.chronic_conditions) {
+      summary.chronic_conditions = medical.chronic_conditions;
+    }
+    if (medical?.current_meds) summary.current_meds = medical.current_meds;
+    if (medical?.medical_aid?.scheme_name) {
+      summary.medical_aid = {
+        scheme_name: medical.medical_aid.scheme_name,
+        plan_name: medical.medical_aid.plan_name,
+        membership_number: medical.medical_aid.membership_number
+          ? `••••${String(medical.medical_aid.membership_number).slice(-4)}`
+          : undefined,
+      };
+    }
   }
   const activeScripts = (medical?.scripts || []).filter(
     (s) => String(s.status || 'active').toLowerCase() === 'active'
   );
   if (activeScripts.length) {
-    summary.active_scripts = activeScripts.map((s) =>
-      [s.medication, s.strength, s.dose, s.frequency, s.instructions]
+    summary.active_scripts = activeScripts.map((s) => ({
+      kind: s.kind || 'prescription',
+      title: s.medication,
+      line: [s.medication, s.strength, s.dose, s.frequency, s.duration]
         .filter(Boolean)
-        .join(' · ')
-    );
+        .join(' · '),
+      instructions: s.instructions || null,
+    }));
+  }
+  const notes = (patient.client_notes || [])
+    .map((n) => ({
+      id: n.id,
+      body: String(n.body || '').trim(),
+      at: n.created_at || '',
+      author_name: n.author_name || null,
+    }))
+    .filter((n) => n.body);
+  if (notes.length) summary.client_notes = notes.slice(0, 12);
+  const moves = (patient.shared_movements || []).filter(
+    (m) => String(m.status || 'active').toLowerCase() === 'active'
+  );
+  if (moves.length) {
+    summary.shared_movements = moves.slice(0, 24).map((m) => ({
+      id: m.id,
+      name: m.movement_name,
+      category: m.category || null,
+      overview: m.overview || null,
+      details: m.details || null,
+      sets: m.sets || null,
+      reps: m.reps || null,
+      hold: m.hold || null,
+      frequency: m.frequency || null,
+      notes: m.notes || null,
+      shared_at: m.shared_at || null,
+    }));
   }
   return Object.keys(summary).length ? summary : null;
 }

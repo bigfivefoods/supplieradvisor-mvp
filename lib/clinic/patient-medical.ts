@@ -173,7 +173,9 @@ export const SCRIPT_ROUTES = [
 
 export type PatientScript = {
   id: string;
-  /** Drug / product name (required) */
+  /** prescription (GP / dental / psychiatry) or rehab (physio home programme) */
+  kind?: 'prescription' | 'rehab' | string;
+  /** Drug / product name — or rehab programme title for PhysioAdvisor */
   medication: string;
   strength?: string;
   dose?: string;
@@ -533,14 +535,26 @@ export function upsertPatientScript(
 ): PatientMedicalRecord {
   const base = mergeMedicalRecord(medical, {});
   const medication = String(rec.medication || '').trim();
+  const kind = String(
+    rec.kind || (rec as { kind?: string }).kind || ''
+  ).trim();
+  const isRehab = kind === 'rehab';
   if (!medication && !rec.id) {
-    throw new Error('Medication name is required for a script');
+    throw new Error(
+      isRehab ? 'Rehab name is required' : 'Medication name is required for a script'
+    );
   }
   const id = String(rec.id || newMedId('rx'));
   const i = (base.scripts || []).findIndex((s) => s.id === id);
   const prev = i >= 0 ? base.scripts![i] : null;
   const med = medication || prev?.medication || '';
-  if (!med) throw new Error('Medication name is required for a script');
+  if (!med) {
+    throw new Error(
+      isRehab || prev?.kind === 'rehab'
+        ? 'Rehab name is required'
+        : 'Medication name is required for a script'
+    );
+  }
 
   let repeats: number | null = null;
   if (rec.repeats !== undefined) {
@@ -557,6 +571,12 @@ export function upsertPatientScript(
 
   const row: PatientScript = {
     id,
+    kind:
+      rec.kind !== undefined
+        ? rec.kind
+          ? String(rec.kind)
+          : undefined
+        : prev?.kind,
     medication: med,
     strength:
       rec.strength !== undefined
@@ -682,8 +702,10 @@ export function scriptsSummary(
   const active = list.filter(
     (s) => String(s.status || 'active').toLowerCase() === 'active'
   );
-  if (!active.length && !list.length) return 'No scripts on file';
-  if (!active.length) return `${list.length} script(s) · none active`;
+  const rehab = list.some((s) => s.kind === 'rehab');
+  const noun = rehab ? 'rehab' : 'script';
+  if (!active.length && !list.length) return `No ${noun} on file`;
+  if (!active.length) return `${list.length} ${noun}(s) · none active`;
   if (active.length === 1) return scriptSummaryLine(active[0]);
-  return `${active.length} active scripts`;
+  return `${active.length} active ${noun}${active.length === 1 ? '' : 's'}`;
 }

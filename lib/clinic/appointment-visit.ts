@@ -4,6 +4,10 @@
 import type { PatientMedicalRecord } from '@/lib/clinic/patient-medical';
 import type { VisitNote } from '@/lib/services/advisor-clinical';
 import type { PatientFollowUp } from '@/lib/clinic/patient-follow-up';
+import type {
+  PatientClientNote,
+  PatientMovementShare,
+} from '@/lib/clinic/clinic-movements';
 
 export type AppointmentVisitPatient = {
   patientId: string;
@@ -13,6 +17,8 @@ export type AppointmentVisitPatient = {
   familyMemberName?: string | null;
   medical?: PatientMedicalRecord | null;
   followUps?: PatientFollowUp[];
+  clientNotes?: PatientClientNote[];
+  sharedMovements?: PatientMovementShare[];
 };
 
 export function appointmentVisitPatients(opts: {
@@ -30,6 +36,8 @@ export function appointmentVisitPatients(opts: {
     email?: string | null;
     medical?: PatientMedicalRecord | null;
     follow_ups?: PatientFollowUp[];
+    client_notes?: PatientClientNote[];
+    shared_movements?: PatientMovementShare[];
   }>;
 }): AppointmentVisitPatient[] {
   const id = String(opts.appointmentId || '');
@@ -48,6 +56,8 @@ export function appointmentVisitPatients(opts: {
       familyMemberName: b.family_member_name || null,
       medical: p?.medical || null,
       followUps: p?.follow_ups || [],
+      clientNotes: p?.client_notes || [],
+      sharedMovements: p?.shared_movements || [],
     });
   }
   return out;

@@ -70,7 +70,7 @@ export default function PhysioPatientRecordPage() {
     <PhysiographWorkbench
       title={patient?.name || 'Patient record'}
       titleAccent="medical chart"
-      description="Demographics, scripts, medical aid, attachments, and scheme submissions for this patient."
+      description="Demographics, rehab, medical aid, attachments, and scheme submissions for this patient."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -112,6 +112,47 @@ export default function PhysioPatientRecordPage() {
             ) : null}
           </div>
           
+          {(patient.client_notes?.length ||
+            patient.shared_movements?.some(
+              (m) => String(m.status || 'active') === 'active'
+            )) ? (
+            <section className="rounded-3xl border border-teal-200 bg-white p-4 space-y-3 dark:border-teal-800 dark:bg-teal-950/20">
+              <h3 className="text-sm font-black text-teal-950 dark:text-teal-50">
+                Shared with this client
+              </h3>
+              {(patient.client_notes || []).slice(0, 6).map((n) => (
+                <p
+                  key={n.id}
+                  className="whitespace-pre-wrap rounded-xl border border-teal-100 px-3 py-2 text-[12px] dark:border-teal-800"
+                >
+                  {n.body}
+                  <span className="mt-1 block text-[10px] text-slate-400">
+                    {String(n.created_at).slice(0, 10)}
+                    {n.author_name ? ` · ${n.author_name}` : ''}
+                  </span>
+                </p>
+              ))}
+              {(patient.shared_movements || [])
+                .filter((m) => String(m.status || 'active') === 'active')
+                .slice(0, 8)
+                .map((m) => (
+                  <p
+                    key={m.id}
+                    className="rounded-xl border border-teal-100 px-3 py-2 text-[12px] dark:border-teal-800"
+                  >
+                    <strong>{m.movement_name}</strong>
+                    {` ${[
+                      m.sets && `${m.sets} sets`,
+                      m.reps && `${m.reps} reps`,
+                      m.frequency,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}`.trimEnd()}
+                  </p>
+                ))}
+            </section>
+          ) : null}
+
           <PatientAilmentDesk
             module="physio"
             patientId={patient.id}
@@ -190,6 +231,8 @@ export default function PhysioPatientRecordPage() {
             }
             post={post}
             saving={saving}
+            scriptNoun="Rehab"
+            scriptKind="rehab"
             claimPackHref={(claimId) =>
               `/api/clinic/medical-aid-claims/pack?companyId=${companyId}&module=physiograph&patientId=${encodeURIComponent(patient.id)}&claimId=${encodeURIComponent(claimId)}`
             }

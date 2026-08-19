@@ -118,7 +118,7 @@ export default function BookingsPage() {
     <PhysiographWorkbench
       title="Bookings"
       titleAccent="front desk"
-      description="Book patients onto diary slots. Work the next-available waitlist queue. Mark attended for feedback links, or open Script to add a prescription on the patient record for that visit."
+      description="Book patients onto diary slots. Work the next-available waitlist queue. Mark attended for feedback links, or open Rehab to add a home programme on the patient record for that visit."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -294,9 +294,9 @@ export default function BookingsPage() {
                               : ''
                           }#patient-scripts`}
                           className="inline-flex items-center gap-0.5 text-[10px] font-bold text-teal-800 dark:text-teal-200"
-                          title="Add prescription script for this visit"
+                          title="Add rehab for this visit"
                         >
-                          <Pill className="w-3 h-3" /> Script
+                          <Pill className="w-3 h-3" /> Rehab
                         </Link>
                       ) : null}
                     </span>

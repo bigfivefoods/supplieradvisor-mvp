@@ -4,7 +4,7 @@
  * Patient-facing medical summary — profile + records tabs.
  * Allergies, scripts, advice, care plans. Full charts stay at the practice.
  */
-import { ClipboardList, HeartPulse, Pill, Stethoscope } from 'lucide-react';
+import { Activity, ClipboardList, HeartPulse, Pill, Stethoscope } from 'lucide-react';
 import type {
   SharedAdviceNote,
   SharedTreatmentPlan,
@@ -200,18 +200,128 @@ export function MemberMedicalShare({
           (share!.active_scripts as unknown[]).length > 0 ? (
             <div>
               <div className={`mb-1.5 flex items-center gap-1.5 ${t.text}`}>
-                <Pill className="h-3.5 w-3.5" />
+                {tone === 'teal' ? (
+                  <Activity className="h-3.5 w-3.5" />
+                ) : (
+                  <Pill className="h-3.5 w-3.5" />
+                )}
                 <p className="text-[10px] font-black uppercase tracking-wide">
-                  Active scripts
+                  {tone === 'teal' ? 'Your rehab' : 'Active scripts'}
                 </p>
               </div>
               <ul className="space-y-1.5">
-                {(share!.active_scripts as unknown[]).map((row, i) => (
+                {(share!.active_scripts as unknown[]).map((row, i) => {
+                  const obj =
+                    row && typeof row === 'object'
+                      ? (row as {
+                          title?: string;
+                          line?: string;
+                          instructions?: string | null;
+                        })
+                      : null;
+                  return (
+                    <li
+                      key={i}
+                      className={`rounded-xl px-3 py-2 text-sm text-slate-800 ${t.chip}`}
+                    >
+                      {obj ? (
+                        <>
+                          <p className="font-semibold">
+                            {obj.line || obj.title || ''}
+                          </p>
+                          {obj.instructions ? (
+                            <p className="mt-0.5 text-xs text-slate-600">
+                              {obj.instructions}
+                            </p>
+                          ) : null}
+                        </>
+                      ) : (
+                        String(row)
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
+
+          {Array.isArray(share!.client_notes) &&
+          (share!.client_notes as unknown[]).length > 0 ? (
+            <div>
+              <div className={`mb-1.5 flex items-center gap-1.5 ${t.text}`}>
+                <ClipboardList className="h-3.5 w-3.5" />
+                <p className="text-[10px] font-black uppercase tracking-wide">
+                  Notes from your clinician
+                </p>
+              </div>
+              <ul className="space-y-1.5">
+                {(
+                  share!.client_notes as Array<{
+                    id?: string;
+                    body?: string;
+                    at?: string;
+                    author_name?: string | null;
+                  }>
+                ).map((n, i) => (
                   <li
-                    key={i}
+                    key={n.id || i}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                  >
+                    <p className="whitespace-pre-wrap text-slate-800">{n.body}</p>
+                    <p className="mt-1 text-[10px] text-slate-400">
+                      {[n.author_name, n.at ? String(n.at).slice(0, 10) : '']
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {Array.isArray(share!.shared_movements) &&
+          (share!.shared_movements as unknown[]).length > 0 ? (
+            <div>
+              <div className={`mb-1.5 flex items-center gap-1.5 ${t.text}`}>
+                <Activity className="h-3.5 w-3.5" />
+                <p className="text-[10px] font-black uppercase tracking-wide">
+                  Your movements
+                </p>
+              </div>
+              <ul className="space-y-1.5">
+                {(
+                  share!.shared_movements as Array<{
+                    id?: string;
+                    name?: string;
+                    overview?: string | null;
+                    sets?: string | null;
+                    reps?: string | null;
+                    hold?: string | null;
+                    frequency?: string | null;
+                    notes?: string | null;
+                  }>
+                ).map((m, i) => (
+                  <li
+                    key={m.id || i}
                     className={`rounded-xl px-3 py-2 text-sm text-slate-800 ${t.chip}`}
                   >
-                    {String(row)}
+                    <p className="font-semibold">{m.name}</p>
+                    <p className="text-xs text-slate-600">
+                      {[
+                        m.sets && `${m.sets} sets`,
+                        m.reps && `${m.reps} reps`,
+                        m.hold,
+                        m.frequency,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                    {m.overview ? (
+                      <p className="mt-0.5 text-xs text-slate-600">{m.overview}</p>
+                    ) : null}
+                    {m.notes ? (
+                      <p className="mt-0.5 text-xs text-slate-700">{m.notes}</p>
+                    ) : null}
                   </li>
                 ))}
               </ul>

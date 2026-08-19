@@ -932,6 +932,7 @@ export default function CalendarPage() {
                   patients: store.patients,
                 })}
                 visitNotes={store.visit_notes}
+                movements={store.movements}
                 post={post}
                 saving={saving}
                 accent="teal"

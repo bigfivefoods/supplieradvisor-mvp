@@ -705,6 +705,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Services', href: '/dashboard/physiograph/services', desc: 'Assessments · treatments', section: 'Services' },
       { name: 'Packages', href: '/dashboard/physiograph/packages', desc: 'Rehab packs', section: 'Services' },
       { name: 'Rooms', href: '/dashboard/physiograph/rooms', desc: 'Add rooms · assets · assign physios', section: 'Floor' },
+      { name: 'Movements', href: '/dashboard/physiograph/movements', desc: 'Rehab library · share with clients', section: 'Floor' },
       { name: 'Calendar', href: '/dashboard/physiograph/calendar', desc: 'Diary · assign practitioners', section: 'Floor' },
       { name: 'Bookings', href: '/dashboard/physiograph/bookings', desc: 'Book · attend', section: 'Floor' },
       { name: 'Claims', href: '/dashboard/physiograph/claims', desc: 'Medical-aid packs · submit', section: 'Money' },

@@ -54,6 +54,9 @@ type Props = {
   saving?: boolean;
   /** Download claim pack PDF (practice medical-aid submission) */
   claimPackHref?: (claimId: string) => string;
+  /** Physio uses Rehab instead of Script */
+  scriptNoun?: string;
+  scriptKind?: 'prescription' | 'rehab';
 };
 
 function blankScript(defaults?: {
@@ -97,6 +100,8 @@ export function PatientMedicalChart({
   post,
   saving,
   claimPackHref,
+  scriptNoun = 'Script',
+  scriptKind = 'prescription',
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -288,7 +293,11 @@ export function PatientMedicalChart({
 
   const saveScript = async () => {
     if (!script.medication.trim()) {
-      toast.error('Medication name is required');
+      toast.error(
+        scriptKind === 'rehab'
+          ? 'Rehab name is required'
+          : 'Medication name is required'
+      );
       return;
     }
     const prac =
@@ -298,6 +307,7 @@ export function PatientMedicalChart({
       patient_id: patientId,
       script: {
         id: editingScriptId || undefined,
+        kind: scriptKind,
         medication: script.medication.trim(),
         strength: script.strength || undefined,
         dose: script.dose || undefined,
@@ -653,19 +663,26 @@ export function PatientMedicalChart({
         <div className="flex items-center gap-2">
           <Pill className={`w-4 h-4 ${link}`} />
           <h3 className="text-sm font-black">
-            {editingScriptId ? 'Edit script' : 'Scripts & prescriptions'}
+            {editingScriptId
+              ? `Edit ${scriptNoun.toLowerCase()}`
+              : scriptKind === 'rehab'
+                ? 'Rehab programmes'
+                : 'Scripts & prescriptions'}
           </h3>
         </div>
         <p className="text-[11px] text-slate-500">
-          Add medication scripts on the patient profile and optionally link them
-          to a diary appointment or visit. Active scripts stay on the record for
-          the care team (and can appear on the patient portal when medical share
-          is enabled).
+          {scriptKind === 'rehab'
+            ? 'Add rehab the client will see on their PWA profile. Practice notes stay on the visit desk and are not shared.'
+            : 'Add medication scripts on the patient profile and optionally link them to a diary appointment or visit. Active scripts appear on the client PWA.'}
         </p>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
           <input
             className={fc + ' sm:col-span-2'}
-            placeholder="Medication / product name *"
+            placeholder={
+              scriptKind === 'rehab'
+                ? 'Rehab programme / exercise *'
+                : 'Medication / product name *'
+            }
             value={script.medication}
             onChange={(e) =>
               setScript((s) => ({ ...s, medication: e.target.value }))

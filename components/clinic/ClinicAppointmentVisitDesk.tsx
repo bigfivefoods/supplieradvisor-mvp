@@ -1,12 +1,13 @@
 'use client';
 
 /**
- * Calendar visit desk — notes, script, invoice, claim, and follow-up
- * for a patient booked on a diary appointment.
+ * Calendar visit desk — practice notes (private), script/rehab (client),
+ * client notes, movements (physio), invoice, claim, follow-up.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
+  Activity,
   Bell,
   CalendarPlus,
   FileText,
@@ -15,6 +16,7 @@ import {
   Pill,
   Receipt,
   Send,
+  StickyNote,
   Stethoscope,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -38,8 +40,21 @@ import {
   type DentalMaterialUsage,
 } from '@/lib/dental/dental-appointment-inventory';
 import { AdvisorVisitInvoiceCard } from '@/components/advisors/AdvisorVisitInvoiceCard';
+import {
+  CLINIC_MOVEMENT_CATEGORIES,
+  activeSharedMovements,
+  type ClinicMovement,
+} from '@/lib/clinic/clinic-movements';
 
-type Tab = 'notes' | 'script' | 'invoice' | 'claim' | 'materials' | 'followup';
+type Tab =
+  | 'notes'
+  | 'script'
+  | 'client'
+  | 'movements'
+  | 'invoice'
+  | 'claim'
+  | 'materials'
+  | 'followup';
 
 const ACCENT: Record<
   string,
@@ -92,6 +107,7 @@ export function ClinicAppointmentVisitDesk({
   patients,
   visitNotes,
   materials,
+  movements,
   serviceCode,
   post,
   saving,
@@ -111,6 +127,7 @@ export function ClinicAppointmentVisitDesk({
   patients: AppointmentVisitPatient[];
   visitNotes?: VisitNote[];
   materials?: DentalMaterialUsage[];
+  movements?: ClinicMovement[];
   serviceCode?: string | null;
   post: (body: Record<string, unknown>) => Promise<unknown>;
   saving?: boolean;
@@ -118,11 +135,24 @@ export function ClinicAppointmentVisitDesk({
   onRefresh?: () => void;
 }) {
   const skin = ACCENT[accent] || ACCENT.teal;
+  const isPhysio = module === 'physiograph';
+  const scriptNoun = isPhysio ? 'Rehab' : 'Script';
   const [tab, setTab] = useState<Tab>(
     module === 'dentalgraph' && patients.length === 0 ? 'materials' : 'notes'
   );
   const [patientId, setPatientId] = useState(patients[0]?.patientId || '');
   const [busy, setBusy] = useState(false);
+  const [clientBody, setClientBody] = useState('');
+  const [moveQuery, setMoveQuery] = useState('');
+  const [moveCategory, setMoveCategory] = useState('');
+  const [moveId, setMoveId] = useState('');
+  const [moveDose, setMoveDose] = useState({
+    sets: '3',
+    reps: '10',
+    hold: '',
+    frequency: 'daily',
+    notes: '',
+  });
 
   useEffect(() => {
     if (!patients.some((p) => p.patientId === patientId)) {
@@ -142,6 +172,31 @@ export function ClinicAppointmentVisitDesk({
       s.appointment_id === appointmentId ||
       (row?.bookingId && s.booking_id === row.bookingId)
   );
+  const clientNotes = (row?.clientNotes || []).filter(
+    (n) =>
+      !n.appointment_id ||
+      n.appointment_id === appointmentId ||
+      (row?.bookingId && n.booking_id === row.bookingId)
+  );
+  const sharedMoves = activeSharedMovements(row?.sharedMovements);
+  const catalog = (movements || []).filter((m) => m.active !== false);
+  const filteredMoves = useMemo(() => {
+    const q = moveQuery.trim().toLowerCase();
+    return catalog.filter((m) => {
+      if (moveCategory && m.category !== moveCategory) return false;
+      if (!q) return true;
+      return (
+        m.name.toLowerCase().includes(q) ||
+        String(m.overview || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(m.muscles || '')
+          .toLowerCase()
+          .includes(q)
+      );
+    });
+  }, [catalog, moveQuery, moveCategory]);
+  const pickedMove = catalog.find((m) => m.id === moveId) || null;
   const claims = (medical?.claims || []).filter(
     (c) =>
       c.appointment_id === appointmentId ||
@@ -165,7 +220,7 @@ export function ClinicAppointmentVisitDesk({
     strength: '',
     dose: '',
     frequency: '',
-    route: 'oral',
+    route: isPhysio ? 'home' : 'oral',
     duration: '',
     quantity: '',
     repeats: '0',
@@ -259,6 +314,7 @@ export function ClinicAppointmentVisitDesk({
         body,
         booking_id: row.bookingId,
         appointment_id: appointmentId,
+        private: true,
         pain_score: pain === '' ? null : Number(pain),
         function_score: fn === '' ? null : Number(fn),
         soap: soapOn
@@ -270,7 +326,7 @@ export function ClinicAppointmentVisitDesk({
             }
           : undefined,
       });
-      toast.success('Visit note saved to the patient record');
+      toast.success('Practice note saved (not shown to the client)');
       setNoteBody('');
       onRefresh?.();
     });
@@ -279,13 +335,16 @@ export function ClinicAppointmentVisitDesk({
     run(async () => {
       if (!row) return;
       if (!rx.medication.trim()) {
-        toast.error('Medication name is required');
+        toast.error(
+          isPhysio ? 'Rehab name is required' : 'Medication name is required'
+        );
         return;
       }
       await post({
         action: 'medical_script_upsert',
         patient_id: row.patientId,
         script: {
+          kind: isPhysio ? 'rehab' : 'prescription',
           medication: rx.medication.trim(),
           strength: rx.strength || undefined,
           dose: rx.dose || undefined,
@@ -304,8 +363,57 @@ export function ClinicAppointmentVisitDesk({
           status: 'active',
         },
       });
-      toast.success('Script added to the patient record');
+      toast.success(
+        isPhysio
+          ? 'Rehab saved to the client profile'
+          : 'Script added to the patient record'
+      );
       setRx((r) => ({ ...r, medication: '', instructions: '', dose: '' }));
+      onRefresh?.();
+    });
+
+  const saveClientNote = () =>
+    run(async () => {
+      if (!row) return;
+      if (!clientBody.trim()) {
+        toast.error('Write a note for the client first');
+        return;
+      }
+      await post({
+        action: 'upsert_client_note',
+        patient_id: row.patientId,
+        body: clientBody.trim(),
+        appointment_id: appointmentId,
+        booking_id: row.bookingId,
+        author_name: treatingName || undefined,
+      });
+      toast.success('Client note saved to their profile');
+      setClientBody('');
+      onRefresh?.();
+    });
+
+  const shareMovement = () =>
+    run(async () => {
+      if (!row) return;
+      if (!moveId) {
+        toast.error('Pick a movement to share');
+        return;
+      }
+      await post({
+        action: 'share_movement',
+        patient_id: row.patientId,
+        movement_id: moveId,
+        sets: moveDose.sets || undefined,
+        reps: moveDose.reps || undefined,
+        hold: moveDose.hold || undefined,
+        frequency: moveDose.frequency || undefined,
+        notes: moveDose.notes || undefined,
+        appointment_id: appointmentId,
+        booking_id: row.bookingId,
+        shared_by: treatingName || undefined,
+      });
+      toast.success('Movement shared to the client profile');
+      setMoveDose((d) => ({ ...d, notes: '' }));
       onRefresh?.();
     });
 
@@ -434,7 +542,11 @@ export function ClinicAppointmentVisitDesk({
 
   const tabs: Array<{ id: Tab; label: string; icon: typeof FileText }> = [
     { id: 'notes', label: 'Notes', icon: Stethoscope },
-    { id: 'script', label: 'Script', icon: Pill },
+    { id: 'script', label: scriptNoun, icon: isPhysio ? Activity : Pill },
+    { id: 'client', label: 'Client note', icon: StickyNote },
+    ...(isPhysio
+      ? [{ id: 'movements' as const, label: 'Movements', icon: Activity }]
+      : []),
     ...(module === 'dentalgraph'
       ? [{ id: 'materials' as const, label: 'Inventory', icon: Package }]
       : []),
@@ -451,9 +563,10 @@ export function ClinicAppointmentVisitDesk({
       <div
         className={`mt-4 rounded-2xl border ${skin.border} ${skin.soft} px-4 py-3 text-[12px] text-slate-600 dark:text-slate-300`}
       >
-        Book a patient onto this appointment to complete notes, write a script,
-        send an invoice, submit a medical-aid claim, or schedule a follow-up
-        check-in from this visit.
+        Book a patient onto this appointment to complete practice notes, write
+        a {scriptNoun.toLowerCase()}, add a client note
+        {isPhysio ? ', share movements' : ''}, send an invoice, submit a
+        medical-aid claim, or schedule a follow-up.
       </div>
     );
   }
@@ -547,12 +660,16 @@ export function ClinicAppointmentVisitDesk({
               </ul>
             ) : (
               <p className="text-[12px] text-slate-500">
-                No notes on this visit yet.
+                No practice notes on this visit yet.
               </p>
             )}
+            <p className="text-[11px] text-slate-500">
+              Practice only — these notes stay with the clinician and are not
+              shown on the client PWA.
+            </p>
             <textarea
               className={inp + ' min-h-[88px]'}
-              placeholder="Clinical / visit note for this appointment…"
+              placeholder="Clinical / visit note for this appointment (not shared with the client)…"
               value={noteBody}
               onChange={(e) => setNoteBody(e.target.value)}
             />
@@ -614,13 +731,16 @@ export function ClinicAppointmentVisitDesk({
               className={skin.btn}
               onClick={() => void saveNote()}
               icon={FileText}
-              label="Save note"
+              label="Save practice note"
             />
           </>
         ) : null}
 
         {tab === 'script' ? (
           <>
+            <p className="text-[11px] text-slate-500">
+              Shared with the client on their PWA profile.
+            </p>
             {scripts.length > 0 ? (
               <ul className="space-y-1 text-[12px]">
                 {scripts.map((s) => (
@@ -640,13 +760,15 @@ export function ClinicAppointmentVisitDesk({
               </ul>
             ) : (
               <p className="text-[12px] text-slate-500">
-                No script on this visit yet.
+                No {scriptNoun.toLowerCase()} on this visit yet.
               </p>
             )}
             <div className="grid sm:grid-cols-2 gap-2">
               <input
                 className={inp + ' sm:col-span-2'}
-                placeholder="Medication *"
+                placeholder={
+                  isPhysio ? 'Rehab programme / exercise *' : 'Medication *'
+                }
                 value={rx.medication}
                 onChange={(e) =>
                   setRx((r) => ({ ...r, medication: e.target.value }))
@@ -654,7 +776,9 @@ export function ClinicAppointmentVisitDesk({
               />
               <input
                 className={inp}
-                placeholder="Strength (e.g. 500 mg)"
+                placeholder={
+                  isPhysio ? 'Sets / hold (e.g. 3×10 or 30s)' : 'Strength (e.g. 500 mg)'
+                }
                 value={rx.strength}
                 onChange={(e) =>
                   setRx((r) => ({ ...r, strength: e.target.value }))
@@ -662,58 +786,85 @@ export function ClinicAppointmentVisitDesk({
               />
               <input
                 className={inp}
-                placeholder="Dose"
+                placeholder={isPhysio ? 'Reps or load' : 'Dose'}
                 value={rx.dose}
                 onChange={(e) => setRx((r) => ({ ...r, dose: e.target.value }))}
               />
               <input
                 className={inp}
-                placeholder="Frequency (e.g. 8 hourly)"
+                placeholder={
+                  isPhysio ? 'Frequency (e.g. 2× daily)' : 'Frequency (e.g. 8 hourly)'
+                }
                 value={rx.frequency}
                 onChange={(e) =>
                   setRx((r) => ({ ...r, frequency: e.target.value }))
                 }
               />
-              <select
-                className={inp}
-                value={rx.route}
-                onChange={(e) => setRx((r) => ({ ...r, route: e.target.value }))}
-              >
-                {SCRIPT_ROUTES.map((r) => (
-                  <option key={r} value={r}>
-                    Route: {r}
-                  </option>
-                ))}
-              </select>
+              {isPhysio ? (
+                <select
+                  className={inp}
+                  value={rx.route}
+                  onChange={(e) =>
+                    setRx((r) => ({ ...r, route: e.target.value }))
+                  }
+                >
+                  <option value="home">Where · home</option>
+                  <option value="clinic">Where · clinic</option>
+                  <option value="both">Where · home and clinic</option>
+                  <option value="other">Where · other</option>
+                </select>
+              ) : (
+                <select
+                  className={inp}
+                  value={rx.route}
+                  onChange={(e) =>
+                    setRx((r) => ({ ...r, route: e.target.value }))
+                  }
+                >
+                  {SCRIPT_ROUTES.map((r) => (
+                    <option key={r} value={r}>
+                      Route: {r}
+                    </option>
+                  ))}
+                </select>
+              )}
               <input
                 className={inp}
-                placeholder="Duration"
+                placeholder={isPhysio ? 'Duration (e.g. 4 weeks)' : 'Duration'}
                 value={rx.duration}
                 onChange={(e) =>
                   setRx((r) => ({ ...r, duration: e.target.value }))
                 }
               />
-              <input
-                className={inp}
-                placeholder="Quantity"
-                value={rx.quantity}
-                onChange={(e) =>
-                  setRx((r) => ({ ...r, quantity: e.target.value }))
-                }
-              />
-              <input
-                className={inp}
-                type="number"
-                min={0}
-                placeholder="Repeats"
-                value={rx.repeats}
-                onChange={(e) =>
-                  setRx((r) => ({ ...r, repeats: e.target.value }))
-                }
-              />
+              {!isPhysio ? (
+                <>
+                  <input
+                    className={inp}
+                    placeholder="Quantity"
+                    value={rx.quantity}
+                    onChange={(e) =>
+                      setRx((r) => ({ ...r, quantity: e.target.value }))
+                    }
+                  />
+                  <input
+                    className={inp}
+                    type="number"
+                    min={0}
+                    placeholder="Repeats"
+                    value={rx.repeats}
+                    onChange={(e) =>
+                      setRx((r) => ({ ...r, repeats: e.target.value }))
+                    }
+                  />
+                </>
+              ) : null}
               <input
                 className={inp + ' sm:col-span-2'}
-                placeholder="Directions for the patient"
+                placeholder={
+                  isPhysio
+                    ? 'Instructions for the client (they will see this)'
+                    : 'Directions for the patient'
+                }
                 value={rx.instructions}
                 onChange={(e) =>
                   setRx((r) => ({ ...r, instructions: e.target.value }))
@@ -721,7 +872,11 @@ export function ClinicAppointmentVisitDesk({
               />
               <input
                 className={inp + ' sm:col-span-2'}
-                placeholder="Diagnosis (optional)"
+                placeholder={
+                  isPhysio
+                    ? 'Region / diagnosis (optional)'
+                    : 'Diagnosis (optional)'
+                }
                 value={rx.diagnosis}
                 onChange={(e) =>
                   setRx((r) => ({ ...r, diagnosis: e.target.value }))
@@ -732,9 +887,189 @@ export function ClinicAppointmentVisitDesk({
               busy={busy || saving}
               className={skin.btn}
               onClick={() => void saveScript()}
-              icon={Pill}
-              label="Add script"
+              icon={isPhysio ? Activity : Pill}
+              label={isPhysio ? 'Save rehab for client' : 'Add script'}
             />
+          </>
+        ) : null}
+
+        {tab === 'client' ? (
+          <>
+            <p className="text-[11px] text-slate-500">
+              Saved to the client’s profile and shown on their PWA.
+            </p>
+            {clientNotes.length > 0 ? (
+              <ul className="space-y-1.5">
+                {clientNotes.slice(0, 6).map((n) => (
+                  <li
+                    key={n.id}
+                    className="rounded-xl border border-slate-100 px-3 py-2 text-[12px] dark:border-slate-800"
+                  >
+                    <p className="whitespace-pre-wrap text-slate-700 dark:text-slate-200">
+                      {n.body}
+                    </p>
+                    <p className="mt-1 text-[10px] text-slate-400">
+                      {String(n.created_at).slice(0, 16).replace('T', ' ')}
+                      {n.author_name ? ` · ${n.author_name}` : ''}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[12px] text-slate-500">
+                No client notes on this visit yet.
+              </p>
+            )}
+            <textarea
+              className={inp + ' min-h-[88px]'}
+              placeholder="Note for the client — home advice, what to watch, when to rest…"
+              value={clientBody}
+              onChange={(e) => setClientBody(e.target.value)}
+            />
+            <DeskBtn
+              busy={busy || saving}
+              className={skin.btn}
+              onClick={() => void saveClientNote()}
+              icon={StickyNote}
+              label="Save to client profile"
+            />
+          </>
+        ) : null}
+
+        {tab === 'movements' ? (
+          <>
+            <p className="text-[11px] text-slate-500">
+              Pick from the Floor movement library and send it to this client’s
+              profile. They see it on the PWA.
+            </p>
+            {sharedMoves.length > 0 ? (
+              <ul className="space-y-1 text-[12px]">
+                {sharedMoves.slice(0, 8).map((m) => (
+                  <li
+                    key={m.id}
+                    className="rounded-xl border border-slate-100 px-3 py-2 dark:border-slate-800"
+                  >
+                    <strong>{m.movement_name}</strong>
+                    {[m.sets && `${m.sets} sets`, m.reps && `${m.reps} reps`, m.hold, m.frequency]
+                      .filter(Boolean)
+                      .length ? (
+                      <span className="text-slate-500">
+                        {' · '}
+                        {[
+                          m.sets && `${m.sets} sets`,
+                          m.reps && `${m.reps} reps`,
+                          m.hold,
+                          m.frequency,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
+                    ) : null}
+                    {m.notes ? (
+                      <p className="text-slate-500">{m.notes}</p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[12px] text-slate-500">
+                No movements shared with this client yet.
+              </p>
+            )}
+            <div className="grid sm:grid-cols-2 gap-2">
+              <input
+                className={inp}
+                placeholder="Search movements…"
+                value={moveQuery}
+                onChange={(e) => setMoveQuery(e.target.value)}
+              />
+              <select
+                className={inp}
+                value={moveCategory}
+                onChange={(e) => setMoveCategory(e.target.value)}
+              >
+                <option value="">All regions</option>
+                {CLINIC_MOVEMENT_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <select
+                className={inp + ' sm:col-span-2'}
+                value={moveId}
+                onChange={(e) => setMoveId(e.target.value)}
+              >
+                <option value="">Select a movement</option>
+                {filteredMoves.slice(0, 80).map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.category} · {m.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {pickedMove ? (
+              <p className="text-[12px] text-slate-600 dark:text-slate-300">
+                {pickedMove.overview || pickedMove.details}
+              </p>
+            ) : null}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <input
+                className={inp}
+                placeholder="Sets"
+                value={moveDose.sets}
+                onChange={(e) =>
+                  setMoveDose((d) => ({ ...d, sets: e.target.value }))
+                }
+              />
+              <input
+                className={inp}
+                placeholder="Reps"
+                value={moveDose.reps}
+                onChange={(e) =>
+                  setMoveDose((d) => ({ ...d, reps: e.target.value }))
+                }
+              />
+              <input
+                className={inp}
+                placeholder="Hold"
+                value={moveDose.hold}
+                onChange={(e) =>
+                  setMoveDose((d) => ({ ...d, hold: e.target.value }))
+                }
+              />
+              <input
+                className={inp}
+                placeholder="Frequency"
+                value={moveDose.frequency}
+                onChange={(e) =>
+                  setMoveDose((d) => ({ ...d, frequency: e.target.value }))
+                }
+              />
+            </div>
+            <input
+              className={inp}
+              placeholder="Note for this movement (optional)"
+              value={moveDose.notes}
+              onChange={(e) =>
+                setMoveDose((d) => ({ ...d, notes: e.target.value }))
+              }
+            />
+            <div className="flex flex-wrap gap-2">
+              <DeskBtn
+                busy={busy || saving}
+                className={skin.btn}
+                onClick={() => void shareMovement()}
+                icon={Send}
+                label="Share with client"
+              />
+              <Link
+                href="/dashboard/physiograph/movements"
+                className="inline-flex items-center rounded-xl border border-slate-200 px-3 py-2 text-[11px] font-bold dark:border-slate-700"
+              >
+                Open movement library
+              </Link>
+            </div>
           </>
         ) : null}
 
