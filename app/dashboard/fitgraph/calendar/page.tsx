@@ -24,6 +24,7 @@ import {
   hydrateProgramme,
   resolveProgrammeForSession,
 } from '@/lib/fitness/movements';
+import { listedFitMovements } from '@/lib/fitness/movement-catalog';
 import {
   SESSION_KIND_OPTIONS,
   SYS_COACH_TIME_CODE,
@@ -1189,7 +1190,10 @@ export default function CalendarPage() {
                 if (!found) return null;
                 return (
                   <ProgrammeView
-                    programme={hydrateProgramme(found, store.movements || [])}
+                    programme={hydrateProgramme(
+                      found,
+                      listedFitMovements(store)
+                    )}
                   />
                 );
               })()

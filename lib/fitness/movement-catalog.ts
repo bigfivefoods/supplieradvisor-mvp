@@ -4,6 +4,12 @@
  */
 import type { FitMovement } from '@/lib/fitness/movements';
 import { SYSTEM_MOVEMENT_CATALOG_EXTRA } from '@/lib/fitness/movement-catalog-extra';
+import {
+  defaultExerciseImageSrc,
+  defaultExerciseVideoSrc,
+  isExerciseCatalogCode,
+  mergeCatalogWithOverrides,
+} from '@/lib/movements/exercise-catalog';
 
 export type {
   CatalogDraft,
@@ -950,7 +956,13 @@ export function isSystemMovement(m: Pick<FitMovement, 'id' | 'code' | 'system'>)
   if (m.system === true) return true;
   const code = String(m.code || '');
   const id = String(m.id || '');
-  return code.startsWith('SYS_MOV_') || id.startsWith('mov_sys_');
+  return (
+    code.startsWith('SYS_MOV_') ||
+    code.startsWith('EX_') ||
+    id.startsWith('mov_sys_') ||
+    id.startsWith('mov_ex_') ||
+    isExerciseCatalogCode(code)
+  );
 }
 
 export function catalogIdForCode(code: string): string {
@@ -977,6 +989,12 @@ export function ensureSystemMovements(store: {
       if (!existing.equipment) existing.equipment = d.equipment;
       if (!existing.level) existing.level = d.level;
       if (!existing.category) existing.category = d.category;
+      if (!existing.image_url) {
+        existing.image_url = defaultExerciseImageSrc(existing.name, existing.movement_pattern);
+      }
+      if (!existing.video_url) {
+        existing.video_url = defaultExerciseVideoSrc(existing.movement_pattern);
+      }
       existing.system = true;
       existing.code = d.code;
       continue;
@@ -1000,4 +1018,58 @@ export function ensureSystemMovements(store: {
     added += 1;
   }
   return added;
+}
+
+/** Full library: 2,520-exercise catalogue + gym overrides / custom moves. */
+export function listedFitMovements(store: {
+  movements?: FitMovement[] | null;
+}): FitMovement[] {
+  const now = new Date().toISOString();
+  return mergeCatalogWithOverrides(store.movements || [], (row, override) => {
+    const customImage = String(override?.image_url || '').trim();
+    const customVideo = String(override?.video_url || '').trim();
+    return {
+      id: override?.id || row.id,
+      code: row.code,
+      name: override?.name || row.name,
+      category: override?.category || row.category,
+      modality: override?.modality || row.modality,
+      muscle_group: override?.muscle_group || row.muscle_group,
+      movement_pattern: override?.movement_pattern || row.movement_pattern,
+      scoring: override?.scoring || row.scoring,
+      equipment: override?.equipment || row.equipment,
+      muscles: override?.muscles || row.muscles,
+      level: override?.level || row.level,
+      overview: override?.overview || row.overview,
+      details: override?.details || override?.description || row.details,
+      description: override?.description || row.details,
+      image_url: customImage || row.image_url,
+      video_url: customVideo || row.video_url,
+      video_description: override?.video_description,
+      system: true,
+      active: override?.active !== false,
+      coach_id: override?.coach_id ?? null,
+      created_at: override?.created_at || now,
+      updated_at: override?.updated_at,
+    };
+  }).map((m) => {
+    const media = resolveFitMovementMedia(m);
+    return { ...m, image_url: media.image_url, video_url: media.video_url };
+  });
+}
+
+export function resolveFitMovementMedia(m: {
+  name?: string;
+  category?: string | null;
+  movement_pattern?: string | null;
+  image_url?: string | null;
+  video_url?: string | null;
+}): { image_url: string; video_url: string } {
+  const image =
+    String(m.image_url || '').trim() ||
+    defaultExerciseImageSrc(String(m.name || ''), m.movement_pattern);
+  const video =
+    String(m.video_url || '').trim() ||
+    defaultExerciseVideoSrc(m.movement_pattern);
+  return { image_url: image, video_url: video };
 }

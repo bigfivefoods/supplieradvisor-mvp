@@ -23,7 +23,10 @@ import { ensureSystemPersonalService } from '@/lib/clinic/appointment-kind';
 import { toPortalOpenSlots } from '@/lib/services/advisor-member-calendar';
 import { clinicCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
 import { normalizeClinicRooms } from '@/lib/clinic/clinic-rooms';
-import { ensureSystemClinicMovements } from '@/lib/clinic/clinic-movements';
+import {
+  ensureSystemClinicMovements,
+  listedClinicMovements,
+} from '@/lib/clinic/clinic-movements';
 import {
   snapshotContractorCommercial,
   type ContractorCommercialFields,
@@ -849,7 +852,7 @@ export function summarisePhysiograph(store: PhysiographStore) {
     bookingsOpen: openBookings.length,
     websiteEnabled: store.settings?.enabled === true,
     roomCount: (store.settings?.rooms || []).length,
-    movementCount: (store.movements || []).filter((m) => m.active !== false)
+    movementCount: listedClinicMovements(store).filter((m) => m.active !== false)
       .length,
     threadCount: (store.threads || []).filter((t) => !t.archived).length,
     unreadMessages: totalUnread(store.threads || [], 'desk', 'desk'),

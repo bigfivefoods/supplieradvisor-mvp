@@ -38,7 +38,10 @@ import {
   memberFacingProgramme,
   resolveProgrammeForSession,
 } from '@/lib/fitness/movements';
-import { ensureSystemMovements } from '@/lib/fitness/movement-catalog';
+import {
+  ensureSystemMovements,
+  listedFitMovements,
+} from '@/lib/fitness/movement-catalog';
 import {
   gymRequiresDebitBank,
   memberDebitBankComplete,
@@ -2032,7 +2035,7 @@ export function summariseFitgraph(store: FitgraphStore) {
     planCount: plans.length,
     activeSubscriptions: subs.length,
     classTypeCount: store.class_types.filter((c) => c.active !== false).length,
-    movementCount: (store.movements || []).filter((m) => m.active !== false)
+    movementCount: listedFitMovements(store).filter((m) => m.active !== false)
       .length,
     programmeCount: (store.programmes || []).filter((p) => p.active !== false)
       .length,
@@ -2583,7 +2586,7 @@ export function buildCoachPortalPayload(
     by_date: byDate,
     members,
     class_types: classTypes,
-    movements: (store.movements || []).filter(
+    movements: listedFitMovements(store).filter(
       (m) =>
         m.active !== false &&
         (!m.coach_id || m.coach_id === coach.id)
@@ -2615,7 +2618,7 @@ export function programmeForSessionPayload(
     programme_id: session.programme_id,
   });
   if (!found) return null;
-  const hydrated = hydrateProgramme(found, store.movements || []);
+  const hydrated = hydrateProgramme(found, listedFitMovements(store));
   if (opts?.memberFacing) return memberFacingProgramme(hydrated);
   return hydrated;
 }

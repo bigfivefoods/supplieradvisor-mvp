@@ -91,6 +91,8 @@ export function buildPatientMedicalShare(patient: {
     hold?: string | null;
     frequency?: string | null;
     notes?: string;
+    image_url?: string | null;
+    video_url?: string | null;
     status?: string;
     shared_at?: string;
   }> | null;
@@ -205,6 +207,8 @@ export function buildPatientMedicalShare(patient: {
       hold: m.hold || null,
       frequency: m.frequency || null,
       notes: m.notes || null,
+      image_url: m.image_url || null,
+      video_url: m.video_url || null,
       shared_at: m.shared_at || null,
     }));
   }

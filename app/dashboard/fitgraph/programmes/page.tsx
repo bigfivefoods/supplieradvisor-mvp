@@ -17,6 +17,7 @@ import {
   type FitProgrammeItem,
   type FitProgrammeKind,
 } from '@/lib/fitness/movements';
+import { listedFitMovements } from '@/lib/fitness/movement-catalog';
 
 const blank = () => ({
   name: '',
@@ -40,7 +41,7 @@ export default function ProgrammesPage() {
   const [form, setForm] = useState(blank);
   const [addMovementId, setAddMovementId] = useState('');
 
-  const movements = store?.movements || [];
+  const movements = store ? listedFitMovements(store) : [];
   const programmes = store?.programmes || [];
 
   const startEdit = (id: string) => {

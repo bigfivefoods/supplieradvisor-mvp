@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import {
   LoadingBlock,
@@ -9,11 +9,13 @@ import {
 } from '@/components/clinic/PhysiographWorkbench';
 import { FormCard, StatRow, fc } from '@/components/clinic/PhysioForm';
 import { AdvisorExpandablePanel } from '@/components/advisors/AdvisorExpandablePanel';
+import { MovementLibraryBrowse } from '@/components/fitness/MovementLibraryBrowse';
 import {
   CLINIC_MOVEMENT_CATEGORIES,
   isSystemClinicMovement,
-  type ClinicMovement,
+  listedClinicMovements,
 } from '@/lib/clinic/clinic-movements';
+import type { FitMovement } from '@/lib/fitness/movements';
 
 const blank = () => ({
   name: '',
@@ -27,33 +29,12 @@ const blank = () => ({
 });
 
 export default function PhysioMovementsPage() {
-  const { store, loading, saving, post, summary } = usePhysiograph();
-  const [query, setQuery] = useState('');
-  const [category, setCategory] = useState('');
+  const { companyId, store, loading, saving, post, summary } = usePhysiograph();
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState(blank);
-  const [openId, setOpenId] = useState<string | null>(null);
 
-  const movements = store?.movements || [];
+  const movements = store ? listedClinicMovements(store) : [];
   const customCount = movements.filter((m) => !isSystemClinicMovement(m)).length;
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return movements.filter((m) => {
-      if (m.active === false) return false;
-      if (category && m.category !== category) return false;
-      if (!q) return true;
-      return (
-        m.name.toLowerCase().includes(q) ||
-        String(m.overview || '')
-          .toLowerCase()
-          .includes(q) ||
-        String(m.muscles || '')
-          .toLowerCase()
-          .includes(q)
-      );
-    });
-  }, [movements, query, category]);
 
   const add = async () => {
     if (!form.name.trim()) {
@@ -80,11 +61,28 @@ export default function PhysioMovementsPage() {
     setAddOpen(false);
   };
 
+  const saveMedia = async (
+    m: FitMovement,
+    patch: { image_url?: string | null; video_url?: string | null }
+  ) => {
+    await post({
+      entity: 'movements',
+      action: 'upsert',
+      record: {
+        id: m.id,
+        code: m.code,
+        name: m.name,
+        system: m.system === true,
+        ...patch,
+      },
+    });
+  };
+
   return (
     <PhysiographWorkbench
       title="Movements"
       titleAccent="floor"
-      description="Exhaustive rehab movement library. Share from a calendar visit — the client sees the movement, sets and notes on their PWA profile."
+      description="2,520-exercise catalogue plus physio rehab extras. Every movement has a still and a 5-second clip — replace either, then share from a visit to the client PWA."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -101,65 +99,20 @@ export default function PhysioMovementsPage() {
             ]}
           />
 
-          <div className="grid sm:grid-cols-2 gap-2">
-            <input
-              className={fc()}
-              placeholder="Search (e.g. chin tuck, clamshell, heel slide)"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <select
-              className={fc()}
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-            >
-              <option value="">All regions</option>
-              {CLINIC_MOVEMENT_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-          <p className="text-[11px] text-slate-500">
-            Showing {filtered.length} of {movements.length}. Open a calendar
-            appointment to send a movement to a client.
-          </p>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {filtered.map((m: ClinicMovement) => {
-              const open = openId === m.id;
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setOpenId(open ? null : m.id)}
-                  className="rounded-2xl border border-teal-200 bg-white p-3 text-left hover:border-teal-400 dark:border-teal-800 dark:bg-teal-950/30"
-                >
-                  <p className="text-[10px] font-black uppercase tracking-wide text-teal-700 dark:text-teal-300">
-                    {m.category}
-                  </p>
-                  <p className="mt-0.5 text-sm font-black text-slate-900 dark:text-teal-50">
-                    {m.name}
-                  </p>
-                  <p className="mt-1 line-clamp-2 text-[11px] text-slate-600 dark:text-teal-200/80">
-                    {m.overview}
-                  </p>
-                  {open && m.details ? (
-                    <p className="mt-2 whitespace-pre-wrap text-[11px] text-slate-700 dark:text-teal-100">
-                      {m.details}
-                    </p>
-                  ) : null}
-                  <p className="mt-2 text-[10px] text-slate-400">
-                    {[m.level, m.equipment, m.muscles]
-                      .filter(Boolean)
-                      .join(' · ')}
-                    {isSystemClinicMovement(m) ? ' · catalogue' : ' · clinic'}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
+          <MovementLibraryBrowse
+            movements={movements as FitMovement[]}
+            allowSystemEdit
+            companyId={companyId}
+            onSaveImage={(m, url) => saveMedia(m, { image_url: url })}
+            onSaveVideo={(m, url) => saveMedia(m, { video_url: url })}
+            onDelete={(m) => {
+              if (isSystemClinicMovement(m)) {
+                toast.error('Catalog movements cannot be deleted');
+                return;
+              }
+              void post({ entity: 'movements', action: 'delete', id: m.id });
+            }}
+          />
 
           <AdvisorExpandablePanel
             title="Add a clinic movement"

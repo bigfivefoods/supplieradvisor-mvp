@@ -31,6 +31,7 @@ import {
   buildDeskSlotWaitlist,
 } from '@/lib/services/advisor-waitlist-desk';
 import { clinicRoomNames } from '@/lib/clinic/clinic-rooms';
+import { listedClinicMovements } from '@/lib/clinic/clinic-movements';
 import { AdvisorExpandablePanel } from '@/components/advisors/AdvisorExpandablePanel';
 import { ClinicDiaryKindFields } from '@/components/clinic/ClinicDiaryKindFields';
 import { ClinicAppointmentVisitDesk } from '@/components/clinic/ClinicAppointmentVisitDesk';
@@ -932,7 +933,7 @@ export default function CalendarPage() {
                   patients: store.patients,
                 })}
                 visitNotes={store.visit_notes}
-                movements={store.movements}
+                movements={listedClinicMovements(store)}
                 post={post}
                 saving={saving}
                 accent="teal"

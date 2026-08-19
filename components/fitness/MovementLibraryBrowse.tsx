@@ -5,12 +5,20 @@ import { Search, X } from 'lucide-react';
 import {
   MOVEMENT_CATEGORY_META,
   isSystemMovement,
+  resolveFitMovementMedia,
 } from '@/lib/fitness/movement-catalog';
 import type { FitMovement } from '@/lib/fitness/movements';
 import { videoEmbedSrc } from '@/lib/fitness/movements';
 import { movementDisplayDescription } from '@/lib/fitness/movement-art';
 import { MovementThumb } from '@/components/fitness/MovementThumb';
 import { MovementImageReplace } from '@/components/fitness/MovementImageReplace';
+import { MovementMediaFields } from '@/components/fitness/MovementMediaFields';
+import {
+  EXERCISE_MODALITIES,
+  EXERCISE_MUSCLE_GROUPS,
+  EXERCISE_PATTERNS,
+  EXERCISE_SCORING,
+} from '@/lib/movements/exercise-catalog';
 
 const LEVEL_LABEL: Record<string, string> = {
   beginner: 'Beginner',
@@ -28,6 +36,7 @@ export function MovementLibraryBrowse({
   companyId,
   uploadFile,
   onSaveImage,
+  onSaveVideo,
 }: {
   movements: FitMovement[];
   dark?: boolean;
@@ -39,9 +48,14 @@ export function MovementLibraryBrowse({
   companyId?: number;
   uploadFile?: (file: File) => Promise<string>;
   onSaveImage?: (m: FitMovement, url: string | null) => Promise<void> | void;
+  onSaveVideo?: (m: FitMovement, url: string | null) => Promise<void> | void;
 }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
+  const [modality, setModality] = useState('All');
+  const [muscle, setMuscle] = useState('All');
+  const [pattern, setPattern] = useState('All');
+  const [scoring, setScoring] = useState('All');
   const [openId, setOpenId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
@@ -49,11 +63,27 @@ export function MovementLibraryBrowse({
     return movements
       .filter((m) => m.active !== false)
       .filter((m) => (category === 'All' ? true : m.category === category))
+      .filter((m) =>
+        modality === 'All' ? true : m.modality === modality
+      )
+      .filter((m) =>
+        muscle === 'All'
+          ? true
+          : m.muscle_group === muscle || m.muscles === muscle
+      )
+      .filter((m) =>
+        pattern === 'All' ? true : m.movement_pattern === pattern
+      )
+      .filter((m) => (scoring === 'All' ? true : m.scoring === scoring))
       .filter((m) => {
         if (!q) return true;
         const blob = [
           m.name,
           m.category,
+          m.modality,
+          m.muscle_group,
+          m.movement_pattern,
+          m.scoring,
           m.equipment,
           m.muscles,
           m.overview,
@@ -65,28 +95,44 @@ export function MovementLibraryBrowse({
         return blob.includes(q);
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [movements, query, category]);
+  }, [movements, query, category, modality, muscle, pattern, scoring]);
 
   const grouped = useMemo(() => {
+    const visible = filtered.slice(0, 120);
     const map = new Map<string, FitMovement[]>();
-    for (const m of filtered) {
-      const key = m.category || 'Other';
+    for (const m of visible) {
+      const key = m.muscle_group || m.category || 'Other';
       const list = map.get(key) || [];
       list.push(m);
       map.set(key, list);
     }
-    const order = MOVEMENT_CATEGORY_META.map((c) => c.id);
-    return order
-      .filter((id) => map.has(id))
-      .map((id) => ({
-        id,
-        hint: MOVEMENT_CATEGORY_META.find((c) => c.id === id)?.hint || '',
-        items: map.get(id) || [],
-      }));
+    const order = [
+      ...EXERCISE_MUSCLE_GROUPS,
+      ...MOVEMENT_CATEGORY_META.map((c) => c.id),
+      'Other',
+    ];
+    const keys = [
+      ...order.filter((id) => map.has(id)),
+      ...[...map.keys()].filter((k) => !order.includes(k as typeof order[number])),
+    ];
+    return keys.map((id) => ({
+      id,
+      hint: `${(map.get(id) || []).length} shown`,
+      items: map.get(id) || [],
+    }));
   }, [filtered]);
 
   const open = movements.find((m) => m.id === openId) || null;
-  const embed = videoEmbedSrc(open?.video_url);
+  const openMedia = open
+    ? resolveFitMovementMedia({
+        name: open.name,
+        category: open.category,
+        movement_pattern: open.movement_pattern,
+        image_url: open.image_url,
+        video_url: open.video_url,
+      })
+    : null;
+  const embed = videoEmbedSrc(openMedia?.video_url || open?.video_url);
 
   const chip = (active: boolean) =>
     dark
@@ -120,6 +166,77 @@ export function MovementLibraryBrowse({
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
+        <select
+          className={
+            dark
+              ? 'rounded-xl border border-slate-700 bg-slate-950 px-2 py-2 text-xs'
+              : 'rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-yellow-700 dark:bg-yellow-950'
+          }
+          value={modality}
+          onChange={(e) => setModality(e.target.value)}
+        >
+          <option value="All">Modality · all</option>
+          {EXERCISE_MODALITIES.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+        <select
+          className={
+            dark
+              ? 'rounded-xl border border-slate-700 bg-slate-950 px-2 py-2 text-xs'
+              : 'rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-yellow-700 dark:bg-yellow-950'
+          }
+          value={muscle}
+          onChange={(e) => setMuscle(e.target.value)}
+        >
+          <option value="All">Muscle group · all</option>
+          {EXERCISE_MUSCLE_GROUPS.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+        <select
+          className={
+            dark
+              ? 'rounded-xl border border-slate-700 bg-slate-950 px-2 py-2 text-xs'
+              : 'rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-yellow-700 dark:bg-yellow-950'
+          }
+          value={pattern}
+          onChange={(e) => setPattern(e.target.value)}
+        >
+          <option value="All">Pattern · all</option>
+          {EXERCISE_PATTERNS.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+        <select
+          className={
+            dark
+              ? 'rounded-xl border border-slate-700 bg-slate-950 px-2 py-2 text-xs'
+              : 'rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs dark:border-yellow-700 dark:bg-yellow-950'
+          }
+          value={scoring}
+          onChange={(e) => setScoring(e.target.value)}
+        >
+          <option value="All">Category · all</option>
+          {EXERCISE_SCORING.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+      </div>
+      {filtered.length > 120 ? (
+        <p className="text-[11px] text-slate-500">
+          Showing 120 of {filtered.length}. Narrow with search or filters.
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-1.5">
         <button
           type="button"
@@ -242,15 +359,33 @@ export function MovementLibraryBrowse({
                   <dl className="grid grid-cols-2 gap-2 text-[11px]">
                     <div>
                       <dt className="font-black uppercase text-slate-500">
-                        Equipment
+                        Modality
                       </dt>
-                      <dd>{open.equipment || '—'}</dd>
+                      <dd>{open.modality || '—'}</dd>
                     </div>
                     <div>
                       <dt className="font-black uppercase text-slate-500">
-                        Muscles
+                        Muscle group
                       </dt>
-                      <dd>{open.muscles || '—'}</dd>
+                      <dd>{open.muscle_group || open.muscles || '—'}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-black uppercase text-slate-500">
+                        Pattern
+                      </dt>
+                      <dd>{open.movement_pattern || '—'}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-black uppercase text-slate-500">
+                        Category
+                      </dt>
+                      <dd>{open.scoring || open.category || '—'}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-black uppercase text-slate-500">
+                        Equipment
+                      </dt>
+                      <dd>{open.equipment || '—'}</dd>
                     </div>
                   </dl>
                   <div className="overflow-hidden rounded-xl border border-slate-200/70 dark:border-slate-700">
@@ -259,12 +394,54 @@ export function MovementLibraryBrowse({
                       name={open.name}
                       category={open.category}
                       code={open.code || open.id}
-                      imageUrl={open.image_url}
+                      imageUrl={openMedia?.image_url || open.image_url}
                       muscles={open.muscles}
                       equipment={open.equipment}
                     />
                   </div>
-                  {onSaveImage ? (
+                  {embed ? (
+                    embed.iframe ? (
+                      <iframe
+                        title={open.name}
+                        src={embed.src}
+                        className="h-48 w-full rounded-xl"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <video
+                        src={embed.src}
+                        className="h-48 w-full rounded-xl bg-black object-cover"
+                        controls
+                        muted
+                        loop
+                        playsInline
+                      />
+                    )
+                  ) : (
+                    <p className="text-[11px] text-slate-500">
+                      5-second clip will appear here once generated. You can
+                      upload your own now.
+                    </p>
+                  )}
+                  {onSaveImage || onSaveVideo ? (
+                    <MovementMediaFields
+                      companyId={companyId}
+                      uploadFile={uploadFile}
+                      imageUrl={open.image_url || ''}
+                      videoUrl={open.video_url || ''}
+                      videoDescription={open.video_description || ''}
+                      onChange={(patch) => {
+                        if (patch.image_url !== undefined) {
+                          void onSaveImage?.(open, patch.image_url || null);
+                        }
+                        if (patch.video_url !== undefined) {
+                          void onSaveVideo?.(open, patch.video_url || null);
+                        }
+                      }}
+                      dark={dark}
+                    />
+                  ) : onSaveImage ? (
                     <MovementImageReplace
                       dark={dark}
                       companyId={companyId}
@@ -278,23 +455,6 @@ export function MovementLibraryBrowse({
                 </>
               );
             })()}
-            {embed ? (
-              embed.iframe ? (
-                <iframe
-                  title={open.name}
-                  src={embed.src}
-                  className="h-48 w-full rounded-xl"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              ) : (
-                <video
-                  src={embed.src}
-                  className="h-48 w-full rounded-xl bg-black object-contain"
-                  controls
-                />
-              )
-            ) : null}
             {open.video_description ? (
               <p className="text-[12px] text-slate-500">
                 Video: {open.video_description}

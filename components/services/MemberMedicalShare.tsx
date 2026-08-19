@@ -299,12 +299,32 @@ export function MemberMedicalShare({
                     hold?: string | null;
                     frequency?: string | null;
                     notes?: string | null;
+                    image_url?: string | null;
+                    video_url?: string | null;
                   }>
                 ).map((m, i) => (
                   <li
                     key={m.id || i}
                     className={`rounded-xl px-3 py-2 text-sm text-slate-800 ${t.chip}`}
                   >
+                    {m.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={m.image_url}
+                        alt=""
+                        className="mb-2 h-28 w-full rounded-lg object-cover"
+                      />
+                    ) : null}
+                    {m.video_url ? (
+                      <video
+                        src={m.video_url}
+                        className="mb-2 h-36 w-full rounded-lg bg-black object-cover"
+                        controls
+                        muted
+                        playsInline
+                        loop
+                      />
+                    ) : null}
                     <p className="font-semibold">{m.name}</p>
                     <p className="text-xs text-slate-600">
                       {[

@@ -2,6 +2,12 @@
  * PhysioAdvisor rehab movement library + client-facing shares.
  * Catalogue is seeded onto physiograph.movements; shares live on the patient.
  */
+import {
+  defaultExerciseImageSrc,
+  defaultExerciseVideoSrc,
+  isExerciseCatalogCode,
+  mergeCatalogWithOverrides,
+} from '@/lib/movements/exercise-catalog';
 
 export const CLINIC_MOVEMENT_CATEGORIES = [
   'Neck / cervical',
@@ -29,6 +35,11 @@ export type ClinicMovement = {
   code?: string;
   name: string;
   category: string;
+  modality?: string;
+  muscle_group?: string;
+  movement_pattern?: string;
+  scoring?: string;
+  tags?: string[];
   equipment?: string;
   muscles?: string;
   level?: 'beginner' | 'intermediate' | 'advanced' | string;
@@ -253,7 +264,13 @@ export function isSystemClinicMovement(m: {
   if (m.system === true) return true;
   const code = String(m.code || '');
   const id = String(m.id || '');
-  return code.startsWith('PHY_MOV_') || id.startsWith('cmov_sys_');
+  return (
+    code.startsWith('PHY_MOV_') ||
+    code.startsWith('EX_') ||
+    id.startsWith('cmov_sys_') ||
+    id.startsWith('mov_ex_') ||
+    isExerciseCatalogCode(code)
+  );
 }
 
 export function ensureSystemClinicMovements(store: {
@@ -287,12 +304,65 @@ export function ensureSystemClinicMovements(store: {
       level: d.level,
       overview: d.overview,
       details: d.details,
+      image_url: defaultExerciseImageSrc(d.name, ''),
+      video_url: defaultExerciseVideoSrc(''),
       active: true,
       created_at: now,
     });
     added += 1;
   }
   return added;
+}
+
+/** Full library: 2,520-exercise catalogue + physio rehab extras / overrides. */
+export function listedClinicMovements(store: {
+  movements?: ClinicMovement[] | null;
+}): ClinicMovement[] {
+  const now = new Date().toISOString();
+  return mergeCatalogWithOverrides(store.movements || [], (row, override) => {
+    const customImage = String(override?.image_url || '').trim();
+    const customVideo = String(override?.video_url || '').trim();
+    return {
+      id: override?.id || row.id,
+      code: row.code,
+      name: override?.name || row.name,
+      category: override?.category || row.muscle_group || row.category,
+      modality: override?.modality || row.modality,
+      muscle_group: override?.muscle_group || row.muscle_group,
+      movement_pattern: override?.movement_pattern || row.movement_pattern,
+      scoring: override?.scoring || row.scoring,
+      equipment: override?.equipment || row.equipment,
+      muscles: override?.muscles || row.muscles,
+      level: override?.level || row.level,
+      overview: override?.overview || row.overview,
+      details: override?.details || row.details,
+      image_url: customImage || row.image_url,
+      video_url: customVideo || row.video_url,
+      system: true,
+      active: override?.active !== false,
+      created_at: override?.created_at || now,
+      updated_at: override?.updated_at,
+    };
+  }).map((m) => {
+    const media = clinicMovementMedia(m);
+    return { ...m, image_url: media.image_url, video_url: media.video_url };
+  });
+}
+
+export function clinicMovementMedia(m: {
+  name?: string;
+  movement_pattern?: string | null;
+  image_url?: string | null;
+  video_url?: string | null;
+}): { image_url: string; video_url: string } {
+  return {
+    image_url:
+      String(m.image_url || '').trim() ||
+      defaultExerciseImageSrc(String(m.name || ''), m.movement_pattern),
+    video_url:
+      String(m.video_url || '').trim() ||
+      defaultExerciseVideoSrc(m.movement_pattern),
+  };
 }
 
 export function upsertClinicMovement(

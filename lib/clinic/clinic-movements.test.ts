@@ -6,6 +6,7 @@ import {
   SYSTEM_CLINIC_MOVEMENT_CATALOG,
   activeSharedMovements,
   ensureSystemClinicMovements,
+  listedClinicMovements,
   shareMovementWithPatient,
   upsertClientNote,
   upsertClinicMovement,
@@ -55,4 +56,9 @@ const note = upsertClientNote(patient, {
 assert.equal(patient.client_notes?.[0].id, note.id);
 assert.throws(() => upsertClientNote(patient, { body: '  ' }));
 
-console.log(`clinic-movements tests ok (${codes.length} catalog items)`);
+const listed = listedClinicMovements(store);
+assert.ok(listed.length >= 2200, listed.length);
+assert.ok(listed.some((m) => m.name === 'Barbell Deadlift'));
+assert.ok(listed.every((m) => m.video_url || m.system));
+
+console.log(`clinic-movements tests ok (${codes.length} rehab + ${listed.length} listed)`);

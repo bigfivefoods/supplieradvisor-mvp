@@ -69,6 +69,7 @@ import {
 import { normalizeRecordShares } from '@/lib/clinic/record-shares';
 import { applyClinicFollowUp } from '@/lib/clinic/follow-up-action';
 import {
+  listedClinicMovements,
   shareMovementWithPatient,
   upsertClientNote,
   upsertClinicMovement,
@@ -1121,7 +1122,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
       }
       const movementId = String(body.movement_id || '');
-      const movement = (store.movements || []).find((m) => m.id === movementId);
+      const movement = listedClinicMovements(store).find(
+        (m) => m.id === movementId
+      );
       if (!movement) {
         return NextResponse.json({ error: 'Movement not found' }, { status: 404 });
       }

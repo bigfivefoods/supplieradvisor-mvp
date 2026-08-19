@@ -7,6 +7,7 @@ import {
   catalogIdForCode,
   ensureSystemMovements,
   isSystemMovement,
+  listedFitMovements,
 } from './movement-catalog';
 
 const codes = SYSTEM_MOVEMENT_CATALOG.map((m) => m.code);
@@ -31,4 +32,10 @@ assert.equal(
   'mov_sys_back_squat'
 );
 
-console.log(`movement-catalog ok (${codes.length} movements)`);
+const listed = listedFitMovements(store);
+assert.ok(listed.length >= 2265, `expected full catalogue, got ${listed.length}`);
+assert.ok(listed.some((m) => m.code === 'EX_BARBELL_DEADLIFT'));
+assert.ok(listed.every((m) => m.video_url));
+assert.ok(listed.every((m) => m.image_url));
+
+console.log(`movement-catalog ok (${codes.length} legacy + ${listed.length} listed)`);

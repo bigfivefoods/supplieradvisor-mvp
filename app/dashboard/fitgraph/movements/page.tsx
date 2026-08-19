@@ -11,7 +11,10 @@ import {
 import { FormCard, StatRow, fc } from '@/components/fitness/FitForm';
 import { MovementMediaFields } from '@/components/fitness/MovementMediaFields';
 import { MovementLibraryBrowse } from '@/components/fitness/MovementLibraryBrowse';
-import { isSystemMovement } from '@/lib/fitness/movement-catalog';
+import {
+  isSystemMovement,
+  listedFitMovements,
+} from '@/lib/fitness/movement-catalog';
 import { MOVEMENT_CATEGORIES } from '@/lib/fitness/movements';
 import type { FitMovement } from '@/lib/fitness/movements';
 
@@ -37,7 +40,7 @@ export default function MovementsPage() {
   const [form, setForm] = useState(blank);
   const [showForm, setShowForm] = useState(false);
 
-  const movements = store?.movements || [];
+  const movements = store ? listedFitMovements(store) : [];
   const customCount = movements.filter((m) => !isSystemMovement(m)).length;
 
   const editing = useMemo(
@@ -113,7 +116,7 @@ export default function MovementsPage() {
     <FitgraphWorkbench
       title="Movement library"
       titleAccent="catalog + your own"
-      description="Every movement has a 3D instructional photo plus overview and coaching details. Open a card to replace the photo — or restore the catalog plate. Add your own movements on top."
+      description="2,520-exercise catalogue with a still and a 5-second clip on every movement. Open a card to replace the photo or video. Add your own on top."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -160,6 +163,20 @@ export default function MovementsPage() {
                   image_url: url,
                   system: m.system === true,
                   code: m.code,
+                  name: m.name,
+                },
+              });
+            }}
+            onSaveVideo={async (m, url) => {
+              await post({
+                entity: 'movements',
+                action: 'upsert',
+                record: {
+                  id: m.id,
+                  video_url: url,
+                  system: m.system === true,
+                  code: m.code,
+                  name: m.name,
                 },
               });
             }}

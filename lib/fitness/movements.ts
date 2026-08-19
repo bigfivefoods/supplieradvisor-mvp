@@ -35,6 +35,13 @@ export type FitMovement = {
   image_url?: string | null;
   video_url?: string | null;
   category?: string;
+  /** Strength · Power · Mobility · Conditioning … */
+  modality?: string;
+  muscle_group?: string;
+  movement_pattern?: string;
+  /** Strength / Bodyweight / Timed / Distance */
+  scoring?: string;
+  tags?: string[];
   equipment?: string;
   muscles?: string;
   level?: 'beginner' | 'intermediate' | 'advanced' | string;
@@ -298,6 +305,15 @@ export function upsertMovement(
         : prev?.video_url ?? null,
     category:
       rec.category != null ? String(rec.category) : prev?.category,
+    modality:
+      rec.modality != null ? String(rec.modality) : prev?.modality,
+    muscle_group:
+      rec.muscle_group != null ? String(rec.muscle_group) : prev?.muscle_group,
+    movement_pattern:
+      rec.movement_pattern != null
+        ? String(rec.movement_pattern)
+        : prev?.movement_pattern,
+    scoring: rec.scoring != null ? String(rec.scoring) : prev?.scoring,
     equipment:
       rec.equipment != null ? String(rec.equipment) : prev?.equipment,
     muscles: rec.muscles != null ? String(rec.muscles) : prev?.muscles,
