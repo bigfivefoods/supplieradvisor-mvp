@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   CreditCard,
   Globe,
+  Hospital,
   Loader2,
   Package,
   Sparkles,
@@ -76,6 +77,14 @@ const MODULES: HubModule[] = [
     title: 'Calendar',
     desc: 'Main diary — click an event to open (view/edit).',
     accent: 'from-violet-50 to-white border-violet-100',
+  },
+  {
+    href: '/dashboard/dentalgraph/rooms',
+    icon: Hospital,
+    code: '05b',
+    title: 'Rooms',
+    desc: 'Floor: add surgeries, assets, assign clinicians.',
+    accent: 'from-emerald-50 to-white border-emerald-100',
   },
   {
     href: '/dashboard/dentalgraph/bookings',

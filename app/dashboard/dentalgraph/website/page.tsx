@@ -10,6 +10,7 @@ import {
 import { FormCard, StatRow, fc } from '@/components/dental/DentalForm';
 import { AdvisorOpsPoliciesCard } from '@/components/services/AdvisorOpsPoliciesCard';
 import { AdvisorRoomsCard } from '@/components/services/AdvisorRoomsCard';
+import { clinicRoomNames } from '@/lib/clinic/clinic-rooms';
 import { AdvisorEmbedSnippet } from '@/components/services/AdvisorEmbedSnippet';
 import { PracticeProfilePdfButton } from '@/components/schedule/PracticeProfilePdfButton';
 import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
@@ -276,13 +277,20 @@ export default function WebsitePage() {
           </FormCard>
           
           <AdvisorRoomsCard
-            rooms={store.settings?.rooms || []}
+            rooms={clinicRoomNames(store.settings?.rooms)}
             saving={saving}
             accentClass="border-sky-200"
+            manageHref="/dashboard/dentalgraph/rooms"
+            hint="Quick list. Open Rooms (Floor) for equipment and which clinicians use each surgery."
             onSave={async (rooms) => {
+              const { mergeClinicRoomNames } = await import(
+                '@/lib/clinic/clinic-rooms'
+              );
               await post({
                 action: 'update_settings',
-                settings: { rooms },
+                settings: {
+                  rooms: mergeClinicRoomNames(store.settings?.rooms, rooms),
+                },
               });
             }}
           />

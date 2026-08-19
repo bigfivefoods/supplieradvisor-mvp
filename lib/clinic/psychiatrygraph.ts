@@ -23,6 +23,7 @@ import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { ensureSystemPersonalService } from '@/lib/clinic/appointment-kind';
 import { toPortalOpenSlots } from '@/lib/services/advisor-member-calendar';
 import { clinicCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
+import { normalizeClinicRooms } from '@/lib/clinic/clinic-rooms';
 
 export const PSYCHIATRYGRAPH_MODULE_ID = 'psychiatrygraph' as const;
 export const PSYCHIATRYGRAPH_META_KEY = 'psychiatrygraph';
@@ -440,7 +441,7 @@ export type PsychiatryPublicSettings = {
   practitioner_disciplines?: string[];
   /** Clinic open days & hours for schedule calendar */
   working_hours?: import('@/lib/schedule/working-hours').WorkingHours;
-  rooms?: string[];
+  rooms?: import('@/lib/clinic/clinic-rooms').ClinicRoom[] | string[];
   reschedule_policy?: import('@/lib/services/advisor-reschedule').ReschedulePolicy;
   marketplace?: {
     listed?: boolean;
@@ -538,6 +539,7 @@ export function readPsychiatrygraphFromMetadata(
     ...defaultPublicSettings(),
     ...(s.settings && typeof s.settings === 'object' ? s.settings : {}),
   };
+  e.settings.rooms = normalizeClinicRooms(e.settings.rooms);
   if (!e.settings.public_token) {
     e.settings.public_token = defaultPublicSettings().public_token;
   }
@@ -813,6 +815,7 @@ export function summarisePsychiatrygraph(store: PsychiatrygraphStore) {
     ).length,
     bookingsOpen: openBookings.length,
     websiteEnabled: store.settings?.enabled === true,
+    roomCount: (store.settings?.rooms || []).length,
     threadCount: (store.threads || []).filter((t) => !t.archived).length,
     unreadMessages: totalUnread(store.threads || [], 'desk', 'desk'),
     pendingFeedback: (store.bookings || []).filter(

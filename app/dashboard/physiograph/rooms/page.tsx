@@ -2,22 +2,22 @@
 
 import {
   LoadingBlock,
-  MedicalgraphWorkbench,
-  useMedicalgraph,
-} from '@/components/clinic/MedicalgraphWorkbench';
+  PhysiographWorkbench,
+  usePhysiograph,
+} from '@/components/clinic/PhysiographWorkbench';
 import { ClinicRoomsDesk } from '@/components/clinic/ClinicRoomsDesk';
 
-export default function MedicalRoomsPage() {
-  const { companyId, store, loading, saving, post, summary } = useMedicalgraph();
+export default function PhysioRoomsPage() {
+  const { companyId, store, loading, saving, post, summary } = usePhysiograph();
   const people = (store?.practitioners || [])
     .filter((p) => p.active !== false)
     .map((p) => ({ id: p.id, name: p.name }));
 
   return (
-    <MedicalgraphWorkbench
+    <PhysiographWorkbench
       title="Rooms"
       titleAccent="floor"
-      description="Floor resources: add consult rooms and surgeries, attach equipment, and optionally assign a room to a medical advisor. The diary uses these so two advisors can work at the same time."
+      description="Floor resources: add treatment rooms, attach equipment, and optionally assign a room to a practitioner. The diary uses these so two physios can work at the same time."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -26,14 +26,14 @@ export default function MedicalRoomsPage() {
           companyId={companyId}
           rooms={store.settings?.rooms}
           people={people}
-          personNoun="medical advisor"
-          peopleNoun="medical advisors"
-          calendarHref="/dashboard/medicalgraph/calendar"
+          personNoun="practitioner"
+          peopleNoun="practitioners"
+          calendarHref="/dashboard/physiograph/calendar"
           saving={saving}
           post={post}
           summaryRoomCount={Number(summary?.roomCount) || undefined}
         />
       )}
-    </MedicalgraphWorkbench>
+    </PhysiographWorkbench>
   );
 }

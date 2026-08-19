@@ -275,8 +275,45 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (
+      action === 'add_room' ||
+      action === 'update_room' ||
+      action === 'remove_room'
+    ) {
+      const { applyClinicRoomAction } = await import(
+        '@/lib/clinic/clinic-rooms'
+      );
+      store.settings = store.settings || defaultDentalPublicSettings(companyId);
+      try {
+        store.settings.rooms = applyClinicRoomAction(
+          store.settings.rooms,
+          action,
+          body
+        );
+      } catch (e: unknown) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : 'Room save failed' },
+          { status: 400 }
+        );
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseDentalgraph(store),
+        analysis: analysis(store),
+        message:
+          action === 'remove_room'
+            ? 'Room removed'
+            : action === 'update_room'
+              ? 'Room updated'
+              : 'Room added',
+      });
+    }
+
     if (action === 'update_settings') {
       const patch = (body.settings || body.record || {}) as Partial<DentalPublicSettings>;
+      const prevRooms = store.settings?.rooms;
       store.settings = ensureDentalPublicToken(
         {
           ...defaultDentalPublicSettings(companyId),
@@ -285,6 +322,16 @@ export async function POST(request: NextRequest) {
         },
         companyId
       );
+      if (patch.rooms !== undefined) {
+        const { mergeClinicRoomNames, normalizeClinicRooms } = await import(
+          '@/lib/clinic/clinic-rooms'
+        );
+        const next = patch.rooms;
+        store.settings.rooms =
+          Array.isArray(next) && next.every((r) => typeof r === 'string')
+            ? mergeClinicRoomNames(prevRooms, next)
+            : normalizeClinicRooms(next);
+      }
       if (body.rotate_token === true) {
         store.settings.public_token = `dg_${companyId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
       }

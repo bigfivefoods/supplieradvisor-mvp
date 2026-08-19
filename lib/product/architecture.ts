@@ -784,6 +784,11 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
         desc: 'Diary',
       },
       {
+        name: 'Rooms',
+        href: '/dashboard/physiograph/rooms',
+        desc: 'Floor · assets · assign physios',
+      },
+      {
         name: 'Bookings',
         href: '/dashboard/physiograph/bookings',
         desc: 'Book · attend',
@@ -847,6 +852,11 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
         name: 'Calendar',
         href: '/dashboard/dentalgraph/calendar',
         desc: 'Diary',
+      },
+      {
+        name: 'Rooms',
+        href: '/dashboard/dentalgraph/rooms',
+        desc: 'Floor · assets · assign clinicians',
       },
       {
         name: 'Bookings',
@@ -927,7 +937,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       {
         name: 'Rooms',
         href: '/dashboard/medicalgraph/rooms',
-        desc: 'Consult rooms · equipment',
+        desc: 'Floor · assets · assign advisors',
       },
       {
         name: 'Bookings',
@@ -1008,6 +1018,11 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
         name: 'Calendar',
         href: '/dashboard/psychiatrygraph/calendar',
         desc: 'Diary',
+      },
+      {
+        name: 'Rooms',
+        href: '/dashboard/psychiatrygraph/rooms',
+        desc: 'Floor · assets · assign clinicians',
       },
       {
         name: 'Bookings',

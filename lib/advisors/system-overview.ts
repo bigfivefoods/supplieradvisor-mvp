@@ -148,7 +148,7 @@ const BY_MODULE: Record<AdvisorOverviewModule, AdvisorSystemOverviewCopy> = {
       },
       {
         title: 'Floor',
-        body: 'Waitlist, 30-day outcomes, the treatment board today and rehab recalls. Send 24h reminders from the hub.',
+        body: 'Rooms with equipment, optionally assigned to a medical advisor. Waitlist, 30-day outcomes, the treatment board today and rehab recalls.',
       },
       {
         title: 'Branded session emails',
@@ -233,7 +233,7 @@ const BY_MODULE: Record<AdvisorOverviewModule, AdvisorSystemOverviewCopy> = {
       },
       {
         title: 'Floor',
-        body: 'Waitlist, 30-day outcomes, the treatment board today and rehab recalls.',
+        body: 'Rooms with equipment, optionally assigned to a practitioner. Waitlist, 30-day outcomes, the treatment board today and rehab recalls.',
       },
       {
         title: 'Website & pay-out',
@@ -306,7 +306,7 @@ const BY_MODULE: Record<AdvisorOverviewModule, AdvisorSystemOverviewCopy> = {
       },
       {
         title: 'Floor',
-        body: 'Waitlist, outcomes, the chair board today and hygiene / check-up recalls.',
+        body: 'Rooms and chairs with equipment, optionally assigned to a clinician. Waitlist, outcomes, the chair board today and hygiene / check-up recalls.',
       },
       {
         title: 'Website & pay-out',
@@ -379,7 +379,7 @@ const BY_MODULE: Record<AdvisorOverviewModule, AdvisorSystemOverviewCopy> = {
       },
       {
         title: 'Floor',
-        body: 'Waitlist, 30-day outcomes, the session board today and review / follow-up recalls.',
+        body: 'Rooms with equipment, optionally assigned to a clinician. Waitlist, 30-day outcomes, the session board today and review / follow-up recalls.',
       },
       {
         title: 'Website & pay-out',

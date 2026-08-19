@@ -22,6 +22,7 @@ import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { ensureSystemPersonalService } from '@/lib/clinic/appointment-kind';
 import { toPortalOpenSlots } from '@/lib/services/advisor-member-calendar';
 import { clinicCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
+import { normalizeClinicRooms } from '@/lib/clinic/clinic-rooms';
 
 export const DENTALGRAPH_MODULE_ID = 'dentalgraph' as const;
 export const DENTALGRAPH_META_KEY = 'dentalgraph';
@@ -468,7 +469,7 @@ export type DentalPublicSettings = {
     specialties?: string[];
   };
   /** Surgeries / chairs / bays as diary resources */
-  rooms?: string[];
+  rooms?: import('@/lib/clinic/clinic-rooms').ClinicRoom[] | string[];
   has_front_desk?: boolean;
   desk_name?: string;
   desk_email?: string | null;
@@ -564,6 +565,7 @@ export function readDentalgraphFromMetadata(
     ...defaultDentalPublicSettings(),
     ...(s.settings && typeof s.settings === 'object' ? s.settings : {}),
   };
+  e.settings.rooms = normalizeClinicRooms(e.settings.rooms);
   if (!e.settings.public_token) {
     e.settings.public_token = defaultDentalPublicSettings().public_token;
   }
@@ -864,6 +866,7 @@ export function summariseDentalgraph(store: DentalgraphStore) {
     ).length,
     bookingsOpen: openBookings.length,
     websiteEnabled: store.settings?.enabled === true,
+    roomCount: (store.settings?.rooms || []).length,
     threadCount: (store.threads || []).filter((t) => !t.archived).length,
     unreadMessages: totalUnread(store.threads || [], 'desk', 'desk'),
     pendingFeedback: (store.bookings || []).filter(

@@ -33,7 +33,7 @@ export const PROCESS_CHAIN = [
   { label: 'People', sub: 'Injury · history · share' },
   { label: 'Services · packs', sub: 'VAT invoices · plans' },
   { label: 'Diary', sub: 'Rooms+assets · open visit' },
-  { label: 'Floor', sub: 'Emails · board · recall' },
+  { label: 'Floor', sub: 'Rooms · emails · board' },
   { label: 'Messages', sub: 'System ID · in-app' },
   { label: 'Website · command', sub: 'Card pay · hub order' },
 ] as const;

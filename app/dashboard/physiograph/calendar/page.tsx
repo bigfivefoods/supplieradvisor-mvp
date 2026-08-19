@@ -30,6 +30,7 @@ import {
   buildDeskQueueRows,
   buildDeskSlotWaitlist,
 } from '@/lib/services/advisor-waitlist-desk';
+import { clinicRoomNames } from '@/lib/clinic/clinic-rooms';
 import { ClinicDiaryKindFields } from '@/components/clinic/ClinicDiaryKindFields';
 import { ClinicAppointmentVisitDesk } from '@/components/clinic/ClinicAppointmentVisitDesk';
 import { appointmentVisitPatients } from '@/lib/clinic/appointment-visit';
@@ -721,35 +722,47 @@ export default function CalendarPage() {
                   setForm((f) => ({ ...f, duration_min: e.target.value }))
                 }
               />
-              {(store.settings?.rooms || []).length > 0 ? (
-                <select
-                  className={fc()}
-                  value={form.location}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, location: e.target.value }))
-                  }
+              <div className="space-y-1">
+                {clinicRoomNames(store.settings?.rooms).length > 0 ? (
+                  <select
+                    className={fc()}
+                    value={form.location}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, location: e.target.value }))
+                    }
+                  >
+                    <option value="">Room / resource…</option>
+                    {clinicRoomNames(store.settings?.rooms).map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                    {form.location &&
+                    !clinicRoomNames(store.settings?.rooms).includes(
+                      form.location
+                    ) ? (
+                      <option value={form.location}>{form.location}</option>
+                    ) : null}
+                  </select>
+                ) : (
+                  <input
+                    className={fc()}
+                    placeholder="Location / room"
+                    value={form.location}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, location: e.target.value }))
+                    }
+                  />
+                )}
+                <Link
+                  href="/dashboard/physiograph/rooms"
+                  className="text-[11px] font-bold text-emerald-700 underline"
                 >
-                  <option value="">Room / resource…</option>
-                  {(store.settings?.rooms || []).map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                  {form.location &&
-                  !(store.settings?.rooms || []).includes(form.location) ? (
-                    <option value={form.location}>{form.location}</option>
-                  ) : null}
-                </select>
-              ) : (
-                <input
-                  className={fc()}
-                  placeholder="Location / room (set list under Website)"
-                  value={form.location}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, location: e.target.value }))
-                  }
-                />
-              )}
+                  {clinicRoomNames(store.settings?.rooms).length
+                    ? 'Manage rooms'
+                    : 'Add rooms on the Rooms desk'}
+                </Link>
+              </div>
               {selectedId ? (
                 <select
                   className={fc()}

@@ -10,6 +10,7 @@ import {
 import { FormCard, StatRow, fc } from '@/components/clinic/PhysioForm';
 import { AdvisorOpsPoliciesCard } from '@/components/services/AdvisorOpsPoliciesCard';
 import { AdvisorRoomsCard } from '@/components/services/AdvisorRoomsCard';
+import { clinicRoomNames } from '@/lib/clinic/clinic-rooms';
 import { PracticeProfilePdfButton } from '@/components/schedule/PracticeProfilePdfButton';
 import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
 import { AdvisorDeskInviteCard } from '@/components/advisors/AdvisorDeskInviteCard';
@@ -276,13 +277,20 @@ export default function WebsitePage() {
           </FormCard>
           
           <AdvisorRoomsCard
-            rooms={store.settings?.rooms || []}
+            rooms={clinicRoomNames(store.settings?.rooms)}
             saving={saving}
             accentClass="border-teal-200"
+            manageHref="/dashboard/physiograph/rooms"
+            hint="Quick list. Open Rooms (Floor) for equipment and which practitioners use each room."
             onSave={async (rooms) => {
+              const { mergeClinicRoomNames } = await import(
+                '@/lib/clinic/clinic-rooms'
+              );
               await post({
                 action: 'update_settings',
-                settings: { rooms },
+                settings: {
+                  rooms: mergeClinicRoomNames(store.settings?.rooms, rooms),
+                },
               });
             }}
           />

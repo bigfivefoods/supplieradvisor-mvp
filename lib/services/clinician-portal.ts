@@ -2,6 +2,7 @@
  * Shared clinician diary portal helpers for Dental / Physio / Medical / Psychiatry.
  * Mirrors GymAdvisor coach portal: token auth, week diary, edit/delete, attendance.
  */
+import { clinicRoomNames } from '@/lib/clinic/clinic-rooms';
 import { promoteNextWaitlist } from '@/lib/services/advisor-booking';
 import {
   applyAppointmentKindRules,
@@ -154,7 +155,7 @@ export type ClinicianStoreLike = {
     brand_name?: string;
     public_token?: string;
     enabled?: boolean;
-    rooms?: string[];
+    rooms?: unknown;
   } | null;
 };
 
@@ -362,7 +363,7 @@ export function buildClinicianPortalPayload(
     by_date,
     patients,
     services,
-    rooms: store.settings?.rooms || [],
+    rooms: clinicRoomNames(store.settings?.rooms),
   };
 }
 

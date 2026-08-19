@@ -3,6 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import {
+  applyClinicRoomAction,
   clinicRoomNames,
   mergeClinicRoomNames,
   normalizeClinicRooms,
@@ -46,5 +47,15 @@ const updated = upsertClinicRoom(added.rooms, {
 assert.equal(updated.created, false);
 assert.equal(updated.room.notes, 'Updated');
 assert.equal(removeClinicRoom(updated.rooms, added.room.id).length, 2);
+
+const viaAction = applyClinicRoomAction([], 'add_room', {
+  name: 'Consult 1',
+  practitioner_ids: ['prac_1'],
+  asset_ids: ['12', 12, 'x'],
+});
+assert.equal(viaAction.length, 1);
+assert.equal(viaAction[0].name, 'Consult 1');
+assert.deepEqual(viaAction[0].practitioner_ids, ['prac_1']);
+assert.deepEqual(viaAction[0].asset_ids, [12]);
 
 console.log('clinic-rooms.test.ts ok');

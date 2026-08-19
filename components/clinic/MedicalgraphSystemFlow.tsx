@@ -170,12 +170,21 @@ const PHASES: Phase[] = [
   },
   {
     id: 'floor',
-    title: '4 · Floor (emails · board · recall)',
-    subtitle: 'Book · branded pre/post mail · outcomes · today board',
+    title: '4 · Floor (rooms · emails · board · recall)',
+    subtitle: 'Rooms with assets · assign advisors · book · branded mail',
     steps: [
       {
-        id: 'book',
+        id: 'rooms-floor',
         n: '4a',
+        title: 'Rooms on the floor',
+        who: 'Owner',
+        desc: 'Floor menu → Rooms: add consult rooms, attach assets, optionally assign a medical advisor. Diary uses these so two advisors can work at the same time.',
+        href: '/dashboard/medicalgraph/rooms',
+        icon: Hospital,
+      },
+      {
+        id: 'book',
+        n: '4b',
         title: 'Book · family · waitlist',
         who: 'Desk / portal',
         desc: 'Book patient or family; if preferred clinician full, book another or join the waitlist (default-open on the diary).',
@@ -184,7 +193,7 @@ const PHASES: Phase[] = [
       },
       {
         id: 'emails',
-        n: '4b',
+        n: '4c',
         title: 'Branded pre / post emails',
         who: 'Owner / system',
         desc: '24h MedicalAdvisor® email with practice logo: update SA Member profile + list ailments. After the visit: rate the session and the practice.',
@@ -193,7 +202,7 @@ const PHASES: Phase[] = [
       },
       {
         id: 'board',
-        n: '4c',
+        n: '4d',
         title: 'Outcomes · board · recalls',
         who: 'Clinician / desk',
         desc: 'Command: outcomes (30 days) → Today’s treatment board → Rehab / review recalls. Mark attended / no-show; Send 24h reminders.',

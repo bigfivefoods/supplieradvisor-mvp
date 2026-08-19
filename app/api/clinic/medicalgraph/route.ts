@@ -275,35 +275,16 @@ export async function POST(request: NextRequest) {
       action === 'update_room' ||
       action === 'remove_room'
     ) {
-      const {
-        upsertClinicRoom,
-        removeClinicRoom,
-      } = await import('@/lib/clinic/clinic-rooms');
+      const { applyClinicRoomAction } = await import(
+        '@/lib/clinic/clinic-rooms'
+      );
       store.settings = store.settings || defaultPublicSettings(companyId);
       try {
-        if (action === 'remove_room') {
-          store.settings.rooms = removeClinicRoom(
-            store.settings.rooms,
-            String(body.room_id || body.id || '')
-          );
-        } else {
-          const result = upsertClinicRoom(store.settings.rooms, {
-            id: action === 'update_room' ? String(body.id || body.room_id || '') : undefined,
-            name: String(body.name || ''),
-            notes: body.notes != null ? String(body.notes) : undefined,
-            practitioner_ids: Array.isArray(body.practitioner_ids)
-              ? (body.practitioner_ids as unknown[]).map(String)
-              : undefined,
-            asset_ids: Array.isArray(body.asset_ids)
-              ? (body.asset_ids as unknown[]).flatMap((x) => {
-                  if (typeof x === 'number' && Number.isFinite(x)) return [x];
-                  const n = Number(x);
-                  return Number.isFinite(n) ? [n] : [];
-                })
-              : undefined,
-          });
-          store.settings.rooms = result.rooms;
-        }
+        store.settings.rooms = applyClinicRoomAction(
+          store.settings.rooms,
+          action,
+          body
+        );
       } catch (e: unknown) {
         return NextResponse.json(
           { error: e instanceof Error ? e.message : 'Room save failed' },

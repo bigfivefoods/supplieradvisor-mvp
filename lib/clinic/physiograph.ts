@@ -22,6 +22,7 @@ import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { ensureSystemPersonalService } from '@/lib/clinic/appointment-kind';
 import { toPortalOpenSlots } from '@/lib/services/advisor-member-calendar';
 import { clinicCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
+import { normalizeClinicRooms } from '@/lib/clinic/clinic-rooms';
 
 export const PHYSIOGRAPH_MODULE_ID = 'physiograph' as const;
 export const PHYSIOGRAPH_META_KEY = 'physiograph';
@@ -444,7 +445,7 @@ export type PhysioPublicSettings = {
   /** Clinic open days & hours for schedule calendar */
   working_hours?: import('@/lib/schedule/working-hours').WorkingHours;
   /** Named rooms / bays used as diary resources */
-  rooms?: string[];
+  rooms?: import('@/lib/clinic/clinic-rooms').ClinicRoom[] | string[];
   reschedule_policy?: import('@/lib/services/advisor-reschedule').ReschedulePolicy;
   marketplace?: {
     listed?: boolean;
@@ -542,6 +543,7 @@ export function readPhysiographFromMetadata(
     ...defaultPublicSettings(),
     ...(s.settings && typeof s.settings === 'object' ? s.settings : {}),
   };
+  e.settings.rooms = normalizeClinicRooms(e.settings.rooms);
   if (!e.settings.public_token) {
     e.settings.public_token = defaultPublicSettings().public_token;
   }
@@ -838,6 +840,7 @@ export function summarisePhysiograph(store: PhysiographStore) {
     ).length,
     bookingsOpen: openBookings.length,
     websiteEnabled: store.settings?.enabled === true,
+    roomCount: (store.settings?.rooms || []).length,
     threadCount: (store.threads || []).filter((t) => !t.archived).length,
     unreadMessages: totalUnread(store.threads || [], 'desk', 'desk'),
     pendingFeedback: (store.bookings || []).filter(

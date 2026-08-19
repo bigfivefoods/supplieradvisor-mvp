@@ -159,3 +159,28 @@ export function upsertClinicRoom(
 export function removeClinicRoom(raw: unknown, id: string): ClinicRoom[] {
   return normalizeClinicRooms(raw).filter((r) => r.id !== String(id || ''));
 }
+
+export function applyClinicRoomAction(
+  rooms: unknown,
+  action: 'add_room' | 'update_room' | 'remove_room',
+  body: Record<string, unknown>
+): ClinicRoom[] {
+  if (action === 'remove_room') {
+    return removeClinicRoom(rooms, String(body.room_id || body.id || ''));
+  }
+  const result = upsertClinicRoom(rooms, {
+    id:
+      action === 'update_room'
+        ? String(body.id || body.room_id || '')
+        : undefined,
+    name: String(body.name || ''),
+    notes: body.notes != null ? String(body.notes) : undefined,
+    practitioner_ids: Array.isArray(body.practitioner_ids)
+      ? (body.practitioner_ids as unknown[]).map(String)
+      : undefined,
+    asset_ids: Array.isArray(body.asset_ids)
+      ? (body.asset_ids as unknown[])
+      : undefined,
+  });
+  return result.rooms;
+}
