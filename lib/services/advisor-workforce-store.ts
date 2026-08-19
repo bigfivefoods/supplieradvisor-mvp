@@ -64,11 +64,11 @@ import {
 
 /** Desk invites carry a partial settings blob; pin required fields from defaults. */
 function mergeAdvisorSettings<T extends object>(
-  current: T | undefined,
+  current: T | null | undefined,
   next: AdvisorDeskInviteFields & Record<string, unknown>,
   fallback: T
 ): T {
-  return { ...fallback, ...current, ...next } as T;
+  return { ...fallback, ...(current || {}), ...next } as T;
 }
 
 export type AdvisorPersonRow = AdvisorPersonInviteFields & {
