@@ -31,6 +31,12 @@ import {
 } from '@/components/accounting/AccountingShell';
 import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
 import { GaapDisclaimer } from '@/components/accounting/GaapDisclaimer';
+import { FinanceWorkspaceNote } from '@/components/accounting/FinanceWorkspaceNote';
+import {
+  isPeriodValue,
+  loadFinanceWorkspace,
+  saveFinanceWorkspace,
+} from '@/lib/accounting/user-workspace';
 import PeriodSlicer, {
   initialPeriodSlicerValue,
   type PeriodSlicerValue,
@@ -99,16 +105,21 @@ function Inner() {
         const sm = Number(data.settings?.fiscal_year_start_month || 3);
         if (!cancelled && sm >= 1 && sm <= 12) {
           setFyStartMonth(sm);
-          setPeriod((prev) => {
-            if (
-              prev.preset === 'this_month' ||
-              prev.preset === 'ytd' ||
-              prev.preset === 'full_fy'
-            ) {
-              return initialPeriodSlicerValue(prev.preset, sm);
-            }
-            return prev;
-          });
+          const stored = loadFinanceWorkspace(privyUserId, companyId).period;
+          if (isPeriodValue(stored)) {
+            setPeriod(stored);
+          } else {
+            setPeriod((prev) => {
+              if (
+                prev.preset === 'this_month' ||
+                prev.preset === 'ytd' ||
+                prev.preset === 'full_fy'
+              ) {
+                return initialPeriodSlicerValue(prev.preset, sm);
+              }
+              return prev;
+            });
+          }
         }
       } catch {
         /* soft */
@@ -262,9 +273,19 @@ function Inner() {
 
   useEffect(() => {
     const r = new URLSearchParams(window.location.search).get('report');
-    if (r && REPORT_IDS.has(r)) setReport(r);
+    if (r && REPORT_IDS.has(r)) {
+      setReport(r);
+    } else {
+      const stored = loadFinanceWorkspace(privyUserId, companyId).report;
+      if (stored && REPORT_IDS.has(stored)) setReport(stored);
+    }
     setReportReady(true);
-  }, []);
+  }, [companyId, privyUserId]);
+
+  useEffect(() => {
+    if (!reportReady || !privyUserId) return;
+    saveFinanceWorkspace(privyUserId, companyId, { period, report });
+  }, [reportReady, privyUserId, companyId, period, report]);
 
   useEffect(() => {
     if (!reportReady) return;
@@ -413,7 +434,8 @@ function Inner() {
         }
       />
       </div>
-      <GaapDisclaimer className="mb-4" />
+      <GaapDisclaimer className="mb-2" />
+      <FinanceWorkspaceNote className="mb-4" />
       <div className="flex flex-wrap gap-2 mb-4 print:hidden">
         {REPORTS.map((r) => (
           <button

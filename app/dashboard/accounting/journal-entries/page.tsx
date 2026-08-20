@@ -32,6 +32,13 @@ import { Panel } from '@/components/relationship/RelationshipChrome';
 import PeriodSlicer from '@/components/accounting/PeriodSlicer';
 import { useAccountingPeriod } from '@/lib/accounting/use-period';
 import { ChartCard, MixDoughnut } from '@/components/accounting/AccountingCharts';
+import { FinanceWorkspaceNote } from '@/components/accounting/FinanceWorkspaceNote';
+import {
+  isOwnJournal,
+  loadFinanceWorkspace,
+  saveFinanceWorkspace,
+  type JournalScope,
+} from '@/lib/accounting/user-workspace';
 
 type LineForm = {
   account_id: string;
@@ -78,11 +85,14 @@ function Inner() {
     'full_fy'
   );
   const [statusFilter, setStatusFilter] = useState('all');
+  const [journalScope, setJournalScope] = useState<JournalScope>(() =>
+    loadFinanceWorkspace(privyUserId, companyId).journalScope || 'posted_and_mine'
+  );
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [memo, setMemo] = useState('');
   const [entryDate, setEntryDate] = useState(new Date().toISOString().slice(0, 10));
-  const [postNow, setPostNow] = useState(true);
+  const [postNow, setPostNow] = useState(false);
   const [lines, setLines] = useState<LineForm[]>([emptyLine(), emptyLine()]);
   const [accountFilter, setAccountFilter] = useState('');
   /** create | edit_draft | edit_posted (reclassify via reverse + new) */
@@ -127,6 +137,20 @@ function Inner() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    saveFinanceWorkspace(privyUserId, companyId, { journalScope });
+  }, [privyUserId, companyId, journalScope]);
+
+  const visibleEntries = useMemo(() => {
+    if (journalScope === 'all') return entries;
+    return entries.filter(
+      (e) =>
+        e.status === 'posted' ||
+        e.status === 'void' ||
+        isOwnJournal(e.created_by, privyUserId)
+    );
+  }, [entries, journalScope, privyUserId]);
 
   const balance = useMemo(() => {
     let debit = 0;
@@ -363,7 +387,7 @@ function Inner() {
           onChange={setPeriod}
         />
       </div>
-      <div className="mb-4 print:hidden">
+      <div className="mb-4 flex flex-wrap items-center gap-2 print:hidden">
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -374,7 +398,16 @@ function Inner() {
           <option value="draft">Draft</option>
           <option value="void">Void</option>
         </select>
+        <select
+          value={journalScope}
+          onChange={(e) => setJournalScope(e.target.value as JournalScope)}
+          className="rounded-2xl border border-neutral-200 px-3 py-2.5 text-sm bg-white"
+        >
+          <option value="posted_and_mine">Posted + my drafts</option>
+          <option value="all">Everyone’s drafts</option>
+        </select>
       </div>
+      <FinanceWorkspaceNote className="mb-4" />
 
       <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-xs text-slate-600 leading-relaxed">
         <strong className="text-slate-800">Edit / reclassify · </strong>
@@ -388,48 +421,48 @@ function Inner() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 mb-4">
         <AccountingStat
           label="In period"
-          value={String(entries.length)}
+          value={String(visibleEntries.length)}
         />
         <AccountingStat
           label="Posted"
-          value={String(entries.filter((e) => e.status === 'posted').length)}
+          value={String(visibleEntries.filter((e) => e.status === 'posted').length)}
         />
         <AccountingStat
           label="Period debit"
           value={formatMoney(
-            entries.reduce((s, e) => s + Number(e.total_debit || 0), 0)
+            visibleEntries.reduce((s, e) => s + Number(e.total_debit || 0), 0)
           )}
         />
         <AccountingStat
           label="Period credit"
           value={formatMoney(
-            entries.reduce((s, e) => s + Number(e.total_credit || 0), 0)
+            visibleEntries.reduce((s, e) => s + Number(e.total_credit || 0), 0)
           )}
         />
       </div>
-      {entries.length > 0 ? (
+      {visibleEntries.length > 0 ? (
         <div className="grid gap-4 lg:grid-cols-2 mb-4 print:hidden">
           <ChartCard title="By status" subtitle="Journals in the sliced period" height={220}>
             <MixDoughnut
               segments={['posted', 'draft', 'void'].map((st) => ({
                 label: st,
-                value: entries.filter((e) => e.status === st).length,
+                value: visibleEntries.filter((e) => e.status === st).length,
               }))}
               centerLabel="Journals"
-              centerValue={String(entries.length)}
+              centerValue={String(visibleEntries.length)}
             />
           </ChartCard>
           <ChartCard title="By source" subtitle="How entries were created" height={220}>
             <MixDoughnut
               segments={Array.from(
-                entries.reduce((m, e) => {
+                visibleEntries.reduce((m, e) => {
                   const k = String(e.source || 'manual');
                   m.set(k, (m.get(k) || 0) + 1);
                   return m;
                 }, new Map<string, number>())
               ).map(([label, value]) => ({ label, value }))}
               centerLabel="Source"
-              centerValue={String(entries.length)}
+              centerValue={String(visibleEntries.length)}
             />
           </ChartCard>
         </div>
@@ -440,13 +473,13 @@ function Inner() {
           <div className="flex justify-center py-16">
             <Loader2 className="w-7 h-7 animate-spin text-[#00b4d8]" />
           </div>
-        ) : entries.length === 0 ? (
+        ) : visibleEntries.length === 0 ? (
           <div className="px-6 py-14 text-center text-sm text-neutral-500">
-            No journal entries yet. Seed a chart of accounts first, then post your first entry.
+            No journal entries in this view. New journals save as your draft until you post.
           </div>
         ) : (
           <div className="divide-y divide-neutral-100">
-            {entries.map((je) => (
+            {visibleEntries.map((je) => (
               <div key={je.id} className="px-4 sm:px-5 py-4">
                 <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
                   <div>
@@ -775,7 +808,7 @@ function Inner() {
                   />
                   {editMode.type === 'edit_draft'
                     ? 'Post after save (must balance)'
-                    : 'Post immediately (must balance)'}
+                    : 'Post to the company ledger (must balance)'}
                 </label>
               )}
 

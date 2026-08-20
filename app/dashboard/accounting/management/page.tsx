@@ -24,10 +24,9 @@ import {
 } from '@/components/accounting/AccountingShell';
 import { GaapDisclaimer } from '@/components/accounting/GaapDisclaimer';
 import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
-import PeriodSlicer, {
-  initialPeriodSlicerValue,
-  type PeriodSlicerValue,
-} from '@/components/accounting/PeriodSlicer';
+import PeriodSlicer from '@/components/accounting/PeriodSlicer';
+import { useAccountingPeriod } from '@/lib/accounting/use-period';
+import { FinanceWorkspaceNote } from '@/components/accounting/FinanceWorkspaceNote';
 import {
   CashflowChart,
   ChartCard,
@@ -120,40 +119,11 @@ function Inner() {
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
 
-  // Default to YTD so bank-allocated journals from earlier months show.
-  // FY start month comes from accounting_settings (default March).
-  const [fyStartMonth, setFyStartMonth] = useState(3);
-  const [period, setPeriod] = useState<PeriodSlicerValue>(() =>
-    initialPeriodSlicerValue('ytd', 3)
+  const { fyStartMonth, period, setPeriod } = useAccountingPeriod(
+    companyId,
+    privyUserId,
+    'ytd'
   );
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const params = new URLSearchParams({ companyId: String(companyId) });
-        if (privyUserId) params.set('privyUserId', privyUserId);
-        const res = await fetch(`/api/accounting/settings?${params}`);
-        const data = await res.json();
-        const sm = Number(data.settings?.fiscal_year_start_month || 3);
-        if (!cancelled && sm >= 1 && sm <= 12) {
-          setFyStartMonth(sm);
-          setPeriod((prev) => {
-            // Re-seed YTD when settings load if still on default ytd preset
-            if (prev.preset === 'ytd') {
-              return initialPeriodSlicerValue('ytd', sm);
-            }
-            return prev;
-          });
-        }
-      } catch {
-        /* soft */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [companyId, privyUserId]);
 
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<MgmtSummary | null>(null);
@@ -350,7 +320,8 @@ function Inner() {
         />
       </div>
 
-      <GaapDisclaimer className="mb-6" />
+      <GaapDisclaimer className="mb-2" />
+      <FinanceWorkspaceNote className="mb-6" />
 
       {loading ? (
         <div className="flex justify-center py-20">

@@ -29,6 +29,14 @@ import {
   normalizeFyStartMonth,
 } from '@/lib/accounting/budget';
 import { MONTH_LONG } from '@/lib/accounting/fiscal';
+import { FinanceWorkspaceNote } from '@/components/accounting/FinanceWorkspaceNote';
+import {
+  clearBudgetDraft,
+  loadBudgetDraft,
+  loadFinanceWorkspace,
+  saveBudgetDraft,
+  saveFinanceWorkspace,
+} from '@/lib/accounting/user-workspace';
 
 type BudgetRow = {
   account_id: number;
@@ -111,7 +119,12 @@ function Inner() {
         );
         if (!cancelled) {
           setFyStartMonth(sm);
-          setYear(fiscalYearStartYear(new Date(), sm));
+          const stored = loadFinanceWorkspace(privyUserId, companyId);
+          setYear(
+            Number(stored.budgetYear) > 2000
+              ? Number(stored.budgetYear)
+              : fiscalYearStartYear(new Date(), sm)
+          );
           setYearReady(true);
         }
       } catch {
@@ -139,7 +152,12 @@ function Inner() {
         isPnlType(String(r.account_type || ''))
       );
       setRows(list);
-      setDirty({});
+      setDirty(
+        loadBudgetDraft(privyUserId, companyId, year) as Record<
+          number,
+          Partial<BudgetRow>
+        >
+      );
       setWarning(data.warning || null);
       if (data.fiscalYearStartMonth) {
         setFyStartMonth(Number(data.fiscalYearStartMonth));
@@ -163,6 +181,16 @@ function Inner() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!yearReady || !privyUserId) return;
+    saveFinanceWorkspace(privyUserId, companyId, { budgetYear: year });
+  }, [yearReady, privyUserId, companyId, year]);
+
+  useEffect(() => {
+    if (!yearReady || loading) return;
+    saveBudgetDraft(privyUserId, companyId, year, dirty);
+  }, [yearReady, loading, privyUserId, companyId, year, dirty]);
 
   const displayRows = useMemo(() => {
     return rows
@@ -260,7 +288,9 @@ function Inner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Save failed');
-      toast.success(`Saved ${data.saved} account budget(s)`);
+      toast.success(`Published ${data.saved} account(s) to the company plan`);
+      clearBudgetDraft(privyUserId, companyId, year);
+      setDirty({});
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Save failed');
@@ -356,15 +386,39 @@ function Inner() {
             <button
               type="button"
               disabled={saving || dirtyCount === 0}
-              onClick={() => void save()}
+              onClick={() => {
+                clearBudgetDraft(privyUserId, companyId, year);
+                setDirty({});
+                toast.message('Discarded your unpublished draft');
+              }}
+              className="btn-secondary !py-2.5 !px-4 text-sm"
+            >
+              Discard my draft
+            </button>
+            <button
+              type="button"
+              disabled={saving || dirtyCount === 0}
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    'Publish this plan to the company books? Everyone with finance access will see it on management accounts, cash flow, and reports.'
+                  )
+                ) {
+                  return;
+                }
+                void save();
+              }}
               className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
             >
               <Save className="w-4 h-4" />
-              {saving ? 'Saving…' : `Save${dirtyCount ? ` (${dirtyCount})` : ''}`}
+              {saving
+                ? 'Publishing…'
+                : `Publish to company${dirtyCount ? ` (${dirtyCount})` : ''}`}
             </button>
           </div>
         }
       />
+      <FinanceWorkspaceNote className="mb-4" />
 
       {warning && (
         <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">

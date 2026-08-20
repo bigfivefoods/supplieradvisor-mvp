@@ -27,6 +27,7 @@ import {
   CompanyRequired,
   AccountingPage,
 } from '@/components/accounting/AccountingShell';
+import { FinanceWorkspaceNote } from '@/components/accounting/FinanceWorkspaceNote';
 import {
   AlertBanner,
   RelationshipHeader,
@@ -298,7 +299,7 @@ function HubInner() {
         eyebrow="Financial control"
         title="Accounting"
         titleAccent="Command"
-        description="Full finance OS: CoA, journals, AR/AP, payments, bank, VAT and reports. Advisor membership and clinic fees post onto Customers invoices so Finance and the Advisor book stay one system."
+        description="Full finance OS: CoA, journals, AR/AP, payments, bank, VAT and reports. Advisor membership and clinic fees post onto Customers invoices so Finance and the Advisor book stay one system. Each login has its own working copy; posted books are the shared company ledger."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -324,6 +325,7 @@ function HubInner() {
           </div>
         }
       />
+      <FinanceWorkspaceNote className="mb-4" />
 
       <AdvisorCoreBridge surface="accounting" />
 

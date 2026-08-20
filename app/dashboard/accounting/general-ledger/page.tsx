@@ -22,10 +22,9 @@ import {
 } from '@/components/accounting/AccountingShell';
 import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
 import { GaapDisclaimer } from '@/components/accounting/GaapDisclaimer';
-import PeriodSlicer, {
-  initialPeriodSlicerValue,
-  type PeriodSlicerValue,
-} from '@/components/accounting/PeriodSlicer';
+import PeriodSlicer from '@/components/accounting/PeriodSlicer';
+import { useAccountingPeriod } from '@/lib/accounting/use-period';
+import { FinanceWorkspaceNote } from '@/components/accounting/FinanceWorkspaceNote';
 import {
   ChartCard,
   MixDoughnut,
@@ -47,40 +46,15 @@ function Inner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
-  const [fyStartMonth, setFyStartMonth] = useState(3);
-  const [period, setPeriod] = useState<PeriodSlicerValue>(() =>
-    initialPeriodSlicerValue('full_fy', 3)
+  const { fyStartMonth, period, setPeriod } = useAccountingPeriod(
+    companyId,
+    privyUserId,
+    'full_fy'
   );
   const [ledger, setLedger] = useState<GeneralLedger | null>(null);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [openId, setOpenId] = useState<number | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const params = new URLSearchParams({ companyId: String(companyId) });
-        if (privyUserId) params.set('privyUserId', privyUserId);
-        const res = await fetch(`/api/accounting/settings?${params}`);
-        const data = await res.json();
-        const sm = Number(data.settings?.fiscal_year_start_month || 3);
-        if (!cancelled && sm >= 1 && sm <= 12) {
-          setFyStartMonth(sm);
-          setPeriod((prev) =>
-            prev.preset === 'full_fy'
-              ? initialPeriodSlicerValue('full_fy', sm)
-              : prev
-          );
-        }
-      } catch {
-        /* soft */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [companyId, privyUserId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -158,7 +132,8 @@ function Inner() {
             onChange={setPeriod}
           />
         </div>
-        <GaapDisclaimer className="mb-4" />
+        <GaapDisclaimer className="mb-2" />
+        <FinanceWorkspaceNote className="mb-4" />
       </div>
 
       {loading ? (
