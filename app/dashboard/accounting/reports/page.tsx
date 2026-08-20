@@ -22,7 +22,6 @@ import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { formatMoney } from '@/lib/accounting/types';
-import { horizonsFromMax } from '@/lib/accounting/forecast';
 import { buildAccountingRatios, type RatioCard } from '@/lib/accounting/ratios';
 import {
   AccountingHeader,
@@ -46,8 +45,6 @@ import {
   BalanceCompositionChart,
   CashflowChart,
   ChartCard,
-  ForecastLineChart,
-  HorizonBarsChart,
   MarginTrendChart,
   MixDoughnut,
   PeriodWaterfall,
@@ -72,8 +69,6 @@ const REPORTS = [
 ] as const;
 
 const REPORT_IDS: ReadonlySet<string> = new Set(REPORTS.map((r) => r.id));
-
-const HORIZON_PRESETS = [1, 3, 6, 9, 12, 18, 24] as const;
 
 export default function ReportsPage() {
   return (
@@ -130,41 +125,11 @@ function Inner() {
     };
   }, [companyId, privyUserId]);
 
-  const [horizonMonths, setHorizonMonths] = useState(12);
-  const [selectedHorizons, setSelectedHorizons] = useState<number[]>([1, 3, 6, 9, 12]);
   const [includePipeline, setIncludePipeline] = useState(true);
-  const [customHorizon, setCustomHorizon] = useState('');
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<Record<string, unknown> | null>(null);
 
-  const toggleHorizon = (h: number) => {
-    setSelectedHorizons((prev) => {
-      const has = prev.includes(h);
-      const next = has ? prev.filter((x) => x !== h) : [...prev, h].sort((a, b) => a - b);
-      return next.length ? next : [h];
-    });
-    setHorizonMonths((prev) => Math.max(prev, h));
-  };
-
-  const applyMaxHorizon = (max: number) => {
-    setHorizonMonths(max);
-    setSelectedHorizons(horizonsFromMax(max));
-  };
-
-  const addCustomHorizon = () => {
-    const n = Number(customHorizon);
-    if (!Number.isFinite(n) || n < 1 || n > 36) {
-      toast.error('Enter a horizon between 1 and 36 months');
-      return;
-    }
-    const h = Math.round(n);
-    setSelectedHorizons((prev) => Array.from(new Set([...prev, h])).sort((a, b) => a - b));
-    setHorizonMonths((prev) => Math.max(prev, h));
-    setCustomHorizon('');
-  };
-
-  const isSeriesReport =
-    report === 'trends' || report === 'forecast' || report === 'ratios';
+  const isSeriesReport = report === 'trends' || report === 'ratios';
   const historyMonths = period.historyMonths ?? 12;
   const from = period.from;
   const to = period.to;
@@ -230,13 +195,6 @@ function Inner() {
           } else if (to) {
             params.set('to', to);
           }
-          if (report === 'forecast') {
-            params.set('horizons', selectedHorizons.join(','));
-            params.set(
-              'horizonMonths',
-              String(Math.max(...selectedHorizons, horizonMonths))
-            );
-          }
         } else if (report === 'balance_sheet') {
           if (to) params.set('to', to);
         } else if (report !== 'ar_aging' && report !== 'ap_aging') {
@@ -264,8 +222,6 @@ function Inner() {
     from,
     to,
     historyMonths,
-    horizonMonths,
-    selectedHorizons,
     includePipeline,
     isSeriesReport,
     period.selectedMonthFroms.length,
@@ -334,18 +290,25 @@ function Inner() {
         footer={
           <div className="pt-3 border-t border-neutral-100 space-y-3">
             <div className="flex flex-wrap items-center gap-3">
-              <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={includePipeline}
-                  onChange={(e) => setIncludePipeline(e.target.checked)}
-                  className="h-4 w-4 rounded border-neutral-300 text-[#00b4d8] focus:ring-[#00b4d8]"
-                />
+              {report !== 'forecast' ? (
+                <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={includePipeline}
+                    onChange={(e) => setIncludePipeline(e.target.checked)}
+                    className="h-4 w-4 rounded border-neutral-300 text-[#00b4d8] focus:ring-[#00b4d8]"
+                  />
+                  <span className="text-sm font-semibold text-slate-800 inline-flex items-center gap-1.5">
+                    <Briefcase className="w-3.5 h-3.5 text-[#00b4d8]" />
+                    Include pipeline sales (CRM opportunities)
+                  </span>
+                </label>
+              ) : (
                 <span className="text-sm font-semibold text-slate-800 inline-flex items-center gap-1.5">
                   <Briefcase className="w-3.5 h-3.5 text-[#00b4d8]" />
-                  Include pipeline sales (CRM opportunities)
+                  Sales pipeline for the sliced period
                 </span>
-              </label>
+              )}
               <Link
                 href="/dashboard/customers/leads?tab=pipeline"
                 className="text-[11px] font-semibold text-[#00b4d8] hover:underline"
@@ -353,83 +316,6 @@ function Inner() {
                 Open sales pipeline →
               </Link>
             </div>
-
-            {report === 'forecast' && (
-              <div className="space-y-3 rounded-2xl border border-cyan-100 bg-sky-50/40 p-3 sm:p-4">
-                <div className="text-[10px] font-black uppercase tracking-wider text-[#0077b6]">
-                  Forecast variables
-                </div>
-                <div>
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 mb-2">
-                    Months ahead (max horizon)
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {HORIZON_PRESETS.map((n) => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => applyMaxHorizon(n)}
-                        className={`min-w-[3rem] text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition-colors ${
-                          horizonMonths === n
-                            ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
-                            : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/40'
-                        }`}
-                      >
-                        {n}m
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 mb-2">
-                    Milestone cards (toggle any combination)
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {HORIZON_PRESETS.map((n) => {
-                      const on = selectedHorizons.includes(n);
-                      return (
-                        <button
-                          key={n}
-                          type="button"
-                          onClick={() => toggleHorizon(n)}
-                          className={`min-w-[2.75rem] text-xs font-semibold px-2.5 py-1.5 rounded-full border transition-colors ${
-                            on
-                              ? 'border-[#00b4d8] bg-[#00b4d8]/15 text-[#0077b6]'
-                              : 'border-neutral-200 bg-white text-neutral-500'
-                          }`}
-                        >
-                          {n}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-end gap-2">
-                  <label className="text-xs font-semibold text-neutral-600">
-                    Custom months ahead
-                    <input
-                      type="number"
-                      min={1}
-                      max={36}
-                      value={customHorizon}
-                      onChange={(e) => setCustomHorizon(e.target.value)}
-                      placeholder="e.g. 15"
-                      className="mt-1 block w-28 rounded-xl border border-neutral-200 px-3 py-2 text-sm"
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={addCustomHorizon}
-                    className="text-xs font-semibold rounded-full border border-[#00b4d8] text-[#0077b6] px-3 py-2 hover:bg-[#00b4d8]/10"
-                  >
-                    Add horizon
-                  </button>
-                  <span className="text-[11px] text-neutral-500 pb-2">
-                    Active: {selectedHorizons.join(' · ')} months
-                  </span>
-                </div>
-              </div>
-            )}
           </div>
         }
       />
@@ -485,7 +371,7 @@ function ReportBody({
   }
 
   if (report === 'forecast') {
-    return <ForecastReport data={data} includePipeline={includePipeline} />;
+    return <ForecastReport data={data} />;
   }
 
   if (report === 'ratios') {
@@ -1585,331 +1471,113 @@ function TrendsReport({
   );
 }
 
-function ForecastReport({
-  data,
-  includePipeline,
-}: {
-  data: Record<string, unknown>;
-  includePipeline: boolean;
-}) {
-  const series = data.series as {
-    labels: string[];
-    historyCount: number;
-    revenue: Array<number | null>;
-    revenueForecast: Array<number | null>;
-    revenueWithPipelineForecast?: Array<number | null>;
-    netIncome: Array<number | null>;
-    netForecast: Array<number | null>;
-    netWithPipelineForecast?: Array<number | null>;
-    revenueLow?: Array<number | null>;
-    revenueHigh?: Array<number | null>;
-  } | null;
-  const horizons = (data.horizons as Array<{
-    months: number;
-    endLabel: string;
-    revenue: number;
-    revenueWithPipeline?: number;
-    cogs: number;
-    expenses: number;
-    grossProfit: number;
-    netIncome: number;
-    netWithPipeline?: number;
-    cashNet: number;
-    pipeline?: number;
-    pipelineWeighted?: number;
-    avgMonthlyNet: number;
-    revenueLow: number;
-    revenueHigh: number;
-    netLow: number;
-    netHigh: number;
+function ForecastReport({ data }: { data: Record<string, unknown> }) {
+  const summary = (data.summary as Record<string, number>) || {};
+  const months = (data.months as Array<{
+    month: string;
+    expected: number;
+    weighted: number;
+    won: number;
+    lost: number;
+    deals: number;
   }>) || [];
-  const method = String(data.method || '');
-  const lastMonth = data.lastMonth as Record<string, number> | undefined;
-  const totals = (data.totals as Record<string, number>) || {};
-  const pipeline = (data.pipeline as Record<string, unknown>) || null;
-  const periodMonths = Number((data.period as { months?: number })?.months || 12);
-  const horizonLabel = horizons.map((h) => h.months).join(' · ') || '—';
-  const history = (data.history as Array<Record<string, unknown>>) || [];
-  const ratios = buildAccountingRatios({
-    revenue: totals.revenue,
-    cogs: totals.cogs,
-    expenses: totals.expenses,
-    netIncome: totals.netIncome,
-    cashNet: totals.cashNet,
-    bankIn: totals.bankIn,
-    bankOut: totals.bankOut,
-    revenueSeries: history.map((h) => Number(h.revenue || 0)),
-    netSeries: history.map((h) => Number(h.netIncome || 0)),
-  });
-  const margins = marginSeries(history);
+  const stages = (data.stages as Array<{
+    stage: string;
+    label: string;
+    amount: number;
+    weighted: number;
+    count: number;
+  }>) || [];
+  const rows = (data.rows as Array<Record<string, unknown>>) || [];
+  const period = (data.period as { from?: string; to?: string }) || {};
 
   return (
     <>
-      <PipelineStrip
-        pipeline={pipeline as Parameters<typeof PipelineStrip>[0]['pipeline']}
-        includePipeline={includePipeline}
-      />
-
-      <div className="mb-5 rounded-[1.5rem] border border-sky-100 bg-gradient-to-br from-white via-sky-50/70 to-teal-50/40 p-5 sm:p-6 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-          <div>
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-teal-200/80 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-teal-700 mb-2">
-              <TrendingUp className="w-3 h-3" />
-              Multi-horizon forecast
-            </div>
-            <h3 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
-              {horizonLabel} month outlook
-            </h3>
-            <p className="mt-1 text-sm text-slate-600 max-w-2xl">
-              Cumulative projections from the last {periodMonths} months of posted P&L and bank cash
-              {includePipeline ? ' · layered with CRM pipeline by expected close' : ''}.
-            </p>
-          </div>
-          <div className="text-right text-xs text-slate-500">
-            <div className="font-semibold text-slate-700">Trailing {periodMonths}m net</div>
-            <div className="text-lg font-black tabular-nums text-slate-900">
-              {formatMoney(totals.netIncome || 0)}
-            </div>
-            {includePipeline && (
-              <div className="mt-1 text-[11px] text-violet-700 font-semibold">
-                Pipeline open {formatMoney(totals.pipelineOpen || 0)}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-          {horizons.map((h) => {
-            const netShow = includePipeline
-              ? h.netWithPipeline ?? h.netIncome
-              : h.netIncome;
-            const revShow = includePipeline
-              ? h.revenueWithPipeline ?? h.revenue
-              : h.revenue;
-            return (
-              <div
-                key={h.months}
-                className="rounded-2xl border border-white/80 bg-white/90 p-3 shadow-sm"
-              >
-                <div className="text-[10px] font-black uppercase tracking-wider text-[#00b4d8]">
-                  {h.months} month{h.months > 1 ? 's' : ''}
-                </div>
-                <div className="mt-1 text-[11px] text-slate-400">to {h.endLabel}</div>
-                <div
-                  className={`mt-2 text-lg font-black tabular-nums ${
-                    netShow >= 0 ? 'text-emerald-700' : 'text-rose-600'
-                  }`}
-                >
-                  {formatMoney(netShow)}
-                </div>
-                <div className="text-[10px] text-slate-500 mt-0.5">
-                  Net{includePipeline ? ' + pipe' : ''} · {formatMoney(netShow / h.months)}/mo
-                </div>
-                <div className="mt-2 space-y-0.5 text-[10px] text-slate-500">
-                  <div className="flex justify-between gap-2">
-                    <span>Rev</span>
-                    <span className="tabular-nums font-semibold text-slate-700">
-                      {formatMoney(revShow)}
-                    </span>
-                  </div>
-                  {includePipeline && (
-                    <div className="flex justify-between gap-2">
-                      <span>Pipe wtd</span>
-                      <span className="tabular-nums font-semibold text-violet-700">
-                        {formatMoney(h.pipelineWeighted || 0)}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between gap-2">
-                    <span>Cash</span>
-                    <span className="tabular-nums font-semibold text-slate-700">
-                      {formatMoney(h.cashNet)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      <p className="text-xs text-neutral-500 mb-3">
+        Sales pipeline forecast for {period.from || '—'} to {period.to || '—'}. Open deals
+        are dated by expected close; won deals by actual close. Weighted = amount × stage
+        probability.{' '}
+        <Link
+          href="/dashboard/customers/leads?tab=pipeline"
+          className="font-semibold text-[#00b4d8] hover:underline"
+        >
+          Sales pipeline
+        </Link>
+        .
+      </p>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 mb-4">
+        <SumCard
+          label="Expected (open)"
+          value={formatMoney(Number(summary.expected || 0))}
+          tone="emerald"
+        />
+        <SumCard
+          label="Weighted forecast"
+          value={formatMoney(Number(summary.weighted || 0))}
+        />
+        <SumCard
+          label="Won in period"
+          value={formatMoney(Number(summary.won || 0))}
+          tone="emerald"
+        />
+        <SumCard
+          label="Open deals"
+          value={String(summary.openDeals || 0)}
+        />
       </div>
-
-      <RatioGrid
-        ratios={ratios.filter((r) =>
-          [
-            'gross_margin',
-            'net_margin',
-            'expense_ratio',
-            'rev_growth',
-            'net_growth',
-            'cogs_ratio',
-          ].includes(r.id)
-        )}
-        title="Baseline ratios (history)"
-        subtitle="Margins and growth that underwrite the forecast model"
-      />
-
-      {series && (
-        <div className="grid lg:grid-cols-2 gap-4 mb-6">
-          <ChartCard
-            title={includePipeline ? 'Revenue path (books + pipeline)' : 'Revenue & net path'}
-            subtitle={
-              includePipeline
-                ? 'Solid = actual · dashed = forecast (+ pipeline when enabled)'
-                : 'Solid = actual · dashed = forecast · band ≈ 80% revenue range'
-            }
-            height={340}
-            className="lg:col-span-2"
-            icon={Activity}
-            badge="Primary"
-          >
-            <ForecastLineChart
-              labels={series.labels}
-              historyCount={series.historyCount}
-              revenue={series.revenue}
-              revenueForecast={
-                includePipeline && series.revenueWithPipelineForecast
-                  ? series.revenueWithPipelineForecast
-                  : series.revenueForecast
-              }
-              netIncome={series.netIncome}
-              netForecast={
-                includePipeline && series.netWithPipelineForecast
-                  ? series.netWithPipelineForecast
-                  : series.netForecast
-              }
-              revenueLow={series.revenueLow}
-              revenueHigh={series.revenueHigh}
-            />
-          </ChartCard>
-          <ChartCard
-            title="Horizon comparison"
-            subtitle="Cumulative revenue, expenses, and net by planning window"
-            height={300}
-            icon={BarChart3}
-          >
-            <HorizonBarsChart
-              horizons={horizons.map((h) => ({
-                months: h.months,
-                revenue: includePipeline ? h.revenueWithPipeline ?? h.revenue : h.revenue,
-                expenses: h.expenses,
-                netIncome: includePipeline ? h.netWithPipeline ?? h.netIncome : h.netIncome,
-              }))}
-            />
-          </ChartCard>
-          <ChartCard
-            title="Last month P&L bridge"
-            subtitle="Most recent month shape (reference)"
-            height={300}
-            icon={PieChart}
-          >
-            <PeriodWaterfall
-              revenue={Number(lastMonth?.revenue || 0)}
-              cogs={Number(lastMonth?.cogs || 0)}
-              expenses={Number(lastMonth?.expenses || 0)}
-              netIncome={Number(lastMonth?.netIncome || 0)}
-            />
-          </ChartCard>
-          <ChartCard
-            title="Historic margin %"
-            subtitle="Gross and net margin through the history window"
-            height={280}
-            icon={Percent}
-            className="lg:col-span-2"
-          >
-            <MarginTrendChart
-              labels={history.map((h) => String(h.label))}
-              grossMargin={margins.gross}
-              netMargin={margins.net}
-            />
-          </ChartCard>
-        </div>
-      )}
-
-      <SectionLabel>Horizon detail</SectionLabel>
-      <SimpleTable
-        headers={
-          includePipeline
-            ? [
-                'Horizon',
-                'Ends',
-                'Books rev',
-                'Rev + pipe',
-                'Pipe wtd',
-                'COGS',
-                'Expenses',
-                'Net books',
-                'Net + pipe',
-                'Cash net',
-              ]
-            : [
-                'Horizon',
-                'Ends',
-                'Revenue',
-                'Rev range',
-                'COGS',
-                'Expenses',
-                'Gross profit',
-                'Net income',
-                'Net range',
-                'Cash net',
-              ]
-        }
-        rows={horizons.map((h) =>
-          includePipeline
-            ? [
-                `${h.months}m`,
-                h.endLabel,
-                formatMoney(h.revenue),
-                formatMoney(h.revenueWithPipeline ?? h.revenue),
-                formatMoney(h.pipelineWeighted || 0),
-                formatMoney(h.cogs),
-                formatMoney(h.expenses),
-                formatMoney(h.netIncome),
-                formatMoney(h.netWithPipeline ?? h.netIncome),
-                formatMoney(h.cashNet),
-              ]
-            : [
-                `${h.months}m`,
-                h.endLabel,
-                formatMoney(h.revenue),
-                `${formatMoney(h.revenueLow)} – ${formatMoney(h.revenueHigh)}`,
-                formatMoney(h.cogs),
-                formatMoney(h.expenses),
-                formatMoney(h.grossProfit),
-                formatMoney(h.netIncome),
-                `${formatMoney(h.netLow)} – ${formatMoney(h.netHigh)}`,
-                formatMoney(h.cashNet),
-              ]
-        )}
-      />
-
-      {includePipeline && Array.isArray(pipeline?.topDeals) && (pipeline.topDeals as unknown[]).length > 0 && (
-        <>
-          <SectionLabel>Pipeline feeding this forecast</SectionLabel>
-          <SimpleTable
-            headers={['Deal', 'Company', 'Stage', 'Amount', 'Prob %', 'Weighted', 'Expected close']}
-            rows={(pipeline!.topDeals as Array<Record<string, unknown>>).map((d) => [
-              String(d.name || '—'),
-              String(d.company_name || '—'),
-              String(d.stage || '—'),
-              formatMoney(Number(d.amount || 0)),
-              String(d.probability ?? '—'),
-              formatMoney(Number(d.weighted || 0)),
-              String(d.expected_close_date || '—').slice(0, 10),
-            ])}
+      <div className="grid gap-4 lg:grid-cols-2 mb-6 print:hidden">
+        <ChartCard
+          title="Stage mix"
+          subtitle="Open pipeline in this slice"
+          icon={PieChart}
+          height={260}
+        >
+          <MixDoughnut
+            segments={stages.map((s) => ({
+              label: s.label,
+              value: s.amount,
+            }))}
+            centerLabel="Expected"
+            centerValue={formatMoney(Number(summary.expected || 0))}
           />
-        </>
-      )}
-
-      {method && (
-        <div className="mt-6 flex gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-xs text-slate-600 leading-relaxed">
-          <Info className="w-4 h-4 shrink-0 text-[#00b4d8] mt-0.5" />
-          <div>
-            <span className="font-bold text-slate-800">Method · </span>
-            {method}
-          </div>
-        </div>
-      )}
+        </ChartCard>
+        <ChartCard
+          title="By month"
+          subtitle="Expected, weighted forecast, and won"
+          icon={BarChart3}
+          height={260}
+        >
+          <CashflowChart
+            labels={months.map((m) => m.month.slice(5))}
+            inflow={months.map((m) => m.expected)}
+            outflow={months.map((m) => m.won)}
+            net={months.map((m) => m.weighted)}
+          />
+        </ChartCard>
+      </div>
+      <SectionLabel>Deals in this period</SectionLabel>
+      <SimpleTable
+        headers={[
+          'Deal',
+          'Company',
+          'Stage',
+          'Kind',
+          'Close',
+          'Amount',
+          'Prob %',
+          'Weighted',
+        ]}
+        rows={rows.map((d) => [
+          String(d.name || '—'),
+          String(d.company_name || '—'),
+          String(d.stage || '—').replace(/_/g, ' '),
+          d.overdue ? `${d.kind} · overdue` : String(d.kind || '—'),
+          String(d.close_date || '—').slice(0, 10),
+          formatMoney(Number(d.amount || 0)),
+          String(d.probability ?? '—'),
+          formatMoney(Number(d.weighted || 0)),
+        ])}
+      />
     </>
   );
 }

@@ -22,7 +22,7 @@ import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
  * GET ?companyId=&report=trial_balance|pnl|balance_sheet|ar_aging|ap_aging|cashflow|management_accounts|budget_vs_actual|trends|forecast
  * Optional: from=&to= (YYYY-MM-DD), year= (budget), months=12 (history),
  * direction=forward (with from: N months starting at from, going forward),
- * horizons=1,3,6,9,12 | horizonMonths=12, includePipeline=1
+ * includePipeline=1. Forecast is the Sales pipeline sliced by from/to.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -686,8 +686,32 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    if (report === 'forecast') {
+      const rangeFrom = from || `${new Date().getFullYear()}-01-01`;
+      const rangeTo = to || new Date().toISOString().slice(0, 10);
+      const { buildPipelineForecast } = await import(
+        '@/lib/accounting/pipeline-forecast'
+      );
+      const pack = await buildPipelineForecast({
+        profileId: companyId,
+        from: rangeFrom,
+        to: rangeTo,
+      });
+      return NextResponse.json({
+        success: true,
+        report,
+        method: 'sales_pipeline',
+        period: { from: pack.from, to: pack.to },
+        summary: pack.summary,
+        months: pack.months,
+        stages: pack.stages,
+        rows: pack.rows,
+        warning: pack.warning,
+      });
+    }
+
     // ── Monthly trends + multi-horizon forecast ──────────────────────────
-    if (report === 'trends' || report === 'forecast') {
+    if (report === 'trends') {
       const monthsParam = Number(request.nextUrl.searchParams.get('months') || 12);
       const historyMonths = Math.min(36, Math.max(3, Number.isFinite(monthsParam) ? monthsParam : 12));
       const includePipeline =
