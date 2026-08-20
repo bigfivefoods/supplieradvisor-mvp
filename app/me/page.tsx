@@ -2,7 +2,7 @@
 
 /**
  * SA Member App — B2C personal app (PWA).
- * Bottom tabs: Home · Shop · Wallet · Check-in · Account
+ * Bottom dock: Home · Places · You · Shop · Share
  * PWA — hire / sale marketplace, gym book/check-in, reviews.
  */
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
@@ -41,15 +41,18 @@ import { SaOfficialLogo } from '@/components/brand/SaOfficialLogo';
 import {
   B2cAppShell,
   B2cInstallChip,
+  B2cYouAvatar,
+  isYouTab,
+  normalizeB2cTab,
   type B2cTab,
 } from '@/components/b2c/B2cAppChrome';
+import { B2cWalletShare } from '@/components/b2c/B2cWalletShare';
 import { B2cShopTab } from '@/components/b2c/B2cShopTab';
 import { B2cHireJourneyList } from '@/components/b2c/B2cHireJourney';
 import { B2cMemberCalendar } from '@/components/b2c/B2cMemberCalendar';
 import { B2cAdvisorBook } from '@/components/b2c/B2cAdvisorBook';
 import { B2cIdentityCard } from '@/components/b2c/B2cIdentityCard';
 import { B2cCarePanel } from '@/components/b2c/B2cCarePanel';
-import { B2cProfileShares } from '@/components/b2c/B2cProfileShares';
 import { B2cMemberAccounts } from '@/components/b2c/B2cMemberAccounts';
 import { B2cPhotoField } from '@/components/b2c/B2cPhotoField';
 import { B2cThemeToggle } from '@/components/b2c/B2cThemeToggle';
@@ -188,7 +191,7 @@ function MeAppInner() {
   const router = useRouter();
   const search = useSearchParams();
   const { ready, authenticated, user, logout } = usePrivy();
-  const [tab, setTab] = useState<B2cTab>('home');
+  const [tab, setTab] = useState<B2cTab>(() => normalizeB2cTab(search?.get('tab')) || 'home');
   const [profile, setProfile] = useState<Profile | null>(null);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -230,18 +233,10 @@ function MeAppInner() {
   >({});
   const focusAccount = Number(search?.get('account') || 0) || null;
 
-  // Deep links: ?tab=shop|checkin|memberships|account|calendar  ?link=
+  // Deep links: ?tab=shop|places|you|share|checkin|calendar  ?link=
   useEffect(() => {
-    const t = search?.get('tab');
-    if (
-      t === 'home' ||
-      t === 'shop' ||
-      t === 'memberships' ||
-      t === 'checkin' ||
-      t === 'account' ||
-      t === 'calendar' ||
-      t === 'book'
-    ) {
+    const t = normalizeB2cTab(search?.get('tab'));
+    if (t) {
       setTab(t);
     }
     const link = search?.get('link') || search?.get('token') || '';
@@ -400,10 +395,11 @@ function MeAppInner() {
   const checkinReady = memberships.filter((m) => m.checkin_path).length;
 
   const goTab = (t: B2cTab) => {
-    setTab(t);
+    const next = t === 'account' ? 'you' : t;
+    setTab(next);
     const params = new URLSearchParams(search?.toString() || '');
-    if (t === 'home') params.delete('tab');
-    else params.set('tab', t);
+    if (next === 'home') params.delete('tab');
+    else params.set('tab', next);
     const qs = params.toString();
     router.replace(qs ? `/me?${qs}` : '/me', { scroll: false });
   };
@@ -703,7 +699,7 @@ function MeAppInner() {
             </p>
             <p className="mt-4 text-center text-[11px] text-sky-100/70">
               Same login opens any company you operate. After sign-in, use
-              the building icon or Account → Switch to business.{' '}
+              the building icon or You → Switch to business.{' '}
               <Link href="/dashboard/select-company" className="font-bold underline">
                 Workspaces
               </Link>
@@ -726,7 +722,7 @@ function MeAppInner() {
       title: `Hi, ${displayName.split(' ')[0]}`,
       sub:
         accounts.length > 0
-          ? 'Your places, check-in and shop'
+          ? 'Your wallet · places, check-in, shop'
           : 'Add a gym, clinic or hire brand',
     },
     shop: {
@@ -734,7 +730,7 @@ function MeAppInner() {
       sub: 'Sale · hire · book a visit',
     },
     memberships: {
-      title: 'Your places',
+      title: 'Places',
       sub:
         accounts.length === 0
           ? 'Nothing linked yet'
@@ -750,6 +746,16 @@ function MeAppInner() {
         ? 'Verified member'
         : profile?.email || email || undefined,
     },
+    you: {
+      title: 'You',
+      sub: verification?.is_verified
+        ? 'Verified member'
+        : profile?.email || email || undefined,
+    },
+    share: {
+      title: 'Share',
+      sub: 'Invite · places · consent',
+    },
     calendar: {
       title: 'Diary',
       sub: 'Hires, classes and visits',
@@ -762,8 +768,10 @@ function MeAppInner() {
 
   return (
     <B2cAppShell
-      tab={tab}
+      tab={isYouTab(tab) ? 'you' : tab}
       onTab={goTab}
+      youPhotoUrl={photoUrl || profile?.photo_url}
+      youInitials={displayName}
       headerTitle={headerForTab[tab].title}
       headerSubtitle={headerForTab[tab].sub}
       headerRight={
@@ -787,7 +795,11 @@ function MeAppInner() {
       }
       badge={{
         memberships: accounts.length || undefined,
-        checkin: checkinReady || undefined,
+        you:
+          verification?.completeness &&
+          verification.completeness.score < verification.completeness.max
+            ? 1
+            : undefined,
       }}
     >
       {/* ── HOME ─────────────────────────────────────────────── */}
@@ -851,9 +863,70 @@ function MeAppInner() {
             </div>
           ) : null}
 
+          <section className="overflow-hidden rounded-[1.85rem] border border-white/70 bg-gradient-to-br from-[#0077b6] via-[#00b4d8] to-[#0c4a6e] p-5 text-white shadow-lg">
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => goTab('you')}
+                className="shrink-0"
+                aria-label="Open You"
+              >
+                <B2cYouAvatar
+                  photoUrl={photoUrl || profile?.photo_url}
+                  initials={displayName}
+                  size="lg"
+                  active
+                />
+              </button>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/70">
+                  Personal wallet
+                </p>
+                <h2 className="truncate text-2xl font-black tracking-tight">
+                  {displayName}
+                </h2>
+                <p className="mt-0.5 truncate text-xs text-white/85">
+                  {verification?.is_verified
+                    ? 'Identity verified'
+                    : email || 'Add your details on You'}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+              <button
+                type="button"
+                onClick={() => goTab('memberships')}
+                className="rounded-2xl bg-white/12 px-2 py-2.5 backdrop-blur"
+              >
+                <p className="text-lg font-black tabular-nums">{accounts.length}</p>
+                <p className="text-[10px] font-bold text-white/80">Places</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => goTab('checkin')}
+                className="rounded-2xl bg-white/12 px-2 py-2.5 backdrop-blur"
+              >
+                <p className="text-lg font-black tabular-nums">{checkinReady}</p>
+                <p className="text-[10px] font-bold text-white/80">Check-in</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => goTab('you')}
+                className="rounded-2xl bg-white/12 px-2 py-2.5 backdrop-blur"
+              >
+                <p className="text-lg font-black tabular-nums">
+                  {verification?.completeness
+                    ? `${verification.completeness.score}`
+                    : '—'}
+                </p>
+                <p className="text-[10px] font-bold text-white/80">You</p>
+              </button>
+            </div>
+          </section>
+
           <section>
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm font-black text-slate-900">Your places</h2>
+              <h2 className="text-sm font-black text-slate-900">Wallet</h2>
               <button
                 type="button"
                 onClick={() => goTab('memberships')}
@@ -915,10 +988,10 @@ function MeAppInner() {
               <h2 className="text-sm font-black text-slate-900">Invoices</h2>
               <button
                 type="button"
-                onClick={() => goTab('account')}
+                onClick={() => goTab('you')}
                 className="text-[11px] font-bold text-[#0077b6]"
               >
-                Account
+                You
               </button>
             </div>
             <B2cMemberAccounts
@@ -1027,8 +1100,6 @@ function MeAppInner() {
           <div className="space-y-4 lg:col-span-12">
           <B2cCarePanel />
 
-          <B2cProfileShares />
-
           {activity.length > 0 ? (
             <section>
               <h2 className="mb-2 text-sm font-black text-slate-900">
@@ -1074,7 +1145,7 @@ function MeAppInner() {
           verification.completeness.score < verification.completeness.max ? (
             <button
               type="button"
-              onClick={() => goTab('account')}
+              onClick={() => goTab('you')}
               className="flex w-full items-center gap-3 rounded-2xl border border-sky-200 bg-white p-3 text-left shadow-sm"
             >
               <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-100 text-[#0077b6]">
@@ -1161,6 +1232,16 @@ function MeAppInner() {
       )}
 
       {/* ── SHOP / MARKETPLACE ──────────────────────────────── */}
+      {tab === 'share' && (
+        <B2cWalletShare
+          displayName={displayName}
+          places={accounts.map((a) => ({
+            brand: a.brand,
+            portal_path: primaryPortal(a),
+          }))}
+        />
+      )}
+
       {tab === 'shop' && (
         <B2cShopTab
           memberships={memberships.map((m) => ({
@@ -1286,8 +1367,8 @@ function MeAppInner() {
                       >
                         <Banknote className="h-3.5 w-3.5" />
                         {accountDueByCompany[a.company_id]
-                          ? `Account · R${accountDueByCompany[a.company_id].toLocaleString('en-ZA')}`
-                          : 'Account'}
+                          ? `Due · R${accountDueByCompany[a.company_id].toLocaleString('en-ZA')}`
+                          : 'Pay'}
                       </button>
                       {clinic ? (
                         <Link
@@ -1417,14 +1498,38 @@ function MeAppInner() {
       )}
 
       {/* ── ACCOUNT ──────────────────────────────────────────── */}
-      {tab === 'account' && (
+      {isYouTab(tab) && (
         <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6 lg:space-y-0">
           <div className="space-y-4">
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-[12px] font-semibold text-emerald-950">
-            This is you as a member. Companies you run (including shop
-            brands) open from the building icon — they are not listed as
-            places here.
-          </div>
+          <section className="overflow-hidden rounded-[1.85rem] border border-white/70 bg-gradient-to-br from-[#0c4a6e] via-[#0077b6] to-[#00b4d8] p-5 text-white shadow-lg">
+            <div className="flex items-center gap-4">
+              <B2cYouAvatar
+                photoUrl={photoUrl || profile?.photo_url}
+                initials={displayName}
+                size="lg"
+                active
+              />
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/70">
+                  You
+                </p>
+                <h2 className="truncate text-2xl font-black tracking-tight">
+                  {displayName}
+                </h2>
+                <p className="mt-0.5 text-xs text-white/85">
+                  {verification?.is_verified
+                    ? 'Identity verified'
+                    : verification?.completeness
+                      ? `${verification.completeness.score}/${verification.completeness.max} complete`
+                      : 'Your personal member profile'}
+                </p>
+              </div>
+            </div>
+            <p className="mt-4 text-[12px] leading-relaxed text-white/80">
+              This is you as a member. Companies you run stay under the
+              building icon — they are not places in this wallet.
+            </p>
+          </section>
 
           <section className="rounded-3xl border border-amber-200 bg-white p-4 shadow-sm">
             <h2 className="text-sm font-black text-slate-900">
@@ -1678,7 +1783,7 @@ function MeAppInner() {
           </button>
 
           <p className="text-center text-[10px] text-slate-400">
-            Same login. Switch to a company from Account, the building icon
+            Same login. Switch to a company from You, the building icon
             in the header, or{' '}
             <Link href="/dashboard/select-company" className="font-bold underline">
               all workspaces

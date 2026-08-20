@@ -82,7 +82,7 @@ export function MemberAdvisorShell<T extends string = string>({
           className="relative -mt-5 flex flex-col items-center justify-end gap-0.5 px-1"
         >
           <span
-            className="flex h-14 w-14 items-center justify-center rounded-full shadow-lg ring-4 ring-white dark:ring-neutral-950 [&>svg]:h-6 [&>svg]:w-6"
+            className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full shadow-lg ring-4 ring-white dark:ring-neutral-950 [&>svg]:h-6 [&>svg]:w-6 [&>img]:h-full [&>img]:w-full [&>img]:object-cover"
             style={{ backgroundColor: color, color: ink }}
           >
             {t.icon}

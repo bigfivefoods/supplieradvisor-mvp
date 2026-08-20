@@ -830,7 +830,16 @@ export default function MemberFitgraphPortalPage() {
         {
           id: 'profile',
           label: 'You',
-          icon: <User />,
+          icon: portal.client.photo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={portal.client.photo_url}
+              alt=""
+              className="h-14 w-14 rounded-full object-cover"
+            />
+          ) : (
+            <User />
+          ),
           badge:
             (portal.messages_unread || 0) + (needBank ? 1 : 0) || undefined,
           covers: ['profile', 'messages', 'checkin'],

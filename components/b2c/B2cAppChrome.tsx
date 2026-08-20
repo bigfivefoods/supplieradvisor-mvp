@@ -1,15 +1,14 @@
 'use client';
 
 /**
- * SA Member chrome — phone: header + bottom tabs.
+ * SA Member chrome — phone: header + bottom dock with You in the centre.
  * Desktop / laptop: left nav + wide canvas.
  */
 import type { ReactNode } from 'react';
 import {
-  CalendarDays,
   Home,
   Link2,
-  QrCode,
+  Share2,
   Store,
   UserRound,
   WalletCards,
@@ -22,33 +21,91 @@ export type B2cTab =
   | 'memberships'
   | 'checkin'
   | 'account'
+  | 'you'
+  | 'share'
   | 'calendar'
   | 'book';
 
-const TABS: Array<{
-  id: B2cTab;
+export function isYouTab(tab: B2cTab) {
+  return tab === 'you' || tab === 'account';
+}
+
+export function normalizeB2cTab(raw: string | null | undefined): B2cTab | null {
+  const t = String(raw || '');
+  if (t === 'account' || t === 'you') return 'you';
+  if (
+    t === 'home' ||
+    t === 'shop' ||
+    t === 'memberships' ||
+    t === 'checkin' ||
+    t === 'share' ||
+    t === 'calendar' ||
+    t === 'book'
+  ) {
+    return t;
+  }
+  return null;
+}
+
+type DockId = 'home' | 'memberships' | 'you' | 'shop' | 'share';
+
+const DOCK: Array<{
+  id: DockId;
+  tab: B2cTab;
   label: string;
   icon: typeof Home;
 }> = [
-  { id: 'home', label: 'Home', icon: Home },
-  { id: 'memberships', label: 'Places', icon: WalletCards },
-  { id: 'checkin', label: 'Check-in', icon: QrCode },
-  { id: 'shop', label: 'Shop', icon: Store },
-  { id: 'account', label: 'Me', icon: UserRound },
+  { id: 'home', tab: 'home', label: 'Home', icon: Home },
+  { id: 'memberships', tab: 'memberships', label: 'Places', icon: WalletCards },
+  { id: 'you', tab: 'you', label: 'You', icon: UserRound },
+  { id: 'shop', tab: 'shop', label: 'Shop', icon: Store },
+  { id: 'share', tab: 'share', label: 'Share', icon: Share2 },
 ];
 
-const DESKTOP_TABS: Array<{
-  id: B2cTab;
-  label: string;
-  icon: typeof Home;
-}> = [
-  { id: 'home', label: 'Home', icon: Home },
-  { id: 'memberships', label: 'Places', icon: WalletCards },
-  { id: 'calendar', label: 'Diary', icon: CalendarDays },
-  { id: 'checkin', label: 'Check-in', icon: QrCode },
-  { id: 'shop', label: 'Shop', icon: Store },
-  { id: 'account', label: 'Me', icon: UserRound },
-];
+function youActive(tab: B2cTab) {
+  return isYouTab(tab);
+}
+
+function dockActive(id: DockId, tab: B2cTab) {
+  if (id === 'you') return youActive(tab);
+  if (id === 'home') {
+    return tab === 'home' || tab === 'calendar' || tab === 'book' || tab === 'checkin';
+  }
+  return tab === id;
+}
+
+export function B2cYouAvatar({
+  photoUrl,
+  initials,
+  size = 'md',
+  active,
+}: {
+  photoUrl?: string | null;
+  initials?: string;
+  size?: 'sm' | 'md' | 'lg';
+  active?: boolean;
+}) {
+  const dim =
+    size === 'lg' ? 'h-16 w-16 text-xl' : size === 'sm' ? 'h-9 w-9 text-sm' : 'h-14 w-14 text-lg';
+  const letter = (initials || 'Y').trim().slice(0, 1).toUpperCase() || 'Y';
+  const url = String(photoUrl || '').trim();
+  return (
+    <span
+      className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-sky-300 via-[#00b4d8] to-[#0077b6] font-black text-white ${dim} ${
+        active
+          ? 'ring-[3px] ring-[#00b4d8] shadow-[0_8px_24px_rgba(0,180,216,0.45)]'
+          : 'ring-[3px] ring-white shadow-[0_10px_28px_rgba(15,23,42,0.28)] dark:ring-neutral-950'
+      }`}
+    >
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <span className="leading-none">{letter}</span>
+      )}
+    </span>
+  );
+}
 
 function NavButton({
   id,
@@ -95,7 +152,7 @@ function NavButton({
     <button
       type="button"
       onClick={onClick}
-      className={`relative flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 transition ${
+      className={`relative flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-1 transition ${
         active
           ? 'text-[#0077b6]'
           : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
@@ -113,7 +170,7 @@ function NavButton({
           </span>
         ) : null}
       </span>
-      <span className="text-[10px] font-bold tracking-tight">{label}</span>
+      <span className="text-[10px] font-black tracking-tight">{label}</span>
     </button>
   );
 }
@@ -162,29 +219,69 @@ export function B2cBottomNav({
   tab,
   onChange,
   badge,
+  youPhotoUrl,
+  youInitials,
 }: {
   tab: B2cTab;
   onChange: (t: B2cTab) => void;
   badge?: Partial<Record<B2cTab, number>>;
+  youPhotoUrl?: string | null;
+  youInitials?: string;
 }) {
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200/80 bg-white/95 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/95 md:hidden"
-      style={{ paddingBottom: 'max(0.35rem, env(safe-area-inset-bottom))' }}
+      className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200/70 bg-white/90 shadow-[0_-12px_40px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-white/10 dark:bg-neutral-950/90 md:hidden"
+      style={{ paddingBottom: 'max(0.4rem, env(safe-area-inset-bottom))' }}
     >
-      <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 pt-1">
-        {TABS.map(({ id, label, icon }) => (
-          <NavButton
-            key={id}
-            id={id}
-            label={label}
-            icon={icon}
-            active={tab === id}
-            badge={badge?.[id]}
-            layout="bottom"
-            onClick={() => onChange(id)}
-          />
-        ))}
+      <div className="mx-auto flex max-w-lg items-end justify-around px-1 pt-1">
+        {DOCK.map(({ id, tab: t, label, icon }) => {
+          const active = dockActive(id, tab);
+          if (id === 'you') {
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => onChange('you')}
+                aria-current={active ? 'page' : undefined}
+                aria-label="You"
+                className="relative -mt-7 flex min-w-[4.25rem] flex-1 flex-col items-center justify-end gap-0.5 px-1"
+              >
+                <B2cYouAvatar
+                  photoUrl={youPhotoUrl}
+                  initials={youInitials}
+                  size="md"
+                  active={active}
+                />
+                <span
+                  className={`text-[10px] font-black tracking-tight ${
+                    active ? 'text-[#0077b6]' : 'text-slate-500 dark:text-slate-400'
+                  }`}
+                >
+                  You
+                </span>
+                {(badge?.you || badge?.account) ? (
+                  <span className="absolute right-[18%] top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black text-white">
+                    {(badge.you || badge.account || 0) > 9
+                      ? '9+'
+                      : badge.you || badge.account}
+                  </span>
+                ) : null}
+              </button>
+            );
+          }
+          return (
+            <NavButton
+              key={id}
+              id={t}
+              label={label}
+              icon={icon}
+              active={active}
+              badge={badge?.[t]}
+              layout="bottom"
+              onClick={() => onChange(t)}
+            />
+          );
+        })}
       </div>
     </nav>
   );
@@ -198,6 +295,8 @@ export function B2cAppShell({
   headerSubtitle,
   headerRight,
   badge,
+  youPhotoUrl,
+  youInitials,
 }: {
   children: ReactNode;
   tab: B2cTab;
@@ -206,9 +305,11 @@ export function B2cAppShell({
   headerSubtitle?: string;
   headerRight?: ReactNode;
   badge?: Partial<Record<B2cTab, number>>;
+  youPhotoUrl?: string | null;
+  youInitials?: string;
 }) {
   return (
-    <div className="b2c-app sa-member-lockup min-h-[100dvh] overscroll-none bg-[#f0f9ff] text-slate-900 dark:bg-black dark:text-neutral-50 md:flex">
+    <div className="b2c-app sa-member-lockup min-h-[100dvh] overscroll-none bg-[#eef6fb] text-slate-900 dark:bg-black dark:text-neutral-50 md:flex">
       <aside className="sticky top-0 hidden h-[100dvh] w-56 shrink-0 flex-col bg-gradient-to-b from-[#0077b6] via-[#0369a1] to-[#0c4a6e] px-3 py-5 text-white dark:from-[#082f49] dark:via-[#0c4a6e] dark:to-black lg:w-64 md:flex">
         <div className="mb-6 px-2">
           <SaOfficialLogo
@@ -221,18 +322,43 @@ export function B2cAppShell({
           <p className="mt-1 text-xl font-black tracking-tight">SA Member</p>
         </div>
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
-          {DESKTOP_TABS.map(({ id, label, icon }) => (
-            <NavButton
-              key={id}
-              id={id}
-              label={label}
-              icon={icon}
-              active={tab === id || (tab === 'book' && id === 'calendar')}
-              badge={badge?.[id]}
-              layout="side"
-              onClick={() => onTab(id)}
-            />
-          ))}
+          {DOCK.map(({ id, tab: t, label, icon: Icon }) => {
+            const active = dockActive(id, tab);
+            if (id === 'you') {
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => onTab('you')}
+                  className={`relative flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition ${
+                    active
+                      ? 'bg-white/15 text-white'
+                      : 'text-sky-100/80 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <B2cYouAvatar
+                    photoUrl={youPhotoUrl}
+                    initials={youInitials}
+                    size="sm"
+                    active={active}
+                  />
+                  <span className="text-sm font-bold">You</span>
+                </button>
+              );
+            }
+            return (
+              <NavButton
+                key={id}
+                id={t}
+                label={label}
+                icon={Icon}
+                active={active}
+                badge={badge?.[t]}
+                layout="side"
+                onClick={() => onTab(t)}
+              />
+            );
+          })}
         </nav>
       </aside>
 
@@ -243,12 +369,18 @@ export function B2cAppShell({
           right={headerRight}
         />
         <main
-          className="mx-auto w-full max-w-lg px-4 pb-28 pt-4 md:max-w-6xl md:px-8 md:pb-10 md:pt-6"
+          className="mx-auto w-full max-w-lg px-4 pb-32 pt-4 md:max-w-6xl md:px-8 md:pb-10 md:pt-6"
           style={{ minHeight: 'calc(100dvh - 8rem)' }}
         >
           {children}
         </main>
-        <B2cBottomNav tab={tab} onChange={onTab} badge={badge} />
+        <B2cBottomNav
+          tab={tab}
+          onChange={onTab}
+          badge={badge}
+          youPhotoUrl={youPhotoUrl}
+          youInitials={youInitials}
+        />
       </div>
     </div>
   );
