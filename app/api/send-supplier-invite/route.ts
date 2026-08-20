@@ -65,9 +65,7 @@ export async function POST(request: NextRequest) {
         invited_by: invitedBy,
         invited_at: now,
         created_at: now,
-        ...referredByInsertField(
-          inviterProfileId ? Number(inviterProfileId) : null
-        ),
+        ...referredByInsertField(inviterId),
       })
       .select()
       .single();
@@ -111,7 +109,6 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const inviterId = inviterProfileId ? Number(inviterProfileId) : null;
     let goldenPath = { newlyMarked: [] as string[], progressPercent: 0 };
     if (inviterId && Number.isFinite(inviterId)) {
       goldenPath = await import('@/lib/onboarding/checklist').then(
