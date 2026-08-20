@@ -15,6 +15,7 @@ import {
   applyWatchSessionToStore,
   ensureGarminAccess,
   garminActivityToWatchInput,
+  garminConfigured,
   garminRedirectUri,
   matchWatchToSession,
   pullGarminActivities,
@@ -29,20 +30,23 @@ export async function GET() {
 
 function garminWebhookAuthorized(req: NextRequest): boolean {
   const secret = String(process.env.GARMIN_WEBHOOK_SECRET || '').trim();
-  const prod =
-    process.env.NODE_ENV === 'production' ||
-    process.env.VERCEL_ENV === 'production';
-  if (!secret) return !prod;
-  const got =
-    req.headers.get('x-garmin-secret') ||
-    req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
-    '';
-  if (got.length !== secret.length) return false;
-  try {
-    return timingSafeEqual(Buffer.from(got), Buffer.from(secret));
-  } catch {
-    return false;
+  if (secret) {
+    const got =
+      req.headers.get('x-garmin-secret') ||
+      req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
+      '';
+    if (got.length === secret.length) {
+      try {
+        if (timingSafeEqual(Buffer.from(got), Buffer.from(secret))) return true;
+      } catch {
+        /* fall through to Connect-configured ping */
+      }
+    }
   }
+  // Garmin Activity ping/pull has no custom HMAC. Accept POST only when
+  // Connect credentials exist; we only persist after a successful Garmin pull
+  // for a member whose stored user_id matches the ping.
+  return garminConfigured();
 }
 
 export async function POST(req: NextRequest) {
