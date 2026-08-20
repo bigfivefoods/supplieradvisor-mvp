@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     }
 
     const inviterId = inviterProfileId ? Number(inviterProfileId) : null;
-    if (inviterId && Number.isFinite(inviterId)) {
+    if (Number.isFinite(inviterId) && inviterId) {
       const gate = await requireCompanyAccess(request, inviterId, {
         legacyPrivyUserId: legacyPrivyFrom(request, body),
       });
