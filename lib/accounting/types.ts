@@ -207,6 +207,19 @@ export type BankTransaction = {
   created_at?: string;
   /** joined */
   gl_account_name?: string | null;
+  /** Learned / keyword proposal for unallocated lines */
+  proposal?: {
+    gl_account_id: number;
+    gl_code: string | null;
+    gl_name: string | null;
+    tax_code: string | null;
+    tax_reason: string | null;
+    tax_amount: number;
+    confidence: number;
+    reason: string;
+    source: 'learned' | 'journal' | 'keyword';
+    hits: number;
+  } | null;
 };
 
 export type AccountingEntity = {

@@ -152,7 +152,9 @@ function Inner() {
     gl_account_id: '',
     memo: '',
     tax_amount: '',
+    tax_code: '',
   });
+  const [postingId, setPostingId] = useState<string | number | null>(null);
   const [matchInvoiceId, setMatchInvoiceId] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
   const [bulkGl, setBulkGl] = useState('');
@@ -896,7 +898,7 @@ function Inner() {
           gl_account_id: Number(allocForm.gl_account_id),
           memo: allocForm.memo || null,
           tax_amount: allocForm.tax_amount ? Number(allocForm.tax_amount) : 0,
-          tax_code: showAllocate.tax_code || undefined,
+          tax_code: allocForm.tax_code || showAllocate.tax_code || undefined,
         }),
       });
       const data = await res.json();
@@ -907,12 +909,47 @@ function Inner() {
           : `Allocated · journal ${data.entryNumber}`
       );
       setShowAllocate(null);
-      setAllocForm({ gl_account_id: '', memo: '', tax_amount: '' });
+      setAllocForm({ gl_account_id: '', memo: '', tax_amount: '', tax_code: '' });
       void load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function postProposed(t: BankTransaction) {
+    const p = t.proposal;
+    if (!p?.gl_account_id) {
+      toast.error('No proposal for this line');
+      return;
+    }
+    setPostingId(t.id);
+    try {
+      const res = await fetch('/api/accounting/bank/allocate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          action: 'allocate',
+          bank_transaction_id: t.id,
+          gl_account_id: p.gl_account_id,
+          memo: t.description || null,
+          tax_amount: p.tax_amount || 0,
+          tax_code: p.tax_code || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success(
+        `Posted to ${p.gl_code || p.gl_account_id}${p.tax_code ? ` · ${p.tax_code}` : ''} · ${data.entryNumber || 'journal'}`
+      );
+      void load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setPostingId(null);
     }
   }
 
@@ -1268,7 +1305,7 @@ function Inner() {
       <AccountingHeader
         title="Bank &"
         titleAccent="allocation"
-        description="Bank accounts with statement balances you can set anytime, BankLink or PDF/CSV import, allocate to GL, and match AR/AP."
+        description="Bank accounts with statement balances you can set anytime, BankLink or PDF/CSV import, allocate to GL, and match AR/AP. Proposals learn from how you post journals and VAT, then you post or change the account."
         action={
           <>
             <button
@@ -1766,6 +1803,7 @@ function Inner() {
                   <th className="px-3 py-3 font-semibold text-right">Amount</th>
                   <th className="px-3 py-3 font-semibold">Allocation</th>
                   <th className="px-3 py-3 font-semibold">GL</th>
+                  <th className="px-3 py-3 font-semibold">Proposal</th>
                   <th className="px-3 py-3 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
@@ -1815,18 +1853,60 @@ function Inner() {
                       <td className="px-3 py-2.5 text-xs text-neutral-600">
                         {gl ? `${gl.code}` : '—'}
                       </td>
+                      <td className="px-3 py-2.5 text-xs max-w-[220px]">
+                        {alloc === 'unallocated' && t.proposal ? (
+                          <div>
+                            <div className="font-semibold text-slate-800">
+                              {t.proposal.gl_code || t.proposal.gl_account_id}
+                              {t.proposal.gl_name ? ` · ${t.proposal.gl_name}` : ''}
+                            </div>
+                            <div className="text-[10px] text-slate-500 leading-snug">
+                              {t.proposal.tax_code || '—'} · {t.proposal.confidence}% ·{' '}
+                              {t.proposal.source === 'keyword'
+                                ? 'keyword'
+                                : t.proposal.hits
+                                  ? `${t.proposal.hits} past`
+                                  : t.proposal.source}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-neutral-400">—</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2.5">
                         <div className="flex justify-end gap-1">
                           {alloc === 'unallocated' && (
                             <>
+                              {t.proposal?.gl_account_id ? (
+                                <button
+                                  type="button"
+                                  disabled={postingId === t.id}
+                                  onClick={() => void postProposed(t)}
+                                  className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+                                  title={t.proposal.reason}
+                                >
+                                  {postingId === t.id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <CheckCircle2 className="h-3 w-3" />
+                                  )}
+                                  Post
+                                </button>
+                              ) : null}
                               <IconBtn
-                                title="Allocate to GL"
+                                title="Change account / VAT"
                                 onClick={() => {
                                   setShowAllocate(t);
                                   setAllocForm({
-                                    gl_account_id: '',
+                                    gl_account_id: t.proposal
+                                      ? String(t.proposal.gl_account_id)
+                                      : '',
                                     memo: t.description || '',
-                                    tax_amount: '',
+                                    tax_amount:
+                                      t.proposal && t.proposal.tax_amount > 0
+                                        ? String(t.proposal.tax_amount)
+                                        : '',
+                                    tax_code: t.proposal?.tax_code || t.tax_code || '',
                                   });
                                 }}
                               >
@@ -1867,6 +1947,7 @@ function Inner() {
                                       t.tax_amount != null && Number(t.tax_amount) > 0
                                         ? String(t.tax_amount)
                                         : '',
+                                    tax_code: t.tax_code || '',
                                   });
                                 }}
                               >
@@ -2897,17 +2978,40 @@ function Inner() {
                 className="input"
               />
             </Field>
-            <Field label="VAT amount (optional)">
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={allocForm.tax_amount}
-                onChange={(e) => setAllocForm({ ...allocForm, tax_amount: e.target.value })}
-                className="input"
-                placeholder="0"
-              />
-            </Field>
+            {showAllocate.proposal?.reason ? (
+              <p className="rounded-xl border border-sky-100 bg-sky-50/70 px-3 py-2 text-[11px] text-slate-600">
+                Proposal: {showAllocate.proposal.reason}
+                {showAllocate.proposal.tax_reason
+                  ? ` · ${showAllocate.proposal.tax_reason}`
+                  : ''}
+              </p>
+            ) : null}
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="VAT code">
+                <select
+                  value={allocForm.tax_code}
+                  onChange={(e) => setAllocForm({ ...allocForm, tax_code: e.target.value })}
+                  className="input"
+                >
+                  <option value="">None</option>
+                  <option value="VAT15">VAT15 · standard</option>
+                  <option value="VAT0">VAT0 · zero-rated</option>
+                  <option value="EXEMPT">Exempt</option>
+                  <option value="OUT">Out of scope</option>
+                </select>
+              </Field>
+              <Field label="VAT amount (optional)">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={allocForm.tax_amount}
+                  onChange={(e) => setAllocForm({ ...allocForm, tax_amount: e.target.value })}
+                  className="input"
+                  placeholder="0"
+                />
+              </Field>
+            </div>
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" className="btn-secondary !py-2 !px-4 text-sm" onClick={() => setShowAllocate(null)}>
                 Cancel

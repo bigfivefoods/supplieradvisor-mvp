@@ -51,6 +51,7 @@ export type AllocateParams = {
   counterparty?: string | null;
   /** If true, also mark bank status reconciled */
   markReconciled?: boolean;
+  taxCode?: string | null;
 };
 
 /**
@@ -226,6 +227,7 @@ export async function allocateBankTransaction(params: AllocateParams): Promise<
     updated_at: new Date().toISOString(),
   };
   if (params.memo) patch.notes = params.memo;
+  if (params.taxCode) patch.tax_code = String(params.taxCode).slice(0, 32);
 
   const { error: upErr } = await supabase
     .from('bank_transactions')

@@ -194,6 +194,7 @@ export async function POST(request: NextRequest) {
         memo: body.memo || null,
         counterparty: body.counterparty || null,
         markReconciled: body.mark_reconciled !== false,
+        taxCode: body.tax_code ? String(body.tax_code) : null,
       });
 
       if (!result.ok) {
@@ -364,6 +365,7 @@ export async function POST(request: NextRequest) {
       memo: body.memo || null,
       counterparty: body.counterparty || null,
       markReconciled: body.mark_reconciled !== false,
+      taxCode: body.tax_code ? String(body.tax_code) : null,
     });
 
     if (!result.ok) {

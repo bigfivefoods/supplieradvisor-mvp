@@ -84,6 +84,30 @@ export async function GET(request: NextRequest) {
           currency: t.currency || 'ZAR',
         };
       });
+
+      try {
+        const { proposeForTransactions } = await import('@/lib/banking/learning');
+        const proposals = await proposeForTransactions(
+          companyId,
+          transactions as Array<{
+            id: number | string;
+            description?: string | null;
+            counterparty_name?: string | null;
+            amount: number;
+            allocation_status?: string | null;
+          }>
+        );
+        if (proposals.size) {
+          transactions = (
+            transactions as Array<Record<string, unknown>>
+          ).map((t) => {
+            const p = proposals.get(String(t.id));
+            return p ? { ...t, proposal: p } : t;
+          });
+        }
+      } catch {
+        /* proposals are optional */
+      }
     }
 
     // Allocation pulse
