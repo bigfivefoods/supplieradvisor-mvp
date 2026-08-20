@@ -12,19 +12,33 @@ export function getResend(): Resend {
 
   const client = new Resend(apiKey);
   const originalSend = client.emails.send.bind(client.emails);
-  client.emails.send = (async (payload: Parameters<typeof originalSend>[0], options?: Parameters<typeof originalSend>[1]) => {
-    const next = { ...(payload as Record<string, unknown>) };
-    if (typeof next.html === 'string') {
+  type SendArgs = Parameters<typeof originalSend>;
+  client.emails.send = (async (payload: SendArgs[0], options?: SendArgs[1]) => {
+    const raw = payload as unknown as {
+      html?: unknown;
+      from?: unknown;
+      replyTo?: unknown;
+      reply_to?: unknown;
+    };
+    const next = {
+      ...(payload as unknown as object),
+    } as SendArgs[0] & {
+      html?: unknown;
+      from?: unknown;
+      replyTo?: unknown;
+      reply_to?: unknown;
+    };
+    if (typeof raw.html === 'string') {
       const { wrapSystemNotificationHtml } = await import(
         '@/lib/services/advisor-branded-email'
       );
-      next.html = wrapSystemNotificationHtml(next.html);
+      next.html = wrapSystemNotificationHtml(raw.html);
     }
     if (!next.from) next.from = getResendFrom();
     if (next.replyTo == null && next.reply_to == null) {
       next.replyTo = getResendReplyTo();
     }
-    return originalSend(next as Parameters<typeof originalSend>[0], options);
+    return originalSend(next, options);
   }) as typeof client.emails.send;
   resendClient = client;
   return client;
