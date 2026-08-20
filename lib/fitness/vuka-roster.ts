@@ -340,12 +340,7 @@ function upsertBilledRoster(
       continue;
     }
     if (createOnly) continue;
-    if (client.active === false || client.membership_status === 'expired' || client.membership_status === 'cancelled') {
-      client.active = true;
-      client.membership_status = 'active';
-      client.updated_at = now;
-      changed = true;
-    }
+    if (client.active === false) continue;
     if (client.name !== row.name) {
       client.name = row.name;
       client.updated_at = now;
@@ -383,13 +378,8 @@ function applyBilledClassAllocations(
     if (!plan) continue;
     const client = findRosterClient(store, row);
     if (!client) continue;
+    if (client.active === false) continue;
     if (!row.class_hint && clientHasLiveClass(store, client.id)) continue;
-    if (client.active === false || client.membership_status === 'expired') {
-      client.active = true;
-      client.membership_status = 'active';
-      client.updated_at = now;
-      changed = true;
-    }
     const result = allocateMemberToClass(store, {
       clientId: client.id,
       planId: plan.id,

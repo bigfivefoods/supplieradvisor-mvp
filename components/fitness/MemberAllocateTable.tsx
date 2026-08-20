@@ -416,6 +416,34 @@ export function MemberAllocateTable({
     setDraft(c.id, next);
   };
 
+  const parkPerson = async (c: FitClient, d: Draft) => {
+    setBusyId(c.id);
+    try {
+      const data = await post({
+        action: 'allocate_member',
+        client_id: c.id,
+        inactive: true,
+        member: false,
+        private_client: false,
+        name: d.name.trim() || c.name,
+        email: d.email.trim(),
+        phone: d.phone.trim(),
+        notes: d.notes,
+      });
+      setDrafts((prev) => {
+        const next = { ...prev };
+        delete next[c.id];
+        return next;
+      });
+      setStatusFilter('inactive');
+      toast.success((data?.message as string) || 'Marked inactive');
+    } catch {
+      toast.error('Could not save');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const save = async (c: FitClient) => {
     const d = draftFor(c);
     if (!d.name.trim()) {
@@ -423,30 +451,7 @@ export function MemberAllocateTable({
       return;
     }
     if (!d.personActive) {
-      setBusyId(c.id);
-      try {
-        const data = await post({
-          action: 'allocate_member',
-          client_id: c.id,
-          inactive: true,
-          member: false,
-          private_client: false,
-          name: d.name.trim(),
-          email: d.email.trim(),
-          phone: d.phone.trim(),
-          notes: d.notes,
-        });
-        setDrafts((prev) => {
-          const next = { ...prev };
-          delete next[c.id];
-          return next;
-        });
-        toast.success((data?.message as string) || 'Marked inactive');
-      } catch {
-        toast.error('Could not save');
-      } finally {
-        setBusyId(null);
-      }
+      await parkPerson(c, d);
       return;
     }
     if (!d.member && !d.privateClient) {
@@ -686,8 +691,13 @@ export function MemberAllocateTable({
                     )}
                   </button>
                   <div className="min-w-[11rem] flex-1">
-                    <div className="font-semibold text-slate-900 dark:text-yellow-50">
-                      {d.name || c.name}
+                    <div className="flex flex-wrap items-center gap-2 font-semibold text-slate-900 dark:text-yellow-50">
+                      <span>{d.name || c.name}</span>
+                      {!d.personActive ? (
+                        <span className="rounded-full border border-yellow-500 bg-yellow-300 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-yellow-950">
+                          Inactive
+                        </span>
+                      ) : null}
                     </div>
                     <div className="text-[11px] text-slate-500 dark:text-yellow-200/80">
                       {c.code}
@@ -788,7 +798,15 @@ export function MemberAllocateTable({
                   <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
                     <PersonActiveToggle
                       value={d.personActive}
-                      onChange={(on) => setDraft(c.id, { personActive: on })}
+                      onChange={(on) => {
+                        setDraft(c.id, { personActive: on });
+                        if (!on) {
+                          void parkPerson(c, {
+                            ...draftFor(c),
+                            personActive: false,
+                          });
+                        }
+                      }}
                     />
                     {classFilter && !onFilteredClass && d.personActive ? (
                       <button
@@ -885,7 +903,15 @@ export function MemberAllocateTable({
                       </div>
                       <PersonActiveToggle
                         value={d.personActive}
-                        onChange={(on) => setDraft(c.id, { personActive: on })}
+                        onChange={(on) => {
+                          setDraft(c.id, { personActive: on });
+                          if (!on) {
+                            void parkPerson(c, {
+                              ...draftFor(c),
+                              personActive: false,
+                            });
+                          }
+                        }}
                       />
                     </div>
 

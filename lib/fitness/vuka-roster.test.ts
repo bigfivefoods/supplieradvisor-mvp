@@ -330,4 +330,12 @@ assert.equal(
 );
 assert.equal(vukaDeskSettled(store), true);
 
+if (store.settings) store.settings.vuka_billed_class_import = 'old';
+const afterStamp = ensureVukaRoster(store, { now: '2026-08-20T13:00:00.000Z' });
+assert.equal(afterStamp.added, 0);
+assert.equal(
+  store.clients.find((c) => /yunis leandre herbert/i.test(c.name))?.active,
+  false
+);
+
 console.log('vuka-roster.test.ts ok');
