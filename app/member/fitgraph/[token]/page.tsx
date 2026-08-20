@@ -273,6 +273,21 @@ type Portal = {
   class_report?: import('@/lib/fitness/vuka-class-catalog').ClassSubscriptionReport;
   joining?: { fee_zar: number; waived?: boolean; note?: string } | null;
   class_subscribe?: boolean;
+  grow?: {
+    public_token: string;
+    join_member: string;
+    join_private: string;
+    join_both: string;
+    classes: Array<{
+      id: string;
+      share_code: string;
+      class_name: string;
+      date: string;
+      start_time: string;
+      coach_name?: string;
+      location?: string;
+    }>;
+  } | null;
   collect_debit_bank?: boolean;
   require_debit_bank?: boolean;
   bank?: {
@@ -941,6 +956,7 @@ export default function MemberFitgraphPortalPage() {
             phone={portal.contact_phone}
             email={portal.contact_email}
             color={color}
+            grow={portal.grow}
           />
         )}
 

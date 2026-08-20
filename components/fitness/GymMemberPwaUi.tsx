@@ -6,8 +6,11 @@ import {
   CalendarPlus,
   CheckCircle2,
   Loader2,
+  MessageCircle,
   QrCode,
+  Share2,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { AdvisorSharePanel } from '@/components/advisors/AdvisorSharePanel';
 import { advisorBrandInk } from '@/lib/advisors/brand-ink';
 
@@ -360,25 +363,193 @@ export function GymSharePanel({
   phone,
   email,
   color,
+  grow,
 }: {
   brand: string;
   bio?: string;
   phone?: string;
   email?: string;
   color: string;
+  grow?: {
+    public_token: string;
+    join_member: string;
+    join_private: string;
+    join_both: string;
+    classes: Array<{
+      id: string;
+      share_code: string;
+      class_name: string;
+      date: string;
+      start_time: string;
+      coach_name?: string;
+      location?: string;
+    }>;
+  } | null;
 }) {
+  const [classId, setClassId] = useState(grow?.classes[0]?.id || '');
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const picked =
+    grow?.classes.find((c) => c.id === classId) || grow?.classes[0] || null;
+  const abs = (path: string) =>
+    path.startsWith('http') ? path : `${origin}${path}`;
+  const trialPath = picked
+    ? `/join/fitgraph/${encodeURIComponent(grow!.public_token)}/${encodeURIComponent(picked.share_code)}?trial=1`
+    : '';
+
+  const shareLink = async (title: string, text: string, path: string) => {
+    const url = abs(path);
+    const blurb = `${text}\n${url}`;
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({ title, text, url });
+        return;
+      } catch {
+        /* cancelled */
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(blurb);
+      toast.success('Link copied');
+    } catch {
+      toast.error('Could not share');
+    }
+  };
+
   return (
-    <AdvisorSharePanel
-      brand={brand}
-      bio={bio}
-      phone={phone}
-      email={email}
-      color={color}
-      productLine="GymAdvisor®"
-      hint="Send this gym to a friend on WhatsApp, socials, or copy the link."
-      lead={`Train with ${brand} on GymAdvisor®`}
-      emailSubject={`Train at ${brand}`}
-      copiedOk="Gym details copied"
-    />
+    <div className="space-y-5">
+      <AdvisorSharePanel
+        brand={brand}
+        bio={bio}
+        phone={phone}
+        email={email}
+        color={color}
+        productLine="GymAdvisor®"
+        hint="Send this gym to a friend. For new people, share a free class or the join form below — that is how membership grows."
+        lead={`Train with ${brand} on GymAdvisor®`}
+        emailSubject={`Train at ${brand}`}
+        copiedOk="Gym details copied"
+        shareUrl={
+          grow?.public_token
+            ? abs(`/embed/fitgraph/${encodeURIComponent(grow.public_token)}`)
+            : undefined
+        }
+      />
+
+      {grow ? (
+        <div className="space-y-3 rounded-3xl border border-yellow-200 bg-yellow-50/80 p-4 dark:border-yellow-800 dark:bg-yellow-950/40">
+          <div>
+            <h3 className="text-sm font-black text-slate-900 dark:text-yellow-50">
+              Free class for a new client
+            </h3>
+            <p className="mt-0.5 text-[11px] text-slate-600 dark:text-yellow-100/80">
+              They book one complimentary intro class. Then they can join as a
+              member or private client on the application form.
+            </p>
+          </div>
+          {grow.classes.length ? (
+            <>
+              <select
+                className="w-full rounded-xl border border-yellow-300 bg-white px-3 py-2 text-sm font-semibold dark:border-yellow-700 dark:bg-neutral-950"
+                value={picked?.id || ''}
+                onChange={(e) => setClassId(e.target.value)}
+              >
+                {grow.classes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.class_name} · {gymFormatDay(c.date, c.start_time)}
+                    {c.coach_name ? ` · ${c.coach_name}` : ''}
+                  </option>
+                ))}
+              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={!trialPath}
+                  onClick={() =>
+                    void shareLink(
+                      `Free class at ${brand}`,
+                      `You are invited to a complimentary intro class at ${brand}: ${picked?.class_name} · ${picked ? gymFormatDay(picked.date, picked.start_time) : ''}. Then join as a member if you love it.`,
+                      trialPath
+                    )
+                  }
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 text-sm font-black text-white disabled:opacity-50 dark:bg-yellow-400 dark:text-yellow-950"
+                >
+                  <Share2 className="h-4 w-4" /> Share free class
+                </button>
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(
+                    `Complimentary intro class at ${brand}: ${picked?.class_name || ''} · ${picked ? gymFormatDay(picked.date, picked.start_time) : ''}\n${abs(trialPath)}`
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-sm font-black text-white"
+                >
+                  <MessageCircle className="h-4 w-4" /> WhatsApp
+                </a>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-slate-500">
+              Put upcoming classes on the gym calendar first, then you can share
+              a free intro class.
+            </p>
+          )}
+        </div>
+      ) : null}
+
+      {grow ? (
+        <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900">
+          <div>
+            <h3 className="text-sm font-black text-slate-900 dark:text-white">
+              Membership application
+            </h3>
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              Full member and/or private client form — PAR-Q, bank, identity.
+              Share with someone ready to join.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <button
+              type="button"
+              onClick={() =>
+                void shareLink(
+                  `Join ${brand}`,
+                  `Apply for a group class membership at ${brand}.`,
+                  grow.join_member
+                )
+              }
+              className="rounded-2xl border border-yellow-400 bg-yellow-300 px-3 py-2.5 text-xs font-black text-yellow-950"
+            >
+              Share member form
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                void shareLink(
+                  `Private training at ${brand}`,
+                  `Apply as a private client at ${brand}.`,
+                  grow.join_private
+                )
+              }
+              className="rounded-2xl border border-slate-200 px-3 py-2.5 text-xs font-black dark:border-white/15"
+            >
+              Share private form
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                void shareLink(
+                  `Join ${brand}`,
+                  `Apply as a member and/or private client at ${brand}.`,
+                  grow.join_both
+                )
+              }
+              className="rounded-2xl border border-slate-200 px-3 py-2.5 text-xs font-black dark:border-white/15"
+            >
+              Share both
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }

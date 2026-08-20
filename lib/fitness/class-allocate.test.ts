@@ -353,4 +353,38 @@ assert.equal(
   400
 );
 
+const parked = allocateMemberToClass(store, {
+  clientId: 'cli_bev',
+  inactive: true,
+  person: { name: 'Beverly', notes: 'Taking a break' },
+  now: '2026-08-20T10:00:00.000Z',
+});
+if ('error' in parked) throw new Error(parked.error);
+const bevOff = store.clients.find((c) => c.id === 'cli_bev')!;
+assert.equal(bevOff.active, false);
+assert.equal(bevOff.membership_status, 'cancelled');
+assert.equal(bevOff.membership_plan_id, null);
+assert.equal(bevOff.notes, 'Taking a break');
+assert.equal(
+  store.subscriptions.some(
+    (s) =>
+      s.client_id === 'cli_bev' &&
+      (s.status === 'active' || s.status === 'trialing')
+  ),
+  false
+);
+
+const revived = allocateMemberToClass(store, {
+  clientId: 'cli_bev',
+  member: true,
+  planId: boot.id,
+  chargedZar: 475,
+  now: '2026-08-20T11:00:00.000Z',
+});
+if ('error' in revived) throw new Error(revived.error);
+const bevOn = store.clients.find((c) => c.id === 'cli_bev')!;
+assert.equal(bevOn.active, true);
+assert.equal(bevOn.membership_status, 'active');
+assert.equal(bevOn.membership_plan_id, boot.id);
+
 console.log('class-allocate.test.ts ok');

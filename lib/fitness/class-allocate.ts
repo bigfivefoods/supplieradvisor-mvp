@@ -423,6 +423,8 @@ export function allocateMemberToClass(
       phone?: string;
       notes?: string;
     };
+    /** Desk: keep the person on file without a class or private coach. */
+    inactive?: boolean;
   }
 ):
   | { error: string }
@@ -434,9 +436,59 @@ export function allocateMemberToClass(
   const now = opts.now || new Date().toISOString();
   const today = now.slice(0, 10);
   const client = store.clients.find((c) => c.id === opts.clientId);
-  if (!client || client.active === false) {
+  if (!client) {
     return { error: 'Member not found' };
   }
+
+  const applyPerson = () => {
+    if (!opts.person) return;
+    if (opts.person.name != null && String(opts.person.name).trim()) {
+      client.name = String(opts.person.name).trim();
+    }
+    if (opts.person.email !== undefined) {
+      const email = String(opts.person.email || '').trim();
+      client.email = email || undefined;
+    }
+    if (opts.person.phone !== undefined) {
+      const phone = String(opts.person.phone || '').trim();
+      client.phone = phone || undefined;
+    }
+    if (opts.person.notes !== undefined) {
+      client.notes = String(opts.person.notes || '');
+    }
+  };
+
+  if (opts.inactive) {
+    applyPerson();
+    let cancelled = 0;
+    for (const other of store.subscriptions) {
+      if (other.client_id !== client.id) continue;
+      if (other.status !== 'active' && other.status !== 'trialing') continue;
+      other.status = 'cancelled';
+      other.cancel_at = today;
+      other.updated_at = now;
+      cancelled += 1;
+    }
+    for (const b of store.bookings || []) {
+      if (b.client_id !== client.id) continue;
+      if (
+        b.status === 'cancelled' ||
+        b.status === 'attended' ||
+        b.status === 'no_show'
+      ) {
+        continue;
+      }
+      const session = store.sessions.find((s) => s.id === b.session_id);
+      if (!session || session.date < today) continue;
+      b.status = 'cancelled';
+    }
+    client.active = false;
+    client.membership_status = 'cancelled';
+    client.membership_plan_id = null;
+    client.updated_at = now;
+    return { subscription: null, booked: 0, cancelled };
+  }
+
   const flagsExplicit =
     opts.member !== undefined || opts.privateClient !== undefined;
   const isPrivate = flagsExplicit
@@ -487,21 +539,15 @@ export function allocateMemberToClass(
     }
   }
 
-  if (opts.person) {
-    if (opts.person.name != null && String(opts.person.name).trim()) {
-      client.name = String(opts.person.name).trim();
-    }
-    if (opts.person.email !== undefined) {
-      const email = String(opts.person.email || '').trim();
-      client.email = email || undefined;
-    }
-    if (opts.person.phone !== undefined) {
-      const phone = String(opts.person.phone || '').trim();
-      client.phone = phone || undefined;
-    }
-    if (opts.person.notes !== undefined) {
-      client.notes = String(opts.person.notes || '');
-    }
+  applyPerson();
+
+  if (
+    client.active === false ||
+    client.membership_status === 'expired' ||
+    client.membership_status === 'cancelled'
+  ) {
+    client.active = true;
+    client.membership_status = 'active';
   }
 
   client.private_client = isPrivate;

@@ -47,6 +47,14 @@ import {
   memberMayBookSession,
   persistVukaCatalogIfNeeded,
 } from '@/lib/fitness/vuka-class-catalog';
+import {
+  gymJoinMemberPath,
+  isComplimentaryClassInvite,
+} from '@/lib/fitness/gym-grow-share';
+import {
+  newDeskNotice,
+  pushDeskNotice,
+} from '@/lib/services/advisor-member-calendar';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -307,10 +315,21 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      const kind =
-        String(body.kind || body.contract_kind || '') === 'private'
-          ? 'private'
-          : 'group';
+      const kindsRaw = Array.isArray(body.kinds)
+        ? (body.kinds as unknown[]).map((k) => String(k || ''))
+        : [String(body.kind || body.contract_kind || 'group')];
+      const kinds = [
+        ...new Set(
+          kindsRaw.map((k) => (k === 'private' ? 'private' : 'group'))
+        ),
+      ] as Array<'group' | 'private'>;
+      if (String(body.kind || '') === 'both') {
+        kinds.length = 0;
+        kinds.push('group', 'private');
+      }
+      const kind = kinds.includes('private') && !kinds.includes('group')
+        ? 'private'
+        : kinds[0] || 'group';
       const parqRaw =
         body.parq && typeof body.parq === 'object'
           ? (body.parq as Record<string, unknown>)
@@ -324,6 +343,9 @@ export async function POST(request: NextRequest) {
         id_number: idNumber || null,
         phone: phone || null,
         email: email || null,
+        date_of_birth: body.date_of_birth
+          ? String(body.date_of_birth).slice(0, 10)
+          : null,
         start_date: body.start_date
           ? String(body.start_date).slice(0, 10)
           : now.slice(0, 10),
@@ -388,22 +410,40 @@ export async function POST(request: NextRequest) {
         };
         store.clients.push(client);
       }
-      client = applyContractToClient(client, sub, now);
-      if (body.signature_name) {
-        const last = client.contracts?.[client.contracts.length - 1];
-        if (last) last.signature_name = String(body.signature_name);
+      for (const k of kinds.length ? kinds : [kind]) {
+        client = applyContractToClient(client, { ...sub, kind: k }, now);
+        if (body.signature_name) {
+          const last = client.contracts?.[client.contracts.length - 1];
+          if (last) last.signature_name = String(body.signature_name);
+        }
+        client.join_events = appendJoinEvent(client, {
+          at: now,
+          kind: 'joined_pwa',
+          title:
+            k === 'private'
+              ? 'Private onboarding form submitted'
+              : 'Group onboarding form submitted',
+          source: 'pwa',
+        });
       }
-      client.join_events = appendJoinEvent(client, {
-        at: now,
-        kind: 'joined_pwa',
-        title:
-          kind === 'private'
-            ? 'Private onboarding form submitted'
-            : 'Group onboarding form submitted',
-        source: 'pwa',
-      });
       const idx = store.clients.findIndex((c) => c.id === client!.id);
       if (idx >= 0) store.clients[idx] = client;
+      store.desk_notices = pushDeskNotice(
+        store.desk_notices,
+        newDeskNotice({
+          kind: 'member_joined',
+          person_id: client.id,
+          person_name: client.name,
+          email: client.email || null,
+          phone: client.phone || null,
+          source: 'portal',
+          note: kinds.includes('private') && kinds.includes('group')
+            ? 'Member + private application'
+            : kinds.includes('private')
+              ? 'Private client application'
+              : 'Member application',
+        })
+      );
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
@@ -618,7 +658,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
     }
 
-    if (store.settings?.allow_public_booking === false) {
+    const complimentaryInvite = isComplimentaryClassInvite({
+      complimentary: body.complimentary,
+      trial: body.trial,
+      share_code: shareCode || body.share_code,
+    });
+    if (store.settings?.allow_public_booking === false && !complimentaryInvite) {
       return NextResponse.json(
         { error: 'Online booking is disabled' },
         { status: 403 }
@@ -643,6 +688,11 @@ export async function POST(request: NextRequest) {
     const session = store.sessions.find((s) => s.id === sessionId);
     // Allow booking via share link even if not listed on public calendar
     const inviteOnly = Boolean(session?.share_code);
+    const complimentary = isComplimentaryClassInvite({
+      complimentary: body.complimentary,
+      trial: body.trial,
+      share_code: body.share_code || session?.share_code,
+    });
     if (
       !session ||
       session.status !== 'scheduled' ||
@@ -677,7 +727,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (gymRequiresPaidMembership(store) && !clientHasPaidAccess(store, existingClient)) {
+    if (
+      !complimentary &&
+      gymRequiresPaidMembership(store) &&
+      !clientHasPaidAccess(store, existingClient)
+    ) {
       return NextResponse.json(
         {
           error: 'Buy a membership first — payment is required before class booking',
@@ -687,7 +741,7 @@ export async function POST(request: NextRequest) {
         { status: 402 }
       );
     }
-    if (existingClient) {
+    if (existingClient && !complimentary) {
       const classGate = memberMayBookSession(store, existingClient, session);
       if (!classGate.ok) {
         return NextResponse.json(
@@ -710,7 +764,9 @@ export async function POST(request: NextRequest) {
         phone: phone || undefined,
         membership_status: 'trial',
         active: true,
-        notes: 'Created via website booking',
+        notes: complimentary
+          ? 'Complimentary intro class (shared invite)'
+          : 'Created via website booking',
         created_at: now,
         updated_at: now,
       };
@@ -742,12 +798,31 @@ export async function POST(request: NextRequest) {
       client_id: clientId,
       status,
       booked_at: now,
-      source: 'website',
+      source: complimentary ? 'invite' : 'website',
       guest_name: name,
       guest_email: email || undefined,
       guest_phone: phone || undefined,
+      notes: complimentary ? 'Complimentary intro class' : undefined,
     };
     store.bookings.push(booking);
+    if (complimentary) {
+      store.desk_notices = pushDeskNotice(
+        store.desk_notices,
+        newDeskNotice({
+          kind: 'member_joined',
+          person_id: clientId,
+          person_name: name,
+          email: email || null,
+          phone: phone || null,
+          source: 'portal',
+          service_name: store.class_types.find((c) => c.id === session.class_type_id)
+            ?.name || 'Class',
+          date: session.date,
+          start_time: session.start_time,
+          note: 'Complimentary intro class — follow up to join',
+        })
+      );
+    }
     await saveStore(companyId, meta, store);
 
     const ctName =
@@ -779,11 +854,22 @@ export async function POST(request: NextRequest) {
         id: booking.id,
         status: booking.status,
         session_id: sessionId,
-        message:
-          status === 'waitlist'
+        complimentary: complimentary || undefined,
+        message: complimentary
+          ? status === 'waitlist'
+            ? 'This intro class is full — you are on the waitlist. Join as a member below.'
+            : 'You’re booked on a complimentary intro class. Join as a member to keep training.'
+          : status === 'waitlist'
             ? 'Class is full — you are on the waitlist'
             : 'Booked successfully',
       },
+      join: store.settings?.public_token
+        ? {
+            member: gymJoinMemberPath(store.settings.public_token, 'group'),
+            private: gymJoinMemberPath(store.settings.public_token, 'private'),
+            both: gymJoinMemberPath(store.settings.public_token, 'both'),
+          }
+        : null,
       calendar_links: {
         google: gcal,
         ics,

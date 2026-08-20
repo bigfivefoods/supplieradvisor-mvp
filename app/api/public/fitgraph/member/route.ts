@@ -25,6 +25,11 @@ import {
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
 import { memberAllocatedUpcomingSessions } from '@/lib/fitness/class-allocate';
+import {
+  gymJoinMemberPath,
+  listGrowShareClasses,
+  stampShareCodesForGrow,
+} from '@/lib/fitness/gym-grow-share';
 import { addDaysIso } from '@/lib/schedule/recurrence';
 import { isoDateInZone } from '@/lib/fitness/gym-local-time';
 import { applyMemberClassRsvp } from '@/lib/fitness/member-class-rsvp';
@@ -146,6 +151,9 @@ async function resolveMember(
   store = await persistVukaCatalogIfNeeded(Number(prof.id), store, (s) =>
     saveStore(Number(prof.id), meta, s)
   );
+  if (stampShareCodesForGrow(store)) {
+    await saveStore(Number(prof.id), meta, store);
+  }
   const client = store.clients.find((c) =>
     clientMatchesPortalToken(c, clean)
   );
@@ -246,6 +254,21 @@ function decorateMemberPortal(
           }
         : null,
     class_subscribe: storeUsesClassSubscribe(store),
+    grow: store.settings?.public_token
+      ? {
+          public_token: store.settings.public_token,
+          join_member: gymJoinMemberPath(store.settings.public_token, 'group'),
+          join_private: gymJoinMemberPath(
+            store.settings.public_token,
+            'private'
+          ),
+          join_both: gymJoinMemberPath(store.settings.public_token, 'both'),
+          classes: listGrowShareClasses(store, {
+            from: portal.from,
+            days: 28,
+          }),
+        }
+      : null,
     collect_debit_bank: gymCollectsDebitBank(store),
     require_debit_bank: gymRequiresDebitBank(store),
     bank: gymCollectsDebitBank(store)

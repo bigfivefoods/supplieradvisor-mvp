@@ -75,6 +75,7 @@ type Draft = {
   email: string;
   phone: string;
   notes: string;
+  personActive: boolean;
   member: boolean;
   privateClient: boolean;
   planId: string;
@@ -84,6 +85,38 @@ type Draft = {
   privateRate: string;
   status: FitSubscription['status'];
 };
+
+function PersonActiveToggle({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {(
+        [
+          [true, 'Active'],
+          [false, 'Inactive'],
+        ] as const
+      ).map(([on, label]) => (
+        <button
+          key={label}
+          type="button"
+          onClick={() => onChange(on)}
+          className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
+            value === on
+              ? 'border-yellow-500 bg-yellow-300 text-yellow-950'
+              : 'border-slate-200 bg-white text-slate-600 dark:border-white/15 dark:bg-white/5 dark:text-yellow-100'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function RateInput({
   value,
@@ -270,6 +303,7 @@ export function MemberAllocateTable({
       email: c.email || '',
       phone: c.phone || '',
       notes: c.notes || '',
+      personActive: isPersonActive(c),
       member: onClass || c.private_client !== true,
       privateClient: c.private_client === true,
       planId: primary?.plan_id || c.membership_plan_id || planIds[0] || '',
@@ -327,6 +361,7 @@ export function MemberAllocateTable({
       d.email !== base.email ||
       d.phone !== base.phone ||
       d.notes !== base.notes ||
+      d.personActive !== base.personActive ||
       d.member !== base.member ||
       d.privateClient !== base.privateClient ||
       d.coachId !== base.coachId ||
@@ -387,6 +422,33 @@ export function MemberAllocateTable({
       toast.error('Name required');
       return;
     }
+    if (!d.personActive) {
+      setBusyId(c.id);
+      try {
+        const data = await post({
+          action: 'allocate_member',
+          client_id: c.id,
+          inactive: true,
+          member: false,
+          private_client: false,
+          name: d.name.trim(),
+          email: d.email.trim(),
+          phone: d.phone.trim(),
+          notes: d.notes,
+        });
+        setDrafts((prev) => {
+          const next = { ...prev };
+          delete next[c.id];
+          return next;
+        });
+        toast.success((data?.message as string) || 'Marked inactive');
+      } catch {
+        toast.error('Could not save');
+      } finally {
+        setBusyId(null);
+      }
+      return;
+    }
     if (!d.member && !d.privateClient) {
       toast.error('Tick Member, Private client, or both');
       return;
@@ -426,6 +488,7 @@ export function MemberAllocateTable({
       const data = await post({
         action: 'allocate_member',
         client_id: c.id,
+        inactive: false,
         member: d.member,
         private_client: d.privateClient,
         plan_id: planIds[0] || null,
@@ -630,13 +693,15 @@ export function MemberAllocateTable({
                       {c.code}
                       {d.email ? ` · ${d.email}` : ''}
                       {d.phone ? ` · ${d.phone}` : ''}
-                      {d.member && d.privateClient
-                        ? ' · member + private'
-                        : d.privateClient
-                          ? ' · private'
-                          : d.member
-                            ? ' · member'
-                            : ''}
+                      {!d.personActive
+                        ? ' · inactive'
+                        : d.member && d.privateClient
+                          ? ' · member + private'
+                          : d.privateClient
+                            ? ' · private'
+                            : d.member
+                              ? ' · member'
+                              : ''}
                     </div>
                     <div className="mt-0.5 text-[11px] font-semibold text-slate-600 dark:text-yellow-100/90">
                       {memberImportedSummaryLine(c) ||
@@ -644,7 +709,7 @@ export function MemberAllocateTable({
                     </div>
                   </div>
                   <div className="min-w-[14rem] flex-[2]">
-                    {d.member && selected.length ? (
+                    {d.personActive && d.member && selected.length ? (
                       <div className="flex flex-wrap gap-1.5">
                         {selected.map((p) => {
                           const list = Number(p.price_zar) || 0;
@@ -675,14 +740,16 @@ export function MemberAllocateTable({
                       </div>
                     ) : (
                       <span className="text-[11px] text-slate-400">
-                        {d.privateClient
-                          ? 'No classes — private only'
-                          : 'No classes booked'}
+                        {!d.personActive
+                          ? 'Inactive — no class required'
+                          : d.privateClient
+                            ? 'No classes — private only'
+                            : 'No classes booked'}
                       </span>
                     )}
                   </div>
                   <div className="min-w-[10.5rem] text-right">
-                    {d.member && selected.length ? (
+                    {d.personActive && d.member && selected.length ? (
                       <>
                         <div className="text-[10px] font-black uppercase tracking-wide text-slate-500 dark:text-yellow-200/70">
                           Charged
@@ -694,7 +761,7 @@ export function MemberAllocateTable({
                           Standard {money(standard)}
                         </div>
                       </>
-                    ) : d.privateClient && d.privateRate ? (
+                    ) : d.personActive && d.privateClient && d.privateRate ? (
                       <>
                         <div className="text-[10px] font-black uppercase tracking-wide text-slate-500 dark:text-yellow-200/70">
                           Private
@@ -706,7 +773,7 @@ export function MemberAllocateTable({
                     ) : (
                       <span className="text-slate-400">—</span>
                     )}
-                    {classFilter ? (
+                    {classFilter && d.personActive ? (
                       <div
                         className={`mt-1 text-[10px] font-bold ${
                           onFilteredClass
@@ -718,8 +785,12 @@ export function MemberAllocateTable({
                       </div>
                     ) : null}
                   </div>
-                  <div className="ml-auto flex items-center gap-2">
-                    {classFilter && !onFilteredClass ? (
+                  <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                    <PersonActiveToggle
+                      value={d.personActive}
+                      onChange={(on) => setDraft(c.id, { personActive: on })}
+                    />
+                    {classFilter && !onFilteredClass && d.personActive ? (
                       <button
                         type="button"
                         className="rounded-xl border border-yellow-400 bg-yellow-50 px-3 py-1.5 text-xs font-bold text-yellow-950 dark:bg-yellow-900 dark:text-yellow-50"
@@ -802,6 +873,23 @@ export function MemberAllocateTable({
 
                     <MemberMembershipFacts client={c} />
 
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                          Desk status
+                        </div>
+                        <p className="text-[11px] text-slate-500">
+                          Inactive people stay on file. No class or private
+                          coach needed.
+                        </p>
+                      </div>
+                      <PersonActiveToggle
+                        value={d.personActive}
+                        onChange={(on) => setDraft(c.id, { personActive: on })}
+                      />
+                    </div>
+
+                    {d.personActive ? (
                     <div className="flex flex-wrap gap-4">
                       <label className="flex items-center gap-2 text-sm font-bold">
                         <input
@@ -826,8 +914,14 @@ export function MemberAllocateTable({
                         Private client
                       </label>
                     </div>
+                    ) : (
+                      <p className="rounded-2xl border border-dashed border-slate-200 px-3 py-3 text-sm text-slate-500 dark:border-yellow-800">
+                        Save to move them to the Inactive list. They keep
+                        contracts, bank details and notes.
+                      </p>
+                    )}
 
-                    {d.member ? (
+                    {d.personActive && d.member ? (
                       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-yellow-800 dark:bg-yellow-950/40">
                         <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
                           <div>
@@ -1051,6 +1145,7 @@ export function MemberAllocateTable({
                       </div>
                     ) : null}
 
+                    {d.personActive ? (
                     <div className="grid gap-2 sm:grid-cols-3">
                       <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
                         Coach
@@ -1111,6 +1206,7 @@ export function MemberAllocateTable({
                         </select>
                       </label>
                     </div>
+                    ) : null}
 
                     <div className="flex justify-end">
                       <button
@@ -1121,7 +1217,9 @@ export function MemberAllocateTable({
                       >
                         {saving && busyId === c.id
                           ? 'Saving…'
-                          : 'Save details & classes'}
+                          : d.personActive
+                            ? 'Save details & classes'
+                            : 'Save as inactive'}
                       </button>
                     </div>
                   </div>

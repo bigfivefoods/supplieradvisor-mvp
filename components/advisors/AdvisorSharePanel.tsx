@@ -15,6 +15,7 @@ export function AdvisorSharePanel({
   lead,
   emailSubject,
   copiedOk,
+  shareUrl,
 }: {
   brand: string;
   bio?: string;
@@ -26,10 +27,13 @@ export function AdvisorSharePanel({
   lead: string;
   emailSubject: string;
   copiedOk: string;
+  /** Public URL to share (defaults to this page). */
+  shareUrl?: string;
 }) {
   const ink = advisorBrandInk(color);
   const url =
-    typeof window !== 'undefined' ? window.location.href.split('?')[0] : '';
+    shareUrl ||
+    (typeof window !== 'undefined' ? window.location.href.split('?')[0] : '');
   const blurb = [lead, bio ? String(bio).trim() : '', phone ? `Call ${phone}` : '', url]
     .filter(Boolean)
     .join('\n');

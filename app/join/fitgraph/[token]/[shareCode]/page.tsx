@@ -5,7 +5,7 @@
  * and add it to Google Calendar / download .ics.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import {
   CalendarPlus,
   Check,
@@ -48,6 +48,9 @@ export default function JoinFitgraphClassPage() {
     token: string;
     shareCode: string;
   };
+  const search = useSearchParams();
+  const trial =
+    search.get('trial') === '1' || search.get('trial') === 'true';
   const [join, setJoin] = useState<JoinPayload | null>(null);
   const [gcal, setGcal] = useState<string>('');
   const [ics, setIcs] = useState<string>('');
@@ -60,6 +63,7 @@ export default function JoinFitgraphClassPage() {
   const [done, setDone] = useState<{
     status: string;
     message: string;
+    join?: { member?: string; private?: string; both?: string } | null;
   } | null>(null);
   const [fbBusy, setFbBusy] = useState(false);
   const [fbDone, setFbDone] = useState(false);
@@ -121,6 +125,8 @@ export default function JoinFitgraphClassPage() {
           token,
           action: 'book_class',
           share_code: shareCode,
+          trial: trial || undefined,
+          complimentary: trial || undefined,
           name: name.trim(),
           email: email.trim() || undefined,
           phone: phone.trim() || undefined,
@@ -137,6 +143,7 @@ export default function JoinFitgraphClassPage() {
           (data.booking?.status === 'waitlist'
             ? 'You are on the waitlist'
             : 'You are booked in'),
+        join: data.join || null,
       });
       void load();
     } catch (e: unknown) {
@@ -227,11 +234,17 @@ export default function JoinFitgraphClassPage() {
         <div className="max-w-md mx-auto">
           <p className="text-[10px] font-black uppercase tracking-widest text-violet-600">
             {join.brand} · GymAdvisor
+            {trial ? ' · complimentary intro' : ''}
           </p>
           <h1 className="text-2xl font-black tracking-tight mt-1">
             {s.class_name}
           </h1>
           <p className="text-sm text-slate-600 mt-1">{whenLabel}</p>
+          {trial ? (
+            <p className="mt-2 rounded-xl bg-yellow-300 px-3 py-1.5 text-xs font-black text-yellow-950">
+              Free intro class — no membership needed to book this one.
+            </p>
+          ) : null}
         </div>
       </header>
 
@@ -300,10 +313,46 @@ export default function JoinFitgraphClassPage() {
                 </button>
               )}
             </div>
+            {done.join?.member || done.join?.private || done.join?.both ? (
+              <div className="space-y-2 border-t border-emerald-200 pt-3">
+                <p className="text-xs font-bold text-emerald-950">
+                  Want to keep training? Complete the membership form — member,
+                  private, or both.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {done.join.member ? (
+                    <a
+                      href={done.join.member}
+                      className="rounded-full bg-yellow-400 px-3 py-2 text-xs font-black text-yellow-950"
+                    >
+                      Join as member
+                    </a>
+                  ) : null}
+                  {done.join.private ? (
+                    <a
+                      href={done.join.private}
+                      className="rounded-full border border-emerald-300 bg-white px-3 py-2 text-xs font-black text-emerald-900"
+                    >
+                      Join as private client
+                    </a>
+                  ) : null}
+                  {done.join.both ? (
+                    <a
+                      href={done.join.both}
+                      className="rounded-full border border-emerald-300 bg-white px-3 py-2 text-xs font-black text-emerald-900"
+                    >
+                      Member + private
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : join.allow_booking ? (
           <div className="rounded-3xl border border-slate-200 bg-white p-5 space-y-3 shadow-sm">
-            <h2 className="text-sm font-black">Join this class</h2>
+            <h2 className="text-sm font-black">
+              {trial ? 'Book this complimentary class' : 'Join this class'}
+            </h2>
             {error && (
               <p className="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">
                 {error}
@@ -335,7 +384,11 @@ export default function JoinFitgraphClassPage() {
               className="w-full rounded-2xl bg-violet-600 text-white py-3 text-sm font-black disabled:opacity-50 inline-flex items-center justify-center gap-2"
             >
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              {s.full ? 'Join waitlist' : 'Book my spot'}
+              {s.full
+                ? 'Join waitlist'
+                : trial
+                  ? 'Book my free class'
+                  : 'Book my spot'}
             </button>
             <p className="text-[10px] text-slate-500 text-center">
               After booking you can add the class to Google or Apple Calendar.

@@ -8,7 +8,6 @@ import {
   HEARD_ABOUT_OPTIONS,
   PARQ_QUESTIONS,
   parqYesCount,
-  type FitContractKind,
   type FitParqAnswers,
 } from '@/lib/fitness/member-contract';
 import { SA_DEBIT_BANKS } from '@/lib/fitness/member-debit-bank';
@@ -26,8 +25,12 @@ export default function GymOnboardPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
-  const [kind, setKind] = useState<FitContractKind>(
-    search.get('kind') === 'private' ? 'private' : 'group'
+  const initialKind = search.get('kind');
+  const [wantMember, setWantMember] = useState(
+    initialKind !== 'private'
+  );
+  const [wantPrivate, setWantPrivate] = useState(
+    initialKind === 'private' || initialKind === 'both'
   );
   const [parq, setParq] = useState<FitParqAnswers>({});
   const [form, setForm] = useState({
@@ -43,6 +46,7 @@ export default function GymOnboardPage() {
     medical_aid_plan: '',
     emergency_contact: '',
     gp: '',
+    date_of_birth: '',
     start_date: new Date().toISOString().slice(0, 10),
     parq_explanation: '',
     class_option: '',
@@ -104,6 +108,14 @@ export default function GymOnboardPage() {
       toast.error('Type your full name as your signature');
       return;
     }
+    if (!wantMember && !wantPrivate) {
+      toast.error('Choose member, private client, or both');
+      return;
+    }
+    const kinds = [
+      ...(wantMember ? (['group'] as const) : []),
+      ...(wantPrivate ? (['private'] as const) : []),
+    ];
     setBusy(true);
     try {
       const res = await fetch('/api/public/fitgraph', {
@@ -112,7 +124,8 @@ export default function GymOnboardPage() {
         body: JSON.stringify({
           token,
           action: 'onboard_member',
-          kind,
+          kind: kinds.length === 2 ? 'both' : kinds[0],
+          kinds,
           ...form,
           parq,
           class_amount_zar: plans.find((p) => p.name === form.class_option)
@@ -151,31 +164,39 @@ export default function GymOnboardPage() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-8">
+    <main className="mx-auto min-h-dvh max-w-2xl bg-gradient-to-b from-yellow-50 to-white px-4 py-8 dark:from-yellow-950 dark:to-black">
       <p className="text-[11px] font-black uppercase tracking-wide text-yellow-800">
-        {brand}
+        {brand} · GymAdvisor
       </p>
       <h1 className="text-2xl font-black">Membership application</h1>
-      <p className="mt-1 text-sm text-slate-600">
-        Complete this form to join. Health answers and signatures are stored on
-        your gym profile for the owner only.
+      <p className="mt-1 text-sm text-slate-600 dark:text-yellow-100/80">
+        Join as a member, a private client, or both. Health answers, bank
+        details and signatures stay on your gym profile for the owner.
       </p>
 
-      <div className="mt-4 flex gap-2">
-        {(['group', 'private'] as const).map((k) => (
-          <button
-            key={k}
-            type="button"
-            onClick={() => setKind(k)}
-            className={`rounded-full border px-3 py-1.5 text-xs font-black ${
-              kind === k
-                ? 'border-yellow-500 bg-yellow-300 text-yellow-950'
-                : 'border-slate-200 bg-white'
-            }`}
-          >
-            {k === 'group' ? 'Group class contract' : 'Private contract'}
-          </button>
-        ))}
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setWantMember((v) => !v)}
+          className={`rounded-full border px-3 py-1.5 text-xs font-black ${
+            wantMember
+              ? 'border-yellow-500 bg-yellow-300 text-yellow-950'
+              : 'border-slate-200 bg-white'
+          }`}
+        >
+          Member
+        </button>
+        <button
+          type="button"
+          onClick={() => setWantPrivate((v) => !v)}
+          className={`rounded-full border px-3 py-1.5 text-xs font-black ${
+            wantPrivate
+              ? 'border-yellow-500 bg-yellow-300 text-yellow-950'
+              : 'border-slate-200 bg-white'
+          }`}
+        >
+          Private client
+        </button>
       </div>
 
       <div className="mt-6 space-y-3">
@@ -194,6 +215,17 @@ export default function GymOnboardPage() {
               setForm((f) => ({ ...f, id_number: e.target.value }))
             }
           />
+          <label className="text-[10px] font-black uppercase text-slate-500">
+            Date of birth
+            <input
+              className={inp + ' mt-1'}
+              type="date"
+              value={form.date_of_birth}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, date_of_birth: e.target.value }))
+              }
+            />
+          </label>
           <input
             className={inp}
             placeholder="Mobile number"
@@ -295,7 +327,7 @@ export default function GymOnboardPage() {
           onChange={(e) => setForm((f) => ({ ...f, gp: e.target.value }))}
         />
 
-        {kind === 'group' ? (
+        {wantMember ? (
           <div className="space-y-3 rounded-2xl border border-yellow-200 bg-yellow-50/60 p-3">
             <p className="text-xs font-black">Group class & debit order</p>
             <select
@@ -367,6 +399,13 @@ export default function GymOnboardPage() {
               account until you cancel in writing (20 working days).
             </p>
           </div>
+        ) : null}
+
+        {wantPrivate ? (
+          <p className="rounded-2xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs font-semibold text-yellow-950">
+            Private client — the gym owner assigns your coach after this
+            application.
+          </p>
         ) : null}
 
         <div className="space-y-3 rounded-2xl border border-slate-200 p-3">

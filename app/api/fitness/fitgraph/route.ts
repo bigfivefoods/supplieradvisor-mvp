@@ -952,6 +952,7 @@ export async function POST(request: NextRequest) {
               notes: body.notes != null ? String(body.notes) : undefined,
             }
           : undefined;
+      const inactive = body.inactive === true;
       const result = allocateMemberToClass(store, {
         clientId: String(body.client_id || ''),
         planId: body.plan_id ? String(body.plan_id) : planIds?.[0] || null,
@@ -967,6 +968,7 @@ export async function POST(request: NextRequest) {
           : undefined,
         coachId: body.coach_id ? String(body.coach_id) : null,
         person,
+        inactive,
         now,
       });
       if ('error' in result) {
@@ -980,8 +982,9 @@ export async function POST(request: NextRequest) {
         analysis: analysis(store),
         booked: result.booked,
         cancelled: result.cancelled,
-        message:
-          result.booked > 0
+        message: inactive
+          ? 'Marked inactive'
+          : result.booked > 0
             ? `Allocated · booked onto ${result.booked} class${
                 result.booked === 1 ? '' : 'es'
               } on the calendar`
