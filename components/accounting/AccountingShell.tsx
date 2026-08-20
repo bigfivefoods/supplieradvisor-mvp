@@ -22,6 +22,7 @@ export const ACCOUNTING_NAV: readonly NavItem[] = [
   { href: '/dashboard/accounting/management', label: 'Mgmt' },
   { href: '/dashboard/accounting/afs', label: 'AFS' },
   { href: '/dashboard/accounting/reports', label: 'Reports' },
+  { href: '/dashboard/accounting/balance-sheet', label: 'Balance sheet' },
   { href: '/dashboard/accounting/cash-flow', label: 'Cash flow' },
   { href: '/dashboard/accounting/tax', label: 'Tax' },
   { href: '/dashboard/accounting/fixed-assets', label: 'Assets' },

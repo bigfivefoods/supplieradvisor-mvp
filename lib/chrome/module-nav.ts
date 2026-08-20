@@ -479,6 +479,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Plan',
       },
       { name: 'Reports', href: '/dashboard/accounting/reports', section: 'Report' },
+      {
+        name: 'Balance sheet',
+        href: '/dashboard/accounting/balance-sheet',
+        desc: 'IAS 1 statement of financial position',
+        section: 'Report',
+      },
       { name: 'Cash flow', href: '/dashboard/accounting/cash-flow', desc: 'IAS 7 / ASC 230 statement', section: 'Report' },
       { name: 'VAT', href: '/dashboard/accounting/tax', section: 'Report' },
       { name: 'Assets', href: '/dashboard/accounting/fixed-assets', section: 'Report' },

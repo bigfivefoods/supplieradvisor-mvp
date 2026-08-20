@@ -127,7 +127,7 @@ function Inner() {
         <AccountingHeader
           title="Statement of"
           titleAccent="cash flows"
-          description="IAS 7 / ASC 230. Direct method from the cash and bank general ledger, plus the required reconciliation of profit to operating cash. Unaudited."
+          description="IAS 7 / ASC 230. Direct method from the cash and bank general ledger, plus the required reconciliation of profit to operating cash. Annual budget overlays as an operating plan when set. Unaudited."
           action={
             <div className="flex flex-wrap gap-2">
               <button
@@ -174,6 +174,39 @@ function Inner() {
               value={money(statement.netChange)}
             />
           </div>
+          {statement.budget?.set ? (
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <Stat
+                label="Budget receipts (plan)"
+                value={money(statement.budget.operatingInflow)}
+              />
+              <Stat
+                label="Budget payments (plan)"
+                value={money(statement.budget.operatingOutflow)}
+              />
+              <Stat
+                label="Budget operating plan"
+                value={money(statement.budget.netOperating)}
+              />
+              <Stat
+                label="Actual vs budget"
+                value={money(
+                  statement.netOperating - statement.budget.netOperating
+                )}
+              />
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500 print:hidden">
+              No annual budget in this period.{' '}
+              <Link
+                href="/dashboard/accounting/budget"
+                className="font-semibold text-[#0077b6] hover:underline"
+              >
+                Set the 12-month budget
+              </Link>{' '}
+              to overlay a plan on this statement.
+            </p>
+          )}
 
           <div className="grid gap-4 lg:grid-cols-3 print:hidden">
             <ChartCard
@@ -220,7 +253,11 @@ function Inner() {
             </ChartCard>
             <ChartCard
               title="Monthly cash"
-              subtitle="Inflow, outflow and net by month"
+              subtitle={
+                statement.budget?.set
+                  ? 'Inflow, outflow, net and operating budget plan'
+                  : 'Inflow, outflow and net by month'
+              }
               icon={BarChart3}
               height={240}
             >
@@ -229,9 +266,97 @@ function Inner() {
                 inflow={(statement.months || []).map((m) => m.inflow)}
                 outflow={(statement.months || []).map((m) => m.outflow)}
                 net={(statement.months || []).map((m) => m.net)}
+                budgetNet={
+                  statement.budget?.set
+                    ? (statement.months || []).map((m) => {
+                        const hit = statement.budget?.months.find(
+                          (b) => b.month === m.month
+                        );
+                        return hit?.net ?? 0;
+                      })
+                    : undefined
+                }
               />
             </ChartCard>
           </div>
+
+          {statement.budget?.set ? (
+            <Panel className="p-4 sm:p-5">
+              <SectionLabel>Budget overlay (operating plan)</SectionLabel>
+              <p className="mb-3 text-xs text-slate-500">{statement.budget.note}</p>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-xs">
+                  <thead>
+                    <tr className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                      <th className="px-2 py-1.5">Month</th>
+                      <th className="px-2 py-1.5 text-right">Budget receipts</th>
+                      <th className="px-2 py-1.5 text-right">Budget payments</th>
+                      <th className="px-2 py-1.5 text-right">Budget net</th>
+                      <th className="px-2 py-1.5 text-right">Actual operating</th>
+                      <th className="px-2 py-1.5 text-right">Variance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statement.budget.months.map((b) => {
+                      const actual =
+                        (statement.months || []).find((m) => m.month === b.month)
+                          ?.operating ?? 0;
+                      return (
+                        <tr key={b.month} className="border-t border-slate-100">
+                          <td className="px-2 py-1.5 whitespace-nowrap">{b.month}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">
+                            {money(b.inflow)}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">
+                            {money(b.outflow)}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">
+                            {money(b.net)}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">
+                            {money(actual)}
+                          </td>
+                          <td className="px-2 py-1.5 text-right font-semibold tabular-nums">
+                            {money(actual - b.net)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    <tr className="border-t-2 border-slate-300 font-black">
+                      <td className="px-2 py-1.5">Period</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">
+                        {money(statement.budget.operatingInflow)}
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">
+                        {money(statement.budget.operatingOutflow)}
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">
+                        {money(statement.budget.netOperating)}
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">
+                        {money(statement.netOperating)}
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">
+                        {money(
+                          statement.netOperating - statement.budget.netOperating
+                        )}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-2 text-[11px] text-slate-500">
+                Variance is actual operating cash minus the P&amp;L budget mapped
+                as an operating plan (revenue ≈ receipts, costs ≈ payments).{' '}
+                <Link
+                  href="/dashboard/accounting/budget"
+                  className="font-semibold text-[#0077b6] hover:underline"
+                >
+                  Edit budget
+                </Link>
+              </p>
+            </Panel>
+          ) : null}
 
           <Panel className="p-4 sm:p-5">
             <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">

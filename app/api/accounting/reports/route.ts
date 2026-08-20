@@ -16,7 +16,7 @@ import {
   type MonthBucket,
 } from '@/lib/accounting/forecast';
 import { stageProbability } from '@/lib/customers/types';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 
 /**
  * GET ?companyId=&report=trial_balance|pnl|balance_sheet|ar_aging|ap_aging|cashflow|management_accounts|budget_vs_actual|trends|forecast
@@ -27,7 +27,6 @@ import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/li
 export async function GET(request: NextRequest) {
   try {
     const companyId = parseCompanyId(request.nextUrl.searchParams.get('companyId'));
-    const privyUserId = request.nextUrl.searchParams.get('privyUserId');
     const report = request.nextUrl.searchParams.get('report') || 'trial_balance';
     const from = request.nextUrl.searchParams.get('from');
     const to = request.nextUrl.searchParams.get('to');
@@ -38,6 +37,10 @@ export async function GET(request: NextRequest) {
 
     const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
     if (!_gate.ok) return _gate.response;
+    const acc = await assertAccountingAccess(_gate.userId, companyId, 'view');
+    if (!acc.ok) {
+      return NextResponse.json({ error: acc.error }, { status: acc.status });
+    }
 
     const supabase = getSupabaseServer();
 
@@ -107,12 +110,20 @@ export async function GET(request: NextRequest) {
         from: rangeFrom,
         to: rangeTo,
       });
+      const { buildCashFlowBudget } = await import(
+        '@/lib/accounting/cash-flow-budget'
+      );
+      const budget = await buildCashFlowBudget({
+        profileId: companyId,
+        from: rangeFrom,
+        to: rangeTo,
+      });
       return NextResponse.json({
         success: true,
         report,
         method: 'ias7_direct',
         period: { from: rangeFrom, to: rangeTo },
-        ias7,
+        ias7: { ...ias7, budget },
         summary: {
           inflow: round2(
             [...ias7.operating, ...ias7.investing, ...ias7.financing].reduce(
@@ -134,6 +145,8 @@ export async function GET(request: NextRequest) {
           closingCash: ias7.closingCash,
           reconciled: ias7.reconciled,
           count: ias7.journalCount,
+          budgetSet: budget.set,
+          budgetOperating: budget.netOperating,
         },
         warning: ias7.warning,
       });

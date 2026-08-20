@@ -51,18 +51,20 @@ import {
 } from '@/components/accounting/AccountingCharts';
 
 const REPORTS = [
+  { id: 'pnl', label: 'Profit & loss' },
+  { id: 'balance_sheet', label: 'Balance sheet' },
+  { id: 'cashflow', label: 'Cash flow' },
   { id: 'forecast', label: 'Forecast', accent: true },
   { id: 'ratios', label: 'Ratios', accent: true },
   { id: 'trends', label: 'Trends' },
-  { id: 'pnl', label: 'Profit & loss' },
   { id: 'budget_vs_actual', label: 'Budget vs actual', accent: true },
-  { id: 'balance_sheet', label: 'Balance sheet' },
   { id: 'trial_balance', label: 'Trial balance' },
   { id: 'ar_aging', label: 'AR aging' },
   { id: 'ap_aging', label: 'AP aging' },
-  { id: 'cashflow', label: 'Cash flow' },
   { id: 'management_accounts', label: 'Mgmt snapshot' },
 ] as const;
+
+const REPORT_IDS: ReadonlySet<string> = new Set(REPORTS.map((r) => r.id));
 
 const HORIZON_PRESETS = [1, 3, 6, 9, 12, 18, 24] as const;
 
@@ -78,7 +80,8 @@ function Inner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
-  const [report, setReport] = useState<string>('forecast');
+  const [report, setReport] = useState<string>('pnl');
+  const [reportReady, setReportReady] = useState(false);
   const [fyStartMonth, setFyStartMonth] = useState(3);
   const [period, setPeriod] = useState<PeriodSlicerValue>(() =>
     initialPeriodSlicerValue('this_month', 3)
@@ -257,15 +260,29 @@ function Inner() {
   ]);
 
   useEffect(() => {
+    const r = new URLSearchParams(window.location.search).get('report');
+    if (r && REPORT_IDS.has(r)) setReport(r);
+    setReportReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!reportReady) return;
     void load();
-  }, [load]);
+  }, [load, reportReady]);
+
+  const pickReport = (id: string) => {
+    setReport(id);
+    const url = new URL(window.location.href);
+    url.searchParams.set('report', id);
+    window.history.replaceState({}, '', `${url.pathname}${url.search}`);
+  };
 
   return (
     <AccountingPage>
       <AccountingHeader
         title="Reports &"
         titleAccent="analytics"
-        description="Slice by one or more months, quarters, or FY · pipeline sales · forecast horizons (1–36 months)."
+        description="Primary statements (P&L, balance sheet, cash flow) plus forecast, ratios, aging and budget vs actual."
         action={
           <button
             type="button"
@@ -282,7 +299,7 @@ function Inner() {
           <button
             key={r.id}
             type="button"
-            onClick={() => setReport(r.id)}
+            onClick={() => pickReport(r.id)}
             className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold border transition-all ${
               report === r.id
                 ? 'border-[#00b4d8] bg-[#00b4d8] text-white shadow-sm shadow-cyan-500/20'
@@ -529,6 +546,17 @@ function ReportBody({
       : [];
     return (
       <>
+        <p className="text-xs text-neutral-500 mb-3">
+          Accrual profit or loss (IAS 1 / IFRS 15). Issued invoices recognise
+          revenue here and a receivable on the{' '}
+          <Link
+            href="/dashboard/accounting/balance-sheet"
+            className="font-semibold text-[#00b4d8] hover:underline"
+          >
+            balance sheet
+          </Link>
+          ; cash collected later is not a second sale.
+        </p>
         {summary && (
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
             <SumCard label="Revenue" value={formatMoney(summary.revenue)} tone="emerald" />
@@ -660,8 +688,14 @@ function ReportBody({
     return (
       <>
         <p className="text-xs text-neutral-500 mb-3">
-          Statement of financial position as at the period end (all posted journals through that
-          date), not a period movement.
+          Statement of financial position as at the period end (IAS 1) — all posted
+          journals through that date, not a period movement.{' '}
+          <Link
+            href="/dashboard/accounting/balance-sheet"
+            className="font-semibold text-[#00b4d8] hover:underline"
+          >
+            Open full statement
+          </Link>
         </p>
         {summary && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
@@ -818,7 +852,7 @@ function ReportBody({
                     ? [
                         [
                           'NI',
-                          'Net income (period)',
+                          'Unclosed profit / (loss) to reporting date',
                           formatMoney(ni),
                         ],
                       ]
@@ -963,8 +997,28 @@ function ReportBody({
           investing?: Array<{ name: string; inflow: number; outflow: number; net: number }>;
           financing?: Array<{ name: string; inflow: number; outflow: number; net: number }>;
           reconciled?: boolean;
+          months?: Array<{
+            month: string;
+            inflow: number;
+            outflow: number;
+            net: number;
+          }>;
+          budget?: {
+            set: boolean;
+            note: string;
+            operatingInflow: number;
+            operatingOutflow: number;
+            netOperating: number;
+            months: Array<{
+              month: string;
+              inflow: number;
+              outflow: number;
+              net: number;
+            }>;
+          };
         }
       | undefined;
+    const budget = ias7?.budget;
     const sectionRows = (
       title: string,
       rows: Array<{ name: string; inflow: number; outflow: number; net: number }>
@@ -1006,7 +1060,7 @@ function ReportBody({
           </div>
         )}
         {summary && (
-          <div className="grid grid-cols-3 gap-3 mb-6">
+          <div className="grid grid-cols-3 gap-3 mb-4">
             <SumCard label="Opening cash" value={formatMoney(Number(summary.openingCash))} />
             <SumCard label="Closing cash" value={formatMoney(Number(summary.closingCash))} />
             <SumCard
@@ -1014,6 +1068,73 @@ function ReportBody({
               value={summary.reconciled ? 'Yes' : 'Review'}
               tone={summary.reconciled ? 'emerald' : 'amber'}
             />
+          </div>
+        )}
+        {budget?.set ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+            <SumCard
+              label="Budget operating plan"
+              value={formatMoney(budget.netOperating)}
+            />
+            <SumCard
+              label="Actual operating"
+              value={formatMoney(Number(summary?.operating || 0))}
+              tone="emerald"
+            />
+            <SumCard
+              label="Vs budget"
+              value={formatMoney(
+                Number(summary?.operating || 0) - budget.netOperating
+              )}
+              tone={
+                Number(summary?.operating || 0) - budget.netOperating >= 0
+                  ? 'emerald'
+                  : 'amber'
+              }
+            />
+            <p className="col-span-2 lg:col-span-1 self-center text-[11px] leading-snug text-slate-500">
+              {budget.note}
+            </p>
+          </div>
+        ) : (
+          <p className="mb-4 text-xs text-slate-500">
+            No annual budget in this period.{' '}
+            <Link
+              href="/dashboard/accounting/budget"
+              className="font-semibold text-[#00b4d8] hover:underline"
+            >
+              Set the 12-month budget
+            </Link>{' '}
+            to overlay a plan on cash flow.
+          </p>
+        )}
+        {(ias7?.months || []).length > 0 && (
+          <div className="mb-6">
+            <ChartCard
+              title="Monthly cash"
+              subtitle={
+                budget?.set
+                  ? 'Inflow, outflow, net and operating budget plan'
+                  : 'Inflow, outflow and net by month'
+              }
+              icon={BarChart3}
+              height={280}
+            >
+              <CashflowChart
+                labels={(ias7?.months || []).map((m) => m.month.slice(5))}
+                inflow={(ias7?.months || []).map((m) => m.inflow)}
+                outflow={(ias7?.months || []).map((m) => m.outflow)}
+                net={(ias7?.months || []).map((m) => m.net)}
+                budgetNet={
+                  budget && budget.set
+                    ? (ias7?.months || []).map((m) => {
+                        const hit = budget.months.find((b) => b.month === m.month);
+                        return hit?.net ?? 0;
+                      })
+                    : undefined
+                }
+              />
+            </ChartCard>
           </div>
         )}
         <SimpleTable

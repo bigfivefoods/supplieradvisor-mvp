@@ -436,13 +436,15 @@ export function CashflowChart({
   inflow,
   outflow,
   net,
+  budgetNet,
 }: {
   labels: string[];
   inflow: number[];
   outflow: number[];
   net?: number[];
+  budgetNet?: number[];
 }) {
-  const ok = hasSignal([...inflow, ...outflow]);
+  const ok = hasSignal([...inflow, ...outflow, ...(budgetNet || [])]);
 
   if (net) {
     const lineData: ChartData<'line'> = {
@@ -470,6 +472,18 @@ export function CashflowChart({
           borderDash: [6, 3],
           borderWidth: 2.5,
         },
+        ...(budgetNet
+          ? [
+              {
+                label: 'Budget (operating plan)',
+                data: budgetNet,
+                borderColor: '#94a3b8',
+                backgroundColor: 'transparent',
+                borderDash: [2, 3],
+                borderWidth: 2,
+              },
+            ]
+          : []),
       ],
     };
     return (

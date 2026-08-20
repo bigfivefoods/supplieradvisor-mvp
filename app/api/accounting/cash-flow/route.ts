@@ -37,10 +37,18 @@ export async function GET(request: NextRequest) {
       from,
       to,
     });
+    const { buildCashFlowBudget } = await import(
+      '@/lib/accounting/cash-flow-budget'
+    );
+    const budget = await buildCashFlowBudget({
+      profileId: companyId,
+      from,
+      to,
+    });
 
     return NextResponse.json({
       success: true,
-      statement,
+      statement: { ...statement, budget },
     });
   } catch (e: unknown) {
     return NextResponse.json(

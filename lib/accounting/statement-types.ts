@@ -110,4 +110,58 @@ export type Ias7CashFlow = {
   indirect?: IndirectOperating;
   policies: string[];
   months?: CashFlowMonth[];
+  budget?: CashFlowBudget;
 };
+
+export type CashFlowBudget = {
+  set: boolean;
+  note: string;
+  operatingInflow: number;
+  operatingOutflow: number;
+  netOperating: number;
+  months: Array<{
+    month: string;
+    inflow: number;
+    outflow: number;
+    net: number;
+  }>;
+};
+
+export type BalanceSheetRow = {
+  id: number;
+  code: string;
+  name: string;
+  account_type: string;
+  subtype: string | null;
+  section: string;
+  section_label: string;
+  amount: number;
+};
+
+export type BalanceSheetSummary = {
+  assets: number;
+  liabilities: number;
+  equity: number;
+  equityBase: number;
+  netIncome: number;
+  currentAssets: number;
+  nonCurrentAssets: number;
+  currentLiabilities: number;
+  nonCurrentLiabilities: number;
+  balanced: boolean;
+};
+
+export type BalanceSheetCompleteness = {
+  key: string;
+  label: string;
+  ok: boolean;
+  detail: string;
+};
+
+export const SOFP_POLICIES = [
+  'Presented as at the reporting date (IAS 1.54–80 / US GAAP classified balance sheet). Amounts are closing ledger balances of all posted journals through that date, not a period movement.',
+  'Assets = liabilities + equity. Unclosed profit or loss is rolled into equity until a year-end close transfers it to retained earnings.',
+  'Current versus non-current split follows IAS 1.60 using chart subtypes and account codes (receivables, inventory, bank, payables, tax, long-term borrowings).',
+  'Trade receivables are the unpaid balance of invoices whose performance obligation has been satisfied (IFRS 15 / ASC 606). Revenue is recognised on the income statement at issue; cash later settles the asset and is not a second sale.',
+  'VAT output is a liability and VAT input an asset until the return is settled. Expected credit losses (IFRS 9) reduce receivables when posted from the ECL worksheet.',
+] as const;

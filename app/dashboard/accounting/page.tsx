@@ -16,6 +16,7 @@ import {
   Globe,
   Plus,
   RefreshCw,
+  Scale,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -220,8 +221,16 @@ function HubInner() {
       icon: BarChart3,
       code: '10',
       title: 'Reports & analytics',
-      desc: 'Trial balance, P&L, BS, budget vs actual, aging, forecast.',
+      desc: 'P&L, balance sheet, cash flow, budget vs actual, aging, forecast.',
       accent: 'from-sky-50 to-white border-sky-100',
+    },
+    {
+      href: '/dashboard/accounting/balance-sheet',
+      icon: Scale,
+      code: '10a',
+      title: 'Statement of financial position',
+      desc: 'IAS 1 balance sheet as at period end — assets, liabilities, equity.',
+      accent: 'from-indigo-50 to-white border-indigo-100',
     },
     {
       href: '/dashboard/accounting/cash-flow',
