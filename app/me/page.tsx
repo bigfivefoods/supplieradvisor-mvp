@@ -63,6 +63,7 @@ import type { B2cHireJourney } from '@/lib/b2c/hire-journeys';
 import { toast } from 'sonner';
 import EnablePushButton from '@/components/pwa/EnablePushButton';
 import { B2cLinkBusiness } from '@/components/b2c/B2cLinkBusiness';
+import { B2cPresencePing } from '@/components/b2c/B2cPresencePing';
 import { setSelectedCompanyId } from '@/lib/containers/company';
 import { defaultHomePathForRole } from '@/lib/business/permissions';
 import {
@@ -305,6 +306,17 @@ function MeAppInner() {
       const q = new URLSearchParams();
       const em = extractEmailFromPrivyUser(user);
       if (em) q.set('email', em);
+      q.set('surface', 'sa_member');
+      if (typeof window !== 'undefined') {
+        q.set('path', window.location.pathname);
+        const standalone =
+          window.matchMedia('(display-mode: standalone)').matches ||
+          Boolean(
+            (window.navigator as Navigator & { standalone?: boolean }).standalone
+          );
+        q.set('display', standalone ? 'standalone' : 'browser');
+        q.set('source', standalone ? 'pwa' : 'web');
+      }
       const res = await fetch(
         `/api/b2c/me${q.toString() ? `?${q}` : ''}`,
         { cache: 'no-store' }
@@ -804,6 +816,7 @@ function MeAppInner() {
             : undefined,
       }}
     >
+      <B2cPresencePing surface="sa_member" />
       {/* ── HOME ─────────────────────────────────────────────── */}
       {tab === 'home' && (
         <div className="space-y-4 lg:grid lg:grid-cols-12 lg:items-start lg:gap-6 lg:space-y-0">

@@ -16,6 +16,7 @@ import {
   removeMembershipsForCompany,
   saveB2cProfile,
 } from '@/lib/b2c/profile-store';
+import { touchB2cAccessOnProfile } from '@/lib/b2c/access-log';
 import { kindLabel } from '@/lib/b2c/link-token';
 import { discoverAndAttachMemberships } from '@/lib/b2c/discover-memberships';
 import { buildB2cActivity } from '@/lib/b2c/activity';
@@ -54,6 +55,10 @@ export async function GET(request: NextRequest) {
     const qEmail = request.nextUrl.searchParams.get('email');
     const qPhone = request.nextUrl.searchParams.get('phone');
     const qName = request.nextUrl.searchParams.get('name');
+    const qSurface = request.nextUrl.searchParams.get('surface');
+    const qPath = request.nextUrl.searchParams.get('path');
+    const qDisplay = request.nextUrl.searchParams.get('display');
+    const qSource = request.nextUrl.searchParams.get('source');
 
     const [loadedProfile, businessSummary] = await Promise.all([
       (async () =>
@@ -74,6 +79,7 @@ export async function GET(request: NextRequest) {
       })),
     ]);
     let profile = loadedProfile;
+    let profileDirty = false;
     const business = businessSummary;
 
     if (qEmail && !profile.email) profile.email = qEmail;
@@ -94,7 +100,7 @@ export async function GET(request: NextRequest) {
         });
         if (found.attached > 0) {
           profile = found.profile;
-          await saveB2cProfile(profile);
+          profileDirty = true;
         }
       } catch {
         /* discover is best-effort */
@@ -116,7 +122,31 @@ export async function GET(request: NextRequest) {
             : m
         ),
       };
-      await saveB2cProfile(profile);
+      profileDirty = true;
+    }
+
+    if (qSurface || qPath || qDisplay || qSource) {
+      try {
+        const touched = touchB2cAccessOnProfile(profile, {
+          surface: qSurface,
+          path: qPath,
+          display: qDisplay,
+          source: qSource,
+        });
+        if (touched.changed) {
+          profile = touched.profile;
+          profileDirty = true;
+        }
+      } catch {
+        /* access stamp is best-effort */
+      }
+    }
+    if (profileDirty) {
+      try {
+        await saveB2cProfile(profile);
+      } catch {
+        /* never fail the wallet load on a presence write */
+      }
     }
 
     const memberships = (profile.memberships || [])
@@ -203,6 +233,24 @@ export async function POST(request: NextRequest) {
 
     const action = String(body.action || 'update_profile');
     let profile = (await loadB2cProfile(userId)) || (await ensureB2cProfile(userId));
+
+    if (action === 'presence' || action === 'heartbeat' || action === 'access') {
+      try {
+        const touched = touchB2cAccessOnProfile(profile, {
+          surface: body.surface,
+          path: body.path,
+          display: body.display,
+          source: body.source,
+          brand: body.brand,
+        });
+        if (touched.changed) {
+          await saveB2cProfile(touched.profile);
+        }
+      } catch {
+        /* never fail presence */
+      }
+      return NextResponse.json({ success: true });
+    }
 
     if (action === 'unlink' || action === 'remove_membership') {
       const mid = String(body.membership_id || body.id || '');

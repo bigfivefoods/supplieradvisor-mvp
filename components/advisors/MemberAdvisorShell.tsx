@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { PortalHeaderTools } from '@/components/advisors/PortalOpenAppLink';
 import { advisorBrandInk } from '@/lib/advisors/brand-ink';
+import { B2cPresencePing } from '@/components/b2c/B2cPresencePing';
 
 export type MemberAdvisorTab<T extends string = string> = {
   id: T;
@@ -153,6 +154,7 @@ export function MemberAdvisorShell<T extends string = string>({
     <div
       className={`advisor-portal min-h-[100dvh] bg-gradient-to-b ${fromClass} to-slate-50 dark:from-slate-950 dark:to-black md:flex md:h-[100dvh] md:flex-col md:overflow-hidden`}
     >
+      <B2cPresencePing />
       <header
         className="shrink-0 text-white pt-[env(safe-area-inset-top)] md:z-40 md:shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
         style={{

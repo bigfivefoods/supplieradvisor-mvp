@@ -36,6 +36,7 @@ export const PLATFORM_NAV: readonly NavItem[] = [
   { href: '/dashboard/platform', label: 'Console', exact: true },
   { href: '/dashboard/platform/system', label: 'System' },
   { href: '/dashboard/platform/management', label: 'Management' },
+  { href: '/dashboard/platform/members', label: 'SA Members' },
   { href: '/dashboard/my-business/ops', label: 'Ops board' },
   { href: '/dashboard/my-business/platform', label: 'Gov control' },
 ] as const;
@@ -494,6 +495,11 @@ export function PlatformOverview({
                 href: '/dashboard/platform/management',
                 title: 'Management reports',
                 body: 'Companies, subscriptions, network, trade funnel, modules.',
+              },
+              {
+                href: '/dashboard/platform/members',
+                title: 'SA Member access',
+                body: 'Who opened the consumer app, last login, PWA/site, time in session.',
               },
               {
                 href: '/dashboard/my-business/ops',

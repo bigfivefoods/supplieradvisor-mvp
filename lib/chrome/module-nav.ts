@@ -122,6 +122,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Reports',
       },
       {
+        name: 'SA Members',
+        href: '/dashboard/platform/members',
+        desc: 'B2C logins · last seen · PWA / site · duration',
+        section: 'Reports',
+      },
+      {
         name: 'Gov control',
         href: '/dashboard/my-business/platform',
         desc: 'Activate government departments',
