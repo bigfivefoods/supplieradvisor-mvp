@@ -468,6 +468,7 @@ export default function HireCustomerPortalPage() {
   return (
     <MemberAdvisorShell
       color={color}
+      appHref={`/me?link=${encodeURIComponent(token)}`}
       fromClass="from-cyan-50"
       tab={tab}
       onTab={(id) => {

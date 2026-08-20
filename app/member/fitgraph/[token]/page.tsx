@@ -9,13 +9,14 @@ import { useParams } from 'next/navigation';
 import {
   Activity,
   CalendarDays,
-  CreditCard,
   Dumbbell,
   Loader2,
   MessageSquare,
   MessageSquareHeart,
   QrCode,
   Send,
+  Share2,
+  ShoppingBag,
   User,
 } from 'lucide-react';
 import { GymShopPay } from '@/components/fitness/GymShopPay';
@@ -58,6 +59,7 @@ import {
   GymFlash,
   GymNextUpCard,
   GymSectionTitle,
+  GymSharePanel,
   GymStat,
   gymFormatDay,
 } from '@/components/fitness/GymMemberPwaUi';
@@ -71,7 +73,8 @@ type MemberTab =
   | 'mine'
   | 'progress'
   | 'messages'
-  | 'profile';
+  | 'profile'
+  | 'share';
 
 type OpenClass = {
   id: string;
@@ -300,7 +303,7 @@ export default function MemberFitgraphPortalPage() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [tab, setTab] = useState<MemberTab>('open');
+  const [tab, setTab] = useState<MemberTab>('mine');
   const [buyingId, setBuyingId] = useState<string | null>(null);
   const [checkinBusy, setCheckinBusy] = useState(false);
   const [checkinScan, setCheckinScan] = useState('');
@@ -331,7 +334,7 @@ export default function MemberFitgraphPortalPage() {
         data.portal?.require_paid_membership &&
         data.portal?.paid_access === false
       ) {
-        setTab((t) => (t === 'open' ? 'join' : t));
+        setTab((t) => (t === 'open' || t === 'mine' ? 'join' : t));
       } else if (
         data.portal?.require_debit_bank &&
         data.portal?.bank &&
@@ -379,15 +382,18 @@ export default function MemberFitgraphPortalPage() {
 
   useEffect(() => {
     const raw = new URLSearchParams(window.location.search).get('tab');
-    if (raw === 'plans' || raw === 'join') {
+    if (raw === 'plans' || raw === 'join' || raw === 'shop') {
       setTab('join');
+    } else if (raw === 'class' || raw === 'classes') {
+      setTab('mine');
     } else if (
       raw === 'checkin' ||
       raw === 'open' ||
       raw === 'mine' ||
       raw === 'progress' ||
       raw === 'messages' ||
-      raw === 'profile'
+      raw === 'profile' ||
+      raw === 'share'
     ) {
       setTab(raw);
     }
@@ -658,10 +664,6 @@ export default function MemberFitgraphPortalPage() {
   if (!portal) return null;
 
   const formatDay = gymFormatDay;
-  const needPay =
-    Boolean(portal.require_paid_membership) &&
-    portal.paid_access === false &&
-    !(portal.subscriptions || []).length;
   const needBank = Boolean(portal.require_debit_bank && !portal.bank?.complete);
   const nextClass = (portal.my_bookings || []).find(
     (b) =>
@@ -669,8 +671,7 @@ export default function MemberFitgraphPortalPage() {
       b.status !== 'cancelled' &&
       b.rsvp !== 'not_coming'
   );
-  const youTab = tab === 'join' || tab === 'messages' || tab === 'profile';
-  const joinLabel = portal.class_subscribe ? 'Subscribe' : 'Join & pay';
+  const youTab = tab === 'messages' || tab === 'profile' || tab === 'checkin';
 
   return (
     <MemberAdvisorShell
@@ -679,73 +680,41 @@ export default function MemberFitgraphPortalPage() {
       tab={tab}
       onTab={selectTab}
       mobileNav="bottom"
+      appHref={`/me?link=${encodeURIComponent(token)}`}
       tabs={[
-        { id: 'open', label: 'Book', icon: <CalendarDays /> },
-        { id: 'mine', label: 'Classes', icon: <Dumbbell /> },
-        { id: 'join', label: joinLabel, icon: <CreditCard /> },
-        {
-          id: 'checkin',
-          label: 'Check in',
-          icon: <QrCode />,
-          emphasis: true,
-        },
+        { id: 'mine', label: 'Class', icon: <Dumbbell /> },
         { id: 'progress', label: 'Progress', icon: <Activity /> },
-        {
-          id: 'messages',
-          label: 'Inbox',
-          icon: <MessageSquare />,
-          badge: portal.messages_unread || undefined,
-        },
         {
           id: 'profile',
           label: 'You',
           icon: <User />,
           badge: needBank ? 1 : undefined,
         },
+        { id: 'join', label: 'Shop', icon: <ShoppingBag /> },
+        { id: 'share', label: 'Share', icon: <Share2 /> },
+        { id: 'open', label: 'Book', icon: <CalendarDays /> },
+        { id: 'checkin', label: 'Check in', icon: <QrCode /> },
+        {
+          id: 'messages',
+          label: 'Inbox',
+          icon: <MessageSquare />,
+          badge: portal.messages_unread || undefined,
+        },
       ]}
-      mobileTabs={
-        needPay
-          ? [
-              { id: 'open', label: 'Book', icon: <CalendarDays /> },
-              { id: 'join', label: joinLabel, icon: <CreditCard /> },
-              {
-                id: 'checkin',
-                label: 'Check in',
-                icon: <QrCode />,
-                emphasis: true,
-              },
-              { id: 'mine', label: 'Classes', icon: <Dumbbell /> },
-              {
-                id: 'profile',
-                label: 'You',
-                icon: <User />,
-                badge:
-                  (portal.messages_unread || 0) + (needBank ? 1 : 0) ||
-                  undefined,
-                covers: ['messages', 'profile'],
-              },
-            ]
-          : [
-              { id: 'open', label: 'Book', icon: <CalendarDays /> },
-              { id: 'mine', label: 'Classes', icon: <Dumbbell /> },
-              {
-                id: 'checkin',
-                label: 'Check in',
-                icon: <QrCode />,
-                emphasis: true,
-              },
-              { id: 'progress', label: 'Progress', icon: <Activity /> },
-              {
-                id: 'profile',
-                label: 'You',
-                icon: <User />,
-                badge:
-                  (portal.messages_unread || 0) + (needBank ? 1 : 0) ||
-                  undefined,
-                covers: ['join', 'messages', 'profile'],
-              },
-            ]
-      }
+      mobileTabs={[
+        { id: 'mine', label: 'Class', icon: <Dumbbell /> },
+        { id: 'progress', label: 'Progress', icon: <Activity /> },
+        {
+          id: 'profile',
+          label: 'You',
+          icon: <User />,
+          badge:
+            (portal.messages_unread || 0) + (needBank ? 1 : 0) || undefined,
+          covers: ['profile', 'messages', 'checkin'],
+        },
+        { id: 'join', label: 'Shop', icon: <ShoppingBag /> },
+        { id: 'share', label: 'Share', icon: <Share2 /> },
+      ]}
       header={
         <div>
           <MemberPortalBrandLockup
@@ -834,9 +803,9 @@ export default function MemberFitgraphPortalPage() {
           <div className="flex gap-1 rounded-2xl border border-slate-200 bg-white p-1 dark:border-white/10 dark:bg-neutral-900 md:hidden">
             {(
               [
-                ['join', joinLabel],
-                ['messages', 'Inbox'],
                 ['profile', 'Profile'],
+                ['messages', 'Inbox'],
+                ['checkin', 'Check in'],
               ] as const
             ).map(([id, label]) => (
               <button
@@ -857,18 +826,26 @@ export default function MemberFitgraphPortalPage() {
           </div>
         ) : null}
 
+        {tab === 'share' && (
+          <GymSharePanel
+            brand={portal.brand}
+            bio={portal.bio}
+            phone={portal.contact_phone}
+            email={portal.contact_email}
+            color={color}
+          />
+        )}
+
         {tab === 'join' && (
           <div className="space-y-3">
             <GymSectionTitle
               hint={
                 portal.class_subscribe
-                  ? 'Pick the class or classes you train. Your monthly fee is the total.'
-                  : 'Memberships and programmes you can pay for here.'
+                  ? 'Buy classes, memberships and programmes this gym lists. Card, Apple Pay or EFT.'
+                  : 'Buy memberships, programmes and services this gym lists.'
               }
             >
-              {portal.class_subscribe
-                ? 'Subscribe to classes'
-                : 'Memberships & programmes'}
+              Shop
             </GymSectionTitle>
             {portal.class_subscribe && (portal.subscriptions || []).length ? (
               <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">
@@ -1354,6 +1331,7 @@ export default function MemberFitgraphPortalPage() {
                     action: 'upsert_goal',
                     kind: v.kind,
                     title: v.title,
+                    category: v.category,
                     start_value: v.start_value,
                     target_value: v.target_value,
                     target_date: v.target_date,

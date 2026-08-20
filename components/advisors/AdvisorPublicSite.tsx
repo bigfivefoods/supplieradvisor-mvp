@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import { Globe, Loader2, Mail, MapPin, Phone } from 'lucide-react';
 import { AdvisorPayAccepted } from '@/components/billing/ApplePayAccepted';
-import { AdvisorPortalThemeToggle } from '@/components/advisors/AdvisorPortalThemeToggle';
+import { PortalHeaderTools } from '@/components/advisors/PortalOpenAppLink';
 import { isLightBrand } from '@/lib/advisors/brand-ink';
 
 export type AdvisorPublicNavItem = { id: string; label: string };
@@ -139,10 +139,10 @@ export function AdvisorPublicSite({
             </nav>
           ) : null}
           <div className="flex shrink-0 items-center gap-2 md:hidden">
-            <AdvisorPortalThemeToggle onLightBrand={light} />
+            <PortalHeaderTools onLightBrand={light} appHref="/me" />
           </div>
           <div className="hidden shrink-0 items-center gap-2 md:flex">
-            <AdvisorPortalThemeToggle onLightBrand={light} />
+            <PortalHeaderTools onLightBrand={light} appHref="/me" />
             {phone ? (
               <a
                 href={`tel:${tel}`}

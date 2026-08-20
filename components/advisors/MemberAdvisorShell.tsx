@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { AdvisorPortalThemeToggle } from '@/components/advisors/AdvisorPortalThemeToggle';
+import { PortalHeaderTools } from '@/components/advisors/PortalOpenAppLink';
 import { advisorBrandInk } from '@/lib/advisors/brand-ink';
 
 export type MemberAdvisorTab<T extends string = string> = {
@@ -29,6 +29,7 @@ export function MemberAdvisorShell<T extends string = string>({
   fromClass = 'from-slate-50',
   mobileTabs,
   mobileNav = 'wrap',
+  appHref = '/me',
 }: {
   color: string;
   header: ReactNode;
@@ -40,6 +41,8 @@ export function MemberAdvisorShell<T extends string = string>({
   /** Compact icon bar on small screens. Defaults to `tabs`. */
   mobileTabs?: MemberAdvisorTab<T>[];
   mobileNav?: 'wrap' | 'bottom';
+  /** SA Member / wallet home. Shown under the theme toggle. */
+  appHref?: string;
 }) {
   const ink = advisorBrandInk(color);
   const phoneTabs = mobileTabs || tabs;
@@ -159,7 +162,7 @@ export function MemberAdvisorShell<T extends string = string>({
         <div className="mx-auto max-w-6xl px-4 py-5 md:px-8 md:py-10">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">{header}</div>
-            <AdvisorPortalThemeToggle />
+            <PortalHeaderTools appHref={appHref} />
           </div>
         </div>
       </header>

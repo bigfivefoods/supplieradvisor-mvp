@@ -309,6 +309,7 @@ export default function MemberPhysiographPortalPage() {
   return (
     <MemberAdvisorShell
       color={color}
+      appHref={`/me?link=${encodeURIComponent(token)}`}
       fromClass="from-teal-50"
       tab={tab}
       onTab={(id) => {

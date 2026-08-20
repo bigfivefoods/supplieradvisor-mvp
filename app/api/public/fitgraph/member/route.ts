@@ -948,6 +948,7 @@ export async function POST(request: NextRequest) {
     if (action === 'upsert_goal' || action === 'save_goal') {
       const title = String(body.title || '').trim();
       const kind = String(body.kind || 'custom');
+      const category = String(body.category || '').trim();
       if (!title && kind === 'custom') {
         return NextResponse.json({ error: 'Give the goal a name' }, { status: 400 });
       }
@@ -970,6 +971,7 @@ export async function POST(request: NextRequest) {
             ...prev,
             title: title || prev.title,
             kind: kind || prev.kind,
+            category: category || prev.category,
             description:
               body.description != null ? String(body.description) : prev.description,
             unit:
@@ -993,6 +995,7 @@ export async function POST(request: NextRequest) {
             coach_id: client.coach_id,
             kind,
             title,
+            category: category || undefined,
             description: body.description != null ? String(body.description) : undefined,
             unit: body.unit != null ? String(body.unit) : undefined,
             start_value: Number.isFinite(Number(startVal)) ? Number(startVal) : null,

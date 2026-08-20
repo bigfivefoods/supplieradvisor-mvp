@@ -6,6 +6,15 @@ import {
   MEMBER_GOAL_PRESETS,
   type MemberGoalView,
 } from '@/lib/fitness/member-goals';
+import { FIT_GOAL_CATEGORIES } from '@/lib/fitness/fitgraph-relationship';
+
+const CATEGORY_LABEL: Record<string, string> = {
+  physical: 'Physical',
+  consistency: 'Consistency',
+  lifestyle: 'Lifestyle',
+  performance: 'Performance',
+  other: 'Other',
+};
 
 export function MemberGoalsPanel({
   goals,
@@ -47,6 +56,7 @@ export function MemberGoalsPanel({
   onSaveGoal: (v: {
     kind: string;
     title: string;
+    category: string;
     start_value: string;
     target_value: string;
     target_date: string;
@@ -68,6 +78,7 @@ export function MemberGoalsPanel({
 }) {
   const [kind, setKind] = useState('weight');
   const preset = MEMBER_GOAL_PRESETS.find((p) => p.kind === kind) || MEMBER_GOAL_PRESETS[0];
+  const [category, setCategory] = useState<string>(preset.category);
   const [title, setTitle] = useState<string>(preset.title);
   const [startValue, setStartValue] = useState('');
   const [targetValue, setTargetValue] = useState('');
@@ -105,6 +116,9 @@ export function MemberGoalsPanel({
                 <div>
                   <p className="text-sm font-black text-slate-900">{g.title}</p>
                   <p className="text-[11px] text-slate-500">
+                    {g.category
+                      ? `${CATEGORY_LABEL[g.category] || g.category} · `
+                      : ''}
                     {g.status}
                     {g.target_date ? ` · by ${g.target_date}` : ''}
                   </p>
@@ -185,8 +199,35 @@ export function MemberGoalsPanel({
         <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
           New goal
         </p>
+        <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
+          Category
+          <select
+            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold dark:border-white/10 dark:bg-neutral-950"
+            value={category}
+            onChange={(e) => {
+              const next = e.target.value;
+              setCategory(next);
+              const match = MEMBER_GOAL_PRESETS.find((p) => p.category === next);
+              if (match) {
+                setKind(match.kind);
+                setTitle(match.title);
+                setUnit(match.unit);
+              } else {
+                setKind('custom');
+              }
+            }}
+          >
+            {FIT_GOAL_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {CATEGORY_LABEL[c] || c}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="flex flex-wrap gap-1.5">
-          {MEMBER_GOAL_PRESETS.map((p) => (
+          {MEMBER_GOAL_PRESETS.filter(
+            (p) => p.category === category || p.kind === 'custom'
+          ).map((p) => (
             <button
               key={p.kind}
               type="button"
@@ -194,6 +235,7 @@ export function MemberGoalsPanel({
                 setKind(p.kind);
                 setTitle(p.title);
                 setUnit(p.unit);
+                setCategory(p.category);
               }}
               className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
                 kind === p.kind
@@ -240,6 +282,7 @@ export function MemberGoalsPanel({
             void onSaveGoal({
               kind,
               title,
+              category,
               start_value: startValue,
               target_value: targetValue,
               target_date: targetDate,

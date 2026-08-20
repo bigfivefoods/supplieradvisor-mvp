@@ -210,6 +210,7 @@ export function createMemberGoal(input: {
   kind?: string;
   title?: string;
   description?: string;
+  category?: string;
   unit?: string | null;
   start_value?: number | null;
   target_value?: number | null;
@@ -225,7 +226,7 @@ export function createMemberGoal(input: {
     coach_id: input.coach_id,
     title,
     description: input.description,
-    category: preset.category as FitGoalCategory,
+    category: (input.category || preset.category) as FitGoalCategory,
     target_value: input.target_value ?? null,
     unit: input.unit != null && String(input.unit).trim() ? String(input.unit) : preset.unit || null,
     target_date: input.target_date || null,

@@ -310,6 +310,7 @@ export default function MemberPsychiatrygraphPortalPage() {
   return (
     <MemberAdvisorShell
       color={color}
+      appHref={`/me?link=${encodeURIComponent(token)}`}
       fromClass="from-indigo-50"
       tab={tab}
       onTab={(id) => {

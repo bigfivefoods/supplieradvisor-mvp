@@ -327,6 +327,7 @@ export default function MemberMedicalgraphPortalPage() {
   return (
     <MemberAdvisorShell
       color={color}
+      appHref={`/me?link=${encodeURIComponent(token)}`}
       fromClass="from-emerald-50"
       tab={tab}
       onTab={(id) => {

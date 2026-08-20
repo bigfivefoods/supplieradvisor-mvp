@@ -340,6 +340,7 @@ export default function MemberDentalgraphPortalPage() {
   return (
     <MemberAdvisorShell
       color={color}
+      appHref={`/me?link=${encodeURIComponent(token)}`}
       fromClass="from-sky-50"
       tab={tab}
       onTab={(id) => {
