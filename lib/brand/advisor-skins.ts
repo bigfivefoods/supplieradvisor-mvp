@@ -399,5 +399,16 @@ export function applyAdvisorSkinToDocument(skin: AdvisorSkin) {
     root.style.setProperty('--sa-brand-glow', `rgba(${r}, ${g}, ${b}, 0.28)`);
     const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
     root.style.setProperty('--sa-brand-ink', lum > 0.55 ? '#111827' : '#ffffff');
+    if (skin.id === 'supplier') {
+      root.style.removeProperty('--sa-page-glow-1');
+      root.style.removeProperty('--sa-page-glow-2');
+    } else {
+      const glow = lum > 0.55 ? 0.14 : 0.2;
+      root.style.setProperty('--sa-page-glow-1', `rgba(${r}, ${g}, ${b}, ${glow})`);
+      root.style.setProperty(
+        '--sa-page-glow-2',
+        `rgba(${r}, ${g}, ${b}, ${lum > 0.55 ? 0.08 : 0.14})`
+      );
+    }
   }
 }

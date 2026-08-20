@@ -91,7 +91,7 @@ export function RelationshipPage({
   // Soft wash is a background on this element only (never a covering child).
   return (
     <div className={`sa-page ${className}`}>
-      <div className="px-0 sm:px-1 max-w-screen-2xl 2xl:max-w-[90rem] mx-auto pt-1 relative z-10 pointer-events-auto min-w-0 w-full">
+      <div className="px-0.5 sm:px-1.5 max-w-screen-2xl 2xl:max-w-[90rem] mx-auto pt-1 relative z-10 pointer-events-auto min-w-0 w-full">
         {children}
       </div>
     </div>
@@ -158,7 +158,7 @@ export function RelationshipHeader({
     <div
       className={
         band
-          ? 'mb-5 min-w-0 rounded-2xl border border-sky-100/70 bg-gradient-to-br from-sky-50/40 via-white to-cyan-50/30 px-4 py-4 shadow-sm sm:mb-6 sm:px-6 sm:py-5 md:mb-8 dark:border-sky-200/50 dark:from-sky-50 dark:via-white dark:to-cyan-50'
+          ? 'sa-hero mb-5 min-w-0 sm:mb-6 md:mb-8'
           : 'mb-5 sm:mb-6 md:mb-8 min-w-0'
       }
     >
@@ -218,9 +218,10 @@ export function CommandWorkbenchBand({
   stats?: Array<{ label: string; value: string | number; valueClass?: string }>;
 }) {
   return (
-    <section className="relative mb-6 overflow-hidden rounded-[1.5rem] border border-cyan-100 bg-gradient-to-br from-white via-sky-50/90 to-cyan-50 p-4 shadow-sm sm:mb-8 sm:rounded-[2rem] sm:p-6">
+    <section className="sa-hero mb-6 sm:mb-8">
       <div
-        className="pointer-events-none absolute -right-8 -top-8 h-36 w-36 rounded-full bg-[#00b4d8]/10 blur-3xl"
+        className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full blur-3xl"
+        style={{ background: 'var(--sa-page-glow-1)' }}
         aria-hidden
       />
       <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

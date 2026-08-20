@@ -43,6 +43,14 @@
   --sa-danger-soft: #fff1f2;
   --sa-sky-soft: #f0f9ff;
 
+  /* Page wash behind headers + cards (matches card radius) */
+  --sa-page-radius: 1rem;
+  --sa-page-fill: color-mix(in srgb, var(--sa-brand) 4.5%, #ffffff);
+  --sa-page-border: color-mix(in srgb, var(--sa-brand) 18%, var(--sa-border));
+  --sa-page-glow-1: color-mix(in srgb, var(--sa-brand) 22%, transparent);
+  --sa-page-glow-2: color-mix(in srgb, var(--sa-brand-deep) 14%, transparent);
+  --sa-page-glow-3: color-mix(in srgb, var(--sa-brand) 8%, transparent);
+
   /* Fixed marketing header (inner bar). Offset includes notch safe-area. */
   --sa-nav-h: 3.5rem;
   --sa-nav-offset: calc(var(--sa-nav-h) + env(safe-area-inset-top, 0px));
@@ -51,6 +59,7 @@
 @media (min-width: 640px) {
   :root {
     --sa-nav-h: 4.25rem;
+    --sa-page-radius: 1.5rem;
   }
 }
 
@@ -90,6 +99,29 @@ html.dark {
   --sa-warn-soft: #1f180c;
   --sa-danger-soft: #1f0c10;
   --sa-sky-soft: #0a1620;
+
+  --sa-page-fill: color-mix(in srgb, var(--sa-brand) 8%, #080a0d);
+  --sa-page-border: color-mix(in srgb, var(--sa-brand) 24%, #2a2a2a);
+  --sa-page-glow-1: color-mix(in srgb, var(--sa-brand) 20%, transparent);
+  --sa-page-glow-2: color-mix(in srgb, var(--sa-brand-deep) 16%, transparent);
+  --sa-page-glow-3: color-mix(in srgb, var(--sa-brand) 7%, transparent);
+}
+
+/* Advisor skins: wash follows --sa-brand (Hire teal, Gym yellow, Physio, …) */
+html[data-advisor]:not([data-advisor='supplier']) {
+  --sa-page-fill: color-mix(in srgb, var(--sa-brand) 7%, #ffffff);
+  --sa-page-border: color-mix(in srgb, var(--sa-brand) 22%, var(--sa-border));
+  --sa-page-glow-1: color-mix(in srgb, var(--sa-brand) 20%, transparent);
+  --sa-page-glow-2: color-mix(in srgb, var(--sa-brand-deep) 16%, transparent);
+  --sa-page-glow-3: color-mix(in srgb, var(--sa-brand) 9%, transparent);
+}
+
+html.dark[data-advisor]:not([data-advisor='supplier']) {
+  --sa-page-fill: color-mix(in srgb, var(--sa-brand) 9%, #07080a);
+  --sa-page-border: color-mix(in srgb, var(--sa-brand) 26%, #2a2a2a);
+  --sa-page-glow-1: color-mix(in srgb, var(--sa-brand) 16%, transparent);
+  --sa-page-glow-2: color-mix(in srgb, var(--sa-brand-deep) 14%, transparent);
+  --sa-page-glow-3: color-mix(in srgb, var(--sa-brand) 6%, transparent);
 }
 
 /* ============================================
@@ -1064,8 +1096,7 @@ html.dark .sa-gallery-card .text-slate-400 {
  */
 html.dark .card,
 html.dark .sa-panel,
-html.dark .sa-metric-card,
-html.dark .sa-hero {
+html.dark .sa-metric-card {
   background-color: var(--sa-surface) !important;
   background-image: none !important;
   color: var(--sa-text) !important;
@@ -1546,10 +1577,31 @@ html.sa-smooth-scroll {
 
   /* Shared panel / surface utilities */
   .sa-page {
-    @apply relative z-10 pb-16 sm:pb-20 pointer-events-auto min-w-0 w-full;
+    @apply relative z-10 pointer-events-auto min-w-0 w-full;
+    margin-inline: -0.4rem;
+    margin-top: -0.15rem;
+    padding: 0.95rem 0.85rem 4.5rem;
+    border-radius: var(--sa-page-radius);
+    border: 1px solid var(--sa-page-border);
+    background-color: var(--sa-page-fill);
     background-image:
-      radial-gradient(circle at 15% 0%, var(--sa-brand-glow), transparent 42%),
-      radial-gradient(circle at 90% 10%, color-mix(in srgb, var(--sa-brand-deep) 12%, transparent), transparent 38%);
+      radial-gradient(ellipse 95% 72% at 6% -12%, var(--sa-page-glow-1), transparent 72%),
+      radial-gradient(ellipse 85% 62% at 102% -6%, var(--sa-page-glow-2), transparent 70%),
+      radial-gradient(ellipse 70% 50% at 78% 108%, var(--sa-page-glow-3), transparent 74%);
+    background-repeat: no-repeat;
+    box-shadow: var(--sa-shadow);
+  }
+  @media (min-width: 640px) {
+    .sa-page {
+      margin-inline: -0.55rem;
+      padding: 1.25rem 1.15rem 5.25rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .sa-page {
+      margin-inline: -0.7rem;
+      padding: 1.4rem 1.35rem 5.5rem;
+    }
   }
 
   .sa-panel {
@@ -1579,14 +1631,18 @@ html.sa-smooth-scroll {
   }
 
   .sa-hero {
-    @apply relative overflow-hidden rounded-[1.5rem] sm:rounded-[2rem] border p-4 sm:p-6 md:p-8 shadow-sm;
-    border-color: color-mix(in srgb, var(--sa-brand) 22%, var(--sa-border));
-    background: linear-gradient(
-      135deg,
-      var(--sa-surface) 0%,
-      color-mix(in srgb, var(--sa-brand) 6%, var(--sa-surface)) 55%,
-      color-mix(in srgb, var(--sa-brand) 10%, var(--sa-surface)) 100%
-    );
+    @apply relative overflow-hidden border p-5 sm:p-7 md:p-9 shadow-sm;
+    border-radius: var(--sa-page-radius);
+    border-color: var(--sa-page-border);
+    background-color: var(--sa-page-fill);
+    background-image:
+      radial-gradient(ellipse 80% 90% at 100% 0%, var(--sa-page-glow-1), transparent 62%),
+      radial-gradient(ellipse 55% 70% at 0% 100%, var(--sa-page-glow-3), transparent 58%),
+      linear-gradient(
+        165deg,
+        color-mix(in srgb, var(--sa-surface) 88%, transparent) 0%,
+        color-mix(in srgb, var(--sa-brand) 7%, var(--sa-surface)) 100%
+      );
   }
 
   /* Dialogs / drawers — max height with safe area */

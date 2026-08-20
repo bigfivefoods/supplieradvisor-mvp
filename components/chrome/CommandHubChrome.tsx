@@ -117,13 +117,15 @@ export function HubHero({
   stats?: HubHeroStat[];
 }) {
   return (
-    <section className="relative mb-8 overflow-hidden rounded-2xl border border-sky-100/70 bg-gradient-to-br from-sky-50/35 via-white to-cyan-50/25 p-6 shadow-sm sm:rounded-2xl sm:p-8 dark:border-sky-200/50 dark:from-sky-50 dark:via-white dark:to-cyan-50">
+    <section className="sa-hero mb-8">
       <div
-        className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-[#00b4d8]/10 blur-3xl"
+        className="pointer-events-none absolute -right-10 -top-10 h-56 w-56 rounded-full blur-3xl"
+        style={{ background: 'var(--sa-page-glow-1)' }}
         aria-hidden
       />
       <div
-        className="pointer-events-none absolute left-1/4 bottom-0 h-32 w-32 rounded-full bg-violet-200/20 blur-3xl"
+        className="pointer-events-none absolute left-1/4 bottom-0 h-36 w-36 rounded-full blur-3xl"
+        style={{ background: 'var(--sa-page-glow-3)' }}
         aria-hidden
       />
       <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
