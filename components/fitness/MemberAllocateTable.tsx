@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { fc } from '@/components/fitness/FitForm';
@@ -30,6 +30,13 @@ const STATUSES: FitSubscription['status'][] = [
 ];
 
 type Filter = 'all' | 'members' | 'private' | 'both' | 'open';
+type StatusFilter = 'active' | 'inactive';
+
+function isPersonActive(c: FitClient) {
+  if (c.active === false) return false;
+  const st = String(c.membership_status || 'active');
+  return st !== 'expired' && st !== 'cancelled';
+}
 
 function classOptionLabel(p: FitMembershipPlan): string {
   const when = p.schedule_label ? ` · ${p.schedule_label}` : '';
@@ -114,6 +121,8 @@ export function MemberAllocateTable({
   const [filter, setFilter] = useState<Filter>(
     defaultOnlyOpen ? 'open' : 'all'
   );
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
+  const [sortByClass, setSortByClass] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
@@ -148,7 +157,9 @@ export function MemberAllocateTable({
   const people = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return store.clients
-      .filter((c) => c.active !== false)
+      .filter((c) =>
+        statusFilter === 'active' ? isPersonActive(c) : !isPersonActive(c)
+      )
       .filter((c) =>
         needle
           ? `${c.name} ${c.code} ${c.email || ''} ${c.phone || ''} ${c.notes || ''} ${c.id_number || ''} ${c.occupation || ''} ${c.debit_bank?.bank_name || ''} ${c.debit_bank?.account_number || ''}`
@@ -157,11 +168,26 @@ export function MemberAllocateTable({
           : true
       )
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [store.clients, q]);
+  }, [store.clients, q, statusFilter]);
 
   const isOnClass = (c: FitClient) =>
     activeSubs.some((s) => s.client_id === c.id) ||
     Boolean(c.membership_plan_id);
+
+  const classGroupOf = (c: FitClient) => {
+    const liveIds = activeSubs
+      .filter((s) => s.client_id === c.id)
+      .map((s) => s.plan_id);
+    const hit =
+      classes.find((p) => liveIds.includes(p.id)) ||
+      classes.find((p) => p.id === c.membership_plan_id);
+    if (!hit) return { key: 'zzz|Unallocated', label: 'Unallocated' };
+    const label = hit.schedule_label
+      ? `${hit.name} · ${hit.schedule_label}`
+      : hit.name;
+    const order = String(hit.sort_order ?? 999).padStart(4, '0');
+    return { key: `${order}|${label}`, label };
+  };
 
   const visible = useMemo(() => {
     const rows = people.filter((c) => {
@@ -173,6 +199,13 @@ export function MemberAllocateTable({
       if (filter === 'open') return !member && !priv;
       return true;
     });
+    if (sortByClass) {
+      return [...rows].sort((a, b) => {
+        const ga = classGroupOf(a).key;
+        const gb = classGroupOf(b).key;
+        return ga.localeCompare(gb) || a.name.localeCompare(b.name);
+      });
+    }
     if (!classFilter) return rows;
     return [...rows].sort((a, b) => {
       const aOn = activeSubs.some(
@@ -187,7 +220,7 @@ export function MemberAllocateTable({
         : 0;
       return aOn - bOn || a.name.localeCompare(b.name);
     });
-  }, [people, activeSubs, filter, classFilter]);
+  }, [people, activeSubs, filter, classFilter, sortByClass, classes]);
 
   const defaultDraft = (c: FitClient): Draft => {
     const mine = (store.subscriptions || []).filter((s) => s.client_id === c.id);
@@ -412,6 +445,10 @@ export function MemberAllocateTable({
     }
   };
 
+  const statusCounts = {
+    active: store.clients.filter((c) => isPersonActive(c)).length,
+    inactive: store.clients.filter((c) => !isPersonActive(c)).length,
+  };
   const counts = {
     all: people.length,
     members: people.filter((c) => isOnClass(c)).length,
@@ -461,6 +498,25 @@ export function MemberAllocateTable({
         </select>
         {(
           [
+            ['active', `Active ${statusCounts.active}`],
+            ['inactive', `Inactive ${statusCounts.inactive}`],
+          ] as Array<[StatusFilter, string]>
+        ).map(([k, label]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setStatusFilter(k)}
+            className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
+              statusFilter === k
+                ? 'border-yellow-500 bg-yellow-300 text-yellow-950'
+                : 'border-slate-200 bg-white text-slate-600 dark:border-white/15 dark:bg-white/5 dark:text-yellow-100'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+        {(
+          [
             ['all', `All ${counts.all}`],
             ['members', `Members ${counts.members}`],
             ['private', `Private ${counts.private}`],
@@ -481,8 +537,19 @@ export function MemberAllocateTable({
             {label}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => setSortByClass((v) => !v)}
+          className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
+            sortByClass
+              ? 'border-yellow-500 bg-yellow-300 text-yellow-950'
+              : 'border-slate-200 bg-white text-slate-600 dark:border-white/15 dark:bg-white/5 dark:text-yellow-100'
+          }`}
+        >
+          Sort by class
+        </button>
       </div>
-      {classFilter ? (
+      {classFilter && !sortByClass ? (
         <p className="text-[11px] text-slate-500">
           People not on this class are listed first. Use{' '}
           <strong>Add to class</strong> then set their actual rate and Save.
@@ -508,7 +575,7 @@ export function MemberAllocateTable({
         </p>
       ) : (
         <div className="space-y-2">
-          {visible.map((c) => {
+          {visible.map((c, i) => {
             const d = draftFor(c);
             const open = openId === c.id;
             const { selected, standard, actual } = totalsFor(d);
@@ -516,9 +583,17 @@ export function MemberAllocateTable({
             const coachName = coaches.find((x) => x.id === d.coachId)?.name;
             const onFilteredClass =
               Boolean(classFilter) && selectedPlanIds(d).includes(classFilter);
+            const group = sortByClass ? classGroupOf(c).label : null;
+            const prevGroup =
+              sortByClass && i > 0 ? classGroupOf(visible[i - 1]).label : null;
             return (
+              <Fragment key={c.id}>
+              {group && group !== prevGroup ? (
+                <p className="px-1 pt-2 text-[10px] font-black uppercase tracking-wide text-slate-500 first:pt-0 dark:text-yellow-200/70">
+                  {group}
+                </p>
+              ) : null}
               <article
-                key={c.id}
                 className={`rounded-2xl border bg-white dark:!border-yellow-400 dark:!bg-yellow-950 dark:ring-1 dark:ring-yellow-500/40 ${
                   changed
                     ? 'border-yellow-400 ring-1 ring-yellow-300'
@@ -1046,6 +1121,7 @@ export function MemberAllocateTable({
                   </div>
                 ) : null}
               </article>
+              </Fragment>
             );
           })}
         </div>
