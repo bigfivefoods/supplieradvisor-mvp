@@ -58,6 +58,7 @@ import {
 } from '@/lib/fitness/fitgraph';
 import { parseQualifications } from '@/lib/services/person-qualifications';
 import { upsertMovement, upsertProgramme } from '@/lib/fitness/movements';
+import { buildDemoShopProgramme } from '@/lib/fitness/demo-shop-programme';
 import {
   enrollClientOnProgramme,
   upsertProgrammeLog,
@@ -3824,6 +3825,7 @@ function seedDemo(now: string, companyId?: number): FitgraphStore {
         updated_at: now,
       },
     ],
+    programmes: [buildDemoShopProgramme(now, c1)],
     updated_at: now,
   };
 }

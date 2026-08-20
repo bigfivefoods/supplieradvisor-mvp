@@ -974,7 +974,7 @@ export default function MemberFitgraphPortalPage() {
 
         {tab === 'join' && (
           <div className="space-y-5">
-            <GymSectionTitle hint="Products from the gym inventory, then services and memberships, then what you have bought. Pay with card, Apple Pay or EFT.">
+            <GymSectionTitle hint="Products from the gym inventory, training programmes you can follow on your phone, then class subscriptions. Pay with card, Apple Pay or EFT.">
               Shop
             </GymSectionTitle>
             <div

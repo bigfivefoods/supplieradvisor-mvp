@@ -16,6 +16,8 @@ import {
   VUKA_COMPANY_ID,
   VUKA_MEMBERSHIP_PLANS,
 } from './vuka-class-catalog';
+import { gymShopCatalog } from './gym-shop';
+import { DEMO_SHOP_PROGRAMME_ID } from './demo-shop-programme';
 import {
   VUKA_BILLED_CLASS_IMPORT,
   VUKA_CONTRACTS_IMPORT,
@@ -61,6 +63,19 @@ assert.equal(vuka.settings?.collect_debit_bank, true);
 assert.equal(vuka.settings?.require_debit_bank, true);
 assert.equal(gymHasClassSpecificPlans(vuka), true);
 assert.equal(storeUsesClassSubscribe(vuka), true);
+assert.ok(
+  (vuka.programmes || []).some(
+    (p) =>
+      p.id === DEMO_SHOP_PROGRAMME_ID &&
+      p.public === true &&
+      Number(p.price_zar) === 450
+  )
+);
+assert.ok(
+  gymShopCatalog(vuka).some(
+    (i) => i.kind === 'programme' && i.id === DEMO_SHOP_PROGRAMME_ID
+  )
+);
 const offer = listSubscribeClasses(vuka);
 assert.ok(offer.length >= 14);
 assert.ok(offer.some((c) => c.price_zar === 910 && c.schedule_label.includes('5:00am')));
@@ -279,6 +294,14 @@ void (async () => {
   };
   assert.equal(vukaDeskSettled(settled), true);
   let saved = 0;
+  await persistVukaCatalogIfNeeded(VUKA_COMPANY_ID, settled, async () => {
+    saved += 1;
+  });
+  assert.equal(saved, 1);
+  assert.ok(
+    (settled.programmes || []).some((p) => p.id === DEMO_SHOP_PROGRAMME_ID)
+  );
+  saved = 0;
   await persistVukaCatalogIfNeeded(VUKA_COMPANY_ID, settled, async () => {
     saved += 1;
   });

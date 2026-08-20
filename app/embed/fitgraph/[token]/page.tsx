@@ -528,7 +528,13 @@ export default function EmbedFitgraphPage() {
         <AdvisorPublicSection
           id="join"
           title={
-            calendar.class_subscribe ? 'Subscribe to classes' : 'Join & pay'
+            (calendar.programmes || []).length
+              ? calendar.class_subscribe
+                ? 'Programmes & class subscriptions'
+                : 'Programmes & join'
+              : calendar.class_subscribe
+                ? 'Subscribe to classes'
+                : 'Join & pay'
           }
         >
           <GymShopPay

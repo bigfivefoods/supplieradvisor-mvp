@@ -133,6 +133,7 @@ export function publicProgrammeShop(store: FitgraphStore): GymShopItem[] {
         description: desc || p.description,
         price_zar: Number(p.price_zar) || 0,
         billing: p.billing || 'once',
+        group: 'service' as const,
       };
     });
 }

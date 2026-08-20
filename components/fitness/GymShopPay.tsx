@@ -46,23 +46,106 @@ export function GymShopPay({
   const classMode =
     classSubscribe === true ||
     items.some((i) => i.kind === 'membership' && Boolean(i.schedule_label));
+  const programmes = items.filter((i) => i.kind === 'programme');
+  const rest = items.filter((i) => i.kind !== 'programme');
   if (!items.length) {
     return (
       <p className="text-sm text-slate-500 dark:text-slate-400">
         {classMode
-          ? 'No classes are open for subscription yet. Ask the gym to publish the timetable.'
+          ? 'No classes or programmes are for sale yet. Ask the gym to publish the timetable.'
           : 'No memberships or programmes are for sale yet. Ask the gym to publish a priced plan.'}
       </p>
     );
   }
+
+  const renderCard = (item: GymShopItem) => {
+    const busy = buyingId === `${item.kind}:${item.id}`;
+    const subscribed =
+      item.kind === 'membership' && already.has(item.id);
+    return (
+      <div
+        key={`${item.kind}:${item.id}`}
+        className="flex flex-col rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-white/10 dark:bg-neutral-900"
+      >
+        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+          {item.kind === 'programme'
+            ? 'Programme'
+            : item.addon
+              ? 'Add-on'
+              : item.unlocks_all || item.code === 'VUKA_UNLIM'
+                ? 'Unlimited'
+                : classMode
+                  ? 'Class'
+                  : 'Membership'}
+        </p>
+        <div className="font-bold text-sm">{item.name}</div>
+        {item.schedule_label ? (
+          <p className="text-[11px] font-bold text-slate-500">
+            {item.schedule_label}
+          </p>
+        ) : null}
+        {item.audience && item.audience !== 'all' ? (
+          <p className="text-[10px] font-black uppercase text-amber-700">
+            {item.audience === 'gents'
+              ? 'Gents only'
+              : item.audience === 'women'
+                ? 'Women only'
+                : item.audience === 'kids'
+                  ? 'Kids'
+                  : item.audience}
+          </p>
+        ) : null}
+        <div className="text-lg font-black tabular-nums" style={{ color }}>
+          R{item.price_zar}
+          <span className="ml-1 text-[11px] font-bold text-slate-400">
+            / {item.billing}
+          </span>
+        </div>
+        {item.description ? (
+          <p className="mt-1 text-[12px] text-slate-600">
+            {item.description}
+          </p>
+        ) : null}
+        {item.class_credits != null ? (
+          <p className="mt-1 text-[11px] text-slate-500">
+            {item.class_credits} class credits
+          </p>
+        ) : null}
+        <button
+          type="button"
+          disabled={busy || !payoutReady || !name.trim() || !email.includes('@')}
+          className="mt-3 min-h-11 rounded-xl py-2 text-xs font-black disabled:opacity-50"
+          style={{ backgroundColor: color, color: advisorBrandInk(color) }}
+          onClick={() => onBuy(item)}
+        >
+          {busy ? (
+            <span className="inline-flex items-center gap-1">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Opening Paystack…
+            </span>
+          ) : subscribed ? (
+            'Subscribed · renew'
+          ) : item.kind === 'programme' ? (
+            `Buy programme · R${item.price_zar}`
+          ) : classMode && item.kind === 'membership' ? (
+            `Subscribe · R${item.price_zar}/pm`
+          ) : (
+            'Pay & join'
+          )}
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         {classMode ? (
           <p className="text-sm text-slate-600 dark:text-slate-300">
-            Subscribe to the class or classes you train. Your monthly fee is
-            the total of those classes
+            Subscribe to the class or classes you train
+            {programmes.length
+              ? ', or buy a training programme to follow on your phone'
+              : ''}
+            . Your monthly class fee is the total of those classes
             {requirePaid ? ' — then you or a coach book each session' : ''}.
             Card, Apple Pay (Safari / iPhone) or EFT.
           </p>
@@ -118,83 +201,28 @@ export function GymShopPay({
           />
         </div>
       ) : null}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {items.map((item) => {
-          const busy = buyingId === `${item.kind}:${item.id}`;
-          const subscribed =
-            item.kind === 'membership' && already.has(item.id);
-          return (
-            <div
-              key={`${item.kind}:${item.id}`}
-              className="flex flex-col rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-white/10 dark:bg-neutral-900"
-            >
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                {item.kind === 'programme'
-                  ? 'Programme'
-                  : item.addon
-                    ? 'Add-on'
-                    : item.unlocks_all || item.code === 'VUKA_UNLIM'
-                      ? 'Unlimited'
-                      : classMode
-                        ? 'Class'
-                        : 'Membership'}
-              </p>
-              <div className="font-bold text-sm">{item.name}</div>
-              {item.schedule_label ? (
-                <p className="text-[11px] font-bold text-slate-500">
-                  {item.schedule_label}
-                </p>
-              ) : null}
-              {item.audience && item.audience !== 'all' ? (
-                <p className="text-[10px] font-black uppercase text-amber-700">
-                  {item.audience === 'gents'
-                    ? 'Gents only'
-                    : item.audience === 'women'
-                      ? 'Women only'
-                      : item.audience === 'kids'
-                        ? 'Kids'
-                        : item.audience}
-                </p>
-              ) : null}
-              <div className="text-lg font-black tabular-nums" style={{ color }}>
-                R{item.price_zar}
-                <span className="ml-1 text-[11px] font-bold text-slate-400">
-                  / {item.billing}
-                </span>
-              </div>
-              {item.description ? (
-                <p className="mt-1 text-[12px] text-slate-600">
-                  {item.description}
-                </p>
-              ) : null}
-              {item.class_credits != null ? (
-                <p className="mt-1 text-[11px] text-slate-500">
-                  {item.class_credits} class credits
-                </p>
-              ) : null}
-              <button
-                type="button"
-                disabled={busy || !payoutReady || !name.trim() || !email.includes('@')}
-                className="mt-3 min-h-11 rounded-xl py-2 text-xs font-black disabled:opacity-50"
-                style={{ backgroundColor: color, color: advisorBrandInk(color) }}
-                onClick={() => onBuy(item)}
-              >
-                {busy ? (
-                  <span className="inline-flex items-center gap-1">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Opening Paystack…
-                  </span>
-                ) : subscribed ? (
-                  'Subscribed · renew'
-                ) : classMode && item.kind === 'membership' ? (
-                  `Subscribe · R${item.price_zar}/pm`
-                ) : (
-                  'Pay & join'
-                )}
-              </button>
-            </div>
-          );
-        })}
-      </div>
+      {programmes.length ? (
+        <div className="space-y-2">
+          <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+            Programmes
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {programmes.map(renderCard)}
+          </div>
+        </div>
+      ) : null}
+      {rest.length ? (
+        <div className="space-y-2">
+          {programmes.length ? (
+            <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+              {classMode ? 'Classes' : 'Memberships'}
+            </p>
+          ) : null}
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {rest.map(renderCard)}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

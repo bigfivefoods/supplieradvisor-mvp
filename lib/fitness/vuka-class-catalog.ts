@@ -22,6 +22,7 @@ import {
   SYS_COACH_TIME_CODE,
   SYS_PT_CODE,
 } from '@/lib/fitness/session-times';
+import { ensureDemoShopProgramme } from '@/lib/fitness/demo-shop-programme';
 
 export const VUKA_COMPANY_ID = 110;
 
@@ -1254,6 +1255,8 @@ export function ensureVukaClassCatalog(
     changed = true;
   }
 
+  if (ensureDemoShopProgramme(store, now)) changed = true;
+
   return { store, changed, applied: true };
 }
 
@@ -1275,19 +1278,23 @@ export async function persistVukaCatalogIfNeeded(
   const { ensureVukaRoster, vukaDeskSettled } = await import(
     '@/lib/fitness/vuka-roster'
   );
-  if (vukaDeskSettled(store)) return store;
-  const result = ensureVukaClassCatalog(store, {
-    companyId,
-    tradingName: identity?.tradingName,
-    legalName: identity?.legalName,
-  });
-  let next = result.store;
-  let dirty = result.changed;
-  if (result.applied) {
-    const roster = ensureVukaRoster(next);
-    next = roster.store;
-    dirty = dirty || roster.changed;
+  let next = store;
+  let dirty = false;
+  if (!vukaDeskSettled(store)) {
+    const result = ensureVukaClassCatalog(store, {
+      companyId,
+      tradingName: identity?.tradingName,
+      legalName: identity?.legalName,
+    });
+    next = result.store;
+    dirty = result.changed;
+    if (result.applied) {
+      const roster = ensureVukaRoster(next);
+      next = roster.store;
+      dirty = dirty || roster.changed;
+    }
   }
+  if (ensureDemoShopProgramme(next)) dirty = true;
   if (dirty) {
     await save(next);
   }

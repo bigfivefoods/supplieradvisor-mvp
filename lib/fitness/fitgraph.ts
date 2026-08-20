@@ -2337,10 +2337,13 @@ export function buildPublicCalendarPayload(
     .map((p) => ({
       id: p.id,
       name: p.name,
-      description: p.description,
+      description: [p.weeks ? `${p.weeks}-week programme` : null, p.description]
+        .filter(Boolean)
+        .join(' · '),
       price_zar: Number(p.price_zar) || 0,
       billing: p.billing || 'once',
       kind: p.kind,
+      weeks: p.weeks || null,
     }));
 
   const contracts = showPolicies

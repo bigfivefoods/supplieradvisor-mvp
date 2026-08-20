@@ -22,7 +22,7 @@ export const PORTAL_SECTIONS: Record<AdvisorPortalModule, PortalSectionDef[]> = 
   fitgraph: [
     { id: 'timetable', label: 'Class timetable' },
     { id: 'team', label: 'Coaches', hint: 'Team bios' },
-    { id: 'join', label: 'Join / memberships', hint: 'Public prices' },
+    { id: 'join', label: 'Join / memberships', hint: 'Classes and programmes' },
     { id: 'policies', label: 'Policies', hint: 'PDF contracts' },
     { id: 'hours', label: 'Hours & visit' },
   ],
