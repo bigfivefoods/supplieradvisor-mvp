@@ -4,7 +4,9 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { loadAdvisorStoreForPublicToken } from '@/lib/business/advisor-store-resolve';
 import {
+  HIREGRAPH_META_KEY,
   HIREGRAPH_PUBLIC_TOKEN_KEY,
   buildHirePublicWebsitePayload,
   parseCompanyIdFromHirePublicToken,
@@ -21,44 +23,28 @@ export const dynamic = 'force-dynamic';
 async function resolve(token: string) {
   const clean = String(token || '').trim();
   if (!clean || clean.length < 8) return null;
+  const { ADVISOR_PAYOUT_META_KEY } = await import(
+    '@/lib/billing/advisor-payout'
+  );
+  const loaded = await loadAdvisorStoreForPublicToken({
+    token: clean,
+    moduleKey: HIREGRAPH_META_KEY,
+    read: readHiregraphFromMetadata,
+    parseCompanyId: parseCompanyIdFromHirePublicToken,
+    indexKeys: [HIREGRAPH_PUBLIC_TOKEN_KEY],
+    extraKeys: [ADVISOR_PAYOUT_META_KEY],
+  });
+  if (!loaded || loaded.store.settings?.public_token !== clean) return null;
   const supabase = getSupabaseServer();
-  const { data: byIndex } = await supabase
-    .from('profiles')
-    .select('id, metadata, trading_name, legal_name')
-    .contains('metadata', { [HIREGRAPH_PUBLIC_TOKEN_KEY]: clean })
-    .maybeSingle();
-  if (byIndex) {
-    const meta =
-      byIndex.metadata && typeof byIndex.metadata === 'object'
-        ? { ...(byIndex.metadata as Record<string, unknown>) }
-        : {};
-    const store = readHiregraphFromMetadata(meta);
-    if (store.settings?.public_token === clean) {
-      return {
-        store,
-        meta,
-        name: String(byIndex.trading_name || byIndex.legal_name || ''),
-      };
-    }
-  }
-  const parsed = parseCompanyIdFromHirePublicToken(clean);
-  if (!parsed) return null;
   const { data: prof } = await supabase
     .from('profiles')
-    .select('id, metadata, trading_name, legal_name')
-    .eq('id', parsed)
+    .select('trading_name, legal_name')
+    .eq('id', loaded.companyId)
     .maybeSingle();
-  if (!prof) return null;
-  const meta =
-    prof.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
-      : {};
-  const store = readHiregraphFromMetadata(meta);
-  if (store.settings?.public_token !== clean) return null;
   return {
-    store,
-    meta,
-    name: String(prof.trading_name || prof.legal_name || ''),
+    store: loaded.store,
+    meta: loaded.meta,
+    name: String(prof?.trading_name || prof?.legal_name || ''),
   };
 }
 

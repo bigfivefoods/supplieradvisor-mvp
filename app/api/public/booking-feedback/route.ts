@@ -4,7 +4,6 @@
  * POST { module, companyId, token, feeling, intensity, ... }
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
 import {
   readFitgraphFromMetadata,
@@ -57,31 +56,19 @@ function modOf(v: unknown): FeedbackModule | null {
 }
 
 async function loadCompany(companyId: number) {
-  const supabase = getSupabaseServer();
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('id, trading_name, legal_name, metadata, logo_url')
-    .eq('id', companyId)
-    .maybeSingle();
-  if (!prof) return null;
-  const meta =
-    prof.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
-      : {};
+  const { loadWalletCompany } = await import('@/lib/b2c/load-company');
+  const company = await loadWalletCompany(companyId);
+  if (!company) return null;
   return {
-    meta,
-    brand: String(prof.trading_name || prof.legal_name || 'Practice'),
-    logo_url: pickCompanyLogoUrl(prof),
+    meta: company.meta,
+    brand: company.name || 'Practice',
+    logo_url: company.logoUrl || pickCompanyLogoUrl({ logo_url: company.logoUrl }),
   };
 }
 
 async function saveMeta(companyId: number, meta: Record<string, unknown>) {
-  const supabase = getSupabaseServer();
-  const { error } = await supabase
-    .from('profiles')
-    .update({ metadata: meta, updated_at: new Date().toISOString() })
-    .eq('id', companyId);
-  if (error) throw new Error(error.message);
+  const { saveWalletCompanyMeta } = await import('@/lib/b2c/load-company');
+  await saveWalletCompanyMeta(companyId, meta);
 }
 
 type Resolved = {

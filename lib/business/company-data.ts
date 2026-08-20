@@ -151,8 +151,21 @@ export async function loadCompanyChrome(
 
   // Workspace chrome is a subset (e.g. only sidenav order). Never use it
   // instead of profile keys — that drops enabled_modules and hides Advisors.
-  const [rpc, ws, keyed] = await Promise.all([
-    supabase.rpc('sa_get_company_chrome', { p_company_id: companyId }),
+  const rpc = await supabase.rpc('sa_get_company_chrome', {
+    p_company_id: companyId,
+  });
+  const fromRpc =
+    !rpc.error && rpc.data && typeof rpc.data === 'object'
+      ? asObject(rpc.data)
+      : {};
+  if ('enabled_modules' in fromRpc || 'industry_packs' in fromRpc) {
+    return fromRpc;
+  }
+  if (rpc.error && !isMissingRelation(rpc.error)) {
+    console.warn('loadCompanyChrome rpc', rpc.error.message);
+  }
+
+  const [ws, keyed] = await Promise.all([
     supabase
       .from('company_workspace')
       .select('chrome')
@@ -164,14 +177,6 @@ export async function loadCompanyChrome(
     }),
   ]);
 
-  if (rpc.error && !isMissingRelation(rpc.error)) {
-    console.warn('loadCompanyChrome rpc', rpc.error.message);
-  }
-
-  const fromRpc =
-    !rpc.error && rpc.data && typeof rpc.data === 'object'
-      ? asObject(rpc.data)
-      : {};
   const fromWs =
     !ws.error && ws.data?.chrome && typeof ws.data.chrome === 'object'
       ? asObject(ws.data.chrome)

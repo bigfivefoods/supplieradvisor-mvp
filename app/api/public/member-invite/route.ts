@@ -105,15 +105,7 @@ async function resolveInvite(
   const loaded = await loadAdvisorModuleStore(
     companyId,
     module,
-    module === 'fitgraph'
-      ? readFitgraphFromMetadata
-      : module === 'physiograph'
-        ? readPhysiographFromMetadata
-        : module === 'dentalgraph'
-          ? readDentalgraphFromMetadata
-          : module === 'medicalgraph'
-            ? readMedicalgraphFromMetadata
-            : readPsychiatrygraphFromMetadata
+    (m) => m
   );
   const meta = loaded.meta;
 
@@ -121,7 +113,7 @@ async function resolveInvite(
     prof.trading_name || prof.legal_name || 'Business';
 
   if (module === 'fitgraph') {
-    const store = loaded.store as FitgraphStore;
+    const store = readFitgraphFromMetadata(meta);
     const brand = store.settings?.brand_name || businessName;
     const person = store.clients.find((c) => c.invite_token === clean);
     if (!person || person.active === false) return null;
@@ -136,7 +128,7 @@ async function resolveInvite(
   }
 
   if (module === 'physiograph') {
-    const store = loaded.store as PhysiographStore;
+    const store = readPhysiographFromMetadata(meta);
     const brand = store.settings?.brand_name || businessName;
     const person = store.patients.find((p) => p.invite_token === clean);
     if (!person || person.active === false) return null;
@@ -151,7 +143,7 @@ async function resolveInvite(
   }
 
   if (module === 'dentalgraph') {
-    const store = loaded.store as DentalgraphStore;
+    const store = readDentalgraphFromMetadata(meta);
     const brand = store.settings?.brand_name || businessName;
     const person = store.patients.find((p) => p.invite_token === clean);
     if (!person || person.active === false) return null;
@@ -166,7 +158,7 @@ async function resolveInvite(
   }
 
   if (module === 'medicalgraph') {
-    const store = loaded.store as MedicalgraphStore;
+    const store = readMedicalgraphFromMetadata(meta);
     const brand = store.settings?.brand_name || businessName;
     const person = store.patients.find((p) => p.invite_token === clean);
     if (!person || person.active === false) return null;
@@ -181,7 +173,7 @@ async function resolveInvite(
   }
 
   if (module === 'psychiatrygraph') {
-    const store = loaded.store as PsychiatrygraphStore;
+    const store = readPsychiatrygraphFromMetadata(meta);
     const brand = store.settings?.brand_name || businessName;
     const person = store.patients.find((p) => p.invite_token === clean);
     if (!person || person.active === false) return null;

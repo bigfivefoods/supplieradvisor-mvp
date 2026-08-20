@@ -68,6 +68,7 @@ export async function loadAdvisorStoreForPublicToken<T>(opts: {
   read: (meta: Record<string, unknown>) => T;
   parseCompanyId?: (token: string) => number | null;
   indexKeys?: string[];
+  extraKeys?: string[];
 }): Promise<{
   companyId: number;
   meta: Record<string, unknown>;
@@ -78,7 +79,8 @@ export async function loadAdvisorStoreForPublicToken<T>(opts: {
   const loaded = await loadAdvisorModuleStore(
     companyId,
     opts.moduleKey,
-    opts.read
+    opts.read,
+    opts.extraKeys
   );
   return { companyId, meta: loaded.meta, store: loaded.store };
 }

@@ -6,7 +6,6 @@
  *   ?feed=1&module=dentalgraph&token=clin_…&from=&to=
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { buildBookingIcs } from '@/lib/services/advisor-booking';
 import { readFitgraphFromMetadata } from '@/lib/fitness/fitgraph';
 import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
@@ -79,7 +78,6 @@ export async function GET(req: NextRequest) {
     toDate.setDate(toDate.getDate() + 60);
     const to = sp.get('to') || toDate.toISOString().slice(0, 10);
 
-    const supabase = getSupabaseServer();
     let companyId =
       parseClinicianCompanyIdFromToken(token) ||
       (() => {
@@ -94,15 +92,20 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const { data: prof } = await supabase
-      .from('profiles')
-      .select('id, metadata')
-      .eq('id', companyId)
-      .maybeSingle();
-    if (!prof?.metadata) {
+    const { loadAdvisorModuleStore, isAdvisorModuleKey } = await import(
+      '@/lib/business/company-data'
+    );
+    if (!isAdvisorModuleKey(module)) {
+      return NextResponse.json({ error: 'Unknown module' }, { status: 400 });
+    }
+    const { meta } = await loadAdvisorModuleStore(
+      companyId,
+      module,
+      (m) => m
+    );
+    if (!meta) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
-    const meta = prof.metadata as Record<string, unknown>;
     const events: Array<{
       uid: string;
       title: string;

@@ -21,77 +21,60 @@ async function resolveToken(token: string): Promise<{
   const clean = token.trim();
   if (clean.length < 12) return null;
   const supabase = getSupabaseServer();
+  const parsed = /^(?:sfd|peu)_(\d+)_/.exec(clean);
+  const companyIdHint = parsed ? Number(parsed[1]) : NaN;
+  if (!Number.isFinite(companyIdHint) || companyIdHint <= 0) return null;
 
-  // Scan recent school profiles metadata for tokens (bounded)
-  const { data: schools } = await supabase
+  const matchKind = (meta: Record<string, unknown>): FieldKind | null => {
+    const tokens =
+      meta.schooladvisor_field_tokens &&
+      typeof meta.schooladvisor_field_tokens === 'object'
+        ? (meta.schooladvisor_field_tokens as Record<string, string>)
+        : {};
+    if (tokens.serve_day === clean) return 'serve_day';
+    if (tokens.peu_visit === clean) return 'peu_visit';
+    return null;
+  };
+
+  const { data: school } = await supabase
     .from('school_profiles')
     .select('id, school_name, profile_id, metadata')
-    .order('updated_at', { ascending: false })
-    .limit(400);
-
-  for (const s of schools || []) {
+    .eq('profile_id', companyIdHint)
+    .maybeSingle();
+  if (school) {
     const meta =
-      s.metadata && typeof s.metadata === 'object'
-        ? (s.metadata as Record<string, unknown>)
+      school.metadata && typeof school.metadata === 'object'
+        ? (school.metadata as Record<string, unknown>)
         : {};
-    const tokens =
-      meta.schooladvisor_field_tokens &&
-      typeof meta.schooladvisor_field_tokens === 'object'
-        ? (meta.schooladvisor_field_tokens as Record<string, string>)
-        : {};
-    const companyId = Number(
-      meta.company_profile_id || s.profile_id || 0
-    );
-    if (tokens.serve_day === clean) {
+    const kind = matchKind(meta);
+    if (kind) {
       return {
-        kind: 'serve_day',
-        companyId: companyId || Number(s.profile_id) || 0,
-        schoolProfileId: Number(s.id),
-        schoolName: String(s.school_name || 'School'),
-      };
-    }
-    if (tokens.peu_visit === clean) {
-      return {
-        kind: 'peu_visit',
-        companyId: companyId || Number(s.profile_id) || 0,
-        schoolProfileId: Number(s.id),
-        schoolName: String(s.school_name || 'School'),
+        kind,
+        companyId: companyIdHint,
+        schoolProfileId: Number(school.id),
+        schoolName: String(school.school_name || 'School'),
       };
     }
   }
 
-  // Fallback: profiles.metadata map
-  const { data: profiles } = await supabase
+  const { data: prof } = await supabase
     .from('profiles')
     .select('id, metadata, trading_name')
-    .not('metadata', 'is', null)
-    .order('updated_at', { ascending: false })
-    .limit(300);
-  for (const p of profiles || []) {
-    const meta =
-      p.metadata && typeof p.metadata === 'object'
-        ? (p.metadata as Record<string, unknown>)
-        : {};
-    const tokens =
-      meta.schooladvisor_field_tokens &&
-      typeof meta.schooladvisor_field_tokens === 'object'
-        ? (meta.schooladvisor_field_tokens as Record<string, string>)
-        : {};
-    if (tokens.serve_day === clean || tokens.peu_visit === clean) {
-      const { data: school } = await supabase
-        .from('school_profiles')
-        .select('id, school_name')
-        .eq('profile_id', p.id)
-        .maybeSingle();
-      return {
-        kind: tokens.serve_day === clean ? 'serve_day' : 'peu_visit',
-        companyId: Number(p.id),
-        schoolProfileId: Number(school?.id || 0),
-        schoolName: String(school?.school_name || p.trading_name || 'School'),
-      };
-    }
-  }
-  return null;
+    .eq('id', companyIdHint)
+    .maybeSingle();
+  if (!prof) return null;
+  const meta =
+    prof.metadata && typeof prof.metadata === 'object'
+      ? (prof.metadata as Record<string, unknown>)
+      : {};
+  const kind = matchKind(meta);
+  if (!kind) return null;
+  return {
+    kind,
+    companyId: Number(prof.id),
+    schoolProfileId: Number(school?.id || 0),
+    schoolName: String(school?.school_name || prof.trading_name || 'School'),
+  };
 }
 
 function todayIso() {

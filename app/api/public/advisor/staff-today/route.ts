@@ -4,8 +4,13 @@
  * POST mark attendance { module, token, booking_id, status }
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { clientIp, rateLimit } from '@/lib/security/rate-limit';
+import { loadAdvisorStoreForPublicToken } from '@/lib/business/advisor-store-resolve';
+import { saveWalletCompanyMeta } from '@/lib/b2c/load-company';
+import { parseClinicianCompanyIdFromToken } from '@/lib/services/clinician-portal';
+import { isAdvisorModuleKey, type AdvisorModuleKey } from '@/lib/business/company-data';
 import {
+  parseCompanyIdFromToken,
   readFitgraphFromMetadata,
   writeFitgraphToMetadata,
 } from '@/lib/fitness/fitgraph';
@@ -51,6 +56,28 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function parseStaffCompanyId(token: string): number | null {
+  return (
+    parseCompanyIdFromToken(token) || parseClinicianCompanyIdFromToken(token)
+  );
+}
+
+async function resolveStaff(module: string, token: string) {
+  const clean = token.trim();
+  if (!clean || !isAdvisorModuleKey(module)) return null;
+  const indexKeys =
+    module === 'fitgraph'
+      ? ['fitgraph_coach_tokens']
+      : [`${module}_staff_tokens`];
+  return loadAdvisorStoreForPublicToken({
+    token: clean,
+    moduleKey: module as AdvisorModuleKey,
+    read: (m) => m,
+    parseCompanyId: parseStaffCompanyId,
+    indexKeys,
+  });
+}
+
 export async function GET(req: NextRequest) {
   const module = String(req.nextUrl.searchParams.get('module') || 'fitgraph');
   const token = String(req.nextUrl.searchParams.get('token') || '');
@@ -58,12 +85,27 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'token required' }, { status: 400 });
   }
 
-  const supabase = getSupabaseServer();
-  const { data: rows } = await supabase
-    .from('profiles')
-    .select('id, metadata, company_name, name')
-    .order('updated_at', { ascending: false })
-    .limit(300);
+  const rl = rateLimit({
+    key: `public-staff-today:${clientIp(req)}`,
+    limit: 120,
+    windowMs: 60_000,
+  });
+  if (!rl.ok) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
+
+  const loaded = await resolveStaff(module, token);
+  if (!loaded) {
+    return NextResponse.json({ error: 'Staff portal not found' }, { status: 404 });
+  }
+  const rows = [
+    {
+      id: loaded.companyId,
+      metadata: loaded.meta,
+      company_name: null as string | null,
+      name: null as string | null,
+    },
+  ];
 
   for (const row of rows || []) {
     const meta =
@@ -301,12 +343,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const supabase = getSupabaseServer();
-    const { data: rows } = await supabase
-      .from('profiles')
-      .select('id, metadata')
-      .order('updated_at', { ascending: false })
-      .limit(300);
+    const rl = rateLimit({
+      key: `public-staff-today-post:${clientIp(req)}`,
+      limit: 60,
+      windowMs: 60_000,
+    });
+    if (!rl.ok) {
+      return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+    }
+
+    const loaded = await resolveStaff(module, token);
+    if (!loaded) {
+      return NextResponse.json(
+        { error: 'Staff portal not found' },
+        { status: 404 }
+      );
+    }
+    const rows = [{ id: loaded.companyId, metadata: loaded.meta }];
 
     for (const row of rows || []) {
       const meta0 =
@@ -335,10 +388,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: result.error }, { status: 400 });
           }
           const meta = writeFitgraphToMetadata(meta0, store);
-          await supabase
-            .from('profiles')
-            .update({ metadata: meta, updated_at: now })
-            .eq('id', row.id);
+          await saveWalletCompanyMeta(Number(row.id), meta);
           return NextResponse.json({
             success: true,
             message: 'Member feedback saved',
@@ -362,10 +412,7 @@ export async function POST(req: NextRequest) {
             (b) => b.session_id !== session.id
           );
           const meta = writeFitgraphToMetadata(meta0, store);
-          await supabase
-            .from('profiles')
-            .update({ metadata: meta, updated_at: now })
-            .eq('id', row.id);
+          await saveWalletCompanyMeta(Number(row.id), meta);
           return NextResponse.json({
             success: true,
             deleted: 1,
@@ -465,10 +512,7 @@ export async function POST(req: NextRequest) {
         });
         meta = ev.metadata;
 
-        await supabase
-          .from('profiles')
-          .update({ metadata: meta, updated_at: now })
-          .eq('id', row.id);
+        await saveWalletCompanyMeta(Number(row.id), meta);
 
         return NextResponse.json({
           success: true,
@@ -507,10 +551,7 @@ export async function POST(req: NextRequest) {
             (b) => b.appointment_id !== appt.id
           );
           const meta = writeDentalgraphToMetadata(meta0, store);
-          await supabase
-            .from('profiles')
-            .update({ metadata: meta, updated_at: now })
-            .eq('id', row.id);
+          await saveWalletCompanyMeta(Number(row.id), meta);
           return NextResponse.json({
             success: true,
             deleted: 1,
@@ -565,10 +606,7 @@ export async function POST(req: NextRequest) {
           booking.feedback_requested_at = prompted.feedback_requested_at;
         }
         const meta = writeDentalgraphToMetadata(meta0, store);
-        await supabase
-          .from('profiles')
-          .update({ metadata: meta, updated_at: now })
-          .eq('id', row.id);
+        await saveWalletCompanyMeta(Number(row.id), meta);
         return NextResponse.json({
           success: true,
           booking: { id: booking.id, status: booking.status },
@@ -668,10 +706,7 @@ export async function POST(req: NextRequest) {
             { status: 404 }
           );
         }
-        await supabase
-          .from('profiles')
-          .update({ metadata: clinicSaved.meta, updated_at: new Date().toISOString() })
-          .eq('id', row.id);
+        await saveWalletCompanyMeta(Number(row.id), clinicSaved.meta);
         return NextResponse.json({
           success: true,
           booking: clinicSaved.booking,

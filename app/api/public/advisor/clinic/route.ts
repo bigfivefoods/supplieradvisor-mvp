@@ -80,75 +80,80 @@ function storeFromMeta(
 async function resolveClinic(module: ModuleKey, token: string) {
   const clean = token.trim();
   if (!clean || clean.length < 8) return null;
+  const { loadAdvisorStoreForPublicToken } = await import(
+    '@/lib/business/advisor-store-resolve'
+  );
+  const { ADVISOR_PAYOUT_META_KEY } = await import(
+    '@/lib/billing/advisor-payout'
+  );
+  const loaded = await loadAdvisorStoreForPublicToken({
+    token: clean,
+    moduleKey: module,
+    read: (m) => m,
+    parseCompanyId: (t) => parseClinicCompanyId(module, t),
+    extraKeys: [ADVISOR_PAYOUT_META_KEY],
+  });
+  if (!loaded) return null;
+  const store = storeFromMeta(module, loaded.meta);
+  if (!store?.settings?.public_token || store.settings.public_token !== clean) {
+    return null;
+  }
   const supabase = getSupabaseServer();
-  const parsed = parseClinicCompanyId(module, clean);
-  if (parsed != null) {
-    const { data: row } = await supabase
-      .from('profiles')
-      .select('id, metadata, trading_name, legal_name')
-      .eq('id', parsed)
-      .maybeSingle();
-    if (row) {
-      const meta =
-        row.metadata && typeof row.metadata === 'object'
-          ? { ...(row.metadata as Record<string, unknown>) }
-          : {};
-      const store = storeFromMeta(module, meta);
-      if (store?.settings?.public_token === clean) {
-        return {
-          companyId: Number(row.id),
-          meta,
-          store,
-          companyName: row.trading_name || row.legal_name || '',
-        };
-      }
-    }
-  }
-
-  const { data: rows } = await supabase
+  const { data: row } = await supabase
     .from('profiles')
-    .select('id, metadata, trading_name, legal_name')
-    .order('updated_at', { ascending: false })
-    .limit(400);
-
-  for (const row of rows || []) {
-    const meta =
-      row.metadata && typeof row.metadata === 'object'
-        ? { ...(row.metadata as Record<string, unknown>) }
-        : {};
-    if (!meta[module]) continue;
-    const store = storeFromMeta(module, meta);
-    if (store?.settings?.public_token === clean) {
-      return {
-        companyId: Number(row.id),
-        meta,
-        store,
-        companyName: row.trading_name || row.legal_name || '',
-      };
-    }
-  }
-  return null;
+    .select('trading_name, legal_name')
+    .eq('id', loaded.companyId)
+    .maybeSingle();
+  return {
+    companyId: loaded.companyId,
+    meta: loaded.meta,
+    store,
+    companyName: row?.trading_name || row?.legal_name || '',
+  };
 }
 
 async function saveModule(
   module: ModuleKey,
   companyId: number,
-  meta: Record<string, unknown>,
+  _meta: Record<string, unknown>,
   store: unknown
 ) {
-  const supabase = getSupabaseServer();
-  let next = meta;
-  if (module === 'dentalgraph')
-    next = writeDentalgraphToMetadata(meta, store as never);
-  else if (module === 'physiograph')
-    next = writePhysiographToMetadata(meta, store as never);
-  else if (module === 'medicalgraph')
-    next = writeMedicalgraphToMetadata(meta, store as never);
-  else next = writePsychiatrygraphToMetadata(meta, store as never);
-  await supabase
-    .from('profiles')
-    .update({ metadata: next, updated_at: new Date().toISOString() })
-    .eq('id', companyId);
+  const { saveAdvisorModuleStore } = await import(
+    '@/lib/business/company-data'
+  );
+  if (module === 'dentalgraph') {
+    await saveAdvisorModuleStore(
+      companyId,
+      module,
+      store as never,
+      writeDentalgraphToMetadata
+    );
+    return;
+  }
+  if (module === 'physiograph') {
+    await saveAdvisorModuleStore(
+      companyId,
+      module,
+      store as never,
+      writePhysiographToMetadata
+    );
+    return;
+  }
+  if (module === 'medicalgraph') {
+    await saveAdvisorModuleStore(
+      companyId,
+      module,
+      store as never,
+      writeMedicalgraphToMetadata
+    );
+    return;
+  }
+  await saveAdvisorModuleStore(
+    companyId,
+    module,
+    store as never,
+    writePsychiatrygraphToMetadata
+  );
 }
 
 export async function GET(req: NextRequest) {

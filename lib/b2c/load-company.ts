@@ -1,44 +1,110 @@
 /**
  * Load a company for SA Member wallet link.
- * profiles has trading_name / legal_name — not company_name.
+ * Advisor gym/clinic blobs live in company_module_stores — overlay them on
+ * read, and never write those blobs back into profiles.metadata.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import {
+  ADVISOR_MODULE_KEYS,
+  isAdvisorModuleKey,
+  isMissingRelation,
+  isModuleIndexKey,
+  mergeProfileMetadata,
+  saveModuleSlice,
+  type AdvisorModuleKey,
+} from '@/lib/business/company-data';
 
 export type WalletCompany = {
   id: number;
   name: string;
   meta: Record<string, unknown>;
+  logoUrl?: string | null;
 };
 
 const SELECT_SAFE =
-  'id, trading_name, legal_name, metadata';
+  'id, trading_name, legal_name, logo_url, metadata';
+
+export function overlayAdvisorStores(
+  meta: Record<string, unknown>,
+  rows: Array<{ module?: unknown; data?: unknown } | null | undefined>
+): Record<string, unknown> {
+  const out = { ...meta };
+  for (const row of rows) {
+    const key = String(row?.module || '');
+    if (!isAdvisorModuleKey(key)) continue;
+    if (row?.data && typeof row.data === 'object' && !Array.isArray(row.data)) {
+      out[key] = row.data;
+    }
+  }
+  return out;
+}
+
+export function splitWalletMetaForSave(meta: Record<string, unknown>): {
+  modules: Array<{ key: AdvisorModuleKey; slice: Record<string, unknown> }>;
+  patch: Record<string, unknown>;
+} {
+  const patch: Record<string, unknown> = { ...meta };
+  const modules: Array<{
+    key: AdvisorModuleKey;
+    slice: Record<string, unknown>;
+  }> = [];
+  for (const key of ADVISOR_MODULE_KEYS) {
+    if (!(key in patch)) continue;
+    const data = patch[key];
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      const slice: Record<string, unknown> = { [key]: data };
+      for (const [k, v] of Object.entries(patch)) {
+        if (isModuleIndexKey(key, k)) slice[k] = v;
+      }
+      modules.push({ key, slice });
+    }
+    delete patch[key];
+    for (const k of Object.keys(patch)) {
+      if (isModuleIndexKey(key, k)) delete patch[k];
+    }
+  }
+  return { modules, patch };
+}
 
 export async function loadWalletCompany(
   companyId: number
 ): Promise<WalletCompany | null> {
   if (!Number.isFinite(companyId) || companyId <= 0) return null;
   const supabase = getSupabaseServer();
-  const { data, error } = await supabase
-    .from('profiles')
-    .select(SELECT_SAFE)
-    .eq('id', companyId)
-    .maybeSingle();
-  if (error) {
-    console.warn('loadWalletCompany', companyId, error.message);
+  const [prof, stores] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select(SELECT_SAFE)
+      .eq('id', companyId)
+      .maybeSingle(),
+    supabase
+      .from('company_module_stores')
+      .select('module, data')
+      .eq('company_id', companyId),
+  ]);
+  if (prof.error) {
+    console.warn('loadWalletCompany', companyId, prof.error.message);
     return null;
   }
-  if (!data) return null;
-  const meta =
-    data.metadata && typeof data.metadata === 'object'
-      ? { ...(data.metadata as Record<string, unknown>) }
+  if (!prof.data) return null;
+  let meta =
+    prof.data.metadata && typeof prof.data.metadata === 'object'
+      ? { ...(prof.data.metadata as Record<string, unknown>) }
       : {};
+  if (!stores.error) {
+    meta = overlayAdvisorStores(meta, stores.data || []);
+  } else if (!isMissingRelation(stores.error)) {
+    console.warn('loadWalletCompany stores', companyId, stores.error.message);
+  }
   const name = String(
-    data.trading_name || data.legal_name || `Company #${data.id}`
+    prof.data.trading_name || prof.data.legal_name || `Company #${prof.data.id}`
   ).trim();
+  const logoUrl = String(prof.data.logo_url || '').trim() || null;
   return {
-    id: Number(data.id),
-    name: name || `Company #${data.id}`,
+    id: Number(prof.data.id),
+    name: name || `Company #${prof.data.id}`,
     meta,
+    logoUrl,
   };
 }
 
@@ -46,10 +112,11 @@ export async function saveWalletCompanyMeta(
   companyId: number,
   meta: Record<string, unknown>
 ) {
-  const supabase = getSupabaseServer();
-  const { error } = await supabase
-    .from('profiles')
-    .update({ metadata: meta, updated_at: new Date().toISOString() })
-    .eq('id', companyId);
-  if (error) throw new Error(error.message);
+  const { modules, patch } = splitWalletMetaForSave(meta);
+  await Promise.all([
+    ...modules.map((m) => saveModuleSlice(companyId, m.key, m.slice)),
+    Object.keys(patch).length
+      ? mergeProfileMetadata(companyId, patch)
+      : Promise.resolve(),
+  ]);
 }
