@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { usePathname, useRouter } from 'next/navigation';
 import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
+import { fetchLoginRole, readCachedLoginRole } from '@/lib/auth/login-role';
 
 /**
  * Client-side auth gate for all dashboard routes (including select-company).
@@ -30,18 +31,24 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     // (pathname was in deps before and re-ran the gate constantly).
     if (roleChecked) return;
 
+    const cached = readCachedLoginRole();
+    if (cached) {
+      if (cached.isContractor && !cached.isBusinessUser) {
+        setBlocked(true);
+        router.replace('/contractor');
+        return;
+      }
+      setRoleChecked(true);
+      return;
+    }
+
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/contractor/session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            privyUserId: getCanonicalUserId(user?.id),
-            email: extractEmailFromPrivyUser(user),
-          }),
+        const data = await fetchLoginRole({
+          privyUserId: getCanonicalUserId(user?.id),
+          email: extractEmailFromPrivyUser(user),
         });
-        const data = await res.json();
         if (cancelled) return;
 
         // Pure operators must not access business dashboard
@@ -70,9 +77,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-[#00b4d8] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-neutral-500">
-            {blocked ? 'Opening your operator portal…' : 'Checking session…'}
+            {blocked ? 'Opening your operator portal…' : 'Opening workspace…'}
           </p>
-          <p className="text-xs text-neutral-400 mt-2">This can take a moment on mobile</p>
         </div>
       </div>
     );

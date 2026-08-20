@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import { Loader2, ShieldCheck, Smartphone, Sparkles } from 'lucide-react';
 import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
+import { fetchLoginRole } from '@/lib/auth/login-role';
 import ThemeToggle from '@/components/theme/ThemeToggle';
 import { AuthLoginActions } from '@/components/auth/AuthLoginActions';
 import { SaOfficialLogo } from '@/components/brand/SaOfficialLogo';
@@ -25,7 +26,8 @@ function LoginForm() {
     if (!ready || !authenticated || !user) return;
     setNavigating(true);
 
-    const t = setTimeout(async () => {
+    let cancelled = false;
+    void (async () => {
       // Prefer explicit next for invite / storefront return paths
       if (
         next.startsWith('/contractor/invite') ||
@@ -38,15 +40,11 @@ function LoginForm() {
       }
 
       try {
-        const res = await fetch('/api/contractor/session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            privyUserId: getCanonicalUserId(user.id),
-            email: extractEmailFromPrivyUser(user),
-          }),
+        const data = await fetchLoginRole({
+          privyUserId: getCanonicalUserId(user.id),
+          email: extractEmailFromPrivyUser(user),
         });
-        const data = await res.json();
+        if (cancelled) return;
 
         // Pure operators → contractor portal only
         if (data.isContractor && !data.isBusinessUser) {
@@ -71,16 +69,18 @@ function LoginForm() {
         }
         router.replace(next || '/dashboard/select-company');
       } catch {
-        // Prefer B2C hub when next is consumer-ish; otherwise company select
+        if (cancelled) return;
         if (next.startsWith('/me') || next.startsWith('/hire') || next.startsWith('/member')) {
           router.replace(next);
         } else {
           router.replace(next || '/dashboard/select-company');
         }
       }
-    }, 300);
+    })();
 
-    return () => clearTimeout(t);
+    return () => {
+      cancelled = true;
+    };
   }, [ready, authenticated, user, router, next]);
 
   if (authenticated || navigating) {

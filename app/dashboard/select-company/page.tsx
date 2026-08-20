@@ -19,6 +19,7 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
+import { fetchLoginRole } from '@/lib/auth/login-role';
 import { defaultHomePathForRole } from '@/lib/business/permissions';
 import { toast } from 'sonner';
 import {
@@ -189,10 +190,7 @@ export default function SelectCompanyPage() {
       setLoading(true);
       return;
     }
-    const t = setTimeout(() => {
-      void loadCompanies();
-    }, authenticated ? 150 : 0);
-    return () => clearTimeout(t);
+    void loadCompanies();
   }, [ready, authenticated, privyUser?.id, loadCompanies]);
 
   useEffect(() => {
@@ -207,15 +205,10 @@ export default function SelectCompanyPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/contractor/session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            privyUserId: getCanonicalUserId(privyUser.id),
-            email: extractEmailFromPrivyUser(privyUser),
-          }),
+        const data = await fetchLoginRole({
+          privyUserId: getCanonicalUserId(privyUser.id),
+          email: extractEmailFromPrivyUser(privyUser),
         });
-        const data = await res.json();
         if (cancelled) return;
         if (data.isContractor && !data.isBusinessUser) {
           router.replace('/contractor');

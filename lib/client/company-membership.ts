@@ -26,7 +26,7 @@ export type CompanyMembershipPayload = {
   [key: string]: unknown;
 };
 
-const TTL_MS = 20_000;
+const TTL_MS = 60_000;
 const cache = new Map<
   string,
   { at: number; data: CompanyMembershipPayload }

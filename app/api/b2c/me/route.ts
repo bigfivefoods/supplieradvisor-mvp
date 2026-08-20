@@ -29,7 +29,6 @@ import { isWalletVisibleMembership } from '@/lib/b2c/company-modules';
 import {
   applySnapshotToProfile,
   pushHouseholdToLinkedDesks,
-  refreshWalletHousehold,
   snapshotFromProfile,
 } from '@/lib/b2c/wallet-household';
 import {
@@ -56,44 +55,50 @@ export async function GET(request: NextRequest) {
     const qPhone = request.nextUrl.searchParams.get('phone');
     const qName = request.nextUrl.searchParams.get('name');
 
-    let profile =
-      (await loadB2cProfile(userId)) ||
-      (await ensureB2cProfile(userId, {
-        email: qEmail,
-        phone: qPhone,
-        full_name: qName,
-      }));
+    const [loadedProfile, businessSummary] = await Promise.all([
+      (async () =>
+        (await loadB2cProfile(userId)) ||
+        (await ensureB2cProfile(userId, {
+          email: qEmail,
+          phone: qPhone,
+          full_name: qName,
+        })))(),
+      loadBusinessWorkspaceSummary(userId).catch(() => ({
+        has_business: false,
+        business_count: 0,
+        businesses: [] as Array<{
+          id: number;
+          name: string;
+          role?: string | null;
+        }>,
+      })),
+    ]);
+    let profile = loadedProfile;
+    const business = businessSummary;
 
     if (qEmail && !profile.email) profile.email = qEmail;
     if (qPhone && !profile.phone) profile.phone = qPhone;
     if (qName && !profile.full_name) profile.full_name = qName;
 
-    let business = {
-      has_business: false,
-      business_count: 0,
-      businesses: [] as Array<{ id: number; name: string; role?: string | null }>,
-    };
-    try {
-      business = await loadBusinessWorkspaceSummary(userId);
-    } catch {
-      /* operator check is optional */
-    }
     const ownedIds = operatorCompanyIds(business);
 
-    // Auto-attach hire/gym/clinic books that already have this email or phone
-    try {
-      const found = await discoverAndAttachMemberships(profile, {
-        email: profile.email || qEmail,
-        phone: profile.phone || qPhone,
-        platformUserId: userId,
-        skipCompanyIds: ownedIds,
-      });
-      if (found.attached > 0) {
-        profile = found.profile;
-        await saveB2cProfile(profile);
+    // First login only — skip the company-wide desk scan when the wallet
+    // already has memberships (that scan overlays gym/clinic stores).
+    if (!(profile.memberships || []).some((m) => m.active !== false)) {
+      try {
+        const found = await discoverAndAttachMemberships(profile, {
+          email: profile.email || qEmail,
+          phone: profile.phone || qPhone,
+          platformUserId: userId,
+          skipCompanyIds: ownedIds,
+        });
+        if (found.attached > 0) {
+          profile = found.profile;
+          await saveB2cProfile(profile);
+        }
+      } catch {
+        /* discover is best-effort */
       }
-    } catch {
-      /* discover is best-effort */
     }
 
     // Companies you operate stay in Switch to business. Keep a wallet card
@@ -114,15 +119,6 @@ export async function GET(request: NextRequest) {
       await saveB2cProfile(profile);
     }
 
-    try {
-      profile = await refreshWalletHousehold(profile, {
-        extraCompanyIds: ownedIds,
-        push: true,
-      });
-    } catch {
-      /* household sync is best-effort */
-    }
-
     const memberships = (profile.memberships || [])
       .filter((m) => isWalletVisibleMembership(m, ownedSet))
       .map((m) => ({
@@ -131,24 +127,17 @@ export async function GET(request: NextRequest) {
         you_operate: ownedSet.has(m.company_id),
       }));
 
-    let activity: Awaited<ReturnType<typeof buildB2cActivity>> = [];
-    try {
-      activity = await buildB2cActivity(memberships, {
+    const [activity, journeys] = await Promise.all([
+      buildB2cActivity(memberships, {
         email: profile.email,
         userId: profile.user_id,
-      });
-    } catch {
-      activity = [];
-    }
+      }).catch(() => [] as Awaited<ReturnType<typeof buildB2cActivity>>),
+      buildHireJourneys(memberships).catch(
+        () => [] as Awaited<ReturnType<typeof buildHireJourneys>>
+      ),
+    ]);
 
     const docs = activity.filter((a) => a.tone === 'docs' || a.tone === 'alert');
-
-    let journeys: Awaited<ReturnType<typeof buildHireJourneys>> = [];
-    try {
-      journeys = await buildHireJourneys(memberships);
-    } catch {
-      journeys = [];
-    }
 
     const verification = verificationView(profile);
 

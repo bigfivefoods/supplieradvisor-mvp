@@ -34,12 +34,24 @@ export default function ApiAuthBridge({ children }: { children: React.ReactNode 
         return original(input, init);
       }
 
-      // Skip public health-style paths if no token needed — still attach if available
       let token: string | null = null;
-      try {
-        token = (await getAccessToken()) || null;
-      } catch {
-        token = null;
+      const now = Date.now();
+      const cached = (window as Window & {
+        __saPrivyToken?: { value: string; at: number };
+      }).__saPrivyToken;
+      if (cached && now - cached.at < 50_000 && cached.value) {
+        token = cached.value;
+      } else {
+        try {
+          token = (await getAccessToken()) || null;
+          if (token) {
+            (window as Window & {
+              __saPrivyToken?: { value: string; at: number };
+            }).__saPrivyToken = { value: token, at: now };
+          }
+        } catch {
+          token = null;
+        }
       }
 
       const headers = new Headers(

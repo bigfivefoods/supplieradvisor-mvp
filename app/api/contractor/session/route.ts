@@ -26,6 +26,55 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServer();
     const variants = userIdMatchVariants(userId);
+    const lite = body.lite === true;
+
+    if (lite) {
+      const [{ data: linked }, { data: memberships }] = await Promise.all([
+        supabase
+          .from('container_contractors')
+          .select('id, user_id, status, portal_status, contract_accepted_at')
+          .in('user_id', variants)
+          .limit(8),
+        supabase
+          .from('business_users')
+          .select('id')
+          .in('user_id', variants)
+          .eq('status', 'active')
+          .limit(1),
+      ]);
+      const isLiveContractor = (c: {
+        contract_accepted_at?: string | null;
+        portal_status?: string | null;
+        user_id?: string | null;
+        status?: string | null;
+      }) =>
+        Boolean(
+          c.contract_accepted_at ||
+            c.portal_status === 'active' ||
+            (c.user_id &&
+              c.status === 'active' &&
+              c.portal_status !== 'invited' &&
+              c.portal_status !== 'suspended')
+        );
+      let isContractor = (linked || []).some(isLiveContractor);
+      if (!isContractor && email) {
+        const { data: byEmail } = await supabase
+          .from('container_contractors')
+          .select('id')
+          .eq('email', email)
+          .not('contract_accepted_at', 'is', null)
+          .limit(1);
+        isContractor = Boolean(byEmail?.length);
+      }
+      const isBusinessUser = Boolean(memberships?.length);
+      return NextResponse.json({
+        success: true,
+        lite: true,
+        isContractor,
+        isBusinessUser,
+        isPureContractor: isContractor && !isBusinessUser,
+      });
+    }
 
     // Contractors linked by user_id who completed contract acceptance
     const { data: linked } = await supabase
