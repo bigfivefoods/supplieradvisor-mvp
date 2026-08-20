@@ -137,8 +137,15 @@ export function absolutePublicUrl(
   return `${app}/${s}`;
 }
 
+/** Email clients only load https images on a public host. */
+export function emailAssetOrigin(): string {
+  const app = getAppUrl().replace(/\/$/, '');
+  if (/^https:\/\/(www\.)?supplieradvisor\.com$/i.test(app)) return app;
+  return 'https://www.supplieradvisor.com';
+}
+
 export function supplierAdvisorLogoUrl(): string {
-  return absolutePublicUrl(SA_LOGO_SRC) || `${getAppUrl()}${SA_LOGO_SRC}`;
+  return `${emailAssetOrigin()}${SA_LOGO_SRC}`;
 }
 
 function hexLuminance(hex: string): number {
@@ -191,11 +198,11 @@ export function clientEmailChrome(opts: {
 const FONT =
   "ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
-function logoPlate(src: string, alt: string, maxHeight = 56): string {
-  return `<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 16px;">
+function logoPlate(src: string, alt: string, maxHeight = 64): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 14px;">
     <tr>
-      <td style="background:#ffffff;border-radius:18px;padding:12px 18px;box-shadow:0 8px 24px rgba(15,23,42,0.12);">
-        <img src="${escapeEmailHtml(src)}" alt="${escapeEmailHtml(alt)}" height="${maxHeight}" style="display:block;margin:0 auto;max-height:${maxHeight}px;max-width:220px;width:auto;height:auto;border:0;" />
+      <td style="background:#ffffff;border-radius:20px;padding:14px 22px;box-shadow:0 10px 28px rgba(15,23,42,0.14);">
+        <img src="${escapeEmailHtml(src)}" alt="${escapeEmailHtml(alt)}" height="${maxHeight}" style="display:block;margin:0 auto;max-height:${maxHeight}px;max-width:240px;width:auto;height:auto;border:0;outline:none;" />
       </td>
     </tr>
   </table>`;
@@ -227,10 +234,9 @@ export function renderClientEmailLayout(input: ClientEmailLayoutInput): string {
 
   let mark = '';
   if (chrome.companyLogo) {
-    mark = logoPlate(chrome.companyLogo, brand, 58);
-  }
-  if (!chrome.companyLogo) {
-    mark = logoPlate(chrome.platformLogo, 'SupplierAdvisor', 52);
+    mark = logoPlate(chrome.companyLogo, brand, 64);
+  } else {
+    mark = logoPlate(chrome.platformLogo, 'SupplierAdvisor', 58);
   }
 
   const ctaBlock =
@@ -275,7 +281,7 @@ export function renderClientEmailLayout(input: ClientEmailLayoutInput): string {
             </td>
           </tr>
           <tr>
-            <td style="padding:32px 32px 8px;font-family:${FONT};color:#0f172a;">
+            <td style="padding:36px 36px 12px;font-family:${FONT};color:#0f172a;">
               ${
                 input.kicker
                   ? `<p style="margin:0 0 8px;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:${skin.accentDark};">${escapeEmailHtml(input.kicker)}</p>`
@@ -289,13 +295,16 @@ export function renderClientEmailLayout(input: ClientEmailLayoutInput): string {
             </td>
           </tr>
           <tr>
-            <td style="padding:8px 32px 28px;font-family:${FONT};text-align:center;">
-              <img src="${escapeEmailHtml(chrome.platformLogo)}" alt="SupplierAdvisor" width="36" height="36" style="display:block;margin:12px auto 8px;width:36px;height:36px;border:0;border-radius:10px;" />
-              <p style="margin:0;font-size:12px;line-height:1.5;color:#94a3b8;">
-                ${escapeEmailHtml(skin.product)}${chrome.hasModule ? ' · powered by SupplierAdvisor®' : ' · Verified. Transparent.'}
+            <td style="padding:4px 36px 32px;font-family:${FONT};text-align:center;">
+              <img src="${escapeEmailHtml(chrome.platformLogo)}" alt="SupplierAdvisor" width="40" height="40" style="display:block;margin:16px auto 10px;width:40px;height:40px;border:0;border-radius:12px;background:#ffffff;" />
+              <p style="margin:0;font-size:13px;font-weight:800;letter-spacing:-0.2px;color:#0f172a;">
+                SupplierAdvisor®
               </p>
-              <p style="margin:8px 0 0;font-size:11px;line-height:1.5;color:#94a3b8;">
-                ${escapeEmailHtml(input.footerNote || `Sent on behalf of ${brand}. Replies go to SupplierAdvisor.`)}
+              <p style="margin:4px 0 0;font-size:12px;line-height:1.5;color:#94a3b8;">
+                ${escapeEmailHtml(skin.product)}${chrome.hasModule ? ' · powered by SupplierAdvisor®' : ' · Verified. Transparent. Accelerating humanity.'}
+              </p>
+              <p style="margin:10px 0 0;font-size:11px;line-height:1.5;color:#94a3b8;">
+                ${escapeEmailHtml(input.footerNote || `Sent on behalf of ${brand}. Replies go to hello@supplieradvisor.com.`)}
               </p>
             </td>
           </tr>
@@ -567,9 +576,9 @@ export function wrapSystemNotificationHtml(
 
   let mark = '';
   if (chrome.companyLogo) {
-    mark = logoPlate(chrome.companyLogo, brand || 'Company', 58);
+    mark = logoPlate(chrome.companyLogo, brand || 'Company', 64);
   } else {
-    mark = logoPlate(chrome.platformLogo, 'SupplierAdvisor', 52);
+    mark = logoPlate(chrome.platformLogo, 'SupplierAdvisor', 58);
   }
 
   return `<!DOCTYPE html>
@@ -600,15 +609,18 @@ export function wrapSystemNotificationHtml(
             </td>
           </tr>
           <tr>
-            <td style="padding:8px 8px 8px;font-family:${FONT};color:#0f172a;">
+            <td style="padding:28px 36px 12px;font-family:${FONT};color:#0f172a;font-size:15px;line-height:1.65;">
               ${inner}
             </td>
           </tr>
           <tr>
-            <td style="padding:8px 32px 28px;font-family:${FONT};text-align:center;">
-              <img src="${escapeEmailHtml(chrome.platformLogo)}" alt="SupplierAdvisor" width="36" height="36" style="display:block;margin:12px auto 8px;width:36px;height:36px;border:0;border-radius:10px;" />
-              <p style="margin:0;font-size:12px;line-height:1.5;color:#94a3b8;">
-                ${escapeEmailHtml(skin.product)}${chrome.hasModule ? ' · powered by SupplierAdvisor®' : ' · Verified. Transparent.'}
+            <td style="padding:4px 36px 32px;font-family:${FONT};text-align:center;">
+              <img src="${escapeEmailHtml(chrome.platformLogo)}" alt="SupplierAdvisor" width="40" height="40" style="display:block;margin:16px auto 10px;width:40px;height:40px;border:0;border-radius:12px;background:#ffffff;" />
+              <p style="margin:0;font-size:13px;font-weight:800;letter-spacing:-0.2px;color:#0f172a;">
+                SupplierAdvisor®
+              </p>
+              <p style="margin:4px 0 0;font-size:12px;line-height:1.5;color:#94a3b8;">
+                ${escapeEmailHtml(skin.product)}${chrome.hasModule ? ' · powered by SupplierAdvisor®' : ' · Verified. Transparent. Accelerating humanity.'}
               </p>
             </td>
           </tr>

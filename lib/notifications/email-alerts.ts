@@ -4,6 +4,7 @@
  */
 import { getResend, getResendFrom } from '@/lib/resend';
 import { resolveCompanyEmails } from '@/lib/billing/company-emails';
+import { renderAdvisorNoticeEmail } from '@/lib/services/advisor-branded-email';
 
 function appBase() {
   return (
@@ -76,19 +77,25 @@ export async function notifyInboundPo(params: {
         : '—';
     const lines =
       params.lineCount != null ? `${params.lineCount} line(s)` : 'lines attached';
+    const mail = renderAdvisorNoticeEmail({
+      brand: 'SupplierAdvisor',
+      subject: `New purchase order #${params.poId} from ${buyer}`,
+      headline: 'Inbound purchase order',
+      leadHtml: `<strong>${buyer}</strong> raised <strong>PO #${params.poId}</strong> against your company.`,
+      detailKicker: 'Order',
+      detailTitle: `PO #${params.poId}`,
+      detailLines: [
+        `Total ${total}`,
+        lines,
+        params.source ? `Source ${params.source}` : '',
+      ],
+      ctaUrl: href,
+      ctaLabel: 'Open inbound POs →',
+    });
     await sendAlert({
       to,
-      subject: `[SupplierAdvisor] New purchase order #${params.poId} from ${buyer}`,
-      html: `
-        <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto">
-          <h2 style="color:#0077b6">Inbound purchase order</h2>
-          <p><strong>${buyer}</strong> raised <strong>PO #${params.poId}</strong> against your company.</p>
-          <p>Total: <strong>${total}</strong> · ${lines}
-          ${params.source ? ` · source <code>${params.source}</code>` : ''}</p>
-          <p>Accept or decline from your inbound orders inbox to keep the trade loop moving.</p>
-          <p><a href="${href}" style="display:inline-block;background:#00b4d8;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:700">Open inbound POs →</a></p>
-        </div>
-      `,
+      subject: `[SupplierAdvisor] ${mail.subject}`,
+      html: mail.html,
     });
   } catch (e) {
     console.warn('notifyInboundPo', e);

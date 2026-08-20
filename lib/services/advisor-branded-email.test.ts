@@ -160,6 +160,7 @@ assert.match(coreOnly.html, /SupplierAdvisor®/);
 assert.match(coreOnly.html, /sa-logo\.png/);
 assert.doesNotMatch(coreOnly.html, /GymAdvisor/);
 assert.ok(supplierAdvisorLogoUrl().includes('sa-logo.png'));
+assert.match(supplierAdvisorLogoUrl(), /https:\/\/www\.supplieradvisor\.com\/sa-logo\.png/);
 assert.match(coreOnly.html, /data-sa-email-chrome/);
 
 const wrapped = wrapSystemNotificationHtml(
