@@ -32,6 +32,14 @@ supabase/migrations/20260823_trade_portal_workspace.sql
 
 Same files at the repo root: `RUN_TRADE_PORTALS_IN_SUPABASE.sql` then `RUN_TRADE_PORTAL_WORKSPACE.sql`.
 
+**Joint customer / supplier projects** (waterfall Gantt on the books):
+
+```text
+RUN_TRADE_PROJECTS.sql
+docs/RUN_TRADE_PROJECTS.sql
+supabase/migrations/20260824_trade_projects.sql
+```
+
 After deploying, if `/api/system/health` shows `schemaOptionalMissing` or missing profile columns, run these **in order**:
 
 ```text

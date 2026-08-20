@@ -23,6 +23,7 @@ export const DEFAULT_PORTAL_SECTIONS = {
   riad: true,
   messages: true,
   stock: true,
+  projects: true,
 } as const;
 
 export type PortalSections = {
@@ -36,6 +37,7 @@ export type PortalSections = {
   riad?: boolean;
   messages?: boolean;
   stock?: boolean;
+  projects?: boolean;
 };
 
 export type TradePortalRow = {
@@ -130,6 +132,26 @@ export type PortalStockLine = {
   name: string;
   qty_on_hand: number | null;
   po_id: number | null;
+};
+
+export type PortalProjectTask = {
+  id: number;
+  title: string;
+  column_key: string;
+  start_date: string | null;
+  due_date: string | null;
+  phase_key: string | null;
+};
+
+export type PortalProjectView = {
+  id: number;
+  name: string;
+  status: string;
+  health: string | null;
+  start_date: string | null;
+  target_date: string | null;
+  description: string | null;
+  tasks: PortalProjectTask[];
 };
 
 export type PublicHost = {

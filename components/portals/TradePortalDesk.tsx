@@ -38,6 +38,7 @@ const CUSTOMER_SECTIONS: Array<{ key: keyof PortalSections; label: string; hint:
   { key: 'ratings', label: 'Ratings', hint: 'Same stars as the network' },
   { key: 'riad', label: 'RIAD', hint: 'Risks and comments' },
   { key: 'messages', label: 'Messages', hint: 'Direct thread' },
+  { key: 'projects', label: 'Projects', hint: 'Joint waterfall Gantt' },
 ];
 
 const SUPPLIER_SECTIONS: Array<{ key: keyof PortalSections; label: string; hint: string }> = [
@@ -47,6 +48,7 @@ const SUPPLIER_SECTIONS: Array<{ key: keyof PortalSections; label: string; hint:
   { key: 'ratings', label: 'Ratings', hint: 'Same stars as the network' },
   { key: 'riad', label: 'RIAD', hint: 'Risks and comments' },
   { key: 'messages', label: 'Messages', hint: 'Direct thread' },
+  { key: 'projects', label: 'Projects', hint: 'Joint waterfall Gantt' },
 ];
 
 export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {

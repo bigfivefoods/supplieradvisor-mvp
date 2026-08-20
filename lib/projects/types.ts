@@ -96,6 +96,7 @@ export const PROJECT_METHODOLOGIES = [
 
 export const PROJECT_TYPES = [
   { value: 'initiative', label: 'Strategic initiative' },
+  { value: 'joint', label: 'Joint with partner' },
   { value: 'process_improvement', label: 'Process improvement' },
   { value: 'sdg', label: 'SDG / sustainability' },
   { value: 'capital', label: 'Capital / asset' },

@@ -10,8 +10,10 @@ import { formatMoney } from '@/lib/customers/types';
 import { otifefBand } from '@/lib/suppliers/types';
 import type { PublicPortalPayload } from '@/lib/portals/trade-portal';
 import type { BookProfile } from '@/lib/portals/trade-portal-workspace';
+import { addDays, isoDay } from '@/lib/projects/waterfall';
+import { WaterfallGantt } from '@/components/projects/WaterfallGantt';
 
-type Tab = 'profile' | 'orders' | 'stock' | 'riad' | 'messages' | 'reviews' | 'newpo';
+type Tab = 'profile' | 'orders' | 'stock' | 'riad' | 'messages' | 'reviews' | 'newpo' | 'projects';
 
 const EMPTY_PROFILE: BookProfile = {
   trading_name: '',
@@ -51,6 +53,7 @@ export function GuestTradeWorkspace({
     ? [
         { id: 'profile', label: gaps.length ? `Profile (${gaps.length})` : 'Profile' },
         { id: 'orders', label: 'Orders & OTIFEF' },
+        { id: 'projects', label: 'Projects' },
         { id: 'stock', label: 'Stock' },
         { id: 'riad', label: 'RIAD' },
         { id: 'messages', label: 'Messages' },
@@ -59,6 +62,7 @@ export function GuestTradeWorkspace({
     : [
         { id: 'profile', label: gaps.length ? `Profile (${gaps.length})` : 'Profile' },
         { id: 'orders', label: 'Orders & OTIFEF' },
+        { id: 'projects', label: 'Projects' },
         { id: 'newpo', label: 'Raise a PO' },
         { id: 'riad', label: 'RIAD' },
         { id: 'messages', label: 'Messages' },
@@ -187,6 +191,9 @@ export function GuestTradeWorkspace({
           onAct={act}
         />
       ) : null}
+      {tab === 'projects' ? (
+        <ProjectsPanel items={ws?.projects || []} busy={busy} onAct={act} />
+      ) : null}
       {tab === 'stock' && isSupplier ? (
         <StockPanel lines={ws?.stock || []} busy={busy} onAct={act} />
       ) : null}
@@ -304,6 +311,151 @@ function ProfilePanel({
       >
         Save to our books
       </button>
+    </div>
+  );
+}
+
+function ProjectsPanel({
+  items,
+  busy,
+  onAct,
+}: {
+  items: NonNullable<PublicPortalPayload['workspace']>['projects'];
+  busy: boolean;
+  onAct: (p: Record<string, unknown>) => Promise<void>;
+}) {
+  const [title, setTitle] = useState('');
+  const [projectId, setProjectId] = useState<number | null>(items[0]?.id || null);
+  const selected = items.find((p) => p.id === projectId) || items[0] || null;
+  const from =
+    items
+      .map((p) => p.start_date)
+      .filter(Boolean)
+      .sort()[0] || isoDay(new Date());
+  const to =
+    items
+      .map((p) => p.target_date)
+      .filter(Boolean)
+      .sort()
+      .slice(-1)[0] || addDays(from, 56);
+  const groups = items.map((p) => ({
+    id: String(p.id),
+    title: p.name,
+    subtitle: p.status,
+    bars: (p.tasks.length
+      ? p.tasks
+      : [
+          {
+            id: 0,
+            title: p.name,
+            column_key: p.status,
+            start_date: p.start_date,
+            due_date: p.target_date,
+            phase_key: null,
+          },
+        ]
+    ).map((t) => ({
+      id: String(t.id || `p-${p.id}`),
+      label: t.title,
+      start: String(t.start_date || p.start_date || from).slice(0, 10),
+      end: String(t.due_date || p.target_date || to).slice(0, 10),
+      tone:
+        t.column_key === 'done'
+          ? ('emerald' as const)
+          : t.column_key === 'in_progress'
+            ? ('cyan' as const)
+            : ('violet' as const),
+    })),
+  }));
+
+  if (!items.length) {
+    return (
+      <p className="rounded-[1.5rem] border border-white/70 bg-white/90 p-6 text-sm text-neutral-500">
+        No joint projects on this account yet. Ask us to open a waterfall project
+        so we can plan and deliver together.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <WaterfallGantt
+        groups={groups}
+        from={from}
+        to={to}
+        onSelect={(gid) => setProjectId(Number(gid))}
+      />
+      {selected ? (
+        <div className="rounded-[1.5rem] border border-white/70 bg-white/90 p-4 space-y-3">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
+              {selected.status}
+            </p>
+            <h3 className="font-black text-slate-900">{selected.name}</h3>
+            {selected.description ? (
+              <p className="text-sm text-neutral-600 mt-1">{selected.description}</p>
+            ) : null}
+          </div>
+          {selected.tasks.map((t) => (
+            <div
+              key={t.id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-slate-50 px-3 py-2"
+            >
+              <div>
+                <p className="text-sm font-bold text-slate-900">{t.title}</p>
+                <p className="text-[11px] text-neutral-500">
+                  {[t.start_date, t.due_date ? `→ ${t.due_date}` : null]
+                    .filter(Boolean)
+                    .join(' ')}
+                </p>
+              </div>
+              <div className="flex gap-1">
+                {['todo', 'in_progress', 'done'].map((col) => (
+                  <button
+                    key={col}
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      void onAct({ action: 'task_update', id: t.id, column_key: col })
+                    }
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${
+                      t.column_key === col
+                        ? 'bg-[#00b4d8] border-[#00b4d8] text-white'
+                        : 'bg-white border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    {col.replace('_', ' ')}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="flex gap-2">
+            <input
+              className="input flex-1 !py-2 !px-2.5 !text-sm"
+              placeholder="Add a task we share"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+            <button
+              type="button"
+              disabled={busy || !title.trim()}
+              onClick={() => {
+                const t = title;
+                setTitle('');
+                void onAct({
+                  action: 'task_add',
+                  project_id: selected.id,
+                  title: t,
+                });
+              }}
+              className="btn-primary !py-2 !px-3 text-xs"
+            >
+              Add
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

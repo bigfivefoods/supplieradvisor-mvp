@@ -313,6 +313,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       },
       { name: 'Order', href: '/dashboard/suppliers/po', desc: 'All POs — raise, receive, settle', section: 'Trade' },
       {
+        name: 'Projects',
+        href: '/dashboard/suppliers/projects',
+        desc: 'Joint waterfall projects with suppliers',
+        section: 'Trade',
+      },
+      {
         name: 'Escrow',
         href: '/dashboard/escrow',
         desc: 'USDC / ETH PO escrow rails',
@@ -350,6 +356,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       },
       { name: 'Quote', href: '/dashboard/customers/quotes', desc: 'Quotes', section: 'Trade' },
       { name: 'Order', href: '/dashboard/customers/orders', desc: 'Sales orders & inbound POs', section: 'Trade' },
+      {
+        name: 'Projects',
+        href: '/dashboard/customers/projects',
+        desc: 'Joint waterfall projects with buyers',
+        section: 'Trade',
+      },
       { name: 'Invoice', href: '/dashboard/customers/invoices', desc: 'Bill customers', section: 'Trade' },
       { name: 'Money', href: '/dashboard/customers/money', desc: 'Collect, claims, AR, settle', section: 'Money' },
       { name: 'Rate', href: '/dashboard/customers/ratings', desc: 'Peer ratings after trade', section: 'Score' },
@@ -611,6 +623,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'DMAIC', href: '/dashboard/projects/dmaic', section: 'Method' },
       { name: 'SDG', href: '/dashboard/projects/sdg', section: 'Method' },
       { name: 'Kanban', href: '/dashboard/projects/kanban-boards', section: 'Method' },
+      { name: 'Gantt', href: '/dashboard/projects/gantt', desc: 'Waterfall Gantt', section: 'Method' },
       { name: 'RIAD', href: '/dashboard/projects/risk-register', section: 'Risk' },
       { name: 'Time', href: '/dashboard/projects/timesheets', section: 'Time' },
     

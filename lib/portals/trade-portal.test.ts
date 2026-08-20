@@ -24,6 +24,7 @@ assert.equal(portalPublicPath(viewerTok), `/portal/${encodeURIComponent(viewerTo
 const sections = normalizeSections({ quotes: false, leftover: true });
 assert.equal(sections.quotes, false);
 assert.equal(sections.invoices, DEFAULT_PORTAL_SECTIONS.invoices);
+assert.equal(DEFAULT_PORTAL_SECTIONS.projects, true);
 assert.equal((sections as { leftover?: boolean }).leftover, undefined);
 
 console.log('trade-portal.test.ts ok');

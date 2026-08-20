@@ -78,26 +78,37 @@ export async function POST(request: NextRequest) {
 
     const col = String(body.column_key || 'backlog');
     const supabase = getSupabaseServer();
-    const { data, error } = await supabase
-      .from('pm_tasks')
-      .insert({
-        profile_id: companyId,
-        project_id: projectId,
-        title: String(body.title).trim(),
-        description: body.description || null,
-        status: body.status || col,
-        column_key: col,
-        assignee: body.assignee || null,
-        priority: body.priority || 'medium',
-        estimate_hours: body.estimate_hours != null ? Number(body.estimate_hours) : null,
-        due_date: body.due_date || null,
-        sort_order: Number(body.sort_order) || 0,
-        created_by: mem.userId,
-        updated_at: new Date().toISOString(),
-      })
-      .select('*')
-      .single();
-
+    const row: Record<string, unknown> = {
+      profile_id: companyId,
+      project_id: projectId,
+      title: String(body.title).trim(),
+      description: body.description || null,
+      status: body.status || col,
+      column_key: col,
+      assignee: body.assignee || null,
+      priority: body.priority || 'medium',
+      estimate_hours: body.estimate_hours != null ? Number(body.estimate_hours) : null,
+      start_date: body.start_date || null,
+      due_date: body.due_date || null,
+      phase_key: body.phase_key || null,
+      depends_on:
+        body.depends_on != null && Number(body.depends_on) > 0
+          ? Number(body.depends_on)
+          : null,
+      sort_order: Number(body.sort_order) || 0,
+      created_by: mem.userId,
+      updated_at: new Date().toISOString(),
+    };
+    let { data, error } = await supabase.from('pm_tasks').insert(row).select('*').single();
+    if (error && /column|schema cache|does not exist/i.test(error.message)) {
+      const retry = { ...row };
+      delete retry.start_date;
+      delete retry.phase_key;
+      delete retry.depends_on;
+      const r2 = await supabase.from('pm_tasks').insert(retry).select('*').single();
+      data = r2.data;
+      error = r2.error;
+    }
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, task: data }, { status: 201 });
   } catch (e: unknown) {
@@ -128,7 +139,10 @@ export async function PATCH(request: NextRequest) {
       'assignee',
       'priority',
       'estimate_hours',
+      'start_date',
       'due_date',
+      'phase_key',
+      'depends_on',
       'sort_order',
       'labels',
     ]) {

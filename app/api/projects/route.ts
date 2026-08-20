@@ -7,6 +7,7 @@ import {
   isDmaicGate,
   MIGRATION_HINT,
 } from '@/lib/projects/types';
+import { addDays, isoDay, seedWaterfallTasks } from '@/lib/projects/waterfall';
 
 const PROJECT_STATUSES = [
   'planning',
@@ -31,6 +32,9 @@ export async function GET(request: NextRequest) {
     const methodology = sp.get('methodology');
     const programmeId = Number(sp.get('programmeId'));
     const board = sp.get('board'); // dmaic → group by methodology_gate
+    const customerId = Number(sp.get('customerId'));
+    const supplierId = Number(sp.get('supplierId'));
+    const partnerKind = sp.get('partner'); // customer | supplier — any attached partner
 
     const supabase = getSupabaseServer();
     let q = supabase
@@ -44,20 +48,69 @@ export async function GET(request: NextRequest) {
     if (Number.isFinite(programmeId) && programmeId > 0) {
       q = q.eq('programme_id', programmeId);
     }
+    if (Number.isFinite(customerId) && customerId > 0) {
+      q = q.eq('customer_id', customerId);
+    }
+    if (Number.isFinite(supplierId) && supplierId > 0) {
+      q = q.eq('supplier_id', supplierId);
+    }
+    if (partnerKind === 'customer' && !(Number.isFinite(customerId) && customerId > 0)) {
+      q = q.not('customer_id', 'is', null);
+    }
+    if (partnerKind === 'supplier' && !(Number.isFinite(supplierId) && supplierId > 0)) {
+      q = q.not('supplier_id', 'is', null);
+    }
 
-    const { data, error } = await q;
+    let { data, error } = await q;
+
+    if (error && /column|schema cache|does not exist/i.test(error.message)) {
+      const retry = supabase
+        .from('pm_projects')
+        .select('*')
+        .eq('profile_id', companyId)
+        .order('updated_at', { ascending: false });
+      const r2 = await retry;
+      data = r2.data;
+      error = r2.error;
+    }
 
     if (error) {
       return NextResponse.json({
         success: true,
         projects: [],
         warning: error.message,
-        migration: '20260711_haccp_esg_pm_suite.sql + 20260723_pm_epm_pmo.sql',
+        migration: '20260711_haccp_esg_pm_suite.sql + 20260723_pm_epm_pmo.sql + 20260824_trade_projects.sql',
         hint: MIGRATION_HINT,
       });
     }
 
-    const projects = data || [];
+    let projects = data || [];
+    if (partnerKind === 'customer' || (Number.isFinite(customerId) && customerId > 0)) {
+      projects = projects.filter((p) => {
+        const id = Number(p.customer_id);
+        const meta = p.metadata && typeof p.metadata === 'object'
+          ? (p.metadata as Record<string, unknown>)
+          : {};
+        const mid = Number(meta.customer_id);
+        if (Number.isFinite(customerId) && customerId > 0) {
+          return id === customerId || mid === customerId;
+        }
+        return Number.isFinite(id) || Number.isFinite(mid);
+      });
+    }
+    if (partnerKind === 'supplier' || (Number.isFinite(supplierId) && supplierId > 0)) {
+      projects = projects.filter((p) => {
+        const id = Number(p.supplier_id);
+        const meta = p.metadata && typeof p.metadata === 'object'
+          ? (p.metadata as Record<string, unknown>)
+          : {};
+        const mid = Number(meta.supplier_id);
+        if (Number.isFinite(supplierId) && supplierId > 0) {
+          return id === supplierId || mid === supplierId;
+        }
+        return Number.isFinite(id) || Number.isFinite(mid);
+      });
+    }
     const ids = projects.map((p) => p.id);
     let taskCounts: Record<number, { total: number; done: number }> = {};
     let milestoneCounts: Record<number, { total: number; done: number }> = {};
@@ -96,11 +149,52 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const customerNames: Record<number, string> = {};
+    const supplierNames: Record<number, string> = {};
+    const cids = [
+      ...new Set(
+        projects
+          .map((p) => Number(p.customer_id))
+          .filter((n) => Number.isFinite(n) && n > 0)
+      ),
+    ];
+    const sids = [
+      ...new Set(
+        projects
+          .map((p) => Number(p.supplier_id))
+          .filter((n) => Number.isFinite(n) && n > 0)
+      ),
+    ];
+    if (cids.length) {
+      const { data: rows } = await supabase
+        .from('customers')
+        .select('id, trading_name')
+        .eq('profile_id', companyId)
+        .in('id', cids);
+      for (const r of rows || []) {
+        customerNames[Number(r.id)] = String(r.trading_name || `#${r.id}`);
+      }
+    }
+    if (sids.length) {
+      const { data: rows } = await supabase
+        .from('srm_suppliers')
+        .select('id, trading_name')
+        .eq('profile_id', companyId)
+        .in('id', sids);
+      for (const r of rows || []) {
+        supplierNames[Number(r.id)] = String(r.trading_name || `#${r.id}`);
+      }
+    }
+
     const enriched = projects.map((p) => ({
       ...p,
       task_stats: taskCounts[p.id] || { total: 0, done: 0 },
       milestone_stats: milestoneCounts[p.id] || { total: 0, done: 0 },
       open_riads: riadCounts[p.id] || 0,
+      partner_name:
+        (p.customer_id && customerNames[Number(p.customer_id)]) ||
+        (p.supplier_id && supplierNames[Number(p.supplier_id)]) ||
+        null,
     }));
 
     // DMAIC board: projects per gate
@@ -194,9 +288,17 @@ export async function POST(request: NextRequest) {
       gate_entered_at: gate ? now : null,
       created_by: mem.userId,
       updated_at: now,
+      customer_id:
+        body.customer_id != null && Number(body.customer_id) > 0
+          ? Number(body.customer_id)
+          : null,
+      supplier_id:
+        body.supplier_id != null && Number(body.supplier_id) > 0
+          ? Number(body.supplier_id)
+          : null,
     };
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('pm_projects')
       .insert(insertRow)
       .select('*')
@@ -229,6 +331,8 @@ export async function POST(request: NextRequest) {
               programme_id: insertRow.programme_id,
               sdg_goal: insertRow.sdg_goal,
               sdg_targets: insertRow.sdg_targets,
+              customer_id: insertRow.customer_id,
+              supplier_id: insertRow.supplier_id,
             },
           })
           .select('*')
@@ -243,20 +347,45 @@ export async function POST(request: NextRequest) {
             { status: 503 }
           );
         }
+        data = soft;
+        error = null;
+      } else {
         return NextResponse.json(
-          { success: true, project: soft, warning: error.message },
-          { status: 201 }
+          {
+            error: error.message,
+            migration: '20260711_haccp_esg_pm_suite.sql',
+            hint: MIGRATION_HINT,
+          },
+          { status: 503 }
         );
       }
-      return NextResponse.json(
-        {
-          error: error.message,
-          migration: '20260711_haccp_esg_pm_suite.sql',
-          hint: MIGRATION_HINT,
-        },
-        { status: 503 }
-      );
     }
+
+    if (body.seed_waterfall === true && data?.id) {
+      const start = String(body.start_date || isoDay(new Date()));
+      const end = String(body.target_date || addDays(start, 56));
+      const seeds = seedWaterfallTasks(start, end);
+      const rows = seeds.map((s) => ({
+        profile_id: companyId,
+        project_id: data.id,
+        title: s.title,
+        status: s.status,
+        column_key: s.column_key,
+        start_date: s.start_date,
+        due_date: s.due_date,
+        phase_key: s.phase_key,
+        sort_order: s.sort_order,
+        created_by: mem.userId,
+        updated_at: now,
+      }));
+      const ins = await supabase.from('pm_tasks').insert(rows);
+      if (ins.error && /column|schema cache|does not exist/i.test(ins.error.message)) {
+        await supabase.from('pm_tasks').insert(
+          rows.map(({ start_date: _s, phase_key: _p, ...rest }) => rest)
+        );
+      }
+    }
+
     return NextResponse.json({ success: true, project: data }, { status: 201 });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -371,6 +500,8 @@ export async function PATCH(request: NextRequest) {
       'goal_statement',
       'charter_date',
       'sort_order',
+      'customer_id',
+      'supplier_id',
     ]) {
       if (body[k] !== undefined) updates[k] = body[k];
     }

@@ -106,6 +106,97 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    async function assertJointProject(projectId: number) {
+      const { data: proj } = await supabase
+        .from('pm_projects')
+        .select('id, customer_id, supplier_id, profile_id, metadata')
+        .eq('id', projectId)
+        .eq('profile_id', portal.profile_id)
+        .maybeSingle();
+      if (!proj) return null;
+      const meta =
+        proj.metadata && typeof proj.metadata === 'object'
+          ? (proj.metadata as Record<string, unknown>)
+          : {};
+      const ok =
+        portal.kind === 'customer'
+          ? Number(proj.customer_id) === viewer.customer_id ||
+            Number(meta.customer_id) === viewer.customer_id
+          : Number(proj.supplier_id) === viewer.supplier_id ||
+            Number(meta.supplier_id) === viewer.supplier_id;
+      return ok ? proj : null;
+    }
+
+    if (action === 'task_update') {
+      const id = Number(body.id);
+      if (!Number.isFinite(id)) {
+        return NextResponse.json({ error: 'id required' }, { status: 400 });
+      }
+      const { data: task } = await supabase
+        .from('pm_tasks')
+        .select('id, project_id, profile_id, description')
+        .eq('id', id)
+        .eq('profile_id', portal.profile_id)
+        .maybeSingle();
+      if (!task) {
+        return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+      }
+      const proj = await assertJointProject(Number(task.project_id));
+      if (!proj) {
+        return NextResponse.json({ error: 'Not your project' }, { status: 403 });
+      }
+      const patch: Record<string, unknown> = { updated_at: now };
+      if (typeof body.column_key === 'string' && body.column_key) {
+        const col = String(body.column_key).slice(0, 24);
+        patch.column_key = col;
+        patch.status = col;
+      }
+      if (typeof body.notes === 'string' && body.notes.trim()) {
+        patch.description = [task.description, `[${viewer.name}] ${body.notes.trim()}`]
+          .filter(Boolean)
+          .join('\n');
+      }
+      const { error } = await supabase
+        .from('pm_tasks')
+        .update(patch)
+        .eq('id', id)
+        .eq('profile_id', portal.profile_id);
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'task_add') {
+      const projectId = Number(body.project_id);
+      const title = String(body.title || '').trim();
+      if (!Number.isFinite(projectId) || !title) {
+        return NextResponse.json({ error: 'project_id and title required' }, { status: 400 });
+      }
+      const proj = await assertJointProject(projectId);
+      if (!proj) {
+        return NextResponse.json({ error: 'Not your project' }, { status: 403 });
+      }
+      const row = {
+        profile_id: portal.profile_id,
+        project_id: projectId,
+        title: title.slice(0, 200),
+        status: 'todo',
+        column_key: 'todo',
+        created_by: `portal:${viewer.name}`,
+        updated_at: now,
+      };
+      const { data, error } = await supabase
+        .from('pm_tasks')
+        .insert(row)
+        .select('id')
+        .single();
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      return NextResponse.json({ success: true, id: data?.id });
+    }
+
     if (action === 'message') {
       const text = String(body.body || '').trim().slice(0, 4000);
       if (!text) {

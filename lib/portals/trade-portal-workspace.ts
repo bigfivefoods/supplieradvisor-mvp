@@ -5,6 +5,7 @@ import type {
   PortalMessageView,
   PortalRatingView,
   PortalRiadView,
+  PortalProjectView,
   PortalStockLine,
   PublicDocRow,
   TradePortalKind,
@@ -68,6 +69,7 @@ export type PortalWorkspace = {
   stock: PortalStockLine[];
   purchase_orders: PublicDocRow[];
   inbound_pos: PublicDocRow[];
+  projects: PortalProjectView[];
 };
 
 function poToDoc(r: Record<string, unknown>, otifefInput: Parameters<typeof otifefForLine>[0]): PublicDocRow {
@@ -124,6 +126,7 @@ export async function loadPortalWorkspace(opts: {
     stock: [],
     purchase_orders: [],
     inbound_pos: [],
+    projects: [],
   };
 
   let linkedProfileId: number | null = null;
@@ -439,6 +442,59 @@ export async function loadPortalWorkspace(opts: {
     });
   }
 
+  const projects: PortalProjectView[] = [];
+  let projQ = supabase
+    .from('pm_projects')
+    .select(
+      'id, name, description, status, health, start_date, target_date, customer_id, supplier_id'
+    )
+    .eq('profile_id', companyId)
+    .order('updated_at', { ascending: false })
+    .limit(80);
+  if (kind === 'customer' && opts.viewer.customer_id) {
+    projQ = projQ.eq('customer_id', opts.viewer.customer_id);
+  } else if (kind === 'supplier' && opts.viewer.supplier_id) {
+    projQ = projQ.eq('supplier_id', opts.viewer.supplier_id);
+  } else {
+    projQ = projQ.eq('id', -1);
+  }
+  const { data: projRows } = await projQ;
+  const projIds = (projRows || []).map((p) => Number(p.id));
+  const taskByProject = new Map<number, PortalProjectView['tasks']>();
+  if (projIds.length) {
+    const { data: trows } = await supabase
+      .from('pm_tasks')
+      .select('id, project_id, title, column_key, status, start_date, due_date, phase_key')
+      .eq('profile_id', companyId)
+      .in('project_id', projIds)
+      .order('sort_order', { ascending: true });
+    for (const t of trows || []) {
+      const pid = Number(t.project_id);
+      const list = taskByProject.get(pid) || [];
+      list.push({
+        id: Number(t.id),
+        title: String(t.title || ''),
+        column_key: String(t.column_key || t.status || 'todo'),
+        start_date: t.start_date != null ? String(t.start_date).slice(0, 10) : null,
+        due_date: t.due_date != null ? String(t.due_date).slice(0, 10) : null,
+        phase_key: t.phase_key != null ? String(t.phase_key) : null,
+      });
+      taskByProject.set(pid, list);
+    }
+  }
+  for (const p of projRows || []) {
+    projects.push({
+      id: Number(p.id),
+      name: String(p.name || `Project #${p.id}`),
+      status: String(p.status || 'planning'),
+      health: p.health != null ? String(p.health) : null,
+      start_date: p.start_date != null ? String(p.start_date).slice(0, 10) : null,
+      target_date: p.target_date != null ? String(p.target_date).slice(0, 10) : null,
+      description: p.description != null ? String(p.description) : null,
+      tasks: taskByProject.get(Number(p.id)) || [],
+    });
+  }
+
   return {
     onBooks: true,
     linkedProfileId,
@@ -451,5 +507,6 @@ export async function loadPortalWorkspace(opts: {
     stock,
     purchase_orders: pos.filter((p) => p.kind === 'purchase_order' || p.kind === 'order'),
     inbound_pos: inbound,
+    projects,
   };
 }
