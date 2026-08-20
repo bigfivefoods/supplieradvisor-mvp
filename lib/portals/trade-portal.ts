@@ -380,22 +380,49 @@ function moneyRow(opts: {
 
 async function loadHost(companyId: number): Promise<PublicHost | null> {
   const supabase = getSupabaseServer();
-  const { data } = await supabase
-    .from('profiles')
-    .select(
-      'id, trading_name, legal_name, logo_url, city, country, industry, verification_status, website, email, phone'
-    )
-    .eq('id', companyId)
-    .maybeSingle();
-  if (!data) return null;
+  const selects = [
+    'id, trading_name, legal_name, logo_url, city, country, industry, verification_status, website, email, contact_number',
+    'id, trading_name, legal_name, logo_url, city, country, verification_status, website, email',
+    'id, trading_name, legal_name, logo_url',
+  ];
+  let data: Record<string, unknown> | null = null;
+  for (const sel of selects) {
+    const r = await supabase
+      .from('profiles')
+      .select(sel)
+      .eq('id', companyId)
+      .maybeSingle();
+    if (r.data) {
+      data = r.data as Record<string, unknown>;
+      break;
+    }
+  }
+  if (!data) {
+    return {
+      id: companyId,
+      name: `Company #${companyId}`,
+      legal_name: null,
+      logo_url: null,
+      city: null,
+      country: null,
+      industry: null,
+      verified: false,
+      website: null,
+      email: null,
+      phone: null,
+      public_path: `/c/company-${companyId}`,
+    };
+  }
   const name =
     String(data.trading_name || data.legal_name || '').trim() ||
     `Company #${companyId}`;
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 48) || 'company';
+  const slug =
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 48) || 'company';
+  const phoneRaw = data.contact_number ?? data.phone;
   return {
     id: companyId,
     name,
@@ -404,10 +431,11 @@ async function loadHost(companyId: number): Promise<PublicHost | null> {
     city: data.city != null ? String(data.city) : null,
     country: data.country != null ? String(data.country) : null,
     industry: data.industry != null ? String(data.industry) : null,
-    verified: String(data.verification_status || '').toLowerCase() === 'verified',
+    verified:
+      String(data.verification_status || '').toLowerCase() === 'verified',
     website: data.website != null ? String(data.website) : null,
     email: data.email != null ? String(data.email) : null,
-    phone: data.phone != null ? String(data.phone) : null,
+    phone: phoneRaw != null ? String(phoneRaw) : null,
     public_path: `/c/${slug}-${companyId}`,
   };
 }

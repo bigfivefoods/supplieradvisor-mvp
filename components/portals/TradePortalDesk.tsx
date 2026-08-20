@@ -324,10 +324,11 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
         <Panel className="lg:col-span-3" title="What they see">
           <div className="p-5 space-y-4">
             <p className="text-sm text-neutral-600 leading-relaxed">
-              Portals are for <strong>{noun}s already on your books</strong>. Each
-              person is attached to an account so they only see their orders,
-              OTIFEF, ratings, RIAD, and messages — the same records you use
-              inside SupplierAdvisor.
+              One <strong>customer portal</strong> and one{' '}
+              <strong>supplier portal</strong> per company. Add as many people as
+              you need. Each person must sit on a {noun} already on your books
+              so they only see that account&apos;s orders, OTIFEF, ratings, RIAD
+              and messages.
             </p>
             <div>
               <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
@@ -438,9 +439,22 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
               {live ? 'Live' : 'Paused'} · {viewers.filter((v) => v.status === 'active').length} people
             </div>
             <p className="text-sm text-neutral-600 leading-relaxed">
-              Brochure link shows who you are. Personal links show that person&apos;s
-              documents only.
+              Send <strong>personal links</strong> (People list) — those open
+              Boxer&apos;s (or that account&apos;s) live orders. The brochure below is
+              only your company card, not their books.
             </p>
+            <div className="rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 py-2.5 text-xs text-slate-700">
+              <p className="font-bold text-slate-900 mb-1">What&apos;s in this portal</p>
+              <ul className="space-y-0.5">
+                {sectionList
+                  .filter((s) => sections[s.key] !== false)
+                  .map((s) => (
+                    <li key={s.key}>
+                      · {s.label} — {s.hint}
+                    </li>
+                  ))}
+              </ul>
+            </div>
             <div className="rounded-2xl border border-neutral-200 bg-slate-50 px-3 py-3">
               <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mb-1">
                 Company brochure
@@ -581,6 +595,9 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                       <p className="text-xs text-neutral-500 mt-0.5">
                         {[v.job_title, v.email, v.phone].filter(Boolean).join(' · ') ||
                           'No contact yet'}
+                      </p>
+                      <p className="text-[11px] font-mono text-slate-600 break-all mt-1">
+                        Personal link: {personUrl}
                       </p>
                       {v.last_seen_at ? (
                         <p className="text-[11px] text-neutral-400 mt-0.5">
