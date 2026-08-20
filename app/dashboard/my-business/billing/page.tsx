@@ -653,7 +653,8 @@ function BillingInner() {
   return (
     <BusinessPage>
       <BusinessHeader
-        title="Billing & subscription"
+        title="Billing"
+        titleAccent="plan"
         description={`Company plan for ${companyName || 'your business'} — ${COMPANY_TRIAL_DAYS}-day free trial, then from R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month. Save up to 30% with multi-year prepaid.`}
         action={
           <button

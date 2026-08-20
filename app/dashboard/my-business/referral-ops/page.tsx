@@ -163,8 +163,9 @@ export default function ReferralOpsPage() {
     <BusinessPage>
       <CompanyRequired>
         <BusinessHeader
-          title="Referral ops"
-          description="Platform operators only — approve holds early, settle payouts, claw back refunds. Requires root company owner/admin or REFERRAL_OPS_SECRET."
+          title="Referrals"
+          titleAccent="ops"
+          description="Approve holds, settle payouts, claw back refunds. Root company owner/admin or referral ops secret."
         />
 
         <div className="max-w-3xl space-y-6">

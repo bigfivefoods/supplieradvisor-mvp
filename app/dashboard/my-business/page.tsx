@@ -1,8 +1,7 @@
 'use client';
 
 /**
- * Company command tower — identity, modules, people, trust, commercial, ops.
- * World-class setup journey aligned with partner invite-to-complete.
+ * Company command tower — identity, workspace, people, trust, money, govern.
  */
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -12,8 +11,6 @@ import {
   ShieldCheck,
   FileText,
   Settings,
-  Scale,
-  UserPlus,
   CheckCircle2,
   AlertTriangle,
   Globe,
@@ -123,35 +120,59 @@ function HubInner() {
       }
     : null;
 
+  const billingMetric = loading
+    ? '—'
+    : s?.subscriptionStatus === 'lifetime'
+      ? 'Free'
+      : s?.subscriptionStatus === 'trial'
+        ? s.subscriptionDaysRemaining != null
+          ? `${s.subscriptionDaysRemaining}d`
+          : 'Trial'
+        : s?.subscriptionStatus === 'active'
+          ? 'Active'
+          : s?.subscriptionHasAccess
+            ? 'OK'
+            : 'Pay';
+  const billingLabel =
+    s?.subscriptionStatus === 'lifetime'
+      ? 'lifetime'
+      : s?.subscriptionStatus === 'trial'
+        ? 'trial left'
+        : s?.subscriptionStatus === 'active'
+          ? 'plan'
+          : 'subscribe';
+
   const groups: GroupDef[] = [
     {
       id: 'identity',
-      title: '1 · Identity & structure',
-      blurb: 'Who you are on the network — profile, legal entity, group hierarchy.',
+      title: '1 · Identity',
+      blurb: 'Who you are on the network — profile, documents, group structure.',
       modules: [
         {
           href: '/dashboard/my-business/profile',
           icon: Building2,
           code: '01',
-          title: 'Company profile',
-          desc: 'Trading name, contacts, industry, location, certifications, wallet.',
+          title: 'Profile',
+          desc: 'Trading name, legal identity, contacts, banking, certifications.',
           accent: 'from-violet-50 to-white border-violet-100',
           metric: loading ? '—' : `${pct}%`,
           metricLabel: 'complete',
         },
         {
-          href: '/dashboard/my-business/legal',
-          icon: Scale,
+          href: '/dashboard/my-business/documents',
+          icon: FileText,
           code: '02',
-          title: 'Legal & registration',
-          desc: 'Registration, B-BBEE, tax, regulatory posture.',
-          accent: 'from-emerald-50 to-white border-emerald-100',
+          title: 'Documents',
+          desc: 'Company files, policies, certificates, and contracts.',
+          accent: 'from-sky-50 to-white border-sky-100',
+          metric: s?.documents ?? '—',
+          metricLabel: 'files',
         },
         {
           href: '/dashboard/my-business/group',
           icon: Network,
           code: '03',
-          title: 'Group structure',
+          title: 'Group',
           desc: 'Holding company, subsidiaries, associations — accept invites.',
           accent: 'from-indigo-50 to-white border-indigo-100',
           metric:
@@ -167,9 +188,8 @@ function HubInner() {
     },
     {
       id: 'workspace',
-      title: '2 · Workspace modules',
-      blurb:
-        'Turn on suppliers, customers, inventory, accounting — hide what you do not need.',
+      title: '2 · Workspace',
+      blurb: 'Turn on the hubs you run, then set locale, FY, and discoverability.',
       modules: [
         {
           href: '/dashboard/my-business/modules',
@@ -186,45 +206,37 @@ function HubInner() {
           icon: Settings,
           code: '05',
           title: 'Settings',
-          desc: 'Timezone, currency, payment terms options, discoverability.',
+          desc: 'Financial year, timezone, currency, payment terms, discoverability.',
           accent: 'from-sky-50 to-white border-sky-100',
         },
       ],
     },
     {
       id: 'people',
-      title: '3 · People & access',
-      blurb: 'Invite your team with roles. Least privilege by design.',
+      title: '3 · People',
+      blurb: 'Invite the team with roles. Least privilege by design.',
       modules: [
         {
           href: '/dashboard/my-business/team',
           icon: Users,
           code: '06',
           title: 'Team',
-          desc: 'Invite members, assign roles, manage access rights.',
+          desc: 'Invite members, assign roles, choose which modules they see.',
           accent: 'from-sky-50 to-white border-sky-100',
           metric: s?.teamActive ?? '—',
           metricLabel: 'active',
-        },
-        {
-          href: '/dashboard/my-business/sales-program',
-          icon: Handshake,
-          code: '07',
-          title: 'Sales program',
-          desc: 'Contractor portal, commissions, field sellers.',
-          accent: 'from-violet-50 to-white border-violet-100',
         },
       ],
     },
     {
       id: 'trust',
-      title: '4 · Trust & verification',
+      title: '4 · Trust',
       blurb: 'Prove legitimacy — CIPC, bank, OTIFEF, peer ratings.',
       modules: [
         {
           href: '/dashboard/my-business/trust',
           icon: BadgeCheck,
-          code: '08',
+          code: '07',
           title: 'Trust score',
           desc: 'How trust is built — OTIFEF, peers, verification.',
           accent: 'from-emerald-50 to-white border-emerald-100',
@@ -232,9 +244,9 @@ function HubInner() {
         {
           href: '/dashboard/my-business/verifications',
           icon: ShieldCheck,
-          code: '09',
-          title: 'Verifications',
-          desc: 'CIPC / bank verification ops and status.',
+          code: '08',
+          title: 'Verify',
+          desc: 'CIPC and bank verification status for this company.',
           accent: 'from-teal-50 to-white border-teal-100',
           metric: s?.is_verified ? 'OK' : '—',
           metricLabel: s?.is_verified ? 'verified' : 'pending',
@@ -242,81 +254,60 @@ function HubInner() {
       ],
     },
     {
-      id: 'commercial',
-      title: '5 · Commercial & vault',
-      blurb: 'Billing, documents, referrals — keep the company solvent and documented.',
+      id: 'money',
+      title: '5 · Money',
+      blurb: 'Plan, sales contractors, and referral earnings.',
       modules: [
         {
           href: '/dashboard/my-business/billing',
           icon: CreditCard,
-          code: '10',
+          code: '09',
           title: 'Billing',
           desc: 'Trial, subscription, prepaid options.',
           accent: 'from-amber-50 to-white border-amber-100',
-          metric: loading
-            ? '—'
-            : s?.subscriptionStatus === 'lifetime'
-              ? 'Free'
-              : s?.subscriptionStatus === 'trial'
-                ? s.subscriptionDaysRemaining != null
-                  ? `${s.subscriptionDaysRemaining}d`
-                  : 'Trial'
-                : s?.subscriptionStatus === 'active'
-                  ? 'Active'
-                  : s?.subscriptionHasAccess
-                    ? 'OK'
-                    : 'Pay',
-          metricLabel:
-            s?.subscriptionStatus === 'lifetime'
-              ? 'lifetime'
-              : s?.subscriptionStatus === 'trial'
-                ? 'trial left'
-                : s?.subscriptionStatus === 'active'
-                  ? 'plan'
-                  : 'subscribe',
+          metric: billingMetric,
+          metricLabel: billingLabel,
         },
         {
-          href: '/dashboard/my-business/documents',
-          icon: FileText,
-          code: '11',
-          title: 'Documents',
-          desc: 'Company files, policies, and contracts vault.',
-          accent: 'from-amber-50 to-white border-amber-100',
-          metric: s?.documents ?? '—',
-          metricLabel: 'files',
+          href: '/dashboard/my-business/sales-program',
+          icon: Handshake,
+          code: '10',
+          title: 'Sales program',
+          desc: 'Contractor portal, commissions, field sellers.',
+          accent: 'from-violet-50 to-white border-violet-100',
         },
         {
           href: '/dashboard/my-business/referral-ops',
           icon: Sparkles,
-          code: '12',
-          title: 'Referral ops',
+          code: '11',
+          title: 'Referrals',
           desc: 'Supply-chain referral earnings and ops.',
           accent: 'from-fuchsia-50 to-white border-fuchsia-100',
         },
       ],
     },
     {
-      id: 'control',
-      title: '6 · Control tower',
-      blurb: 'Readiness and risks — keep the company sharp.',
+      id: 'govern',
+      title: '6 · Govern',
+      blurb: 'Risks and production readiness — keep the company sharp.',
       modules: [
+        {
+          href: '/dashboard/my-business/riad-log',
+          icon: AlertTriangle,
+          code: '12',
+          title: 'Risks',
+          desc: 'Internal risks, issues, actions, decisions — plus supplier and customer RIAD.',
+          accent: 'from-rose-50 to-white border-rose-100',
+          metric: s?.openRiads ?? '—',
+          metricLabel: 'open',
+        },
         {
           href: '/dashboard/my-business/ops',
           icon: CheckCircle2,
           code: '13',
-          title: 'Ops readiness',
+          title: 'Ops',
           desc: 'P0 readiness and settle health signals.',
           accent: 'from-cyan-50 to-white border-cyan-100',
-        },
-        {
-          href: '/dashboard/my-business/riad-log',
-          icon: AlertTriangle,
-          code: '14',
-          title: 'Company RIAD',
-          desc: 'Internal risks, issues, actions, decisions.',
-          accent: 'from-rose-50 to-white border-rose-100',
-          metric: s?.openRiads ?? '—',
-          metricLabel: 'open',
         },
       ],
     },
@@ -325,10 +316,10 @@ function HubInner() {
   return (
     <BusinessPage>
       <RelationshipHeader
-        eyebrow="Company workspace"
+        eyebrow="Company"
         title="Company"
-        titleAccent="setup"
-        description="World-class company control: identity → modules → team → trust → billing. Invite customers or suppliers onto the platform — they finish their own company setup while staying linked to your book."
+        titleAccent="overview"
+        description="Identity → workspace → people → trust → billing. Invite partners onto the platform — they finish their own company setup while staying linked to your book."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -373,14 +364,14 @@ function HubInner() {
           {[
             {
               n: '1',
-              t: 'Identity',
-              d: 'Profile ≥ 80%',
+              t: 'Profile',
+              d: 'Identity ≥ 80%',
               href: '/dashboard/my-business/profile',
             },
             {
               n: '2',
               t: 'Modules',
-              d: 'Enable trade stack',
+              d: 'Enable the hubs you run',
               href: '/dashboard/my-business/modules',
             },
             {
@@ -397,9 +388,9 @@ function HubInner() {
             },
             {
               n: '5',
-              t: 'Invite partners',
-              d: 'They complete setup',
-              href: '/dashboard/invite-business',
+              t: 'Billing',
+              d: 'Trial or plan',
+              href: '/dashboard/my-business/billing',
             },
           ].map((step) => (
             <Link
@@ -469,7 +460,7 @@ function HubInner() {
       ) : null}
 
       <HubHero
-        pill="Live identity · profile → modules → team"
+        pill="Profile → modules → team → trust → billing"
         title={s?.trading_name || 'Your company, mastered.'}
         description="A complete, verified profile plus the right modules is the foundation of trust across CRM, SRM, and on-chain flows."
         stats={[
@@ -549,12 +540,12 @@ function HubInner() {
           href="/dashboard/my-business/riad-log"
         />
         <TelemetryCard
-          label="Invite partner"
-          value="Go"
-          sub="Customer or supplier"
-          accent="emerald"
-          icon={UserPlus}
-          href="/dashboard/invite-business"
+          label="Plan"
+          value={billingMetric}
+          sub={billingLabel}
+          accent="amber"
+          icon={CreditCard}
+          href="/dashboard/my-business/billing"
         />
       </HubTelemetryGrid>
 

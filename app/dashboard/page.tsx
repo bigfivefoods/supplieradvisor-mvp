@@ -1016,9 +1016,10 @@ export default function DashboardCommandCenter() {
               />
               <SectionLinks
                 links={[
-                  { href: '/dashboard/my-business/team', label: 'Team' },
                   { href: '/dashboard/my-business/profile', label: 'Profile' },
-                  { href: '/dashboard/my-business/documents', label: 'Documents' },
+                  { href: '/dashboard/my-business/modules', label: 'Modules' },
+                  { href: '/dashboard/my-business/team', label: 'Team' },
+                  { href: '/dashboard/my-business/billing', label: 'Billing' },
                   { href: '/dashboard/invite-business', label: 'Invite business' },
                 ]}
               />

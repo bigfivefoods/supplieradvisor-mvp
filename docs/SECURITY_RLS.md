@@ -69,7 +69,7 @@ Any remaining browser `.from('…')` with the anon key will **fail**. That is in
 
 - `app/dashboard/suppliers/directory`  
 - `app/dashboard/loyalty`  
-- `app/dashboard/my-business/projects`  
+- `app/dashboard/my-business/projects` (redirects to `/dashboard/projects`)
 - `app/dashboard/buyer/*` reviews/pos  
 - `app/dashboard/customers/orders|reviews` (profile name lookups)  
 - Client storage uploads (`uploadPhoto`, product assets) — prefer server upload API  

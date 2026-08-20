@@ -104,8 +104,9 @@ function Inner() {
   return (
     <BusinessPage>
       <BusinessHeader
-        title="Ops control plane"
-        description="Paystack pulse, CIPC SLA, schema migrations, open claims — production readiness."
+        title="Ops"
+        titleAccent="readiness"
+        description="Paystack pulse, CIPC SLA, schema, open claims — production readiness for this workspace."
         action={
           <button
             type="button"

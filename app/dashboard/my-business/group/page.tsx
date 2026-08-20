@@ -286,9 +286,9 @@ function GroupInner() {
   return (
     <BusinessPage>
       <BusinessHeader
-        title="Company group"
-        titleAccent="Holding & associations"
-        description="Invite members, join a holding or association, and accept invitations in one place."
+        title="Group"
+        titleAccent="structure"
+        description="Holding company, subsidiaries, and associations — invite, join, and accept in one place."
         action={
           <div className="flex items-center gap-2">
             <button

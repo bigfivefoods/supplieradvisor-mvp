@@ -9,18 +9,13 @@ import {
 } from '@/components/relationship/RelationshipChrome';
 
 export const BUSINESS_NAV: readonly NavItem[] = [
-  { href: '/dashboard/my-business', label: 'Command', exact: true },
+  { href: '/dashboard/my-business', label: 'Overview', exact: true },
   { href: '/dashboard/my-business/profile', label: 'Profile' },
   { href: '/dashboard/my-business/modules', label: 'Modules' },
   { href: '/dashboard/my-business/team', label: 'Team' },
-  { href: '/dashboard/my-business/group', label: 'Group' },
   { href: '/dashboard/my-business/trust', label: 'Trust' },
-  { href: '/dashboard/my-business/verifications', label: 'Verify' },
   { href: '/dashboard/my-business/billing', label: 'Billing' },
-  { href: '/dashboard/my-business/documents', label: 'Docs' },
   { href: '/dashboard/my-business/settings', label: 'Settings' },
-  { href: '/dashboard/my-business/ops', label: 'Ops' },
-  { href: '/dashboard/my-business/riad-log', label: 'RIAD' },
 ] as const;
 
 
@@ -29,7 +24,7 @@ export function BusinessNav() {
 }
 
 export function CompanyRequired({ children }: { children: React.ReactNode }) {
-  return <CompanyGate noun="My Business">{children}</CompanyGate>;
+  return <CompanyGate noun="Company">{children}</CompanyGate>;
 }
 
 
@@ -46,9 +41,10 @@ export function BusinessHeader({
 }) {
   return (
     <RelationshipHeader
+      band
       backHref="/dashboard/my-business"
-      backLabel="My Business overview"
-      eyebrow="Company workspace"
+      backLabel="Company overview"
+      eyebrow="Company"
       title={title}
       titleAccent={titleAccent}
       description={description}

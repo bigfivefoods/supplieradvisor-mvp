@@ -188,9 +188,9 @@ function Inner() {
   return (
     <BusinessPage>
       <BusinessHeader
-        title="Verification"
-        titleAccent="ops"
-        description="CIPC and bank AVS history · platform paid-not-verified queue (ops)."
+        title="Verify"
+        titleAccent="identity"
+        description="CIPC and bank AVS for this company — plus the platform paid-not-verified queue."
         action={
           <button
             type="button"

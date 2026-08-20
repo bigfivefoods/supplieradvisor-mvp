@@ -176,9 +176,9 @@ function DocsInner() {
   return (
     <BusinessPage>
       <BusinessHeader
-        title="Company"
-        titleAccent="documents"
-        description="Vault of policies, contracts, and certificates. Stored on the company profile metadata and readable by your team."
+        title="Documents"
+        titleAccent="vault"
+        description="Policies, contracts, and certificates for this company — readable by your team."
       />
 
       {profileDocs.length > 0 && (

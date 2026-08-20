@@ -162,7 +162,12 @@ function SettingsInner() {
   if (loading) {
     return (
       <BusinessPage>
-        <div className="py-24 flex justify-center">
+        <BusinessHeader
+          title="Company"
+          titleAccent="settings"
+          description="Financial year, locale, currency, notifications, and network discoverability."
+        />
+        <div className="py-16 flex justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
         </div>
       </BusinessPage>
@@ -172,9 +177,9 @@ function SettingsInner() {
   return (
     <BusinessPage>
       <BusinessHeader
-        title="Business"
+        title="Company"
         titleAccent="settings"
-        description="Locale, currency, notifications, and network discoverability — synced to Supabase on every save."
+        description="Financial year, locale, currency, notifications, and network discoverability — synced on every save."
         action={
           <button
             type="button"

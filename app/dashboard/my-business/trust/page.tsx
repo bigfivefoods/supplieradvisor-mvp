@@ -50,6 +50,14 @@ type TrustPayload = {
 };
 
 export default function TrustScorePage() {
+  return (
+    <CompanyRequired>
+      <TrustInner />
+    </CompanyRequired>
+  );
+}
+
+function TrustInner() {
   const { user } = usePrivy();
   const companyId = getSelectedCompanyId();
   const [loading, setLoading] = useState(true);
@@ -130,10 +138,10 @@ export default function TrustScorePage() {
 
   return (
     <BusinessPage>
-      <CompanyRequired>
       <BusinessHeader
-        title="Trust score"
-        description="How your company is scored — and how suppliers and customers improve the network together."
+        title="Trust"
+        titleAccent="score"
+        description="How your company is scored — OTIFEF, peer ratings, and verification on the network."
         action={
           <button
             type="button"
@@ -327,7 +335,6 @@ export default function TrustScorePage() {
           </div>
         </div>
       )}
-      </CompanyRequired>
     </BusinessPage>
   );
 }
