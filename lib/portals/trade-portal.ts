@@ -392,8 +392,8 @@ async function loadHost(companyId: number): Promise<PublicHost | null> {
       .select(sel)
       .eq('id', companyId)
       .maybeSingle();
-    if (r.data) {
-      data = r.data as Record<string, unknown>;
+    if (r.data && typeof r.data === 'object') {
+      data = r.data as unknown as Record<string, unknown>;
       break;
     }
   }
