@@ -134,8 +134,9 @@ async function allRows(
       .eq('profile_id', profileId)
       .range(from, from + page - 1);
     if (error) throw new Error(`${table}: ${error.message}`);
-    out.push(...((data || []) as Record<string, unknown>[]));
-    if (!data || data.length < page) break;
+    const rows = (data ?? []) as unknown as Record<string, unknown>[];
+    out.push(...rows);
+    if (rows.length < page) break;
     from += page;
   }
   return out;
