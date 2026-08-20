@@ -983,8 +983,15 @@ function ReportBody({
     return (
       <>
         <p className="text-xs text-neutral-500 mb-3">
-          IAS 7 direct method — cash movements on bank / petty-cash GL, classified from the
-          opposite journal lines.
+          IAS 7 / ASC 230 direct method — cash on the bank GL. Full statement with the
+          profit-to-cash reconciliation:{' '}
+          <Link
+            href="/dashboard/accounting/cash-flow"
+            className="font-semibold text-[#00b4d8] hover:underline"
+          >
+            Statement of cash flows
+          </Link>
+          .
         </p>
         {summary && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">

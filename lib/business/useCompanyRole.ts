@@ -63,6 +63,8 @@ export type CompanyRoleState = {
   canMoneyOrOps: boolean;
   /** Accounting journals / bank allocate */
   canAccountingWrite: boolean;
+  /** Financial year start — Company → Settings only */
+  canChangeFiscalYear: boolean;
   homePath: string;
   /** This user's sidenav module order for the selected company */
   sidebarModuleOrder: string[];
@@ -254,6 +256,7 @@ export function useCompanyRole(): CompanyRoleState {
   const canQaOverride = Boolean(role && QA_OVERRIDE_ROLES.includes(role));
   const canMoneyOrOps = Boolean(role && MONEY_OR_OPS.includes(role));
   const canAccountingWrite = Boolean(role && canWrite(role, 'accounting'));
+  const canChangeFiscalYear = Boolean(role && FINANCE_CRITICAL.includes(role));
 
   return {
     loading,
@@ -278,6 +281,7 @@ export function useCompanyRole(): CompanyRoleState {
     canQaOverride,
     canMoneyOrOps,
     canAccountingWrite,
+    canChangeFiscalYear,
     homePath,
     sidebarModuleOrder,
     saveSidebarModuleOrder,

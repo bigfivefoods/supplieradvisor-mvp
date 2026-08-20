@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Loader2, Plus, Save, X } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -149,7 +150,6 @@ function Inner() {
           companyId,
           privyUserId,
           base_currency: settings.base_currency,
-          fiscal_year_start_month: Number(settings.fiscal_year_start_month || 3),
           default_tax_rate: Number(settings.default_tax_rate || 15),
           invoice_prefix_ar: settings.invoice_prefix_ar,
           invoice_prefix_ap: settings.invoice_prefix_ap,
@@ -344,38 +344,22 @@ function Inner() {
               />
             </Field>
             <Field label="Financial year starts">
-              <select
-                value={settings?.fiscal_year_start_month ?? 3}
-                onChange={(e) =>
-                  setSettings((s) => ({
-                    ...(s || {}),
-                    fiscal_year_start_month: Number(e.target.value),
-                  }))
-                }
-                className="field"
-              >
-                {[
-                  'January',
-                  'February',
-                  'March',
-                  'April',
-                  'May',
-                  'June',
-                  'July',
-                  'August',
-                  'September',
-                  'October',
-                  'November',
-                  'December',
-                ].map((name, i) => (
-                  <option key={name} value={i + 1}>
-                    {name}
-                  </option>
-                ))}
-              </select>
+              <p className="field bg-slate-50 font-semibold">
+                {new Date(
+                  2000,
+                  Number(settings?.fiscal_year_start_month || 3) - 1,
+                  1
+                ).toLocaleString('en', { month: 'long' })}
+              </p>
               <p className="mt-1 text-[11px] text-neutral-500">
-                Budgets, YTD, Full FY, and plan vs actual follow this start month
-                (default March for South Africa).
+                Set only in{' '}
+                <Link
+                  href="/dashboard/my-business/settings"
+                  className="font-bold text-[#0077b6] underline"
+                >
+                  Company → Settings
+                </Link>
+                . Owner or finance lead only.
               </p>
             </Field>
             <Field label="Default tax rate %">

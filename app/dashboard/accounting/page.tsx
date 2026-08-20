@@ -120,9 +120,17 @@ function HubInner() {
       metricLabel: 'active',
     },
     {
+      href: '/dashboard/accounting/general-ledger',
+      icon: BookOpen,
+      code: '02',
+      title: 'General ledger',
+      desc: 'Account-by-account book — opening, posted lines, running balance, closing. IAS 1.',
+      accent: 'from-sky-50 to-white border-sky-100',
+    },
+    {
       href: '/dashboard/accounting/journal-entries',
       icon: FileText,
-      code: '02',
+      code: '03',
       title: 'Journal entries',
       desc: 'Double-entry journals — draft, post, void with balance checks.',
       accent: 'from-sky-50 to-white border-sky-100',
@@ -214,6 +222,14 @@ function HubInner() {
       title: 'Reports & analytics',
       desc: 'Trial balance, P&L, BS, budget vs actual, aging, forecast.',
       accent: 'from-sky-50 to-white border-sky-100',
+    },
+    {
+      href: '/dashboard/accounting/cash-flow',
+      icon: Landmark,
+      code: '10b',
+      title: 'Statement of cash flows',
+      desc: 'IAS 7 / ASC 230 — direct method plus profit-to-cash reconciliation.',
+      accent: 'from-emerald-50 to-white border-emerald-100',
     },
     {
       href: '/dashboard/accounting/tax',

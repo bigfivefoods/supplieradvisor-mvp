@@ -166,56 +166,15 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseServer();
     const action = String(body.action || 'upsert').toLowerCase();
 
-    // Set company financial year start month (1–12)
+    // FY start is Company → Settings only (owner / finance lead).
     if (action === 'set_fy_start') {
-      const month = normalizeFyStartMonth(body.fiscalYearStartMonth ?? body.month);
-      if (
-        body.fiscalYearStartMonth != null &&
-        (Number(body.fiscalYearStartMonth) < 1 ||
-          Number(body.fiscalYearStartMonth) > 12)
-      ) {
-        return NextResponse.json(
-          { error: 'fiscalYearStartMonth must be 1–12' },
-          { status: 400 }
-        );
-      }
-      const { data, error } = await supabase
-        .from('accounting_settings')
-        .update({
-          fiscal_year_start_month: month,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('profile_id', companyId)
-        .select('*')
-        .single();
-      if (error) {
-        // ensure row exists
-        await getOrCreateSettings(companyId);
-        const retry = await supabase
-          .from('accounting_settings')
-          .update({
-            fiscal_year_start_month: month,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('profile_id', companyId)
-          .select('*')
-          .single();
-        if (retry.error) {
-          return NextResponse.json({ error: retry.error.message }, { status: 400 });
-        }
-        return NextResponse.json({
-          success: true,
-          fiscalYearStartMonth: month,
-          settings: retry.data,
-          fy: budgetFyMeta(year, month),
-        });
-      }
-      return NextResponse.json({
-        success: true,
-        fiscalYearStartMonth: month,
-        settings: data,
-        fy: budgetFyMeta(year, month),
-      });
+      return NextResponse.json(
+        {
+          error:
+            'Financial year is set in Company → Settings. Only the owner or finance lead can change it.',
+        },
+        { status: 400 }
+      );
     }
 
     if (action === 'copy_year') {

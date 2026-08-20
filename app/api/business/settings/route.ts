@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember, logActivity } from '@/lib/customers/access';
-import { assertCompanyPermission } from '@/lib/business/access';
+import { logActivity } from '@/lib/customers/access';
+import {
+  assertCompanyPermission,
+  getCompanyMembership,
+} from '@/lib/business/access';
 import { DEFAULT_SETTINGS, type CompanySettings } from '@/lib/business/types';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  requireCompanyAccess,
+  legacyPrivyFrom,
+  ROLES_OWNER_OR_FINANCE,
+} from '@/lib/auth/api-auth';
+import { normalizeFyStartMonth } from '@/lib/accounting/fiscal';
+import { applyCompanyFiscalYearToLedger } from '@/lib/accounting/fiscal-year-sync';
 
 /**
  * GET ?companyId=&privyUserId=
@@ -47,13 +56,15 @@ export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
-    const mem = await assertCompanyPermission(
+    const settingsWrite = await assertCompanyPermission(
       body.privyUserId,
       companyId,
       'settings',
       'write'
     );
-    if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
+    const membership = await getCompanyMembership(body.privyUserId, companyId);
+    const canSetFy =
+      membership.ok && ROLES_OWNER_OR_FINANCE.includes(membership.role);
 
     const supabase = getSupabaseServer();
     const { data: existing, error: loadErr } = await supabase
@@ -66,11 +77,46 @@ export async function PATCH(request: NextRequest) {
     if (!existing) return NextResponse.json({ error: 'Company not found' }, { status: 404 });
 
     const current = mergeSettings(existing);
-    const incoming = (body.settings || {}) as Partial<CompanySettings>;
-    const next: CompanySettings = {
-      ...current,
-      ...pickSettings(incoming),
-    };
+    const incoming = pickSettings((body.settings || {}) as Partial<CompanySettings>);
+    const fyIncoming = incoming.fiscalYearStartMonth;
+    const fyChanged =
+      fyIncoming !== undefined &&
+      normalizeFyStartMonth(Number(fyIncoming)) !==
+        normalizeFyStartMonth(current.fiscalYearStartMonth);
+    if (fyChanged && !canSetFy) {
+      return NextResponse.json(
+        {
+          error:
+            'Only the owner or finance lead can change the financial year.',
+        },
+        { status: 403 }
+      );
+    }
+    const incomingKeys = Object.keys(incoming);
+    const onlyFy =
+      incomingKeys.length === 1 &&
+      incomingKeys[0] === 'fiscalYearStartMonth' &&
+      (body.trading_name == null || body.trading_name === '');
+    if (!settingsWrite.ok) {
+      if (!(fyChanged && canSetFy && onlyFy)) {
+        return NextResponse.json(
+          { error: settingsWrite.error },
+          { status: settingsWrite.status }
+        );
+      }
+    }
+    const next: CompanySettings = settingsWrite.ok
+      ? {
+          ...current,
+          ...incoming,
+          fiscalYearStartMonth: fyChanged
+            ? normalizeFyStartMonth(Number(fyIncoming))
+            : current.fiscalYearStartMonth,
+        }
+      : {
+          ...current,
+          fiscalYearStartMonth: normalizeFyStartMonth(Number(fyIncoming)),
+        };
 
     // Keep top-level columns in sync for discover / money surfaces
     const updates: Record<string, unknown> = {
@@ -133,9 +179,20 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    if (fyChanged) {
+      await applyCompanyFiscalYearToLedger(
+        companyId,
+        next.fiscalYearStartMonth
+      );
+    }
+
     await logActivity({
       profile_id: companyId,
-      actor_user_id: mem.userId,
+      actor_user_id: membership.ok
+        ? membership.userId
+        : settingsWrite.ok
+          ? settingsWrite.userId
+          : String(body.privyUserId || ''),
       action: 'business.settings_updated',
       entity_type: 'profiles',
       entity_id: String(companyId),

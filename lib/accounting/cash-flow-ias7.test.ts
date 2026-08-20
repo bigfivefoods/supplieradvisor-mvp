@@ -2,7 +2,13 @@
  * Run: npx --yes tsx lib/accounting/cash-flow-ias7.test.ts
  */
 import assert from 'node:assert/strict';
-import { classifyGlForCashFlow, isCashAccount } from './cash-flow-ias7';
+import {
+  classifyGlForCashFlow,
+  isCashAccount,
+  isNonCashPnlAccount,
+  isWorkingCapitalAccount,
+  workingCapitalCashEffect,
+} from './cash-flow-ias7';
 
 assert.equal(isCashAccount({ subtype: 'bank', code: '1110' }), true);
 assert.equal(isCashAccount({ subtype: 'receivable', code: '1130' }), false);
@@ -34,5 +40,37 @@ assert.equal(
   classifyGlForCashFlow({ account_type: 'revenue', subtype: 'sales', code: '4100' }),
   'operating'
 );
+
+assert.equal(
+  isNonCashPnlAccount({ account_type: 'expense', subtype: 'depreciation', code: '6800' })
+    .kind,
+  'add_back'
+);
+assert.equal(
+  isNonCashPnlAccount({ account_type: 'revenue', code: '4310' }).kind,
+  'deduct'
+);
+assert.equal(
+  isWorkingCapitalAccount({
+    account_type: 'asset',
+    subtype: 'receivable',
+    code: '1130',
+  }),
+  true
+);
+assert.equal(
+  isWorkingCapitalAccount({ account_type: 'asset', subtype: 'bank', code: '1110' }),
+  false
+);
+assert.equal(
+  isWorkingCapitalAccount({
+    account_type: 'asset',
+    subtype: 'contra_asset',
+    code: '1135',
+  }),
+  false
+);
+assert.equal(workingCapitalCashEffect(1000, 1300), -300);
+assert.equal(workingCapitalCashEffect(-400, -700), 300);
 
 console.log('cash-flow-ias7 classify ok');

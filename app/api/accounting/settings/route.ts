@@ -57,12 +57,25 @@ export async function PATCH(request: NextRequest) {
 
     const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
     if (!_gate.ok) return _gate.response;
+    const acc = await assertAccountingAccess(_gate.userId, companyId, 'write');
+    if (!acc.ok) {
+      return NextResponse.json({ error: acc.error }, { status: acc.status });
+    }
+
+    if (body.fiscal_year_start_month != null) {
+      return NextResponse.json(
+        {
+          error:
+            'Financial year is set in Company → Settings. Only the owner or finance lead can change it.',
+        },
+        { status: 400 }
+      );
+    }
 
     await getOrCreateSettings(companyId);
 
     const allowed = [
       'base_currency',
-      'fiscal_year_start_month',
       'default_tax_rate',
       'invoice_prefix_ar',
       'invoice_prefix_ap',

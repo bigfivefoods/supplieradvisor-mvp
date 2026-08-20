@@ -222,6 +222,7 @@ export async function requireCompanyRoles(
 }
 
 /** Common role sets for sensitive writes */
+export const ROLES_OWNER_OR_FINANCE: TeamRole[] = ['owner', 'finance'];
 export const ROLES_FINANCE_CRITICAL: TeamRole[] = ['owner', 'admin', 'finance'];
 export const ROLES_OPS_CRITICAL: TeamRole[] = ['owner', 'admin', 'operations'];
 export const ROLES_MONEY_OR_OPS: TeamRole[] = [

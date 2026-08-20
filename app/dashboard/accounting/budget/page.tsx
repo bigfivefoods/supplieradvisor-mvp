@@ -88,7 +88,6 @@ function Inner() {
   const [dirty, setDirty] = useState<Record<number, Partial<BudgetRow>>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [savingFy, setSavingFy] = useState(false);
   const [warning, setWarning] = useState<string | null>(null);
   const [yearReady, setYearReady] = useState(false);
 
@@ -289,36 +288,6 @@ function Inner() {
     }
   }
 
-  async function saveFyStart(month: number) {
-    const m = normalizeFyStartMonth(month);
-    setSavingFy(true);
-    try {
-      const res = await fetch('/api/accounting/budgets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId,
-          privyUserId,
-          year,
-          action: 'set_fy_start',
-          fiscalYearStartMonth: m,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to set financial year');
-      setFyStartMonth(m);
-      toast.success(
-        `Financial year starts in ${MONTH_LONG[m - 1]}. Columns updated.`
-      );
-      // Keep same FY start year; reload columns
-      void load();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Failed');
-    } finally {
-      setSavingFy(false);
-    }
-  }
-
   const dirtyCount = Object.keys(dirty).length;
   const yearTotal = displayRows.reduce(
     (s, r) => s + Number(r.annual_total || sumBudgetMonths(r)),
@@ -389,21 +358,18 @@ function Inner() {
             </div>
           </div>
 
-          <label className="text-xs font-semibold text-neutral-600">
+          <div className="text-xs font-semibold text-neutral-600">
             FY starts in
-            <select
-              className="ml-0 mt-1 block w-full min-w-[10rem] rounded-xl border border-neutral-200 px-3 py-2 text-sm font-bold text-slate-900"
-              value={fyStartMonth}
-              disabled={savingFy}
-              onChange={(e) => void saveFyStart(Number(e.target.value))}
+            <p className="mt-1 min-w-[10rem] rounded-xl border border-neutral-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-900">
+              {MONTH_LONG[fyStartMonth - 1]}
+            </p>
+            <Link
+              href="/dashboard/my-business/settings"
+              className="mt-1 block text-[11px] font-bold text-[#0077b6] underline"
             >
-              {MONTH_LONG.map((name, i) => (
-                <option key={name} value={i + 1}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </label>
+              Change in Company → Settings
+            </Link>
+          </div>
 
           <label className="text-xs font-semibold text-neutral-600">
             Budget for FY starting
@@ -453,9 +419,9 @@ function Inner() {
         </div>
         <p className="mt-3 text-[11px] text-neutral-500">
           Columns are ordered by your financial year ({MONTH_LONG[fyStartMonth - 1]}{' '}
-          → {MONTH_LONG[(fyStartMonth + 10) % 12]}). Change the start month any
-          time under Accounting → Settings as well. Existing month amounts stay
-          on the same period slots (m01 = first month of FY).
+          → {MONTH_LONG[(fyStartMonth + 10) % 12]}). The start month is set only
+          in Company → Settings by the owner or finance lead. Existing month
+          amounts stay on the same period slots (m01 = first month of FY).
         </p>
       </Panel>
 

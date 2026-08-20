@@ -458,6 +458,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Overview', href: '/dashboard/accounting', exact: true, desc: 'Books · Advisor fees', section: 'Home' },
       { name: 'Debit orders', href: '/dashboard/accounting/debit-orders', desc: 'Member debit file · VAT incl.', section: 'Home' },
       { name: 'Chart', href: '/dashboard/accounting/chart-of-accounts', section: 'Books' },
+      { name: 'Ledger', href: '/dashboard/accounting/general-ledger', desc: 'General ledger', section: 'Books' },
       { name: 'Journals', href: '/dashboard/accounting/journal-entries', section: 'Books' },
       { name: 'AR', href: '/dashboard/accounting/accounts-receivable', desc: 'Collect', section: 'Trade' },
       {
@@ -478,6 +479,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Plan',
       },
       { name: 'Reports', href: '/dashboard/accounting/reports', section: 'Report' },
+      { name: 'Cash flow', href: '/dashboard/accounting/cash-flow', desc: 'IAS 7 / ASC 230 statement', section: 'Report' },
       { name: 'VAT', href: '/dashboard/accounting/tax', section: 'Report' },
       { name: 'Assets', href: '/dashboard/accounting/fixed-assets', section: 'Report' },
       { name: 'Entities', href: '/dashboard/accounting/entities', section: 'Govern' },

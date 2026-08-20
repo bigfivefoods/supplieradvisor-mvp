@@ -1,6 +1,8 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import type { AccountingSettings, InvoiceLineItem } from './types';
 import { DEFAULT_CHART_OF_ACCOUNTS, DEFAULT_TAX_RATES } from './coa';
+import { overlayLedgerFiscalYear } from '@/lib/accounting/fiscal';
+import { readCompanyFiscalYearStart } from '@/lib/accounting/fiscal-year-sync';
 
 export function parseCompanyId(raw: unknown): number {
   const n = Number(raw);
@@ -15,14 +17,21 @@ export async function getOrCreateSettings(profileId: number): Promise<Accounting
     .eq('profile_id', profileId)
     .maybeSingle();
 
-  if (existing) return existing as AccountingSettings;
+  const companyFy = await readCompanyFiscalYearStart(profileId);
+
+  if (existing) {
+    return overlayLedgerFiscalYear(
+      existing as AccountingSettings,
+      companyFy
+    );
+  }
 
   const { data: created, error } = await supabase
     .from('accounting_settings')
     .insert({
       profile_id: profileId,
       base_currency: 'ZAR',
-      fiscal_year_start_month: 3,
+      fiscal_year_start_month: companyFy ?? 3,
       default_tax_rate: 15,
       invoice_prefix_ar: 'INV',
       invoice_prefix_ap: 'BILL',
@@ -37,7 +46,7 @@ export async function getOrCreateSettings(profileId: number): Promise<Accounting
 
   if (error || !created) {
     // Table may not exist yet — return defaults
-    return {
+    return overlayLedgerFiscalYear({
       profile_id: profileId,
       base_currency: 'ZAR',
       fiscal_year_start_month: 3,
@@ -49,9 +58,9 @@ export async function getOrCreateSettings(profileId: number): Promise<Accounting
       next_ap_number: 1001,
       next_journal_number: 1,
       require_balanced_journals: true,
-    };
+    }, companyFy);
   }
-  return created as AccountingSettings;
+  return overlayLedgerFiscalYear(created as AccountingSettings, companyFy);
 }
 
 export async function nextDocumentNumber(

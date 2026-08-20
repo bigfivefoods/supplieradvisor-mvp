@@ -8,36 +8,89 @@ import {
   fetchJournalLinesByEntryIds,
   fetchPostedJournals,
 } from '@/lib/accounting/journal-query';
+import type {
+  CashFlowClass,
+  Ias7CashFlow,
+  Ias7Line,
+  IndirectAdjust,
+  IndirectOperating,
+} from '@/lib/accounting/statement-types';
 
+export type {
+  CashFlowClass,
+  Ias7CashFlow,
+  Ias7Line,
+  IndirectAdjust,
+  IndirectOperating,
+} from '@/lib/accounting/statement-types';
 
-export type CashFlowClass = 'operating' | 'investing' | 'financing';
+export const CASH_FLOW_POLICIES = [
+  'Presented under IAS 7 Statement of Cash Flows. Operating cash is also reconciled from profit (IAS 7.18; ASC 230 requires this reconciliation when the direct method is shown).',
+  'Cash and cash equivalents are bank and petty-cash GL accounts (IAS 7.6–7). Bank overdrafts in the cash pool are included where they are repayable on demand.',
+  'Interest paid and interest received are classified as operating (ASC 230). IAS 7.33 also permits financing / investing classification — disclose if you reclassify by journal.',
+  'Dividends and owner drawings paid are financing. Taxes paid are operating (ASC 230; IAS 7.35 allows financing if the tax can be specifically identified).',
+  'Non-cash investing and financing (e.g. asset acquired on credit) do not appear as cash flows (IAS 7.43 / ASC 230-10-50-3).',
+] as const;
 
-export type Ias7Line = {
-  name: string;
-  class: CashFlowClass;
-  inflow: number;
-  outflow: number;
-  net: number;
-};
+export function workingCapitalCashEffect(
+  openingDebitMinusCredit: number,
+  closingDebitMinusCredit: number
+): number {
+  return round2(-(closingDebitMinusCredit - openingDebitMinusCredit));
+}
 
-export type Ias7CashFlow = {
-  method: 'direct';
-  from: string;
-  to: string;
-  operating: Ias7Line[];
-  investing: Ias7Line[];
-  financing: Ias7Line[];
-  netOperating: number;
-  netInvesting: number;
-  netFinancing: number;
-  netChange: number;
-  openingCash: number;
-  closingCash: number;
-  impliedClose: number;
-  reconciled: boolean;
-  journalCount: number;
-  warning?: string;
-};
+export function isNonCashPnlAccount(opts: {
+  account_type: string;
+  subtype?: string | null;
+  code?: string | null;
+}): { kind: 'add_back' | 'deduct' | null; name: string } {
+  const s = String(opts.subtype || '').toLowerCase();
+  const c = String(opts.code || '');
+  const t = String(opts.account_type || '').toLowerCase();
+  if (s === 'depreciation' || c === '6800') {
+    return { kind: 'add_back', name: 'Depreciation and amortisation' };
+  }
+  if (s === 'impairment' || c === '6810') {
+    return { kind: 'add_back', name: 'Impairment losses' };
+  }
+  if (s === 'credit_loss' || c === '6820') {
+    return { kind: 'add_back', name: 'Expected credit losses' };
+  }
+  if (c === '6830' || (t === 'expense' && /loss on disposal/i.test(s))) {
+    return { kind: 'add_back', name: 'Loss on disposal of assets' };
+  }
+  if (c === '4310') {
+    return { kind: 'deduct', name: 'Gain on disposal of assets' };
+  }
+  return { kind: null, name: '' };
+}
+
+export function isWorkingCapitalAccount(opts: {
+  account_type: string;
+  subtype?: string | null;
+  code?: string | null;
+}): boolean {
+  const t = String(opts.account_type || '').toLowerCase();
+  const s = String(opts.subtype || '').toLowerCase();
+  const c = String(opts.code || '');
+  if (isCashAccount(opts)) return false;
+  if (t === 'asset' && (s === 'fixed' || c.startsWith('12'))) return false;
+  if (t === 'liability' && (s === 'long_term' || c.startsWith('22'))) return false;
+  if (t === 'equity' || t === 'revenue' || t === 'expense' || t === 'cogs') {
+    return false;
+  }
+  if (s === 'contra_asset') return false;
+  return (
+    s === 'receivable' ||
+    s === 'payable' ||
+    s === 'inventory' ||
+    s === 'tax' ||
+    s === 'current' ||
+    s === 'payroll' ||
+    c.startsWith('11') ||
+    c.startsWith('21')
+  );
+}
 
 type Acct = {
   id: number;
@@ -266,6 +319,15 @@ export async function buildIas7CashFlow(opts: {
   const netChange = round2(netOperating + netInvesting + netFinancing);
   const impliedClose = round2(openingCash + netChange);
 
+  const indirect = buildIndirectOperating({
+    from,
+    to,
+    accounts,
+    cashIds,
+    journals,
+    linesByJe,
+  });
+
   return {
     method: 'direct',
     from,
@@ -283,7 +345,111 @@ export async function buildIas7CashFlow(opts: {
     reconciled: Math.abs(impliedClose - closingCash) < 0.05,
     journalCount,
     warning: warning || lineWarn,
+    indirect,
+    policies: [...CASH_FLOW_POLICIES],
   };
+}
+
+function buildIndirectOperating(opts: {
+  from: string;
+  to: string;
+  accounts: Acct[];
+  cashIds: Set<number>;
+  journals: Array<{ id: number; entry_date: string; source?: string | null }>;
+  linesByJe: Map<
+    number,
+    Array<{ account_id: number; debit: number; credit: number }>
+  >;
+}): IndirectOperating {
+  const open = new Map<number, number>();
+  const close = new Map<number, number>();
+  const period = new Map<number, { debit: number; credit: number }>();
+  const bump = (map: Map<number, number>, id: number, n: number) => {
+    map.set(id, round2((map.get(id) || 0) + n));
+  };
+
+  for (const je of opts.journals) {
+    if (String(je.source || '') === 'year_end_close') continue;
+    const lines = opts.linesByJe.get(je.id) || [];
+    for (const l of lines) {
+      const dc = l.debit - l.credit;
+      if (je.entry_date < opts.from) bump(open, l.account_id, dc);
+      if (je.entry_date <= opts.to) bump(close, l.account_id, dc);
+      if (je.entry_date >= opts.from && je.entry_date <= opts.to) {
+        const cur = period.get(l.account_id) || { debit: 0, credit: 0 };
+        cur.debit += l.debit;
+        cur.credit += l.credit;
+        period.set(l.account_id, cur);
+      }
+    }
+  }
+
+  let profit = 0;
+  const addBack = new Map<string, number>();
+  const deduct = new Map<string, number>();
+  const wc = new Map<string, number>();
+
+  for (const a of opts.accounts) {
+    if (opts.cashIds.has(a.id)) continue;
+    const p = period.get(a.id) || { debit: 0, credit: 0 };
+    const t = String(a.account_type || '').toLowerCase();
+    if (t === 'revenue') profit += p.credit - p.debit;
+    if (t === 'expense' || t === 'cogs') profit -= p.debit - p.credit;
+
+    const nc = isNonCashPnlAccount(a);
+    if (nc.kind === 'add_back') {
+      const amt = round2(p.debit - p.credit);
+      if (Math.abs(amt) >= 0.005) {
+        addBack.set(nc.name, round2((addBack.get(nc.name) || 0) + amt));
+      }
+    } else if (nc.kind === 'deduct') {
+      const amt = round2(p.credit - p.debit);
+      if (Math.abs(amt) >= 0.005) {
+        deduct.set(nc.name, round2((deduct.get(nc.name) || 0) + amt));
+      }
+    }
+
+    if (isWorkingCapitalAccount(a)) {
+      const effect = workingCapitalCashEffect(
+        open.get(a.id) || 0,
+        close.get(a.id) || 0
+      );
+      if (Math.abs(effect) < 0.005) continue;
+      const label =
+        String(a.subtype) === 'receivable'
+          ? 'Trade and other receivables'
+          : String(a.subtype) === 'payable'
+            ? 'Trade and other payables'
+            : String(a.subtype) === 'inventory'
+              ? 'Inventories'
+              : String(a.subtype) === 'tax'
+                ? 'Taxes receivable / payable'
+                : a.name;
+      wc.set(label, round2((wc.get(label) || 0) + effect));
+    }
+  }
+
+  profit = round2(profit);
+  const adjustments: IndirectAdjust[] = [];
+  for (const [name, amount] of addBack) {
+    adjustments.push({ name: `Adjust for ${name.toLowerCase()}`, amount });
+  }
+  for (const [name, amount] of deduct) {
+    adjustments.push({
+      name: `Deduct ${name.toLowerCase()}`,
+      amount: round2(-amount),
+    });
+  }
+  for (const [name, amount] of wc) {
+    adjustments.push({
+      name: `Working capital — ${name}`,
+      amount,
+    });
+  }
+  const netOperating = round2(
+    profit + adjustments.reduce((s, a) => s + a.amount, 0)
+  );
+  return { profit, adjustments, netOperating };
 }
 
 export function ias7ToAfsLines(

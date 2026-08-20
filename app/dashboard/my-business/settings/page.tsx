@@ -21,6 +21,7 @@ import {
 import { Panel } from '@/components/relationship/RelationshipChrome';
 import EnablePushButton from '@/components/pwa/EnablePushButton';
 import ThemeToggle from '@/components/theme/ThemeToggle';
+import { useCompanyRole } from '@/lib/business/useCompanyRole';
 
 export default function BusinessSettingsPage() {
   return (
@@ -35,6 +36,8 @@ function SettingsInner() {
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
   const router = useRouter();
+  const { canWriteModule, canChangeFiscalYear, roleLabel } = useCompanyRole();
+  const canSaveCompany = canWriteModule('settings');
 
   const [tradingName, setTradingName] = useState('');
   const [settings, setSettings] = useState<CompanySettings>(DEFAULT_SETTINGS);
@@ -120,17 +123,30 @@ function SettingsInner() {
   };
 
   const save = async () => {
+    if (!canSaveCompany && !canChangeFiscalYear) {
+      toast.error('You cannot change company settings');
+      return;
+    }
     setSaving(true);
     try {
+      const payload = canSaveCompany
+        ? {
+            companyId,
+            privyUserId,
+            trading_name: tradingName,
+            settings: canChangeFiscalYear
+              ? settings
+              : { ...settings, fiscalYearStartMonth: undefined },
+          }
+        : {
+            companyId,
+            privyUserId,
+            settings: { fiscalYearStartMonth: settings.fiscalYearStartMonth },
+          };
       const res = await fetch('/api/business/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId,
-          privyUserId,
-          trading_name: tradingName,
-          settings,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Save failed');
@@ -162,7 +178,7 @@ function SettingsInner() {
         action={
           <button
             type="button"
-            disabled={saving}
+            disabled={saving || (!canSaveCompany && !canChangeFiscalYear)}
             onClick={() => void save()}
             className="btn-primary !py-2.5 !px-5 text-sm"
           >
@@ -301,8 +317,9 @@ function SettingsInner() {
                 Fiscal year starts (month)
               </label>
               <select
-                className="input mt-1 w-full !p-3 !text-sm"
+                className="input mt-1 w-full !p-3 !text-sm disabled:bg-slate-50 disabled:text-slate-500"
                 value={settings.fiscalYearStartMonth}
+                disabled={!canChangeFiscalYear}
                 onChange={(e) =>
                   setSettings({
                     ...settings,
@@ -316,6 +333,12 @@ function SettingsInner() {
                   </option>
                 ))}
               </select>
+              <p className="text-[10px] text-neutral-500 mt-1">
+                This is the only place the financial year is set. Books, budgets,
+                and AFS follow it. {canChangeFiscalYear
+                  ? 'Owner or finance lead can change it.'
+                  : `Your role (${roleLabel || 'viewer'}) cannot change it.`}
+              </p>
             </div>
           </div>
         </Panel>

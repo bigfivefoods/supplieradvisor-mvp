@@ -1,7 +1,8 @@
 /**
  * Financial year helpers.
- * Default FY starts in March (common in South Africa). Companies set
- * `accounting_settings.fiscal_year_start_month` (1–12) to override.
+ * Default FY starts in March (common in South Africa). The start month is
+ * set only in Company → Settings (owner or finance lead) and applied to the
+ * ledger as `accounting_settings.fiscal_year_start_month`.
  */
 
 export const DEFAULT_FY_START_MONTH = 3; // March
@@ -66,6 +67,29 @@ export function normalizeFyStartMonth(m?: number | null): number {
   const n = Number(m);
   if (!Number.isFinite(n) || n < 1 || n > 12) return DEFAULT_FY_START_MONTH;
   return Math.round(n);
+}
+
+/** Company settings win over a copied ledger column. */
+export function resolveFiscalYearStartMonth(
+  companyMonth?: number | null,
+  ledgerMonth?: number | null
+): number {
+  const c = Number(companyMonth);
+  if (Number.isFinite(c) && c >= 1 && c <= 12) return Math.round(c);
+  return normalizeFyStartMonth(ledgerMonth);
+}
+
+export function overlayLedgerFiscalYear<
+  T extends { fiscal_year_start_month?: number | null },
+>(ledger: T, companyMonth: number | null): T {
+  if (companyMonth == null) return ledger;
+  return {
+    ...ledger,
+    fiscal_year_start_month: resolveFiscalYearStartMonth(
+      companyMonth,
+      ledger.fiscal_year_start_month
+    ),
+  };
 }
 
 /** 0-indexed month for Date constructors */
