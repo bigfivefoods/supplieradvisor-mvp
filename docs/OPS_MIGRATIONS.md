@@ -8,9 +8,11 @@ supabase/migrations/20260820_ensure_system_schema.sql
 
 That creates `company_module_stores`, chrome RPCs, settle tables, and copies existing gym/clinic data out of `profiles.metadata` once. Safe to re-run.
 
-If that already returned `{"ok":true,"module_store_rows":…}`, paste **this** next (re-locks every public table, unique keys, hot indexes, atomic invoice/journal numbers):
+If that already returned `{"ok":true,"module_store_rows":…}`, paste **this** next (re-locks every public table, unique keys, hot indexes, atomic invoice/journal numbers). Same SQL, three easy-to-find copies:
 
 ```text
+RUN_THIS_IN_SUPABASE.sql
+docs/RUN_THIS_IN_SUPABASE.sql
 supabase/migrations/20260821_saas_db_harden.sql
 ```
 
