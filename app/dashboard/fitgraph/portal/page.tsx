@@ -19,8 +19,8 @@ export default function FitgraphPortalPage() {
   return (
     <FitgraphWorkbench
       title="View portal"
-      titleAccent="member app · website"
-      description="See the member PWA and the optional public website. Choose which sections appear on the site."
+      titleAccent="member · coach · programme"
+      description="See the member app (Class · Progress · You · Shop · Share), the coach PWA, a programme follow calendar, and the optional public website. Tick which sections appear on the site."
     >
       {loading || !store ? (
         <LoadingBlock />

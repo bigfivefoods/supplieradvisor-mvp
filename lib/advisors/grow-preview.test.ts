@@ -6,8 +6,11 @@ import { growPreviewCopy, growWebsiteNav } from './grow-preview';
 
 const gym = growPreviewCopy('fitgraph');
 assert.equal(gym.audienceSingular, 'member');
-assert.ok(gym.pwaTabs.includes('Book'));
-assert.equal(gym.pwaActiveTab, 'Book');
+assert.ok(gym.pwaTabs.includes('Class'));
+assert.ok(gym.pwaTabs.includes('You'));
+assert.equal(gym.pwaActiveTab, 'Class');
+assert.equal(gym.showProgramme, true);
+assert.ok(gym.programmeName);
 
 const physio = growPreviewCopy('physiograph');
 assert.equal(physio.audienceSingular, 'patient');

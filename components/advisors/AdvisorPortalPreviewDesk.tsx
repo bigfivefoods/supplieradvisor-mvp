@@ -60,9 +60,9 @@ export function AdvisorPortalPreviewDesk({
   return (
     <div className="space-y-5">
       <p className="text-xs text-slate-600 dark:text-slate-300">
-        Two surfaces: the {copy.audienceSingular} app on their phone, and an
-        optional public website. Tick what to show on the website, save, then
-        the live preview refreshes if you have published it.
+        {module === 'fitgraph'
+          ? 'Four surfaces the owner sees here: member app, coach app, programme follow, and the optional public website. Tick what to show on the website, save, then the live preview refreshes if you have published it.'
+          : `Two surfaces: the ${copy.audienceSingular} app on their phone, and an optional public website. Tick what to show on the website, save, then the live preview refreshes if you have published it.`}
       </p>
 
       <AdvisorGrowPreviews

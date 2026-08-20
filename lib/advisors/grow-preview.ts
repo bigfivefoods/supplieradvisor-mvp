@@ -29,6 +29,10 @@ export type GrowPreviewCopy = {
   staffEyebrow: string;
   staffTabs: string[];
   staffSample: string;
+  /** GymAdvisor (and similar): week calendar members follow */
+  showProgramme?: boolean;
+  programmeName?: string;
+  programmeHint?: string;
 };
 
 export function growWebsiteNav(module: AdvisorPortalModule): string[] {
@@ -41,19 +45,24 @@ export function growPreviewCopy(module: AdvisorPortalModule): GrowPreviewCopy {
       return {
         audience: 'members',
         audienceSingular: 'member',
-        pwaEyebrow: 'Member portal · GymAdvisor®',
-        pwaTabs: ['Book', 'My bookings', 'Subscribe', 'Check in', 'Progress'],
-        pwaActiveTab: 'Book',
+        pwaEyebrow: 'Member · GymAdvisor®',
+        pwaTabs: ['Class', 'Progress', 'You', 'Shop', 'Share'],
+        pwaActiveTab: 'Class',
         sampleTitle: 'Morning strength',
         sampleWhen: 'Tue · 06:00',
-        sampleHint: 'Book a class, check in at the door, and track goals.',
+        sampleHint:
+          'Class diary, programmes on Progress, shop, and You in the centre of the phone dock.',
         websiteCta: 'Book a class',
         showWeekDiary: true,
         color: '#E8E830',
         staffRole: 'contracted coach',
-        staffEyebrow: 'Coach PWA · GymAdvisor®',
+        staffEyebrow: 'Coach · GymAdvisor®',
         staffTabs: ['Today', 'Diary', 'People', 'Inbox', 'Me'],
-        staffSample: 'Today · 06:00 Morning strength · 12 booked',
+        staffSample: '06:00 Morning strength · 12 booked',
+        showProgramme: true,
+        programmeName: 'Hyrox 6',
+        programmeHint:
+          'You build a week-by-week calendar of movements, sell or assign it, and members log feel and effort after each day.',
       };
     case 'physiograph':
       return {
