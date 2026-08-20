@@ -69,6 +69,29 @@ export const REQUIRED_STORE_TABLES: Array<{
   },
 ];
 
+/** Ledger / membership columns that should exist after 20260821_saas_db_harden.sql */
+export const OPTIONAL_LEDGER_COLUMNS: Array<{
+  table: string;
+  column: string;
+  migrationHint: string;
+}> = [
+  {
+    table: 'accounting_settings',
+    column: 'profile_id',
+    migrationHint: '20260821_saas_db_harden.sql',
+  },
+  {
+    table: 'journal_entries',
+    column: 'entry_number',
+    migrationHint: '20260821_saas_db_harden.sql',
+  },
+  {
+    table: 'bank_transactions',
+    column: 'allocation_status',
+    migrationHint: '20260821_saas_db_harden.sql',
+  },
+];
+
 export type ColumnProbe = {
   table: string;
   column: string;
@@ -108,7 +131,10 @@ export async function probeProfileColumns(): Promise<ProfileColumnProbeResult> {
   // Optional commercial columns (soft)
   const optionalMissing: Array<{ table: string; column: string; hint: string }> =
     [];
-  for (const opt of OPTIONAL_COMMERCIAL_COLUMNS) {
+  for (const opt of [
+    ...OPTIONAL_COMMERCIAL_COLUMNS,
+    ...OPTIONAL_LEDGER_COLUMNS,
+  ]) {
     const { error } = await supabase
       .from(opt.table)
       .select(opt.column)
@@ -168,7 +194,7 @@ export async function probeProfileColumns(): Promise<ProfileColumnProbeResult> {
           ? `Missing profiles columns: ${missing.join(', ')}. Run supabase/migrations/20260716_profiles_branch_code.sql and 20260716_bank_account_verification.sql`
         : optionalMissing.length > 0
           ? `Optional columns missing: ${optionalMissing
-              .map((m) => `${m.table}.${m.column}`)
+              .map((m) => `${m.table}.${m.column} (${m.hint})`)
               .join(', ')}`
           : undefined,
   };

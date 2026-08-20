@@ -157,6 +157,13 @@ export async function ingestCanonicalTxns(params: IngestParams): Promise<IngestR
       .insert(chunk)
       .select('id');
     if (insErr) {
+      const unique =
+        insErr.code === '23505' ||
+        /duplicate key|unique constraint/i.test(insErr.message || '');
+      if (unique) {
+        result.duplicates += chunk.length;
+        continue;
+      }
       // Retry without optional columns if migration not applied
       if (
         insErr.message?.includes('provider_txn_id') ||
@@ -191,6 +198,13 @@ export async function ingestCanonicalTxns(params: IngestParams): Promise<IngestR
           .insert(fallback)
           .select('id');
         if (err2) {
+          const unique2 =
+            err2.code === '23505' ||
+            /duplicate key|unique constraint/i.test(err2.message || '');
+          if (unique2) {
+            result.duplicates += chunk.length;
+            continue;
+          }
           result.errors += chunk.length;
           result.error_message = err2.message;
           continue;

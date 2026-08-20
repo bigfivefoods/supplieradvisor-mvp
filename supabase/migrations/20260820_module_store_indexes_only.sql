@@ -1,7 +1,6 @@
+-- SUPERSEDED by 20260820_module_store_secure.sql and 20260821_saas_db_harden.sql.
+-- Do not re-run this file on its own: it writes indexes without the module allowlist.
 -- Gym/clinic module data lives in company_module_stores.
--- Do not copy the full jsonb blob back into profiles.metadata on every save —
--- that rewrite is slow and races desk membership edits.
--- Keep only small index keys (public tokens, coach/client token maps) on metadata.
 
 CREATE OR REPLACE FUNCTION public.sa_put_module_store(
   p_company_id integer,

@@ -3,10 +3,38 @@ import type { AccountingSettings, InvoiceLineItem } from './types';
 import { DEFAULT_CHART_OF_ACCOUNTS, DEFAULT_TAX_RATES } from './coa';
 import { overlayLedgerFiscalYear } from '@/lib/accounting/fiscal';
 import { readCompanyFiscalYearStart } from '@/lib/accounting/fiscal-year-sync';
+import { formatDocumentNumber } from '@/lib/accounting/document-number';
+
+export { formatDocumentNumber } from '@/lib/accounting/document-number';
 
 export function parseCompanyId(raw: unknown): number {
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? n : NaN;
+}
+
+const DEFAULT_LEDGER_SETTINGS = {
+  base_currency: 'ZAR',
+  fiscal_year_start_month: 3,
+  default_tax_rate: 15,
+  invoice_prefix_ar: 'INV',
+  invoice_prefix_ap: 'BILL',
+  journal_prefix: 'JE',
+  next_ar_number: 1001,
+  next_ap_number: 1001,
+  next_journal_number: 1,
+  require_balanced_journals: true,
+} as const;
+
+function isUniqueViolation(error: unknown): boolean {
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? String((error as { code?: string }).code || '')
+      : '';
+  const msg =
+    error && typeof error === 'object' && 'message' in error
+      ? String((error as { message?: string }).message || '')
+      : '';
+  return code === '23505' || /duplicate key|unique constraint/i.test(msg);
 }
 
 export async function getOrCreateSettings(profileId: number): Promise<AccountingSettings> {
@@ -30,34 +58,27 @@ export async function getOrCreateSettings(profileId: number): Promise<Accounting
     .from('accounting_settings')
     .insert({
       profile_id: profileId,
-      base_currency: 'ZAR',
+      ...DEFAULT_LEDGER_SETTINGS,
       fiscal_year_start_month: companyFy ?? 3,
-      default_tax_rate: 15,
-      invoice_prefix_ar: 'INV',
-      invoice_prefix_ap: 'BILL',
-      journal_prefix: 'JE',
-      next_ar_number: 1001,
-      next_ap_number: 1001,
-      next_journal_number: 1,
-      require_balanced_journals: true,
     })
     .select('*')
     .single();
 
+  if (error && isUniqueViolation(error)) {
+    const { data: raced } = await supabase
+      .from('accounting_settings')
+      .select('*')
+      .eq('profile_id', profileId)
+      .maybeSingle();
+    if (raced) {
+      return overlayLedgerFiscalYear(raced as AccountingSettings, companyFy);
+    }
+  }
+
   if (error || !created) {
-    // Table may not exist yet — return defaults
     return overlayLedgerFiscalYear({
       profile_id: profileId,
-      base_currency: 'ZAR',
-      fiscal_year_start_month: 3,
-      default_tax_rate: 15,
-      invoice_prefix_ar: 'INV',
-      invoice_prefix_ap: 'BILL',
-      journal_prefix: 'JE',
-      next_ar_number: 1001,
-      next_ap_number: 1001,
-      next_journal_number: 1,
-      require_balanced_journals: true,
+      ...DEFAULT_LEDGER_SETTINGS,
     }, companyFy);
   }
   return overlayLedgerFiscalYear(created as AccountingSettings, companyFy);
@@ -68,6 +89,14 @@ export async function nextDocumentNumber(
   kind: 'ar' | 'ap' | 'journal'
 ): Promise<string> {
   const supabase = getSupabaseServer();
+  const rpc = await supabase.rpc('sa_next_document_number', {
+    p_company_id: profileId,
+    p_kind: kind,
+  });
+  if (!rpc.error && typeof rpc.data === 'string' && rpc.data.trim()) {
+    return rpc.data.trim();
+  }
+
   const settings = await getOrCreateSettings(profileId);
 
   if (kind === 'ar') {
@@ -77,7 +106,7 @@ export async function nextDocumentNumber(
       .from('accounting_settings')
       .update({ next_ar_number: n + 1, updated_at: new Date().toISOString() })
       .eq('profile_id', profileId);
-    return `${prefix}-${String(n).padStart(5, '0')}`;
+    return formatDocumentNumber(prefix, n);
   }
   if (kind === 'ap') {
     const n = Number(settings.next_ap_number || 1001);
@@ -86,7 +115,7 @@ export async function nextDocumentNumber(
       .from('accounting_settings')
       .update({ next_ap_number: n + 1, updated_at: new Date().toISOString() })
       .eq('profile_id', profileId);
-    return `${prefix}-${String(n).padStart(5, '0')}`;
+    return formatDocumentNumber(prefix, n);
   }
   const n = Number(settings.next_journal_number || 1);
   const prefix = settings.journal_prefix || 'JE';
@@ -94,7 +123,7 @@ export async function nextDocumentNumber(
     .from('accounting_settings')
     .update({ next_journal_number: n + 1, updated_at: new Date().toISOString() })
     .eq('profile_id', profileId);
-  return `${prefix}-${String(n).padStart(5, '0')}`;
+  return formatDocumentNumber(prefix, n);
 }
 
 export function calcInvoiceTotals(

@@ -1,6 +1,9 @@
 -- One-shot: create the stores the live app needs (gym/clinic modules, chrome, settle).
 -- Safe to re-run in the Supabase SQL editor.
 -- After this, GymAdvisor membership saves go to company_module_stores and stay put.
+--
+-- SaaS lock / unique indexes / atomic document numbers:
+-- paste supabase/migrations/20260821_saas_db_harden.sql AFTER this file.
 
 -- ── Advisor module stores ─────────────────────────────────
 
