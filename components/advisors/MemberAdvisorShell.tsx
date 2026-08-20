@@ -151,15 +151,15 @@ export function MemberAdvisorShell<T extends string = string>({
 
   return (
     <div
-      className={`advisor-portal min-h-[100dvh] bg-gradient-to-b ${fromClass} to-slate-50 dark:from-slate-950 dark:to-black`}
+      className={`advisor-portal min-h-[100dvh] bg-gradient-to-b ${fromClass} to-slate-50 dark:from-slate-950 dark:to-black md:flex md:h-[100dvh] md:flex-col md:overflow-hidden`}
     >
       <header
-        className="text-white pt-[env(safe-area-inset-top)]"
+        className="shrink-0 text-white pt-[env(safe-area-inset-top)] md:z-40 md:shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
         style={{
           background: `linear-gradient(135deg, ${color} 0%, color-mix(in srgb, ${color} 55%, #0f172a) 100%)`,
         }}
       >
-        <div className="mx-auto max-w-6xl px-4 py-5 md:px-8 md:py-10">
+        <div className="mx-auto max-w-6xl px-4 py-5 md:px-8 md:py-4">
           <div className="flex items-stretch justify-between gap-3">
             <div className="min-w-0 flex-1">{header}</div>
             <PortalHeaderTools appHref={appHref} spread />
@@ -168,12 +168,12 @@ export function MemberAdvisorShell<T extends string = string>({
       </header>
 
       <div
-        className={`mx-auto grid max-w-6xl gap-6 px-4 py-5 md:grid-cols-[220px_minmax(0,1fr)] md:gap-8 md:px-8 md:py-8 lg:grid-cols-[240px_minmax(0,1fr)] ${
+        className={`mx-auto grid w-full max-w-6xl gap-6 px-4 py-5 md:min-h-0 md:flex-1 md:grid-cols-[220px_minmax(0,1fr)] md:gap-8 md:overflow-y-auto md:px-8 md:py-8 lg:grid-cols-[240px_minmax(0,1fr)] ${
           bottom ? 'pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-8' : ''
         }`}
       >
         <aside className="hidden md:block">
-          <nav className="sticky top-6 space-y-1 rounded-3xl border border-slate-200 bg-white p-2 shadow-sm dark:border-white/10 dark:bg-neutral-900">
+          <nav className="sticky top-0 space-y-1 rounded-3xl border border-slate-200 bg-white p-2 shadow-sm dark:border-white/10 dark:bg-neutral-900">
             {tabs.map((t) => navBtn(t, 'side'))}
           </nav>
         </aside>
