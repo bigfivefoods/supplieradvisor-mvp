@@ -40,6 +40,7 @@ import {
   findGymSaleByRef,
   gymRequiresPaidMembership,
   gymShopCatalog,
+  memberPurchaseHistory,
 } from '@/lib/fitness/gym-shop';
 import {
   parseGymSaleKind,
@@ -228,6 +229,29 @@ function decorateMemberPortal(
         activity_type: w.activity_type || null,
       })),
     diary_open: store.settings?.share_member_calendar !== false,
+    purchase_history: memberPurchaseHistory(store, client),
+    check_ins: (store.check_ins || [])
+      .filter((c) => c.client_id === client.id)
+      .sort((a, b) =>
+        String(b.created_at || '').localeCompare(String(a.created_at || ''))
+      )
+      .slice(0, 40)
+      .map((c) => {
+        const s = c.session_id
+          ? store.sessions.find((x) => x.id === c.session_id)
+          : null;
+        const ct = s ? classTypeById(store, s.class_type_id) : null;
+        return {
+          id: c.id,
+          date: c.date,
+          time: c.time || null,
+          method: c.method || 'other',
+          class_name: ct?.name || null,
+          session_id: c.session_id || null,
+          notes: c.notes || null,
+          created_at: c.created_at,
+        };
+      }),
   };
 }
 
@@ -330,9 +354,18 @@ export async function GET(request: NextRequest) {
       resolved.meta
     );
 
+    const { listGymInventoryShop } = await import(
+      '@/lib/fitness/gym-inventory-shop'
+    );
+    const inventory = await listGymInventoryShop(resolved.companyId);
+
     return NextResponse.json({
       success: true,
-      portal,
+      portal: {
+        ...portal,
+        inventory_products: inventory.filter((i) => i.group === 'goods'),
+        inventory_services: inventory.filter((i) => i.group === 'service'),
+      },
       companyId: resolved.companyId,
       platform_user_linked: Boolean(resolved.client.platform_user_id),
     });
@@ -399,7 +432,7 @@ export async function POST(request: NextRequest) {
           : client.phone || null,
         sessionId: body.session_id ? String(body.session_id) : null,
         clientId: client.id,
-        callbackPath: `/member/fitgraph/${encodeURIComponent(token)}`,
+        callbackPath: `/member/fitgraph/${encodeURIComponent(token)}?tab=join`,
       });
       if (!started.ok) {
         return NextResponse.json(
@@ -942,6 +975,112 @@ export async function POST(request: NextRequest) {
               : 'You are booked into this class',
         },
         portal: buildMemberPortalPayloadBase(store, store.clients[ci]),
+      });
+    }
+
+    if (action === 'hide_goal' || action === 'delete_goal') {
+      const goalId = String(body.goal_id || body.id || '');
+      const prev = (store.goals || []).find(
+        (g) => g.id === goalId && g.client_id === client.id
+      );
+      if (!prev) {
+        return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
+      }
+      const next = {
+        ...prev,
+        status: 'abandoned' as const,
+        updated_at: now,
+      };
+      applyGoalToStore(store, next, `Hid goal · ${next.title}`);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        portal: decorateMemberPortal(
+          store,
+          store.clients[ci],
+          buildMemberPortalPayloadBase(store, store.clients[ci]),
+          meta
+        ),
+        message: 'Goal hidden',
+      });
+    }
+
+    if (action === 'complete_class') {
+      const { completeMemberClass } = await import(
+        '@/lib/fitness/member-complete-class'
+      );
+      const result = completeMemberClass(store, {
+        client,
+        bookingId: String(body.booking_id || ''),
+        now,
+      });
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      await saveStore(companyId, meta, result.store);
+      const nextClient =
+        result.store.clients.find((c) => c.id === client.id) || client;
+      return NextResponse.json({
+        success: true,
+        booking: result.booking,
+        already: result.already,
+        portal: decorateMemberPortal(
+          result.store,
+          nextClient,
+          buildMemberPortalPayloadBase(result.store, nextClient),
+          meta
+        ),
+        message: result.already
+          ? 'Already marked complete'
+          : 'Nice — class marked complete. Rate it if you like.',
+      });
+    }
+
+    if (action === 'submit_feedback' || action === 'rate_class') {
+      const bookingId = String(body.booking_id || '');
+      const booking = store.bookings.find(
+        (b) => b.id === bookingId && b.client_id === client.id
+      );
+      if (!booking) {
+        return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+      }
+      const { upsertClassFeedback } = await import('@/lib/fitness/fitgraph');
+      const row = upsertClassFeedback(store, {
+        session_id: booking.session_id,
+        role: 'member',
+        client_id: client.id,
+        booking_id: booking.id,
+        author_name: client.name,
+        author_email: client.email,
+        feeling: body.feeling,
+        intensity: body.intensity,
+        enjoyment: body.enjoyment,
+        would_return: body.would_return,
+        comment: body.comment != null ? String(body.comment) : undefined,
+        tags: Array.isArray(body.tags)
+          ? (body.tags as unknown[]).map(String)
+          : undefined,
+      });
+      booking.feedback_submitted_at = now;
+      booking.feedback_id = row.id;
+      const { notifyGymClassFeedback } = await import(
+        '@/lib/fitness/notify-class-feedback'
+      );
+      await notifyGymClassFeedback({
+        store,
+        bookingId: booking.id,
+        feedback: row,
+      });
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        portal: decorateMemberPortal(
+          store,
+          store.clients[ci],
+          buildMemberPortalPayloadBase(store, store.clients[ci]),
+          meta
+        ),
+        message: 'Thanks — your coach and the gym have your feedback',
       });
     }
 

@@ -23,6 +23,7 @@ export function MemberGoalsPanel({
   pastClasses,
   busy,
   onSaveGoal,
+  onHideGoal,
   onLogActual,
   onWatchLog,
   onGarminConnect,
@@ -62,6 +63,7 @@ export function MemberGoalsPanel({
     target_date: string;
     unit: string;
   }) => void | Promise<void>;
+  onHideGoal?: (goalId: string) => void | Promise<void>;
   onLogActual: (goalId: string, value: string) => void | Promise<void>;
   onWatchLog: (v: {
     booking_id: string;
@@ -189,6 +191,24 @@ export function MemberGoalsPanel({
                     Log
                   </button>
                 </div>
+              ) : null}
+              {onHideGoal && g.status !== 'abandoned' ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    if (
+                      confirm(
+                        `Hide “${g.title}”? You can set a new goal anytime.`
+                      )
+                    ) {
+                      void onHideGoal(g.id);
+                    }
+                  }}
+                  className="text-[11px] font-bold text-slate-500 underline"
+                >
+                  Hide this goal
+                </button>
               ) : null}
             </li>
           ))}

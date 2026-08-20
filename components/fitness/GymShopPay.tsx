@@ -19,6 +19,7 @@ export function GymShopPay({
   onBuy,
   buyingId,
   hideIdentity,
+  hidePayAccepted,
   joining,
   subscribedIds,
   classSubscribe,
@@ -36,6 +37,7 @@ export function GymShopPay({
   onBuy: (item: GymShopItem) => void;
   buyingId?: string | null;
   hideIdentity?: boolean;
+  hidePayAccepted?: boolean;
   joining?: { fee_zar: number; waived?: boolean; note?: string } | null;
   subscribedIds?: string[];
   classSubscribe?: boolean;
@@ -75,7 +77,9 @@ export function GymShopPay({
             iPhone) or EFT.
           </p>
         )}
-        {payoutReady ? <AdvisorPayAccepted tone="onLight" size="sm" /> : null}
+        {payoutReady && !hidePayAccepted ? (
+          <AdvisorPayAccepted tone="onLight" size="sm" />
+        ) : null}
       </div>
       {joining ? (
         <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">

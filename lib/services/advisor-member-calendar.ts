@@ -17,7 +17,8 @@ import {
 export type DeskMemberNoticeKind =
   | 'member_joined'
   | 'booking_made'
-  | 'booking_request';
+  | 'booking_request'
+  | 'class_feedback';
 
 export type DeskMemberNotice = {
   id: string;

@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
   CalendarPlus,
@@ -246,6 +246,88 @@ export function GymCheckinPass({
           Open gym door page (scan-friendly)
         </a>
       ) : null}
+    </div>
+  );
+}
+
+export function GymClassRateCard({
+  className,
+  date,
+  busy,
+  onSubmit,
+}: {
+  className: string;
+  date?: string;
+  busy?: boolean;
+  onSubmit: (v: {
+    feeling: number;
+    intensity: number;
+    enjoyment: number;
+    comment: string;
+  }) => void | Promise<void>;
+}) {
+  const [feeling, setFeeling] = useState(4);
+  const [intensity, setIntensity] = useState(5);
+  const [enjoyment, setEnjoyment] = useState(4);
+  const [comment, setComment] = useState('');
+  return (
+    <div className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-500/40 dark:bg-amber-950/40">
+      <p className="text-sm font-black text-amber-950 dark:text-amber-100">
+        Rate {className}
+        {date ? ` · ${date}` : ''}
+      </p>
+      <p className="text-[11px] text-amber-900/80 dark:text-amber-100/80">
+        Optional. Your coach and the gym owner both see this.
+      </p>
+      <label className="block text-[10px] font-black uppercase text-amber-900">
+        How it felt · {feeling}/5
+        <input
+          type="range"
+          min={1}
+          max={5}
+          value={feeling}
+          onChange={(e) => setFeeling(Number(e.target.value))}
+          className="mt-1 w-full"
+        />
+      </label>
+      <label className="block text-[10px] font-black uppercase text-amber-900">
+        Effort · {intensity}/10
+        <input
+          type="range"
+          min={1}
+          max={10}
+          value={intensity}
+          onChange={(e) => setIntensity(Number(e.target.value))}
+          className="mt-1 w-full"
+        />
+      </label>
+      <label className="block text-[10px] font-black uppercase text-amber-900">
+        Enjoyment · {enjoyment}/5
+        <input
+          type="range"
+          min={1}
+          max={5}
+          value={enjoyment}
+          onChange={(e) => setEnjoyment(Number(e.target.value))}
+          className="mt-1 w-full"
+        />
+      </label>
+      <textarea
+        className="min-h-16 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm dark:border-amber-500/40 dark:bg-neutral-900"
+        placeholder="Anything the coach should know? (optional)"
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+      />
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() =>
+          void onSubmit({ feeling, intensity, enjoyment, comment: comment.trim() })
+        }
+        className="min-h-10 w-full rounded-xl bg-slate-900 text-sm font-black text-white disabled:opacity-50"
+      >
+        Send to coach &amp; gym
+      </button>
     </div>
   );
 }

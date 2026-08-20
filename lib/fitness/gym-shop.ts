@@ -15,10 +15,13 @@ import {
 } from '@/lib/fitness/fitgraph';
 import type { FitProgramme } from '@/lib/fitness/movements';
 
-export type GymSaleKind = 'membership' | 'programme';
+export type GymSaleKind = 'membership' | 'programme' | 'product';
 
 export function parseGymSaleKind(raw: unknown): GymSaleKind {
-  return String(raw || '') === 'programme' ? 'programme' : 'membership';
+  const v = String(raw || '');
+  if (v === 'programme') return 'programme';
+  if (v === 'product') return 'product';
+  return 'membership';
 }
 export type GymSaleStatus = 'pending' | 'paid' | 'failed';
 
@@ -27,7 +30,9 @@ export type GymSale = {
   kind: GymSaleKind;
   plan_id?: string | null;
   programme_id?: string | null;
+  product_id?: string | null;
   session_id?: string | null;
+  label?: string | null;
   amount_zar: number;
   name: string;
   email: string;
@@ -47,6 +52,8 @@ export type GymShopItem = {
   description?: string;
   price_zar: number;
   billing: string;
+  image_url?: string | null;
+  group?: 'goods' | 'service';
   class_credits?: number | null;
   programme_id?: string | null;
   schedule_label?: string;
@@ -151,6 +158,43 @@ export function clientHasPaidAccess(
 
 export function readGymSales(store: FitgraphStore): GymSale[] {
   return Array.isArray(store.gym_sales) ? store.gym_sales : [];
+}
+
+export function memberPurchaseHistory(
+  store: FitgraphStore,
+  client: { id: string; email?: string | null }
+): Array<{
+  id: string;
+  kind: GymSaleKind;
+  label: string;
+  amount_zar: number;
+  at: string;
+}> {
+  const email = String(client.email || '').trim().toLowerCase();
+  return readGymSales(store)
+    .filter(
+      (s) =>
+        s.status === 'paid' &&
+        (s.client_id === client.id ||
+          (email && String(s.email || '').toLowerCase() === email))
+    )
+    .sort((a, b) =>
+      String(b.paid_at || b.created_at).localeCompare(String(a.paid_at || a.created_at))
+    )
+    .slice(0, 40)
+    .map((s) => ({
+      id: s.id,
+      kind: s.kind,
+      label:
+        s.label ||
+        (s.kind === 'programme'
+          ? 'Programme'
+          : s.kind === 'product'
+            ? 'Product'
+            : 'Membership'),
+      amount_zar: s.amount_zar,
+      at: s.paid_at || s.created_at,
+    }));
 }
 
 export function findGymSaleByRef(
@@ -306,6 +350,10 @@ export function applyPaidGymSale(
       purchased_programme_ids: [...programmes],
       updated_at: now,
     };
+  }
+
+  if (sale.kind === 'product') {
+    /* Retail / inventory purchase — recorded on gym_sales only. */
   }
 
   if (sale.kind === 'programme' && sale.programme_id) {

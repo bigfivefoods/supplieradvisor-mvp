@@ -19,6 +19,10 @@ import {
   type GymSaleKind,
   type GymShopItem,
 } from '@/lib/fitness/gym-shop';
+import {
+  findGymInventoryItem,
+  listGymInventoryShop,
+} from '@/lib/fitness/gym-inventory-shop';
 
 export { parseGymSaleKind };
 
@@ -56,7 +60,28 @@ export async function startGymShopCheckout(opts: {
   if (!name) {
     return { ok: false, error: 'Name is required', status: 400 };
   }
-  const resolvedItem = resolveShopItem(opts.store, opts.kind, opts.itemId);
+  let resolvedItem: { ok: true; item: GymShopItem } | { ok: false; error: string };
+  if (opts.kind === 'product') {
+    const inventory = await listGymInventoryShop(opts.companyId);
+    const found = findGymInventoryItem(inventory, opts.itemId);
+    resolvedItem = found
+      ? {
+          ok: true,
+          item: {
+            kind: 'product',
+            id: found.id,
+            name: found.name,
+            description: found.description,
+            price_zar: found.price_zar,
+            billing: 'once',
+            image_url: found.image_url,
+            group: found.group,
+          },
+        }
+      : { ok: false, error: 'That product is not for sale' };
+  } else {
+    resolvedItem = resolveShopItem(opts.store, opts.kind, opts.itemId);
+  }
   if (!resolvedItem.ok) {
     return { ok: false, error: resolvedItem.error, status: 400 };
   }
@@ -92,6 +117,7 @@ export async function startGymShopCheckout(opts: {
       kind: opts.kind,
       plan_id: opts.kind === 'membership' ? opts.itemId : null,
       programme_id: opts.kind === 'programme' ? opts.itemId : null,
+      product_id: opts.kind === 'product' ? opts.itemId : null,
       session_id: opts.sessionId || null,
       client_id: opts.clientId || null,
       ...advisorSplitMetadata(split),
@@ -106,7 +132,9 @@ export async function startGymShopCheckout(opts: {
     kind: opts.kind,
     plan_id: opts.kind === 'membership' ? opts.itemId : null,
     programme_id: opts.kind === 'programme' ? opts.itemId : null,
+    product_id: opts.kind === 'product' ? opts.itemId : null,
     session_id: opts.sessionId || null,
+    label: resolvedItem.item.name,
     amount_zar: amountZar,
     name,
     email,

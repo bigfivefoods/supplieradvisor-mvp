@@ -167,6 +167,7 @@ assert.equal(
 
 assert.equal(parseGymSaleKind('programme'), 'programme');
 assert.equal(parseGymSaleKind('membership'), 'membership');
+assert.equal(parseGymSaleKind('product'), 'product');
 assert.equal(parseGymSaleKind(''), 'membership');
 
 void newId;

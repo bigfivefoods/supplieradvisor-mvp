@@ -82,7 +82,9 @@ export function AdvisorMemberJoinInbox({
                 ? n.note || 'Wants to join this practice'
                 : n.kind === 'booking_request'
                   ? `Asked to join a full slot · ${n.date || ''} ${n.start_time || ''}`
-                  : `Booked ${n.date || ''} ${n.start_time || ''}`}
+                  : n.kind === 'class_feedback'
+                    ? `Class feedback${n.service_name ? ` · ${n.service_name}` : ''}${n.note ? ` — ${n.note}` : ''}`
+                    : `Booked ${n.date || ''} ${n.start_time || ''}`}
               {n.email ? ` · ${n.email}` : ''}
             </p>
             <div className="mt-2 flex flex-wrap gap-1.5">

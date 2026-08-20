@@ -81,8 +81,25 @@ export default function PublicBookingFeedbackPage() {
   const [wouldReturn, setWouldReturn] = useState(4);
   const [comment, setComment] = useState('');
   const [tags, setTags] = useState<string[]>([]);
+  const [returnTo, setReturnTo] = useState<string | null>(null);
 
   const medical = module === 'medicalgraph';
+
+  useEffect(() => {
+    try {
+      const raw = new URLSearchParams(window.location.search).get('next');
+      if (
+        raw &&
+        raw.startsWith('/') &&
+        !raw.startsWith('//') &&
+        !raw.includes('://')
+      ) {
+        setReturnTo(raw);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -146,6 +163,11 @@ export default function PublicBookingFeedbackPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not save');
       setDone(true);
+      if (returnTo) {
+        window.setTimeout(() => {
+          window.location.assign(returnTo);
+        }, 900);
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Save failed');
     } finally {
@@ -346,9 +368,17 @@ export default function PublicBookingFeedbackPage() {
             <Check className="w-10 h-10 mx-auto text-emerald-400" />
             <h2 className="text-lg font-black">Thank you</h2>
             <p className="text-sm text-slate-300">
-              Your feedback has been sent to the team. It helps them improve
-              future sessions for you.
+              Your feedback has been sent to the coach and the gym. It helps
+              them improve future sessions for you.
             </p>
+            {returnTo ? (
+              <a
+                href={returnTo}
+                className="mt-3 inline-flex min-h-10 items-center justify-center rounded-xl bg-white px-4 text-sm font-black text-slate-900"
+              >
+                Back to Progress
+              </a>
+            ) : null}
           </div>
         ) : (
           <div className="rounded-3xl border border-slate-700 bg-slate-900 p-5 space-y-4">

@@ -497,10 +497,22 @@ export async function POST(request: NextRequest) {
       });
       booking.feedback_submitted_at = now;
       booking.feedback_id = row.id;
+      try {
+        const { notifyGymClassFeedback } = await import(
+          '@/lib/fitness/notify-class-feedback'
+        );
+        await notifyGymClassFeedback({
+          store,
+          bookingId: booking.id,
+          feedback: row,
+        });
+      } catch {
+        /* notice/email is best-effort */
+      }
       await saveMeta(companyId, writeFitgraphToMetadata(meta, store));
       return NextResponse.json({
         success: true,
-        message: 'Thanks — your feedback helps the team improve',
+        message: 'Thanks — your coach and the gym have your feedback',
         feedback_id: row.id,
       });
     }
