@@ -29,6 +29,11 @@ import {
 } from '@/components/accounting/AccountingShell';
 import { Panel } from '@/components/relationship/RelationshipChrome';
 import FxRateStrip from '@/components/fx/FxRateStrip';
+import {
+  AgingBarChart,
+  ChartCard,
+  MixDoughnut,
+} from '@/components/accounting/AccountingCharts';
 
 type Props = {
   direction: InvoiceDirection;
@@ -161,12 +166,42 @@ function Inner({ direction, title, titleAccent, description }: Props) {
       (i) => !['paid', 'void', 'cancelled'].includes(String(i.status)) && (i.balance_due || 0) > 0
     );
     const overdue = open.filter((i) => i.status === 'overdue');
+    const buckets = {
+      current: 0,
+      d1_30: 0,
+      d31_60: 0,
+      d61_90: 0,
+      d90_plus: 0,
+    };
+    const now = Date.now();
+    for (const i of open) {
+      const due = i.due_date ? new Date(i.due_date).getTime() : now;
+      const days = Math.floor((now - due) / 86400000);
+      const bal = Number(i.balance_due || 0);
+      if (days > 90) buckets.d90_plus += bal;
+      else if (days > 60) buckets.d61_90 += bal;
+      else if (days > 30) buckets.d31_60 += bal;
+      else if (days > 0) buckets.d1_30 += bal;
+      else buckets.current += bal;
+    }
+    const byStatus = Array.from(
+      invoices.reduce((m, i) => {
+        const k = String(i.status || 'draft');
+        m.set(k, (m.get(k) || 0) + 1);
+        return m;
+      }, new Map<string, number>())
+    ).map(([label, value]) => ({ label, value }));
     return {
       count: invoices.length,
       open: open.length,
       openAmount: open.reduce((s, i) => s + Number(i.balance_due || 0), 0),
       overdue: overdue.length,
       overdueAmount: overdue.reduce((s, i) => s + Number(i.balance_due || 0), 0),
+      buckets,
+      byStatus,
+      paidAmount: invoices
+        .filter((i) => i.status === 'paid')
+        .reduce((s, i) => s + Number(i.total_amount || 0), 0),
     };
   }, [invoices]);
 
@@ -314,13 +349,28 @@ function Inner({ direction, title, titleAccent, description }: Props) {
         />
         <MiniKpi
           label="Collected / paid"
-          value={formatMoney(
-            invoices
-              .filter((i) => i.status === 'paid')
-              .reduce((s, i) => s + Number(i.total_amount || 0), 0)
-          )}
+          value={formatMoney(totals.paidAmount)}
         />
       </div>
+
+      {invoices.length > 0 ? (
+        <div className="grid gap-4 lg:grid-cols-2 mb-6 print:hidden">
+          <ChartCard
+            title="Aging"
+            subtitle="Open balances by days overdue"
+            height={240}
+          >
+            <AgingBarChart buckets={totals.buckets} />
+          </ChartCard>
+          <ChartCard title="By status" subtitle="Count of invoices" height={240}>
+            <MixDoughnut
+              segments={totals.byStatus}
+              centerLabel="Total"
+              centerValue={String(totals.count)}
+            />
+          </ChartCard>
+        </div>
+      ) : null}
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="relative flex-1">

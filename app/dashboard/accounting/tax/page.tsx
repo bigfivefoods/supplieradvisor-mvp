@@ -26,6 +26,7 @@ import {
   CompanyRequired,
 } from '@/components/accounting/AccountingShell';
 import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
+import { GaapDisclaimer } from '@/components/accounting/GaapDisclaimer';
 import PeriodSlicer, {
   initialPeriodSlicerValue,
   type PeriodSlicerValue,
@@ -476,11 +477,14 @@ function Inner() {
         }
       />
 
-      <PeriodSlicer
-        value={period}
-        onChange={setPeriod}
-        fyStartMonth={fyStartMonth}
-      />
+      <div className="mb-4 print:hidden">
+        <PeriodSlicer
+          value={period}
+          onChange={setPeriod}
+          fyStartMonth={fyStartMonth}
+        />
+      </div>
+      <GaapDisclaimer className="mb-4" />
 
       {loading ? (
         <div className="flex justify-center py-20">

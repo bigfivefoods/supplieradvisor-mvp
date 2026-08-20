@@ -342,11 +342,13 @@ function Inner() {
         }
       />
 
-      <PeriodSlicer
-        value={period}
-        onChange={setPeriod}
-        fyStartMonth={fyStartMonth}
-      />
+      <div className="mb-4 print:hidden">
+        <PeriodSlicer
+          value={period}
+          onChange={setPeriod}
+          fyStartMonth={fyStartMonth}
+        />
+      </div>
 
       <GaapDisclaimer className="mb-6" />
 
@@ -387,12 +389,6 @@ function Inner() {
             />
           </div>
 
-          <SalesOriginSection
-            sales={sales}
-            periodLabel={periodLabel}
-            fallbackTotal={summary?.revenue ?? 0}
-          />
-
           <div className="grid lg:grid-cols-3 gap-3 mb-6">
             <Kpi label="Bank in (period)" value={formatMoney(summary?.bankIn ?? 0)} />
             <Kpi label="Bank out (period)" value={formatMoney(summary?.bankOut ?? 0)} />
@@ -404,6 +400,79 @@ function Inner() {
               />
             </Link>
           </div>
+
+          <div className="grid lg:grid-cols-2 gap-4 mb-8 print:hidden">
+            <ChartCard
+              title="Period P&L bridge"
+              subtitle={`${periodLabel} — revenue through net`}
+              height={280}
+            >
+              <PeriodWaterfall
+                revenue={summary?.revenue ?? 0}
+                cogs={summary?.cogs ?? 0}
+                expenses={summary?.expenses ?? 0}
+                netIncome={summary?.netIncome ?? 0}
+              />
+            </ChartCard>
+            <ChartCard title="Expense mix" subtitle="Operating accounts this period" height={280}>
+              <MixDoughnut
+                segments={expenses.slice(0, 10).map((r) => ({
+                  label: r.name.slice(0, 22),
+                  value: r.amount,
+                }))}
+                centerLabel="OpEx"
+                centerValue={formatMoney(summary?.expenses ?? 0)}
+              />
+            </ChartCard>
+            {trendSeries && trendLabels.length > 0 && (
+              <>
+                <ChartCard
+                  title="12-month P&L trend"
+                  subtitle={`From selected start (${from}) · 12 months forward`}
+                  height={280}
+                  className="lg:col-span-2"
+                >
+                  <PnlTrendChart
+                    labels={trendLabels}
+                    revenue={trendSeries.revenue}
+                    expenses={trendSeries.expenses}
+                    netIncome={trendSeries.netIncome}
+                  />
+                </ChartCard>
+                <ChartCard
+                  title="12-month cash trend"
+                  subtitle={`From selected start (${from}) · bank in / out · net dashed`}
+                  height={260}
+                  className="lg:col-span-2"
+                >
+                  <CashflowChart
+                    labels={trendLabels}
+                    inflow={trendSeries.bankIn}
+                    outflow={trendSeries.bankOut}
+                    net={trendSeries.cashNet}
+                  />
+                </ChartCard>
+              </>
+            )}
+            {income.length > 0 && (
+              <ChartCard title="Income mix" subtitle="Revenue accounts this period" height={280}>
+                <MixDoughnut
+                  segments={income.slice(0, 10).map((r) => ({
+                    label: r.name.slice(0, 22),
+                    value: r.amount,
+                  }))}
+                  centerLabel="Revenue"
+                  centerValue={formatMoney(summary?.revenue ?? 0)}
+                />
+              </ChartCard>
+            )}
+          </div>
+
+          <SalesOriginSection
+            sales={sales}
+            periodLabel={periodLabel}
+            fallbackTotal={summary?.revenue ?? 0}
+          />
 
           {/* Budget (plan) vs actual */}
           {budgetVsActual?.summary?.hasBudget ? (
@@ -674,75 +743,6 @@ function Inner() {
               </>
             )}
           </Panel>
-
-          {/* Visual analytics */}
-          <SectionLabel>Visual management pack</SectionLabel>
-          <div className="grid lg:grid-cols-2 gap-4 mb-8">
-            <ChartCard
-              title="Period P&L bridge"
-              subtitle={`${periodLabel} — revenue through net`}
-              height={280}
-            >
-              <PeriodWaterfall
-                revenue={summary?.revenue ?? 0}
-                cogs={summary?.cogs ?? 0}
-                expenses={summary?.expenses ?? 0}
-                netIncome={summary?.netIncome ?? 0}
-              />
-            </ChartCard>
-            <ChartCard title="Expense mix" subtitle="Operating accounts this period" height={280}>
-              <MixDoughnut
-                segments={expenses.slice(0, 10).map((r) => ({
-                  label: r.name.slice(0, 22),
-                  value: r.amount,
-                }))}
-                centerLabel="OpEx"
-                centerValue={formatMoney(summary?.expenses ?? 0)}
-              />
-            </ChartCard>
-            {trendSeries && trendLabels.length > 0 && (
-              <>
-                <ChartCard
-                  title="12-month P&L trend"
-                  subtitle={`From selected start (${from}) · 12 months forward`}
-                  height={280}
-                  className="lg:col-span-2"
-                >
-                  <PnlTrendChart
-                    labels={trendLabels}
-                    revenue={trendSeries.revenue}
-                    expenses={trendSeries.expenses}
-                    netIncome={trendSeries.netIncome}
-                  />
-                </ChartCard>
-                <ChartCard
-                  title="12-month cash trend"
-                  subtitle={`From selected start (${from}) · bank in / out · net dashed`}
-                  height={260}
-                  className="lg:col-span-2"
-                >
-                  <CashflowChart
-                    labels={trendLabels}
-                    inflow={trendSeries.bankIn}
-                    outflow={trendSeries.bankOut}
-                    net={trendSeries.cashNet}
-                  />
-                </ChartCard>
-              </>
-            )}
-            {income.length > 0 && (
-              <ChartCard title="Income mix" subtitle="Revenue accounts this period" height={280}>
-                <MixDoughnut
-                  segments={income.slice(0, 10).map((r) => ({
-                    label: r.name.slice(0, 22),
-                    value: r.amount,
-                  }))}
-                  centerLabel="Revenue"
-                  centerValue={formatMoney(summary?.revenue ?? 0)}
-                />
-              </ChartCard>
-            )}
-          </div>
 
           <SectionLabel
             action={

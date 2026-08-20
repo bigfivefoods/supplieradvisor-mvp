@@ -48,6 +48,7 @@ import {
   CompanyRequired,
 } from '@/components/accounting/AccountingShell';
 import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
+import { ChartCard, MixDoughnut } from '@/components/accounting/AccountingCharts';
 
 type Pulse = {
   unallocated: number;
@@ -1482,6 +1483,46 @@ function Inner() {
           </div>
           <div className="text-2xl font-black tabular-nums">{accounts.length}</div>
         </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2 mb-6 print:hidden">
+        <ChartCard
+          title="Allocation mix"
+          subtitle="How statement lines sit today"
+          height={240}
+        >
+          <MixDoughnut
+            segments={[
+              { label: 'Unallocated', value: pulse?.unallocated ?? 0 },
+              { label: 'Allocated', value: pulse?.allocated ?? 0 },
+              { label: 'Matched invoice', value: pulse?.matched_invoice ?? 0 },
+              { label: 'Excluded', value: pulse?.excluded ?? 0 },
+            ]}
+            centerLabel="Lines"
+            centerValue={String(
+              (pulse?.unallocated ?? 0) +
+                (pulse?.allocated ?? 0) +
+                (pulse?.matched_invoice ?? 0) +
+                (pulse?.excluded ?? 0)
+            )}
+          />
+        </ChartCard>
+        <ChartCard
+          title="Unallocated cash"
+          subtitle="In versus out still to code"
+          height={240}
+        >
+          <MixDoughnut
+            segments={[
+              { label: 'Unallocated in', value: Math.abs(pulse?.unallocatedIn ?? 0) },
+              { label: 'Unallocated out', value: Math.abs(pulse?.unallocatedOut ?? 0) },
+            ]}
+            centerLabel="To allocate"
+            centerValue={formatMoney(
+              Math.abs(pulse?.unallocatedIn ?? 0) + Math.abs(pulse?.unallocatedOut ?? 0)
+            )}
+          />
+        </ChartCard>
       </div>
 
       <SectionLabel>Bank accounts</SectionLabel>

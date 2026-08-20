@@ -13,6 +13,7 @@ import {
   CompanyRequired,
 } from '@/components/accounting/AccountingShell';
 import { Panel } from '@/components/relationship/RelationshipChrome';
+import { ChartCard, MixDoughnut } from '@/components/accounting/AccountingCharts';
 
 export default function PaymentsPage() {
   return (
@@ -130,6 +131,34 @@ function Inner() {
           <div className="text-xl font-black tabular-nums text-[#0077b6]">{formatMoney(inflow - outflow)}</div>
         </div>
       </div>
+
+      {payments.length > 0 ? (
+        <div className="grid gap-4 lg:grid-cols-2 mb-6 print:hidden">
+          <ChartCard title="Direction" subtitle="Inflow versus outflow" height={240}>
+            <MixDoughnut
+              segments={[
+                { label: 'Inflow', value: inflow },
+                { label: 'Outflow', value: outflow },
+              ]}
+              centerLabel="Net"
+              centerValue={formatMoney(inflow - outflow)}
+            />
+          </ChartCard>
+          <ChartCard title="By method" subtitle="Count of payments" height={240}>
+            <MixDoughnut
+              segments={Array.from(
+                payments.reduce((m, p) => {
+                  const k = String(p.method || 'other');
+                  m.set(k, (m.get(k) || 0) + 1);
+                  return m;
+                }, new Map<string, number>())
+              ).map(([label, value]) => ({ label, value }))}
+              centerLabel="Count"
+              centerValue={String(payments.length)}
+            />
+          </ChartCard>
+        </div>
+      ) : null}
 
       <div className="mb-4">
         <select

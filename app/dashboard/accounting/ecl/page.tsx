@@ -14,6 +14,12 @@ import {
 } from '@/components/accounting/AccountingShell';
 import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
 import {
+  AgingBarChart,
+  ChartCard,
+  MixDoughnut,
+} from '@/components/accounting/AccountingCharts';
+import { GaapDisclaimer } from '@/components/accounting/GaapDisclaimer';
+import {
   DEFAULT_ECL_RATES,
   ECL_BUCKETS,
   type EclBucket,
@@ -170,6 +176,8 @@ function Inner() {
         }
       />
 
+      <GaapDisclaimer className="mb-4" />
+
       <SectionLabel>Aging rates (%)</SectionLabel>
       <Panel className="mb-6">
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-5">
@@ -217,6 +225,38 @@ function Inner() {
               value={formatMoney(sheet.adjustment, ccy, { compact: false })}
               tone={sheet.adjustment >= 0 ? 'amber' : 'emerald'}
             />
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2 mb-6 print:hidden">
+            <ChartCard
+              title="AR aging"
+              subtitle="Open balances by bucket"
+              height={240}
+            >
+              <AgingBarChart
+                buckets={{
+                  current: sheet.byBucket.current.balance,
+                  d1_30: sheet.byBucket.d1_30.balance,
+                  d31_60: sheet.byBucket.d31_60.balance,
+                  d61_90: sheet.byBucket.d61_90.balance,
+                  d90_plus: sheet.byBucket.d90_plus.balance,
+                }}
+              />
+            </ChartCard>
+            <ChartCard
+              title="ECL by bucket"
+              subtitle="Target allowance mix"
+              height={240}
+            >
+              <MixDoughnut
+                segments={ECL_BUCKETS.map((b) => ({
+                  label: BUCKET_LABEL[b],
+                  value: sheet.byBucket[b].ecl,
+                }))}
+                centerLabel="Allowance"
+                centerValue={formatMoney(sheet.targetAllowance, ccy)}
+              />
+            </ChartCard>
           </div>
 
           <SectionLabel>By aging bucket</SectionLabel>

@@ -74,3 +74,62 @@ export function AccountingHeader({
 export function AccountingPage({ children }: { children: React.ReactNode }) {
   return <RelationshipPage>{children}</RelationshipPage>;
 }
+
+/** Print CSS used on cash flow, balance sheet, and other statement pages. */
+export function AccountingPrintStyles() {
+  return (
+    <style>{`
+      @media print {
+        nav, aside, header, .print\\:hidden { display: none !important; }
+        body { background: white !important; }
+        section { break-inside: avoid; }
+      }
+      @page { margin: 16mm; }
+    `}</style>
+  );
+}
+
+/** KPI tile used on cash flow: stats sit above charts, then figures. */
+export function AccountingStat({
+  label,
+  value,
+  warn,
+  sub,
+}: {
+  label: string;
+  value: string;
+  warn?: boolean;
+  sub?: string;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border px-4 py-3 ${
+        warn ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'
+      }`}
+    >
+      <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+        {label}
+      </p>
+      <p className="mt-1 text-sm font-black tabular-nums text-slate-900">{value}</p>
+      {sub ? <p className="mt-0.5 text-[11px] text-slate-500">{sub}</p> : null}
+    </div>
+  );
+}
+
+export function AccountingChartsRow({
+  children,
+  cols = 3,
+}: {
+  children: React.ReactNode;
+  cols?: 2 | 3;
+}) {
+  return (
+    <div
+      className={`grid gap-4 print:hidden ${
+        cols === 2 ? 'lg:grid-cols-2' : 'lg:grid-cols-3'
+      }`}
+    >
+      {children}
+    </div>
+  );
+}

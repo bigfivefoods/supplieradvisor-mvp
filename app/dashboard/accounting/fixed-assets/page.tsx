@@ -13,6 +13,7 @@ import {
   CompanyRequired,
 } from '@/components/accounting/AccountingShell';
 import { Panel } from '@/components/relationship/RelationshipChrome';
+import { ChartCard, MixDoughnut } from '@/components/accounting/AccountingCharts';
 
 type AssetRow = FixedAsset & {
   monthly_depreciation?: number;
@@ -270,6 +271,36 @@ function Inner() {
           <div className="text-xl font-black tabular-nums text-emerald-950">{formatMoney(totalBv)}</div>
         </div>
       </div>
+
+      {assets.length > 0 ? (
+        <div className="grid gap-4 lg:grid-cols-2 mb-6 print:hidden">
+          <ChartCard title="By category" subtitle="Book value" height={240}>
+            <MixDoughnut
+              segments={Array.from(
+                assets
+                  .filter((a) => a.status !== 'disposed')
+                  .reduce((m, a) => {
+                    const k = String(a.category || 'other');
+                    m.set(k, (m.get(k) || 0) + Number(a.book_value || 0));
+                    return m;
+                  }, new Map<string, number>())
+              ).map(([label, value]) => ({ label, value }))}
+              centerLabel="Book"
+              centerValue={formatMoney(totalBv)}
+            />
+          </ChartCard>
+          <ChartCard title="Cost vs book" subtitle="Gross cost and carrying amount" height={240}>
+            <MixDoughnut
+              segments={[
+                { label: 'Book value', value: totalBv },
+                { label: 'Accum. depreciation', value: totalAccum },
+              ]}
+              centerLabel="Cost"
+              centerValue={formatMoney(totalCost)}
+            />
+          </ChartCard>
+        </div>
+      ) : null}
 
       <Panel>
         {loading ? (

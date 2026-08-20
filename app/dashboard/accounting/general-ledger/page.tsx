@@ -1,7 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Loader2, Printer, RefreshCw } from 'lucide-react';
+import {
+  BarChart3,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  PieChart,
+  Printer,
+  RefreshCw,
+} from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -18,6 +26,10 @@ import PeriodSlicer, {
   initialPeriodSlicerValue,
   type PeriodSlicerValue,
 } from '@/components/accounting/PeriodSlicer';
+import {
+  ChartCard,
+  MixDoughnut,
+} from '@/components/accounting/AccountingCharts';
 import type {
   GeneralLedger,
   LedgerAccount,
@@ -181,6 +193,51 @@ function Inner() {
             />
           </div>
           <p className="text-[11px] text-slate-500">{ledger.basis}</p>
+
+          <div className="grid gap-4 lg:grid-cols-2 print:hidden">
+            <ChartCard
+              title="Period mix"
+              subtitle="Debits by account type"
+              icon={PieChart}
+              height={240}
+            >
+              <MixDoughnut
+                segments={['asset', 'liability', 'equity', 'revenue', 'cogs', 'expense']
+                  .map((t) => ({
+                    label: t,
+                    value: ledger.accounts
+                      .filter((a) => a.account_type === t)
+                      .reduce((s, a) => s + a.period_debit, 0),
+                  }))
+                  .filter((s) => s.value > 0)}
+                centerLabel="Debits"
+                centerValue={money(ledger.total_period_debit)}
+              />
+            </ChartCard>
+            <ChartCard
+              title="Largest movements"
+              subtitle="Accounts by period debit"
+              icon={BarChart3}
+              height={240}
+            >
+              <MixDoughnut
+                segments={[...ledger.accounts]
+                  .sort((a, b) => b.period_debit - a.period_debit)
+                  .slice(0, 8)
+                  .map((a) => ({
+                    label: `${a.code} ${a.name}`.slice(0, 22),
+                    value: a.period_debit,
+                  }))}
+                centerLabel="Top"
+                centerValue={money(
+                  [...ledger.accounts]
+                    .sort((a, b) => b.period_debit - a.period_debit)
+                    .slice(0, 8)
+                    .reduce((s, a) => s + a.period_debit, 0)
+                )}
+              />
+            </ChartCard>
+          </div>
 
           <div className="print:hidden">
             <input

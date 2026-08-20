@@ -30,6 +30,7 @@ import {
   CompanyRequired,
 } from '@/components/accounting/AccountingShell';
 import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
+import { GaapDisclaimer } from '@/components/accounting/GaapDisclaimer';
 import PeriodSlicer, {
   initialPeriodSlicerValue,
   type PeriodSlicerValue,
@@ -284,36 +285,26 @@ function Inner() {
         titleAccent="analytics"
         description="Primary statements (P&L, balance sheet, cash flow) plus forecast, ratios, aging and budget vs actual."
         action={
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="btn-secondary !py-2.5 !px-5 text-sm"
-          >
-            <RefreshCw className="w-4 h-4" /> Refresh
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="btn-secondary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" /> Refresh
+            </button>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="btn-primary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
+            >
+              Print / PDF
+            </button>
+          </div>
         }
       />
 
-      <div className="flex flex-wrap gap-2 mb-4">
-        {REPORTS.map((r) => (
-          <button
-            key={r.id}
-            type="button"
-            onClick={() => pickReport(r.id)}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold border transition-all ${
-              report === r.id
-                ? 'border-[#00b4d8] bg-[#00b4d8] text-white shadow-sm shadow-cyan-500/20'
-                : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/40'
-            }`}
-          >
-            {'accent' in r && r.accent && report !== r.id && (
-              <Sparkles className="w-3 h-3 text-amber-500" />
-            )}
-            {r.label}
-          </button>
-        ))}
-      </div>
-
+      <div className="mb-4 print:hidden">
       <PeriodSlicer
         value={period}
         onChange={setPeriod}
@@ -421,6 +412,27 @@ function Inner() {
           </div>
         }
       />
+      </div>
+      <GaapDisclaimer className="mb-4" />
+      <div className="flex flex-wrap gap-2 mb-4 print:hidden">
+        {REPORTS.map((r) => (
+          <button
+            key={r.id}
+            type="button"
+            onClick={() => pickReport(r.id)}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold border transition-all ${
+              report === r.id
+                ? 'border-[#00b4d8] bg-[#00b4d8] text-white shadow-sm shadow-cyan-500/20'
+                : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/40'
+            }`}
+          >
+            {'accent' in r && r.accent && report !== r.id && (
+              <Sparkles className="w-3 h-3 text-amber-500" />
+            )}
+            {r.label}
+          </button>
+        ))}
+      </div>
 
       {loading ? (
         <div className="flex justify-center py-16">

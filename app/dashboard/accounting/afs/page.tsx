@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Loader2, Printer, RefreshCw } from 'lucide-react';
+import { Loader2, Printer, RefreshCw, Scale, PieChart, BarChart3 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -19,6 +19,12 @@ import PeriodSlicer, {
   type PeriodSlicerValue,
 } from '@/components/accounting/PeriodSlicer';
 import type { AfsLine, AfsNote, AfsPack, AfsSection } from '@/lib/accounting/afs-types';
+import {
+  BalanceCompositionChart,
+  ChartCard,
+  MixDoughnut,
+  PeriodWaterfall,
+} from '@/components/accounting/AccountingCharts';
 
 export default function AfsPage() {
   return (
@@ -130,12 +136,14 @@ function Inner() {
             </div>
           }
         />
-        <PeriodSlicer
-          value={period}
-          onChange={setPeriod}
-          fyStartMonth={fyStartMonth}
-          defaultOpen
-        />
+        <div className="mb-4">
+          <PeriodSlicer
+            value={period}
+            onChange={setPeriod}
+            fyStartMonth={fyStartMonth}
+            defaultOpen
+          />
+        </div>
       </div>
 
       <GaapDisclaimer variant="long" className="mb-6" />
@@ -153,6 +161,94 @@ function Inner() {
       ) : (
         <article className="afs-pack space-y-8 text-slate-900">
           <Cover pack={pack} />
+
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+              <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                Assets
+              </p>
+              <p className="mt-1 text-sm font-black tabular-nums">
+                {money(pack.statementOfFinancialPosition.assets.current)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+              <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                Equity
+              </p>
+              <p className="mt-1 text-sm font-black tabular-nums">
+                {money(pack.statementOfFinancialPosition.equity.current)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+              <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                Revenue
+              </p>
+              <p className="mt-1 text-sm font-black tabular-nums">
+                {money(pack.statementOfProfitOrLoss.revenue.current)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+              <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                Profit / (loss)
+              </p>
+              <p className="mt-1 text-sm font-black tabular-nums">
+                {money(pack.statementOfProfitOrLoss.netIncome.current)}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3 print:hidden">
+            <ChartCard
+              title="Financial position"
+              subtitle="Assets · liabilities · equity"
+              icon={Scale}
+              height={240}
+            >
+              <BalanceCompositionChart
+                assets={pack.statementOfFinancialPosition.assets.current}
+                liabilities={pack.statementOfFinancialPosition.liabilities.current}
+                equity={pack.statementOfFinancialPosition.equity.current}
+              />
+            </ChartCard>
+            <ChartCard
+              title="P&L bridge"
+              subtitle="Revenue through net"
+              icon={BarChart3}
+              height={240}
+            >
+              <PeriodWaterfall
+                revenue={pack.statementOfProfitOrLoss.revenue.current}
+                cogs={pack.statementOfProfitOrLoss.cogs.current}
+                expenses={pack.statementOfProfitOrLoss.expenses.current}
+                netIncome={pack.statementOfProfitOrLoss.netIncome.current}
+              />
+            </ChartCard>
+            <ChartCard
+              title="Cash-flow mix"
+              subtitle="IAS 7 activity classes"
+              icon={PieChart}
+              height={240}
+            >
+              <MixDoughnut
+                segments={[
+                  {
+                    label: 'Operating',
+                    value: Math.abs(pack.statementOfCashFlows.netOperating.current),
+                  },
+                  {
+                    label: 'Investing',
+                    value: Math.abs(pack.statementOfCashFlows.netInvesting.current),
+                  },
+                  {
+                    label: 'Financing',
+                    value: Math.abs(pack.statementOfCashFlows.netFinancing.current),
+                  },
+                ]}
+                centerLabel="Net"
+                centerValue={money(pack.statementOfCashFlows.netChange.current)}
+              />
+            </ChartCard>
+          </div>
 
           <nav className="print:hidden">
             <SectionLabel>Contents</SectionLabel>

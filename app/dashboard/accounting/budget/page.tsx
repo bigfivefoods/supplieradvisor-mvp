@@ -14,6 +14,12 @@ import {
   CompanyRequired,
 } from '@/components/accounting/AccountingShell';
 import { Panel } from '@/components/relationship/RelationshipChrome';
+import { AccountingStat } from '@/components/accounting/AccountingShell';
+import {
+  ChartCard,
+  MixDoughnut,
+  PnlStackChart,
+} from '@/components/accounting/AccountingCharts';
 import {
   MONTH_KEYS,
   type FyMonthColumn,
@@ -294,6 +300,37 @@ function Inner() {
     0
   );
 
+  const planByType = useMemo(() => {
+    const isRev = (t: string) =>
+      t === 'revenue' || t === 'income' || t === 'sales';
+    const isCogs = (t: string) => t === 'cogs' || t === 'cost_of_sales';
+    const isExp = (t: string) =>
+      t === 'expense' || t === 'expenses' || t === 'opex';
+    const sumType = (pred: (t: string) => boolean) =>
+      displayRows
+        .filter((r) => pred(String(r.account_type || '').toLowerCase()))
+        .reduce((s, r) => s + Number(r.annual_total || sumBudgetMonths(r)), 0);
+    const monthOf = (pred: (t: string) => boolean) =>
+      headers.map((h) =>
+        displayRows
+          .filter((r) => pred(String(r.account_type || '').toLowerCase()))
+          .reduce((s, r) => s + Number(r[h.key] || 0), 0)
+      );
+    const revenue = sumType(isRev);
+    const cogs = sumType(isCogs);
+    const expenses = sumType(isExp);
+    return {
+      revenue,
+      cogs,
+      expenses,
+      net: revenue - cogs - expenses,
+      labels: headers.map((h) => h.shortLabel),
+      monthRevenue: monthOf(isRev),
+      monthCogs: monthOf(isCogs),
+      monthExpenses: monthOf(isExp),
+    };
+  }, [displayRows, headers]);
+
   return (
     <AccountingPage>
       <AccountingHeader
@@ -410,6 +447,38 @@ function Inner() {
           Company → Settings.
         </p>
       </Panel>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 mb-4">
+        <AccountingStat label="Revenue plan" value={formatMoney(planByType.revenue)} />
+        <AccountingStat label="COGS plan" value={formatMoney(planByType.cogs)} />
+        <AccountingStat label="Expense plan" value={formatMoney(planByType.expenses)} />
+        <AccountingStat label="Net plan" value={formatMoney(planByType.net)} />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2 mb-4 print:hidden">
+        <ChartCard
+          title="12-month plan"
+          subtitle="Revenue, COGS and operating expense"
+          height={260}
+        >
+          <PnlStackChart
+            labels={planByType.labels}
+            revenue={planByType.monthRevenue}
+            cogs={planByType.monthCogs}
+            expenses={planByType.monthExpenses}
+          />
+        </ChartCard>
+        <ChartCard title="Plan mix" subtitle="Annual totals by type" height={260}>
+          <MixDoughnut
+            segments={[
+              { label: 'Revenue', value: planByType.revenue },
+              { label: 'COGS', value: planByType.cogs },
+              { label: 'Expenses', value: planByType.expenses },
+            ]}
+            centerLabel="Net"
+            centerValue={formatMoney(planByType.net)}
+          />
+        </ChartCard>
+      </div>
 
       <Panel className="!p-0 overflow-hidden">
         {loading || !yearReady ? (

@@ -23,9 +23,11 @@ import {
 import {
   AccountingHeader,
   AccountingPage,
+  AccountingStat,
   CompanyRequired,
 } from '@/components/accounting/AccountingShell';
 import { Panel } from '@/components/relationship/RelationshipChrome';
+import { ChartCard, MixDoughnut } from '@/components/accounting/AccountingCharts';
 
 export default function ChartOfAccountsPage() {
   return (
@@ -200,6 +202,63 @@ function Inner() {
           ))}
         </select>
       </div>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 mb-4">
+        <AccountingStat label="Accounts" value={String(accounts.length)} />
+        <AccountingStat
+          label="Active"
+          value={String(accounts.filter((a) => a.is_active !== false).length)}
+        />
+        <AccountingStat
+          label="P&L"
+          value={String(
+            accounts.filter((a) =>
+              ['revenue', 'expense', 'cogs'].includes(String(a.account_type))
+            ).length
+          )}
+        />
+        <AccountingStat
+          label="Balance sheet"
+          value={String(
+            accounts.filter((a) =>
+              ['asset', 'liability', 'equity'].includes(String(a.account_type))
+            ).length
+          )}
+        />
+      </div>
+      {accounts.length > 0 ? (
+        <div className="grid gap-4 lg:grid-cols-2 mb-4 print:hidden">
+          <ChartCard title="By type" subtitle="Account count" height={220}>
+            <MixDoughnut
+              segments={ACCOUNT_TYPES.map((t) => ({
+                label: t.label,
+                value: accounts.filter((a) => String(a.account_type) === t.value)
+                  .length,
+              })).filter((s) => s.value > 0)}
+              centerLabel="CoA"
+              centerValue={String(accounts.length)}
+            />
+          </ChartCard>
+          <ChartCard
+            title="Balances"
+            subtitle="Absolute GL balance by type"
+            height={220}
+          >
+            <MixDoughnut
+              segments={ACCOUNT_TYPES.map((t) => ({
+                label: t.label,
+                value: accounts
+                  .filter((a) => String(a.account_type) === t.value)
+                  .reduce((s, a) => s + Math.abs(Number(a.balance || 0)), 0),
+              })).filter((s) => s.value > 0)}
+              centerLabel="Books"
+              centerValue={formatMoney(
+                accounts.reduce((s, a) => s + Math.abs(Number(a.balance || 0)), 0)
+              )}
+            />
+          </ChartCard>
+        </div>
+      ) : null}
 
       <Panel>
         {loading ? (

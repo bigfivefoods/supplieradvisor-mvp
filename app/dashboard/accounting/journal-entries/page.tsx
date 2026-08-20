@@ -25,9 +25,13 @@ import {
 import {
   AccountingHeader,
   AccountingPage,
+  AccountingStat,
   CompanyRequired,
 } from '@/components/accounting/AccountingShell';
 import { Panel } from '@/components/relationship/RelationshipChrome';
+import PeriodSlicer from '@/components/accounting/PeriodSlicer';
+import { useAccountingPeriod } from '@/lib/accounting/use-period';
+import { ChartCard, MixDoughnut } from '@/components/accounting/AccountingCharts';
 
 type LineForm = {
   account_id: string;
@@ -68,6 +72,11 @@ function Inner() {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [accounts, setAccounts] = useState<CoaAccount[]>([]);
   const [loading, setLoading] = useState(true);
+  const { fyStartMonth, period, setPeriod } = useAccountingPeriod(
+    companyId,
+    privyUserId,
+    'full_fy'
+  );
   const [statusFilter, setStatusFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -89,6 +98,8 @@ function Inner() {
       const params = new URLSearchParams({ companyId: String(companyId) });
       if (privyUserId) params.set('privyUserId', privyUserId);
       if (statusFilter !== 'all') params.set('status', statusFilter);
+      params.set('from', period.from);
+      params.set('to', period.to);
       const [jeRes, coaRes] = await Promise.all([
         fetch(`/api/accounting/journals?${params}`),
         fetch(
@@ -111,7 +122,7 @@ function Inner() {
     } finally {
       setLoading(false);
     }
-  }, [companyId, privyUserId, statusFilter]);
+  }, [companyId, privyUserId, statusFilter, period.from, period.to]);
 
   useEffect(() => {
     void load();
@@ -345,16 +356,14 @@ function Inner() {
         }
       />
 
-      <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-xs text-slate-600 leading-relaxed">
-        <strong className="text-slate-800">Edit / reclassify · </strong>
-        <strong>Draft</strong> → Edit (change COA accounts, amounts, memo) then save or post.{' '}
-        <strong>Posted</strong> → Edit to push lines to a new COA account (system reverses the
-        original and posts your corrected journal). <strong>Reverse</strong> undoes without a
-        replacement. <strong>Bank/VAT</strong> → Bank recon → Unallocate → re-allocate if the
-        source bank line is wrong.
+      <div className="mb-4 print:hidden">
+        <PeriodSlicer
+          value={period}
+          fyStartMonth={fyStartMonth}
+          onChange={setPeriod}
+        />
       </div>
-
-      <div className="mb-4">
+      <div className="mb-4 print:hidden">
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -366,6 +375,65 @@ function Inner() {
           <option value="void">Void</option>
         </select>
       </div>
+
+      <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-xs text-slate-600 leading-relaxed">
+        <strong className="text-slate-800">Edit / reclassify · </strong>
+        <strong>Draft</strong> → Edit (change COA accounts, amounts, memo) then save or post.{' '}
+        <strong>Posted</strong> → Edit to push lines to a new COA account (system reverses the
+        original and posts your corrected journal). <strong>Reverse</strong> undoes without a
+        replacement. <strong>Bank/VAT</strong> → Bank recon → Unallocate → re-allocate if the
+        source bank line is wrong.
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 mb-4">
+        <AccountingStat
+          label="In period"
+          value={String(entries.length)}
+        />
+        <AccountingStat
+          label="Posted"
+          value={String(entries.filter((e) => e.status === 'posted').length)}
+        />
+        <AccountingStat
+          label="Period debit"
+          value={formatMoney(
+            entries.reduce((s, e) => s + Number(e.total_debit || 0), 0)
+          )}
+        />
+        <AccountingStat
+          label="Period credit"
+          value={formatMoney(
+            entries.reduce((s, e) => s + Number(e.total_credit || 0), 0)
+          )}
+        />
+      </div>
+      {entries.length > 0 ? (
+        <div className="grid gap-4 lg:grid-cols-2 mb-4 print:hidden">
+          <ChartCard title="By status" subtitle="Journals in the sliced period" height={220}>
+            <MixDoughnut
+              segments={['posted', 'draft', 'void'].map((st) => ({
+                label: st,
+                value: entries.filter((e) => e.status === st).length,
+              }))}
+              centerLabel="Journals"
+              centerValue={String(entries.length)}
+            />
+          </ChartCard>
+          <ChartCard title="By source" subtitle="How entries were created" height={220}>
+            <MixDoughnut
+              segments={Array.from(
+                entries.reduce((m, e) => {
+                  const k = String(e.source || 'manual');
+                  m.set(k, (m.get(k) || 0) + 1);
+                  return m;
+                }, new Map<string, number>())
+              ).map(([label, value]) => ({ label, value }))}
+              centerLabel="Source"
+              centerValue={String(entries.length)}
+            />
+          </ChartCard>
+        </div>
+      ) : null}
 
       <Panel>
         {loading ? (

@@ -4,12 +4,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { Loader2, Download, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
+import { formatMoney } from '@/lib/accounting/types';
 import {
   AccountingHeader,
   AccountingPage,
+  AccountingStat,
   CompanyRequired,
 } from '@/components/accounting/AccountingShell';
-import { formatMoney } from '@/lib/accounting/types';
+import { ChartCard, MixDoughnut } from '@/components/accounting/AccountingCharts';
 
 type Line = {
   member_name: string;
@@ -81,10 +83,36 @@ function Inner() {
           </div>
         }
       />
-      <p className="mb-4 text-sm text-slate-600">
-        {lines.length} ready · {formatMoney(total)} this run
-        {vat ? ` · sample VAT ${formatMoney(vat.vat)} on exclusive ${formatMoney(vat.exclusive)}` : ''}
-      </p>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 mb-4">
+        <AccountingStat label="Members" value={String(lines.length)} />
+        <AccountingStat label="Batch total" value={formatMoney(total)} />
+        <AccountingStat
+          label="VAT (sample)"
+          value={vat ? formatMoney(vat.vat) : '—'}
+        />
+        <AccountingStat
+          label="Missing bank"
+          value={String(missing.length)}
+          warn={missing.length > 0}
+        />
+      </div>
+      {lines.length > 0 ? (
+        <div className="mb-4 print:hidden">
+          <ChartCard title="By plan" subtitle="Debit amount mix" height={240}>
+            <MixDoughnut
+              segments={Array.from(
+                lines.reduce((m, l) => {
+                  const k = String(l.plan_name || 'Plan');
+                  m.set(k, (m.get(k) || 0) + Number(l.amount_zar || 0));
+                  return m;
+                }, new Map<string, number>())
+              ).map(([label, value]) => ({ label, value }))}
+              centerLabel="Batch"
+              centerValue={formatMoney(total)}
+            />
+          </ChartCard>
+        </div>
+      ) : null}
       {missing.length ? (
         <div className="mb-4 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           {missing.length} member{missing.length === 1 ? '' : 's'} still need debit
