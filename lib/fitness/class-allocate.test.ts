@@ -358,6 +358,17 @@ assert.equal(
   400
 );
 
+const parkedByFlags = allocateMemberToClass(store, {
+  clientId: 'cli_ada',
+  member: false,
+  privateClient: false,
+  now: '2026-08-20T09:00:00.000Z',
+});
+if ('error' in parkedByFlags) throw new Error(parkedByFlags.error);
+const adaOff = store.clients.find((c) => c.id === 'cli_ada')!;
+assert.equal(adaOff.active, false);
+assert.equal(adaOff.membership_status, 'cancelled');
+
 const parked = allocateMemberToClass(store, {
   clientId: 'cli_bev',
   inactive: true,

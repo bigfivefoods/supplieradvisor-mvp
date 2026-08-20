@@ -34,8 +34,8 @@ export default function MembershipAllocatePage() {
       titleAccent="members · private clients"
       description={
         classSubscribe
-          ? 'Toggle Member, Private, or both, then Save. A person can be a class member and a private client. Inactive keeps them on file. Classes they are saved to show on the calendar.'
-          : 'Toggle Member, Private, or both, then Save. A person can be on a plan and a private client. Inactive keeps them on file. Private clients get a coach and a private rate.'
+          ? 'Toggle Member, Private, or both, then Save. A person can be a class member and a private client. Toggle Inactive then Save to keep them on file. Classes they are saved to show on the calendar.'
+          : 'Toggle Member, Private, or both, then Save. A person can be on a plan and a private client. Toggle Inactive then Save to keep them on file. Private clients get a coach and a private rate.'
       }
     >
       {loading || !store ? (

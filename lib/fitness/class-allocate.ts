@@ -618,7 +618,7 @@ export function allocateMemberToClass(
     }
   };
 
-  if (opts.inactive) {
+  const parkOnDesk = () => {
     applyPerson();
     let cancelled = 0;
     for (const other of store.subscriptions) {
@@ -646,6 +646,11 @@ export function allocateMemberToClass(
     client.membership_status = 'cancelled';
     client.membership_plan_id = null;
     client.updated_at = now;
+    return cancelled;
+  };
+
+  if (opts.inactive) {
+    const cancelled = parkOnDesk();
     return { subscription: null, booked: 0, cancelled };
   }
 
@@ -665,7 +670,8 @@ export function allocateMemberToClass(
     }
   }
   if (!isMember && !isPrivate) {
-    return { error: 'Mark this person as a member, a private client, or both' };
+    const cancelled = parkOnDesk();
+    return { subscription: null, booked: 0, cancelled };
   }
   if (isPrivate && !coachId) {
     return { error: 'Select the coach for this private client' };

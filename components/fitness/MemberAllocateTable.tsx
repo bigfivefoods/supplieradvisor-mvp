@@ -163,6 +163,7 @@ export function MemberAllocateTable({
   const [openId, setOpenId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [stayIds, setStayIds] = useState<Record<string, true>>({});
 
   const coaches = useMemo(
     () => (store.coaches || []).filter((c) => c.active !== false),
@@ -194,9 +195,10 @@ export function MemberAllocateTable({
   const people = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return store.clients
-      .filter((c) =>
-        statusFilter === 'active' ? isPersonActive(c) : !isPersonActive(c)
-      )
+      .filter((c) => {
+        if (stayIds[c.id]) return true;
+        return statusFilter === 'active' ? isPersonActive(c) : !isPersonActive(c);
+      })
       .filter((c) =>
         needle
           ? `${c.name} ${c.code} ${c.email || ''} ${c.phone || ''} ${c.notes || ''} ${c.id_number || ''} ${c.occupation || ''} ${c.debit_bank?.bank_name || ''} ${c.debit_bank?.account_number || ''}`
@@ -205,7 +207,7 @@ export function MemberAllocateTable({
           : true
       )
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [store.clients, q, statusFilter]);
+  }, [store.clients, q, statusFilter, stayIds]);
 
   const isOnClass = (c: FitClient) =>
     activeSubs.some((s) => s.client_id === c.id) ||
@@ -344,18 +346,12 @@ export function MemberAllocateTable({
 
   const toggleInactive = (c: FitClient, d: Draft) => {
     if (!d.personActive) return;
-    const parked: Draft = {
-      ...d,
-      personActive: false,
-      member: false,
-      privateClient: false,
-    };
     setDraft(c.id, {
       personActive: false,
       member: false,
       privateClient: false,
     });
-    void parkPerson(c, parked);
+    setOpenId(c.id);
   };
 
   const selectedPlanIds = (d: Draft): string[] =>
@@ -462,6 +458,7 @@ export function MemberAllocateTable({
         phone: d.phone.trim(),
         notes: d.notes,
       });
+      setStayIds((prev) => ({ ...prev, [c.id]: true }));
       setDrafts((prev) => {
         const next = { ...prev };
         delete next[c.id];
@@ -481,12 +478,13 @@ export function MemberAllocateTable({
       toast.error('Name required');
       return;
     }
-    if (!d.personActive) {
-      await parkPerson(c, d);
-      return;
-    }
-    if (!d.member && !d.privateClient) {
-      toast.error('Turn on Member, Private, or both — then Save');
+    if (!d.personActive || (!d.member && !d.privateClient)) {
+      await parkPerson(c, {
+        ...d,
+        personActive: false,
+        member: false,
+        privateClient: false,
+      });
       return;
     }
     const planIds = selectedPlanIds(d);
@@ -580,9 +578,10 @@ export function MemberAllocateTable({
       <p className="text-xs text-slate-600 dark:text-slate-300">
         Toggle <strong>Member</strong>, <strong>Private</strong>, or both, then{' '}
         <strong>Save</strong>. A person can be a class member and a private
-        client. <strong>Inactive</strong> keeps them on file with no class or
-        private coach. Each class has a <strong>standard rate</strong> and an{' '}
-        <strong>actual rate</strong> you charge them.
+        client. Toggle <strong>Inactive</strong> then <strong>Save</strong> to
+        keep them on file with no class or private coach. Each class has a{' '}
+        <strong>standard rate</strong> and an <strong>actual rate</strong> you
+        charge them.
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <input
@@ -613,7 +612,10 @@ export function MemberAllocateTable({
           <button
             key={k}
             type="button"
-            onClick={() => setStatusFilter(k)}
+            onClick={() => {
+              setStatusFilter(k);
+              setStayIds({});
+            }}
             className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
               statusFilter === k
                 ? 'border-yellow-500 bg-yellow-300 text-yellow-950'
@@ -928,8 +930,8 @@ export function MemberAllocateTable({
                           Member · private · inactive
                         </div>
                         <p className="text-[11px] text-slate-500">
-                          Member and Private can both be on. Inactive keeps
-                          them on file with no class or private coach.
+                          Member and Private can both be on. Inactive then Save
+                          keeps them on file with no class or private coach.
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
