@@ -75,13 +75,17 @@ async function run(request: NextRequest) {
     }
 
     const pulse = await loadPaystackWebhookPulse();
-    // Email only when *real* webhooks went quiet, secret missing, or SLA breaches.
-    // GET/cron probes alone never force stale emails between CIPC charges.
+    // Quiet paid traffic (no CIPC for a few days) is not an outage.
+    // Email on missing secret, SLA breaches, or PAYSTACK_WARN_QUIET=1.
+    const warnQuiet =
+      String(process.env.PAYSTACK_WARN_QUIET || '').toLowerCase() === '1' ||
+      String(process.env.PAYSTACK_WARN_QUIET || '').toLowerCase() === 'true';
+    const quietHours =
+      pulse.lastRealAgeHours != null && pulse.lastRealAgeHours >= threshold;
     const stale =
       force ||
       !secretOk ||
-      (pulse.stale && pulse.status === 'stale') ||
-      (pulse.lastRealAgeHours != null && pulse.lastRealAgeHours >= threshold);
+      (warnQuiet && (pulse.stale || quietHours));
 
     // ── Dead-letter auto-replay + SLA breach scan ──────────────────────────
     const deadLetter: Array<{

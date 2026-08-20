@@ -217,8 +217,17 @@ export async function loadOpsBoard(): Promise<OpsBoardSnapshot> {
     warnings.push('Run 20260717_payment_claims_and_ledger_fx.sql');
   if (schema.installments === false)
     warnings.push('Run 20260718_installments_collections.sql');
-  // Only warn on real charge/refund silence — not GET ?ping=1 probe age
-  if (paystack.stale && paystack.status === 'stale' && env.paystackSecret) {
+  // Quiet paid traffic is normal between CIPC charges. Only escalate when
+  // ops explicitly wants silence alerts (PAYSTACK_WARN_QUIET=1).
+  const warnQuiet =
+    String(process.env.PAYSTACK_WARN_QUIET || '').toLowerCase() === '1' ||
+    String(process.env.PAYSTACK_WARN_QUIET || '').toLowerCase() === 'true';
+  if (
+    warnQuiet &&
+    paystack.stale &&
+    paystack.status === 'stale' &&
+    env.paystackSecret
+  ) {
     warnings.push(
       `Paystack real webhook quiet (lastRealAgeHours=${paystack.lastRealAgeHours ?? paystack.ageHours ?? '—'}) — check Dashboard delivery logs`
     );

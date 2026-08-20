@@ -64,7 +64,7 @@ export default function OpsLiveBanner() {
           <p className="font-bold">
             {critical ? 'Production ops blockers (P0)' : 'Ops warnings'}
             {p0.deploy?.commitShort
-              ? ` · deploy ${p0.deploy.commitShort}`
+              ? ` · live ${p0.deploy.commitShort}`
               : ''}
           </p>
           {blockers.length > 0 ? (

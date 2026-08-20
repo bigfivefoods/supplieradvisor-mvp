@@ -113,6 +113,8 @@ node scripts/verify-platform.mjs
 
 **Health:** `/api/system/health` → `checks.paystack.ok` is **false** until the secret is set (public key alone does not count). After adding the secret in Vercel Production env, run **one** redeploy.
 
+No paid CIPC/charge for a few days is **not** a failed deploy. The dashboard banner no longer warns on that quiet gap. Set `PAYSTACK_WARN_QUIET=1` only if you want silence alerts on a high-volume settle environment.
+
 See also `docs/PAYSTACK_WEBHOOK.md` and **`docs/PLATFORM_MAJOR_REQUIREMENTS.md`** (Paystack + Twilio + trade-loop smoke).
 
 ## Twilio WhatsApp (optional — real PDF document in chat)

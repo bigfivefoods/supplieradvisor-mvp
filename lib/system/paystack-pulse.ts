@@ -1,9 +1,10 @@
 /**
  * Last Paystack webhook activity for ops health (from activity_log).
  *
- * Real delivery actions (charge/refund/CIPC) drive "stale".
- * GET ?ping=1 probes prove reachability only — they must not raise a 72h
- * stale warning when there are simply no payments (common between CIPC charges).
+ * Real delivery actions (charge/refund/CIPC) drive lastRealAgeHours.
+ * GET ?ping=1 / cron probes prove reachability only.
+ * A quiet gap between CIPC charges is normal — dashboard banners must not
+ * treat that as a failed deploy. Set PAYSTACK_WARN_QUIET=1 to alert on silence.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 

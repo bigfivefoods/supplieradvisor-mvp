@@ -304,8 +304,18 @@ export async function GET() {
       p0Warnings.push('VERIFYNOW_API_KEY not set — CIPC match soft-fails');
     }
     if (checks.paystack.ok && paystackPulse) {
-      // Stale only for *real* charge/refund silence (not GET ?ping=1 probes).
-      if (paystackPulse.status === 'stale' && paystackPulse.stale) {
+      // Quiet paid traffic is normal between CIPC/charges. Do not put it on
+      // the global dashboard banner — it looks like the deploy failed.
+      // Ops board still shows lastRealAgeHours. Set PAYSTACK_WARN_QUIET=1
+      // to surface silence as a warning (high-volume settle).
+      const warnQuiet =
+        String(process.env.PAYSTACK_WARN_QUIET || '').toLowerCase() === '1' ||
+        String(process.env.PAYSTACK_WARN_QUIET || '').toLowerCase() === 'true';
+      if (
+        warnQuiet &&
+        paystackPulse.status === 'stale' &&
+        paystackPulse.stale
+      ) {
         p0Warnings.push(
           `Paystack real webhook quiet (last charge/CIPC ${paystackPulse.lastRealAgeHours ?? paystackPulse.ageHours ?? '—'}h ago, threshold=${paystackPulse.staleHoursThreshold ?? 72}h) — check Paystack Dashboard → Webhooks delivery logs for https://www.supplieradvisor.com/api/paystack/webhook`
         );
@@ -317,7 +327,6 @@ export async function GET() {
           'Paystack webhook never recorded — set Dashboard URL to /api/paystack/webhook and send a test charge (or GET /api/paystack/webhook?ping=1)'
         );
       }
-      // probe_only = endpoint reachable / ops ping only — not a warning
     }
     // Twilio is optional (wa.me / email fallback). Only warn when explicitly required.
     if (
