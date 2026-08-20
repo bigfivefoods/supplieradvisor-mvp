@@ -40,14 +40,13 @@ export function completeMemberClass(
     return { ok: true, store, booking, already: true };
   }
 
-  const prev = booking.status;
   booking.status = 'attended';
   const prompted = issueFeedbackPrompt(booking, now);
   booking.feedback_token = prompted.feedback_token;
   booking.feedback_requested_at = prompted.feedback_requested_at;
 
   const ci = store.clients.findIndex((c) => c.id === opts.client.id);
-  if (ci >= 0 && prev !== 'attended') {
+  if (ci >= 0) {
     Object.assign(
       store.clients[ci],
       applyAttendanceToPersonStats(store.clients[ci], 'attended', now)
