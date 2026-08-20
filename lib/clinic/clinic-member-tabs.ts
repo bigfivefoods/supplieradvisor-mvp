@@ -3,12 +3,9 @@ export type ClinicMemberTabId =
   | 'open'
   | 'profile'
   | 'care'
-  | 'shop'
   | 'share'
   | 'messages'
   | 'history';
-
-export type ClinicCareDockLabel = 'Rehab' | 'Scripts';
 
 export function isClinicYouTab(tab: ClinicMemberTabId) {
   return tab === 'profile' || tab === 'messages' || tab === 'history';
@@ -24,10 +21,15 @@ export function parseClinicMemberTab(
     return 'open';
   }
   if (t === 'you' || t === 'profile') return 'profile';
-  if (t === 'rehab' || t === 'scripts' || t === 'care' || t === 'records') {
+  if (
+    t === 'care' ||
+    t === 'rehab' ||
+    t === 'scripts' ||
+    t === 'records' ||
+    t === 'shop'
+  ) {
     return 'care';
   }
-  if (t === 'shop') return 'shop';
   if (t === 'share') return 'share';
   if (t === 'messages' || t === 'inbox') return 'messages';
   if (t === 'history') return 'history';

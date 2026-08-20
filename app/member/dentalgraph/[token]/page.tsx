@@ -42,8 +42,8 @@ import type {
   ClinicPortalShopItem,
 } from '@/lib/clinic/clinic-portal-shop';
 import {
+  ClinicCarePacks,
   ClinicFlash,
-  ClinicMemberShop,
   ClinicSectionTitle,
   ClinicSharePanel,
   ClinicYouSubnav,
@@ -346,7 +346,6 @@ export default function MemberDentalgraphPortalPage() {
   if (!portal) return null;
 
   const dock = clinicMemberDockTabs({
-    careLabel: 'Scripts',
     messagesUnread: portal.messages_unread,
   });
   const youTab = isClinicYouTab(tab);
@@ -429,21 +428,12 @@ export default function MemberDentalgraphPortalPage() {
           />
         )}
 
-        {tab === 'shop' && (
-          <ClinicMemberShop
-            items={portal.shop}
-            packs={portal.care_packs}
-            color={color}
-            contactPhone={portal.contact_phone}
-            contactEmail={portal.contact_email}
-          />
-        )}
-
         {tab === 'care' && (
-          <>
-            <ClinicSectionTitle hint="What your dentist has prescribed on your file — scripts, plans and advice.">
-              Scripts
+          <div className="space-y-3">
+            <ClinicSectionTitle hint="Scripts, plans and advice your dentist has prescribed on your file.">
+              Care
             </ClinicSectionTitle>
+            <ClinicCarePacks packs={portal.care_packs} />
             <MemberMedicalShare
               share={portal.medical_share}
               plans={portal.treatment_plans}
@@ -452,7 +442,7 @@ export default function MemberDentalgraphPortalPage() {
               tone="sky"
               heading="Prescribed scripts"
             />
-          </>
+          </div>
         )}
 
         {(portal.patient?.family || []).filter((m: { active?: boolean }) => m.active !== false).length >

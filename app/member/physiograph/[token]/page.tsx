@@ -42,8 +42,8 @@ import type {
   ClinicPortalShopItem,
 } from '@/lib/clinic/clinic-portal-shop';
 import {
+  ClinicCarePacks,
   ClinicFlash,
-  ClinicMemberShop,
   ClinicSectionTitle,
   ClinicSharePanel,
   ClinicYouSubnav,
@@ -324,7 +324,6 @@ export default function MemberPhysiographPortalPage() {
   if (!portal) return null;
 
   const dock = clinicMemberDockTabs({
-    careLabel: 'Rehab',
     messagesUnread: portal.messages_unread,
   });
   const youTab = isClinicYouTab(tab);
@@ -407,21 +406,12 @@ export default function MemberPhysiographPortalPage() {
           />
         )}
 
-        {tab === 'shop' && (
-          <ClinicMemberShop
-            items={portal.shop}
-            packs={portal.care_packs}
-            color={color}
-            contactPhone={portal.contact_phone}
-            contactEmail={portal.contact_email}
-          />
-        )}
-
         {tab === 'care' && (
-          <>
-            <ClinicSectionTitle hint="What your physio has prescribed on your file — rehab, plans and advice.">
-              Rehab
+          <div className="space-y-3">
+            <ClinicSectionTitle hint="Rehab, plans and advice your physio has prescribed on your file.">
+              Care
             </ClinicSectionTitle>
+            <ClinicCarePacks packs={portal.care_packs} />
             <MemberMedicalShare
               share={portal.medical_share}
               plans={portal.treatment_plans}
@@ -430,7 +420,7 @@ export default function MemberPhysiographPortalPage() {
               tone="teal"
               heading="Prescribed rehab"
             />
-          </>
+          </div>
         )}
 
         {(portal.patient?.family || []).filter((m: { active?: boolean }) => m.active !== false).length >

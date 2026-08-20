@@ -2,28 +2,20 @@
 
 import type { ReactNode } from 'react';
 import {
-  Activity,
   CalendarCheck,
   CalendarDays,
+  HeartPulse,
   MessageSquare,
-  Pill,
   Share2,
-  ShoppingBag,
   User,
 } from 'lucide-react';
 import type { MemberAdvisorTab } from '@/components/advisors/MemberAdvisorShell';
 import { AdvisorSharePanel } from '@/components/advisors/AdvisorSharePanel';
 import { advisorBrandInk } from '@/lib/advisors/brand-ink';
-import type {
-  ClinicPortalCarePack,
-  ClinicPortalShopItem,
-} from '@/lib/clinic/clinic-portal-shop';
-import type {
-  ClinicCareDockLabel,
-  ClinicMemberTabId,
-} from '@/lib/clinic/clinic-member-tabs';
+import type { ClinicPortalCarePack } from '@/lib/clinic/clinic-portal-shop';
+import type { ClinicMemberTabId } from '@/lib/clinic/clinic-member-tabs';
 
-export type { ClinicCareDockLabel, ClinicMemberTabId } from '@/lib/clinic/clinic-member-tabs';
+export type { ClinicMemberTabId } from '@/lib/clinic/clinic-member-tabs';
 export {
   isClinicYouTab,
   parseClinicMemberTab,
@@ -31,17 +23,14 @@ export {
 } from '@/lib/clinic/clinic-member-tabs';
 
 export function clinicMemberDockTabs({
-  careLabel,
   messagesUnread,
 }: {
-  careLabel: ClinicCareDockLabel;
   messagesUnread?: number;
 }): {
   tabs: MemberAdvisorTab<ClinicMemberTabId>[];
   mobileTabs: MemberAdvisorTab<ClinicMemberTabId>[];
 } {
   const unread = messagesUnread || undefined;
-  const careIcon = careLabel === 'Rehab' ? <Activity /> : <Pill />;
   const tabs: MemberAdvisorTab<ClinicMemberTabId>[] = [
     { id: 'mine', label: 'Book', icon: <CalendarCheck /> },
     { id: 'open', label: 'Schedule', icon: <CalendarDays /> },
@@ -51,8 +40,7 @@ export function clinicMemberDockTabs({
       icon: <User />,
       covers: ['history'] as ClinicMemberTabId[],
     },
-    { id: 'care', label: careLabel, icon: careIcon },
-    { id: 'shop', label: 'Shop', icon: <ShoppingBag /> },
+    { id: 'care', label: 'Care', icon: <HeartPulse /> },
     { id: 'share', label: 'Share', icon: <Share2 /> },
     {
       id: 'messages',
@@ -71,8 +59,7 @@ export function clinicMemberDockTabs({
       badge: unread,
       covers: ['profile', 'messages', 'history'] as ClinicMemberTabId[],
     },
-    { id: 'care', label: careLabel, icon: careIcon },
-    { id: 'shop', label: 'Shop', icon: <ShoppingBag /> },
+    { id: 'care', label: 'Care', icon: <HeartPulse /> },
     { id: 'share', label: 'Share', icon: <Share2 /> },
   ];
   return { tabs, mobileTabs };
@@ -189,114 +176,35 @@ export function ClinicSharePanel({
   );
 }
 
-function moneyZar(n: number | null | undefined) {
-  if (n == null || !Number.isFinite(Number(n))) return null;
-  return `R${Number(n)}`;
-}
-
-export function ClinicMemberShop({
-  items,
+export function ClinicCarePacks({
   packs,
-  color,
-  contactPhone,
-  contactEmail,
 }: {
-  items?: ClinicPortalShopItem[] | null;
   packs?: ClinicPortalCarePack[] | null;
-  color: string;
-  contactPhone?: string;
-  contactEmail?: string;
 }) {
-  const ink = advisorBrandInk(color);
-  const list = items || [];
   const packList = (packs || []).filter(
     (p) => p.status !== 'cancelled' && p.status !== 'expired'
   );
-  const empty = list.length === 0 && packList.length === 0;
-
+  if (!packList.length) return null;
   return (
-    <div className="space-y-3">
-      <ClinicSectionTitle hint="Care packs on your file and services this practice lists. Ask the desk to book or purchase.">
-        Shop
-      </ClinicSectionTitle>
-      {packList.length ? (
-        <ul className="space-y-2">
-          {packList.map((p) => (
-            <li
-              key={p.id}
-              className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900"
-            >
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                On your file
-              </p>
-              <p className="mt-0.5 font-black text-slate-900 dark:text-white">
-                {p.label || 'Care pack'}
-              </p>
-              <p className="text-xs text-slate-500">
-                {p.remaining} remaining
-                {p.sessions_total != null ? ` of ${p.sessions_total}` : ''}
-                {p.expires_at ? ` · expires ${p.expires_at}` : ''}
-              </p>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {list.length ? (
-        <ul className="space-y-2">
-          {list.map((item) => (
-            <li
-              key={`${item.kind}:${item.id}`}
-              className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    {item.kind === 'package' ? 'Pack' : 'Service'}
-                  </p>
-                  <p className="font-black text-slate-900 dark:text-white">
-                    {item.name}
-                  </p>
-                  {item.description ? (
-                    <p className="mt-1 text-xs text-slate-500">{item.description}</p>
-                  ) : null}
-                  <p className="mt-1 text-[11px] font-semibold text-slate-500">
-                    {[
-                      item.sessions_total != null
-                        ? `${item.sessions_total} sessions`
-                        : null,
-                      item.duration_min != null
-                        ? `${item.duration_min} min`
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </p>
-                </div>
-                {moneyZar(item.price_zar) ? (
-                  <span
-                    className="shrink-0 rounded-full px-2.5 py-1 text-xs font-black"
-                    style={{ backgroundColor: color, color: ink }}
-                  >
-                    {moneyZar(item.price_zar)}
-                  </span>
-                ) : null}
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {empty ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 dark:border-white/15 dark:bg-neutral-900">
-          This practice has not listed products yet. Ask the desk if you expected a
-          pack or service here.
-        </div>
-      ) : (
-        <p className="text-xs text-slate-500">
-          To buy or use a pack, ask the practice
-          {contactPhone ? ` · ${contactPhone}` : ''}
-          {contactEmail ? ` · ${contactEmail}` : ''}.
-        </p>
-      )}
-    </div>
+    <ul className="space-y-2">
+      {packList.map((p) => (
+        <li
+          key={p.id}
+          className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900"
+        >
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+            Care pack
+          </p>
+          <p className="mt-0.5 font-black text-slate-900 dark:text-white">
+            {p.label || 'Care pack'}
+          </p>
+          <p className="text-xs text-slate-500">
+            {p.remaining} remaining
+            {p.sessions_total != null ? ` of ${p.sessions_total}` : ''}
+            {p.expires_at ? ` · expires ${p.expires_at}` : ''}
+          </p>
+        </li>
+      ))}
+    </ul>
   );
 }

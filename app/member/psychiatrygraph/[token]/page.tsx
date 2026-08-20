@@ -42,8 +42,8 @@ import type {
   ClinicPortalShopItem,
 } from '@/lib/clinic/clinic-portal-shop';
 import {
+  ClinicCarePacks,
   ClinicFlash,
-  ClinicMemberShop,
   ClinicSectionTitle,
   ClinicSharePanel,
   ClinicYouSubnav,
@@ -323,7 +323,6 @@ export default function MemberPsychiatrygraphPortalPage() {
   if (!portal) return null;
 
   const dock = clinicMemberDockTabs({
-    careLabel: 'Scripts',
     messagesUnread: portal.messages_unread,
   });
   const youTab = isClinicYouTab(tab);
@@ -406,15 +405,7 @@ export default function MemberPsychiatrygraphPortalPage() {
           />
         )}
 
-        {tab === 'shop' && (
-          <ClinicMemberShop
-            items={portal.shop}
-            packs={portal.care_packs}
-            color={color}
-            contactPhone={portal.contact_phone}
-            contactEmail={portal.contact_email}
-          />
-        )}
+
 
 
         {(portal.patient?.family || []).filter((m: { active?: boolean }) => m.active !== false).length >
@@ -483,10 +474,11 @@ export default function MemberPsychiatrygraphPortalPage() {
         )}
 
         {tab === 'care' && (
-          <>
-            <ClinicSectionTitle hint="What your clinician has prescribed on your file — scripts, plans and advice.">
-              Scripts
+          <div className="space-y-3">
+            <ClinicSectionTitle hint="Scripts, plans and advice your clinician has prescribed on your file.">
+              Care
             </ClinicSectionTitle>
+            <ClinicCarePacks packs={portal.care_packs} />
             <MemberMedicalShare
               share={portal.medical_share}
               plans={portal.treatment_plans}
@@ -495,7 +487,7 @@ export default function MemberPsychiatrygraphPortalPage() {
               tone="rose"
               heading="Prescribed scripts"
             />
-          </>
+          </div>
         )}
 
         {tab === 'messages' && (
