@@ -13,7 +13,7 @@ import {
   readHiregraphFromMetadata,
 } from '@/lib/hire/hiregraph';
 import {
-  isAdvisorPayoutReady,
+  isAdvisorCardPayReady,
   readAdvisorPayout,
 } from '@/lib/billing/advisor-payout';
 
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     }
     return NextResponse.json({
       success: true,
-      payout_ready: isAdvisorPayoutReady(readAdvisorPayout(hit.meta)),
+      payout_ready: isAdvisorCardPayReady(readAdvisorPayout(hit.meta)),
       site: buildHirePublicWebsitePayload(hit.store, { companyName: hit.name }),
     });
   } catch (e: unknown) {

@@ -6,10 +6,13 @@ import {
   ADVISOR_PLATFORM_FEE_PCT,
   ADVISOR_PAYSTACK_BEARER,
   accountLast4,
+  advisorPaystackInitFields,
   advisorPaystackSplitFromMeta,
   advisorSplitMetadata,
   emptyAdvisorPayoutPublic,
+  isAdvisorCardPayReady,
   isAdvisorPayoutReady,
+  isPlatformPaystackConfigured,
   normalizeAccountNumber,
   previewAdvisorPayoutSplit,
   publicAdvisorPayout,
@@ -58,6 +61,11 @@ const sample: AdvisorPayoutRecord = {
 assert.equal(isAdvisorPayoutReady(sample), true);
 assert.equal(isAdvisorPayoutReady({ ...sample, active: false }), false);
 assert.equal(isAdvisorPayoutReady(null), false);
+assert.equal(isAdvisorCardPayReady(sample), true);
+assert.equal(
+  isAdvisorCardPayReady(null),
+  isPlatformPaystackConfigured()
+);
 
 const pub = publicAdvisorPayout(sample);
 assert.equal(pub.ready, true);
@@ -77,19 +85,46 @@ if (split.ok) {
 }
 
 const blocked = advisorPaystackSplitFromMeta({}, 'desk');
-assert.equal(blocked.ok, false);
-if (!blocked.ok) {
-  assert.match(blocked.error, /Connect a payout bank/);
+if (isPlatformPaystackConfigured()) {
+  assert.equal(blocked.ok, true);
+  if (blocked.ok) {
+    assert.equal(blocked.subaccount, '');
+    assert.equal(blocked.bearer, 'account');
+  }
+} else {
+  assert.equal(blocked.ok, false);
+  if (!blocked.ok) {
+    assert.match(blocked.error, /not configured on this environment/);
+  }
 }
 
 const memberBlocked = advisorPaystackSplitFromMeta(
   writeAdvisorPayout({}, { ...sample, active: false }),
   'member'
 );
-assert.equal(memberBlocked.ok, false);
-if (!memberBlocked.ok) {
-  assert.match(memberBlocked.error, /has not connected/);
+if (isPlatformPaystackConfigured()) {
+  assert.equal(memberBlocked.ok, true);
+} else {
+  assert.equal(memberBlocked.ok, false);
+  if (!memberBlocked.ok) {
+    assert.match(memberBlocked.error, /not available right now/);
+  }
 }
+
+const platformInit = advisorPaystackInitFields({
+  subaccount: '',
+  bearer: 'account',
+});
+assert.equal(platformInit.subaccount, undefined);
+assert.equal(platformInit.bearer, undefined);
+assert.equal(platformInit.extraMetadata.platform_collect, true);
+
+const gymInit = advisorPaystackInitFields({
+  subaccount: 'ACCT_testgym1',
+  bearer: 'subaccount',
+});
+assert.equal(gymInit.subaccount, 'ACCT_testgym1');
+assert.equal(gymInit.bearer, 'subaccount');
 
 const extra = advisorSplitMetadata(sample);
 assert.equal(extra.advisor_split, true);
@@ -126,5 +161,15 @@ assert.equal(memberBody.subaccount, 'ACCT_testgym1');
 assert.equal(memberBody.bearer, 'subaccount');
 assert.equal(memberBody.amount, 100000);
 assert.equal((memberBody.metadata as { product: string }).product, 'member_account');
+
+const platformBody = buildPaystackInitializeBody({
+  email: 'member@example.com',
+  amountCents: 45000,
+  reference: 'gym-sale-platform',
+  subaccount: platformInit.subaccount,
+  bearer: platformInit.bearer,
+});
+assert.equal(platformBody.subaccount, undefined);
+assert.equal(platformBody.bearer, undefined);
 
 console.log('advisor-payout.test.ts ok');

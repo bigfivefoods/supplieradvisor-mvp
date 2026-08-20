@@ -1,12 +1,14 @@
 /**
  * Start a Paystack gym shop charge (membership or programme).
- * Settles via Advisor subaccount (1% admin). Apple Pay is a Paystack channel.
+ * Collects on SupplierAdvisor Paystack (Apple Pay is a channel). Splits 1%
+ * admin to SA when the gym has a payout subaccount; otherwise the charge
+ * stays on the platform merchant.
  */
 import { initializePaystackTransaction } from '@/lib/billing/paystack-plans';
 import { PAYSTACK_CHANNELS_DEFAULT } from '@/lib/billing/paystack-client';
 import {
+  advisorPaystackInitFields,
   advisorPaystackSplitFromMeta,
-  advisorSplitMetadata,
   previewAdvisorPayoutSplit,
 } from '@/lib/billing/advisor-payout';
 import { getAppUrl } from '@/lib/resend';
@@ -89,6 +91,7 @@ export async function startGymShopCheckout(opts: {
   if (!split.ok) {
     return { ok: false, error: split.error, status: 400 };
   }
+  const charge = advisorPaystackInitFields(split);
   const amountZar = resolvedItem.item.price_zar;
   const saleId = newId('gsl');
   const reference = `gym-sale-${opts.companyId}-${Date.now().toString(36)}`;
@@ -108,8 +111,8 @@ export async function startGymShopCheckout(opts: {
     reference,
     callbackUrl,
     channels: [...PAYSTACK_CHANNELS_DEFAULT],
-    subaccount: split.subaccount,
-    bearer: split.bearer,
+    subaccount: charge.subaccount,
+    bearer: charge.bearer,
     metadata: {
       product: 'gym_sale',
       company_id: opts.companyId,
@@ -120,7 +123,7 @@ export async function startGymShopCheckout(opts: {
       product_id: opts.kind === 'product' ? opts.itemId : null,
       session_id: opts.sessionId || null,
       client_id: opts.clientId || null,
-      ...advisorSplitMetadata(split),
+      ...charge.extraMetadata,
       platform_fee_zar: preview.platform_fee_zar,
     },
   });

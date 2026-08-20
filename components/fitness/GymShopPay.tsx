@@ -174,7 +174,7 @@ export function GymShopPay({
       ) : null}
       {!payoutReady ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-950">
-          This gym has not connected card / Apple Pay yet. You can still leave
+          Card / Apple Pay is not available right now. You can still leave
           your details — ask reception to take payment.
         </p>
       ) : null}

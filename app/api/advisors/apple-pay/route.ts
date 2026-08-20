@@ -10,7 +10,7 @@ import {
 } from '@/lib/auth/api-auth';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
-  isAdvisorPayoutReady,
+  isAdvisorCardPayReady,
   readAdvisorPayout,
 } from '@/lib/billing/advisor-payout';
 import {
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     const snap = await applePaySetupSnapshot();
     return NextResponse.json({
       success: true,
-      payout_ready: isAdvisorPayoutReady(readAdvisorPayout(meta)),
+      payout_ready: isAdvisorCardPayReady(readAdvisorPayout(meta)),
       ...snap,
     });
   } catch (e: unknown) {

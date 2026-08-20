@@ -43,7 +43,7 @@ import {
 } from '@/lib/business/company-logo';
 import { verifyPaystackTransaction } from '@/lib/billing/paystack';
 import {
-  isAdvisorPayoutReady,
+  isAdvisorCardPayReady,
   readAdvisorPayout,
 } from '@/lib/billing/advisor-payout';
 import {
@@ -217,7 +217,7 @@ function decorateMemberPortal(
     shop: gymShopCatalog(store),
     require_paid_membership: gymRequiresPaidMembership(store),
     paid_access: clientHasPaidAccess(store, client),
-    payout_ready: isAdvisorPayoutReady(readAdvisorPayout(meta)),
+    payout_ready: isAdvisorCardPayReady(readAdvisorPayout(meta)),
     subscriptions: mySubs,
     class_report: buildClassSubscriptionReport(store, {
       clientId: client.id,

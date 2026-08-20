@@ -13,7 +13,7 @@ import {
   readRetailgraphFromMetadata,
 } from '@/lib/retail/retailgraph';
 import {
-  isAdvisorPayoutReady,
+  isAdvisorCardPayReady,
   readAdvisorPayout,
 } from '@/lib/billing/advisor-payout';
 
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     }
     return NextResponse.json({
       success: true,
-      payout_ready: isAdvisorPayoutReady(readAdvisorPayout(hit.meta)),
+      payout_ready: isAdvisorCardPayReady(readAdvisorPayout(hit.meta)),
       site: buildRetailPublicWebsitePayload(hit.store, { companyName: hit.name }),
     });
   } catch (e: unknown) {

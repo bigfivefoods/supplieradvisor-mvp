@@ -1,6 +1,7 @@
 /**
  * GymAdvisor paid shop — memberships and programmes.
- * Money settles via Paystack subaccounts (1% admin). Members pay first.
+ * Card / Apple Pay collects on SupplierAdvisor Paystack. When the gym has
+ * a payout bank, Paystack splits 1% admin to SA; otherwise SA holds funds.
  */
 import {
   evaluateMemberAccess,

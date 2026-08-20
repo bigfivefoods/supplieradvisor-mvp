@@ -1,20 +1,22 @@
 /**
  * Advisor card / Apple Pay settlement.
  *
- * Money is collected on SupplierAdvisor’s Paystack merchant and split:
- * 1% admin fee to SA, the rest to the Advisor subaccount. The Advisor
- * bears Paystack card fees (`bearer: subaccount`). Members are not
- * surcharged. SaaS subscriptions stay on the main account (no split).
+ * Money is collected on SupplierAdvisor’s Paystack merchant. When the
+ * gym/practice has connected a payout bank, Paystack splits 1% admin to
+ * SA and the rest to their subaccount (`bearer: subaccount`). Until then,
+ * the charge still goes through SA (Apple Pay / card) and can be settled
+ * later. Members are not surcharged. SaaS stays on the main account.
  */
+import { getPaystackSecretKey } from '@/lib/billing/paystack';
 export const ADVISOR_PLATFORM_FEE_PCT = 1;
 export const ADVISOR_PAYSTACK_BEARER = 'subaccount' as const;
 export const ADVISOR_PAYOUT_META_KEY = 'advisor_payout';
 
 export const ADVISOR_PAYOUT_REQUIRED_DESK =
-  'Connect a payout bank on Accounts before taking card or Apple Pay. Members pay the listed price; you pay a 1% admin fee plus Paystack card fees.';
+  'Card / Apple Pay is collected on SupplierAdvisor Paystack, which is not configured on this environment.';
 
 export const ADVISOR_PAYOUT_REQUIRED_MEMBER =
-  'This Advisor has not connected card / Apple Pay yet. Send proof of payment or pay at the desk.';
+  'Card / Apple Pay is not available right now. You can still leave your details — ask reception to take payment.';
 
 export type AdvisorPayoutRecord = {
   subaccount_code: string;
@@ -120,6 +122,21 @@ export function isAdvisorPayoutReady(
   return Boolean(payout?.active && String(payout.subaccount_code || '').trim());
 }
 
+/** SA Paystack merchant can take card / Apple Pay. */
+export function isPlatformPaystackConfigured(): boolean {
+  return Boolean(getPaystackSecretKey());
+}
+
+/**
+ * Members can pay on the Advisor store. A gym subaccount is only required
+ * to split settlement to that gym’s bank — collection always runs on SA.
+ */
+export function isAdvisorCardPayReady(
+  payout: AdvisorPayoutRecord | null | undefined
+): boolean {
+  return isAdvisorPayoutReady(payout) || isPlatformPaystackConfigured();
+}
+
 export function publicAdvisorPayout(
   payout: AdvisorPayoutRecord | null | undefined
 ): AdvisorPayoutPublic {
@@ -151,22 +168,29 @@ export function advisorPaystackSplitFromMeta(
   meta: Record<string, unknown> | null | undefined,
   audience: 'desk' | 'member'
 ):
-  | { ok: true; subaccount: string; bearer: typeof ADVISOR_PAYSTACK_BEARER }
+  | {
+      ok: true;
+      subaccount: string;
+      bearer: typeof ADVISOR_PAYSTACK_BEARER | 'account';
+    }
   | { ok: false; error: string } {
   const payout = readAdvisorPayout(meta);
-  if (!isAdvisorPayoutReady(payout)) {
+  if (isAdvisorPayoutReady(payout)) {
     return {
-      ok: false,
-      error:
-        audience === 'desk'
-          ? ADVISOR_PAYOUT_REQUIRED_DESK
-          : ADVISOR_PAYOUT_REQUIRED_MEMBER,
+      ok: true,
+      subaccount: payout.subaccount_code,
+      bearer: ADVISOR_PAYSTACK_BEARER,
     };
   }
+  if (isPlatformPaystackConfigured()) {
+    return { ok: true, subaccount: '', bearer: 'account' };
+  }
   return {
-    ok: true,
-    subaccount: payout.subaccount_code,
-    bearer: ADVISOR_PAYSTACK_BEARER,
+    ok: false,
+    error:
+      audience === 'desk'
+        ? ADVISOR_PAYOUT_REQUIRED_DESK
+        : ADVISOR_PAYOUT_REQUIRED_MEMBER,
   };
 }
 
@@ -180,5 +204,30 @@ export function advisorSplitMetadata(
     platform_fee_pct: ADVISOR_PLATFORM_FEE_PCT,
     subaccount_code: code,
     bearer: ADVISOR_PAYSTACK_BEARER,
+  };
+}
+
+/** Paystack initialize fields. Empty subaccount = SA merchant collect, no split. */
+export function advisorPaystackInitFields(split: {
+  subaccount: string;
+  bearer: typeof ADVISOR_PAYSTACK_BEARER | 'account';
+}): {
+  subaccount?: string;
+  bearer?: typeof ADVISOR_PAYSTACK_BEARER | 'account';
+  extraMetadata: Record<string, unknown>;
+} {
+  const code = String(split.subaccount || '').trim();
+  if (!code) {
+    return {
+      extraMetadata: {
+        platform_collect: true,
+        platform_fee_pct: ADVISOR_PLATFORM_FEE_PCT,
+      },
+    };
+  }
+  return {
+    subaccount: code,
+    bearer: split.bearer,
+    extraMetadata: advisorSplitMetadata({ subaccount: code }),
   };
 }

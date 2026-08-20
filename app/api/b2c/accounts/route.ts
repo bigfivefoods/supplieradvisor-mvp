@@ -48,8 +48,8 @@ import {
 import { initializePaystackTransaction } from '@/lib/billing/paystack-plans';
 import { verifyPaystackTransaction } from '@/lib/billing/paystack';
 import {
+  advisorPaystackInitFields,
   advisorPaystackSplitFromMeta,
-  advisorSplitMetadata,
   previewAdvisorPayoutSplit,
 } from '@/lib/billing/advisor-payout';
 import { applyMemberAccountPaystack } from '@/lib/b2c/member-account-apply-paystack';
@@ -390,6 +390,7 @@ export async function POST(request: NextRequest) {
       if (!split.ok) {
         return NextResponse.json({ error: split.error }, { status: 400 });
       }
+      const charge = advisorPaystackInitFields(split);
       const paymentId = newMemberAccountId('map');
       const reference = `sa-memacc-${companyId}-${Date.now().toString(36)}`;
       const splitPreview = previewAdvisorPayoutSplit(amountZar);
@@ -399,14 +400,14 @@ export async function POST(request: NextRequest) {
         currency: 'ZAR',
         reference,
         callbackUrl: `${getAppUrl()}/me?tab=account&pay=1&ref=${encodeURIComponent(reference)}&companyId=${companyId}`,
-        subaccount: split.subaccount,
-        bearer: split.bearer,
+        subaccount: charge.subaccount,
+        bearer: charge.bearer,
         metadata: {
           product: 'member_account',
           company_id: companyId,
           payment_id: paymentId,
           charge_ids: selected.map((c) => c.id).join(','),
-          ...advisorSplitMetadata(split),
+          ...charge.extraMetadata,
           platform_fee_zar: splitPreview.platform_fee_zar,
           custom_fields: [
             { display_name: 'Product', variable_name: 'product', value: 'member_account' },
@@ -420,7 +421,7 @@ export async function POST(request: NextRequest) {
             {
               display_name: 'Split',
               variable_name: 'advisor_split',
-              value: '1pct_subaccount',
+              value: charge.subaccount ? '1pct_subaccount' : 'platform_collect',
             },
           ],
         },

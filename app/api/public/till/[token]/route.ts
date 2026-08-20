@@ -10,7 +10,7 @@ import {
   readTillSessions,
 } from '@/lib/till/sessions';
 import {
-  isAdvisorPayoutReady,
+  isAdvisorCardPayReady,
   readAdvisorPayout,
 } from '@/lib/billing/advisor-payout';
 
@@ -47,7 +47,7 @@ export async function GET(
     if (!session) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
-    const payoutReady = isAdvisorPayoutReady(readAdvisorPayout(meta));
+    const payoutReady = isAdvisorCardPayReady(readAdvisorPayout(meta));
     return NextResponse.json({
       success: true,
       session: {

@@ -129,7 +129,7 @@ export default function TillPayPage() {
             </p>
           ) : peek.kind !== 'wallet' && peek.payout_ready === false ? (
             <p className="mt-6 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-bold text-amber-950">
-              This Advisor has not connected card / Apple Pay yet. Ask the desk
+              Card / Apple Pay is not available right now. Ask the desk
               for cash or proof of payment.
             </p>
           ) : !ready ? (

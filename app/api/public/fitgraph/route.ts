@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
 import { verifyPaystackTransaction } from '@/lib/billing/paystack';
 import {
-  isAdvisorPayoutReady,
+  isAdvisorCardPayReady,
   readAdvisorPayout,
 } from '@/lib/billing/advisor-payout';
 import {
@@ -189,7 +189,7 @@ export async function GET(request: NextRequest) {
       success: true,
       calendar,
       shop: gymShopCatalog(resolved.store),
-      payout_ready: isAdvisorPayoutReady(readAdvisorPayout(resolved.meta)),
+      payout_ready: isAdvisorCardPayReady(readAdvisorPayout(resolved.meta)),
       companyId: resolved.companyId,
     });
   } catch (e: unknown) {
