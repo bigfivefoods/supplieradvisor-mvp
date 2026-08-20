@@ -240,7 +240,7 @@ function HubInner() {
         }
       />
 
-      <FieldgraphSystemFlow />
+      <FieldgraphSystemFlow defaultCollapsed />
 
       {loading ? (
         <div className="py-16 flex justify-center">

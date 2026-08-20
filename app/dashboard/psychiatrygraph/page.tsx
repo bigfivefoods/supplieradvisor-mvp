@@ -426,9 +426,9 @@ function Inner() {
         </>
       )}
 
-      <div className="mt-8">
-        <PsychiatrygraphSystemFlow />
+      <div className="mt-8 space-y-3">
         <AdvisorSystemOverview module="psychiatrygraph" />
+        <PsychiatrygraphSystemFlow defaultCollapsed />
       </div>
 
       <div className="my-8 grid sm:grid-cols-2 gap-3">

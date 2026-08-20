@@ -98,9 +98,9 @@ export default function RetailgraphHubPage() {
           </div>
         )}
 
-        <div className="mt-8 mb-6">
-          <RetailgraphSystemFlow defaultCollapsed={false} />
+        <div className="mt-8 mb-6 space-y-3">
           <AdvisorSystemOverview module="retailgraph" />
+          <RetailgraphSystemFlow defaultCollapsed />
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">

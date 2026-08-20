@@ -435,9 +435,9 @@ function Inner() {
         </>
       )}
 
-      <div className="mt-8">
-        <PhysiographSystemFlow />
+      <div className="mt-8 space-y-3">
         <AdvisorSystemOverview module="physiograph" />
+        <PhysiographSystemFlow defaultCollapsed />
       </div>
 
       <div className="my-8 grid sm:grid-cols-2 gap-3">

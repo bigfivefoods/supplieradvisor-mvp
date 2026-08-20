@@ -1,6 +1,6 @@
 /**
  * Advisor system overview - high-level "why this OS" copy for the
- * command hub (after the E2E process design) and the A4 one-pager PDF.
+ * command hub (before the E2E process design) and the A4 one-pager PDF.
  *
  * Client-safe: no pdfkit. PDF builder lives in system-overview-pdf.ts.
  */
@@ -435,12 +435,16 @@ const BY_MODULE: Record<AdvisorOverviewModule, AdvisorSystemOverviewCopy> = {
     headline:
       'Run the floor on GymAdvisor. Run the company on Core. Members use SA Member.',
     promise:
-      'Coaches, classes and memberships on one gym OS - dual-written to People, Customers 360 and Finance. Plan vs actual, waitlist and re-engagement without a second spreadsheet.',
+      'Coaches, classes, memberships and training programmes on one gym OS - dual-written to People, Customers 360 and Finance. Plan vs actual, waitlist and programme follow without a second spreadsheet.',
     core: CORE_GYM,
     advisor: [
       {
         title: 'Coaches & classes',
         body: 'Tenure, rates, contracts and class types. Rooms on the calendar.',
+      },
+      {
+        title: 'Movements & programmes',
+        body: 'Library of movements. Week-by-weekday programmes you build, sell or assign. Coach and member see the same calendar.',
       },
       {
         title: 'Plan vs actual',
@@ -455,18 +459,22 @@ const BY_MODULE: Record<AdvisorOverviewModule, AdvisorSystemOverviewCopy> = {
         body: 'Class subscriptions set the fee. Debit-order bank or card / Apple Pay.',
       },
       {
-        title: 'Website & marketplace',
-        body: 'Gym bio, embed, public contracts, marketplace listing.',
+        title: 'Grow · portal & apps',
+        body: 'Member dock (Class · Progress · You · Shop · Share), coach PWA, programme follow, optional public website.',
       },
     ],
     clients: [
       {
         title: 'Free SA Member app',
-        body: 'Profile, household and class plan on their phone.',
+        body: 'Class, Progress, You in the centre circle, Shop and Share on their phone.',
       },
       {
         title: 'Book & waitlist',
         body: 'Covered classes, waitlist, family members on the same membership.',
+      },
+      {
+        title: 'Follow a programme',
+        body: 'Calendar of movements on Progress. Log feel and effort after each day. Coach notes come back.',
       },
       {
         title: 'After class',
@@ -474,7 +482,7 @@ const BY_MODULE: Record<AdvisorOverviewModule, AdvisorSystemOverviewCopy> = {
       },
       {
         title: 'Pay their way',
-        body: 'Card / Apple Pay to your bank, or wait for the owner debit-order file.',
+        body: 'Card / Apple Pay to your bank, or wait for the owner debit-order file. Buy a programme in Shop.',
       },
       {
         title: 'Messages',

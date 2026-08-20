@@ -23,6 +23,8 @@ assert.match(advisorSystemOverviewFilename('medicalgraph'), /MedicalAdvisor-Syst
 const gym = advisorSystemOverview('fitgraph');
 assert.match(gym.headline, /GymAdvisor/);
 assert.equal(gym.clientNoun, 'members');
+assert.ok(gym.advisor.some((x) => /programme/i.test(x.title + x.body)));
+assert.ok(gym.clients.some((x) => /programme/i.test(x.title + x.body)));
 
 async function main() {
   const buf = await buildAdvisorSystemOverviewPdf('medicalgraph');

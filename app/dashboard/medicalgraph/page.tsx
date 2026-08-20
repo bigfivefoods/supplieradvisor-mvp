@@ -456,9 +456,9 @@ function Inner() {
         </>
       )}
 
-      <div className="mt-8">
-        <MedicalgraphSystemFlow />
+      <div className="mt-8 space-y-3">
         <AdvisorSystemOverview module="medicalgraph" />
+        <MedicalgraphSystemFlow defaultCollapsed />
       </div>
 
       <div className="my-8 grid sm:grid-cols-2 gap-3">

@@ -224,9 +224,9 @@ export default function HiregraphHubPage() {
           </HubTelemetryGrid>
         )}
 
-        <div className="mt-8">
-          <HiregraphSystemFlow />
+        <div className="mt-8 space-y-3">
           <AdvisorSystemOverview module="hiregraph" />
+          <HiregraphSystemFlow defaultCollapsed />
         </div>
 
         <div className="mt-8 space-y-6">

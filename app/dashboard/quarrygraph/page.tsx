@@ -254,7 +254,7 @@ function HubInner() {
         }
       />
 
-      <QuarrygraphSystemFlow />
+      <QuarrygraphSystemFlow defaultCollapsed />
 
       {loading ? (
         <div className="py-16 flex justify-center">

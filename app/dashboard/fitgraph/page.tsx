@@ -530,11 +530,12 @@ function Inner() {
         </>
       )}
 
-      <div className="mt-8">
+      <div className="mt-8 space-y-3">
+        <AdvisorSystemOverview module="fitgraph" />
         <FitgraphSystemFlow
+          defaultCollapsed
           hasFrontDesk={summary?.hasFrontDesk !== false}
         />
-        <AdvisorSystemOverview module="fitgraph" />
       </div>
 
       <div className="my-8 grid sm:grid-cols-2 gap-3">

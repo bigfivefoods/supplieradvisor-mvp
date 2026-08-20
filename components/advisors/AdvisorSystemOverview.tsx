@@ -1,11 +1,12 @@
 'use client';
 
 /**
- * High-level Advisor system overview — sits after the E2E process design.
+ * High-level Advisor system overview — sits before the E2E process design.
  * Two columns: what the OS does for the business (Core + Advisor) and
- * for clients. Downloadable A4 one-pager.
+ * for clients. Collapsed on the command hub. Downloadable A4 one-pager.
  */
-import { Download, Sparkles } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, Download, Sparkles } from 'lucide-react';
 import {
   advisorSystemOverview,
   advisorSystemOverviewPdfUrl,
@@ -67,24 +68,32 @@ const ACCENT: Record<
 
 export default function AdvisorSystemOverview({
   module,
+  defaultCollapsed = true,
 }: {
   module: AdvisorOverviewModule;
+  defaultCollapsed?: boolean;
 }) {
   const copy = advisorSystemOverview(module);
   const a = ACCENT[module];
   const pdfHref = advisorSystemOverviewPdfUrl(module, { download: true });
+  const [open, setOpen] = useState(!defaultCollapsed);
 
   return (
     <section
-      className="rounded-3xl border border-slate-200 bg-white overflow-hidden mb-6 dark:border-neutral-800 dark:bg-neutral-950"
+      className="rounded-3xl border border-slate-200 bg-white overflow-hidden mb-3 dark:border-neutral-800 dark:bg-neutral-950"
       aria-label={`${copy.brand} system overview`}
       id="advisor-system-overview"
     >
       <div className={`bg-gradient-to-r ${a.hero} px-5 py-4 text-white`}>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-          <div className="min-w-0">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="text-left min-w-0 flex-1"
+            aria-expanded={open}
+          >
             <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">
-              System overview — why this OS
+              High-level overview — why this OS
             </p>
             <h2 className="text-lg sm:text-xl font-black mt-0.5 leading-tight">
               {copy.headline}
@@ -92,18 +101,33 @@ export default function AdvisorSystemOverview({
             <p className="text-sm text-white/90 mt-1.5 max-w-3xl leading-snug">
               {copy.promise}
             </p>
+          </button>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <a
+              href={pdfHref}
+              className="inline-flex items-center gap-1.5 rounded-full bg-white text-slate-900 px-3.5 py-2 text-xs font-bold shadow-sm hover:bg-white/90"
+              title="Download A4 one-pager"
+            >
+              <Download className="w-3.5 h-3.5" />
+              One-pager PDF
+            </a>
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-2 text-[10px] font-bold uppercase tracking-wider hover:bg-white/25"
+            >
+              {open ? 'Hide' : 'Show'} overview
+              <ChevronDown
+                className={`w-3.5 h-3.5 transition-transform ${
+                  open ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
           </div>
-          <a
-            href={pdfHref}
-            className="inline-flex items-center gap-1.5 rounded-full bg-white text-slate-900 px-3.5 py-2 text-xs font-bold shadow-sm hover:bg-white/90 shrink-0"
-            title="Download A4 one-pager"
-          >
-            <Download className="w-3.5 h-3.5" />
-            One-pager PDF
-          </a>
         </div>
       </div>
 
+      {open ? (
       <div className="p-4 sm:p-6 space-y-5">
         <div className="grid lg:grid-cols-2 gap-4">
           <div className={`rounded-2xl border p-4 ${a.card}`}>
@@ -200,6 +224,7 @@ export default function AdvisorSystemOverview({
           </p>
         </div>
       </div>
+      ) : null}
     </section>
   );
 }

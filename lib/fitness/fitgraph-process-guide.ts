@@ -1,6 +1,6 @@
 /**
  * GymAdvisor® end-to-end process guide content + PDF.
- * People → Plans → Classes → Calendar (rooms) → Floor → Messages → Marketplace · reports
+ * People → Plans → Classes → Programmes → Calendar → Floor → Messages → Grow
  * Pure pdfkit — works on Vercel serverless.
  *
  * Do not import from client components (pulls pdfkit into the browser bundle).
@@ -32,10 +32,11 @@ export const PROCESS_CHAIN = [
   { label: 'People', sub: 'Workforce · CRM 360' },
   { label: 'Plans · subs', sub: 'Classes · debit bank' },
   { label: 'Class types', sub: 'Capacity · duration' },
+  { label: 'Programmes', sub: 'Calendar · sell · follow' },
   { label: 'Calendar', sub: 'Leave blocks · rooms' },
   { label: 'Floor', sub: 'Waitlist · actual · recall' },
   { label: 'Messages', sub: 'System ID · in-app' },
-  { label: 'Website · One OS', sub: 'Finance · SKUs · 360' },
+  { label: 'Grow · One OS', sub: 'Portal · apps · Finance' },
 ] as const;
 
 export const ROLE_CARDS = [
@@ -45,11 +46,12 @@ export const ROLE_CARDS = [
     does: [
       'Register coaches; employed + contractors dual-write to People; leave blocks their diary',
       'Members land on Customers 360 (classes, debit bank, invoices, household)',
+      'Build programmes on a week calendar; sell on Shop or assign to clients',
       'Class subscriptions set the fee; debit-order bank completes membership',
       'Schedule with rooms; People leave cannot be assigned; company calendar overlay',
       'Waitlist, reminders, outcomes; attendance writes CRM activity + Intelligence',
       'Card / Apple Pay (1% admin to your bank) or debit-order file from Finance',
-      'Website embed, marketplace, shared SKUs with Inventory',
+      'Grow: member / coach / programme / website previews; marketplace; shared SKUs',
     ],
     doesNot: [
       'Does not surcharge members — 1% admin is taken from card / Apple Pay settlement',
@@ -60,9 +62,9 @@ export const ROLE_CARDS = [
     title: 'Coach',
     subtitle: 'Classes · roster · plan · care threads',
     does: [
-      'Open coach portal; update profile / bio',
+      'Open coach portal: Today (Gym booked / My private), Diary, People, Inbox, Me',
       'Create one-off or weekly series; class plan members can see',
-      'Build a movement library (image / video) and allocate programmes to class or own PT',
+      'Build a movement library; assign programmes; see follow % and feel / RPE',
       'Share / unshare classes; book walk-ins; rooms when set',
       'Mark plan vs actual (attended / no-show); no-show soft-block',
       'Message desk and members (in-app when member is on-system)',
@@ -77,9 +79,11 @@ export const ROLE_CARDS = [
     title: 'Member / customer',
     subtitle: 'Portal · book · family · feedback',
     does: [
+      'Phone dock: Class, Progress, You (photo circle), Shop, Share',
       'Subscribe to the classes they train; fee follows those classes',
+      'Follow a programme calendar; log feel and effort after each day',
       'Submit debit-order bank details on the profile when the gym collects them',
-      'Pay card / Apple Pay where offered, or wait for the owner debit file',
+      'Pay card / Apple Pay where offered, or wait for the owner debit file; buy programmes in Shop',
       'Accept invite; book covered classes or join waitlist on SA Member / embed',
       'Book household family members; identity verify when asked',
       'In-app messages once on SupplierAdvisor (system user ID)',
@@ -165,23 +169,53 @@ export const PROCESS_PHASES: ProcessPhase[] = [
     ],
   },
   {
-    title: '4 · Calendar (rooms · plan · join)',
-    subtitle: 'Owner grid + coach week + resources',
+    title: '4 · Movements & programmes',
+    subtitle: 'Library · calendar · sell · follow',
     steps: [
       {
         n: '4a',
+        title: 'Movement library',
+        who: 'Owner / coach',
+        desc: 'Catalogue and coach clips: image, video, cues. Built-in GymAdvisor movements stay.',
+      },
+      {
+        n: '4b',
+        title: 'Build on the calendar',
+        who: 'Owner / coach',
+        desc: 'Week × Mon–Sun. Session title, coaching notes, sets / reps / rest on each day.',
+      },
+      {
+        n: '4c',
+        title: 'Sell or assign',
+        who: 'Owner / coach',
+        desc: 'Price it for Shop / website (Paystack / Apple Pay enrolls), or assign clients on Follow.',
+      },
+      {
+        n: '4d',
+        title: 'Follow · feel · RPE',
+        who: 'Member · coach · owner',
+        desc: 'Member Progress calendar; coach People; owner Follow desk. Feeling 1–5 and effort 1–10 after each day.',
+      },
+    ],
+  },
+  {
+    title: '5 · Calendar (rooms · plan · join)',
+    subtitle: 'Owner grid + coach week + resources',
+    steps: [
+      {
+        n: '5a',
         title: 'Rooms & schedule',
         who: 'Owner',
         desc: 'Schedule from Classes (date, time, repeats) or the diary grid. Subscribed members book onto those dates. People leave blocks that coach.',
       },
       {
-        n: '4b',
+        n: '5b',
         title: 'Gym calendar',
         who: 'Owner / coach',
         desc: 'Week plan, series, class plan text, and coach diaries on one gym calendar.',
       },
       {
-        n: '4c',
+        n: '5c',
         title: 'Publish & join links',
         who: 'Owner / coach',
         desc: 'Mark public; B2C join URL so members book and save to calendar (.ics).',
@@ -189,29 +223,29 @@ export const PROCESS_PHASES: ProcessPhase[] = [
     ],
   },
   {
-    title: '5 · Floor (waitlist · actual · recall)',
+    title: '6 · Floor (waitlist · actual · recall)',
     subtitle: 'Capacity, attendance, outcomes, feedback',
     steps: [
       {
-        n: '5a',
+        n: '6a',
         title: 'Book · waitlist · family',
         who: 'Desk / coach / portal',
         desc: 'Book session; auto-waitlist when full; household attendees; treatment-plan book next.',
       },
       {
-        n: '5b',
+        n: '6b',
         title: 'Remind · plan vs actual',
         who: 'Coach / desk',
         desc: '24h reminders; mark attended / no-show; soft-block high no-show risk.',
       },
       {
-        n: '5c',
+        n: '6c',
         title: 'Feedback · outcomes · recalls',
         who: 'Member · coach · owner',
         desc: 'Class feedback; outcomes; recalls. Attendance and recalls write CRM activity and an Intelligence pulse.',
       },
       {
-        n: '5d',
+        n: '6d',
         title: 'Check-ins · staff Today',
         who: 'Desk',
         desc: 'Front-desk log; mobile staff PWA for today’s board.',
@@ -219,23 +253,23 @@ export const PROCESS_PHASES: ProcessPhase[] = [
     ],
   },
   {
-    title: '6 · Messages (system ID · care · trade)',
+    title: '7 · Messages (system ID · care · trade)',
     subtitle: 'In-app first when member is on SupplierAdvisor',
     steps: [
       {
-        n: '6a',
+        n: '7a',
         title: 'Desk · coach threads',
         who: 'Desk / coach',
         desc: 'Internal colleague chat for schedule hand-offs and floor notes.',
       },
       {
-        n: '6b',
+        n: '7b',
         title: 'Member care & class groups',
         who: 'Desk / coach · members',
         desc: '1:1 care or whole-class group; deliver by platform system user ID when linked; email optional.',
       },
       {
-        n: '6c',
+        n: '7c',
         title: 'Company inbox (trade)',
         who: 'Owner',
         desc: 'External partners (suppliers / customers) on the platform company inbox.',
@@ -243,23 +277,29 @@ export const PROCESS_PHASES: ProcessPhase[] = [
     ],
   },
   {
-    title: '7 · Website, marketplace & insights',
-    subtitle: 'Embed · ops · public list · slice & dice',
+    title: '8 · Grow (portal · apps · website)',
+    subtitle: 'Member · coach · programme · public site',
     steps: [
       {
-        n: '7a',
+        n: '8a',
         title: 'Gym profile · rooms · contracts',
         who: 'Owner',
         desc: 'Brand bio, public PDF contracts, room list, reschedule policy.',
       },
       {
-        n: '7b',
-        title: 'Embed · marketplace',
+        n: '8b',
+        title: 'View portal',
+        who: 'Owner',
+        desc: 'See what members, coaches and a programme look like — plus the optional public website.',
+      },
+      {
+        n: '8c',
+        title: 'Website · marketplace',
         who: 'Owner',
         desc: 'Publish calendar/booking; list on /marketplace/advisors (city + blurb).',
       },
       {
-        n: '7c',
+        n: '8d',
         title: 'Reports · One OS',
         who: 'Owner',
         desc: 'Fill and utilisation; Customers 360; debit file; shared SKUs with Inventory.',
