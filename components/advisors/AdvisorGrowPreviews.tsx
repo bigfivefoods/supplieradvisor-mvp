@@ -101,13 +101,18 @@ function GymMemberPwaMock({
   color: string;
 }) {
   const ink = advisorBrandInk(color);
-  const dock = [
+  const dock: Array<{
+    id: string;
+    label: string;
+    icon?: typeof Dumbbell;
+    emphasis?: boolean;
+  }> = [
     { id: 'class', label: 'Class', icon: Dumbbell },
     { id: 'progress', label: 'Progress', icon: Activity },
     { id: 'you', label: 'You', emphasis: true },
     { id: 'shop', label: 'Shop', icon: ShoppingBag },
     { id: 'share', label: 'Share', icon: Share2 },
-  ] as const;
+  ];
   return (
     <div className="flex h-full flex-col bg-gradient-to-b from-yellow-50 to-slate-50 text-slate-900">
       <div
@@ -218,6 +223,7 @@ function GymMemberPwaMock({
             );
           }
           const Icon = t.icon;
+          if (!Icon) return null;
           return (
             <div
               key={t.id}
