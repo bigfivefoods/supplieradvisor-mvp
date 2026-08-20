@@ -9,6 +9,7 @@ import {
   COMPANY_TRIAL_DAYS,
 } from '@/lib/billing/company-subscription';
 import { resolvePrimaryCompanyEmail } from '@/lib/billing/company-emails';
+import { isVukaNotificationSuppressed } from '@/lib/notifications/email-suppress';
 
 function appUrl(): string {
   return (
@@ -145,6 +146,14 @@ export async function sendSubscriptionLifecycleEmails(opts?: {
           : {};
 
       const name = String(row.trading_name || 'your company');
+      if (
+        isVukaNotificationSuppressed({
+          companyId: Number(row.id),
+          companyName: name,
+        })
+      ) {
+        continue;
+      }
       const trialDays = daysUntil(row.subscription_trial_ends_at as string);
       const endDays = daysUntil(row.subscription_ends_at as string);
 
@@ -170,6 +179,7 @@ export async function sendSubscriptionLifecycleEmails(opts?: {
               days: trialDays,
               href: `${base}/dashboard/my-business/billing`,
             }),
+            tags: [{ name: 'company_id', value: String(row.id) }],
           });
           meta[key] = new Date().toISOString();
           trialEmails += 1;
@@ -206,6 +216,7 @@ export async function sendSubscriptionLifecycleEmails(opts?: {
               days: endDays,
               href: `${base}/dashboard/my-business/billing`,
             }),
+            tags: [{ name: 'company_id', value: String(row.id) }],
           });
           meta[key] = new Date().toISOString();
           expiryEmails += 1;

@@ -168,6 +168,7 @@ export async function sendDeskPersonInvite<T extends DeskInvitePerson>(opts: {
       replyTo: getResendReplyTo(),
       to: email,
       subject: `${opts.businessName} invited you to ${advisor}`,
+      tags: [{ name: 'company_id', value: String(opts.companyId) }],
       html: serviceMemberInviteEmailHtml({
         inviteeName: person.name,
         businessName: opts.businessName,

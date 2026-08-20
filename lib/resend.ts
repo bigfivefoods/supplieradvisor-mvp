@@ -38,6 +38,29 @@ export function getResend(): Resend {
     if (next.replyTo == null && next.reply_to == null) {
       next.replyTo = getResendReplyTo();
     }
+    const { isVukaNotificationSuppressed } = await import(
+      '@/lib/notifications/email-suppress'
+    );
+    const tagged = next as unknown as {
+      subject?: unknown;
+      text?: unknown;
+      tags?: Array<{ name?: string; value?: string }>;
+    };
+    if (
+      isVukaNotificationSuppressed({
+        from: typeof next.from === 'string' ? next.from : null,
+        subject: typeof tagged.subject === 'string' ? tagged.subject : null,
+        html: typeof next.html === 'string' ? next.html : null,
+        text: typeof tagged.text === 'string' ? tagged.text : null,
+        tags: tagged.tags || null,
+      })
+    ) {
+      console.info('[email] skipped VUKA Fitness notification (testing)');
+      return {
+        data: { id: 'suppressed_vuka_testing' },
+        error: null,
+      };
+    }
     return originalSend(next, options);
   }) as typeof client.emails.send;
   resendClient = client;

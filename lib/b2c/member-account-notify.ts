@@ -72,6 +72,7 @@ export async function notifyAdvisorOfMemberPayment(opts: {
       to: emails,
       replyTo: getResendReplyTo(),
       subject: `${opts.title} · ${formatZar(opts.amountZar)}`,
+      tags: [{ name: 'company_id', value: String(opts.companyId) }],
       text: [
         tradingName ? `${tradingName}` : 'Advisor desk',
         '',

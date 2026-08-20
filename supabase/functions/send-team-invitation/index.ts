@@ -28,6 +28,13 @@ serve(async (req: Request) => {
     // Prefer dedicated team claim path; also works with /onboarding?invite=&kind=team
     const inviteLink = `${appUrl}/onboarding/team?invite=${encodeURIComponent(token)}`;
 
+    if (/^vuka(\s+fitness)?$/i.test(String(company_name || '').trim()) || /\bvuka\s+fitness\b/i.test(String(company_name || ''))) {
+      return new Response(JSON.stringify({ success: true, skipped: 'vuka_testing' }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
     const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
       to: to_email,

@@ -566,6 +566,7 @@ export async function POST(request: NextRequest) {
           replyTo: getResendReplyTo(),
           to: email,
           subject: `${businessName} invited you to GymAdvisor®`,
+          tags: [{ name: 'company_id', value: String(companyId) }],
           html: serviceMemberInviteEmailHtml({
             inviteeName: client.name,
             businessName,

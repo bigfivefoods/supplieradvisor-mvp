@@ -651,6 +651,17 @@ export async function sendAdvisorInvoiceEmail(
     if (!to || !to.includes('@')) {
       return { ok: false, error: 'No email' };
     }
+    const { isVukaNotificationSuppressed } = await import(
+      '@/lib/notifications/email-suppress'
+    );
+    if (
+      isVukaNotificationSuppressed({
+        companyName: input.brand,
+        subject: `Invoice from ${input.brand}`,
+      })
+    ) {
+      return { ok: true };
+    }
     const { subject, html } = renderAdvisorInvoiceEmail(input);
     const { error } = await resend.emails.send({
       from: fromWithDisplayName(input.brand),
@@ -681,6 +692,17 @@ export async function sendAdvisorSessionEmail(
     if (!to || !to.includes('@')) {
       return { ok: false, error: 'No email' };
     }
+    const { isVukaNotificationSuppressed } = await import(
+      '@/lib/notifications/email-suppress'
+    );
+    if (
+      isVukaNotificationSuppressed({
+        companyName: input.brand,
+        subject: `${input.eventTitle} at ${input.brand}`,
+      })
+    ) {
+      return { ok: true };
+    }
     const { subject, html } = renderAdvisorSessionEmail(input);
     const { error } = await resend.emails.send({
       from: fromWithDisplayName(input.brand),
@@ -710,6 +732,18 @@ export async function sendAdvisorNoticeEmail(
     }
     if (!to || !to.includes('@')) {
       return { ok: false, error: 'No email' };
+    }
+    const { isVukaNotificationSuppressed } = await import(
+      '@/lib/notifications/email-suppress'
+    );
+    if (
+      isVukaNotificationSuppressed({
+        companyName: input.brand,
+        subject: input.subject,
+        html: input.leadHtml,
+      })
+    ) {
+      return { ok: true };
     }
     const { subject, html } = renderAdvisorNoticeEmail(input);
     const { error } = await resend.emails.send({
