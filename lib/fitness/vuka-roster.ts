@@ -299,8 +299,13 @@ function findRosterClient(
   );
 }
 
-function upsertBilledRoster(store: FitgraphStore, now: string): boolean {
+function upsertBilledRoster(
+  store: FitgraphStore,
+  now: string,
+  opts?: { createOnly?: boolean }
+): boolean {
   const today = now.slice(0, 10);
+  const createOnly = opts?.createOnly === true;
   let changed = false;
   for (const row of VUKA_ROSTER) {
     let client = findRosterClient(store, row);
@@ -319,8 +324,22 @@ function upsertBilledRoster(store: FitgraphStore, now: string): boolean {
       };
       store.clients = [...(store.clients || []), client];
       changed = true;
+      if (createOnly && row.class_hint) {
+        const plan = resolvePlan(store, row.amount_zar, row.class_hint);
+        if (plan) {
+          allocateMemberToClass(store, {
+            clientId: client.id,
+            planId: plan.id,
+            chargedZar: row.amount_zar,
+            member: true,
+            bookUpcoming: true,
+            now,
+          });
+        }
+      }
       continue;
     }
+    if (createOnly) continue;
     if (client.active === false || client.membership_status === 'expired' || client.membership_status === 'cancelled') {
       client.active = true;
       client.membership_status = 'active';
@@ -394,6 +413,25 @@ export function ensureVukaRoster(
 ): { store: FitgraphStore; changed: boolean; added: number } {
   const now = opts?.now || new Date().toISOString();
   let changed = removeVukaDeskPlans(store);
+  const contractsLive =
+    store.settings?.vuka_contracts_import === VUKA_CONTRACTS_IMPORT;
+  if (contractsLive) {
+    if (upsertBilledRoster(store, now, { createOnly: true })) changed = true;
+    if (store.settings?.vuka_member_merge !== VUKA_MEMBER_MERGE) {
+      const merged = mergeDuplicateFitClients(store, {
+        now,
+        preferredNames: VUKA_ROSTER.map((r) => r.name),
+      });
+      if (merged.changed) changed = true;
+      if (!store.settings) store.settings = defaultPublicSettings();
+      store.settings.vuka_member_merge = VUKA_MEMBER_MERGE;
+      changed = true;
+    }
+    if (store.settings?.vuka_billed_class_import !== VUKA_BILLED_CLASS_IMPORT) {
+      if (applyBilledClassAllocations(store, now)) changed = true;
+    }
+    return { store, changed, added: 0 };
+  }
   const replace =
     store.settings?.vuka_contracts_import !== VUKA_CONTRACTS_IMPORT;
   const applied = applyContractSubmissions(store, VUKA_CONTRACT_SUBMISSIONS, {

@@ -310,4 +310,22 @@ assert.equal(
 );
 assert.equal(dupStore.bookings[0].client_id, bibi.id);
 
+yunis.active = false;
+yunis.membership_status = 'cancelled';
+yunis.membership_plan_id = null;
+for (const s of store.subscriptions) {
+  if (s.client_id === yunis.id) s.status = 'cancelled';
+}
+christine.membership_plan_id = 'vuka_pln_boot_1730';
+const parked = ensureVukaRoster(store, { now: '2026-08-20T12:00:00.000Z' });
+assert.equal(parked.added, 0);
+const yunisParked = store.clients.find((c) => /yunis leandre herbert/i.test(c.name))!;
+assert.equal(yunisParked.active, false);
+assert.equal(yunisParked.membership_status, 'cancelled');
+assert.equal(yunisParked.membership_plan_id, null);
+assert.equal(
+  store.clients.find((c) => /christine j brown/i.test(c.name))?.membership_plan_id,
+  'vuka_pln_boot_1730'
+);
+
 console.log('vuka-roster.test.ts ok');
