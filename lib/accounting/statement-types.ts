@@ -47,12 +47,36 @@ export type GeneralLedger = {
 
 export type CashFlowClass = 'operating' | 'investing' | 'financing';
 
+export type CashFlowJournal = {
+  journal_id: number;
+  date: string;
+  entry_number: string | null;
+  memo: string | null;
+  source: string | null;
+  account_code: string | null;
+  account_name: string | null;
+  amount: number;
+  inflow: number;
+  outflow: number;
+};
+
+export type CashFlowMonth = {
+  month: string;
+  operating: number;
+  investing: number;
+  financing: number;
+  net: number;
+  inflow: number;
+  outflow: number;
+};
+
 export type Ias7Line = {
   name: string;
   class: CashFlowClass;
   inflow: number;
   outflow: number;
   net: number;
+  journals?: CashFlowJournal[];
 };
 
 export type IndirectAdjust = {
@@ -85,4 +109,5 @@ export type Ias7CashFlow = {
   warning?: string;
   indirect?: IndirectOperating;
   policies: string[];
+  months?: CashFlowMonth[];
 };

@@ -865,6 +865,56 @@ export function PeriodWaterfall({
   return <Bar data={data} options={options} />;
 }
 
+/** Opening cash → activity → closing cash */
+export function CashBridgeChart({
+  opening,
+  operating,
+  investing,
+  financing,
+  closing,
+}: {
+  opening: number;
+  operating: number;
+  investing: number;
+  financing: number;
+  closing: number;
+}) {
+  const labels = ['Opening', 'Operating', 'Investing', 'Financing', 'Closing'];
+  const values = [opening, operating, investing, financing, closing];
+  const colors = [
+    C.net,
+    operating >= 0 ? C.cashIn : C.opex,
+    investing >= 0 ? C.cashIn : C.cogs,
+    financing >= 0 ? C.cashNet : C.opex,
+    C.assets,
+  ];
+  const ok = hasSignal(values);
+  const data: ChartData<'bar'> = {
+    labels,
+    datasets: [
+      {
+        label: 'Cash',
+        data: values,
+        backgroundColor: colors,
+        borderRadius: 10,
+        maxBarThickness: 42,
+      },
+    ],
+  };
+  const options: ChartOptions<'bar'> = {
+    ...barOptions,
+    plugins: { ...basePlugins, legend: { display: false } },
+  };
+  return (
+    <div className="relative h-full w-full">
+      {!ok && (
+        <EmptyChartState message="Post cash journals to see the cash bridge" />
+      )}
+      <Bar data={data} options={options} />
+    </div>
+  );
+}
+
 /** Gross / net margin % trend */
 export function MarginTrendChart({
   labels,

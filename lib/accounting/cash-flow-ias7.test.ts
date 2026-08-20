@@ -7,6 +7,7 @@ import {
   isCashAccount,
   isNonCashPnlAccount,
   isWorkingCapitalAccount,
+  monthsInRange,
   workingCapitalCashEffect,
 } from './cash-flow-ias7';
 
@@ -72,5 +73,12 @@ assert.equal(
 );
 assert.equal(workingCapitalCashEffect(1000, 1300), -300);
 assert.equal(workingCapitalCashEffect(-400, -700), 300);
+
+assert.deepEqual(monthsInRange('2026-03-01', '2026-05-31'), [
+  '2026-03',
+  '2026-04',
+  '2026-05',
+]);
+assert.equal(monthsInRange('2026-11-01', '2027-01-15').length, 3);
 
 console.log('cash-flow-ias7 classify ok');

@@ -10,6 +10,8 @@ import {
 } from '@/lib/accounting/journal-query';
 import type {
   CashFlowClass,
+  CashFlowJournal,
+  CashFlowMonth,
   Ias7CashFlow,
   Ias7Line,
   IndirectAdjust,
@@ -18,6 +20,8 @@ import type {
 
 export type {
   CashFlowClass,
+  CashFlowJournal,
+  CashFlowMonth,
   Ias7CashFlow,
   Ias7Line,
   IndirectAdjust,
@@ -197,7 +201,6 @@ export async function buildIas7CashFlow(opts: {
     profileId: opts.profileId,
     to,
   });
-  const jeById = new Map(journals.map((j) => [j.id, j]));
   const { lines: rawLines, warning: lineWarn } = await fetchJournalLinesByEntryIds(
     journals.map((j) => j.id),
     'journal_entry_id, account_id, debit, credit'
@@ -222,7 +225,8 @@ export async function buildIas7CashFlow(opts: {
     name: string,
     cls: CashFlowClass,
     inflow: number,
-    outflow: number
+    outflow: number,
+    journal?: CashFlowJournal
   ) => {
     const cur = buckets.get(key) || {
       name,
@@ -230,12 +234,43 @@ export async function buildIas7CashFlow(opts: {
       inflow: 0,
       outflow: 0,
       net: 0,
+      journals: [],
     };
     cur.inflow += inflow;
     cur.outflow += outflow;
     cur.net = round2(cur.inflow - cur.outflow);
+    if (journal && (Math.abs(journal.inflow) >= 0.005 || Math.abs(journal.outflow) >= 0.005)) {
+      if (!cur.journals) cur.journals = [];
+      cur.journals.push(journal);
+    }
     buckets.set(key, cur);
   };
+
+  const monthMap = new Map<string, CashFlowMonth>();
+  const bumpMonth = (
+    date: string,
+    cls: CashFlowClass,
+    inflow: number,
+    outflow: number
+  ) => {
+    const key = date.slice(0, 7);
+    const cur = monthMap.get(key) || {
+      month: key,
+      operating: 0,
+      investing: 0,
+      financing: 0,
+      net: 0,
+      inflow: 0,
+      outflow: 0,
+    };
+    cur[cls] = round2(cur[cls] + inflow - outflow);
+    cur.inflow = round2(cur.inflow + inflow);
+    cur.outflow = round2(cur.outflow + outflow);
+    cur.net = round2(cur.operating + cur.investing + cur.financing);
+    monthMap.set(key, cur);
+  };
+
+  const memos = await fetchJournalMemos(journals.map((j) => j.id));
 
   let openingCash = 0;
   let closingCash = 0;
@@ -273,14 +308,30 @@ export async function buildIas7CashFlow(opts: {
       : other.length
         ? other
         : null;
+    const meta = memos.get(je.id);
     if (!basis) {
+      const inf = inflow ? cashAmt : 0;
+      const out = inflow ? 0 : cashAmt;
       add(
         `op:unclassified`,
         inflow ? 'Other operating receipts' : 'Other operating payments',
         'operating',
-        inflow ? cashAmt : 0,
-        inflow ? 0 : cashAmt
+        inf,
+        out,
+        {
+          journal_id: je.id,
+          date,
+          entry_number: meta?.entry_number || null,
+          memo: meta?.memo || null,
+          source: je.source || null,
+          account_code: null,
+          account_name: null,
+          amount: round2(inf - out),
+          inflow: inf,
+          outflow: out,
+        }
       );
+      bumpMonth(date, 'operating', inf, out);
       continue;
     }
     const weights = basis.map((o) =>
@@ -296,7 +347,21 @@ export async function buildIas7CashFlow(opts: {
         source: je.source,
       });
       const name = lineName(o.acct, inflow);
-      add(`${cls}:${name}`, name, cls, inflow ? share : 0, inflow ? 0 : share);
+      const inf = inflow ? share : 0;
+      const out = inflow ? 0 : share;
+      add(`${cls}:${name}`, name, cls, inf, out, {
+        journal_id: je.id,
+        date,
+        entry_number: meta?.entry_number || null,
+        memo: meta?.memo || je.source || null,
+        source: je.source || null,
+        account_code: o.acct.code,
+        account_name: o.acct.name,
+        amount: round2(inf - out),
+        inflow: inf,
+        outflow: out,
+      });
+      bumpMonth(date, cls, inf, out);
     });
   }
 
@@ -308,6 +373,9 @@ export async function buildIas7CashFlow(opts: {
     inflow: round2(l.inflow),
     outflow: round2(l.outflow),
     net: round2(l.inflow - l.outflow),
+    journals: [...(l.journals || [])]
+      .sort((a, b) => a.date.localeCompare(b.date) || a.journal_id - b.journal_id)
+      .slice(0, 300),
   }));
   const operating = all.filter((l) => l.class === 'operating');
   const investing = all.filter((l) => l.class === 'investing');
@@ -347,7 +415,97 @@ export async function buildIas7CashFlow(opts: {
     warning: warning || lineWarn,
     indirect,
     policies: [...CASH_FLOW_POLICIES],
+    months: fillCashFlowMonths(from, to, monthMap),
   };
+}
+
+export function fillCashFlowMonths(
+  from: string,
+  to: string,
+  monthMap: Map<string, CashFlowMonth>
+): CashFlowMonth[] {
+  const keys = monthsInRange(from, to);
+  return keys.map((month) => {
+    const hit = monthMap.get(month);
+    if (hit) {
+      return {
+        ...hit,
+        operating: round2(hit.operating),
+        investing: round2(hit.investing),
+        financing: round2(hit.financing),
+        net: round2(hit.net),
+        inflow: round2(hit.inflow),
+        outflow: round2(hit.outflow),
+      };
+    }
+    return {
+      month,
+      operating: 0,
+      investing: 0,
+      financing: 0,
+      net: 0,
+      inflow: 0,
+      outflow: 0,
+    };
+  });
+}
+
+export function monthsInRange(from: string, to: string): string[] {
+  const out: string[] = [];
+  let y = Number(from.slice(0, 4));
+  let m = Number(from.slice(5, 7));
+  const ey = Number(to.slice(0, 4));
+  const em = Number(to.slice(5, 7));
+  if (!Number.isFinite(y) || !Number.isFinite(m)) return out;
+  let guard = 0;
+  while ((y < ey || (y === ey && m <= em)) && guard < 120) {
+    out.push(`${y}-${String(m).padStart(2, '0')}`);
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+    guard += 1;
+  }
+  return out;
+}
+
+async function fetchJournalMemos(
+  ids: number[]
+): Promise<Map<number, { memo: string | null; entry_number: string | null }>> {
+  const out = new Map<number, { memo: string | null; entry_number: string | null }>();
+  if (!ids.length) return out;
+  const supabase = getSupabaseServer();
+  const chunkSize = 150;
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize);
+    const full = await supabase
+      .from('journal_entries')
+      .select('id, memo, entry_number')
+      .in('id', chunk);
+    if (!full.error && full.data) {
+      for (const r of full.data) {
+        out.set(Number(r.id), {
+          memo: r.memo != null ? String(r.memo) : null,
+          entry_number: r.entry_number != null ? String(r.entry_number) : null,
+        });
+      }
+      continue;
+    }
+    const memoOnly = await supabase
+      .from('journal_entries')
+      .select('id, memo')
+      .in('id', chunk);
+    if (!memoOnly.error && memoOnly.data) {
+      for (const r of memoOnly.data) {
+        out.set(Number(r.id), {
+          memo: r.memo != null ? String(r.memo) : null,
+          entry_number: null,
+        });
+      }
+    }
+  }
+  return out;
 }
 
 function buildIndirectOperating(opts: {

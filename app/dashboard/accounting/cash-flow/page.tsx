@@ -1,7 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Printer, RefreshCw } from 'lucide-react';
+import Link from 'next/link';
+import {
+  BarChart3,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  PieChart,
+  Printer,
+  RefreshCw,
+  Wallet,
+} from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -18,7 +28,17 @@ import PeriodSlicer, {
   initialPeriodSlicerValue,
   type PeriodSlicerValue,
 } from '@/components/accounting/PeriodSlicer';
-import type { Ias7CashFlow, Ias7Line } from '@/lib/accounting/statement-types';
+import {
+  CashBridgeChart,
+  CashflowChart,
+  ChartCard,
+  MixDoughnut,
+} from '@/components/accounting/AccountingCharts';
+import type {
+  CashFlowJournal,
+  Ias7CashFlow,
+  Ias7Line,
+} from '@/lib/accounting/statement-types';
 
 export default function CashFlowStatementPage() {
   return (
@@ -155,27 +175,89 @@ function Inner() {
             />
           </div>
 
+          <div className="grid gap-4 lg:grid-cols-3 print:hidden">
+            <ChartCard
+              title="Activity mix"
+              subtitle="Share of cash movement by IAS 7 class"
+              icon={PieChart}
+              height={240}
+            >
+              <MixDoughnut
+                segments={[
+                  {
+                    label: 'Operating',
+                    value: Math.abs(statement.netOperating),
+                    color: '#10b981',
+                  },
+                  {
+                    label: 'Investing',
+                    value: Math.abs(statement.netInvesting),
+                    color: '#f59e0b',
+                  },
+                  {
+                    label: 'Financing',
+                    value: Math.abs(statement.netFinancing),
+                    color: '#8b5cf6',
+                  },
+                ]}
+                centerLabel="Net"
+                centerValue={money(statement.netChange)}
+              />
+            </ChartCard>
+            <ChartCard
+              title="Cash bridge"
+              subtitle="Opening cash through activities to closing"
+              icon={Wallet}
+              height={240}
+            >
+              <CashBridgeChart
+                opening={statement.openingCash}
+                operating={statement.netOperating}
+                investing={statement.netInvesting}
+                financing={statement.netFinancing}
+                closing={statement.closingCash}
+              />
+            </ChartCard>
+            <ChartCard
+              title="Monthly cash"
+              subtitle="Inflow, outflow and net by month"
+              icon={BarChart3}
+              height={240}
+            >
+              <CashflowChart
+                labels={(statement.months || []).map((m) => m.month.slice(5))}
+                inflow={(statement.months || []).map((m) => m.inflow)}
+                outflow={(statement.months || []).map((m) => m.outflow)}
+                net={(statement.months || []).map((m) => m.net)}
+              />
+            </ChartCard>
+          </div>
+
           <Panel className="p-4 sm:p-5">
             <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
               Statement of cash flows · {statement.from} to {statement.to}
             </p>
             <p className="mt-1 text-xs text-slate-500">
-              Direct method (IAS 7.18(a)). Amounts in ZAR.
+              Direct method (IAS 7.18(a)). Expand a heading, then a line, to the
+              posted journals. Amounts in ZAR.
             </p>
             <CashSection
               title="Cash flows from operating activities"
+              sectionKey="operating"
               rows={statement.operating}
               total={statement.netOperating}
               money={money}
             />
             <CashSection
               title="Cash flows from investing activities"
+              sectionKey="investing"
               rows={statement.investing}
               total={statement.netInvesting}
               money={money}
             />
             <CashSection
               title="Cash flows from financing activities"
+              sectionKey="financing"
               rows={statement.financing}
               total={statement.netFinancing}
               money={money}
@@ -276,28 +358,136 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function CashSection({
   title,
+  sectionKey,
   rows,
   total,
   money,
 }: {
   title: string;
+  sectionKey: string;
   rows: Ias7Line[];
   total: number;
   money: (n: number) => string;
 }) {
+  const [open, setOpen] = useState(true);
   return (
     <div className="mt-4">
-      <p className="text-[11px] font-black uppercase tracking-wide text-slate-800">
-        {title}
-      </p>
-      {rows.length === 0 ? (
-        <p className="py-1 text-xs text-slate-400">None in this period.</p>
-      ) : (
-        rows.map((r) => (
-          <Row key={r.name} name={r.name} amount={r.net} money={money} />
-        ))
-      )}
-      <Row name={`Net ${title.toLowerCase()}`} amount={total} money={money} bold />
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-3 py-1 text-left"
+      >
+        <span className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-slate-800">
+          {open ? (
+            <ChevronDown className="h-3.5 w-3.5 print:hidden" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5 print:hidden" />
+          )}
+          {title}
+        </span>
+        <span className="text-sm font-black tabular-nums">{money(total)}</span>
+      </button>
+      {open ? (
+        <div className="ml-4 border-l border-slate-200 pl-3">
+          {rows.length === 0 ? (
+            <p className="py-1 text-xs text-slate-400">None in this period.</p>
+          ) : (
+            rows.map((r) => (
+              <CashLine
+                key={`${sectionKey}:${r.name}`}
+                line={r}
+                money={money}
+              />
+            ))
+          )}
+          <Row name={`Net ${title.toLowerCase()}`} amount={total} money={money} bold />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CashLine({
+  line,
+  money,
+}: {
+  line: Ias7Line;
+  money: (n: number) => string;
+}) {
+  const [open, setOpen] = useState(false);
+  const journals = line.journals || [];
+  const canOpen = journals.length > 0;
+  return (
+    <div className="py-0.5">
+      <button
+        type="button"
+        disabled={!canOpen}
+        onClick={() => canOpen && setOpen((v) => !v)}
+        className="flex w-full items-baseline justify-between gap-4 text-left text-sm disabled:cursor-default"
+      >
+        <span className="flex min-w-0 items-center gap-1 text-slate-700">
+          {canOpen ? (
+            open ? (
+              <ChevronDown className="h-3 w-3 shrink-0 print:hidden" />
+            ) : (
+              <ChevronRight className="h-3 w-3 shrink-0 print:hidden" />
+            )
+          ) : (
+            <span className="inline-block w-3 print:hidden" />
+          )}
+          <span>{line.name}</span>
+          {canOpen ? (
+            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+              {journals.length} journal{journals.length === 1 ? '' : 's'}
+            </span>
+          ) : null}
+        </span>
+        <span className="shrink-0 tabular-nums">{money(line.net)}</span>
+      </button>
+      {open && canOpen ? (
+        <div className="mt-1 mb-2 overflow-x-auto rounded-xl border border-slate-100 bg-slate-50/80">
+          <table className="min-w-full text-left text-xs">
+            <thead>
+              <tr className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                <th className="px-2 py-1.5">Date</th>
+                <th className="px-2 py-1.5">Ref</th>
+                <th className="px-2 py-1.5">Narrative</th>
+                <th className="px-2 py-1.5">Account</th>
+                <th className="px-2 py-1.5 text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {journals.map((j: CashFlowJournal, i) => (
+                <tr
+                  key={`${j.journal_id}-${j.account_code || i}-${j.amount}`}
+                  className="border-t border-slate-100"
+                >
+                  <td className="whitespace-nowrap px-2 py-1.5">{j.date}</td>
+                  <td className="whitespace-nowrap px-2 py-1.5">
+                    <Link
+                      href="/dashboard/accounting/journal-entries"
+                      className="font-semibold text-[#0077b6] hover:underline"
+                    >
+                      {j.entry_number || `#${j.journal_id}`}
+                    </Link>
+                  </td>
+                  <td className="max-w-xs px-2 py-1.5">
+                    {j.memo || j.source || '—'}
+                  </td>
+                  <td className="px-2 py-1.5 text-slate-600">
+                    {j.account_code
+                      ? `${j.account_code} · ${j.account_name || ''}`
+                      : '—'}
+                  </td>
+                  <td className="px-2 py-1.5 text-right font-semibold tabular-nums">
+                    {money(j.amount)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </div>
   );
 }
