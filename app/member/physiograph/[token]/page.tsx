@@ -5,14 +5,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import {
-  CalendarDays,
-  Check,
-  Loader2,
-  MapPin,
-  User,
-  X,
-} from 'lucide-react';
+import { Loader2, User, X } from 'lucide-react';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import {
   PORTAL_PHOTO_SAVED_MESSAGE,
@@ -44,6 +37,22 @@ import type {
   SharedAdviceNote,
   SharedTreatmentPlan,
 } from '@/lib/clinic/medical-share';
+import type {
+  ClinicPortalCarePack,
+  ClinicPortalShopItem,
+} from '@/lib/clinic/clinic-portal-shop';
+import {
+  ClinicFlash,
+  ClinicMemberShop,
+  ClinicSectionTitle,
+  ClinicSharePanel,
+  ClinicYouSubnav,
+  clinicMemberDockTabs,
+  isClinicYouTab,
+  parseClinicMemberTab,
+  writeClinicTabToUrl,
+  type ClinicMemberTabId,
+} from '@/components/clinic/ClinicMemberPwaUi';
 
 type Slot = {
   id: string;
@@ -67,6 +76,13 @@ type Portal = {
   allow_booking: boolean;
   primary_color?: string;
   logo_url?: string | null;
+  bio?: string;
+  contact_phone?: string;
+  contact_email?: string;
+  shop?: ClinicPortalShopItem[];
+  care_packs?: ClinicPortalCarePack[];
+  messages_unread?: number;
+  threads?: import('@/components/services/PortalMessagesPanel').PortalThread[];
   patient: {
     name: string;
     email?: string;
@@ -135,7 +151,7 @@ export default function MemberPhysiographPortalPage() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [tab, setTab] = useState<'open' | 'mine' | 'messages' | 'care' | 'profile'>('open');
+  const [tab, setTab] = useState<ClinicMemberTabId>('mine');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -176,17 +192,18 @@ export default function MemberPhysiographPortalPage() {
   }, [load]);
 
   useEffect(() => {
-    const raw = new URLSearchParams(window.location.search).get('tab');
-    if (
-      raw === 'open' ||
-      raw === 'mine' ||
-      raw === 'care' ||
-      raw === 'messages' ||
-      raw === 'profile'
-    ) {
-      setTab(raw);
-    }
+    const next = parseClinicMemberTab(
+      new URLSearchParams(window.location.search).get('tab')
+    );
+    if (next) setTab(next);
   }, []);
+
+  const selectTab = (id: ClinicMemberTabId) => {
+    setTab(id);
+    setError(null);
+    setMsg(null);
+    writeClinicTabToUrl(id);
+  };
 
   const post = async (body: Record<string, unknown>) => {
     const res = await fetch('/api/public/physiograph/patient', {
@@ -306,26 +323,22 @@ export default function MemberPhysiographPortalPage() {
   }
   if (!portal) return null;
 
+  const dock = clinicMemberDockTabs({
+    careLabel: 'Rehab',
+    messagesUnread: portal.messages_unread,
+  });
+  const youTab = isClinicYouTab(tab);
+
   return (
     <MemberAdvisorShell
       color={color}
       appHref={`/me?link=${encodeURIComponent(token)}`}
       fromClass="from-teal-50"
       tab={tab}
-      onTab={(id) => {
-        setTab(id as typeof tab);
-        setError(null);
-        setMsg(null);
-      }}
-      tabs={[
-        { id: 'open', label: 'Open diary' },
-        { id: 'mine', label: 'My bookings' },
-        { id: 'messages', label: 'Messages' },
-        ...(portal.shares?.medical !== false
-          ? [{ id: 'care', label: 'My care' }]
-          : []),
-        { id: 'profile', label: 'My profile' },
-      ]}
+      onTab={(id) => selectTab(id as ClinicMemberTabId)}
+      mobileNav="bottom"
+      tabs={dock.tabs}
+      mobileTabs={dock.mobileTabs}
       header={
         <div>
           <MemberPortalBrandLockup
@@ -364,34 +377,60 @@ export default function MemberPhysiographPortalPage() {
       }
     >
         <PopiaConsentNotice brand={portal.brand} />
-        <B2cAutoLinkBanner token={token} tone="teal" />
-        <MemberAnnouncementsFeed
-          items={portal.announcements}
-          brand={portal.brand}
-          tone="teal"
-        />
-        <MemberPortalInvoices invoices={portal.invoices} />
-        <MemberPortalClaims claims={portal.claims} />
-        {(msg || error) && (
-          <div
-            className={`rounded-xl border px-3 py-2 text-sm ${
-              error
-                ? 'border-rose-200 bg-rose-50 text-rose-800'
-                : 'border-emerald-200 bg-emerald-50 text-emerald-900'
-            }`}
-          >
-            {error || msg}
-          </div>
+        {youTab ? <B2cAutoLinkBanner token={token} tone="teal" /> : null}
+        {tab === 'open' || tab === 'mine' || youTab ? (
+          <MemberAnnouncementsFeed
+            items={portal.announcements}
+            brand={portal.brand}
+            tone="teal"
+          />
+        ) : null}
+        <ClinicFlash error={error} msg={msg} />
+        {youTab ? (
+          <ClinicYouSubnav
+            tab={tab}
+            onTab={selectTab}
+            color={color}
+            messagesUnread={portal.messages_unread}
+            showHistory
+          />
+        ) : null}
+
+        {tab === 'share' && (
+          <ClinicSharePanel
+            brand={portal.brand}
+            bio={portal.bio}
+            phone={portal.contact_phone}
+            email={portal.contact_email}
+            color={color}
+            productLine="PhysioAdvisor®"
+          />
+        )}
+
+        {tab === 'shop' && (
+          <ClinicMemberShop
+            items={portal.shop}
+            packs={portal.care_packs}
+            color={color}
+            contactPhone={portal.contact_phone}
+            contactEmail={portal.contact_email}
+          />
         )}
 
         {tab === 'care' && (
-          <MemberMedicalShare
-            share={portal.medical_share}
-            plans={portal.treatment_plans}
-            advice={portal.shared_advice}
-            followUps={portal.follow_ups}
-            tone="teal"
-          />
+          <>
+            <ClinicSectionTitle hint="What your physio has prescribed on your file — rehab, plans and advice.">
+              Rehab
+            </ClinicSectionTitle>
+            <MemberMedicalShare
+              share={portal.medical_share}
+              plans={portal.treatment_plans}
+              advice={portal.shared_advice}
+              followUps={portal.follow_ups}
+              tone="teal"
+              heading="Prescribed rehab"
+            />
+          </>
         )}
 
         {(portal.patient?.family || []).filter((m: { active?: boolean }) => m.active !== false).length >
@@ -421,6 +460,9 @@ export default function MemberPhysiographPortalPage() {
 
         {tab === 'open' && (
           <div className="space-y-3">
+            <ClinicSectionTitle hint="Look at the clinic calendar to book a session or join the waitlist.">
+              Schedule
+            </ClinicSectionTitle>
             <p className="text-sm text-slate-600">
               Book your regular clinician or another available practitioner. Full slots: join waitlist (practice is notified). </p>
 
@@ -458,12 +500,22 @@ export default function MemberPhysiographPortalPage() {
 
         {tab === 'messages' && (
           <PortalMessagesPanel
-            threads={(portal as any).threads || []}
-            messagesUnread={(portal as any).messages_unread || 0}
+            threads={portal.threads || []}
+            messagesUnread={portal.messages_unread || 0}
             selfRole="patient"
             post={async (body) => post(body)}
             onRefresh={() => void load()}
           />
+        )}
+
+        {tab === 'history' && (
+          <div className="space-y-3">
+            <ClinicSectionTitle hint="Invoices, claims and account history for this practice.">
+              Appointment & account history
+            </ClinicSectionTitle>
+            <MemberPortalInvoices invoices={portal.invoices} />
+            <MemberPortalClaims claims={portal.claims} />
+          </div>
         )}
 
         
@@ -496,6 +548,9 @@ export default function MemberPhysiographPortalPage() {
 
         {tab === 'mine' && (
           <div className="space-y-3">
+            <ClinicSectionTitle hint="Your booked and waitlisted sessions. Cancel or reschedule here.">
+              Book
+            </ClinicSectionTitle>
             {portal.my_bookings.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
                 No upcoming bookings.
@@ -547,14 +602,19 @@ export default function MemberPhysiographPortalPage() {
 
         {tab === 'profile' && (
           <div className="space-y-4">
+          <ClinicSectionTitle hint="Your profile, rehab on file, and appointment and account history.">
+            You
+          </ClinicSectionTitle>
           <MemberMedicalShare
             share={portal.medical_share}
             plans={portal.treatment_plans}
             advice={portal.shared_advice}
             followUps={portal.follow_ups}
             tone="teal"
-            heading="Physio info, advice & plan"
+            heading="Rehab on your file"
           />
+          <MemberPortalInvoices invoices={portal.invoices} />
+          <MemberPortalClaims claims={portal.claims} />
           <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
             <p className="text-sm font-black text-slate-900">Your profile</p>
             <p className="text-xs text-slate-500">

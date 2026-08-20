@@ -29,6 +29,7 @@ import {
   snapshotContractorCommercial,
   type ContractorCommercialFields,
 } from '@/lib/clinic/contractor-commercial';
+import { clinicPortalShop } from '@/lib/clinic/clinic-portal-shop';
 
 export const PSYCHIATRYGRAPH_MODULE_ID = 'psychiatrygraph' as const;
 export const PSYCHIATRYGRAPH_META_KEY = 'psychiatrygraph';
@@ -743,6 +744,7 @@ export function buildPatientPortalPayload(
         expires_at: p.expires_at || null,
         status: p.status || 'active',
       })),
+    shop: clinicPortalShop(store),
     treatment_plans: (store.treatment_plans || [])
       .filter((t) => t.person_id === patient.id && t.status === 'active')
       .map((t) => ({
