@@ -1,4 +1,5 @@
 import { getAppUrl } from '@/lib/resend';
+import { renderClientEmailLayout } from '@/lib/services/advisor-branded-email';
 
 export function businessInviteEmailHtml(params: {
   inviteeName?: string | null;
@@ -6,6 +7,7 @@ export function businessInviteEmailHtml(params: {
   invitedBy: string;
   inviteLink: string;
   roleLabel?: string;
+  logoUrl?: string | null;
 }) {
   const inviteeName = params.inviteeName
     ? escapeHtml(String(params.inviteeName))
@@ -18,33 +20,16 @@ export function businessInviteEmailHtml(params: {
   // Safe for href + visible text (token is our UUID)
   const inviteLink = String(params.inviteLink || '').trim();
   const inviteLinkAttr = escapeHtml(inviteLink);
-  return `
-<!DOCTYPE html>
-<html>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <div style="max-width:620px;margin:32px auto;background:#fff;border-radius:20px;overflow:hidden;border:1px solid #e2e8f0;">
-    <div style="background:linear-gradient(135deg,#00b4d8 0%,#0077b6 100%);padding:36px 40px;color:#fff;text-align:center;">
-      <div style="font-size:13px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.9;margin-bottom:8px;">SupplierAdvisor®</div>
-      <h1 style="margin:0;font-size:26px;font-weight:800;letter-spacing:-0.5px;">You're invited to join</h1>
-    </div>
-    <div style="padding:36px 40px;">
-      <p style="color:#334155;font-size:16px;line-height:1.7;margin:0 0 18px;">
-        Hello${inviteeName ? ` ${inviteeName}` : ''},
-      </p>
-      <p style="color:#334155;font-size:16px;line-height:1.7;margin:0 0 18px;">
-        <strong>${invitedBy}</strong> has invited
+  return renderClientEmailLayout({
+    brand: params.businessName,
+    logoUrl: params.logoUrl,
+    headline: "You're invited to join",
+    leadHtml: `<p style="margin:0 0 18px;">Hello${inviteeName ? ` ${inviteeName}` : ''},</p>
+      <p style="margin:0 0 18px;"><strong>${invitedBy}</strong> has invited
         ${roleLabel ? `you as <strong>${roleLabel}</strong> at` : ''}
-        <strong>${businessName}</strong> to join SupplierAdvisor — the verified supply-chain platform.
-      </p>
-      <p style="color:#334155;font-size:16px;line-height:1.7;margin:0 0 20px;">
-        Use the button or the join link below to create your secure account (email code, Google, Apple, or wallet) and accept this invitation. The link expires in 14 days.
-      </p>
-      <div style="text-align:center;margin:24px 0 20px;">
-        <a href="${inviteLinkAttr}" style="background:#00b4d8;color:#fff;padding:16px 40px;border-radius:9999px;text-decoration:none;font-weight:700;font-size:16px;display:inline-block;">
-          Accept invitation &amp; join →
-        </a>
-      </div>
-      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:14px;padding:16px 18px;margin:0 0 8px;">
+        <strong>${businessName}</strong> to join SupplierAdvisor — the verified supply-chain platform.</p>
+      <p style="margin:0;">Use the button or the join link below to create your secure account (email code, Google, Apple, or wallet) and accept this invitation. The link expires in 14 days.</p>`,
+    extraHtml: `<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:14px;padding:16px 18px;margin:20px 0 8px;">
         <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#0369a1;">
           Your join link
         </p>
@@ -54,14 +39,11 @@ export function businessInviteEmailHtml(params: {
         <p style="margin:10px 0 0;font-size:12px;color:#64748b;line-height:1.5;">
           Copy and paste this link into your browser if the button does not open.
         </p>
-      </div>
-    </div>
-    <div style="background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;text-align:center;">
-      SupplierAdvisor® · Verified. Transparent. Accelerating humanity.
-    </div>
-  </div>
-</body>
-</html>`;
+      </div>`,
+    ctaUrl: inviteLink,
+    ctaLabel: 'Accept invitation & join →',
+    footerNote: 'SupplierAdvisor® · Verified. Transparent. Accelerating humanity.',
+  });
 }
 
 /** Plain-text body so join link always arrives even if HTML is stripped. */
@@ -95,6 +77,7 @@ export function teamInviteEmailHtml(params: {
   role: string;
   invitedBy?: string | null;
   inviteLink: string;
+  logoUrl?: string | null;
 }) {
   return businessInviteEmailHtml({
     inviteeName: params.inviteeName,
@@ -102,6 +85,7 @@ export function teamInviteEmailHtml(params: {
     invitedBy: params.invitedBy || 'Your team',
     inviteLink: params.inviteLink,
     roleLabel: params.role,
+    logoUrl: params.logoUrl,
   });
 }
 

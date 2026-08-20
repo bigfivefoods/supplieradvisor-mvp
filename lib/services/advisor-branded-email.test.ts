@@ -12,6 +12,7 @@ import {
   renderAdvisorNoticeEmail,
   renderAdvisorSessionEmail,
   supplierAdvisorLogoUrl,
+  wrapSystemNotificationHtml,
 } from './advisor-branded-email';
 
 assert.equal(advisorEmailSkin('medicalgraph').product, 'MedicalAdvisor®');
@@ -159,5 +160,26 @@ assert.match(coreOnly.html, /SupplierAdvisor®/);
 assert.match(coreOnly.html, /sa-logo\.png/);
 assert.doesNotMatch(coreOnly.html, /GymAdvisor/);
 assert.ok(supplierAdvisorLogoUrl().includes('sa-logo.png'));
+assert.match(coreOnly.html, /data-sa-email-chrome/);
+
+const wrapped = wrapSystemNotificationHtml(
+  '<p>Your PO was accepted.</p>',
+  { companyName: 'VUKA Fitness' }
+);
+assert.match(wrapped, /data-sa-email-chrome/);
+assert.match(wrapped, /SupplierAdvisor/);
+assert.match(wrapped, /VUKA Fitness/);
+assert.match(wrapped, /Your PO was accepted/);
+const twice = wrapSystemNotificationHtml(wrapped);
+assert.equal(twice, wrapped);
+
+const wrappedLogo = wrapSystemNotificationHtml('<p>Hello</p>', {
+  companyName: 'CityCare',
+  companyLogoUrl: '/uploads/clinic.png',
+  moduleKey: 'medicalgraph',
+});
+assert.match(wrappedLogo, /uploads\/clinic\.png/);
+assert.match(wrappedLogo, /MedicalAdvisor/);
+assert.match(wrappedLogo, /sa-logo\.png/);
 
 console.log('advisor-branded-email.test.ts ok');

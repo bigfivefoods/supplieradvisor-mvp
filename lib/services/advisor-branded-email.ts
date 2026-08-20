@@ -228,7 +228,8 @@ export function renderClientEmailLayout(input: ClientEmailLayoutInput): string {
   let mark = '';
   if (chrome.companyLogo) {
     mark = logoPlate(chrome.companyLogo, brand, 58);
-  } else if (!chrome.hasModule) {
+  }
+  if (!chrome.companyLogo) {
     mark = logoPlate(chrome.platformLogo, 'SupplierAdvisor', 52);
   }
 
@@ -248,7 +249,7 @@ export function renderClientEmailLayout(input: ClientEmailLayoutInput): string {
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>${escapeEmailHtml(brand)}</title>
 </head>
-<body style="margin:0;padding:0;background:#e8eef3;font-family:${FONT};">
+<body data-sa-email-chrome="1" style="margin:0;padding:0;background:#e8eef3;font-family:${FONT};">
   ${
     preheader
       ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${preheader}</div>`
@@ -526,6 +527,97 @@ export function renderAdvisorNoticeEmail(input: AdvisorNoticeEmailInput): {
     ctaLabel: input.ctaLabel,
   });
   return { subject: input.subject, html };
+}
+
+export const SYSTEM_EMAIL_CHROME_MARK = 'data-sa-email-chrome';
+
+function extractEmailInnerHtml(html: string): string {
+  const raw = String(html || '');
+  const body = raw.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  return body ? body[1] : raw;
+}
+
+/**
+ * Wrap any transactional HTML in SupplierAdvisor chrome.
+ * Company logo/name sit in the header when provided. Already-wrapped
+ * advisor mail (session, invoice, notice) is left unchanged.
+ */
+export function wrapSystemNotificationHtml(
+  html: string,
+  opts?: {
+    companyName?: string | null;
+    companyLogoUrl?: string | null;
+    moduleKey?: string | null;
+    moduleLabel?: string | null;
+  }
+): string {
+  const raw = String(html || '');
+  if (!raw.trim()) return raw;
+  if (raw.includes(SYSTEM_EMAIL_CHROME_MARK)) return raw;
+
+  const inner = extractEmailInnerHtml(raw);
+  const chrome = clientEmailChrome({
+    moduleKey: opts?.moduleKey,
+    moduleLabel: opts?.moduleLabel,
+    logoUrl: opts?.companyLogoUrl,
+  });
+  const { skin } = chrome;
+  const brand = String(opts?.companyName || '').trim();
+  const showBrand = Boolean(brand && brand !== skin.product);
+
+  let mark = '';
+  if (chrome.companyLogo) {
+    mark = logoPlate(chrome.companyLogo, brand || 'Company', 58);
+  } else {
+    mark = logoPlate(chrome.platformLogo, 'SupplierAdvisor', 52);
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>${escapeEmailHtml(brand || skin.product)}</title>
+</head>
+<body ${SYSTEM_EMAIL_CHROME_MARK}="1" style="margin:0;padding:0;background:#e8eef3;font-family:${FONT};">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#e8eef3;padding:32px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:24px;overflow:hidden;border:1px solid #dbe4ee;">
+          <tr>
+            <td style="background:${skin.accent};background-image:linear-gradient(165deg,${skin.accent} 0%,${skin.accentDark} 100%);padding:28px 32px 22px;text-align:center;">
+              ${mark}
+              <div style="font-family:${FONT};font-size:11px;letter-spacing:.2em;font-weight:800;text-transform:uppercase;color:${chrome.muted};">
+                ${escapeEmailHtml(skin.product)}
+              </div>
+              ${
+                showBrand
+                  ? `<div style="font-family:${FONT};color:${chrome.ink};font-size:22px;font-weight:800;letter-spacing:-0.4px;margin-top:8px;line-height:1.2;">
+                       ${escapeEmailHtml(brand)}
+                     </div>`
+                  : ''
+              }
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 8px 8px;font-family:${FONT};color:#0f172a;">
+              ${inner}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 32px 28px;font-family:${FONT};text-align:center;">
+              <img src="${escapeEmailHtml(chrome.platformLogo)}" alt="SupplierAdvisor" width="36" height="36" style="display:block;margin:12px auto 8px;width:36px;height:36px;border:0;border-radius:10px;" />
+              <p style="margin:0;font-size:12px;line-height:1.5;color:#94a3b8;">
+                ${escapeEmailHtml(skin.product)}${chrome.hasModule ? ' · powered by SupplierAdvisor®' : ' · Verified. Transparent.'}
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 }
 
 function tryResend() {

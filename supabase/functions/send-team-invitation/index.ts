@@ -43,7 +43,12 @@ serve(async (req: Request) => {
         "— SupplierAdvisor",
       ].join("\n"),
       html: `
-        <div style="font-family: system-ui, sans-serif; max-width: 620px; margin: 0 auto; padding: 40px;">
+        <div data-sa-email-chrome="1" style="font-family: system-ui, sans-serif; max-width: 620px; margin: 0 auto; padding: 40px;">
+          <div style="text-align:center;margin-bottom:24px;">
+            <img src="${appUrl}/sa-logo.png" alt="SupplierAdvisor" width="48" height="48" style="display:block;margin:0 auto 8px;border:0;" />
+            <p style="margin:0;font-size:11px;letter-spacing:.18em;font-weight:800;text-transform:uppercase;color:#0077b6;">SupplierAdvisor®</p>
+            <p style="margin:8px 0 0;font-size:18px;font-weight:800;color:#0f172a;">${company_name}</p>
+          </div>
           <h2>Hello ${to_name || ""},</h2>
           <p><strong>${inviter_name || "Your team"}</strong> invited you to join <strong>${company_name}</strong> as <strong>${role}</strong>.</p>
           <p>Click below to accept and complete your profile on the platform:</p>

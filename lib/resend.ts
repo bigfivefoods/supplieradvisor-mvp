@@ -10,8 +10,24 @@ export function getResend(): Resend {
     throw new Error('Missing RESEND_API_KEY in environment variables.');
   }
 
-  resendClient = new Resend(apiKey);
-  return resendClient;
+  const client = new Resend(apiKey);
+  const originalSend = client.emails.send.bind(client.emails);
+  client.emails.send = (async (payload: Parameters<typeof originalSend>[0], options?: Parameters<typeof originalSend>[1]) => {
+    const next = { ...(payload as Record<string, unknown>) };
+    if (typeof next.html === 'string') {
+      const { wrapSystemNotificationHtml } = await import(
+        '@/lib/services/advisor-branded-email'
+      );
+      next.html = wrapSystemNotificationHtml(next.html);
+    }
+    if (!next.from) next.from = getResendFrom();
+    if (next.replyTo == null && next.reply_to == null) {
+      next.replyTo = getResendReplyTo();
+    }
+    return originalSend(next as Parameters<typeof originalSend>[0], options);
+  }) as typeof client.emails.send;
+  resendClient = client;
+  return client;
 }
 
 /** Default transactional sender — domain must be verified in Resend. */

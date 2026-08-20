@@ -53,16 +53,17 @@ export async function sendTeamWorkspaceInvite(opts: {
     Date.now() + INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000
   ).toISOString();
 
-  let displayCompany = String(opts.companyName || '').trim();
-  if (!displayCompany) {
-    const { data: company } = await supabaseAdmin
-      .from('profiles')
-      .select('trading_name, legal_name')
-      .eq('id', opts.companyId)
-      .maybeSingle();
-    displayCompany =
-      company?.trading_name || company?.legal_name || 'your company';
-  }
+  const { data: company } = await supabaseAdmin
+    .from('profiles')
+    .select('trading_name, legal_name, logo_url')
+    .eq('id', opts.companyId)
+    .maybeSingle();
+  const displayCompany =
+    String(opts.companyName || '').trim() ||
+    company?.trading_name ||
+    company?.legal_name ||
+    'your company';
+  const logoUrl = String(company?.logo_url || '').trim() || null;
 
   const { data: existingRows, error: listErr } = await supabaseAdmin
     .from('business_users')
@@ -157,6 +158,7 @@ export async function sendTeamWorkspaceInvite(opts: {
           role: roleLabel,
           invitedBy: inviterName,
           inviteLink,
+          logoUrl,
         }),
         text: teamInviteEmailText({
           inviteeName: opts.name || null,
