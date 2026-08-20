@@ -35,6 +35,7 @@ import {
 import { addDaysIso } from '@/lib/schedule/recurrence';
 import { isoDateInZone } from '@/lib/fitness/gym-local-time';
 import { applyMemberClassRsvp } from '@/lib/fitness/member-class-rsvp';
+import { notifyGymClassRsvp } from '@/lib/fitness/notify-class-rsvp';
 import { notifyPatientBookingPush } from '@/lib/b2c/member-push';
 import { portalInvoicesForPerson } from '@/lib/b2c/member-account-portal';
 import {
@@ -173,9 +174,12 @@ function decorateMemberPortal(
     .map((s) => {
       const ct = classTypeById(store, s.class_type_id);
       const coach = coachById(store, s.coach_id);
+      const prior = store.bookings.find(
+        (b) => b.session_id === s.id && b.client_id === client.id
+      );
       return {
-        booking_id: `alloc_${s.id}`,
-        status: 'booked' as const,
+        booking_id: prior?.id || `alloc_${s.id}`,
+        status: (prior?.status || 'booked') as 'booked',
         session_id: s.id,
         date: s.date,
         start_time: s.start_time,
@@ -185,7 +189,7 @@ function decorateMemberPortal(
         upcoming: true,
         feedback_token: null as string | null,
         feedback_submitted_at: null as string | null,
-        rsvp: null as null,
+        rsvp: prior?.rsvp || null,
       };
     });
   const my_bookings = [...(portal.my_bookings || []), ...allocated].sort(
@@ -200,12 +204,17 @@ function decorateMemberPortal(
     const gate = session
       ? memberMayBookSession(store, client, session)
       : { ok: true as const };
+    const alloc = allocated.find((a) => a.session_id === c.id);
+    const bookedHere = Boolean(c.my_booking_id) || Boolean(alloc);
     return {
       ...c,
-      can_book: gate.ok,
+      my_status: c.my_status || (alloc ? alloc.status : null),
+      my_booking_id: c.my_booking_id || alloc?.booking_id || null,
+      my_rsvp: c.my_rsvp || alloc?.rsvp || null,
+      can_book: bookedHere ? true : gate.ok,
       need_plan: gate.need_plan === true,
       need_debit_bank: gate.need_debit_bank === true,
-      book_hint: gate.ok ? null : gate.error || null,
+      book_hint: gate.ok || bookedHere ? null : gate.error || null,
     };
   });
   return {
@@ -845,16 +854,23 @@ export async function POST(request: NextRequest) {
         action === 'rsvp'
           ? body.coming === true ||
             body.rsvp === 'coming' ||
-            body.rsvp === true
+            body.rsvp === true ||
+            body.rsvp === 'will_attend'
           : false;
       const result = applyMemberClassRsvp(store, {
         bookingId,
         clientId: client.id,
         coming,
+        sessionId: String(body.session_id || body.sessionId || ''),
       });
       if (!result.ok) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
+      await notifyGymClassRsvp({
+        store,
+        booking: result.booking,
+        coming,
+      });
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
@@ -865,10 +881,10 @@ export async function POST(request: NextRequest) {
         message: coming
           ? result.booking.status === 'waitlist'
             ? 'You’re on the waitlist — we’ll notify you if a spot opens'
-            : 'You’re marked as coming'
+            : 'Will be attending — your coach has been notified'
           : result.promoted
-            ? 'Can’t make it — your spot was offered to the waitlist'
-            : 'Can’t make it — your spot is free',
+            ? 'Won’t be attending — your spot was offered to the waitlist'
+            : 'Won’t be attending — your coach has been notified',
       });
     }
 

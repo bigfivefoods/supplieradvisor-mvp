@@ -138,15 +138,19 @@ export function GymNextUpCard({
               : 'bg-white/80 text-slate-900'
           }`}
         >
-          I&apos;m coming
+          Will be attending
         </button>
         <button
           type="button"
           disabled={busy}
           onClick={() => onRsvp(false)}
-          className="min-h-10 rounded-xl px-3 text-xs font-bold text-slate-800 underline"
+          className={`min-h-10 rounded-xl px-3 text-xs font-black ${
+            rsvp === 'not_coming'
+              ? 'bg-rose-700 text-white'
+              : 'bg-white/80 text-slate-900'
+          }`}
         >
-          Can&apos;t make it
+          Won&apos;t be attending
         </button>
       </div>
     </div>

@@ -1496,9 +1496,9 @@ export default function CoachFitgraphPortalPage() {
                           Plan {r.status} · Actual{' '}
                           {r.actual === 'pending' ? '—' : r.actual}
                           {r.rsvp === 'coming'
-                            ? ' · coming'
+                            ? ' · will attend'
                             : r.rsvp === 'not_coming'
-                              ? ' · not coming'
+                              ? ' · won’t attend'
                               : ''}
                         </div>
                         {(r.injured || r.health_label) && (

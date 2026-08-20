@@ -58,4 +58,34 @@ if (skip.ok) {
   assert.equal(skip.promoted?.status, 'booked');
 }
 
+const allocStore = emptyFitgraphStore();
+allocStore.sessions = store.sessions;
+allocStore.clients = [
+  { id: 'c9', code: 'W-9', name: 'Sam', created_at: '2099-01-01' } as never,
+];
+const alloc = applyMemberClassRsvp(allocStore, {
+  bookingId: 'alloc_s1',
+  clientId: 'c9',
+  coming: true,
+  now: '2099-01-10T08:00:00.000Z',
+});
+assert.equal(alloc.ok, true);
+if (!alloc.ok) throw new Error('alloc rsvp failed');
+assert.equal(alloc.booking.rsvp, 'coming');
+assert.equal(alloc.booking.session_id, 's1');
+assert.equal(allocStore.bookings[0].id, alloc.booking.id);
+
+const skipAlloc = applyMemberClassRsvp(allocStore, {
+  bookingId: alloc.booking.id,
+  clientId: 'c9',
+  coming: false,
+  sessionId: 's1',
+  now: '2099-01-10T09:00:00.000Z',
+});
+assert.equal(skipAlloc.ok, true);
+if (skipAlloc.ok) {
+  assert.equal(skipAlloc.booking.rsvp, 'not_coming');
+  assert.equal(skipAlloc.booking.status, 'cancelled');
+}
+
 console.log('member-class-rsvp.test.ts ok');

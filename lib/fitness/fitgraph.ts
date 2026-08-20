@@ -1748,7 +1748,9 @@ export function buildMemberPortalPayload(
               b.client_id === client.id &&
               (b.status === 'booked' ||
                 b.status === 'waitlist' ||
-                b.status === 'attended')
+                b.status === 'attended' ||
+                b.rsvp === 'not_coming' ||
+                b.rsvp === 'coming')
           );
           return {
             id: s.id,

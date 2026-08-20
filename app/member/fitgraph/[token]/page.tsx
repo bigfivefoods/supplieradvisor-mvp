@@ -602,11 +602,15 @@ export default function MemberFitgraphPortalPage() {
     }
   };
 
-  const rsvp = async (bookingId: string, coming: boolean) => {
+  const rsvp = async (
+    bookingId: string,
+    coming: boolean,
+    sessionId?: string | null
+  ) => {
     if (
       !coming &&
       !confirm(
-        'Can’t make this class? Your spot will be freed and may go to the waitlist.'
+        'Won’t be attending? Your coach will be notified and the spot may go to the waitlist.'
       )
     ) {
       return;
@@ -618,9 +622,13 @@ export default function MemberFitgraphPortalPage() {
       const data = await post({
         action: 'rsvp',
         booking_id: bookingId,
+        session_id: sessionId || undefined,
         coming,
       });
-      setMsg(data.message || (coming ? 'You’re coming' : 'Marked as not coming'));
+      setMsg(
+        data.message ||
+          (coming ? 'Will be attending' : 'Won’t be attending')
+      );
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Could not update');
     } finally {
@@ -773,9 +781,8 @@ export default function MemberFitgraphPortalPage() {
   const bookedUpcoming = (portal.my_bookings || [])
     .filter(
       (b) =>
-        b.status !== 'cancelled' &&
-        b.rsvp !== 'not_coming' &&
-        sessionIsUpcoming(b.date, b.start_time, { timeZone: gymTz })
+        sessionIsUpcoming(b.date, b.start_time, { timeZone: gymTz }) &&
+        (b.status !== 'cancelled' || b.rsvp === 'not_coming')
     )
     .slice()
     .sort((a, b) =>
@@ -1455,7 +1462,13 @@ export default function MemberFitgraphPortalPage() {
                 busy={busyId === nextClass.booking_id}
                 color={color}
                 onOpen={() => selectTab('mine')}
-                onRsvp={(coming) => void rsvp(nextClass.booking_id, coming)}
+                onRsvp={(coming) =>
+                  void rsvp(
+                    nextClass.booking_id,
+                    coming,
+                    nextClass.session_id
+                  )
+                }
               />
             ) : null}
             <GymSectionTitle hint="Pick a day, then book or join the waitlist. Your booked classes are highlighted.">
@@ -1469,7 +1482,12 @@ export default function MemberFitgraphPortalPage() {
               color={color}
               onBook={(id, waitlist) => void book(id, waitlist)}
               onCancel={(id) => void cancel(id)}
-              onRsvp={(id, coming) => void rsvp(id, coming)}
+              onRsvp={(id, coming) => {
+                const slot = (portal.open_classes || []).find(
+                  (c) => c.my_booking_id === id || c.id === id
+                );
+                void rsvp(id, coming, slot?.id);
+              }}
               onNeedSubscribe={(needBank) =>
                 selectTab(needBank ? 'profile' : 'join')
               }
@@ -1479,7 +1497,7 @@ export default function MemberFitgraphPortalPage() {
 
         {tab === 'mine' && (
           <div className="space-y-4">
-            <GymSectionTitle hint="Every class you are booked for, starting with the next one. Tell the gym if you can’t make it.">
+            <GymSectionTitle hint="Every class you are scheduled for. Tell your coach if you will be attending or won’t be attending.">
               My classes
             </GymSectionTitle>
             {bookedUpcoming.length === 0 ? (
@@ -1517,12 +1535,14 @@ export default function MemberFitgraphPortalPage() {
                       ) : null}
                       <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase text-slate-700 dark:bg-white/10 dark:text-slate-200">
                         {b.rsvp === 'coming'
-                          ? 'Coming'
-                          : b.status === 'waitlist'
-                            ? 'Waitlist'
-                            : String(b.booking_id).startsWith('alloc_')
-                              ? 'On your class'
-                              : b.status}
+                          ? 'Will be attending'
+                          : b.rsvp === 'not_coming'
+                            ? 'Won’t be attending'
+                            : b.status === 'waitlist'
+                              ? 'Waitlist'
+                              : String(b.booking_id).startsWith('alloc_')
+                                ? 'On your class'
+                                : b.status}
                       </span>
                       <div className="mt-1.5">
                         <GymCalendarLink
@@ -1537,28 +1557,35 @@ export default function MemberFitgraphPortalPage() {
                         </div>
                       ) : null}
                     </div>
-                    {(b.status === 'booked' || b.status === 'waitlist') &&
-                    !String(b.booking_id).startsWith('alloc_') ? (
+                    {b.status !== 'attended' ? (
                       <div className="flex shrink-0 flex-col gap-1">
                         <button
                           type="button"
                           disabled={busyId === b.booking_id}
-                          onClick={() => void rsvp(b.booking_id, true)}
+                          onClick={() =>
+                            void rsvp(b.booking_id, true, b.session_id)
+                          }
                           className={`min-h-10 rounded-xl px-3 text-[11px] font-black ${
                             b.rsvp === 'coming'
                               ? 'bg-emerald-600 text-white'
                               : 'border border-emerald-200 text-emerald-800 dark:border-emerald-500/40 dark:text-emerald-200'
                           }`}
                         >
-                          I&apos;m coming
+                          Will be attending
                         </button>
                         <button
                           type="button"
                           disabled={busyId === b.booking_id}
-                          onClick={() => void rsvp(b.booking_id, false)}
-                          className="min-h-9 rounded-xl px-3 text-[11px] font-bold text-rose-600"
+                          onClick={() =>
+                            void rsvp(b.booking_id, false, b.session_id)
+                          }
+                          className={`min-h-10 rounded-xl px-3 text-[11px] font-black ${
+                            b.rsvp === 'not_coming'
+                              ? 'bg-rose-600 text-white'
+                              : 'border border-rose-200 text-rose-700 dark:border-rose-500/40 dark:text-rose-200'
+                          }`}
                         >
-                          Can&apos;t make it
+                          Won&apos;t be attending
                         </button>
                       </div>
                     ) : null}

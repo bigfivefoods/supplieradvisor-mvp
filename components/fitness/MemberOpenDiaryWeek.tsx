@@ -82,15 +82,19 @@ function SlotActions({
                     : 'border border-emerald-200 text-emerald-800 dark:border-emerald-500/40 dark:text-emerald-200'
                 }`}
               >
-                I&apos;m coming
+                Will be attending
               </button>
               <button
                 type="button"
                 disabled={busyId === slot.my_booking_id}
                 onClick={() => onRsvp(slot.my_booking_id!, false)}
-                className="min-h-10 rounded-xl px-3 text-xs font-bold text-rose-600"
+                className={`min-h-10 rounded-xl px-3 text-xs font-black ${
+                  slot.my_rsvp === 'not_coming'
+                    ? 'bg-rose-600 text-white'
+                    : 'border border-rose-200 text-rose-700 dark:border-rose-500/40 dark:text-rose-200'
+                }`}
               >
-                Can&apos;t make it
+                Won&apos;t be attending
               </button>
             </>
           ) : onCancel ? (

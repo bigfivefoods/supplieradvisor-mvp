@@ -222,7 +222,8 @@ export function sessionRosterRows(
   const rows: SessionRosterRow[] = [];
   const seen = new Set<string>();
   for (const b of store.bookings || []) {
-    if (b.session_id !== sessionId || b.status === 'cancelled') continue;
+    if (b.session_id !== sessionId) continue;
+    if (b.status === 'cancelled' && b.rsvp !== 'not_coming') continue;
     const cl = store.clients.find((c) => c.id === b.client_id);
     const name = b.family_member_name || cl?.name || b.guest_name || '';
     if (!name) continue;
@@ -239,14 +240,20 @@ export function sessionRosterRows(
   if (session) {
     for (const row of subscribersForSession(store, session)) {
       if (seen.has(row.client.id)) continue;
+      const prior = (store.bookings || []).find(
+        (b) => b.session_id === sessionId && b.client_id === row.client.id
+      );
       seen.add(row.client.id);
       rows.push({
-        booking_id: row.booking?.id || `alloc_${session.id}_${row.client.id}`,
+        booking_id:
+          prior?.id ||
+          row.booking?.id ||
+          `alloc_${session.id}_${row.client.id}`,
         client_id: row.client.id,
         name: row.client.name,
-        status: row.booking?.status || 'booked',
-        rsvp: row.booking?.rsvp || null,
-        coach_feedback: row.booking?.coach_feedback || null,
+        status: prior?.status || row.booking?.status || 'booked',
+        rsvp: prior?.rsvp || row.booking?.rsvp || null,
+        coach_feedback: prior?.coach_feedback || row.booking?.coach_feedback || null,
       });
     }
   }

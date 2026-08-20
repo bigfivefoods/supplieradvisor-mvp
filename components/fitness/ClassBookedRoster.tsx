@@ -56,9 +56,9 @@ export function ClassBookedRoster({
                 <p className="text-[10px] uppercase font-bold text-slate-500">
                   {r.status.replace(/_/g, ' ')}
                   {r.rsvp === 'coming'
-                    ? ' · coming'
+                    ? ' · will attend'
                     : r.rsvp === 'not_coming'
-                      ? ' · not coming'
+                      ? ' · won’t attend'
                       : ''}
                 </p>
                 {r.coach_feedback ? (
