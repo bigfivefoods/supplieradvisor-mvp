@@ -309,19 +309,60 @@ async function runForCompany(
     pack_warnings,
     modules,
   };
-  if (reminders > 0 || pack_warnings > 0 || modules.length) {
-    const supabase = getSupabaseServer();
-    await supabase
-      .from('profiles')
-      .update({ metadata: nextMeta, updated_at: now })
-      .eq('id', companyId);
-  } else if (modules.length) {
-    // still stamp last scan when modules present but nothing to send
-    const supabase = getSupabaseServer();
-    await supabase
-      .from('profiles')
-      .update({ metadata: nextMeta, updated_at: now })
-      .eq('id', companyId);
+  const { saveAdvisorModuleStore, mergeProfileMetadata } = await import(
+    '@/lib/business/company-data'
+  );
+  if (reminders > 0 || pack_warnings > 0) {
+    if (modules.includes('fitgraph')) {
+      await saveAdvisorModuleStore(
+        companyId,
+        'fitgraph',
+        readFitgraphFromMetadata(nextMeta),
+        writeFitgraphToMetadata
+      );
+    }
+    if (modules.includes('dentalgraph')) {
+      await saveAdvisorModuleStore(
+        companyId,
+        'dentalgraph',
+        readDentalgraphFromMetadata(nextMeta),
+        writeDentalgraphToMetadata
+      );
+    }
+    if (modules.includes('physiograph')) {
+      const { readPhysiographFromMetadata, writePhysiographToMetadata } =
+        await import('@/lib/clinic/physiograph');
+      await saveAdvisorModuleStore(
+        companyId,
+        'physiograph',
+        readPhysiographFromMetadata(nextMeta),
+        writePhysiographToMetadata
+      );
+    }
+    if (modules.includes('medicalgraph')) {
+      await saveAdvisorModuleStore(
+        companyId,
+        'medicalgraph',
+        readMedicalgraphFromMetadata(nextMeta),
+        writeMedicalgraphToMetadata
+      );
+    }
+    if (modules.includes('psychiatrygraph')) {
+      const { readPsychiatrygraphFromMetadata, writePsychiatrygraphToMetadata } =
+        await import('@/lib/clinic/psychiatrygraph');
+      await saveAdvisorModuleStore(
+        companyId,
+        'psychiatrygraph',
+        readPsychiatrygraphFromMetadata(nextMeta),
+        writePsychiatrygraphToMetadata
+      );
+    }
+  }
+  if (modules.length) {
+    await mergeProfileMetadata(companyId, {
+      advisor_events: nextMeta.advisor_events,
+      advisor_reminders_last_run: nextMeta.advisor_reminders_last_run,
+    });
   }
 
   return { companyId, reminders, pack_warnings, modules };
@@ -345,10 +386,16 @@ async function run(request: NextRequest) {
     Math.max(1, Number(request.nextUrl.searchParams.get('limit') || 40))
   );
   const supabase = getSupabaseServer();
-  // Scan recent profiles — filter in process for advisor metadata keys
-  const { data: rows, error } = await supabase
-    .from('profiles')
-    .select('id, metadata, updated_at, logo_url, trading_name')
+  const { data: storeRows, error } = await supabase
+    .from('company_module_stores')
+    .select('company_id, module, data')
+    .in('module', [
+      'fitgraph',
+      'dentalgraph',
+      'physiograph',
+      'medicalgraph',
+      'psychiatrygraph',
+    ])
     .order('updated_at', { ascending: false })
     .limit(400);
 
@@ -359,39 +406,39 @@ async function run(request: NextRequest) {
     );
   }
 
-  const candidates = (rows || []).filter((r) => {
-    const m = r.metadata as Record<string, unknown> | null;
-    if (!m || typeof m !== 'object') return false;
-    return Boolean(
-      m.fitgraph ||
-        m.dentalgraph ||
-        m.physiograph ||
-        m.medicalgraph ||
-        m.psychiatrygraph
-    );
-  }).slice(0, limit);
+  const byCompany = new Map<number, Record<string, unknown>>();
+  for (const row of storeRows || []) {
+    const id = Number(row.company_id);
+    if (!Number.isFinite(id) || id <= 0) continue;
+    const prev = byCompany.get(id) || {};
+    const key = String(row.module || '');
+    if (key && row.data && typeof row.data === 'object') {
+      prev[key] = row.data;
+      byCompany.set(id, prev);
+    }
+  }
+  const candidates = [...byCompany.entries()].slice(0, limit);
 
   const results = [];
   let totalReminders = 0;
   let totalPackWarn = 0;
-  for (const row of candidates) {
+  for (const [companyId, meta] of candidates) {
     try {
-      const r = await runForCompany(
-        Number(row.id),
-        (row.metadata && typeof row.metadata === 'object'
-          ? { ...(row.metadata as Record<string, unknown>) }
-          : {}) as Record<string, unknown>,
-        {
-          logo_url: (row as { logo_url?: string | null }).logo_url,
-          trading_name: (row as { trading_name?: string | null }).trading_name,
-        }
-      );
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('logo_url, trading_name')
+        .eq('id', companyId)
+        .maybeSingle();
+      const r = await runForCompany(companyId, meta, {
+        logo_url: prof?.logo_url,
+        trading_name: prof?.trading_name,
+      });
       totalReminders += r.reminders;
       totalPackWarn += r.pack_warnings;
       if (r.reminders || r.pack_warnings) results.push(r);
     } catch (e) {
       results.push({
-        companyId: Number(row.id),
+        companyId,
         error: e instanceof Error ? e.message : 'failed',
       });
     }

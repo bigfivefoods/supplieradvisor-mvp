@@ -95,32 +95,29 @@ function writeStore(
 }
 
 async function load(companyId: number, module: ClinicClaimsModule) {
-  const supabase = getSupabaseServer();
-  const { data } = await supabase
-    .from('profiles')
-    .select('metadata')
-    .eq('id', companyId)
-    .maybeSingle();
-  const meta =
-    data?.metadata && typeof data.metadata === 'object'
-      ? { ...(data.metadata as Record<string, unknown>) }
-      : {};
-  return { meta, store: readStore(module, meta) };
+  const { loadAdvisorModuleStore } = await import(
+    '@/lib/business/company-data'
+  );
+  const loaded = await loadAdvisorModuleStore(
+    companyId,
+    module,
+    (meta) => readStore(module, meta)
+  );
+  return { meta: loaded.meta, store: loaded.store };
 }
 
 async function save(
   companyId: number,
   module: ClinicClaimsModule,
-  meta: Record<string, unknown>,
+  _meta: Record<string, unknown>,
   store: ReturnType<typeof readStore>
 ) {
-  const supabase = getSupabaseServer();
-  const next = writeStore(module, meta, store);
-  const { error } = await supabase
-    .from('profiles')
-    .update({ metadata: next, updated_at: new Date().toISOString() })
-    .eq('id', companyId);
-  if (error) throw new Error(error.message);
+  const { saveAdvisorModuleStore } = await import(
+    '@/lib/business/company-data'
+  );
+  await saveAdvisorModuleStore(companyId, module, store, (meta, next) =>
+    writeStore(module, meta, next)
+  );
 }
 
 export async function GET(request: NextRequest) {

@@ -9,39 +9,68 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { mergeProfileMetadata } from '@/lib/business/company-data';
+import {
+  ADVISOR_PAYOUT_META_KEY,
+  advisorPaystackSplitFromMeta,
+} from '@/lib/billing/advisor-payout';
 import {
   createTillSession,
   expireSession,
   findSession,
   parseTillToken,
   readTillSessions,
+  tillPayPath,
   upsertSession,
   writeTillSessions,
 } from '@/lib/till/sessions';
-import { isTillModule, type TillLine, type TillSessionKind } from '@/lib/till/types';
+import {
+  isTillModule,
+  TILL_META_KEY,
+  type TillLine,
+  type TillSessionKind,
+} from '@/lib/till/types';
 import { getAppUrl } from '@/lib/resend';
-import { tillPayPath } from '@/lib/till/sessions';
-import { advisorPaystackSplitFromMeta } from '@/lib/billing/advisor-payout';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 async function loadCompany(companyId: number) {
   const supabase = getSupabaseServer();
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('id, metadata, trading_name, legal_name')
-    .eq('id', companyId)
-    .maybeSingle();
+  const [prof, keys] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('trading_name, legal_name')
+      .eq('id', companyId)
+      .maybeSingle(),
+    supabase.rpc('sa_get_profile_metadata_keys', {
+      p_company_id: companyId,
+      p_keys: [TILL_META_KEY, ADVISOR_PAYOUT_META_KEY],
+    }),
+  ]);
   const meta =
-    prof?.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
+    !keys.error && keys.data && typeof keys.data === 'object'
+      ? { ...(keys.data as Record<string, unknown>) }
       : {};
   return {
-    supabase,
     meta,
-    brand: String(prof?.trading_name || prof?.legal_name || `Company #${companyId}`),
+    brand: String(
+      prof.data?.trading_name ||
+        prof.data?.legal_name ||
+        `Company #${companyId}`
+    ),
   };
+}
+
+async function saveTill(
+  companyId: number,
+  meta: Record<string, unknown>,
+  sessions: ReturnType<typeof readTillSessions>
+) {
+  const next = writeTillSessions(meta, sessions);
+  await mergeProfileMetadata(companyId, {
+    [TILL_META_KEY]: next[TILL_META_KEY],
+  });
 }
 
 export async function GET(request: NextRequest) {
@@ -88,7 +117,7 @@ export async function POST(request: NextRequest) {
     });
     if (!gate.ok) return gate.response;
 
-    const { supabase, meta, brand } = await loadCompany(companyId);
+    const { meta, brand } = await loadCompany(companyId);
     let sessions = readTillSessions(meta).map((s) => expireSession(s));
     const action = String(body.action || 'create');
 
@@ -132,11 +161,7 @@ export async function POST(request: NextRequest) {
         chargeIds,
       });
       sessions = upsertSession(sessions, session);
-      const { error } = await supabase
-        .from('profiles')
-        .update({ metadata: writeTillSessions(meta, sessions) })
-        .eq('id', companyId);
-      if (error) throw new Error(error.message);
+      await saveTill(companyId, meta, sessions);
       const origin = getAppUrl();
       return NextResponse.json({
         success: true,
@@ -161,10 +186,7 @@ export async function POST(request: NextRequest) {
       }
       const next = { ...current, status: 'cancelled' as const };
       sessions = upsertSession(sessions, next);
-      await supabase
-        .from('profiles')
-        .update({ metadata: writeTillSessions(meta, sessions) })
-        .eq('id', companyId);
+      await saveTill(companyId, meta, sessions);
       return NextResponse.json({ success: true, session: next });
     }
 
@@ -182,10 +204,7 @@ export async function POST(request: NextRequest) {
         paid_via: 'cash',
       };
       sessions = upsertSession(sessions, next);
-      await supabase
-        .from('profiles')
-        .update({ metadata: writeTillSessions(meta, sessions) })
-        .eq('id', companyId);
+      await saveTill(companyId, meta, sessions);
       return NextResponse.json({ success: true, session: next, message: 'Marked paid · cash' });
     }
 

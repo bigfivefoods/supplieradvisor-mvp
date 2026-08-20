@@ -12,6 +12,7 @@ If that already returned `{"ok":true,"module_store_rows":…}`, paste this delta
 
 ```text
 supabase/migrations/20260820_module_store_secure.sql
+supabase/migrations/20260820_store_hardening.sql
 ```
 
 After deploying, if `/api/system/health` shows `schemaOptionalMissing` or missing profile columns, run these **in order**:

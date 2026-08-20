@@ -26,16 +26,14 @@ export async function GET() {
   > = {};
 
   const hasUrl = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL);
-  const hasKey = Boolean(
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
+  const hasService = hasServiceRole();
 
   checks.env = {
-    ok: hasUrl && hasKey,
+    ok: hasUrl && hasService,
     error: !hasUrl
       ? 'Missing NEXT_PUBLIC_SUPABASE_URL'
-      : !hasKey
-        ? 'Missing Supabase key'
+      : !hasService
+        ? 'Missing SUPABASE_SERVICE_ROLE_KEY'
         : undefined,
   };
 
@@ -274,6 +272,11 @@ export async function GET() {
     // P0 production readiness (public — no secrets)
     const p0Blockers: string[] = [];
     const p0Warnings: string[] = [];
+    if (!hasService) {
+      p0Blockers.push(
+        'SUPABASE_SERVICE_ROLE_KEY missing — module stores cannot load or save'
+      );
+    }
     if (!checks.paystack.ok) {
       p0Blockers.push(
         'PAYSTACK_SECRET_KEY missing — paid CIPC webhook soft-fails'

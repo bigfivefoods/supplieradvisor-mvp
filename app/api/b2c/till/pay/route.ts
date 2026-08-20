@@ -9,6 +9,9 @@ import {
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { loadB2cProfile } from '@/lib/b2c/profile-store';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { mergeProfileMetadata, saveAdvisorModuleStore } from '@/lib/business/company-data';
+import { TILL_META_KEY } from '@/lib/till/types';
+import { ADVISOR_PAYOUT_META_KEY } from '@/lib/billing/advisor-payout';
 import { initializePaystackTransaction } from '@/lib/billing/paystack-plans';
 import { verifyPaystackTransaction } from '@/lib/billing/paystack';
 import {
@@ -49,16 +52,26 @@ export const dynamic = 'force-dynamic';
 
 async function loadMeta(companyId: number) {
   const supabase = getSupabaseServer();
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('metadata')
-    .eq('id', companyId)
-    .maybeSingle();
+  const keys = await supabase.rpc('sa_get_profile_metadata_keys', {
+    p_company_id: companyId,
+    p_keys: [TILL_META_KEY, ADVISOR_PAYOUT_META_KEY],
+  });
   const meta =
-    prof?.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
+    !keys.error && keys.data && typeof keys.data === 'object'
+      ? { ...(keys.data as Record<string, unknown>) }
       : {};
-  return { supabase, meta };
+  return { meta };
+}
+
+async function saveTillMeta(
+  companyId: number,
+  meta: Record<string, unknown>,
+  sessions: ReturnType<typeof readTillSessions>
+) {
+  const next = writeTillSessions(meta, sessions);
+  await mergeProfileMetadata(companyId, {
+    [TILL_META_KEY]: next[TILL_META_KEY],
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -78,7 +91,7 @@ export async function POST(request: NextRequest) {
     if (!parsed) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 400 });
     }
-    const { supabase, meta } = await loadMeta(parsed.companyId);
+    const { meta } = await loadMeta(parsed.companyId);
     let sessions = readTillSessions(meta).map((s) => expireSession(s));
     const session = findSession(sessions, token);
     if (!session) {
@@ -136,10 +149,7 @@ export async function POST(request: NextRequest) {
       }
       const pending: TillSession = { ...session, status: 'pending' };
       sessions = upsertSession(sessions, pending);
-      await supabase
-        .from('profiles')
-        .update({ metadata: writeTillSessions(meta, sessions) })
-        .eq('id', parsed.companyId);
+      await saveTillMeta(parsed.companyId, meta, sessions);
       return NextResponse.json({
         success: true,
         authorization_url: init.authorizationUrl,
@@ -168,7 +178,7 @@ export async function POST(request: NextRequest) {
         paid_by_user_id: userId,
       };
       sessions = upsertSession(sessions, paid);
-      let nextMeta = writeTillSessions(meta, sessions);
+      await saveTillMeta(parsed.companyId, meta, sessions);
 
       if (session.kind === 'bill' && session.charge_ids?.length) {
         const company = await loadWalletCompany(session.company_id);
@@ -197,8 +207,16 @@ export async function POST(request: NextRequest) {
       }
 
       if (session.kind === 'sale') {
+        const { loadAdvisorModuleStore } = await import(
+          '@/lib/business/company-data'
+        );
+        const loaded = await loadAdvisorModuleStore(
+          parsed.companyId,
+          'retailgraph',
+          readRetailgraphFromMetadata
+        );
         const retail = ensureRetailPublicToken(
-          readRetailgraphFromMetadata(nextMeta),
+          loaded.store,
           session.company_id
         );
         retail.sales = [
@@ -217,14 +235,14 @@ export async function POST(request: NextRequest) {
           },
           ...retail.sales,
         ].slice(0, 200);
-        nextMeta = writeRetailgraphToMetadata(nextMeta, retail);
+        await saveAdvisorModuleStore(
+          parsed.companyId,
+          'retailgraph',
+          retail,
+          writeRetailgraphToMetadata
+        );
       }
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({ metadata: nextMeta })
-        .eq('id', parsed.companyId);
-      if (error) throw new Error(error.message);
       return NextResponse.json({ success: true, session: paid });
     }
 
