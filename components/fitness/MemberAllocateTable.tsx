@@ -435,7 +435,6 @@ export function MemberAllocateTable({
         delete next[c.id];
         return next;
       });
-      setStatusFilter('inactive');
       toast.success((data?.message as string) || 'Marked inactive');
     } catch {
       toast.error('Could not save');
