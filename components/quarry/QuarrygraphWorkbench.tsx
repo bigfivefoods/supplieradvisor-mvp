@@ -1,8 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
@@ -93,14 +92,6 @@ export function QuarrygraphWorkbench({
   return (
     <QuarrygraphRequired>
       <QuarrygraphPage>
-        <div className="mb-4">
-          <Link
-            href="/dashboard/quarrygraph"
-            className="inline-flex items-center gap-1 text-xs font-bold text-amber-800 hover:text-amber-950"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> QuarryAdvisor
-          </Link>
-        </div>
         <RelationshipHeader
           eyebrow="QuarryAdvisor®"
           title={title}

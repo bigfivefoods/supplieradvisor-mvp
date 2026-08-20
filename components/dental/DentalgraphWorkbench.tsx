@@ -1,8 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
@@ -84,14 +83,6 @@ export function DentalgraphWorkbench({
   return (
     <DentalgraphRequired>
       <DentalgraphPage>
-        <div className="mb-4">
-          <Link
-            href="/dashboard/dentalgraph"
-            className="inline-flex items-center gap-1 text-xs font-bold text-sky-700 hover:text-sky-900 dark:text-sky-300 dark:hover:text-white"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> DentalAdvisor
-          </Link>
-        </div>
         <RelationshipHeader
           eyebrow="DentalAdvisor®"
           title={title}

@@ -1,8 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
@@ -100,14 +99,6 @@ export function FieldgraphWorkbench({
   return (
     <FieldgraphRequired>
       <FieldgraphPage>
-        <div className="mb-4">
-          <Link
-            href="/dashboard/fieldgraph"
-            className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 dark:text-white hover:text-emerald-900 dark:text-white dark:hover:text-white"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> CropAdvisor
-          </Link>
-        </div>
         <RelationshipHeader
           eyebrow="CropAdvisor®"
           title={title}

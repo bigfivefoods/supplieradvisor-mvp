@@ -1,8 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
@@ -84,14 +83,6 @@ export function PhysiographWorkbench({
   return (
     <PhysiographRequired>
       <PhysiographPage>
-        <div className="mb-4">
-          <Link
-            href="/dashboard/physiograph"
-            className="inline-flex items-center gap-1 text-xs font-bold text-teal-700 hover:text-teal-900 dark:text-teal-300 dark:hover:text-white"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> PhysioAdvisor
-          </Link>
-        </div>
         <RelationshipHeader
           eyebrow="PhysioAdvisor®"
           title={title}

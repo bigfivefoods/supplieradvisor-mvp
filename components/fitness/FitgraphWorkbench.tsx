@@ -1,8 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
@@ -83,14 +82,6 @@ export function FitgraphWorkbench({
   return (
     <FitgraphRequired>
       <FitgraphPage>
-        <div className="mb-4">
-          <Link
-            href="/dashboard/fitgraph"
-            className="inline-flex items-center gap-1 text-xs font-bold text-yellow-700 hover:text-yellow-900"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> GymAdvisor
-          </Link>
-        </div>
         <RelationshipHeader
           eyebrow="GymAdvisor®"
           title={title}

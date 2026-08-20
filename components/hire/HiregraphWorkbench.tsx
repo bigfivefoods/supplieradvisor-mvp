@@ -1,8 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
@@ -104,14 +103,6 @@ export function HiregraphWorkbench({
   return (
     <HiregraphRequired>
       <HiregraphPage>
-        <div className="mb-4">
-          <Link
-            href="/dashboard/hiregraph"
-            className="inline-flex items-center gap-1 text-xs font-bold text-violet-700 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> HireAdvisor
-          </Link>
-        </div>
         <RelationshipHeader
           eyebrow="HireAdvisor®"
           title={title}
