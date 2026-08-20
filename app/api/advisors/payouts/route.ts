@@ -1,6 +1,7 @@
 /**
- * Advisor payout bank — Paystack subaccount + 1% platform admin fee.
- * GET  ?companyId=&banks=1
+ * Advisor split-settlement bank — Paystack subaccount + 1% platform admin.
+ * Card / Apple Pay already collects on SupplierAdvisor; this bank is where
+ * split funds land. GET ?companyId=&banks=1
  * POST { action: resolve | save | disconnect, companyId, ... }
  */
 import { NextRequest, NextResponse } from 'next/server';
@@ -150,7 +151,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           success: true,
           payout: publicAdvisorPayout(null),
-          message: 'No payout connected',
+          message: 'No split bank saved',
           ...feePayload(),
         });
       }
@@ -170,7 +171,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         payout: publicAdvisorPayout(next),
-        message: 'Card / Apple Pay payout paused. Proof of payment still works.',
+        message:
+          'Split bank paused. Card / Apple Pay still works; funds stay on SupplierAdvisor until you add a bank.',
         ...feePayload(),
       });
     }
@@ -255,8 +257,8 @@ export async function POST(request: NextRequest) {
       payout: publicAdvisorPayout(next),
       ready: isAdvisorPayoutReady(next),
       message: accountName
-        ? `Payout connected · ${accountName}`
-        : 'Payout connected',
+        ? `Split bank saved · ${accountName}`
+        : 'Split bank saved',
       ...feePayload(),
     });
   } catch (e: unknown) {

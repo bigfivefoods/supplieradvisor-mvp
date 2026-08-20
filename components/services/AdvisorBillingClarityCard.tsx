@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Prompt to connect Advisor card / Apple Pay. Hidden once a payout bank is set.
+ * Prompt to add the bank where split funds land. Card / Apple Pay already works.
  */
 import { useEffect, useState } from 'react';
 import { CreditCard } from 'lucide-react';
@@ -67,11 +67,12 @@ export function AdvisorBillingClarityCard({
             {moduleLabel} · Card / Apple Pay
           </p>
           <p className="text-sm font-bold text-slate-900 dark:text-white">
-            Connect a payout bank to take card and Apple Pay
+            Add the bank where split funds go
           </p>
           <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-            Company SaaS stays on SupplierAdvisor. Member sales settle to your
-            bank. Cash and proof of payment stay with <strong>{brand}</strong>.
+            Card / Apple Pay already works. Members pay the listed price; you
+            receive settlement minus a 1% admin fee and Paystack card fees.
+            Proof of payment and cash stay with <strong>{brand}</strong>.
           </p>
           <p className="text-[11px] text-slate-500">
             <Link

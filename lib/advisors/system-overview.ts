@@ -160,7 +160,7 @@ const BY_MODULE: Record<AdvisorOverviewModule, AdvisorSystemOverviewCopy> = {
       },
       {
         title: 'Website & pay-out',
-        body: 'Public profile, booking and marketplace listing. Connect a payout bank - member sales settle to you.',
+        body: 'Public profile, booking and marketplace listing. Card / Apple Pay already works; add a bank for where split funds go.',
       },
     ],
     clients: [

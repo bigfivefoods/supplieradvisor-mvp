@@ -110,9 +110,9 @@ export function AdvisorPayoutSettings({
       if (data.preview) setPreview(data.preview);
       setForm((f) => ({ ...f, account_number: '' }));
       setEditing(false);
-      toast.success(data.message || 'Payout connected');
+      toast.success(data.message || 'Split bank saved');
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Could not connect payout');
+      toast.error(e instanceof Error ? e.message : 'Could not save bank');
     } finally {
       setBusy(false);
     }
@@ -144,7 +144,11 @@ export function AdvisorPayoutSettings({
 
   const disconnect = async () => {
     if (!companyId) return;
-    if (!window.confirm('Pause card / Apple Pay settlement to this bank? Proof of payment still works.')) {
+    if (
+      !window.confirm(
+        'Stop sending split funds to this bank? Card / Apple Pay still works; settlement stays on SupplierAdvisor until you add a bank.'
+      )
+    ) {
       return;
     }
     setBusy(true);
@@ -161,9 +165,9 @@ export function AdvisorPayoutSettings({
         onChangeRef.current?.(data.payout);
       }
       setEditing(true);
-      toast.success(data.message || 'Payout paused');
+      toast.success(data.message || 'Split bank paused');
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Could not pause payout');
+      toast.error(e instanceof Error ? e.message : 'Could not pause split bank');
     } finally {
       setBusy(false);
     }
@@ -172,7 +176,7 @@ export function AdvisorPayoutSettings({
   if (loading) {
     return (
       <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading payout…
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading split bank…
       </div>
     );
   }
@@ -197,17 +201,23 @@ export function AdvisorPayoutSettings({
             {payout?.percentage_charge ?? 1}% admin fee and Paystack card fees.
             Proof of payment and cash stay off-platform.
           </p>
+          {!ready ? (
+            <p className="mt-1 text-[11px] font-semibold text-amber-900">
+              Card / Apple Pay already works. Add the bank where split funds
+              should land.
+            </p>
+          ) : null}
         </div>
         {ready ? (
           <div className="flex flex-col items-end gap-1.5">
             <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white">
-              Connected
+              Split bank
             </span>
             <AdvisorPayAccepted tone="onLight" size="sm" label="Shown on your site" />
           </div>
         ) : (
           <span className="rounded-full bg-amber-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white">
-            Required for cards
+            Add bank for split
           </span>
         )}
       </div>
@@ -291,7 +301,7 @@ export function AdvisorPayoutSettings({
               onClick={() => void save()}
               className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-black text-white disabled:opacity-50"
             >
-              {busy ? 'Saving…' : ready ? 'Update payout' : 'Connect payout'}
+              {busy ? 'Saving…' : ready ? 'Update bank' : 'Save bank'}
             </button>
             {ready ? (
               <button

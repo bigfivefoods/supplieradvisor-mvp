@@ -255,7 +255,7 @@ const PHASES: Phase[] = [
         n: '6a',
         title: 'Card / Apple Pay · profile',
         who: 'Owner',
-        desc: 'Connect a payout bank on Accounts. Company SaaS stays on SupplierAdvisor; member card / Apple Pay settles to your bank.',
+        desc: 'Card / Apple Pay already works. Add a bank on Accounts for where split funds go (1% admin). Company SaaS stays on SupplierAdvisor.',
         href: '/dashboard/medicalgraph/accounts',
         icon: CreditCard,
       },

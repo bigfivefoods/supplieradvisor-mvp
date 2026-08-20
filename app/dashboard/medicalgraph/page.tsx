@@ -477,7 +477,7 @@ function Inner() {
           },
           {
             t: 'Card / Apple Pay · website',
-            b: 'Connect a payout bank on Accounts. Company SaaS stays on SupplierAdvisor; member sales settle to your bank.',
+            b: 'Card / Apple Pay already works. Add a bank on Accounts for where split funds go. Company SaaS stays on SupplierAdvisor.',
           },
         ].map((x) => (
           <div
