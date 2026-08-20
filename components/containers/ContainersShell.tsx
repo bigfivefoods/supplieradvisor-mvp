@@ -48,9 +48,10 @@ export function ContainersHeader({
   titleAccent?: string;
   showNav?: boolean;
 }) {
+  void showNav;
   return (
     <RelationshipHeader
-      nav={showNav ? <ContainersNav /> : undefined}
+      band
       backHref="/dashboard/containers"
       backLabel="Containers overview"
       eyebrow="Container retail network"

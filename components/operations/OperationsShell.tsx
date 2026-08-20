@@ -43,6 +43,7 @@ export function OperationsHeader({
 }) {
   return (
     <RelationshipHeader
+      band
       backHref="/dashboard/operations"
       backLabel="Command center"
       eyebrow="Operations control tower"

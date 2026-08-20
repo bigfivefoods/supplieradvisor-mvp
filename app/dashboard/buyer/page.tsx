@@ -16,7 +16,6 @@ import { getCanonicalUserId } from '@/lib/auth/identity';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
   BuyerCompanyRequired,
-  BuyerNav,
   ConnectedBadge,
   SuspendedBadge,
   supplierDisplayName,
@@ -27,11 +26,9 @@ import {
 } from '@/components/relationship/RelationshipChrome';
 import {
   HubHero,
-  HubModuleGrid,
   HubPrinciples,
   HubTelemetryGrid,
   TelemetryCard,
-  type HubModule,
 } from '@/components/chrome/CommandHubChrome';
 import JourneyChecklist from '@/components/journey/JourneyChecklist';
 import TradeNextBanner from '@/components/journey/TradeNextBanner';
@@ -136,40 +133,10 @@ function BuyerHubInner() {
     void load();
   }, [ready, load]);
 
-  const modules: HubModule[] = [
-    {
-      href: '/dashboard/buyer/suppliers',
-      icon: Truck,
-      code: '01',
-      title: 'Connected suppliers',
-      desc: 'Suppliers that invited you — raise POs when not suspended.',
-      accent: 'from-violet-50 to-white border-violet-100',
-      metric: counts.total,
-      metricLabel: 'suppliers',
-    },
-    {
-      href: '/dashboard/buyer/pos',
-      icon: ShoppingCart,
-      code: '02',
-      title: 'Purchase orders',
-      desc: 'Raise and track POs against connected suppliers.',
-      accent: 'from-sky-50 to-white border-sky-100',
-    },
-    {
-      href: '/dashboard/buyer/documents',
-      icon: FileText,
-      code: '03',
-      title: 'Shared documents',
-      desc: 'Quotes, orders, invoices, and contracts shared with you.',
-      accent: 'from-cyan-50 to-white border-cyan-100',
-    },
-  ];
-
   return (
     <RelationshipPage>
-      <BuyerNav />
-
       <RelationshipHeader
+        band
         backHref="/dashboard"
         backLabel="Dashboard"
         eyebrow="Buyer workspace"
@@ -257,8 +224,6 @@ function BuyerHubInner() {
           href="/dashboard/buyer/pos"
         />
       </HubTelemetryGrid>
-
-      <HubModuleGrid modules={modules} />
 
       <HubPrinciples
         items={[

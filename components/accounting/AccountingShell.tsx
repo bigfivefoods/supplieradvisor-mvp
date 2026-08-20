@@ -58,9 +58,10 @@ export function AccountingHeader({
   titleAccent?: string;
   showNav?: boolean;
 }) {
+  void showNav;
   return (
     <RelationshipHeader
-      nav={showNav ? <AccountingNav /> : undefined}
+      band
       backHref="/dashboard/accounting"
       backLabel="Finance overview"
       eyebrow="Financial control"

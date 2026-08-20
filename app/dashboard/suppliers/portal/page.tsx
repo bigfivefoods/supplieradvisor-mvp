@@ -14,7 +14,7 @@ export default function SupplierGuestPortalPage() {
         <SuppliersHeader
           title="Supplier"
           titleAccent="portal"
-          description="Share a branded page with suppliers who have not joined yet — their purchase orders and your documents. Add people and control who can open the link."
+          description="A portal for suppliers already on your books. They see their POs and OTIFEF, confirm stock, update status, RIAD, and messages — without joining the OS."
         />
         <TradePortalDesk kind="supplier" />
       </SuppliersPage>

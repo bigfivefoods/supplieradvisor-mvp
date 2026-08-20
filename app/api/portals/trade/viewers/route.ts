@@ -54,6 +54,18 @@ export async function POST(request: NextRequest) {
 
     const customerId = Number(body.customer_id);
     const supplierId = Number(body.supplier_id);
+    if (kind === 'customer' && !(Number.isFinite(customerId) && customerId > 0)) {
+      return NextResponse.json(
+        { error: 'Pick a customer on your books' },
+        { status: 400 }
+      );
+    }
+    if (kind === 'supplier' && !(Number.isFinite(supplierId) && supplierId > 0)) {
+      return NextResponse.json(
+        { error: 'Pick a supplier on your books' },
+        { status: 400 }
+      );
+    }
     const email = String(body.email || '')
       .toLowerCase()
       .trim();
@@ -65,14 +77,8 @@ export async function POST(request: NextRequest) {
       phone: String(body.phone || '').trim().slice(0, 40) || null,
       job_title: String(body.job_title || '').trim().slice(0, 80) || null,
       token: newPortalToken('viewer'),
-      customer_id:
-        kind === 'customer' && Number.isFinite(customerId) && customerId > 0
-          ? customerId
-          : null,
-      supplier_id:
-        kind === 'supplier' && Number.isFinite(supplierId) && supplierId > 0
-          ? supplierId
-          : null,
+      customer_id: kind === 'customer' ? customerId : null,
+      supplier_id: kind === 'supplier' ? supplierId : null,
       status: 'active',
     };
 

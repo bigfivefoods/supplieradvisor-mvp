@@ -5,18 +5,13 @@ import Link from 'next/link';
 import {
   Users,
   UserPlus,
-  ShoppingCart,
-  FileText,
   AlertTriangle,
   Award,
   Globe,
   Target,
   TrendingUp,
   Handshake,
-  Star,
   RefreshCw,
-  Wallet,
-  MessageSquare,
 } from 'lucide-react';
 import { getSelectedCompanyId, getSelectedCompanyName } from '@/lib/containers/company';
 import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
@@ -28,11 +23,9 @@ import {
 import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 import {
   HubHero,
-  HubModuleGrid,
   HubPrinciples,
   HubTelemetryGrid,
   TelemetryCard,
-  type HubModule,
 } from '@/components/chrome/CommandHubChrome';
 import RatingPromptBanner from '@/components/ratings/RatingPromptBanner';
 import { AdvisorCoreBridge } from '@/components/advisors/AdvisorCoreBridge';
@@ -86,149 +79,10 @@ function HubInner() {
 
   const s = summary;
 
-  /** Sell journey (matches process rail): Source → Book → Invite → Quote → Order → Invoice → Money → Rate → Report */
-  const modules: HubModule[] = [
-    {
-      href: '/dashboard/customers/360',
-      icon: Users,
-      code: '00',
-      title: '360 — member / patient / hirer',
-      desc: 'Classes, debit bank, invoices and household on the CRM row.',
-      accent: 'from-cyan-50 to-white border-cyan-100',
-    },
-    {
-      href: '/dashboard/customers/leads',
-      icon: Target,
-      code: '01',
-      title: 'Source — leads & pipeline',
-      desc: 'Capture, score, and convert demand — weighted pipeline value.',
-      accent: 'from-violet-50 to-white border-violet-100',
-      metric: s?.leadsOpen ?? '—',
-      metricLabel: 'open leads',
-    },
-    {
-      href: '/dashboard/customers/profiles',
-      icon: Users,
-      code: '02',
-      title: 'Book — customer accounts',
-      desc: 'CRM master: search, contacts, credit, industry.',
-      accent: 'from-sky-50 to-white border-sky-100',
-      metric: s?.customers ?? '—',
-      metricLabel: 'accounts',
-    },
-    {
-      href: '/dashboard/customers/onboard',
-      icon: UserPlus,
-      code: '03',
-      title: 'Add customer',
-      desc: 'Onboard from a lead or create a clean account (then invite).',
-      accent: 'from-cyan-50 to-white border-cyan-100',
-    },
-    {
-      href: '/dashboard/customers/invites',
-      icon: Handshake,
-      code: '04',
-      title: 'Invite — platform connect',
-      desc: 'Invite buyers onto SupplierAdvisor — claim, suspend, expire.',
-      accent: 'from-emerald-50 to-white border-emerald-100',
-      metric: s?.invitePending ?? '—',
-      metricLabel: 'pending',
-    },
-    {
-      href: '/dashboard/customers/portal',
-      icon: Globe,
-      code: '04c',
-      title: 'Guest portal',
-      desc: 'Share quotes and invoices with buyers who have not joined yet.',
-      accent: 'from-cyan-50 to-white border-cyan-100',
-    },
-    {
-      href: '/dashboard/messages?from=customers&channel=customer',
-      icon: MessageSquare,
-      code: '04b',
-      title: 'Messages',
-      desc: 'Message connected customers about quotes, orders, and collections.',
-      accent: 'from-fuchsia-50 to-white border-fuchsia-100',
-    },
-    {
-      href: '/dashboard/customers/quotes',
-      icon: FileText,
-      code: '05',
-      title: 'Quote',
-      desc: 'Catalogue lines, price, send — add customer if missing.',
-      accent: 'from-amber-50 to-white border-amber-100',
-    },
-    {
-      href: '/dashboard/customers/orders',
-      icon: ShoppingCart,
-      code: '06',
-      title: 'Order',
-      desc: 'Sales orders and inbound buyer POs (tab) in one place.',
-      accent: 'from-rose-50 to-white border-rose-100',
-    },
-    {
-      href: '/dashboard/customers/invoices',
-      icon: FileText,
-      code: '07',
-      title: 'Invoice',
-      desc: 'Bill, partial/full pay, WhatsApp PDF, loyalty on paid.',
-      accent: 'from-violet-50 to-white border-violet-100',
-    },
-    {
-      href: '/dashboard/customers/money',
-      icon: Wallet,
-      code: '08',
-      title: 'Money',
-      desc: 'Collect: claims, POP, dunning, installments, AR aging, settle.',
-      accent: 'from-emerald-50 to-white border-emerald-100',
-      metric: s?.overdueFollowups ?? '—',
-      metricLabel: 'overdue signals',
-    },
-    {
-      href: '/dashboard/customers/ratings',
-      icon: Star,
-      code: '09',
-      title: 'Rate',
-      desc: 'Peer ratings and post-trade reviews that build trust.',
-      accent: 'from-violet-50 to-white border-violet-100',
-    },
-    {
-      href: '/dashboard/customers/report',
-      icon: TrendingUp,
-      code: '10',
-      title: 'Report',
-      desc: 'Revenue, AR, win rates, and customer health pack.',
-      accent: 'from-sky-50 to-white border-sky-100',
-    },
-    {
-      href: '/dashboard/customers/loyalty',
-      icon: Award,
-      code: '11',
-      title: 'Loyalty',
-      desc: 'Points and bronze → platinum after paid sales.',
-      accent: 'from-sky-50 to-white border-sky-100',
-    },
-    {
-      href: '/dashboard/customers/contracts',
-      icon: Handshake,
-      code: '12',
-      title: 'Contracts & SLAs',
-      desc: 'Commercial agreements and renewals with buyers.',
-      accent: 'from-slate-50 to-white border-slate-200',
-    },
-    {
-      href: '/dashboard/customers/riad-log',
-      icon: AlertTriangle,
-      code: '13',
-      title: 'Customer RIAD',
-      desc: 'Risks, issues, actions, decisions on demand relationships.',
-      accent: 'from-rose-50 to-white border-rose-100',
-    },
-  ];
-
   return (
     <CustomersPage>
       <RelationshipHeader
+        band
         eyebrow="Customer relationship management"
         title="Customers"
         titleAccent="Selling"
@@ -358,7 +212,7 @@ function HubInner() {
         />
       </HubTelemetryGrid>
 
-      <HubModuleGrid modules={modules} />
+      {/* Process steps live in the top module rail — not repeated here. */}
 
       <HubPrinciples
         items={[

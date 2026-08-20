@@ -49,6 +49,7 @@ export function IntelligenceHeader({
 }) {
   return (
     <RelationshipHeader
+      band
       backHref={backHref}
       backLabel={backLabel}
       eyebrow="Business intelligence"

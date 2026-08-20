@@ -48,6 +48,7 @@ export function SchoolsHeader({
   showNav?: boolean;
   mode?: 'school' | 'agency' | 'isp';
 }) {
+  void showNav;
   const eyebrow =
     mode === 'agency'
       ? 'SchoolAdvisor® · DBE / PEU (public sector)'
@@ -57,6 +58,7 @@ export function SchoolsHeader({
 
   return (
     <RelationshipHeader
+      band
       backHref="/dashboard/schools"
       backLabel="SchoolAdvisor command"
       eyebrow={eyebrow}
@@ -64,7 +66,6 @@ export function SchoolsHeader({
       titleAccent={titleAccent}
       description={description}
       action={action}
-      nav={showNav ? <SchoolsNav /> : undefined}
     />
   );
 }

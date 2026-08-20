@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
 import { getSelectedCompanyId, getSelectedCompanyName } from '@/lib/containers/company';
+import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 
 export const BUYER_NAV = [
   { href: '/dashboard/buyer', label: 'Hub', exact: true },
@@ -73,29 +73,15 @@ export function BuyerHeader({
 }) {
   const companyName = getSelectedCompanyName();
   return (
-    <div className="mb-6">
-      <BuyerNav />
-      <Link
-        href="/dashboard/buyer"
-        className="inline-flex items-center gap-2 text-sm text-neutral-500 mb-3 hover:text-neutral-800"
-      >
-        <ArrowLeft className="w-4 h-4" /> Buyer workspace
-      </Link>
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1">
-            {companyName} · buyer
-          </p>
-          <h1 className="text-3xl sm:text-4xl font-black tracking-[-2px] text-[#00b4d8]">
-            {title}
-          </h1>
-          {description && (
-            <p className="text-neutral-600 mt-1 text-sm max-w-2xl">{description}</p>
-          )}
-        </div>
-        {action}
-      </div>
-    </div>
+    <RelationshipHeader
+      band
+      backHref="/dashboard/buyer"
+      backLabel="Buyer workspace"
+      eyebrow={`${companyName || 'Company'} · buyer`}
+      title={title}
+      description={description}
+      action={action}
+    />
   );
 }
 

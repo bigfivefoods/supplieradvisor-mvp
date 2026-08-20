@@ -5,19 +5,15 @@ import Link from 'next/link';
 import { usePrivy } from '@privy-io/react-auth';
 import {
   Truck,
-  Plus,
   Users,
-  FileText,
   AlertTriangle,
   Award,
   TrendingUp,
   Search,
   Handshake,
-  Star,
   ShieldCheck,
   Globe,
   RefreshCw,
-  MessageSquare,
 } from 'lucide-react';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { getSelectedCompanyId, getSelectedCompanyName } from '@/lib/containers/company';
@@ -33,11 +29,9 @@ import {
 } from '@/components/relationship/RelationshipChrome';
 import {
   HubHero,
-  HubModuleGrid,
   HubPrinciples,
   HubTelemetryGrid,
   TelemetryCard,
-  type HubModule,
 } from '@/components/chrome/CommandHubChrome';
 import JourneyChecklist from '@/components/journey/JourneyChecklist';
 import TradeNextBanner from '@/components/journey/TradeNextBanner';
@@ -135,143 +129,10 @@ function HubInner() {
   const trust = trustBand(summary?.avgTrust || 0);
   const s = summary;
 
-  /** End-to-end sourcing journey: Source → Connect → Procure → Rate → Report */
-  const modules: HubModule[] = [
-    {
-      href: '/dashboard/suppliers/discover',
-      icon: Search,
-      code: '01',
-      title: 'Source — discover',
-      desc: 'Find & search suppliers on the network: location, industry, certs, trust & OTIFEF.',
-      accent: 'from-violet-50 to-white border-violet-100',
-    },
-    {
-      href: '/dashboard/suppliers/shortlist',
-      icon: Award,
-      code: '02',
-      title: 'Source — shortlist',
-      desc: 'Compare shortlisted suppliers before you connect or buy.',
-      accent: 'from-fuchsia-50 to-white border-fuchsia-100',
-    },
-    {
-      href: '/dashboard/suppliers/connect',
-      icon: Handshake,
-      code: '03',
-      title: 'Connect',
-      desc: 'Request / accept platform connections that unlock POs, docs, ratings.',
-      accent: 'from-cyan-50 to-white border-cyan-100',
-      metric: s?.connected ?? '—',
-      metricLabel: 'connected',
-    },
-    {
-      href: '/dashboard/messages?from=suppliers&channel=supplier',
-      icon: MessageSquare,
-      code: '03b',
-      title: 'Messages',
-      desc: 'Message connected suppliers about POs, OTIFEF, and follow-ups.',
-      accent: 'from-fuchsia-50 to-white border-fuchsia-100',
-    },
-    {
-      href: '/dashboard/suppliers/network',
-      icon: Users,
-      code: '04',
-      title: 'Supplier book',
-      desc: 'Prospects, preferred, and connected partners in one book.',
-      accent: 'from-sky-50 to-white border-sky-100',
-      metric: s?.total ?? '—',
-      metricLabel: 'in book',
-    },
-    {
-      href: '/dashboard/suppliers/add',
-      icon: Plus,
-      code: '05',
-      title: 'Add & invite',
-      desc: 'Off-platform suppliers: add to book and invite them to claim.',
-      accent: 'from-emerald-50 to-white border-emerald-100',
-      metric: s?.invitePending ?? '—',
-      metricLabel: 'pending',
-    },
-    {
-      href: '/dashboard/suppliers/invites',
-      icon: Handshake,
-      code: '06',
-      title: 'Invite lifecycle',
-      desc: 'Pending, resend, revoke — full invite tracking.',
-      accent: 'from-teal-50 to-white border-teal-100',
-    },
-    {
-      href: '/dashboard/suppliers/portal',
-      icon: Globe,
-      code: '06b',
-      title: 'Guest portal',
-      desc: 'Share POs and documents with suppliers who have not joined yet.',
-      accent: 'from-cyan-50 to-white border-cyan-100',
-    },
-    {
-      href: '/dashboard/suppliers/po',
-      icon: Truck,
-      code: '07',
-      title: 'Procure — purchase orders',
-      desc: 'Raise POs (add supplier if missing), receive, escrow, settle.',
-      accent: 'from-amber-50 to-white border-amber-100',
-    },
-    {
-      href: '/dashboard/escrow',
-      icon: ShieldCheck,
-      code: '08',
-      title: 'Procure — escrow',
-      desc: 'USDC / ETH rails: fund → ship → release or dispute.',
-      accent: 'from-orange-50 to-white border-orange-100',
-    },
-    {
-      href: '/dashboard/suppliers/documents',
-      icon: FileText,
-      code: '09',
-      title: 'Contracts & documents',
-      desc: 'SLAs, certs, pricing agreements shared when connected.',
-      accent: 'from-slate-50 to-white border-slate-200',
-    },
-    {
-      href: '/dashboard/suppliers/performance',
-      icon: TrendingUp,
-      code: '10',
-      title: 'Rate — OTIFEF scorecards',
-      desc: 'On-Time · In-Full · Error-Free across the supply base.',
-      accent: 'from-rose-50 to-white border-rose-100',
-      metric: loading ? '—' : `${(ot?.overall ?? 0).toFixed(0)}%`,
-      metricLabel: 'OTIFEF',
-    },
-    {
-      href: '/dashboard/suppliers/ratings',
-      icon: Star,
-      code: '11',
-      title: 'Rate — peer reviews',
-      desc: 'Quality, delivery, communication, value after every PO.',
-      accent: 'from-violet-50 to-white border-violet-100',
-    },
-    {
-      href: '/dashboard/suppliers/report',
-      icon: FileText,
-      code: '12',
-      title: 'Report — supply pack',
-      desc: 'Spend, OTIFEF, concentration, and performance reporting.',
-      accent: 'from-sky-50 to-white border-sky-100',
-    },
-    {
-      href: '/dashboard/suppliers/riad-log',
-      icon: AlertTriangle,
-      code: '13',
-      title: 'Report — supplier RIAD',
-      desc: 'Risks, issues, actions, decisions on the supply base.',
-      accent: 'from-amber-50 to-white border-amber-100',
-      metric: s?.openRiads ?? '—',
-      metricLabel: 'open',
-    },
-  ];
-
   return (
     <SuppliersPage>
       <RelationshipHeader
+        band={true}
         eyebrow="Supplier relationship management"
         title="Suppliers"
         titleAccent="Sourcing"
@@ -449,7 +310,7 @@ function HubInner() {
         </div>
       )}
 
-      <HubModuleGrid modules={modules} />
+      {/* Process steps live in the top module rail — not repeated here. */}
 
       <HubPrinciples
         items={[

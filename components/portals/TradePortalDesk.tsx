@@ -28,18 +28,25 @@ import {
   type TradePortalViewer,
 } from '@/lib/portals/trade-portal';
 
-type AccountOpt = { id: number; name: string };
+type AccountOpt = { id: number; name: string; email?: string | null; contact?: string | null };
 
 const CUSTOMER_SECTIONS: Array<{ key: keyof PortalSections; label: string; hint: string }> = [
   { key: 'quotes', label: 'Quotes', hint: 'Open proposals' },
-  { key: 'orders', label: 'Orders', hint: 'Confirmed sales' },
+  { key: 'orders', label: 'Orders · our OTIFEF', hint: 'Their POs and our deliveries' },
   { key: 'invoices', label: 'Invoices', hint: 'What they owe' },
   { key: 'documents', label: 'Documents', hint: 'Certs and files' },
+  { key: 'ratings', label: 'Ratings', hint: 'Same stars as the network' },
+  { key: 'riad', label: 'RIAD', hint: 'Risks and comments' },
+  { key: 'messages', label: 'Messages', hint: 'Direct thread' },
 ];
 
 const SUPPLIER_SECTIONS: Array<{ key: keyof PortalSections; label: string; hint: string }> = [
-  { key: 'purchase_orders', label: 'Purchase orders', hint: 'What you have issued' },
+  { key: 'purchase_orders', label: 'Purchase orders', hint: 'OTIFEF overall and per order' },
+  { key: 'stock', label: 'Stock on hand', hint: 'They confirm availability' },
   { key: 'documents', label: 'Documents', hint: 'Specs, SLAs, certs' },
+  { key: 'ratings', label: 'Ratings', hint: 'Same stars as the network' },
+  { key: 'riad', label: 'RIAD', hint: 'Risks and comments' },
+  { key: 'messages', label: 'Messages', hint: 'Direct thread' },
 ];
 
 export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
@@ -118,10 +125,19 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
       const data = await res.json();
       const rows = (isCustomer ? data.customers : data.suppliers) || [];
       setAccounts(
-        rows.slice(0, 400).map((r: { id: number; trading_name?: string }) => ({
-          id: Number(r.id),
-          name: String(r.trading_name || `#${r.id}`),
-        }))
+        rows.slice(0, 400).map(
+          (r: {
+            id: number;
+            trading_name?: string;
+            email?: string | null;
+            contact_name?: string | null;
+          }) => ({
+            id: Number(r.id),
+            name: String(r.trading_name || `#${r.id}`),
+            email: r.email || null,
+            contact: r.contact_name || null,
+          })
+        )
       );
     } catch {
       setAccounts([]);
@@ -197,6 +213,10 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
   };
 
   const addPerson = async () => {
+    if (!form.accountId) {
+      toast.error(`Pick a ${noun} on your books`);
+      return;
+    }
     if (!form.name.trim()) {
       toast.error('Name is required');
       return;
@@ -302,10 +322,10 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
         <Panel className="lg:col-span-3" title="What they see">
           <div className="p-5 space-y-4">
             <p className="text-sm text-neutral-600 leading-relaxed">
-              People who have <strong>not joined</strong> SupplierAdvisor still get a
-              beautiful, private page — your identity, and only their own{' '}
-              {isCustomer ? 'quotes, orders, and invoices' : 'purchase orders'}.
-              Attach them to a {noun} account so the numbers match.
+              Portals are for <strong>{noun}s already on your books</strong>. Each
+              person is attached to an account so they only see their orders,
+              OTIFEF, ratings, RIAD, and messages — the same records you use
+              inside SupplierAdvisor.
             </p>
             <div>
               <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
@@ -461,7 +481,8 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
         <Panel className="lg:col-span-2" title="Add a person">
           <div className="p-5 space-y-3">
             <p className="text-sm text-neutral-600">
-              Name + optional email. Attach a {noun} so they see their own book.
+              Required: a {noun} already on your books. Then name the person who
+              should open the portal.
             </p>
             <input
               className="input w-full !p-3 !text-sm"
@@ -492,14 +513,18 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
             <select
               className="input w-full !p-3 !text-sm"
               value={form.accountId}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  accountId: e.target.value ? Number(e.target.value) : '',
-                })
-              }
+              onChange={(e) => {
+                const id = e.target.value ? Number(e.target.value) : '';
+                const acc = accounts.find((a) => a.id === id);
+                setForm((prev) => ({
+                  ...prev,
+                  accountId: id,
+                  name: prev.name || acc?.contact || acc?.name || '',
+                  email: prev.email || acc?.email || '',
+                }));
+              }}
             >
-              <option value="">No {noun} account attached</option>
+              <option value="">Select {noun} on your books…</option>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}

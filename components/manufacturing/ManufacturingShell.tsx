@@ -46,6 +46,7 @@ export function ManufacturingHeader({
 }) {
   return (
     <RelationshipHeader
+      band
       backHref="/dashboard/manufacturing"
       backLabel="Command center"
       eyebrow="Manufacturing systems"

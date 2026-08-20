@@ -41,6 +41,7 @@ export function DistributionHeader({
 }) {
   return (
     <RelationshipHeader
+      band
       backHref="/dashboard/distribution"
       backLabel="Command center"
       eyebrow="Distribution & logistics"

@@ -1,6 +1,7 @@
 /**
- * Guest customer / supplier portals — people who have not joined the OS.
- * Company-level token = brochure. Viewer token = brochure + their own docs.
+ * Guest portals for customers and suppliers already on our books.
+ * Personal token = that account's orders, OTIFEF, ratings, RIAD, messages.
+ * Company token = brochure only.
  */
 import { randomBytes } from 'crypto';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
@@ -18,6 +19,10 @@ export const DEFAULT_PORTAL_SECTIONS = {
   documents: true,
   purchase_orders: true,
   catalog: false,
+  ratings: true,
+  riad: true,
+  messages: true,
+  stock: true,
 } as const;
 
 export type PortalSections = {
@@ -27,6 +32,10 @@ export type PortalSections = {
   documents?: boolean;
   purchase_orders?: boolean;
   catalog?: boolean;
+  ratings?: boolean;
+  riad?: boolean;
+  messages?: boolean;
+  stock?: boolean;
 };
 
 export type TradePortalRow = {
@@ -69,6 +78,58 @@ export type PublicDocRow = {
   paid: number | null;
   currency: string;
   title?: string | null;
+  ordered?: number | null;
+  delivered?: number | null;
+  damaged?: number | null;
+  attachment_url?: string | null;
+  otifef?: {
+    overall: number | null;
+    onTime: number | null;
+    inFull: number | null;
+    errorFree: number | null;
+    pending: boolean;
+  } | null;
+};
+
+export type PortalRatingView = {
+  id: number;
+  direction: 'host_rates_them' | 'they_rate_host';
+  overall: number;
+  quality?: number | null;
+  delivery?: number | null;
+  communication?: number | null;
+  value?: number | null;
+  payment?: number | null;
+  reliability?: number | null;
+  comment: string | null;
+  created_at: string | null;
+  author: string;
+};
+
+export type PortalRiadView = {
+  id: number;
+  entry_type: string;
+  title: string;
+  description: string | null;
+  status: string;
+  severity: string | null;
+  notes: string | null;
+  created_at: string | null;
+};
+
+export type PortalMessageView = {
+  id: number;
+  author: 'host' | 'guest';
+  body: string;
+  created_at: string;
+};
+
+export type PortalStockLine = {
+  product_id: number | null;
+  sku: string | null;
+  name: string;
+  qty_on_hand: number | null;
+  po_id: number | null;
 };
 
 export type PublicHost = {
@@ -508,6 +569,7 @@ export type PublicPortalPayload = {
   documents: Array<{ name: string; url: string; category: string }>;
   joinPath: string;
   moneyHint: string | null;
+  workspace?: import('@/lib/portals/trade-portal-workspace').PortalWorkspace | null;
 };
 
 export async function loadPublicPortal(
@@ -619,6 +681,21 @@ export async function loadPublicPortal(
 
   if (viewer) void touchViewer(viewer.id);
 
+  let workspace = null;
+  if (viewer && (viewer.customer_id || viewer.supplier_id)) {
+    try {
+      const { loadPortalWorkspace } = await import(
+        '@/lib/portals/trade-portal-workspace'
+      );
+      workspace = await loadPortalWorkspace({ portal, viewer });
+      if (workspace.purchase_orders.length && portal.kind === 'supplier') {
+        purchase_orders = workspace.purchase_orders;
+      }
+    } catch {
+      workspace = null;
+    }
+  }
+
   const openInvoices = invoices.filter((i) => {
     const st = i.status.toLowerCase();
     return st !== 'paid' && st !== 'void' && st !== 'cancelled';
@@ -665,6 +742,7 @@ export async function loadPublicPortal(
       documents,
       joinPath,
       moneyHint,
+      workspace,
     },
   };
 }

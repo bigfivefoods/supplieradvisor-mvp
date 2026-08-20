@@ -27,7 +27,10 @@ supabase/migrations/20260820_store_hardening.sql
 
 ```text
 supabase/migrations/20260822_trade_portals.sql
+supabase/migrations/20260823_trade_portal_workspace.sql
 ```
+
+Same files at the repo root: `RUN_TRADE_PORTALS_IN_SUPABASE.sql` then `RUN_TRADE_PORTAL_WORKSPACE.sql`.
 
 After deploying, if `/api/system/health` shows `schemaOptionalMissing` or missing profile columns, run these **in order**:
 

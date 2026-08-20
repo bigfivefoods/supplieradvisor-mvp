@@ -46,6 +46,7 @@ export function ConnectionsHeader({
 }) {
   return (
     <RelationshipHeader
+      band
       backHref="/dashboard"
       backLabel="Dashboard"
       eyebrow="Company network"

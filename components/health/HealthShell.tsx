@@ -32,6 +32,7 @@ export function HealthHeader({
 
   return (
     <RelationshipHeader
+      band
       backHref="/dashboard/health"
       backLabel="Health command"
       eyebrow={eyebrow}

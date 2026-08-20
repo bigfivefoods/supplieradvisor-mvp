@@ -405,7 +405,6 @@ function Inner() {
       <CustomersHeader
         title="Money"
         titleAccent="Settle"
-        showNav
         description="Day-to-day cash: open AR, buyer claims + POP, installments, dunning, ledger. Trade status → Settle command · books → Accounting."
         action={
           <div className="flex flex-wrap gap-2">

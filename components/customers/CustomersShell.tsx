@@ -44,11 +44,13 @@ export function CustomersHeader({
   description?: string;
   action?: React.ReactNode;
   titleAccent?: string;
-  /** Secondary pill nav (Money / Settle / Escrow…). Process rail covers the rest. */
+  /** @deprecated Process steps live in the top module rail. */
   showNav?: boolean;
 }) {
+  void showNav;
   return (
     <RelationshipHeader
+      band
       backHref="/dashboard/customers"
       backLabel="Customers overview"
       eyebrow="Customer relationship management"
@@ -56,7 +58,6 @@ export function CustomersHeader({
       titleAccent={titleAccent}
       description={description}
       action={action}
-      nav={showNav ? <CustomersNav /> : undefined}
     />
   );
 }

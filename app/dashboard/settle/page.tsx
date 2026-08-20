@@ -151,7 +151,6 @@ function SettleInner() {
       <CustomersHeader
         title="Settle"
         titleAccent="Command"
-        showNav
         description="Golden path cockpit: PO → accept → receive → invoice → settle (fiat claim or on-chain escrow) → rate. Live status from your books."
         action={
           <div className="flex flex-wrap gap-2">

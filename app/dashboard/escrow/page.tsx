@@ -119,7 +119,6 @@ function EscrowInner() {
       <SuppliersHeader
         title="On-chain"
         titleAccent="Escrow"
-        showNav
         description="PO escrow portfolio: create → fund → mark shipped → confirm delivery. Fiat claims stay on Money hub — use chain when counterparties need programmable release."
         action={
           <button

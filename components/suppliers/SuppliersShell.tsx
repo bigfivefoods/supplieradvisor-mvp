@@ -46,11 +46,13 @@ export function SuppliersHeader({
   description?: string;
   action?: React.ReactNode;
   titleAccent?: string;
-  /** Secondary pill nav (POs / Escrow…). Process rail covers the rest. */
+  /** @deprecated Process steps live in the top module rail. */
   showNav?: boolean;
 }) {
+  void showNav;
   return (
     <RelationshipHeader
+      band
       backHref="/dashboard/suppliers"
       backLabel="Suppliers overview"
       eyebrow="Supplier relationship management"
@@ -58,7 +60,6 @@ export function SuppliersHeader({
       titleAccent={titleAccent}
       description={description}
       action={action}
-      nav={showNav ? <SuppliersNav /> : undefined}
     />
   );
 }

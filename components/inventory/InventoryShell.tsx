@@ -3,8 +3,9 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
+import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 
 /** Canonical inventory nav — keep hub, sidebar, and process rail in sync */
 export const INVENTORY_PROCESS = [
@@ -113,34 +114,21 @@ export function InventoryHeader({
   description?: string;
   backHref?: string;
   action?: React.ReactNode;
+  /** @deprecated Process steps live in the top module rail. */
   showProcessNav?: boolean;
 }) {
+  void showProcessNav;
   return (
-    <div className="mb-6 sm:mb-8">
-      {showProcessNav && <InventoryProcessNav />}
-      <Link
-        href={backHref}
-        className="group mb-3 inline-flex items-center gap-2 text-sm text-neutral-500 transition-colors hover:text-[#0077b6]"
-      >
-        <ArrowLeft className="h-4 w-4 text-[#00b4d8] transition-transform group-hover:-translate-x-0.5" />
-        Inventory command
-      </Link>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="max-w-3xl">
-          <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400">
-            Inventory OS
-          </p>
-          <h1 className="text-3xl font-black leading-[1.1] tracking-tight text-slate-900 sm:text-4xl">
-            <span className="text-slate-800">{title}</span>{' '}
-            <span className="text-[#00b4d8]">{titleAccent}</span>
-          </h1>
-          {description && (
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-600">{description}</p>
-          )}
-        </div>
-        {action && <div className="flex shrink-0 flex-wrap gap-2">{action}</div>}
-      </div>
-    </div>
+    <RelationshipHeader
+      band
+      backHref={backHref}
+      backLabel="Inventory command"
+      eyebrow="Inventory OS"
+      title={title}
+      titleAccent={titleAccent}
+      description={description}
+      action={action}
+    />
   );
 }
 

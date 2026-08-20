@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { formatMoney } from '@/lib/customers/types';
 import type { PublicPortalPayload } from '@/lib/portals/trade-portal';
+import { GuestTradeWorkspace } from '@/components/portals/GuestTradeWorkspace';
 
 function statusTone(status: string): string {
   const s = status.toLowerCase();
@@ -169,7 +170,7 @@ export default function GuestTradePortalPage() {
     : `Welcome to ${host.name}`;
 
   return (
-    <div className="min-h-[100dvh] bg-[radial-gradient(1200px_600px_at_10%_-10%,rgba(0,180,216,0.16),transparent),radial-gradient(900px_500px_at_100%_0%,rgba(0,119,182,0.12),transparent)] bg-slate-50">
+    <div className="min-h-[100dvh] bg-slate-50">
       <header className="border-b border-white/70 bg-white/80 backdrop-blur-md">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
@@ -200,7 +201,8 @@ export default function GuestTradePortalPage() {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-8 sm:py-10 space-y-5">
+      <main className="max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-10">
+        <div className="sa-page space-y-5">
         <section className="rounded-[1.75rem] border border-white/80 bg-white/90 p-6 sm:p-8 shadow-sm">
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#0077b6]">
             {portal.title}
@@ -243,7 +245,13 @@ export default function GuestTradePortalPage() {
           </div>
         </section>
 
-        {portal.kind === 'customer' ? (
+        {portal.workspace?.onBooks ? (
+          <GuestTradeWorkspace
+            token={token}
+            portal={portal}
+            onRefresh={() => void load()}
+          />
+        ) : portal.kind === 'customer' ? (
           <>
             <DocTable
               title="Quotes"
@@ -301,13 +309,13 @@ export default function GuestTradePortalPage() {
 
         {portal.brochure ? (
           <p className="text-sm text-neutral-500 leading-relaxed px-1">
-            This is the company brochure. Ask {host.name} for a personal link to
-            see your own quotes and invoices.
+            This is the company brochure. Ask {host.name} for a personal link
+            attached to your account on their books.
           </p>
-        ) : !portal.accountLabel ? (
+        ) : !portal.workspace?.onBooks ? (
           <p className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3">
-            Your name is on this portal, but no {portal.kind} account is attached
-            yet — {host.name} can link it so live documents appear.
+            This link is not attached to a {portal.kind} on our books yet —{' '}
+            {host.name} can attach your account so orders, OTIFEF, and RIAD appear.
           </p>
         ) : null}
 
@@ -345,6 +353,7 @@ export default function GuestTradePortalPage() {
             </div>
           </div>
         </section>
+        </div>
       </main>
 
       <footer className="max-w-3xl mx-auto px-4 pb-10 text-center text-[11px] text-neutral-400">

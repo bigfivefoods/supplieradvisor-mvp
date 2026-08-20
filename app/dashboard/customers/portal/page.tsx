@@ -14,7 +14,7 @@ export default function CustomerGuestPortalPage() {
         <CustomersHeader
           title="Customer"
           titleAccent="portal"
-          description="Share a branded page with buyers who have not joined yet — their quotes, orders, and invoices only. Add people, copy a link, or email access."
+          description="A portal for customers already on your books. They see their orders, our OTIFEF, ratings, RIAD, and can raise a PO — without joining the OS."
         />
         <TradePortalDesk kind="customer" />
       </CustomersPage>

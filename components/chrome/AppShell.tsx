@@ -102,7 +102,13 @@ function AppShellInner({
               : 'flex-1 relative z-10 pointer-events-auto min-w-0 w-full px-3 sm:px-4 md:px-6 lg:px-8 xl:px-10 py-4 sm:py-5 md:py-8 max-w-screen-2xl 2xl:max-w-[90rem] mx-auto pb-safe'
           }
         >
-          <ModuleAccessGate>{children}</ModuleAccessGate>
+          {hideChrome ? (
+            <ModuleAccessGate>{children}</ModuleAccessGate>
+          ) : (
+            <div className="sa-page">
+              <ModuleAccessGate>{children}</ModuleAccessGate>
+            </div>
+          )}
         </main>
       </div>
 

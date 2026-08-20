@@ -9,6 +9,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
+import { ModuleCrumbs } from '@/components/chrome/ModuleCrumbs';
 
 /** Shared chrome for CRM + SRM + My Business — light white/blue inventory language. */
 
@@ -87,13 +88,11 @@ export function RelationshipPage({
   children: React.ReactNode;
   className?: string;
 }) {
-  // No absolute overlay layers — they have blocked clicks in production.
-  // Soft wash is a background on this element only (never a covering child).
+  // Page wash lives on AppShell (`sa-page`). This is only the inner column so
+  // module pages do not nest a second backing card.
   return (
-    <div className={`sa-page ${className}`}>
-      <div className="px-0.5 sm:px-1.5 max-w-screen-2xl 2xl:max-w-[90rem] mx-auto pt-1 relative z-10 pointer-events-auto min-w-0 w-full">
-        {children}
-      </div>
+    <div className={`relative z-10 pointer-events-auto min-w-0 w-full ${className}`}>
+      {children}
     </div>
   );
 }
@@ -150,10 +149,13 @@ export function RelationshipHeader({
   action?: React.ReactNode;
   backHref?: string;
   backLabel?: string;
+  /** @deprecated Process steps live in the top module rail — do not pass a duplicate pill strip. */
   nav?: React.ReactNode;
   /** Soft sky wash + rounded corners (Command Center greeting) */
   band?: boolean;
 }) {
+  void nav;
+  void backLabel;
   return (
     <div
       className={
@@ -162,16 +164,15 @@ export function RelationshipHeader({
           : 'mb-5 sm:mb-6 md:mb-8 min-w-0'
       }
     >
-      {nav}
-      {backHref && (
+      <ModuleCrumbs />
+      {backHref ? (
         <Link
           href={backHref}
-          className="group mb-3 inline-flex items-center gap-2 text-sm text-neutral-500 transition-colors hover:text-[#0077b6] min-h-[40px] touch-manipulation"
+          className="sr-only"
         >
-          <ArrowLeft className="h-4 w-4 text-[#00b4d8] transition-transform group-hover:-translate-x-0.5 shrink-0" />
-          {backLabel || 'Command'}
+          {backLabel || 'Back'}
         </Link>
-      )}
+      ) : null}
       <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-end lg:justify-between min-w-0">
         <div className="max-w-3xl min-w-0">
           {eyebrow && (
