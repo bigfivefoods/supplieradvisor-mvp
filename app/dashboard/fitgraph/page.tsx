@@ -112,7 +112,7 @@ function hubModules(
     icon: ListChecks,
     code: '05c',
     title: 'Programmes',
-    desc: 'Build a session and allocate it to a class or personal PT.',
+    desc: 'Build a calendar of movements, sell it, and follow client progress.',
     accent: 'from-orange-50 to-white border-orange-100',
   },
   {

@@ -59,6 +59,10 @@ import {
 import { parseQualifications } from '@/lib/services/person-qualifications';
 import { upsertMovement, upsertProgramme } from '@/lib/fitness/movements';
 import {
+  enrollClientOnProgramme,
+  upsertProgrammeLog,
+} from '@/lib/fitness/programme-follow';
+import {
   applyFitClientImport,
   buildFitClientsXlsx,
   FIT_CLIENT_XLSX_MIME,
@@ -120,7 +124,9 @@ type Entity =
   | 'check_ins'
   | 'pt_packs'
   | 'movements'
-  | 'programmes';
+  | 'programmes'
+  | 'programme_enrollments'
+  | 'programme_logs';
 
 async function loadStore(companyId: number) {
   const loaded = await loadAdvisorModuleStore(
@@ -2059,6 +2065,106 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (action === 'enroll_programme') {
+      const programmeId = String(body.programme_id || '');
+      const programme = (store.programmes || []).find((p) => p.id === programmeId);
+      if (!programme || programme.active === false) {
+        return NextResponse.json(
+          { error: 'Programme not found' },
+          { status: 404 }
+        );
+      }
+      const ids = Array.isArray(body.client_ids)
+        ? body.client_ids.map((x: unknown) => String(x || '').trim()).filter(Boolean)
+        : [String(body.client_id || '').trim()].filter(Boolean);
+      if (!ids.length) {
+        return NextResponse.json(
+          { error: 'Pick at least one client' },
+          { status: 400 }
+        );
+      }
+      if (!store.programme_enrollments) store.programme_enrollments = [];
+      const startDate = String(body.start_date || now).slice(0, 10);
+      const rows = [];
+      for (const clientId of ids) {
+        const client = store.clients.find((c) => c.id === clientId);
+        if (!client || client.active === false) continue;
+        const row = enrollClientOnProgramme(
+          store.programme_enrollments,
+          {
+            client_id: client.id,
+            programme_id: programmeId,
+            coach_id: body.coach_id
+              ? String(body.coach_id)
+              : client.coach_id || programme.coach_id || null,
+            source: String(body.source || 'assigned'),
+            start_date: startDate,
+            status: 'active',
+          },
+          now,
+          newId
+        );
+        const bought = new Set(client.purchased_programme_ids || []);
+        bought.add(programmeId);
+        client.purchased_programme_ids = [...bought];
+        client.updated_at = now;
+        rows.push(row);
+      }
+      if (!rows.length) {
+        return NextResponse.json(
+          { error: 'No matching clients to enroll' },
+          { status: 400 }
+        );
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        enrollments: rows,
+        message:
+          rows.length === 1
+            ? 'Client enrolled on the programme'
+            : `${rows.length} clients enrolled`,
+      });
+    }
+
+    if (action === 'log_programme') {
+      const enrollmentId = String(body.enrollment_id || '');
+      const enrollment = (store.programme_enrollments || []).find(
+        (e) => e.id === enrollmentId
+      );
+      if (!enrollment) {
+        return NextResponse.json(
+          { error: 'Enrollment not found' },
+          { status: 404 }
+        );
+      }
+      if (!store.programme_logs) store.programme_logs = [];
+      const row = upsertProgrammeLog(
+        store.programme_logs,
+        {
+          ...body,
+          enrollment_id: enrollment.id,
+          programme_id: enrollment.programme_id,
+          client_id: enrollment.client_id,
+          by_role: String(body.by_role || 'desk'),
+        },
+        now,
+        newId
+      );
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        log: row,
+        message: 'Programme log saved',
+      });
+    }
+
     /** Owner desk: record member or coach class feedback */
     if (
       action === 'submit_class_feedback' ||
@@ -2183,6 +2289,12 @@ export async function POST(request: NextRequest) {
         clearProgrammeFromSessions(store.sessions, id);
         for (const p of store.programmes || []) {
           p.session_ids = (p.session_ids || []).filter((x) => x !== id);
+        }
+        for (const e of store.programme_enrollments || []) {
+          if (e.programme_id === id && e.status === 'active') {
+            e.status = 'cancelled';
+            e.updated_at = now;
+          }
         }
       }
       if (Array.isArray(list)) {
@@ -3291,6 +3403,12 @@ function upsert(
   } else if (entity === 'programmes') {
     if (!store.programmes) store.programmes = [];
     upsertProgramme(store.programmes, rec, now, newId);
+  } else if (entity === 'programme_enrollments') {
+    if (!store.programme_enrollments) store.programme_enrollments = [];
+    enrollClientOnProgramme(store.programme_enrollments, rec, now, newId);
+  } else if (entity === 'programme_logs') {
+    if (!store.programme_logs) store.programme_logs = [];
+    upsertProgrammeLog(store.programme_logs, rec, now, newId);
   } else {
     throw new Error('Unknown entity');
   }

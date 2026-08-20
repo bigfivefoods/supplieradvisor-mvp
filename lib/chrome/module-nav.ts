@@ -740,7 +740,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Classes', href: '/dashboard/fitgraph/memberships', desc: 'Edit class · coach · calendar', section: 'Services' },
       { name: 'Membership', href: '/dashboard/fitgraph/membership', desc: 'Member and/or private · class · coach · rates', section: 'Services' },
       { name: 'Movements', href: '/dashboard/fitgraph/movements', desc: 'Exercise library · video', section: 'Services' },
-      { name: 'Programmes', href: '/dashboard/fitgraph/programmes', desc: 'Class & PT programmes', section: 'Services' },
+      { name: 'Programmes', href: '/dashboard/fitgraph/programmes', desc: 'Build, sell and follow training plans', section: 'Services' },
       { name: 'Calendar', href: '/dashboard/fitgraph/calendar', desc: 'Schedule coaches · public', section: 'Floor' },
       { name: 'Bookings', href: '/dashboard/fitgraph/bookings', desc: 'Class bookings', section: 'Floor' },
       { name: 'Check-ins', href: '/dashboard/fitgraph/checkins', desc: 'Phone QR · paid/unpaid alerts', section: 'Floor' },

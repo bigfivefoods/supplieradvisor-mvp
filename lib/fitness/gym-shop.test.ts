@@ -90,6 +90,11 @@ const prog = applyPaidGymSale(
   { companyId: 9 }
 );
 assert.ok(prog.client.purchased_programme_ids?.includes('prg_1'));
+assert.ok(
+  (prog.store.programme_enrollments || []).some(
+    (e) => e.client_id === prog.client.id && e.programme_id === 'prg_1'
+  )
+);
 assert.equal(prog.client.id, applied.client.id);
 assert.equal(prog.client.membership_status, 'active');
 assert.equal(clientHasPaidAccess(applied.store, applied.client), true);

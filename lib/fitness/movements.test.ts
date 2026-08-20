@@ -3,8 +3,10 @@
  */
 import assert from 'node:assert/strict';
 import {
+  dateToProgrammeWeekday,
   hydrateProgramme,
   memberFacingProgramme,
+  programmeBlockForWeekday,
   normalizeProgrammeKind,
   parseProgrammeItems,
   resolveProgrammeForSession,
@@ -57,6 +59,35 @@ const hit = resolveProgrammeForSession(list, {
   session_kind: 'class',
 });
 assert.equal(hit?.id, 'prg_1');
+
+const blocked = upsertProgramme(
+  list,
+  {
+    id: 'prg_cal',
+    name: 'Four week strength',
+    weeks: 4,
+    blocks: [
+      {
+        week: 1,
+        weekday: 1,
+        title: 'Squat day',
+        notes: 'Work up to a heavy 5',
+        items: [{ movement_id: 'mov_1', sets: 5, reps: '5' }],
+      },
+    ],
+  },
+  '2026-08-16T00:00:00.000Z',
+  () => 'x'
+);
+assert.equal(blocked.weeks, 4);
+assert.equal(blocked.blocks?.length, 1);
+assert.equal(blocked.items.length, 1);
+assert.equal(hydrateProgramme(blocked, movements).blocks[0].title, 'Squat day');
+assert.equal(dateToProgrammeWeekday('2026-08-17'), 1);
+assert.equal(
+  programmeBlockForWeekday(blocked, 1)?.title,
+  'Squat day'
+);
 
 const personal = upsertProgramme(
   list,

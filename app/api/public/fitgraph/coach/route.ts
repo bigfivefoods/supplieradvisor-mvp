@@ -1360,6 +1360,110 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (action === 'enroll_programme') {
+      const programmeId = String(body.programme_id || '');
+      const programme = (store.programmes || []).find((p) => p.id === programmeId);
+      if (!programme || programme.active === false) {
+        return NextResponse.json(
+          { error: 'Programme not found' },
+          { status: 404 }
+        );
+      }
+      if (programme.coach_id && programme.coach_id !== coach.id) {
+        return NextResponse.json(
+          { error: 'You can only assign your own programmes' },
+          { status: 403 }
+        );
+      }
+      const clientId = String(body.client_id || '');
+      const client = store.clients.find((c) => c.id === clientId);
+      if (!client || client.active === false) {
+        return NextResponse.json({ error: 'Member not found' }, { status: 404 });
+      }
+      const { enrollClientOnProgramme } = await import(
+        '@/lib/fitness/programme-follow'
+      );
+      if (!store.programme_enrollments) store.programme_enrollments = [];
+      const row = enrollClientOnProgramme(
+        store.programme_enrollments,
+        {
+          client_id: client.id,
+          programme_id: programmeId,
+          coach_id: coach.id,
+          source: 'assigned',
+          start_date: String(body.start_date || now).slice(0, 10),
+          status: 'active',
+        },
+        now,
+        newId
+      );
+      const bought = new Set(client.purchased_programme_ids || []);
+      bought.add(programmeId);
+      client.purchased_programme_ids = [...bought];
+      client.updated_at = now;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        enrollment: row,
+        portal: buildCoachPortalPayload(store, coach),
+        message: `${client.name} is now following ${programme.name}`,
+      });
+    }
+
+    if (action === 'log_programme') {
+      const enrollmentId = String(body.enrollment_id || '');
+      const enrollment = (store.programme_enrollments || []).find(
+        (e) => e.id === enrollmentId
+      );
+      if (!enrollment) {
+        return NextResponse.json(
+          { error: 'Enrollment not found' },
+          { status: 404 }
+        );
+      }
+      const client = store.clients.find((c) => c.id === enrollment.client_id);
+      if (
+        enrollment.coach_id &&
+        enrollment.coach_id !== coach.id &&
+        client?.coach_id !== coach.id
+      ) {
+        return NextResponse.json(
+          { error: 'Not your client on this programme' },
+          { status: 403 }
+        );
+      }
+      const { upsertProgrammeLog } = await import(
+        '@/lib/fitness/programme-follow'
+      );
+      if (!store.programme_logs) store.programme_logs = [];
+      const row = upsertProgrammeLog(
+        store.programme_logs,
+        {
+          enrollment_id: enrollment.id,
+          programme_id: enrollment.programme_id,
+          client_id: enrollment.client_id,
+          block_id: body.block_id,
+          date: body.date,
+          status: body.status,
+          feeling: body.feeling,
+          rpe: body.rpe,
+          comment: body.comment,
+          coach_comment: body.coach_comment,
+          item_checks: body.item_checks,
+          by_role: 'coach',
+        },
+        now,
+        newId
+      );
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        log: row,
+        portal: buildCoachPortalPayload(store, coach),
+        message: 'Feedback saved on the programme',
+      });
+    }
+
     if (
       action === 'upsert_movement' ||
       action === 'update_movement_media' ||

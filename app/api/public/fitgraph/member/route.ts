@@ -1139,6 +1139,68 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (action === 'log_programme') {
+      const enrollmentId = String(body.enrollment_id || '');
+      const enrollment = (store.programme_enrollments || []).find(
+        (e) => e.id === enrollmentId && e.client_id === client.id
+      );
+      if (!enrollment || enrollment.status === 'cancelled') {
+        return NextResponse.json(
+          { error: 'Programme not found on your account' },
+          { status: 404 }
+        );
+      }
+      const programme = (store.programmes || []).find(
+        (p) => p.id === enrollment.programme_id
+      );
+      if (!programme) {
+        return NextResponse.json(
+          { error: 'Programme not found' },
+          { status: 404 }
+        );
+      }
+      if (!store.programme_logs) store.programme_logs = [];
+      const { upsertProgrammeLog } = await import(
+        '@/lib/fitness/programme-follow'
+      );
+      const { newId } = await import('@/lib/fitness/fitgraph');
+      const row = upsertProgrammeLog(
+        store.programme_logs,
+        {
+          enrollment_id: enrollment.id,
+          programme_id: enrollment.programme_id,
+          client_id: client.id,
+          block_id: body.block_id,
+          date: body.date,
+          status: body.status,
+          feeling: body.feeling,
+          rpe: body.rpe,
+          comment: body.comment,
+          item_checks: body.item_checks,
+          by_role: 'member',
+        },
+        now,
+        newId
+      );
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        log: row,
+        portal: decorateMemberPortal(
+          store,
+          store.clients[ci],
+          buildMemberPortalPayloadBase(store, store.clients[ci]),
+          meta
+        ),
+        message:
+          row.status === 'skipped'
+            ? 'Session skipped'
+            : row.status === 'partial'
+              ? 'Partial session logged'
+              : 'Session logged — well done',
+      });
+    }
+
     if (action === 'upsert_goal' || action === 'save_goal') {
       const title = String(body.title || '').trim();
       const kind = String(body.kind || 'custom');

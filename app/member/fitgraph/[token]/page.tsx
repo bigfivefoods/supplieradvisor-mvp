@@ -35,6 +35,8 @@ import { sessionHasEnded } from '@/lib/services/booking-feedback';
 import { sessionIsUpcoming } from '@/lib/fitness/gym-local-time';
 import { MemberRelationshipSection } from '@/components/services/MemberRelationshipSection';
 import { MemberGoalsPanel } from '@/components/fitness/MemberGoalsPanel';
+import { MemberProgrammeFollow } from '@/components/fitness/MemberProgrammeFollow';
+import type { MemberProgrammeFollowView } from '@/lib/fitness/programme-follow';
 import { MemberOpenDiaryWeek } from '@/components/fitness/MemberOpenDiaryWeek';
 import type { MemberGoalView } from '@/lib/fitness/member-goals';
 import { ProgrammeView } from '@/components/fitness/ProgrammeView';
@@ -212,6 +214,7 @@ type Portal = {
       feedback_token: string;
     }>;
   };
+  programme_follows?: MemberProgrammeFollowView[];
   relationship?: import('@/components/services/MemberRelationshipSection').MemberRelationshipPayload | null;
   announcements?: MemberAnnouncementPublic[];
   messages_unread?: number;
@@ -1568,9 +1571,30 @@ export default function MemberFitgraphPortalPage() {
 
         {tab === 'progress' && (
           <div className="space-y-4">
-            <GymSectionTitle hint={`Attendance, goals, coach notes and class feedback at ${portal.brand}.`}>
+            <GymSectionTitle hint={`Programmes, calendar, attendance, goals and feedback at ${portal.brand}.`}>
               Your training
             </GymSectionTitle>
+            <MemberProgrammeFollow
+              follows={portal.programme_follows || []}
+              busyId={busyId}
+              onLog={async (v) => {
+                setBusyId(v.enrollment_id);
+                setError(null);
+                try {
+                  const data = await post({
+                    action: 'log_programme',
+                    ...v,
+                  });
+                  setMsg(data.message || 'Session logged');
+                } catch (e: unknown) {
+                  setError(
+                    e instanceof Error ? e.message : 'Could not log session'
+                  );
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+            />
             <div className="grid grid-cols-3 gap-2">
               <GymStat
                 value={portal.progress?.attended_30d ?? 0}

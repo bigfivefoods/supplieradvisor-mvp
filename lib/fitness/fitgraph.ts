@@ -35,9 +35,19 @@ import type {
   FitMovement,
   FitProgramme,
 } from '@/lib/fitness/movements';
+import type {
+  FitProgrammeEnrollment,
+  FitProgrammeLog,
+} from '@/lib/fitness/programme-follow';
 import {
+  buildMemberProgrammeFollows,
+  buildProgrammeFollowRoster,
+} from '@/lib/fitness/programme-follow';
+import {
+  dateToProgrammeWeekday,
   hydrateProgramme,
   memberFacingProgramme,
+  programmeBlockForWeekday,
   resolveProgrammeForSession,
 } from '@/lib/fitness/movements';
 import {
@@ -1411,6 +1421,10 @@ export interface FitgraphStore {
   movements?: FitMovement[];
   /** Class and personal-training programmes built from movements */
   programmes?: FitProgramme[];
+  /** Members following a programme (assigned or purchased) */
+  programme_enrollments?: FitProgrammeEnrollment[];
+  /** Per-day follow logs: done / skip / feeling / RPE / comments */
+  programme_logs?: FitProgrammeLog[];
   /** Paid membership / programme checkouts */
   gym_sales?: import('@/lib/fitness/gym-shop').GymSale[];
   /** Watch / Garmin sessions logged after class */
@@ -1577,6 +1591,8 @@ export function emptyFitgraphStore(): FitgraphStore {
     announcements: [],
     movements: [],
     programmes: [],
+    programme_enrollments: [],
+    programme_logs: [],
     gym_sales: [],
     watch_sessions: [],
     garmin_oauth_pending: [],
@@ -1623,6 +1639,8 @@ export function readFitgraphFromMetadata(
     'consent_shares',
     'movements',
     'programmes',
+    'programme_enrollments',
+    'programme_logs',
     'watch_sessions',
     'garmin_oauth_pending',
   ]) {
@@ -2058,6 +2076,15 @@ function buildMemberFacingProgress(
         : [],
     },
     relationship,
+    programme_follows: buildMemberProgrammeFollows({
+      programmes: store.programmes || [],
+      enrollments: store.programme_enrollments || [],
+      logs: store.programme_logs || [],
+      movements: listedFitMovements(store),
+      coaches: store.coaches || [],
+      clientId: client.id,
+      today,
+    }),
   };
 }
 
@@ -2155,6 +2182,10 @@ export function summariseFitgraph(store: FitgraphStore) {
       .length,
     programmeCount: (store.programmes || []).filter((p) => p.active !== false)
       .length,
+    programmeEnrollmentCount: (store.programme_enrollments || []).filter(
+      (e) => e.status === 'active'
+    ).length,
+    programmeLogCount: (store.programme_logs || []).length,
     sessionsToday: sessionsToday.length,
     sessionsUpcoming: store.sessions.filter(
       (s) => s.date >= today && s.status === 'scheduled'
@@ -2722,6 +2753,13 @@ export function buildCoachPortalPayload(
         p.active !== false &&
         (!p.coach_id || p.coach_id === coach.id)
     ),
+    programme_follows: buildProgrammeFollowRoster({
+      programmes: store.programmes || [],
+      enrollments: store.programme_enrollments || [],
+      logs: store.programme_logs || [],
+      clients: store.clients || [],
+      coachId: coach.id,
+    }),
     threads: coachThreads,
     messages_unread: messagesUnread,
     /** Peer coaches for colleague messaging */
@@ -2744,7 +2782,17 @@ export function programmeForSessionPayload(
     programme_id: session.programme_id,
   });
   if (!found) return null;
-  const hydrated = hydrateProgramme(found, listedFitMovements(store));
+  const weekday = dateToProgrammeWeekday(session.date);
+  const block = programmeBlockForWeekday(found, weekday);
+  const forSession: FitProgramme = block
+    ? {
+        ...found,
+        name: block.title ? `${found.name} · ${block.title}` : found.name,
+        description: block.notes || found.description,
+        items: (block.items || []).length ? block.items : found.items,
+      }
+    : found;
+  const hydrated = hydrateProgramme(forSession, listedFitMovements(store));
   if (opts?.memberFacing) return memberFacingProgramme(hydrated);
   return hydrated;
 }

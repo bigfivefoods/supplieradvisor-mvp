@@ -484,6 +484,8 @@ const CLIENT_ID_ARRAYS: Array<keyof FitgraphStore> = [
   'journey_events',
   'member_stories',
   'consent_shares',
+  'programme_enrollments',
+  'programme_logs',
 ];
 
 function remapClientId(store: FitgraphStore, fromId: string, toId: string) {

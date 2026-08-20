@@ -2,6 +2,7 @@
 
 import { videoEmbedSrc, type FitHydratedProgramme } from '@/lib/fitness/movements';
 import { MovementThumb } from '@/components/fitness/MovementThumb';
+import { ProgrammeCalendarGrid } from '@/components/fitness/ProgrammeCalendarGrid';
 
 export function ProgrammeView({
   programme,
@@ -15,11 +16,14 @@ export function ProgrammeView({
   const card = dark
     ? 'rounded-xl border border-slate-700 bg-slate-950/50 p-3 space-y-2'
     : 'rounded-xl border border-yellow-200 bg-yellow-50/50 p-3 space-y-2 dark:border-yellow-800 dark:bg-yellow-950/30';
+  const blocks = programme.blocks || [];
+  const showCal = !compact && blocks.length > 1;
   return (
     <div className={card}>
       <div>
         <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
           Programme
+          {programme.weeks ? ` · ${programme.weeks} weeks` : ''}
         </p>
         <p className="font-bold text-sm">{programme.name}</p>
         {programme.description ? (
@@ -27,7 +31,24 @@ export function ProgrammeView({
             {programme.description}
           </p>
         ) : null}
+        {programme.follow_notes && !compact ? (
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            {programme.follow_notes}
+          </p>
+        ) : null}
       </div>
+      {showCal ? (
+        <ProgrammeCalendarGrid
+          weeks={programme.weeks || 1}
+          blocks={blocks}
+          movements={blocks.flatMap((b) =>
+            b.items
+              .map((it) => it.movement)
+              .filter((m): m is NonNullable<typeof m> => Boolean(m))
+          )}
+          mode="view"
+        />
+      ) : null}
       <ol className="space-y-2">
         {programme.items.map((it, i) => {
           const mv = it.movement;

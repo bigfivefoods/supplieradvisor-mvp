@@ -66,16 +66,50 @@ export type FitProgrammeItem = {
   sort?: number;
 };
 
+/** 1 = Monday … 7 = Sunday */
+export type FitProgrammeWeekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+
+export const PROGRAMME_WEEKDAYS: Array<{
+  n: FitProgrammeWeekday;
+  label: string;
+  short: string;
+}> = [
+  { n: 1, label: 'Mon', short: 'M' },
+  { n: 2, label: 'Tue', short: 'T' },
+  { n: 3, label: 'Wed', short: 'W' },
+  { n: 4, label: 'Thu', short: 'T' },
+  { n: 5, label: 'Fri', short: 'F' },
+  { n: 6, label: 'Sat', short: 'S' },
+  { n: 7, label: 'Sun', short: 'S' },
+];
+
+/** One training day on the programme calendar (week × weekday). */
+export type FitProgrammeBlock = {
+  id: string;
+  week: number;
+  weekday: FitProgrammeWeekday;
+  title?: string;
+  /** Coach intent / how to run this day */
+  notes?: string;
+  items: FitProgrammeItem[];
+};
+
 export type FitProgramme = {
   id: string;
   name: string;
   description?: string;
+  /** How to follow this plan (pacing, equipment, who it is for) */
+  follow_notes?: string;
   coach_id?: string | null;
   kind: FitProgrammeKind;
   class_type_ids?: string[];
   session_ids?: string[];
   /** Coach’s own training plan (personal time / self PT) */
   personal_for_coach?: boolean;
+  /** Duration in weeks (calendar length). */
+  weeks?: number | null;
+  /** Week × weekday sessions. Empty = use `items` as week 1 Monday. */
+  blocks?: FitProgrammeBlock[];
   items: FitProgrammeItem[];
   /** When set and public, members can buy this programme */
   price_zar?: number | null;
@@ -90,8 +124,13 @@ export type FitHydratedProgrammeItem = FitProgrammeItem & {
   movement: FitMovement | null;
 };
 
-export type FitHydratedProgramme = Omit<FitProgramme, 'items'> & {
+export type FitHydratedProgrammeBlock = Omit<FitProgrammeBlock, 'items'> & {
   items: FitHydratedProgrammeItem[];
+};
+
+export type FitHydratedProgramme = Omit<FitProgramme, 'items' | 'blocks'> & {
+  items: FitHydratedProgrammeItem[];
+  blocks: FitHydratedProgrammeBlock[];
 };
 
 export type FitSessionProgrammeRef = {
@@ -143,18 +182,142 @@ export function videoEmbedSrc(url?: string | null): {
   return { src: u, iframe: false };
 }
 
-export function hydrateProgramme(
-  programme: FitProgramme,
+export function hydrateProgrammeItems(
+  items: FitProgrammeItem[] | undefined,
   movements: FitMovement[]
-): FitHydratedProgramme {
+): FitHydratedProgrammeItem[] {
   const byId = new Map(movements.map((m) => [m.id, m]));
-  const items = [...(programme.items || [])]
+  return [...(items || [])]
     .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
     .map((item) => ({
       ...item,
       movement: byId.get(item.movement_id) || null,
     }));
-  return { ...programme, items };
+}
+
+export function hydrateProgrammeBlock(
+  block: FitProgrammeBlock,
+  movements: FitMovement[]
+): FitHydratedProgrammeBlock {
+  return { ...block, items: hydrateProgrammeItems(block.items, movements) };
+}
+
+export function parseProgrammeBlocks(raw: unknown): FitProgrammeBlock[] {
+  if (!Array.isArray(raw)) return [];
+  const out: FitProgrammeBlock[] = [];
+  raw.forEach((row, i) => {
+    const r = (row || {}) as Record<string, unknown>;
+    const week = Math.max(1, Math.min(52, Number(r.week) || 1));
+    const weekday = Math.max(
+      1,
+      Math.min(7, Number(r.weekday) || 1)
+    ) as FitProgrammeWeekday;
+    out.push({
+      id: String(r.id || `blk_${week}_${weekday}_${i}`),
+      week,
+      weekday,
+      title:
+        r.title != null && String(r.title).trim()
+          ? String(r.title).trim()
+          : undefined,
+      notes:
+        r.notes != null && String(r.notes).trim()
+          ? String(r.notes).trim()
+          : undefined,
+      items: parseProgrammeItems(r.items),
+    });
+  });
+  return out;
+}
+
+export function flattenBlocksToItems(
+  blocks: FitProgrammeBlock[]
+): FitProgrammeItem[] {
+  const items: FitProgrammeItem[] = [];
+  let sort = 0;
+  for (const b of [...blocks].sort(
+    (a, c) => a.week - c.week || a.weekday - c.weekday
+  )) {
+    for (const it of b.items || []) {
+      items.push({
+        ...it,
+        id: it.id || `itm_${b.id}_${sort}`,
+        sort: sort++,
+      });
+    }
+  }
+  return items;
+}
+
+export function programmeWeekCount(programme: FitProgramme): number {
+  const fromBlocks = (programme.blocks || []).reduce(
+    (n, b) => Math.max(n, Number(b.week) || 0),
+    0
+  );
+  return Math.max(1, Number(programme.weeks) || fromBlocks || 1);
+}
+
+/** Calendar sessions, or a single week-1 Monday block from legacy `items`. */
+export function programmeBlocksOrLegacy(
+  programme: FitProgramme
+): FitProgrammeBlock[] {
+  if ((programme.blocks || []).length) return programme.blocks || [];
+  if ((programme.items || []).length) {
+    return [
+      {
+        id: `blk_legacy_${programme.id}`,
+        week: 1,
+        weekday: 1,
+        title: programme.name,
+        notes: programme.description,
+        items: programme.items,
+      },
+    ];
+  }
+  return [];
+}
+
+/** JS getDay 0=Sun → 1=Mon … 7=Sun */
+export function dateToProgrammeWeekday(dateIso: string): FitProgrammeWeekday {
+  const d = new Date(String(dateIso).slice(0, 10) + 'T12:00:00').getDay();
+  return (d === 0 ? 7 : d) as FitProgrammeWeekday;
+}
+
+/** Day of the plan that belongs on a given calendar date (weekday match). */
+export function programmeBlockForWeekday(
+  programme: FitProgramme,
+  weekday: number,
+  week = 1
+): FitProgrammeBlock | null {
+  const blocks = programmeBlocksOrLegacy(programme);
+  const wd = Math.max(1, Math.min(7, Number(weekday) || 1));
+  return (
+    blocks.find((b) => b.week === week && b.weekday === wd) ||
+    blocks.find((b) => b.weekday === wd) ||
+    blocks[0] ||
+    null
+  );
+}
+
+export function hydrateProgramme(
+  programme: FitProgramme,
+  movements: FitMovement[]
+): FitHydratedProgramme {
+  const blocks = programmeBlocksOrLegacy(programme).map((b) =>
+    hydrateProgrammeBlock(b, movements)
+  );
+  const items = hydrateProgrammeItems(
+    (programme.items || []).length
+      ? programme.items
+      : flattenBlocksToItems(programme.blocks || []),
+    movements
+  );
+  return {
+    ...programme,
+    weeks: programmeWeekCount(programme),
+    items,
+    blocks,
+  };
 }
 
 export function movementsForCoach(
@@ -387,10 +550,30 @@ export function upsertProgramme(
       rec.billing != null
         ? (String(rec.billing) as FitProgramme['billing'])
         : prev?.billing || 'once',
+    follow_notes:
+      rec.follow_notes != null
+        ? String(rec.follow_notes)
+        : prev?.follow_notes,
+    blocks:
+      rec.blocks !== undefined
+        ? parseProgrammeBlocks(rec.blocks)
+        : prev?.blocks || [],
     items:
       rec.items !== undefined
         ? parseProgrammeItems(rec.items)
-        : prev?.items || [],
+        : rec.blocks !== undefined
+          ? flattenBlocksToItems(parseProgrammeBlocks(rec.blocks))
+          : prev?.items || [],
+    weeks:
+      rec.weeks !== undefined
+        ? rec.weeks == null || rec.weeks === ''
+          ? null
+          : Math.max(1, Math.min(52, Number(rec.weeks) || 1))
+        : prev?.weeks ??
+          ((rec.blocks !== undefined
+            ? parseProgrammeBlocks(rec.blocks)
+            : prev?.blocks || []
+          ).reduce((n, b) => Math.max(n, b.week), 0) || null),
     active:
       rec.active !== undefined ? rec.active !== false : prev?.active !== false,
     created_at: prev?.created_at || now,
@@ -407,6 +590,11 @@ export function removeMovementFromProgrammes(
 ): void {
   for (const p of programmes) {
     p.items = (p.items || []).filter((it) => it.movement_id !== movementId);
+    if (p.blocks) {
+      for (const b of p.blocks) {
+        b.items = (b.items || []).filter((it) => it.movement_id !== movementId);
+      }
+    }
   }
 }
 

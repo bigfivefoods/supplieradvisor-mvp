@@ -14,6 +14,7 @@ import {
   type FitSubscription,
 } from '@/lib/fitness/fitgraph';
 import type { FitProgramme } from '@/lib/fitness/movements';
+import { enrollClientOnProgramme } from '@/lib/fitness/programme-follow';
 
 export type GymSaleKind = 'membership' | 'programme' | 'product';
 
@@ -118,14 +119,22 @@ export function publicProgrammeShop(store: FitgraphStore): GymShopItem[] {
         p.personal_for_coach !== true &&
         Number(p.price_zar) > 0
     )
-    .map((p) => ({
-      kind: 'programme' as const,
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      price_zar: Number(p.price_zar) || 0,
-      billing: p.billing || 'once',
-    }));
+    .map((p) => {
+      const weeks = p.weeks
+        ? `${p.weeks}-week programme`
+        : (p.blocks || []).length
+          ? 'Training programme'
+          : '';
+      const desc = [weeks, p.description].filter(Boolean).join(' · ');
+      return {
+        kind: 'programme' as const,
+        id: p.id,
+        name: p.name,
+        description: desc || p.description,
+        price_zar: Number(p.price_zar) || 0,
+        billing: p.billing || 'once',
+      };
+    });
 }
 
 export function gymShopCatalog(store: FitgraphStore): GymShopItem[] {
@@ -338,6 +347,22 @@ export function applyPaidGymSale(
     next = { ...next, subscriptions };
     const programmes = new Set(client.purchased_programme_ids || []);
     if (plan?.programme_id) programmes.add(plan.programme_id);
+    if (plan?.programme_id) {
+      const enrollments = [...(next.programme_enrollments || [])];
+      enrollClientOnProgramme(
+        enrollments,
+        {
+          client_id: client.id,
+          programme_id: plan.programme_id,
+          coach_id: client.coach_id,
+          source: 'purchased',
+          start_date: today,
+        },
+        now,
+        newId
+      );
+      next = { ...next, programme_enrollments: enrollments };
+    }
     const keepPrimary =
       plan?.addon === true &&
       client.membership_plan_id &&
@@ -364,6 +389,20 @@ export function applyPaidGymSale(
       purchased_programme_ids: [...programmes],
       updated_at: now,
     };
+    const enrollments = [...(next.programme_enrollments || [])];
+    enrollClientOnProgramme(
+      enrollments,
+      {
+        client_id: client.id,
+        programme_id: sale.programme_id,
+        coach_id: client.coach_id,
+        source: 'purchased',
+        start_date: today,
+      },
+      now,
+      newId
+    );
+    next = { ...next, programme_enrollments: enrollments };
   }
 
   if (sale.session_id) {

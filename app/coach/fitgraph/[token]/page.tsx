@@ -235,6 +235,31 @@ type Portal = {
   }>;
   movements?: FitMovement[];
   programmes?: FitProgramme[];
+  programme_follows?: Array<{
+    enrollment_id: string;
+    programme_id: string;
+    programme_name: string;
+    client_id: string;
+    client_name: string;
+    start_date: string;
+    status: string;
+    source: string;
+    progress: {
+      done: number;
+      total: number;
+      pct: number;
+      avg_feeling: number | null;
+      avg_rpe: number | null;
+    };
+    last_log: {
+      date: string;
+      status: string;
+      feeling?: number | null;
+      rpe?: number | null;
+      comment?: string;
+      coach_comment?: string;
+    } | null;
+  }>;
   threads?: Array<{
     id: string;
     channel: string;
@@ -340,6 +365,11 @@ export default function CoachFitgraphPortalPage() {
     notes: string;
     health: InjuryFormState;
   } | null>(null);
+  const [enrollClientId, setEnrollClientId] = useState('');
+  const [enrollProgrammeId, setEnrollProgrammeId] = useState('');
+  const [enrollStart, setEnrollStart] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
   const [workTab, setWorkTab] = useState<AdvisorWorkTab>('today');
   const [calFilter, setCalFilter] = useState<'all' | 'owner' | 'mine'>('all');
   const [bookWith, setBookWith] = useState<{
@@ -719,6 +749,97 @@ export default function CoachFitgraphPortalPage() {
 
       {workTab === 'people' ? (
         <div className="space-y-2">
+          {(portal.programmes || []).length ? (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-3 space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-wide text-amber-300">
+                Assign a programme
+              </p>
+              <select
+                className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                value={enrollClientId}
+                onChange={(e) => setEnrollClientId(e.target.value)}
+              >
+                <option value="">Member…</option>
+                {portal.members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                value={enrollProgrammeId}
+                onChange={(e) => setEnrollProgrammeId(e.target.value)}
+              >
+                <option value="">Programme…</option>
+                {(portal.programmes || []).map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="date"
+                className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                value={enrollStart}
+                onChange={(e) => setEnrollStart(e.target.value)}
+              />
+              <button
+                type="button"
+                disabled={busy || !enrollClientId || !enrollProgrammeId}
+                onClick={() =>
+                  void post({
+                    action: 'enroll_programme',
+                    client_id: enrollClientId,
+                    programme_id: enrollProgrammeId,
+                    start_date: enrollStart,
+                  })
+                }
+                className="w-full rounded-xl bg-[#E8E830] py-2 text-[11px] font-black text-slate-950"
+              >
+                Start them on this plan
+              </button>
+            </div>
+          ) : null}
+          {(portal.programme_follows || []).length ? (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-3 space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-wide text-amber-300">
+                Programmes · follow
+              </p>
+              {(portal.programme_follows || []).slice(0, 12).map((r) => (
+                <div
+                  key={r.enrollment_id}
+                  className="rounded-xl border border-white/10 px-3 py-2"
+                >
+                  <p className="text-sm font-bold">
+                    {r.client_name}
+                    <span className="ml-1 text-[11px] font-semibold text-slate-400">
+                      · {r.programme_name}
+                    </span>
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    {r.progress.pct}% · {r.progress.done}/{r.progress.total} days
+                    {r.progress.avg_feeling != null
+                      ? ` · feel ${r.progress.avg_feeling}/5`
+                      : ''}
+                    {r.progress.avg_rpe != null
+                      ? ` · RPE ${r.progress.avg_rpe}`
+                      : ''}
+                  </p>
+                  {r.last_log?.comment ? (
+                    <p className="mt-0.5 text-xs text-slate-300">
+                      “{r.last_log.comment}”
+                    </p>
+                  ) : null}
+                  {r.last_log?.coach_comment ? (
+                    <p className="text-[11px] text-amber-200">
+                      You: {r.last_log.coach_comment}
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
           {portal.class_report ? (
             <ClassSubscriptionReport
               report={portal.class_report}
