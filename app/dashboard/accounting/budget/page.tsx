@@ -299,7 +299,7 @@ function Inner() {
       <AccountingHeader
         title="Annual"
         titleAccent="budget"
-        description="12-month plan aligned to your financial year. Drives budget vs actual in management accounts and reports."
+        description="12-month plan aligned to the company financial year. Drives budget vs actual in management accounts and reports. The year-end is set only in Company → Settings."
         action={
           <div className="flex flex-wrap gap-2">
             <Link
@@ -358,19 +358,6 @@ function Inner() {
             </div>
           </div>
 
-          <div className="text-xs font-semibold text-neutral-600">
-            FY starts in
-            <p className="mt-1 min-w-[10rem] rounded-xl border border-neutral-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-900">
-              {MONTH_LONG[fyStartMonth - 1]}
-            </p>
-            <Link
-              href="/dashboard/my-business/settings"
-              className="mt-1 block text-[11px] font-bold text-[#0077b6] underline"
-            >
-              Change in Company → Settings
-            </Link>
-          </div>
-
           <label className="text-xs font-semibold text-neutral-600">
             Budget for FY starting
             <input
@@ -418,10 +405,9 @@ function Inner() {
           </div>
         </div>
         <p className="mt-3 text-[11px] text-neutral-500">
-          Columns are ordered by your financial year ({MONTH_LONG[fyStartMonth - 1]}{' '}
-          → {MONTH_LONG[(fyStartMonth + 10) % 12]}). The start month is set only
-          in Company → Settings by the owner or finance lead. Existing month
-          amounts stay on the same period slots (m01 = first month of FY).
+          Columns follow the company financial year ({MONTH_LONG[fyStartMonth - 1]}{' '}
+          → {MONTH_LONG[(fyStartMonth + 10) % 12]}). The year-end is set only in
+          Company → Settings.
         </p>
       </Panel>
 

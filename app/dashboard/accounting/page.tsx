@@ -196,7 +196,7 @@ function HubInner() {
       icon: BarChart3,
       code: '07',
       title: '12-month budget',
-      desc: 'FY plan by COA — plan vs actual in management & reports.',
+      desc: '12-month plan by COA, aligned to the company financial year.',
       accent: 'from-cyan-50 to-white border-cyan-100',
     },
     {
