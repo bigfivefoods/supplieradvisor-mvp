@@ -4,8 +4,8 @@
  * POST { token, action, ... } — create/update/delete sessions, share, book guest, attendance
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
+import { loadAdvisorStoreForPublicToken } from '@/lib/business/advisor-store-resolve';
 import {
   FITGRAPH_COACH_TOKENS_KEY,
   applySessionKindRules,
@@ -34,7 +34,6 @@ import {
   activeClassSubscriptions,
   buildClassSubscriptionReport,
   memberMayBookSession,
-  persistVukaCatalogIfNeeded,
   subscribersForSession,
 } from '@/lib/fitness/vuka-class-catalog';
 import {
@@ -110,59 +109,24 @@ async function resolveCoach(
 } | null> {
   const clean = token.trim();
   if (!clean || clean.length < 8) return null;
-  const supabase = getSupabaseServer();
 
-  // Prefer company id embedded in token
-  let companyId = parseCompanyIdFromToken(clean);
-
-  if (companyId == null) {
-    // Scan via coach token map key — limited fetch of recent profiles with fitgraph
-    // Fallback: try contains with partial won't work for map keys; use eq on nested path if possible
-    const { data: rows } = await supabase
-      .from('profiles')
-      .select('id, metadata')
-      .not('metadata', 'is', null)
-      .limit(200);
-    for (const row of rows || []) {
-      const meta =
-        row.metadata && typeof row.metadata === 'object'
-          ? (row.metadata as Record<string, unknown>)
-          : {};
-      const map = meta[FITGRAPH_COACH_TOKENS_KEY];
-      if (map && typeof map === 'object' && clean in (map as object)) {
-        companyId = Number(row.id);
-        break;
-      }
-      const store = readFitgraphFromMetadata(meta);
-      const c = store.coaches.find((x) => x.portal_token === clean);
-      if (c) {
-        companyId = Number(row.id);
-        break;
-      }
-    }
-  }
-
-  if (companyId == null || !Number.isFinite(companyId)) return null;
-
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('id, metadata')
-    .eq('id', companyId)
-    .maybeSingle();
-  if (!prof) return null;
-
-  const meta =
-    prof.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
-      : {};
-  let store = readFitgraphFromMetadata(meta);
-  store = await persistVukaCatalogIfNeeded(Number(prof.id), store, (s) =>
-    saveStore(Number(prof.id), meta, s)
-  );
-  const coach = store.coaches.find((c) => c.portal_token === clean);
+  const loaded = await loadAdvisorStoreForPublicToken({
+    token: clean,
+    moduleKey: 'fitgraph',
+    read: readFitgraphFromMetadata,
+    parseCompanyId: parseCompanyIdFromToken,
+    indexKeys: [FITGRAPH_COACH_TOKENS_KEY],
+  });
+  if (!loaded) return null;
+  const coach = loaded.store.coaches.find((c) => c.portal_token === clean);
   if (!coach || coach.active === false) return null;
 
-  return { companyId: Number(prof.id), meta, store, coach };
+  return {
+    companyId: loaded.companyId,
+    meta: loaded.meta,
+    store: loaded.store,
+    coach,
+  };
 }
 
 async function saveStore(

@@ -4,7 +4,10 @@
 import assert from 'node:assert/strict';
 import {
   COMPANY_CHROME_META_KEYS,
+  isAdvisorModuleKey,
+  isAdvisorTokenIndexKey,
   isMissingRelation,
+  isModuleIndexKey,
   mergeCompanyChromeLayers,
   splitModuleWriteSlice,
 } from './company-data';
@@ -36,6 +39,17 @@ assert.equal(
   true
 );
 assert.equal(isMissingRelation({ message: 'permission denied' }), false);
+assert.equal(isAdvisorModuleKey('fitgraph'), true);
+assert.equal(isAdvisorModuleKey('not_a_module'), false);
+assert.equal(isAdvisorTokenIndexKey('fitgraph_client_tokens'), true);
+assert.equal(isAdvisorTokenIndexKey('fitgraph'), false);
+assert.equal(isModuleIndexKey('fitgraph', 'fitgraph_public_token'), true);
+assert.equal(isModuleIndexKey('fitgraph', 'fitgraph_client_tokens'), true);
+assert.equal(
+  isModuleIndexKey('fitgraph', 'leftover_should_not_stay_on_module'),
+  false
+);
+assert.equal(isModuleIndexKey('fitgraph', 'fitgraph'), false);
 
 const slice = {
   fitgraph: { settings: { public_token: 'fg_1_abc' }, coaches: [] },
@@ -48,7 +62,7 @@ assert.deepEqual(split.data, slice.fitgraph);
 assert.equal(split.publicToken, 'fg_1_abc');
 assert.equal(split.indexes.fitgraph_public_token, 'fg_1_abc');
 assert.equal((split.indexes as { fitgraph?: unknown }).fitgraph, undefined);
-assert.equal(split.indexes.leftover_should_not_stay_on_module, true);
+assert.equal(split.indexes.leftover_should_not_stay_on_module, undefined);
 
 const noToken = splitModuleWriteSlice('medicalgraph', {
   medicalgraph: { settings: {} },

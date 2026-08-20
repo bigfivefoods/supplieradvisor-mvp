@@ -209,7 +209,6 @@ export async function GET(request: NextRequest) {
       success: true,
       store,
       summary: summariseFitgraph(store),
-      analysis: analysis(store),
     });
   } catch (e: unknown) {
     return NextResponse.json(

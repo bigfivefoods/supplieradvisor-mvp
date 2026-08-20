@@ -11,6 +11,7 @@ import {
   matchClassHint,
   mergeDuplicateFitClients,
   normalizePersonName,
+  vukaDeskSettled,
   VUKA_ROSTER,
 } from './vuka-roster';
 
@@ -327,5 +328,6 @@ assert.equal(
   store.clients.find((c) => /christine j brown/i.test(c.name))?.membership_plan_id,
   'vuka_pln_boot_1730'
 );
+assert.equal(vukaDeskSettled(store), true);
 
 console.log('vuka-roster.test.ts ok');

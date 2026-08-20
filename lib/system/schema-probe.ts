@@ -49,15 +49,23 @@ export const OPTIONAL_COMMERCIAL_COLUMNS: Array<{
     column: 'verified_at',
     migrationHint: '20260717_verification_payment_ref.sql',
   },
+];
+
+/** Tables the live OS cannot run without. Missing = P0 blocker. */
+export const REQUIRED_STORE_TABLES: Array<{
+  table: string;
+  column: string;
+  migrationHint: string;
+}> = [
   {
     table: 'company_module_stores',
     column: 'data',
-    migrationHint: '20260817_company_stores.sql',
+    migrationHint: '20260820_ensure_system_schema.sql',
   },
   {
     table: 'company_workspace',
     column: 'chrome',
-    migrationHint: '20260817_company_stores.sql',
+    migrationHint: '20260820_ensure_system_schema.sql',
   },
 ];
 
@@ -121,6 +129,30 @@ export async function probeProfileColumns(): Promise<ProfileColumnProbeResult> {
     }
   }
 
+  const storeMissing: Array<{ table: string; column: string; hint: string }> =
+    [];
+  for (const req of REQUIRED_STORE_TABLES) {
+    const { error } = await supabase
+      .from(req.table)
+      .select(req.column)
+      .limit(0);
+    const ok = !error;
+    probes.push({
+      table: req.table,
+      column: req.column,
+      ok,
+      error: error?.message,
+    });
+    if (!ok) {
+      storeMissing.push({
+        table: req.table,
+        column: req.column,
+        hint: req.migrationHint,
+      });
+      missing.push(`${req.table}.${req.column}`);
+    }
+  }
+
   return {
     ok: missing.length === 0,
     missing,
@@ -128,8 +160,12 @@ export async function probeProfileColumns(): Promise<ProfileColumnProbeResult> {
     probes,
     ghostColumns: [...GHOST_PROFILE_COLUMNS],
     hint:
-      missing.length > 0
-        ? `Missing profiles columns: ${missing.join(', ')}. Run supabase/migrations/20260716_profiles_branch_code.sql and 20260716_bank_account_verification.sql`
+      storeMissing.length > 0
+        ? `Missing system stores: ${storeMissing
+            .map((m) => m.table)
+            .join(', ')}. Run supabase/migrations/20260820_ensure_system_schema.sql in the Supabase SQL editor.`
+        : missing.length > 0
+          ? `Missing profiles columns: ${missing.join(', ')}. Run supabase/migrations/20260716_profiles_branch_code.sql and 20260716_bank_account_verification.sql`
         : optionalMissing.length > 0
           ? `Optional columns missing: ${optionalMissing
               .map((m) => `${m.table}.${m.column}`)

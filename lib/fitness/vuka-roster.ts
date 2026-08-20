@@ -407,6 +407,17 @@ function applyBilledClassAllocations(
   return true;
 }
 
+export function vukaDeskSettled(store: FitgraphStore): boolean {
+  const s = store.settings;
+  return Boolean(
+    s &&
+      s.vuka_calendar_manual === true &&
+      s.vuka_contracts_import === VUKA_CONTRACTS_IMPORT &&
+      s.vuka_member_merge === VUKA_MEMBER_MERGE &&
+      s.vuka_billed_class_import === VUKA_BILLED_CLASS_IMPORT
+  );
+}
+
 export function ensureVukaRoster(
   store: FitgraphStore,
   opts?: { now?: string }

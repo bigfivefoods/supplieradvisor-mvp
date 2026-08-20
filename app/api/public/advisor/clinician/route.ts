@@ -4,8 +4,12 @@
  * POST { module, token, action, ... }
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
+import {
+  loadAdvisorModuleStore,
+  saveAdvisorModuleStore,
+} from '@/lib/business/company-data';
+import { resolveAdvisorCompanyId } from '@/lib/business/advisor-store-resolve';
 import {
   readDentalgraphFromMetadata,
   writeDentalgraphToMetadata,
@@ -45,7 +49,6 @@ import {
   deleteClinicianAppointment,
   findClinicianByToken,
   isClinicianModule,
-  listClinicians,
   parseClinicianCompanyIdFromToken,
   staffTokenMapKey,
 } from '@/lib/services/clinician-portal';
@@ -83,78 +86,64 @@ async function resolveClinician(
   const clean = token.trim();
   if (!clean || clean.length < 8) return null;
 
-  const supabase = getSupabaseServer();
-  let companyId = parseClinicianCompanyIdFromToken(clean);
-
-  if (companyId == null) {
-    const mapKey = staffTokenMapKey(module);
-    const { data: rows } = await supabase
-      .from('profiles')
-      .select('id, metadata')
-      .not('metadata', 'is', null)
-      .order('updated_at', { ascending: false })
-      .limit(300);
-    for (const row of rows || []) {
-      const meta =
-        row.metadata && typeof row.metadata === 'object'
-          ? (row.metadata as Record<string, unknown>)
-          : {};
-      const map = meta[mapKey];
-      if (map && typeof map === 'object' && clean in (map as object)) {
-        companyId = Number(row.id);
-        break;
-      }
-      const raw = meta[module];
-      if (!raw || typeof raw !== 'object') continue;
-      const store = raw as ClinicianStoreLike;
-      if (findClinicianByToken(store, module, clean)) {
-        companyId = Number(row.id);
-        break;
-      }
-    }
-  }
-
+  const companyId = await resolveAdvisorCompanyId({
+    token: clean,
+    moduleKey: module,
+    parseCompanyId: parseClinicianCompanyIdFromToken,
+    indexKeys: [staffTokenMapKey(module)],
+  });
   if (companyId == null || !Number.isFinite(companyId)) return null;
-
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('id, metadata')
-    .eq('id', companyId)
-    .maybeSingle();
-  if (!prof) return null;
-
-  const meta =
-    prof.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
-      : {};
 
   let store: ClinicianStoreLike;
   let write: Resolved['write'];
+  let meta: Record<string, unknown>;
   if (module === 'dentalgraph') {
-    store = readDentalgraphFromMetadata(meta) as unknown as ClinicianStoreLike;
+    const loaded = await loadAdvisorModuleStore(
+      companyId,
+      module,
+      readDentalgraphFromMetadata
+    );
+    meta = loaded.meta;
+    store = loaded.store as unknown as ClinicianStoreLike;
     write = (m, s) =>
       writeDentalgraphToMetadata(
         m,
         s as unknown as Parameters<typeof writeDentalgraphToMetadata>[1]
       );
   } else if (module === 'physiograph') {
-    store = readPhysiographFromMetadata(meta) as unknown as ClinicianStoreLike;
+    const loaded = await loadAdvisorModuleStore(
+      companyId,
+      module,
+      readPhysiographFromMetadata
+    );
+    meta = loaded.meta;
+    store = loaded.store as unknown as ClinicianStoreLike;
     write = (m, s) =>
       writePhysiographToMetadata(
         m,
         s as unknown as Parameters<typeof writePhysiographToMetadata>[1]
       );
   } else if (module === 'medicalgraph') {
-    store = readMedicalgraphFromMetadata(meta) as unknown as ClinicianStoreLike;
+    const loaded = await loadAdvisorModuleStore(
+      companyId,
+      module,
+      readMedicalgraphFromMetadata
+    );
+    meta = loaded.meta;
+    store = loaded.store as unknown as ClinicianStoreLike;
     write = (m, s) =>
       writeMedicalgraphToMetadata(
         m,
         s as unknown as Parameters<typeof writeMedicalgraphToMetadata>[1]
       );
   } else {
-    store = readPsychiatrygraphFromMetadata(
-      meta
-    ) as unknown as ClinicianStoreLike;
+    const loaded = await loadAdvisorModuleStore(
+      companyId,
+      module,
+      readPsychiatrygraphFromMetadata
+    );
+    meta = loaded.meta;
+    store = loaded.store as unknown as ClinicianStoreLike;
     write = (m, s) =>
       writePsychiatrygraphToMetadata(
         m,
@@ -176,23 +165,12 @@ async function resolveClinician(
 }
 
 async function save(resolved: Resolved) {
-  const supabase = getSupabaseServer();
-  // Index staff tokens for faster resolve next time
-  const mapKey = staffTokenMapKey(resolved.module);
-  const tokens: Record<string, string> = {};
-  for (const p of listClinicians(resolved.store, resolved.module)) {
-    if (p.portal_token) tokens[String(p.portal_token)] = p.id;
-  }
-  let nextMeta = resolved.write(resolved.meta, resolved.store);
-  nextMeta = { ...nextMeta, [mapKey]: tokens };
-  await supabase
-    .from('profiles')
-    .update({
-      metadata: nextMeta,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', resolved.companyId);
-  resolved.meta = nextMeta;
+  await saveAdvisorModuleStore(
+    resolved.companyId,
+    resolved.module,
+    resolved.store,
+    resolved.write
+  );
 }
 
 function portalJson(resolved: Resolved, from?: string, to?: string) {

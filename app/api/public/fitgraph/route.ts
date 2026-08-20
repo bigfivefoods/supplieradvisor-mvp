@@ -4,7 +4,6 @@
  * POST { token, action: 'book', session_id, name, email?, phone? }
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
 import { verifyPaystackTransaction } from '@/lib/billing/paystack';
 import {
@@ -43,10 +42,8 @@ import {
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
 import { saveAdvisorModuleStore } from '@/lib/business/company-data';
-import {
-  memberMayBookSession,
-  persistVukaCatalogIfNeeded,
-} from '@/lib/fitness/vuka-class-catalog';
+import { loadAdvisorStoreForPublicToken } from '@/lib/business/advisor-store-resolve';
+import { memberMayBookSession } from '@/lib/fitness/vuka-class-catalog';
 import {
   gymJoinMemberPath,
   isComplimentaryClassInvite,
@@ -63,71 +60,19 @@ export const revalidate = 0;
 async function resolveByToken(
   token: string
 ): Promise<{ companyId: number; meta: Record<string, unknown>; store: FitgraphStore } | null> {
-  const supabase = getSupabaseServer();
   const clean = token.trim();
   if (!clean || clean.length < 8) return null;
-
-  // Fast path: metadata root index
-  const { data: byIndex } = await supabase
-    .from('profiles')
-    .select('id, metadata')
-    .contains('metadata', { [FITGRAPH_PUBLIC_TOKEN_KEY]: clean })
-    .maybeSingle();
-
-  if (byIndex) {
-    const meta =
-      byIndex.metadata && typeof byIndex.metadata === 'object'
-        ? { ...(byIndex.metadata as Record<string, unknown>) }
-        : {};
-    const store = readFitgraphFromMetadata(meta);
-    // Accept token even if website toggle is off — join links still work
-    if (store.settings?.public_token === clean) {
-      const companyId = Number(byIndex.id);
-      const next = await persistVukaCatalogIfNeeded(
-        companyId,
-        store,
-        (s) =>
-          saveAdvisorModuleStore(
-            companyId,
-            FITGRAPH_META_KEY,
-            s,
-            writeFitgraphToMetadata
-          )
-      );
-      return { companyId, meta, store: next };
-    }
-  }
-
-  // Parse company id from fg_{id}_… tokens
-  const parsed = parseCompanyIdFromToken(clean);
-  if (parsed != null && Number.isFinite(parsed)) {
-    const { data: prof } = await supabase
-      .from('profiles')
-      .select('id, metadata')
-      .eq('id', parsed)
-      .maybeSingle();
-    if (prof) {
-      const meta =
-        prof.metadata && typeof prof.metadata === 'object'
-          ? { ...(prof.metadata as Record<string, unknown>) }
-          : {};
-      const store = readFitgraphFromMetadata(meta);
-      if (store.settings?.public_token === clean) {
-        const companyId = Number(prof.id);
-        const next = await persistVukaCatalogIfNeeded(companyId, store, (s) =>
-          saveAdvisorModuleStore(
-            companyId,
-            FITGRAPH_META_KEY,
-            s,
-            writeFitgraphToMetadata
-          )
-        );
-        return { companyId, meta, store: next };
-      }
-    }
-  }
-
-  return null;
+  const loaded = await loadAdvisorStoreForPublicToken({
+    token: clean,
+    moduleKey: FITGRAPH_META_KEY,
+    read: readFitgraphFromMetadata,
+    parseCompanyId: parseCompanyIdFromToken,
+    indexKeys: [FITGRAPH_PUBLIC_TOKEN_KEY],
+  });
+  if (!loaded) return null;
+  // Accept token even if website toggle is off — join links still work
+  if (loaded.store.settings?.public_token !== clean) return null;
+  return loaded;
 }
 
 async function saveStore(
@@ -510,12 +455,16 @@ export async function POST(request: NextRequest) {
         }
         return NextResponse.json({ error: applied.error }, { status: 400 });
       }
-      const fresh = readFitgraphFromMetadata(
-        (await (async () => {
-          const { loadWalletCompany } = await import('@/lib/b2c/load-company');
-          return (await loadWalletCompany(companyId))?.meta || meta;
-        })())
+      const { loadAdvisorModuleStore } = await import(
+        '@/lib/business/company-data'
       );
+      const fresh = (
+        await loadAdvisorModuleStore(
+          companyId,
+          FITGRAPH_META_KEY,
+          readFitgraphFromMetadata
+        )
+      ).store;
       const sale = findGymSaleByRef(fresh, reference);
       const client = fresh.clients.find((c) => c.id === applied.clientId);
       return NextResponse.json({

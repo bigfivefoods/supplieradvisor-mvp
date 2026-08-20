@@ -6,8 +6,8 @@
  *      → record check-in + membership paid/unpaid status for desk
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
+import { loadAdvisorStoreForPublicToken } from '@/lib/business/advisor-store-resolve';
 import {
   FITGRAPH_PUBLIC_TOKEN_KEY,
   findClientForCheckIn,
@@ -30,47 +30,17 @@ async function resolveGym(
   meta: Record<string, unknown>;
   store: FitgraphStore;
 } | null> {
-  const supabase = getSupabaseServer();
   const clean = token.trim();
   if (!clean || clean.length < 8) return null;
-
-  const { data: byIndex } = await supabase
-    .from('profiles')
-    .select('id, metadata')
-    .contains('metadata', { [FITGRAPH_PUBLIC_TOKEN_KEY]: clean })
-    .maybeSingle();
-
-  if (byIndex) {
-    const meta =
-      byIndex.metadata && typeof byIndex.metadata === 'object'
-        ? { ...(byIndex.metadata as Record<string, unknown>) }
-        : {};
-    const store = readFitgraphFromMetadata(meta);
-    if (store.settings?.public_token === clean) {
-      return { companyId: Number(byIndex.id), meta, store };
-    }
-  }
-
-  const parsed = parseCompanyIdFromToken(clean);
-  if (parsed != null && Number.isFinite(parsed)) {
-    const { data: prof } = await supabase
-      .from('profiles')
-      .select('id, metadata')
-      .eq('id', parsed)
-      .maybeSingle();
-    if (prof) {
-      const meta =
-        prof.metadata && typeof prof.metadata === 'object'
-          ? { ...(prof.metadata as Record<string, unknown>) }
-          : {};
-      const store = readFitgraphFromMetadata(meta);
-      if (store.settings?.public_token === clean) {
-        return { companyId: Number(prof.id), meta, store };
-      }
-    }
-  }
-
-  return null;
+  const loaded = await loadAdvisorStoreForPublicToken({
+    token: clean,
+    moduleKey: 'fitgraph',
+    read: readFitgraphFromMetadata,
+    parseCompanyId: parseCompanyIdFromToken,
+    indexKeys: [FITGRAPH_PUBLIC_TOKEN_KEY],
+  });
+  if (!loaded || loaded.store.settings?.public_token !== clean) return null;
+  return loaded;
 }
 
 async function saveStore(

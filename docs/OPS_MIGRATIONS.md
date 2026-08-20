@@ -1,5 +1,19 @@
 # Ops migrations (run in Supabase SQL Editor)
 
+**GymAdvisor / VUKA membership stores (required):** paste this one file in the Supabase SQL editor:
+
+```text
+supabase/migrations/20260820_ensure_system_schema.sql
+```
+
+That creates `company_module_stores`, chrome RPCs, settle tables, and copies existing gym/clinic data out of `profiles.metadata` once. Safe to re-run.
+
+If that already returned `{"ok":true,"module_store_rows":…}`, paste this delta next (allowlisted modules, token lookup, no metadata blob scans):
+
+```text
+supabase/migrations/20260820_module_store_secure.sql
+```
+
 After deploying, if `/api/system/health` shows `schemaOptionalMissing` or missing profile columns, run these **in order**:
 
 ```text

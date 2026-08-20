@@ -8,12 +8,19 @@ import {
   gymHasClassSpecificPlans,
   isVukaFitnessCompany,
   listSubscribeClasses,
+  persistVukaCatalogIfNeeded,
   storeUsesClassSubscribe,
   memberMayBookSession,
   planCoversSession,
   VUKA_COMPANY_ID,
   VUKA_MEMBERSHIP_PLANS,
 } from './vuka-class-catalog';
+import {
+  VUKA_BILLED_CLASS_IMPORT,
+  VUKA_CONTRACTS_IMPORT,
+  VUKA_MEMBER_MERGE,
+  vukaDeskSettled,
+} from './vuka-roster';
 import { applyMemberDebitBank } from './member-debit-bank';
 
 assert.equal(isVukaFitnessCompany({ companyId: VUKA_COMPANY_ID }), true);
@@ -234,4 +241,29 @@ assert.ok(kidsPlan.price_zar === 530);
 const sib = VUKA_MEMBERSHIP_PLANS.find((p) => p.code === 'VUKA_KIDS_SIB')!;
 assert.equal(sib.price_zar, 265);
 
-console.log('vuka-class-catalog.test.ts ok');
+void (async () => {
+  const settled = emptyFitgraphStore();
+  settled.settings = {
+    enabled: true,
+    public_token: 'fg_110_testtoken',
+    allow_public_booking: true,
+    show_coaches: true,
+    show_pricing: true,
+    vuka_calendar_manual: true,
+    vuka_contracts_import: VUKA_CONTRACTS_IMPORT,
+    vuka_member_merge: VUKA_MEMBER_MERGE,
+    vuka_billed_class_import: VUKA_BILLED_CLASS_IMPORT,
+  };
+  assert.equal(vukaDeskSettled(settled), true);
+  let saved = 0;
+  await persistVukaCatalogIfNeeded(VUKA_COMPANY_ID, settled, async () => {
+    saved += 1;
+  });
+  assert.equal(saved, 0);
+  let otherSaved = 0;
+  await persistVukaCatalogIfNeeded(999, settled, async () => {
+    otherSaved += 1;
+  });
+  assert.equal(otherSaved, 0);
+  console.log('vuka-class-catalog.test.ts ok');
+})();

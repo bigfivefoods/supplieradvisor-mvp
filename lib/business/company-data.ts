@@ -9,11 +9,14 @@
  * This layer:
  * - reads only chrome keys (or company_workspace) for membership
  * - reads / writes one module at a time
- * - merges metadata with `metadata || patch` so concurrent modules are safe
- * - falls back to the old full-blob path when the migration is not applied
+ * - writes token indexes only — never the full gym/clinic blob — to metadata
+ * - requires the service role; module RPCs are allowlisted
  */
 
-import { getSupabaseServer } from '@/lib/supabase/server-client';
+import {
+  getSupabaseServer,
+  hasServiceRole,
+} from '@/lib/supabase/server-client';
 
 export const COMPANY_CHROME_META_KEYS = [
   'enabled_modules',
@@ -58,6 +61,42 @@ export const ADVISOR_MODULE_KEYS = [
 
 export type AdvisorModuleKey = (typeof ADVISOR_MODULE_KEYS)[number];
 
+export const ADVISOR_TOKEN_INDEX_KEYS = [
+  'fitgraph_public_token',
+  'fitgraph_coach_tokens',
+  'fitgraph_client_tokens',
+  'physiograph_patient_tokens',
+  'physiograph_staff_tokens',
+  'medicalgraph_patient_tokens',
+  'medicalgraph_staff_tokens',
+  'psychiatrygraph_patient_tokens',
+  'psychiatrygraph_staff_tokens',
+  'dentalgraph_patient_tokens',
+  'dentalgraph_staff_tokens',
+  'hiregraph_customer_tokens',
+  'hiregraph_public_token',
+  'retailgraph_public_token',
+] as const;
+
+export type AdvisorTokenIndexKey = (typeof ADVISOR_TOKEN_INDEX_KEYS)[number];
+
+export function isAdvisorModuleKey(key: string): key is AdvisorModuleKey {
+  return (ADVISOR_MODULE_KEYS as readonly string[]).includes(key);
+}
+
+export function isAdvisorTokenIndexKey(
+  key: string
+): key is AdvisorTokenIndexKey {
+  return (ADVISOR_TOKEN_INDEX_KEYS as readonly string[]).includes(key);
+}
+
+/** Metadata indexes: `{module}_public_token` and `{module}_*_tokens` only. */
+export function isModuleIndexKey(moduleKey: string, key: string): boolean {
+  if (!key || key === moduleKey) return false;
+  if (!key.startsWith(`${moduleKey}_`)) return false;
+  return key.endsWith('_token') || key.endsWith('_tokens');
+}
+
 export function isMissingRelation(error: unknown): boolean {
   const msg =
     error && typeof error === 'object' && 'message' in error
@@ -90,7 +129,7 @@ export function splitModuleWriteSlice(
   const data = slice[moduleKey];
   const indexes: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(slice)) {
-    if (k === moduleKey) continue;
+    if (!isModuleIndexKey(moduleKey, k)) continue;
     indexes[k] = v;
   }
   const tokenRaw =
@@ -237,6 +276,9 @@ export async function loadModuleMeta(
   moduleKey: string,
   extraKeys: string[] = []
 ): Promise<Record<string, unknown>> {
+  if (!isAdvisorModuleKey(moduleKey)) {
+    throw new Error('unknown advisor module');
+  }
   const supabase = getSupabaseServer();
   const wanted = [moduleKey, ...extraKeys];
 
@@ -290,25 +332,45 @@ export async function loadModuleMeta(
   return out;
 }
 
+async function tryEnsureSystemSchema(): Promise<boolean> {
+  const supabase = getSupabaseServer();
+  const rpc = await supabase.rpc('sa_ensure_system_schema');
+  return !rpc.error;
+}
+
 export async function saveModuleSlice(
   companyId: number,
   moduleKey: string,
   slice: Record<string, unknown>
 ): Promise<void> {
+  if (!isAdvisorModuleKey(moduleKey)) {
+    throw new Error('unknown advisor module');
+  }
+  if (!hasServiceRole()) {
+    throw new Error(
+      'SUPABASE_SERVICE_ROLE_KEY required to save advisor stores'
+    );
+  }
   const { data, indexes, publicToken } = splitModuleWriteSlice(moduleKey, slice);
   const supabase = getSupabaseServer();
-  const rpc = await supabase.rpc('sa_put_module_store', {
+  const args = {
     p_company_id: companyId,
     p_module: moduleKey,
     p_data: data ?? {},
     p_indexes: indexes,
     p_public_token: publicToken,
-  });
-  if (!rpc.error) return;
-  if (!isMissingRelation(rpc.error)) {
-    throw new Error(rpc.error.message);
+  };
+  let rpc = await supabase.rpc('sa_put_module_store', args);
+  if (rpc.error && isMissingRelation(rpc.error)) {
+    await tryEnsureSystemSchema();
+    rpc = await supabase.rpc('sa_put_module_store', args);
   }
-  await mergeProfileMetadata(companyId, slice);
+  if (!rpc.error) return;
+  throw new Error(
+    isMissingRelation(rpc.error)
+      ? `${rpc.error.message}. Run supabase/migrations/20260820_ensure_system_schema.sql in the Supabase SQL editor.`
+      : rpc.error.message
+  );
 }
 
 export async function loadAdvisorModuleStore<T>(

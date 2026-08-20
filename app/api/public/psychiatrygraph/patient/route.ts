@@ -37,57 +37,34 @@ async function resolvePatient(token: string): Promise<{
 } | null> {
   const clean = token.trim();
   if (!clean || clean.length < 8) return null;
+  const { loadAdvisorStoreForPublicToken } = await import(
+    '@/lib/business/advisor-store-resolve'
+  );
+  const loaded = await loadAdvisorStoreForPublicToken({
+    token: clean,
+    moduleKey: PSYCHIATRYGRAPH_META_KEY,
+    read: readPsychiatrygraphFromMetadata,
+    parseCompanyId: parsePhysioCompanyIdFromToken,
+    indexKeys: [PSYCHIATRYGRAPH_PATIENT_TOKENS_KEY],
+  });
+  if (!loaded) return null;
   const supabase = getSupabaseServer();
-  let companyId = parsePhysioCompanyIdFromToken(clean);
-
-  if (companyId == null) {
-    const { data: rows } = await supabase
-      .from('profiles')
-      .select('id, metadata')
-      .not('metadata', 'is', null)
-      .limit(200);
-    for (const row of rows || []) {
-      const meta =
-        row.metadata && typeof row.metadata === 'object'
-          ? (row.metadata as Record<string, unknown>)
-          : {};
-      const map = meta[PSYCHIATRYGRAPH_PATIENT_TOKENS_KEY];
-      if (map && typeof map === 'object' && clean in (map as object)) {
-        companyId = Number(row.id);
-        break;
-      }
-      const store = readPsychiatrygraphFromMetadata(meta);
-      if (store.patients.some((p) => p.portal_token === clean)) {
-        companyId = Number(row.id);
-        break;
-      }
-    }
-  }
-  if (companyId == null || !Number.isFinite(companyId)) return null;
-
   const { data: prof } = await supabase
     .from('profiles')
-    .select('id, metadata, logo_url')
-    .eq('id', companyId)
+    .select('id, logo_url')
+    .eq('id', loaded.companyId)
     .maybeSingle();
   if (!prof) return null;
-  const meta =
-    prof.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
-      : {};
-  const { loadAdvisorModuleStore } = await import(
-    '@/lib/business/company-data'
-  );
-  const loaded = await loadAdvisorModuleStore(
-    companyId,
-    PSYCHIATRYGRAPH_META_KEY,
-    readPsychiatrygraphFromMetadata
-  );
   const store = loaded.store;
   applyCompanyLogoToSettings(store, pickCompanyLogoUrl(prof));
   const patient = store.patients.find((p) => p.portal_token === clean);
   if (!patient || patient.active === false) return null;
-  return { companyId: Number(prof.id), meta, store, patient };
+  return {
+    companyId: loaded.companyId,
+    meta: loaded.meta,
+    store,
+    patient,
+  };
 }
 
 async function saveStore(

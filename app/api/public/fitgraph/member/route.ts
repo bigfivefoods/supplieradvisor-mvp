@@ -6,8 +6,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
+import { loadAdvisorStoreForPublicToken } from '@/lib/business/advisor-store-resolve';
 import {
   FITGRAPH_CLIENT_TOKENS_KEY,
+  FITGRAPH_META_KEY,
   clientMatchesPortalToken,
   buildMemberPortalPayload as buildMemberPortalPayloadBase,
   classTypeById,
@@ -61,7 +63,6 @@ import {
   activeClassSubscriptions,
   buildClassSubscriptionReport,
   memberMayBookSession,
-  persistVukaCatalogIfNeeded,
   storeUsesClassSubscribe,
   VUKA_JOINING,
 } from '@/lib/fitness/vuka-class-catalog';
@@ -104,62 +105,40 @@ async function resolveMember(
 } | null> {
   const clean = token.trim();
   if (!clean || clean.length < 8) return null;
+
+  const loaded = await loadAdvisorStoreForPublicToken({
+    token: clean,
+    moduleKey: 'fitgraph',
+    read: readFitgraphFromMetadata,
+    parseCompanyId: parseCompanyIdFromToken,
+    indexKeys: [FITGRAPH_CLIENT_TOKENS_KEY],
+  });
+  if (!loaded) return null;
+
   const supabase = getSupabaseServer();
-
-  let companyId = parseCompanyIdFromToken(clean);
-
-  if (companyId == null) {
-    const { data: rows } = await supabase
-      .from('profiles')
-      .select('id, metadata')
-      .not('metadata', 'is', null)
-      .limit(200);
-    for (const row of rows || []) {
-      const meta =
-        row.metadata && typeof row.metadata === 'object'
-          ? (row.metadata as Record<string, unknown>)
-          : {};
-      const map = meta[FITGRAPH_CLIENT_TOKENS_KEY];
-      if (map && typeof map === 'object' && clean in (map as object)) {
-        companyId = Number(row.id);
-        break;
-      }
-      const store = readFitgraphFromMetadata(meta);
-      const c = store.clients.find((x) => x.portal_token === clean);
-      if (c) {
-        companyId = Number(row.id);
-        break;
-      }
-    }
-  }
-
-  if (companyId == null || !Number.isFinite(companyId)) return null;
-
   const { data: prof } = await supabase
     .from('profiles')
-    .select('id, metadata, logo_url')
-    .eq('id', companyId)
+    .select('id, logo_url')
+    .eq('id', loaded.companyId)
     .maybeSingle();
   if (!prof) return null;
 
-  const meta =
-    prof.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
-      : {};
-  let store = readFitgraphFromMetadata(meta);
+  const store = loaded.store;
   applyCompanyLogoToSettings(store, pickCompanyLogoUrl(prof));
-  store = await persistVukaCatalogIfNeeded(Number(prof.id), store, (s) =>
-    saveStore(Number(prof.id), meta, s)
-  );
   if (stampShareCodesForGrow(store)) {
-    await saveStore(Number(prof.id), meta, store);
+    await saveStore(loaded.companyId, loaded.meta, store);
   }
   const client = store.clients.find((c) =>
     clientMatchesPortalToken(c, clean)
   );
   if (!client || client.active === false) return null;
 
-  return { companyId: Number(prof.id), meta, store, client };
+  return {
+    companyId: loaded.companyId,
+    meta: loaded.meta,
+    store,
+    client,
+  };
 }
 
 function decorateMemberPortal(
@@ -554,9 +533,16 @@ export async function POST(request: NextRequest) {
         }
         return NextResponse.json({ error: applied.error }, { status: 400 });
       }
-      const { loadWalletCompany } = await import('@/lib/b2c/load-company');
-      const freshMeta = (await loadWalletCompany(companyId))?.meta || meta;
-      const fresh = readFitgraphFromMetadata(freshMeta);
+      const { loadAdvisorModuleStore } = await import(
+        '@/lib/business/company-data'
+      );
+      const fresh = (
+        await loadAdvisorModuleStore(
+          companyId,
+          FITGRAPH_META_KEY,
+          readFitgraphFromMetadata
+        )
+      ).store;
       const nextClient =
         fresh.clients.find((c) => c.id === client.id) ||
         fresh.clients.find((c) => c.id === applied.clientId) ||

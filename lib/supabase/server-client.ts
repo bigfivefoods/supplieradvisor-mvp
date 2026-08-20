@@ -4,22 +4,22 @@ let client: SupabaseClient | null = null;
 
 /**
  * Server-side Supabase client.
- * Prefers service role when available; falls back to anon for read-heavy
- * dashboard queries in environments where service role is not configured.
+ * Uses the service role. Anon is never used here — module stores, chrome RPCs,
+ * and settle tables deny anon by policy.
  */
 export function getSupabaseServer(): SupabaseClient {
   if (client) return client;
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const key = serviceKey || anonKey;
 
-  if (!url || !key) {
-    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL and a Supabase key');
+  if (!url || !serviceKey) {
+    throw new Error(
+      'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY'
+    );
   }
 
-  client = createClient(url, key, {
+  client = createClient(url, serviceKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

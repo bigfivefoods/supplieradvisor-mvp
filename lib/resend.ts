@@ -19,7 +19,32 @@ export function getResend(): Resend {
       from?: unknown;
       replyTo?: unknown;
       reply_to?: unknown;
+      subject?: unknown;
+      text?: unknown;
+      tags?: Array<{ name?: string; value?: string }>;
     };
+    const from =
+      typeof raw.from === 'string' && raw.from.trim()
+        ? raw.from
+        : getResendFrom();
+    const { isVukaNotificationSuppressed } = await import(
+      '@/lib/notifications/email-suppress'
+    );
+    if (
+      isVukaNotificationSuppressed({
+        from,
+        subject: typeof raw.subject === 'string' ? raw.subject : null,
+        html: typeof raw.html === 'string' ? raw.html : null,
+        text: typeof raw.text === 'string' ? raw.text : null,
+        tags: raw.tags || null,
+      })
+    ) {
+      console.info('[email] skipped VUKA Fitness notification (testing)');
+      return {
+        data: { id: 'suppressed_vuka_testing' },
+        error: null,
+      };
+    }
     const next = {
       ...(payload as unknown as object),
     } as SendArgs[0] & {
@@ -34,32 +59,9 @@ export function getResend(): Resend {
       );
       next.html = wrapSystemNotificationHtml(raw.html);
     }
-    if (!next.from) next.from = getResendFrom();
+    if (!next.from) next.from = from;
     if (next.replyTo == null && next.reply_to == null) {
       next.replyTo = getResendReplyTo();
-    }
-    const { isVukaNotificationSuppressed } = await import(
-      '@/lib/notifications/email-suppress'
-    );
-    const tagged = next as unknown as {
-      subject?: unknown;
-      text?: unknown;
-      tags?: Array<{ name?: string; value?: string }>;
-    };
-    if (
-      isVukaNotificationSuppressed({
-        from: typeof next.from === 'string' ? next.from : null,
-        subject: typeof tagged.subject === 'string' ? tagged.subject : null,
-        html: typeof next.html === 'string' ? next.html : null,
-        text: typeof tagged.text === 'string' ? tagged.text : null,
-        tags: tagged.tags || null,
-      })
-    ) {
-      console.info('[email] skipped VUKA Fitness notification (testing)');
-      return {
-        data: { id: 'suppressed_vuka_testing' },
-        error: null,
-      };
     }
     return originalSend(next, options);
   }) as typeof client.emails.send;

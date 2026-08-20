@@ -1183,6 +1183,19 @@ export async function persistVukaCatalogIfNeeded(
   save: (next: FitgraphStore) => Promise<void>,
   identity?: { tradingName?: string | null; legalName?: string | null }
 ): Promise<FitgraphStore> {
+  if (
+    !isVukaFitnessCompany({
+      companyId,
+      tradingName: identity?.tradingName,
+      legalName: identity?.legalName,
+    })
+  ) {
+    return store;
+  }
+  const { ensureVukaRoster, vukaDeskSettled } = await import(
+    '@/lib/fitness/vuka-roster'
+  );
+  if (vukaDeskSettled(store)) return store;
   const result = ensureVukaClassCatalog(store, {
     companyId,
     tradingName: identity?.tradingName,
@@ -1191,7 +1204,6 @@ export async function persistVukaCatalogIfNeeded(
   let next = result.store;
   let dirty = result.changed;
   if (result.applied) {
-    const { ensureVukaRoster } = await import('@/lib/fitness/vuka-roster');
     const roster = ensureVukaRoster(next);
     next = roster.store;
     dirty = dirty || roster.changed;

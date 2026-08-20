@@ -32,6 +32,8 @@ const checks = [
   { table: 'customer_invoice_payments', col: 'amount', migration: '20260717_ar_ledger.sql' },
   { table: 'customer_payment_claims', col: 'status', migration: '20260717_payment_claims_and_ledger_fx.sql' },
   { table: 'customer_invoice_installments', col: 'due_date', migration: '20260718_installments_collections.sql' },
+  { table: 'company_module_stores', col: 'data', migration: '20260820_ensure_system_schema.sql' },
+  { table: 'company_workspace', col: 'chrome', migration: '20260820_ensure_system_schema.sql' },
 ];
 
 let failed = 0;

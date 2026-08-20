@@ -2,12 +2,14 @@
  * Garmin OAuth 2.0 callback — exchanges the code and returns the member to Progress.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
   readFitgraphFromMetadata,
   writeFitgraphToMetadata,
 } from '@/lib/fitness/fitgraph';
-import { saveAdvisorModuleStore } from '@/lib/business/company-data';
+import {
+  loadAdvisorModuleStore,
+  saveAdvisorModuleStore,
+} from '@/lib/business/company-data';
 import {
   exchangeGarminToken,
   fetchGarminUserId,
@@ -37,20 +39,16 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const supabase = getSupabaseServer();
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('id, metadata')
-    .eq('id', companyId)
-    .maybeSingle();
-  if (!prof) {
+  let store;
+  try {
+    ({ store } = await loadAdvisorModuleStore(
+      companyId,
+      'fitgraph',
+      readFitgraphFromMetadata
+    ));
+  } catch {
     return NextResponse.redirect(`${origin}/me?garmin=error`);
   }
-  const meta =
-    prof.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
-      : {};
-  const store = readFitgraphFromMetadata(meta);
   const pending = (store.garmin_oauth_pending || []).find((p) => p.state === state);
   if (!pending) {
     return NextResponse.redirect(`${origin}/me?garmin=error`);

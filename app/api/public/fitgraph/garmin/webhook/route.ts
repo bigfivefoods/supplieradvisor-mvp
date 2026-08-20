@@ -52,8 +52,9 @@ export async function POST(req: NextRequest) {
 
   const supabase = getSupabaseServer();
   const { data: rows } = await supabase
-    .from('profiles')
-    .select('id, metadata')
+    .from('company_module_stores')
+    .select('company_id, data')
+    .eq('module', 'fitgraph')
     .order('updated_at', { ascending: false })
     .limit(200);
 
@@ -61,12 +62,7 @@ export async function POST(req: NextRequest) {
   const redirectUri = garminRedirectUri(origin);
 
   for (const row of rows || []) {
-    const meta =
-      row.metadata && typeof row.metadata === 'object'
-        ? { ...(row.metadata as Record<string, unknown>) }
-        : {};
-    if (!meta.fitgraph) continue;
-    const store = readFitgraphFromMetadata(meta);
+    const store = readFitgraphFromMetadata({ fitgraph: row.data });
     const ci = store.clients.findIndex(
       (c) => c.wearable?.garmin?.user_id === userId && c.active !== false
     );
@@ -106,7 +102,7 @@ export async function POST(req: NextRequest) {
         },
       };
       await saveAdvisorModuleStore(
-        Number(row.id),
+        Number(row.company_id),
         'fitgraph',
         store,
         writeFitgraphToMetadata

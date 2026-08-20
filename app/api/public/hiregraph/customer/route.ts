@@ -7,8 +7,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
+import { loadAdvisorStoreForPublicToken } from '@/lib/business/advisor-store-resolve';
+import { saveAdvisorModuleStore } from '@/lib/business/company-data';
 import {
   HIREGRAPH_CUSTOMER_TOKENS_KEY,
+  HIREGRAPH_META_KEY,
   HIRE_REQUIREMENT_LABELS,
   buildHireCustomerPortalPayload,
   findPortalByToken,
@@ -72,53 +75,32 @@ async function resolveCustomer(
 } | null> {
   const clean = String(token || '').trim();
   if (!clean || clean.length < 12) return null;
+
+  const loaded = await loadAdvisorStoreForPublicToken({
+    token: clean,
+    moduleKey: HIREGRAPH_META_KEY,
+    read: readHiregraphFromMetadata,
+    parseCompanyId: parseCompanyIdFromHireCustomerToken,
+    indexKeys: [HIREGRAPH_CUSTOMER_TOKENS_KEY],
+  });
+  if (!loaded) return null;
+
   const supabase = getSupabaseServer();
-
-  let companyId = parseCompanyIdFromHireCustomerToken(clean);
-
-  if (companyId == null) {
-    // Slow path: scan token index on metadata
-    const { data: rows } = await supabase
-      .from('profiles')
-      .select('id, metadata')
-      .not('metadata', 'is', null)
-      .limit(200);
-    for (const row of rows || []) {
-      const meta =
-        row.metadata && typeof row.metadata === 'object'
-          ? (row.metadata as Record<string, unknown>)
-          : {};
-      const map = meta[HIREGRAPH_CUSTOMER_TOKENS_KEY];
-      if (map && typeof map === 'object' && clean in (map as object)) {
-        companyId = Number(row.id);
-        break;
-      }
-      const store = readHiregraphFromMetadata(meta);
-      if (findPortalByToken(store, clean)) {
-        companyId = Number(row.id);
-        break;
-      }
-    }
-  }
-
-  if (companyId == null || !Number.isFinite(companyId)) return null;
-
   const { data: prof } = await supabase
     .from('profiles')
-    .select('id, metadata, company_name, trading_name, name')
-    .eq('id', companyId)
+    .select('id, company_name, trading_name, name')
+    .eq('id', loaded.companyId)
     .maybeSingle();
   if (!prof) return null;
 
-  const meta =
-    prof.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
-      : {};
-  const store = readHiregraphFromMetadata(meta);
+  const { meta, store } = loaded;
   const portal = findPortalByToken(store, clean);
   if (!portal) return null;
 
-  const customer = await loadCoreCustomer(companyId, portal.crm_customer_id);
+  const customer = await loadCoreCustomer(
+    loaded.companyId,
+    portal.crm_customer_id
+  );
   if (!customer) return null;
 
   const companyName = String(
@@ -130,7 +112,7 @@ async function resolveCustomer(
   ).trim() || null;
 
   return {
-    companyId: Number(prof.id),
+    companyId: loaded.companyId,
     meta,
     store,
     portal,
@@ -141,19 +123,15 @@ async function resolveCustomer(
 
 async function saveStore(
   companyId: number,
-  meta: Record<string, unknown>,
+  _meta: Record<string, unknown>,
   store: HiregraphStore
 ) {
-  const supabase = getSupabaseServer();
-  const nextMeta = writeHiregraphToMetadata(meta, store);
-  const { error } = await supabase
-    .from('profiles')
-    .update({
-      metadata: nextMeta,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', companyId);
-  if (error) throw new Error(error.message);
+  await saveAdvisorModuleStore(
+    companyId,
+    HIREGRAPH_META_KEY,
+    store,
+    writeHiregraphToMetadata
+  );
 }
 
 function portalJson(

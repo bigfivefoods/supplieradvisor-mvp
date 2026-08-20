@@ -50,6 +50,10 @@ import {
   serviceMemberRoleLabel,
   type ServiceMemberModule,
 } from '@/lib/services/member-invite';
+import {
+  loadAdvisorModuleStore,
+  saveAdvisorModuleStore,
+} from '@/lib/business/company-data';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -93,21 +97,31 @@ async function resolveInvite(
 
   const { data: prof } = await supabase
     .from('profiles')
-    .select('id, trading_name, legal_name, metadata')
+    .select('id, trading_name, legal_name')
     .eq('id', companyId)
     .maybeSingle();
   if (!prof) return null;
 
-  const meta =
-    prof.metadata && typeof prof.metadata === 'object'
-      ? { ...(prof.metadata as Record<string, unknown>) }
-      : {};
+  const loaded = await loadAdvisorModuleStore(
+    companyId,
+    module,
+    module === 'fitgraph'
+      ? readFitgraphFromMetadata
+      : module === 'physiograph'
+        ? readPhysiographFromMetadata
+        : module === 'dentalgraph'
+          ? readDentalgraphFromMetadata
+          : module === 'medicalgraph'
+            ? readMedicalgraphFromMetadata
+            : readPsychiatrygraphFromMetadata
+  );
+  const meta = loaded.meta;
 
   const businessName =
     prof.trading_name || prof.legal_name || 'Business';
 
   if (module === 'fitgraph') {
-    const store = readFitgraphFromMetadata(meta);
+    const store = loaded.store as FitgraphStore;
     const brand = store.settings?.brand_name || businessName;
     const person = store.clients.find((c) => c.invite_token === clean);
     if (!person || person.active === false) return null;
@@ -122,7 +136,7 @@ async function resolveInvite(
   }
 
   if (module === 'physiograph') {
-    const store = readPhysiographFromMetadata(meta);
+    const store = loaded.store as PhysiographStore;
     const brand = store.settings?.brand_name || businessName;
     const person = store.patients.find((p) => p.invite_token === clean);
     if (!person || person.active === false) return null;
@@ -137,7 +151,7 @@ async function resolveInvite(
   }
 
   if (module === 'dentalgraph') {
-    const store = readDentalgraphFromMetadata(meta);
+    const store = loaded.store as DentalgraphStore;
     const brand = store.settings?.brand_name || businessName;
     const person = store.patients.find((p) => p.invite_token === clean);
     if (!person || person.active === false) return null;
@@ -152,7 +166,7 @@ async function resolveInvite(
   }
 
   if (module === 'medicalgraph') {
-    const store = readMedicalgraphFromMetadata(meta);
+    const store = loaded.store as MedicalgraphStore;
     const brand = store.settings?.brand_name || businessName;
     const person = store.patients.find((p) => p.invite_token === clean);
     if (!person || person.active === false) return null;
@@ -167,7 +181,7 @@ async function resolveInvite(
   }
 
   if (module === 'psychiatrygraph') {
-    const store = readPsychiatrygraphFromMetadata(meta);
+    const store = loaded.store as PsychiatrygraphStore;
     const brand = store.settings?.brand_name || businessName;
     const person = store.patients.find((p) => p.invite_token === clean);
     if (!person || person.active === false) return null;
@@ -314,7 +328,6 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    const supabase = getSupabaseServer();
     let portalToken = resolved.person.portal_token || null;
 
     // Optional: claim while logged into SupplierAdvisor → link system user id
@@ -362,12 +375,12 @@ export async function POST(request: NextRequest) {
       }
       // Keep invite_token so re-opening the link still works
       portalToken = store.clients[idx].portal_token!;
-      const nextMeta = writeFitgraphToMetadata(resolved.meta, store);
-      const { error } = await supabase
-        .from('profiles')
-        .update({ metadata: nextMeta, updated_at: now })
-        .eq('id', resolved.companyId);
-      if (error) throw new Error(error.message);
+      await saveAdvisorModuleStore(
+        resolved.companyId,
+        'fitgraph',
+        store,
+        writeFitgraphToMetadata
+      );
     } else if (resolved.module === 'physiograph') {
       const store = readPhysiographFromMetadata(
         resolved.meta
@@ -391,12 +404,12 @@ export async function POST(request: NextRequest) {
         linkPlatformUserId(store.patients[idx], claimUserId);
       }
       portalToken = store.patients[idx].portal_token!;
-      const nextMeta = writePhysiographToMetadata(resolved.meta, store);
-      const { error } = await supabase
-        .from('profiles')
-        .update({ metadata: nextMeta, updated_at: now })
-        .eq('id', resolved.companyId);
-      if (error) throw new Error(error.message);
+      await saveAdvisorModuleStore(
+        resolved.companyId,
+        'physiograph',
+        store,
+        writePhysiographToMetadata
+      );
     } else if (resolved.module === 'medicalgraph') {
       const store = readMedicalgraphFromMetadata(
         resolved.meta
@@ -418,12 +431,12 @@ export async function POST(request: NextRequest) {
         linkPlatformUserId(store.patients[idx], claimUserId);
       }
       portalToken = store.patients[idx].portal_token!;
-      const nextMeta = writeMedicalgraphToMetadata(resolved.meta, store);
-      const { error } = await supabase
-        .from('profiles')
-        .update({ metadata: nextMeta, updated_at: now })
-        .eq('id', resolved.companyId);
-      if (error) throw new Error(error.message);
+      await saveAdvisorModuleStore(
+        resolved.companyId,
+        'medicalgraph',
+        store,
+        writeMedicalgraphToMetadata
+      );
     } else if (resolved.module === 'psychiatrygraph') {
       const store = readPsychiatrygraphFromMetadata(
         resolved.meta
@@ -447,12 +460,12 @@ export async function POST(request: NextRequest) {
         linkPlatformUserId(store.patients[idx], claimUserId);
       }
       portalToken = store.patients[idx].portal_token!;
-      const nextMeta = writePsychiatrygraphToMetadata(resolved.meta, store);
-      const { error } = await supabase
-        .from('profiles')
-        .update({ metadata: nextMeta, updated_at: now })
-        .eq('id', resolved.companyId);
-      if (error) throw new Error(error.message);
+      await saveAdvisorModuleStore(
+        resolved.companyId,
+        'psychiatrygraph',
+        store,
+        writePsychiatrygraphToMetadata
+      );
     } else {
       const store = readDentalgraphFromMetadata(
         resolved.meta
@@ -476,12 +489,12 @@ export async function POST(request: NextRequest) {
         linkPlatformUserId(store.patients[idx], claimUserId);
       }
       portalToken = store.patients[idx].portal_token!;
-      const nextMeta = writeDentalgraphToMetadata(resolved.meta, store);
-      const { error } = await supabase
-        .from('profiles')
-        .update({ metadata: nextMeta, updated_at: now })
-        .eq('id', resolved.companyId);
-      if (error) throw new Error(error.message);
+      await saveAdvisorModuleStore(
+        resolved.companyId,
+        'dentalgraph',
+        store,
+        writeDentalgraphToMetadata
+      );
     }
 
     const portalLink = buildServiceMemberPortalLink(
