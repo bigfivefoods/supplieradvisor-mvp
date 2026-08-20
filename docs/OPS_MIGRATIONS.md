@@ -40,6 +40,16 @@ docs/RUN_TRADE_PROJECTS.sql
 supabase/migrations/20260824_trade_projects.sql
 ```
 
+**Reliability** (Paystack webhook idempotency, serialize gym/clinic store writes, extra token indexes):
+
+```text
+RUN_SAAS_RELIABILITY.sql
+docs/RUN_SAAS_RELIABILITY.sql
+supabase/migrations/20260825_saas_reliability.sql
+```
+
+Expect `{"ok":true,"hot_indexes_ok":N}`. Safe to re-run after the harden file.
+
 After deploying, if `/api/system/health` shows `schemaOptionalMissing` or missing profile columns, run these **in order**:
 
 ```text

@@ -53,10 +53,17 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
-    if (String(profile.supplier_status || '').toLowerCase() === 'active') {
+    const status = String(profile.supplier_status || '').toLowerCase();
+    if (status === 'active') {
       return NextResponse.json(
         { error: 'This supplier has already joined SupplierAdvisor.' },
         { status: 409 }
+      );
+    }
+    if (status && status !== 'invited' && status !== 'pending') {
+      return NextResponse.json(
+        { error: 'This invitation link is invalid or has expired.' },
+        { status: 404 }
       );
     }
 

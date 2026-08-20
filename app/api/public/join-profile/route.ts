@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { publicReadLimit } from '@/lib/security/rate-limit';
 
 /**
  * GET ?public_id= — public supplier invite claim page (limited fields only).
@@ -7,6 +8,13 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
  */
 export async function GET(request: NextRequest) {
   try {
+    const rl = publicReadLimit(request, 'join-profile', 30);
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
+      );
+    }
     const publicId = String(
       request.nextUrl.searchParams.get('public_id') || ''
     ).trim();
@@ -18,7 +26,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase
       .from('profiles')
       .select(
-        'public_id, trading_name, legal_name, contact_name, contact_phone, category, supplier_status'
+        'public_id, trading_name, legal_name, category, supplier_status'
       )
       .eq('public_id', publicId)
       .maybeSingle();
@@ -46,8 +54,6 @@ export async function GET(request: NextRequest) {
         public_id: data.public_id,
         trading_name: data.trading_name,
         legal_name: data.legal_name,
-        contact_name: data.contact_name,
-        contact_phone: data.contact_phone,
         category: data.category,
         supplier_status: data.supplier_status,
       },

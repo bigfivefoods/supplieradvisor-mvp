@@ -291,6 +291,23 @@ export function applyPaidGymSale(
   sale: GymSale,
   opts: { companyId: number; now?: string }
 ): { store: FitgraphStore; sale: GymSale; client: FitClient } {
+  const listed =
+    findGymSaleByRef(store, sale.paystack_ref || '') ||
+    readGymSales(store).find((s) => s.id === sale.id) ||
+    null;
+  if (listed?.status === 'paid') {
+    const email = String(listed.email || sale.email || '')
+      .trim()
+      .toLowerCase();
+    const client =
+      store.clients.find((c) => c.id === listed.client_id) ||
+      store.clients.find(
+        (c) => c.email && c.email.toLowerCase() === email && c.active !== false
+      );
+    if (client) {
+      return { store, sale: listed, client };
+    }
+  }
   const now = opts.now || new Date().toISOString();
   const today = now.slice(0, 10);
   let next = store;

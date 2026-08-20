@@ -13,6 +13,15 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
  */
 export async function GET(request: NextRequest) {
   try {
+    const rl = checkRateLimit({
+      key: `invoice-feedback:${request.headers.get('x-forwarded-for') || 'ip'}`,
+      limit: 40,
+      windowMs: 60 * 1000,
+    });
+    if (!rl.ok) {
+      const r = rateLimitResponse(rl.retryAfterSeconds);
+      return NextResponse.json(r.body, { status: r.status, headers: r.headers });
+    }
     const token = normalizeFeedbackToken(
       request.nextUrl.searchParams.get('token')
     );
@@ -36,10 +45,6 @@ export async function GET(request: NextRequest) {
           detail:
             'We could not match this invoice. It may have been deleted, or the link was generated for a different workspace.',
           code: 'INVOICE_NOT_FOUND',
-          parsed: {
-            companyId: parsed.companyId,
-            invoiceId: parsed.invoiceId,
-          },
         },
         { status: 404 }
       );

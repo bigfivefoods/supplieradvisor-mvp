@@ -90,6 +90,21 @@ export const OPTIONAL_LEDGER_COLUMNS: Array<{
     column: 'allocation_status',
     migrationHint: '20260821_saas_db_harden.sql',
   },
+  {
+    table: 'trade_portals',
+    column: 'public_token',
+    migrationHint: '20260822_trade_portals.sql',
+  },
+  {
+    table: 'pm_projects',
+    column: 'customer_id',
+    migrationHint: '20260824_trade_projects.sql',
+  },
+  {
+    table: 'paystack_webhook_events',
+    column: 'reference',
+    migrationHint: '20260825_saas_reliability.sql',
+  },
 ];
 
 export type ColumnProbe = {
@@ -116,8 +131,13 @@ export async function probeProfileColumns(): Promise<ProfileColumnProbeResult> {
   const probes: ColumnProbe[] = [];
   const missing: string[] = [];
 
-  for (const col of REQUIRED_PROFILE_COLUMNS) {
-    const { error } = await supabase.from('profiles').select(col).limit(0);
+  const profileResults = await Promise.all(
+    REQUIRED_PROFILE_COLUMNS.map(async (col) => {
+      const { error } = await supabase.from('profiles').select(col).limit(0);
+      return { col, error };
+    })
+  );
+  for (const { col, error } of profileResults) {
     const ok = !error;
     if (!ok) missing.push(col);
     probes.push({
@@ -131,14 +151,20 @@ export async function probeProfileColumns(): Promise<ProfileColumnProbeResult> {
   // Optional commercial columns (soft)
   const optionalMissing: Array<{ table: string; column: string; hint: string }> =
     [];
-  for (const opt of [
+  const optionalSpecs = [
     ...OPTIONAL_COMMERCIAL_COLUMNS,
     ...OPTIONAL_LEDGER_COLUMNS,
-  ]) {
-    const { error } = await supabase
-      .from(opt.table)
-      .select(opt.column)
-      .limit(0);
+  ];
+  const optionalResults = await Promise.all(
+    optionalSpecs.map(async (opt) => {
+      const { error } = await supabase
+        .from(opt.table)
+        .select(opt.column)
+        .limit(0);
+      return { opt, error };
+    })
+  );
+  for (const { opt, error } of optionalResults) {
     const ok = !error;
     probes.push({
       table: opt.table,
@@ -157,11 +183,16 @@ export async function probeProfileColumns(): Promise<ProfileColumnProbeResult> {
 
   const storeMissing: Array<{ table: string; column: string; hint: string }> =
     [];
-  for (const req of REQUIRED_STORE_TABLES) {
-    const { error } = await supabase
-      .from(req.table)
-      .select(req.column)
-      .limit(0);
+  const storeResults = await Promise.all(
+    REQUIRED_STORE_TABLES.map(async (req) => {
+      const { error } = await supabase
+        .from(req.table)
+        .select(req.column)
+        .limit(0);
+      return { req, error };
+    })
+  );
+  for (const { req, error } of storeResults) {
     const ok = !error;
     probes.push({
       table: req.table,

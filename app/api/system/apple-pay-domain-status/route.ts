@@ -27,10 +27,7 @@ export async function GET(request: NextRequest) {
     request.headers.get('x-cron-secret') ||
     request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
     '';
-  const opsOk =
-    !opsSecret ||
-    provided === opsSecret ||
-    process.env.NODE_ENV !== 'production';
+  const opsOk = Boolean(opsSecret) && provided === opsSecret;
 
   const snap = await applePaySetupSnapshot();
   const registerResults = wantRegister

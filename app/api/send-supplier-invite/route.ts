@@ -5,9 +5,16 @@ import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import { buildBusinessInviteLink, businessInviteEmailHtml } from '@/lib/invites/email';
 import { INVITE_EXPIRY_DAYS } from '@/lib/auth/identity';
 import { referredByInsertField } from '@/lib/billing/supply-chain-referral';
+import {
+  requireCompanyAccess,
+  requireVerifiedUser,
+  legacyPrivyFrom,
+} from '@/lib/auth/api-auth';
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireVerifiedUser(request);
+    if (!user.ok) return user.response;
     const body = await request.json();
 
     const {
@@ -26,6 +33,14 @@ export async function POST(request: NextRequest) {
         { error: 'Trading name and contact email are required' },
         { status: 400 }
       );
+    }
+
+    const inviterId = inviterProfileId ? Number(inviterProfileId) : null;
+    if (inviterId && Number.isFinite(inviterId)) {
+      const gate = await requireCompanyAccess(request, inviterId, {
+        legacyPrivyUserId: legacyPrivyFrom(request, body),
+      });
+      if (!gate.ok) return gate.response;
     }
 
     const supabaseAdmin = getSupabaseAdmin();

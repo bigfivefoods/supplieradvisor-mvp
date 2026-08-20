@@ -29,30 +29,43 @@ export async function applyGymSalePaystack(opts: {
   if (!Number.isFinite(companyId) || companyId <= 0) {
     return { ok: false, error: 'Missing company_id on gym sale' };
   }
-  const company = await loadWalletCompany(companyId);
-  if (!company) return { ok: false, error: 'Company not found' };
-  let store = readFitgraphFromMetadata(company.meta);
-  const existing = findGymSaleByRef(store, opts.reference);
-  if (!existing) {
-    return { ok: false, error: 'Gym sale not found for this reference' };
-  }
-  if (existing.status === 'paid') {
-    return {
-      ok: true,
+
+  let lastError = 'Gym sale not found for this reference';
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const company = await loadWalletCompany(companyId);
+    if (!company) return { ok: false, error: 'Company not found' };
+    const store = readFitgraphFromMetadata(company.meta);
+    const existing = findGymSaleByRef(store, opts.reference);
+    if (!existing) {
+      lastError = 'Gym sale not found for this reference';
+      break;
+    }
+    if (existing.status === 'paid') {
+      return {
+        ok: true,
+        companyId,
+        saleId: existing.id,
+        clientId: existing.client_id || '',
+      };
+    }
+    const applied = applyPaidGymSale(store, existing, { companyId });
+    await saveWalletCompanyMeta(
       companyId,
-      saleId: existing.id,
-      clientId: existing.client_id || '',
-    };
+      writeFitgraphToMetadata(company.meta, applied.store)
+    );
+    const check = await loadWalletCompany(companyId);
+    const paid = check
+      ? findGymSaleByRef(readFitgraphFromMetadata(check.meta), opts.reference)
+      : null;
+    if (paid?.status === 'paid') {
+      return {
+        ok: true,
+        companyId,
+        saleId: applied.sale.id,
+        clientId: applied.client.id,
+      };
+    }
+    lastError = 'Gym sale save raced; retrying';
   }
-  const applied = applyPaidGymSale(store, existing, { companyId });
-  await saveWalletCompanyMeta(
-    companyId,
-    writeFitgraphToMetadata(company.meta, applied.store)
-  );
-  return {
-    ok: true,
-    companyId,
-    saleId: applied.sale.id,
-    clientId: applied.client.id,
-  };
+  return { ok: false, error: lastError };
 }

@@ -349,8 +349,10 @@ export function verifyBankLinkWebhook(
 ): boolean {
   const { webhookSecret } = banklinkConfig();
   if (!webhookSecret) {
-    // No secret configured — accept in sandbox; reject signature mismatch only when set
-    return true;
+    return (
+      process.env.NODE_ENV !== 'production' &&
+      process.env.VERCEL_ENV !== 'production'
+    );
   }
   if (!signatureHeader) return false;
   const expected = createHmac('sha256', webhookSecret).update(rawBody).digest('hex');

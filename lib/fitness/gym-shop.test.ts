@@ -74,6 +74,24 @@ assert.equal(applied.sale.status, 'paid');
 assert.ok(applied.client.portal_token);
 assert.equal(applied.store.subscriptions[0].plan_id, 'pln_1');
 
+const replay = applyPaidGymSale(
+  applied.store,
+  {
+    id: 'gsl_1',
+    kind: 'membership',
+    plan_id: 'pln_1',
+    amount_zar: 699,
+    name: 'Ada',
+    email: 'ada@example.com',
+    status: 'pending',
+    paystack_ref: 'gym-sale-1',
+    created_at: new Date().toISOString(),
+  },
+  { companyId: 9 }
+);
+assert.equal(replay.sale.status, 'paid');
+assert.equal(replay.store.subscriptions.length, applied.store.subscriptions.length);
+
 const prog = applyPaidGymSale(
   applied.store,
   {

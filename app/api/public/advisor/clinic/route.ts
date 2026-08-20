@@ -5,7 +5,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { clientIp, rateLimit } from '@/lib/security/rate-limit';
+import { clientIp, publicReadLimit, rateLimit } from '@/lib/security/rate-limit';
 import {
   buildClinicPublicCalendar,
 } from '@/lib/services/clinic-public-calendar';
@@ -157,6 +157,13 @@ async function saveModule(
 }
 
 export async function GET(req: NextRequest) {
+  const rl = publicReadLimit(req, 'clinic-public-get');
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
+    );
+  }
   const module = String(req.nextUrl.searchParams.get('module') || '');
   const token = String(req.nextUrl.searchParams.get('token') || '');
   if (!isModule(module) || !token) {

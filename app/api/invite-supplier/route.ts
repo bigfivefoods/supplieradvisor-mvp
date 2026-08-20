@@ -3,8 +3,11 @@ import { createClient } from '@/utils/supabase/server';
 import { randomUUID } from 'crypto';
 import { getAppUrl, getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import { rateLimit, clientIp } from '@/lib/http/rate-limit';
+import { requireVerifiedUser } from '@/lib/auth/api-auth';
 
 export async function POST(request: NextRequest) {
+  const gate = await requireVerifiedUser(request);
+  if (!gate.ok) return gate.response;
   const supabase = await createClient();
   const resend = getResend();
 

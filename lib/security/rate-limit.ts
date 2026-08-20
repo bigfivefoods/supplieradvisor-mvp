@@ -6,6 +6,25 @@
 type Bucket = { count: number; resetAt: number };
 
 const buckets = new Map<string, Bucket>();
+const MAX_BUCKETS = 4000;
+let lastPruneAt = 0;
+
+function pruneBuckets(now: number) {
+  if (now - lastPruneAt < 30_000 && buckets.size < MAX_BUCKETS) return;
+  lastPruneAt = now;
+  for (const [k, b] of buckets) {
+    if (now >= b.resetAt) buckets.delete(k);
+  }
+  if (buckets.size > MAX_BUCKETS) {
+    const extra = buckets.size - MAX_BUCKETS;
+    let dropped = 0;
+    for (const k of buckets.keys()) {
+      buckets.delete(k);
+      dropped += 1;
+      if (dropped >= extra) break;
+    }
+  }
+}
 
 export function rateLimit(opts: {
   key: string;
@@ -14,6 +33,7 @@ export function rateLimit(opts: {
   windowMs: number;
 }): { ok: boolean; remaining: number; retryAfterSec: number } {
   const now = Date.now();
+  pruneBuckets(now);
   const k = opts.key;
   let b = buckets.get(k);
   if (!b || now >= b.resetAt) {
@@ -30,6 +50,19 @@ export function rateLimit(opts: {
     };
   }
   return { ok: true, remaining, retryAfterSec: 0 };
+}
+
+/** Public GET/read limiter. */
+export function publicReadLimit(
+  request: { headers: { get(name: string): string | null } },
+  name: string,
+  limit = 60
+): { ok: boolean; remaining: number; retryAfterSec: number } {
+  return rateLimit({
+    key: `${name}:${clientIp(request)}`,
+    limit,
+    windowMs: 60_000,
+  });
 }
 
 /** Best-effort client IP from proxy headers */

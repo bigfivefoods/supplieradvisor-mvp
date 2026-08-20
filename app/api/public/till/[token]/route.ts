@@ -3,6 +3,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { publicReadLimit } from '@/lib/security/rate-limit';
 import {
   expireSession,
   findSession,
@@ -22,6 +23,13 @@ export async function GET(
   ctx: { params: Promise<{ token: string }> }
 ) {
   try {
+    const rl = publicReadLimit(_request, 'public-till');
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
+      );
+    }
     const { token } = await ctx.params;
     const parsed = parseTillToken(decodeURIComponent(token || ''));
     if (!parsed) {

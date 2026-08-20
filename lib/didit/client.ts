@@ -292,7 +292,12 @@ export async function verifyDiditWebhookSignature(
   signatureHeader: string | null
 ): Promise<boolean> {
   const secret = process.env.DIDIT_WEBHOOK_SECRET?.trim();
-  if (!secret) return true; // not configured — accept (ops should set secret in prod)
+  if (!secret) {
+    return (
+      process.env.NODE_ENV !== 'production' &&
+      process.env.VERCEL_ENV !== 'production'
+    );
+  }
   if (!signatureHeader) return false;
   try {
     const enc = new TextEncoder();

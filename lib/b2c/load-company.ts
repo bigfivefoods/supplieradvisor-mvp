@@ -6,6 +6,7 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
   ADVISOR_MODULE_KEYS,
+  COMPANY_CHROME_META_KEYS,
   isAdvisorModuleKey,
   isMissingRelation,
   isModuleIndexKey,
@@ -13,6 +14,12 @@ import {
   saveModuleSlice,
   type AdvisorModuleKey,
 } from '@/lib/business/company-data';
+
+const WALLET_SAVE_SKIP = new Set<string>([
+  ...COMPANY_CHROME_META_KEYS,
+  'billing_ledger',
+  'industry_packs_paid_until',
+]);
 
 export type WalletCompany = {
   id: number;
@@ -113,10 +120,15 @@ export async function saveWalletCompanyMeta(
   meta: Record<string, unknown>
 ) {
   const { modules, patch } = splitWalletMetaForSave(meta);
+  const leftover: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(patch)) {
+    if (WALLET_SAVE_SKIP.has(k)) continue;
+    leftover[k] = v;
+  }
   await Promise.all([
     ...modules.map((m) => saveModuleSlice(companyId, m.key, m.slice)),
-    Object.keys(patch).length
-      ? mergeProfileMetadata(companyId, patch)
+    Object.keys(leftover).length
+      ? mergeProfileMetadata(companyId, leftover)
       : Promise.resolve(),
   ]);
 }

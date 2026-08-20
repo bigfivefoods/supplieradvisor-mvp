@@ -7,6 +7,15 @@ import {
   loadPaystackWebhookPulse,
   recordPaystackWebhookPulse,
 } from '@/lib/system/paystack-pulse';
+import {
+  claimPaystackWebhook,
+  markPaystackWebhook,
+} from '@/lib/billing/paystack-webhook-claim';
+import { mergeProfileMetadata } from '@/lib/business/company-data';
+import {
+  appendBillingLedger,
+  readBillingLedger,
+} from '@/lib/billing/billing-ledger';
 
 export const runtime = 'nodejs';
 
@@ -43,10 +52,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const event = JSON.parse(raw || '{}') as {
+    let event: {
       event?: string;
       data?: Record<string, unknown>;
     };
+    try {
+      event = JSON.parse(raw || '{}') as {
+        event?: string;
+        data?: Record<string, unknown>;
+      };
+    } catch {
+      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    }
     const eventName = String(event.event || '').toLowerCase();
     const data = event.data || {};
 
@@ -56,6 +73,20 @@ export async function POST(request: NextRequest) {
         (data.transaction as { reference?: string } | undefined)?.reference ||
         ''
     ).trim();
+
+    const claim = reference
+      ? await claimPaystackWebhook(reference, eventName || 'unknown')
+      : null;
+    if (claim && !claim.first && claim.handled) {
+      return NextResponse.json({
+        received: true,
+        handled: 'already',
+        duplicate: true,
+        reference,
+        previous: claim.handled,
+        hits: claim.hits,
+      });
+    }
 
     // Heartbeat: every accepted webhook updates ops pulse (even ignored events)
     void recordPaystackWebhookPulse({
@@ -108,6 +139,7 @@ export async function POST(request: NextRequest) {
         /* soft */
       }
 
+      await markPaystackWebhook(reference, eventName, 'referral_clawback');
       return NextResponse.json({
         received: true,
         handled: 'referral_clawback',
@@ -192,6 +224,7 @@ export async function POST(request: NextRequest) {
             /* soft */
           }
 
+          await markPaystackWebhook(reference, eventName, 'cipc_after_payment');
           return NextResponse.json({
             received: true,
             handled: 'cipc_after_payment',
@@ -287,6 +320,42 @@ export async function POST(request: NextRequest) {
             }
 
             const supabase = getSupabaseServer();
+            const { data: already } = await supabase
+              .from('profiles')
+              .select('subscription_paystack_ref')
+              .eq('id', companyId)
+              .maybeSingle();
+            const alreadyRef = String(
+              already && typeof already === 'object'
+                ? (already as { subscription_paystack_ref?: unknown })
+                    .subscription_paystack_ref || ''
+                : ''
+            );
+            const keyed = await supabase.rpc('sa_get_profile_metadata_keys', {
+              p_company_id: companyId,
+              p_keys: ['billing_ledger'],
+            });
+            const ledgerMeta =
+              !keyed.error && keyed.data && typeof keyed.data === 'object'
+                ? (keyed.data as Record<string, unknown>)
+                : {};
+            if (
+              alreadyRef === reference ||
+              readBillingLedger(ledgerMeta).some((e) => e.ref === reference)
+            ) {
+              await markPaystackWebhook(
+                reference,
+                eventName,
+                'subscription_already'
+              );
+              return NextResponse.json({
+                received: true,
+                handled: 'subscription_already',
+                reference,
+                companyId,
+              });
+            }
+
             const periodEnd = addMonths(new Date(), months).toISOString();
             const channel = v.ok ? v.channel : String(data.channel || '');
 
@@ -323,20 +392,8 @@ export async function POST(request: NextRequest) {
               });
             }
 
-            // Append billing ledger for receipt PDFs
+            // Append billing ledger for receipt PDFs — patch key only
             try {
-              const { data: full } = await supabase
-                .from('profiles')
-                .select('metadata')
-                .eq('id', companyId)
-                .maybeSingle();
-              const meta =
-                full?.metadata && typeof full.metadata === 'object'
-                  ? { ...(full.metadata as Record<string, unknown>) }
-                  : {};
-              const { appendBillingLedger } = await import(
-                '@/lib/billing/billing-ledger'
-              );
               const paidZar = v.ok
                 ? Math.round(v.amount / 100)
                 : Number(data.amount || 0) / 100;
@@ -344,7 +401,7 @@ export async function POST(request: NextRequest) {
                 ? v.amount
                 : Number(data.amount || 0);
               const { meta: nextMeta } = appendBillingLedger(
-                meta,
+                ledgerMeta,
                 {
                   at: new Date().toISOString(),
                   kind: packsOnly
@@ -363,13 +420,9 @@ export async function POST(request: NextRequest) {
                 },
                 companyId
               );
-              await supabase
-                .from('profiles')
-                .update({
-                  metadata: nextMeta,
-                  updated_at: new Date().toISOString(),
-                })
-                .eq('id', companyId);
+              await mergeProfileMetadata(companyId, {
+                billing_ledger: nextMeta.billing_ledger,
+              });
             } catch {
               /* soft */
             }
@@ -385,11 +438,13 @@ export async function POST(request: NextRequest) {
               metadata: { packIds, packsOnly, packResult, channel },
             });
 
+            const handled = packsOnly
+              ? 'packs_activated'
+              : 'subscription_activated';
+            await markPaystackWebhook(reference, eventName, handled);
             return NextResponse.json({
               received: true,
-              handled: packsOnly
-                ? 'packs_activated'
-                : 'subscription_activated',
+              handled,
               reference,
               companyId,
               packIds,
@@ -431,18 +486,22 @@ export async function POST(request: NextRequest) {
             data,
             reference,
           });
+          const handled = applied.ok ? 'gym_sale_paid' : 'gym_sale_failed';
+          if (applied.ok) {
+            await markPaystackWebhook(reference, eventName, handled);
+          }
           void recordPaystackWebhookPulse({
             event: eventName,
             reference,
             companyId: applied.ok ? applied.companyId : undefined,
-            handled: applied.ok ? 'gym_sale_paid' : 'gym_sale_failed',
+            handled,
             summary: applied.ok
               ? `Gym sale ${applied.saleId}`
               : applied.error,
           });
           return NextResponse.json({
             received: true,
-            handled: applied.ok ? 'gym_sale_paid' : 'gym_sale_failed',
+            handled,
             reference,
             ...applied,
           });
@@ -506,6 +565,13 @@ export async function POST(request: NextRequest) {
                 : null,
             },
           });
+          if (applied.ok) {
+            await markPaystackWebhook(
+              reference,
+              eventName,
+              'member_account_paid'
+            );
+          }
           return NextResponse.json({
             received: true,
             handled: applied.ok
@@ -537,29 +603,31 @@ export async function POST(request: NextRequest) {
 
 /** GET — Paystack dashboard probe / ops reachability (no signature). */
 export async function GET(request: NextRequest) {
-  // Optional: ?ping=1 records a soft heartbeat so health pulse leaves "never"
   const ping = request.nextUrl.searchParams.get('ping');
-  if (ping === '1' || ping === 'true') {
+  const ops =
+    ping === '1' || ping === 'true'
+      ? (await import('@/lib/auth/api-auth')).assertCronSecret(request)
+      : null;
+  if (ops && !ops.ok) return ops.response;
+  if (ops?.ok) {
     await recordPaystackWebhookPulse({
       event: 'http.get_probe',
       reference: `get-probe-${Date.now()}`,
       handled: 'get_probe',
       action: 'billing.paystack_webhook_ping',
-      summary: 'Paystack webhook endpoint GET probe (public reachability)',
+      summary: 'Paystack webhook endpoint GET probe (ops)',
       metadata: { source: 'GET /api/paystack/webhook?ping=1' },
     });
+    const pulse = await loadPaystackWebhookPulse();
+    return NextResponse.json({
+      ok: true,
+      service: 'paystack-webhook',
+      path: '/api/paystack/webhook',
+      pulse,
+    });
   }
-  const pulse = await loadPaystackWebhookPulse();
   return NextResponse.json({
     ok: true,
     service: 'paystack-webhook',
-    path: '/api/paystack/webhook',
-    aliases: ['/api/billing/webhook'],
-    configure:
-      'Paystack Dashboard → Settings → Webhooks → https://www.supplieradvisor.com/api/paystack/webhook (or /api/billing/webhook)',
-    events: ['charge.success', 'refund.*'],
-    public: true,
-    pulse,
-    tip: 'Append ?ping=1 once after deploy to seed ops pulse without a real payment',
   });
 }

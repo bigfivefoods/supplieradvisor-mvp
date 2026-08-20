@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { createHash } from 'crypto';
+import { publicReadLimit } from '@/lib/security/rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -17,6 +18,13 @@ function pinHash(pin: string, schoolId: number) {
 
 export async function GET(request: NextRequest) {
   try {
+    const rl = publicReadLimit(request, 'nsnp-menu', 20);
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Too many requests', success: false },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
+      );
+    }
     const sp = request.nextUrl.searchParams;
     const token = sp.get('token');
     const emis = sp.get('emis');
@@ -204,7 +212,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error || 'No school' }, { status: 503 });
     }
     const schoolId = Number(school.id);
-    const pin = String(body.pin || '1234').slice(0, 12);
+    const pin = String(body.pin || '').slice(0, 12);
+    if (pin.length < 4) {
+      return NextResponse.json(
+        { error: 'Choose a PIN of at least 4 digits' },
+        { status: 400 }
+      );
+    }
     const token = `${schoolId}-${pinHash(pin, schoolId)}`;
     const meta =
       school.metadata && typeof school.metadata === 'object'

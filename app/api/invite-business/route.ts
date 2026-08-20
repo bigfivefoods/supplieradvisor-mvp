@@ -16,6 +16,8 @@ import { syncBooksOnInvite } from '@/lib/connections/sync';
  */
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireVerifiedUser(request);
+    if (!user.ok) return user.response;
     const body = await request.json();
     const {
       trading_name,
@@ -49,6 +51,12 @@ export async function POST(request: NextRequest) {
       rt === 'supplier' ? 'supplier' : rt === 'customer' ? 'customer' : 'partner';
 
     const inviterIdForRef = inviterProfileId ? Number(inviterProfileId) : null;
+    if (inviterIdForRef && Number.isFinite(inviterIdForRef)) {
+      const gate = await requireCompanyAccess(request, inviterIdForRef, {
+        legacyPrivyUserId: legacyPrivyFrom(request, body),
+      });
+      if (!gate.ok) return gate.response;
+    }
 
     const { data: newProfile, error: insertError } = await supabase
       .from('profiles')

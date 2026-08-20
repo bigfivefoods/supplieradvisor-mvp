@@ -4,6 +4,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { publicReadLimit } from '@/lib/security/rate-limit';
 import { loadAdvisorStoreForPublicToken } from '@/lib/business/advisor-store-resolve';
 import {
   RETAILGRAPH_META_KEY,
@@ -50,6 +51,13 @@ async function resolve(token: string) {
 
 export async function GET(request: NextRequest) {
   try {
+    const rl = publicReadLimit(request, 'public-retail');
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
+      );
+    }
     const token = request.nextUrl.searchParams.get('token') || '';
     const hit = await resolve(token);
     if (!hit) {

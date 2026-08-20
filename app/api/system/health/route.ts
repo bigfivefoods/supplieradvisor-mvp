@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer, hasServiceRole } from '@/lib/supabase/server-client';
+import { publicReadLimit } from '@/lib/security/rate-limit';
 import { ADVISOR_SKINS } from '@/lib/brand/advisor-skins';
 import {
   deploymentMeta,
@@ -17,7 +18,17 @@ const advisorRegistry = ADVISOR_SKINS.map((s) => ({
  * GET /api/system/health
  * Connectivity + table probes + column schema gate + deploy identity.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const rl = publicReadLimit(request, 'system-health', 90);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      {
+        status: 429,
+        headers: { 'Retry-After': String(rl.retryAfterSec) },
+      }
+    );
+  }
   const started = Date.now();
   const deploy = deploymentMeta();
   const checks: Record<
@@ -192,9 +203,16 @@ export async function GET() {
       'provinces',
     ] as const;
 
-    for (const table of softTables) {
-      const t = Date.now();
-      const res = await supabase.from(table).select('id', { count: 'exact', head: true });
+    const softResults = await Promise.all(
+      softTables.map(async (table) => {
+        const t = Date.now();
+        const res = await supabase
+          .from(table)
+          .select('id', { count: 'exact', head: true });
+        return { table, t, res };
+      })
+    );
+    for (const { table, t, res } of softResults) {
       checks[table] = {
         ok: !res.error,
         ms: Date.now() - t,
@@ -219,11 +237,16 @@ export async function GET() {
       },
     ] as const;
     const settleMissing: string[] = [];
-    for (const { key, migration } of settleTables) {
-      const t = Date.now();
-      const res = await supabase
-        .from(key)
-        .select('id', { count: 'exact', head: true });
+    const settleResults = await Promise.all(
+      settleTables.map(async ({ key, migration }) => {
+        const t = Date.now();
+        const res = await supabase
+          .from(key)
+          .select('id', { count: 'exact', head: true });
+        return { key, migration, t, res };
+      })
+    );
+    for (const { key, migration, t, res } of settleResults) {
       const missing =
         Boolean(res.error) &&
         /relation|does not exist|schema cache/i.test(res.error?.message || '');
@@ -234,10 +257,7 @@ export async function GET() {
         count: res.count ?? null,
         detail: { migration, requiredFor: 'settle-by-default' },
       };
-      if (missing || (res.error && !checks[key].ok)) {
-        // only treat as missing table, not other errors
-        if (missing) settleMissing.push(`${key} (${migration})`);
-      }
+      if (missing) settleMissing.push(`${key} (${migration})`);
     }
 
     // Column-level gate for banking / discovery / verification

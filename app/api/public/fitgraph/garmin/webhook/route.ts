@@ -4,6 +4,7 @@
  *   https://www.supplieradvisor.com/api/public/fitgraph/garmin/webhook
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
   readFitgraphFromMetadata,
@@ -26,7 +27,28 @@ export async function GET() {
   return NextResponse.json({ ok: true, service: 'garmin-webhook' });
 }
 
+function garminWebhookAuthorized(req: NextRequest): boolean {
+  const secret = String(process.env.GARMIN_WEBHOOK_SECRET || '').trim();
+  const prod =
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL_ENV === 'production';
+  if (!secret) return !prod;
+  const got =
+    req.headers.get('x-garmin-secret') ||
+    req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
+    '';
+  if (got.length !== secret.length) return false;
+  try {
+    return timingSafeEqual(Buffer.from(got), Buffer.from(secret));
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(req: NextRequest) {
+  if (!garminWebhookAuthorized(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   let body: Record<string, unknown> = {};
   try {
     body = (await req.json()) as Record<string, unknown>;
