@@ -32,6 +32,14 @@ const STATUSES: FitSubscription['status'][] = [
 type Filter = 'all' | 'members' | 'private' | 'both' | 'open';
 type StatusFilter = 'active' | 'inactive';
 
+/** Assigned class chip — same yellow fill in light and dark. */
+const CLASS_CHIP_ON =
+  'border-yellow-500 bg-yellow-300 text-yellow-950 dark:border-yellow-300 dark:bg-yellow-400 dark:text-yellow-950';
+const CLASS_CHIP_ON_FOCUS =
+  'border-yellow-600 bg-yellow-300 text-yellow-950 ring-1 ring-yellow-600 dark:border-yellow-200 dark:bg-yellow-400 dark:text-yellow-950 dark:ring-yellow-200';
+const CLASS_CHIP_OFF =
+  'border-slate-200 bg-white text-slate-700 dark:border-white/20 dark:bg-white/5 dark:text-yellow-100';
+
 function isPersonActive(c: FitClient) {
   if (c.active === false) return false;
   const st = String(c.membership_status || 'active');
@@ -647,9 +655,7 @@ export function MemberAllocateTable({
                             <span
                               key={p.id}
                               className={`inline-flex max-w-full flex-col rounded-lg border px-2 py-1 ${
-                                highlight
-                                  ? 'border-yellow-500 bg-yellow-200 text-yellow-950'
-                                  : 'border-slate-200 bg-slate-50 dark:border-yellow-700 dark:bg-yellow-900/40'
+                                highlight ? CLASS_CHIP_ON_FOCUS : CLASS_CHIP_ON
                               }`}
                             >
                               <span className="truncate text-[11px] font-semibold">
@@ -658,7 +664,7 @@ export function MemberAllocateTable({
                               <span className="tabular-nums text-[11px] font-bold">
                                 {money(Number(charged) || 0)}
                                 {list > 0 && charged !== list ? (
-                                  <span className="ml-1 font-medium text-slate-500 dark:text-yellow-200/80">
+                                  <span className="ml-1 font-medium text-yellow-800 dark:text-yellow-900">
                                     std {money(list)}
                                   </span>
                                 ) : null}
@@ -869,9 +875,9 @@ export function MemberAllocateTable({
                                     className={`rounded-xl border px-3 py-2.5 ${
                                       on
                                         ? p.id === classFilter
-                                          ? 'border-yellow-500 bg-yellow-100 dark:bg-yellow-900/60'
-                                          : 'border-yellow-300 bg-white dark:border-yellow-600 dark:bg-yellow-950'
-                                        : 'border-slate-200 bg-white dark:border-neutral-700 dark:bg-neutral-950'
+                                          ? CLASS_CHIP_ON_FOCUS
+                                          : CLASS_CHIP_ON
+                                        : CLASS_CHIP_OFF
                                     }`}
                                   >
                                     <div className="flex flex-wrap items-start gap-3">

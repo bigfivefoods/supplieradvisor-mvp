@@ -13,6 +13,7 @@ import {
   writeHiregraphToMetadata,
 } from '@/lib/hire/hiregraph';
 import {
+  clientMatchesPortalToken,
   parseCompanyIdFromToken,
   readFitgraphFromMetadata,
   writeFitgraphToMetadata,
@@ -394,7 +395,7 @@ export async function resolveAndLinkPortalToken(
       if (!company) return { ok: false, error: 'Company not found' };
       const store = readFitgraphFromMetadata(company.meta);
       const client = store.clients.find(
-        (c) => c.portal_token === token && c.active !== false
+        (c) => clientMatchesPortalToken(c, token) && c.active !== false
       );
       if (!client) {
         if (token.startsWith('fg_')) {

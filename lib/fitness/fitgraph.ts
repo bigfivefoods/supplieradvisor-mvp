@@ -480,6 +480,8 @@ export type FitClient = {
   photo_url?: string;
   /** Token for member self-serve portal (book classes, see vacancies) */
   portal_token?: string | null;
+  /** Extra portal tokens kept when duplicate members are merged. */
+  portal_token_aliases?: string[];
   /**
    * Platform / system user id (Privy DID) once this person is on SupplierAdvisor.
    * Care messaging delivers in-app by this id — not by email matching.
@@ -753,6 +755,10 @@ export type FitPublicSettings = {
   vuka_calendar_manual?: boolean;
   /** Version stamp when Jotform group/private contracts replaced the billed-name roster. */
   vuka_contracts_import?: string;
+  /** Version stamp when billed class codes were allocated onto catalog classes. */
+  vuka_billed_class_import?: string;
+  /** Version stamp when duplicate VUKA members were merged. */
+  vuka_member_merge?: string;
   /** Collect debit-order bank details on the member profile. */
   collect_debit_bank?: boolean;
   /** Membership is incomplete until bank details are submitted. */
@@ -1289,6 +1295,28 @@ export function recordMemberCheckIn(
   };
 }
 
+export function clientPortalTokens(
+  c: Pick<FitClient, 'portal_token'> & { portal_token_aliases?: string[] | null }
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of [c.portal_token, ...(c.portal_token_aliases || [])]) {
+    const t = String(raw || '').trim();
+    if (!t || seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+  }
+  return out;
+}
+
+export function clientMatchesPortalToken(
+  c: Pick<FitClient, 'portal_token'> & { portal_token_aliases?: string[] | null },
+  token: string
+): boolean {
+  const t = String(token || '').trim();
+  return Boolean(t) && clientPortalTokens(c).includes(t);
+}
+
 /** Find active client by portal token, code, email, or phone (normalised). */
 export function findClientForCheckIn(
   store: FitgraphStore,
@@ -1302,7 +1330,7 @@ export function findClientForCheckIn(
   const token = String(lookup.member_token || '').trim();
   if (token) {
     const byToken = store.clients.find(
-      (c) => c.portal_token === token && c.active !== false
+      (c) => clientMatchesPortalToken(c, token) && c.active !== false
     );
     if (byToken) return byToken;
   }
@@ -1622,7 +1650,9 @@ export function writeFitgraphToMetadata(
   }
   const clientTokens: Record<string, string> = {};
   for (const c of store.clients || []) {
-    if (c.portal_token) clientTokens[String(c.portal_token)] = c.id;
+    for (const token of clientPortalTokens(c)) {
+      clientTokens[token] = c.id;
+    }
   }
   return {
     ...meta,

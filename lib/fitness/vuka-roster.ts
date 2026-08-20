@@ -2,21 +2,37 @@
  * VUKA Fitness desk roster — clients + monthly memberships.
  * Applied only for that gym when the catalog loads.
  */
-import type {
-  FitgraphStore,
-  FitMembershipPlan,
-  FitSubscription,
+import {
+  defaultPublicSettings,
+  type FitClient,
+  type FitgraphStore,
+  type FitMembershipPlan,
+  type FitSubscription,
 } from '@/lib/fitness/fitgraph';
 import { VUKA_MEMBERSHIP_PLANS } from '@/lib/fitness/vuka-class-catalog';
+import { allocateMemberToClass } from '@/lib/fitness/class-allocate';
 import generated from '@/lib/fitness/vuka-contracts.generated.json';
 import {
   applyContractSubmissions,
   type FitContractSubmission,
 } from '@/lib/fitness/member-contract';
+import {
+  clientsAreSamePerson,
+  mergeDuplicateFitClients,
+  normalizePersonName,
+} from '@/lib/fitness/merge-fit-clients';
+
+export {
+  clientsAreSamePerson,
+  mergeDuplicateFitClients,
+  normalizePersonName,
+} from '@/lib/fitness/merge-fit-clients';
 
 export type VukaRosterRow = {
   name: string;
   amount_zar: number;
+  /** Desk class code: 5AM MWF, BC, KAKB, PILATES, KIDS, 5AM T TH, 6:00 AM */
+  class_hint?: string;
   note?: string;
 };
 
@@ -35,14 +51,14 @@ export const VUKA_ROSTER: VukaRosterRow[] = [
   { name: 'Cherri Cannon-Payne', amount_zar: 460 },
   { name: 'Cheryl Marwick', amount_zar: 851 },
   { name: 'Chris Halford', amount_zar: 736 },
-  { name: 'Christine J Brown', amount_zar: 775 },
+  { name: 'Christine J Brown', amount_zar: 775, class_hint: '5AM MWF' },
   { name: 'Dianne OConnor', amount_zar: 770.5 },
   { name: 'Grant Underwood', amount_zar: 770.5 },
   { name: 'Jacques van Rooyen', amount_zar: 471.5 },
   { name: 'JenLyric Easthorpe', amount_zar: 530 },
   { name: 'Jennifer Pike', amount_zar: 448.5 },
   { name: 'Jill Brown', amount_zar: 851 },
-  { name: 'JM Van Deventer', amount_zar: 730 },
+  { name: 'JM Van Deventer', amount_zar: 730, class_hint: 'BC' },
   { name: 'Jordan Anastasis', amount_zar: 736 },
   { name: 'Just Maskell', amount_zar: 775 },
   { name: 'Karin Lindsay', amount_zar: 816.5 },
@@ -52,10 +68,10 @@ export const VUKA_ROSTER: VukaRosterRow[] = [
   { name: 'Lynn Clark', amount_zar: 471.5 },
   { name: 'Lynn Horan', amount_zar: 437 },
   { name: 'Lynne Clarke', amount_zar: 471.5 },
-  { name: 'Malan Snyman', amount_zar: 471.5 },
+  { name: 'Malan Snyman', amount_zar: 471.5, class_hint: 'BC' },
   { name: 'Mariam Mulla', amount_zar: 770.5 },
-  { name: 'Matt Ducass', amount_zar: 437 },
-  { name: 'Melanie Bothma', amount_zar: 770.5 },
+  { name: 'Matt Ducass', amount_zar: 437, class_hint: 'BC' },
+  { name: 'Melanie Bothma', amount_zar: 770.5, class_hint: 'KAKB' },
   { name: 'Mercedee Uys', amount_zar: 471.5 },
   { name: 'Michelle Haripersadh', amount_zar: 713 },
   { name: 'Michelle Bennett', amount_zar: 736 },
@@ -63,8 +79,8 @@ export const VUKA_ROSTER: VukaRosterRow[] = [
   { name: 'Nadia Isaac Marais', amount_zar: 530 },
   { name: 'Naseeba Goolam', amount_zar: 460 },
   { name: 'Nonku Masikane', amount_zar: 908.5 },
-  { name: 'Nqobile Mkhize', amount_zar: 471.5 },
-  { name: 'Nyasha Luvuno', amount_zar: 908.5 },
+  { name: 'Nqobile Mkhize', amount_zar: 471.5, class_hint: 'BC' },
+  { name: 'Nyasha Luvuno', amount_zar: 908.5, class_hint: '5AM MWF' },
   { name: 'Phindile Dlamini', amount_zar: 828 },
   { name: 'Razina Gangat', amount_zar: 908.5 },
   { name: 'Rivash Rubychand', amount_zar: 770.5 },
@@ -73,33 +89,25 @@ export const VUKA_ROSTER: VukaRosterRow[] = [
   { name: 'Ronel Veldsman', amount_zar: 1500 },
   { name: 'Roscoe Sprong', amount_zar: 471.5 },
   { name: 'Roxanne Meyer', amount_zar: 471.5 },
-  { name: 'Sue Freese', amount_zar: 855 },
-  { name: 'Sue (S Westhorpe)', amount_zar: 855 },
-  { name: 'Saru Mahomva', amount_zar: 471.5 },
+  { name: 'Sue Freese', amount_zar: 855, class_hint: 'PILATES' },
+  { name: 'Sue Westhorpe', amount_zar: 855, class_hint: 'PILATES' },
+  { name: 'Saru Mahomva', amount_zar: 471.5, class_hint: 'BC' },
   { name: 'Sashika Rubychand', amount_zar: 475 },
   {
     name: 'Shaun Roberts',
     amount_zar: 530,
+    class_hint: 'KIDS',
     note: 'ZACH kids Gym',
   },
   { name: 'Taki Anastasis', amount_zar: 736 },
   { name: 'Tina Sewgolam', amount_zar: 713 },
-  { name: 'Tom Bloy', amount_zar: 713 },
-  { name: 'Wendy K Couling', amount_zar: 574 },
+  { name: 'Tom Bloy', amount_zar: 713, class_hint: '5AM T TH' },
+  { name: 'Wendy K Couling', amount_zar: 574, class_hint: 'BC' },
   { name: 'Wesleigh Myburgh', amount_zar: 1100 },
-  { name: 'Yenziwe Ndlovu', amount_zar: 236 },
+  { name: 'Yenziwe Ndlovu', amount_zar: 236, class_hint: '6:00 AM' },
   { name: 'Yune van Niekerk', amount_zar: 354 },
-  { name: 'Yunis Leandre Herbert', amount_zar: 1200 },
+  { name: 'Yunis Leandre Herbert', amount_zar: 1200, class_hint: '5AM T TH' },
 ];
-
-export function normalizePersonName(name: string): string {
-  return String(name || '')
-    .toLowerCase()
-    .replace(/\(.*?\)/g, ' ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
-    .replace(/\s+/g, ' ');
-}
 
 export function rosterSlug(name: string): string {
   return normalizePersonName(name).replace(/\s+/g, '_').slice(0, 42);
@@ -107,10 +115,49 @@ export function rosterSlug(name: string): string {
 
 const NEAR = 5;
 
+function planByCode(code: string) {
+  return VUKA_MEMBERSHIP_PLANS.find((p) => p.code === code) || null;
+}
+
+/** Map desk shorthand (5AM MWF, BC, KAKB, …) onto a catalog class. */
+export function matchClassHint(
+  hint?: string
+): (typeof VUKA_MEMBERSHIP_PLANS)[number] | null {
+  const h = String(hint || '').trim();
+  if (!h) return null;
+  if (/kids/i.test(h)) return planByCode('VUKA_KIDS');
+  if (/pilates/i.test(h)) return planByCode('VUKA_PILATES_2');
+  if (/5\s*am.*m\s*w\s*f|mwf|m\/w\/f|fsf/i.test(h)) {
+    return planByCode('VUKA_FSF_5AM');
+  }
+  if (/5\s*am.*t.*th|t\s*\/?\s*th|gents/i.test(h)) {
+    return planByCode('VUKA_GENTS_5AM');
+  }
+  if (/6\s*(:00)?\s*am/i.test(h)) return planByCode('VUKA_KB_6AM');
+  if (/kakb|kb\s*16|4:?30\s*pm|kettle/i.test(h)) {
+    return planByCode('VUKA_KB_1630');
+  }
+  if (/\bbc\b|boot/i.test(h)) return planByCode('VUKA_BOOT_1730');
+  return null;
+}
+
 export function matchCatalogPlan(
   amount: number,
   hint?: string
 ): (typeof VUKA_MEMBERSHIP_PLANS)[number] | null {
+  const fromHint = matchClassHint(hint);
+  if (fromHint) {
+    if (/pilates/i.test(hint || '')) {
+      const pilates = VUKA_MEMBERSHIP_PLANS.filter((p) =>
+        String(p.code || '').startsWith('VUKA_PILATES')
+      );
+      const byAmt = pilates.find(
+        (p) => Math.abs(Number(p.price_zar) - amount) <= NEAR
+      );
+      if (byAmt) return byAmt;
+    }
+    return fromHint;
+  }
   if (/kids/i.test(hint || '')) {
     const kids = VUKA_MEMBERSHIP_PLANS.find((p) => p.code === 'VUKA_KIDS');
     if (kids) return kids;
@@ -169,6 +216,9 @@ function resolvePlan(
     ) || null
   );
 }
+
+export const VUKA_BILLED_CLASS_IMPORT = '2026-08-20-classcodes-v2';
+export const VUKA_MEMBER_MERGE = '2026-08-20-merge';
 
 export const VUKA_CONTRACTS_IMPORT = `${String(
   (generated as { import_version?: string }).import_version || '2026-08-19'
@@ -232,6 +282,112 @@ function attachContractRates(
   return changed;
 }
 
+function findRosterClient(
+  store: FitgraphStore,
+  row: VukaRosterRow
+): FitClient | undefined {
+  const slug = rosterSlug(row.name);
+  const probe: FitClient = {
+    id: `vuka_cli_${slug}`,
+    code: '',
+    name: row.name,
+    created_at: '',
+    updated_at: '',
+  };
+  return (store.clients || []).find(
+    (c) => c.id === probe.id || clientsAreSamePerson(c, probe)
+  );
+}
+
+function upsertBilledRoster(store: FitgraphStore, now: string): boolean {
+  const today = now.slice(0, 10);
+  let changed = false;
+  for (const row of VUKA_ROSTER) {
+    let client = findRosterClient(store, row);
+    if (!client) {
+      const slug = rosterSlug(row.name);
+      client = {
+        id: `vuka_cli_${slug}`,
+        code: `VUKA-${String((store.clients || []).length + 1).padStart(3, '0')}`,
+        name: row.name,
+        membership_status: 'active',
+        active: true,
+        start_date: today,
+        notes: row.note || undefined,
+        created_at: now,
+        updated_at: now,
+      };
+      store.clients = [...(store.clients || []), client];
+      changed = true;
+      continue;
+    }
+    if (client.active === false || client.membership_status === 'expired' || client.membership_status === 'cancelled') {
+      client.active = true;
+      client.membership_status = 'active';
+      client.updated_at = now;
+      changed = true;
+    }
+    if (client.name !== row.name) {
+      client.name = row.name;
+      client.updated_at = now;
+      changed = true;
+    }
+    if (row.note && !(client.notes || '').includes(row.note)) {
+      client.notes = client.notes ? `${client.notes} · ${row.note}` : row.note;
+      client.updated_at = now;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function clientHasLiveClass(store: FitgraphStore, clientId: string): boolean {
+  const client = (store.clients || []).find((c) => c.id === clientId);
+  if (client?.membership_plan_id) return true;
+  return (store.subscriptions || []).some(
+    (s) =>
+      s.client_id === clientId &&
+      (s.status === 'active' || s.status === 'trialing')
+  );
+}
+
+function applyBilledClassAllocations(
+  store: FitgraphStore,
+  now: string
+): boolean {
+  if (store.settings?.vuka_billed_class_import === VUKA_BILLED_CLASS_IMPORT) {
+    return false;
+  }
+  let changed = false;
+  for (const row of VUKA_ROSTER) {
+    const plan = resolvePlan(store, row.amount_zar, row.class_hint);
+    if (!plan) continue;
+    const client = findRosterClient(store, row);
+    if (!client) continue;
+    if (!row.class_hint && clientHasLiveClass(store, client.id)) continue;
+    if (client.active === false || client.membership_status === 'expired') {
+      client.active = true;
+      client.membership_status = 'active';
+      client.updated_at = now;
+      changed = true;
+    }
+    const result = allocateMemberToClass(store, {
+      clientId: client.id,
+      planId: plan.id,
+      chargedZar: row.amount_zar,
+      member: true,
+      privateClient: client.private_client === true,
+      coachId: client.coach_id || plan.default_coach_id || null,
+      bookUpcoming: Boolean(row.class_hint),
+      now,
+    });
+    if (!('error' in result)) changed = true;
+  }
+  if (!store.settings) store.settings = defaultPublicSettings();
+  store.settings.vuka_billed_class_import = VUKA_BILLED_CLASS_IMPORT;
+  return true;
+}
+
 export function ensureVukaRoster(
   store: FitgraphStore,
   opts?: { now?: string }
@@ -246,6 +402,18 @@ export function ensureVukaRoster(
     importVersion: VUKA_CONTRACTS_IMPORT,
   });
   changed = changed || applied.changed;
+  if (upsertBilledRoster(store, now)) changed = true;
+  const merged = mergeDuplicateFitClients(store, {
+    now,
+    preferredNames: VUKA_ROSTER.map((r) => r.name),
+  });
+  if (merged.changed) changed = true;
+  if (!store.settings) store.settings = defaultPublicSettings();
+  if (store.settings.vuka_member_merge !== VUKA_MEMBER_MERGE) {
+    store.settings.vuka_member_merge = VUKA_MEMBER_MERGE;
+    changed = true;
+  }
   if (attachContractRates(store, now)) changed = true;
+  if (applyBilledClassAllocations(store, now)) changed = true;
   return { store, changed, added: applied.added };
 }

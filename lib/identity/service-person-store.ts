@@ -6,6 +6,7 @@ import {
   FITGRAPH_CLIENT_TOKENS_KEY,
   FITGRAPH_COACH_TOKENS_KEY,
   parseCompanyIdFromToken,
+  clientMatchesPortalToken,
   readFitgraphFromMetadata,
   writeFitgraphToMetadata,
   type FitClient,
@@ -170,7 +171,7 @@ export async function resolveIdentityPerson(opts: {
           break;
         }
         const store = readFitgraphFromMetadata(meta);
-        if (store.clients.some((c) => c.portal_token === token)) {
+        if (store.clients.some((c) => clientMatchesPortalToken(c, token))) {
           companyId = Number(row.id);
           break;
         }
@@ -180,7 +181,9 @@ export async function resolveIdentityPerson(opts: {
     const loaded = await loadProfile(companyId);
     if (!loaded) return null;
     let store = readFitgraphFromMetadata(loaded.meta);
-    const client = store.clients.find((c) => c.portal_token === token);
+    const client = store.clients.find((c) =>
+      clientMatchesPortalToken(c, token)
+    );
     if (!client || client.active === false) return null;
     return {
       companyId: loaded.companyId,

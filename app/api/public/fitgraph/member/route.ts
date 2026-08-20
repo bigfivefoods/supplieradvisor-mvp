@@ -8,6 +8,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
 import {
   FITGRAPH_CLIENT_TOKENS_KEY,
+  clientMatchesPortalToken,
   buildMemberPortalPayload as buildMemberPortalPayloadBase,
   classTypeById,
   coachById,
@@ -145,7 +146,9 @@ async function resolveMember(
   store = await persistVukaCatalogIfNeeded(Number(prof.id), store, (s) =>
     saveStore(Number(prof.id), meta, s)
   );
-  const client = store.clients.find((c) => c.portal_token === clean);
+  const client = store.clients.find((c) =>
+    clientMatchesPortalToken(c, clean)
+  );
   if (!client || client.active === false) return null;
 
   return { companyId: Number(prof.id), meta, store, client };
