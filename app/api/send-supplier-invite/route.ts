@@ -35,9 +35,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const inviterId = inviterProfileId ? Number(inviterProfileId) : null;
-    if (Number.isFinite(inviterId) && inviterId) {
-      const gate = await requireCompanyAccess(request, inviterId, {
+    const inviterCompanyId = inviterProfileId ? Number(inviterProfileId) : null;
+    if (inviterCompanyId && Number.isFinite(inviterCompanyId)) {
+      const gate = await requireCompanyAccess(request, inviterCompanyId, {
         legacyPrivyUserId: legacyPrivyFrom(request, body),
       });
       if (!gate.ok) return gate.response;
@@ -65,7 +65,11 @@ export async function POST(request: NextRequest) {
         invited_by: invitedBy,
         invited_at: now,
         created_at: now,
-        ...referredByInsertField(inviterId),
+        ...referredByInsertField(
+          inviterCompanyId && Number.isFinite(inviterCompanyId)
+            ? inviterCompanyId
+            : null
+        ),
       })
       .select()
       .single();
@@ -85,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     const { error: emailError } = await resend.emails.send({
       from: getResendFrom(),
-        replyTo: getResendReplyTo(),
+      replyTo: getResendReplyTo(),
       to: email,
       subject: `${invitedBy} has invited you to join SupplierAdvisor`,
       html: businessInviteEmailHtml({
@@ -110,9 +114,10 @@ export async function POST(request: NextRequest) {
     }
 
     let goldenPath = { newlyMarked: [] as string[], progressPercent: 0 };
-    if (inviterId && Number.isFinite(inviterId)) {
+    if (inviterCompanyId && Number.isFinite(inviterCompanyId)) {
       goldenPath = await import('@/lib/onboarding/checklist').then(
-        ({ afterPartnerNetworkEvent }) => afterPartnerNetworkEvent(inviterId)
+        ({ afterPartnerNetworkEvent }) =>
+          afterPartnerNetworkEvent(inviterCompanyId)
       );
     }
 
@@ -128,6 +133,9 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Unexpected error:', error);
-    return NextResponse.json({ error: 'Internal server error', details: message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error', details: message },
+      { status: 500 }
+    );
   }
 }
