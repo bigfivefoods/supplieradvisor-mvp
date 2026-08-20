@@ -34,8 +34,8 @@ export default function MembershipAllocatePage() {
       titleAccent="members · private clients"
       description={
         classSubscribe
-          ? 'Open a person, tick the classes they attend, and Save. Each class shows the standard list price and the actual rate you charge them. Contact details save with the booking — they land on the calendar for those classes.'
-          : 'Open a person, pick their plan, and Save. The plan has a standard list price and an actual rate you charge them. Private clients get a coach and a private rate. Contact details save with the booking.'
+          ? 'Toggle Member, Private, or both, then Save. A person can be a class member and a private client. Inactive keeps them on file. Classes they are saved to show on the calendar.'
+          : 'Toggle Member, Private, or both, then Save. A person can be on a plan and a private client. Inactive keeps them on file. Private clients get a coach and a private rate.'
       }
     >
       {loading || !store ? (

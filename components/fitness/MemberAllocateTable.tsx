@@ -86,35 +86,31 @@ type Draft = {
   status: FitSubscription['status'];
 };
 
-function PersonActiveToggle({
-  value,
-  onChange,
+function DeskToggle({
+  label,
+  on,
+  onClick,
+  disabled,
 }: {
-  value: boolean;
-  onChange: (next: boolean) => void;
+  label: string;
+  on: boolean;
+  onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-1">
-      {(
-        [
-          [true, 'Active'],
-          [false, 'Inactive'],
-        ] as const
-      ).map(([on, label]) => (
-        <button
-          key={label}
-          type="button"
-          onClick={() => onChange(on)}
-          className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
-            value === on
-              ? 'border-yellow-500 bg-yellow-300 text-yellow-950'
-              : 'border-slate-200 bg-white text-slate-600 dark:border-white/15 dark:bg-white/5 dark:text-yellow-100'
-          }`}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
+    <button
+      type="button"
+      disabled={disabled}
+      aria-pressed={on}
+      onClick={onClick}
+      className={`rounded-xl border px-3 py-1.5 text-xs font-bold disabled:opacity-50 ${
+        on
+          ? 'border-yellow-500 bg-yellow-300 text-yellow-950'
+          : 'border-slate-200 bg-white text-slate-600 dark:border-white/15 dark:bg-white/5 dark:text-yellow-100'
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -304,7 +300,7 @@ export function MemberAllocateTable({
       phone: c.phone || '',
       notes: c.notes || '',
       personActive: isPersonActive(c),
-      member: onClass || c.private_client !== true,
+      member: onClass,
       privateClient: c.private_client === true,
       planId: primary?.plan_id || c.membership_plan_id || planIds[0] || '',
       planIds:
@@ -326,6 +322,40 @@ export function MemberAllocateTable({
   const setDraft = (id: string, patch: Partial<Draft>) => {
     const current = draftFor(store.clients.find((c) => c.id === id)!);
     setDrafts((d) => ({ ...d, [id]: { ...current, ...patch } }));
+  };
+
+  const toggleMember = (c: FitClient, d: Draft) => {
+    const next = !(d.personActive && d.member);
+    setDraft(c.id, {
+      personActive: true,
+      member: next,
+    });
+    if (next) setOpenId(c.id);
+  };
+
+  const togglePrivate = (c: FitClient, d: Draft) => {
+    const next = !(d.personActive && d.privateClient);
+    setDraft(c.id, {
+      personActive: true,
+      privateClient: next,
+    });
+    if (next) setOpenId(c.id);
+  };
+
+  const toggleInactive = (c: FitClient, d: Draft) => {
+    if (!d.personActive) return;
+    const parked: Draft = {
+      ...d,
+      personActive: false,
+      member: false,
+      privateClient: false,
+    };
+    setDraft(c.id, {
+      personActive: false,
+      member: false,
+      privateClient: false,
+    });
+    void parkPerson(c, parked);
   };
 
   const selectedPlanIds = (d: Draft): string[] =>
@@ -390,6 +420,7 @@ export function MemberAllocateTable({
       const next: Partial<Draft> = {
         planId: p.id,
         planIds: [p.id],
+        personActive: true,
         member: true,
         charges,
       };
@@ -407,6 +438,7 @@ export function MemberAllocateTable({
     const next: Partial<Draft> = {
       planIds,
       planId: planIds[0] || '',
+      personActive: true,
       member: true,
       charges,
     };
@@ -454,7 +486,7 @@ export function MemberAllocateTable({
       return;
     }
     if (!d.member && !d.privateClient) {
-      toast.error('Tick Member, Private client, or both');
+      toast.error('Turn on Member, Private, or both — then Save');
       return;
     }
     const planIds = selectedPlanIds(d);
@@ -546,10 +578,11 @@ export function MemberAllocateTable({
   return (
     <div className="space-y-3">
       <p className="text-xs text-slate-600 dark:text-slate-300">
-        Open a person, tick the classes they attend, then Save. Each class has a{' '}
-        <strong>standard rate</strong> (the class list price) and an{' '}
-        <strong>actual rate</strong> you charge them. Contact details save with
-        the booking.
+        Toggle <strong>Member</strong>, <strong>Private</strong>, or both, then{' '}
+        <strong>Save</strong>. A person can be a class member and a private
+        client. <strong>Inactive</strong> keeps them on file with no class or
+        private coach. Each class has a <strong>standard rate</strong> and an{' '}
+        <strong>actual rate</strong> you charge them.
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <input
@@ -795,17 +828,23 @@ export function MemberAllocateTable({
                     ) : null}
                   </div>
                   <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-                    <PersonActiveToggle
-                      value={d.personActive}
-                      onChange={(on) => {
-                        setDraft(c.id, { personActive: on });
-                        if (!on) {
-                          void parkPerson(c, {
-                            ...draftFor(c),
-                            personActive: false,
-                          });
-                        }
-                      }}
+                    <DeskToggle
+                      label="Member"
+                      on={d.personActive && d.member}
+                      disabled={saving && busyId === c.id}
+                      onClick={() => toggleMember(c, d)}
+                    />
+                    <DeskToggle
+                      label="Private"
+                      on={d.personActive && d.privateClient}
+                      disabled={saving && busyId === c.id}
+                      onClick={() => togglePrivate(c, d)}
+                    />
+                    <DeskToggle
+                      label="Inactive"
+                      on={!d.personActive}
+                      disabled={saving && busyId === c.id}
+                      onClick={() => toggleInactive(c, d)}
                     />
                     {classFilter && !onFilteredClass && d.personActive ? (
                       <button
@@ -820,13 +859,6 @@ export function MemberAllocateTable({
                         Add to class
                       </button>
                     ) : null}
-                    <button
-                      type="button"
-                      className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 dark:border-yellow-700 dark:text-yellow-100"
-                      onClick={() => setOpenId(open ? null : c.id)}
-                    >
-                      {open ? 'Close' : 'Assign'}
-                    </button>
                     <button
                       type="button"
                       disabled={saving && busyId === c.id}
@@ -893,58 +925,53 @@ export function MemberAllocateTable({
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">
-                          Desk status
+                          Member · private · inactive
                         </div>
                         <p className="text-[11px] text-slate-500">
-                          Inactive people stay on file. No class or private
-                          coach needed.
+                          Member and Private can both be on. Inactive keeps
+                          them on file with no class or private coach.
                         </p>
                       </div>
-                      <PersonActiveToggle
-                        value={d.personActive}
-                        onChange={(on) => {
-                          setDraft(c.id, { personActive: on });
-                          if (!on) {
-                            void parkPerson(c, {
-                              ...draftFor(c),
-                              personActive: false,
-                            });
-                          }
-                        }}
-                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <DeskToggle
+                          label="Member"
+                          on={d.personActive && d.member}
+                          disabled={saving && busyId === c.id}
+                          onClick={() => toggleMember(c, d)}
+                        />
+                        <DeskToggle
+                          label="Private"
+                          on={d.personActive && d.privateClient}
+                          disabled={saving && busyId === c.id}
+                          onClick={() => togglePrivate(c, d)}
+                        />
+                        <DeskToggle
+                          label="Inactive"
+                          on={!d.personActive}
+                          disabled={saving && busyId === c.id}
+                          onClick={() => toggleInactive(c, d)}
+                        />
+                        <button
+                          type="button"
+                          disabled={saving && busyId === c.id}
+                          onClick={() => void save(c)}
+                          className={`rounded-xl px-3 py-1.5 text-xs font-black disabled:opacity-50 ${
+                            changed
+                              ? 'bg-yellow-400 text-yellow-950'
+                              : 'bg-yellow-200 text-yellow-950'
+                          }`}
+                        >
+                          {saving && busyId === c.id ? 'Saving…' : 'Save'}
+                        </button>
+                      </div>
                     </div>
 
-                    {d.personActive ? (
-                    <div className="flex flex-wrap gap-4">
-                      <label className="flex items-center gap-2 text-sm font-bold">
-                        <input
-                          type="checkbox"
-                          checked={d.member}
-                          onChange={(e) =>
-                            setDraft(c.id, { member: e.target.checked })
-                          }
-                        />
-                        Member
-                      </label>
-                      <label className="flex items-center gap-2 text-sm font-bold">
-                        <input
-                          type="checkbox"
-                          checked={d.privateClient}
-                          onChange={(e) =>
-                            setDraft(c.id, {
-                              privateClient: e.target.checked,
-                            })
-                          }
-                        />
-                        Private client
-                      </label>
-                    </div>
-                    ) : (
+                    {!d.personActive ? (
                       <p className="rounded-2xl border border-dashed border-slate-200 px-3 py-3 text-sm text-slate-500 dark:border-yellow-800">
-                        Save to move them to the Inactive list. They keep
-                        contracts, bank details and notes.
+                        Inactive. Turn on Member, Private, or both, then Save.
+                        Contracts, bank details and notes stay on file.
                       </p>
-                    )}
+                    ) : null}
 
                     {d.personActive && d.member ? (
                       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-yellow-800 dark:bg-yellow-950/40">
