@@ -9,7 +9,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'SupplierAdvisor',
     short_name: 'SupplierAdvisor',
     description:
-      'Verified B2B OS plus SA Member for hire, gym check-in and personal bookings.',
+      'Verified B2B OS plus SA Member for hire, gym classes and personal bookings.',
     start_url: '/',
     scope: '/',
     id: '/',
@@ -46,9 +46,9 @@ export default function manifest(): MetadataRoute.Manifest {
         icons: [{ src: '/sa-icon-192.png', sizes: '192x192' }],
       },
       {
-        name: 'Member check-in',
-        short_name: 'Check-in',
-        url: '/me?tab=checkin',
+        name: 'SA Member diary',
+        short_name: 'Diary',
+        url: '/me?tab=calendar',
         icons: [{ src: '/sa-icon-192.png', sizes: '192x192' }],
       },
     ],

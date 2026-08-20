@@ -6,7 +6,7 @@
  * Access/payment status is shown and logged for the gym owner.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -53,9 +53,28 @@ type CheckinResult = {
   };
 };
 
+function isStandalonePwa() {
+  if (typeof window === 'undefined') return false;
+  try {
+    return (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      Boolean(
+        (window.navigator as Navigator & { standalone?: boolean }).standalone
+      )
+    );
+  } catch {
+    return false;
+  }
+}
+
+function memberPortalPath(memberToken: string) {
+  return `/member/fitgraph/${encodeURIComponent(memberToken)}`;
+}
+
 export default function GymCheckinPage() {
   const { token } = useParams() as { token: string };
   const search = useSearchParams();
+  const router = useRouter();
   const [gym, setGym] = useState<GymInfo | null>(null);
   const [gymCompanyId, setGymCompanyId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,20 +86,31 @@ export default function GymCheckinPage() {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [mode, setMode] = useState<'portal' | 'lookup'>('portal');
+  /** Printed gym QR in a browser may stay; PWA / member-app never should. */
+  const [allowDoorUi, setAllowDoorUi] = useState(false);
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(MEMBER_TOKEN_KEY) || '';
       const fromQuery = search?.get('member') || search?.get('mt') || '';
-      const t = fromQuery || saved;
+      const t = (fromQuery || saved).trim();
+      if (t && !/^fg_/i.test(t)) {
+        router.replace(memberPortalPath(t));
+        return;
+      }
+      if (isStandalonePwa()) {
+        router.replace('/me');
+        return;
+      }
       if (t) {
         setMemberToken(t);
         setMode('portal');
       }
+      setAllowDoorUi(true);
     } catch {
-      /* ignore */
+      setAllowDoorUi(true);
     }
-  }, [search]);
+  }, [search, router]);
 
   const loadGym = useCallback(async () => {
     if (!token) return;
@@ -105,8 +135,9 @@ export default function GymCheckinPage() {
   }, [token]);
 
   useEffect(() => {
+    if (!allowDoorUi) return;
     void loadGym();
-  }, [loadGym]);
+  }, [allowDoorUi, loadGym]);
 
   const checkIn = async (opts?: { member_token?: string }) => {
     setBusy(true);
@@ -143,6 +174,14 @@ export default function GymCheckinPage() {
   };
 
   const color = gymBrandColor(gym?.primary_color);
+
+  if (!allowDoorUi) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <Loader2 className="h-8 w-8 animate-spin text-yellow-600" />
+      </div>
+    );
+  }
 
   if (loading) {
     return (

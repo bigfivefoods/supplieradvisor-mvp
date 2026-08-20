@@ -918,8 +918,8 @@ export default function LandingPage() {
               },
               {
                 icon: QrCode,
-                t: 'Gym door check-in',
-                b: 'Scan the studio QR from SA Member. No clipboard at reception — the desk sees you are in.',
+                t: 'Gym class check-in',
+                b: 'Confirm you are at class from the gym app. Your coach and the desk see you are in.',
               },
               {
                 icon: Users2,

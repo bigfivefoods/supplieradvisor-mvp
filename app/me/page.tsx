@@ -3,7 +3,7 @@
 /**
  * SA Member App — B2C personal app (PWA).
  * Bottom dock: Home · Places · You · Shop · Share
- * PWA — hire / sale marketplace, gym book/check-in, reviews.
+ * PWA — hire / sale marketplace, gym book/classes, reviews.
  */
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -23,7 +23,6 @@ import {
   Loader2,
   LogOut,
   Package,
-  QrCode,
   Sparkles,
   Stethoscope,
   Star,
@@ -233,7 +232,7 @@ function MeAppInner() {
   >({});
   const focusAccount = Number(search?.get('account') || 0) || null;
 
-  // Deep links: ?tab=shop|places|you|share|checkin|calendar  ?link=
+  // Deep links: ?tab=shop|places|you|share|calendar  ?link=
   useEffect(() => {
     const t = normalizeB2cTab(search?.get('tab'));
     if (t) {
@@ -242,7 +241,7 @@ function MeAppInner() {
     const link = search?.get('link') || search?.get('token') || '';
     if (link) {
       setLinkToken(link);
-      setTab('checkin');
+      setTab('memberships');
     }
     if (search?.get('account') || search?.get('pay') === 'open') {
       setTab('memberships');
@@ -392,10 +391,10 @@ function MeAppInner() {
     () => accounts.map((a) => a.company_id),
     [accounts]
   );
-  const checkinReady = memberships.filter((m) => m.checkin_path).length;
+  const firstGym = memberships.find((m) => m.kind === 'gym');
 
   const goTab = (t: B2cTab) => {
-    const next = t === 'account' ? 'you' : t;
+    const next = normalizeB2cTab(t) || (t === 'account' ? 'you' : t);
     setTab(next);
     const params = new URLSearchParams(search?.toString() || '');
     if (next === 'home') params.delete('tab');
@@ -722,7 +721,7 @@ function MeAppInner() {
       title: `Hi, ${displayName.split(' ')[0]}`,
       sub:
         accounts.length > 0
-          ? 'Your wallet · places, check-in, shop'
+          ? 'Your wallet · places, shop, diary'
           : 'Add a gym, clinic or hire brand',
     },
     shop: {
@@ -737,8 +736,11 @@ function MeAppInner() {
           : `${accounts.length} ${accounts.length === 1 ? 'place' : 'places'}`,
     },
     checkin: {
-      title: 'Check in',
-      sub: 'Show this at the gym door',
+      title: 'Places',
+      sub:
+        accounts.length === 0
+          ? 'Nothing linked yet'
+          : `${accounts.length} ${accounts.length === 1 ? 'place' : 'places'}`,
     },
     account: {
       title: 'You',
@@ -903,11 +905,11 @@ function MeAppInner() {
               </button>
               <button
                 type="button"
-                onClick={() => goTab('checkin')}
+                onClick={() => goTab('calendar')}
                 className="rounded-2xl bg-white/12 px-2 py-2.5 backdrop-blur"
               >
-                <p className="text-lg font-black tabular-nums">{checkinReady}</p>
-                <p className="text-[10px] font-bold text-white/80">Check-in</p>
+                <p className="text-lg font-black tabular-nums">{accounts.length}</p>
+                <p className="text-[10px] font-bold text-white/80">Diary</p>
               </button>
               <button
                 type="button"
@@ -1012,23 +1014,42 @@ function MeAppInner() {
               Do this now
             </h2>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
-              <button
-                type="button"
-                onClick={() => goTab('checkin')}
-                className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-white p-3 text-left shadow-sm active:scale-[0.98]"
-              >
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                  <QrCode className="h-5 w-5" />
-                </span>
-                <span>
-                  <span className="block text-xs font-black text-slate-900">
-                    Check in
+              {firstGym ? (
+                <Link
+                  href={membershipClassesHref(firstGym)}
+                  className="flex items-center gap-2 rounded-2xl border border-yellow-200 bg-white p-3 text-left shadow-sm active:scale-[0.98]"
+                >
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-50 text-yellow-800">
+                    <Dumbbell className="h-5 w-5" />
                   </span>
-                  <span className="block text-[10px] text-slate-500">
-                    At the gym door
+                  <span>
+                    <span className="block text-xs font-black text-slate-900">
+                      My classes
+                    </span>
+                    <span className="block text-[10px] text-slate-500">
+                      {firstGym.brand || firstGym.company_name}
+                    </span>
                   </span>
-                </span>
-              </button>
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => goTab('memberships')}
+                  className="flex items-center gap-2 rounded-2xl border border-yellow-200 bg-white p-3 text-left shadow-sm active:scale-[0.98]"
+                >
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-50 text-yellow-800">
+                    <Dumbbell className="h-5 w-5" />
+                  </span>
+                  <span>
+                    <span className="block text-xs font-black text-slate-900">
+                      Find a gym
+                    </span>
+                    <span className="block text-[10px] text-slate-500">
+                      Link a studio
+                    </span>
+                  </span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => goTab('calendar')}
@@ -1256,13 +1277,36 @@ function MeAppInner() {
       {tab === 'memberships' && (
         <div className="space-y-3">
           <p className="rounded-2xl bg-sky-50 px-3 py-2 text-[12px] text-sky-950">
-            Places you use as a member — book, check in, records. Shops you
+            Places you use as a member — book, classes, records. Shops you
             operate stay under the building icon.
           </p>
           <B2cLinkBusiness
             linkedCompanyIds={linkedCompanyIds}
             onLinked={() => void load()}
           />
+          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-slate-900">
+              <Link2 className="h-5 w-5 text-[#0077b6]" />
+              <h2 className="text-sm font-black">Have a portal link?</h2>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              Paste the link from your email or WhatsApp.
+            </p>
+            <input
+              className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-mono"
+              placeholder="https://…/member/fitgraph/… or /hire/…"
+              value={linkToken}
+              onChange={(e) => setLinkToken(e.target.value)}
+            />
+            <button
+              type="button"
+              disabled={busy || !linkToken.trim()}
+              onClick={() => void doLink()}
+              className="mt-2 w-full rounded-2xl bg-[#0077b6] py-3.5 text-sm font-black text-white disabled:opacity-50 active:scale-[0.99]"
+            >
+              {busy ? 'Linking…' : 'Add to my app'}
+            </button>
+          </section>
           <div>
             <p className="mb-2 px-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
               Amounts due
@@ -1394,18 +1438,6 @@ function MeAppInner() {
                           </Link>
                         </>
                       ) : null}
-                      {gym?.checkin_path ? (
-                        <Link
-                          href={`${gym.checkin_path}${
-                            gym.portal_token
-                              ? `?member=${encodeURIComponent(gym.portal_token)}`
-                              : ''
-                          }`}
-                          className="inline-flex items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-black text-emerald-900"
-                        >
-                          <QrCode className="h-3.5 w-3.5" /> Check in
-                        </Link>
-                      ) : null}
                       <Link
                         href={`/r/${a.company_id}`}
                         className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-black text-amber-950"
@@ -1425,75 +1457,6 @@ function MeAppInner() {
               })}
             </ul>
           )}
-        </div>
-      )}
-
-      {/* ── CHECK-IN + LINK ──────────────────────────────────── */}
-      {tab === 'checkin' && (
-        <div className="space-y-4 md:grid md:grid-cols-2 md:items-start md:gap-6 md:space-y-0">
-          <section className="rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-emerald-900">
-              <QrCode className="h-5 w-5" />
-              <h2 className="text-sm font-black">Gym door check-in</h2>
-            </div>
-            <p className="mt-1 text-xs text-emerald-900/80">
-              At reception, open your gym below or scan the gym QR with your
-              camera.
-            </p>
-            {memberships.filter((m) => m.checkin_path).length === 0 ? (
-              <p className="mt-3 rounded-xl bg-white/80 px-3 py-2 text-xs text-slate-600">
-                Link a gym membership first — check-in appears here
-                automatically.
-              </p>
-            ) : (
-              <ul className="mt-3 space-y-2">
-                {memberships
-                  .filter((m) => m.checkin_path)
-                  .map((m) => (
-                    <li key={m.id}>
-                      <Link
-                        href={`${m.checkin_path}${
-                          m.portal_token
-                            ? `?member=${encodeURIComponent(m.portal_token)}`
-                            : ''
-                        }`}
-                        className="flex items-center justify-between rounded-2xl bg-emerald-600 px-4 py-3.5 text-sm font-black text-white shadow active:scale-[0.99]"
-                      >
-                        <span className="truncate">
-                          Check in · {m.brand || m.company_name}
-                        </span>
-                        <CheckCircle2 className="h-5 w-5 shrink-0" />
-                      </Link>
-                    </li>
-                  ))}
-              </ul>
-            )}
-          </section>
-
-          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-slate-900">
-              <Link2 className="h-5 w-5 text-[#0077b6]" />
-              <h2 className="text-sm font-black">Have a portal link?</h2>
-            </div>
-            <p className="mt-1 text-xs text-slate-500">
-              Paste the link from your email or WhatsApp. To search a brand,
-              use Places.
-            </p>
-            <input
-              className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-mono"
-              placeholder="https://…/member/physiograph/… or /hire/…"
-              value={linkToken}
-              onChange={(e) => setLinkToken(e.target.value)}
-            />
-            <button
-              type="button"
-              disabled={busy || !linkToken.trim()}
-              onClick={() => void doLink()}
-              className="mt-2 w-full rounded-2xl bg-[#0077b6] py-3.5 text-sm font-black text-white disabled:opacity-50 active:scale-[0.99]"
-            >
-              {busy ? 'Linking…' : 'Add to my app'}
-            </button>
-          </section>
         </div>
       )}
 

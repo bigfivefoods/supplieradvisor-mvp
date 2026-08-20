@@ -33,11 +33,12 @@ export function isYouTab(tab: B2cTab) {
 export function normalizeB2cTab(raw: string | null | undefined): B2cTab | null {
   const t = String(raw || '');
   if (t === 'account' || t === 'you') return 'you';
+  // Old PWA shortcut / menu landed on the gym-door QR page. Send it to Places.
+  if (t === 'checkin' || t === 'places') return 'memberships';
   if (
     t === 'home' ||
     t === 'shop' ||
     t === 'memberships' ||
-    t === 'checkin' ||
     t === 'share' ||
     t === 'calendar' ||
     t === 'book'
@@ -69,7 +70,7 @@ function youActive(tab: B2cTab) {
 function dockActive(id: DockId, tab: B2cTab) {
   if (id === 'you') return youActive(tab);
   if (id === 'home') {
-    return tab === 'home' || tab === 'calendar' || tab === 'book' || tab === 'checkin';
+    return tab === 'home' || tab === 'calendar' || tab === 'book';
   }
   return tab === id;
 }

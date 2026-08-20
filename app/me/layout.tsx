@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     template: '%s · SA Member',
   },
   description:
-    'SA Member — create your free profile, verify your ID, book Advisor appointments, see shared medical records, get push alerts, shop sale and hire, and check in.',
+    'SA Member — create your free profile, verify your ID, book Advisor appointments, see shared medical records, get push alerts, and shop sale and hire.',
   applicationName: 'SA Member',
   appleWebApp: {
     capable: true,

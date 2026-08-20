@@ -4,9 +4,8 @@ export const metadata: Metadata = {
   title: 'Gym check-in · GymAdvisor',
   description: 'Scan the gym QR and check in on your phone.',
   appleWebApp: {
-    capable: true,
-    title: 'Gym check-in',
-    statusBarStyle: 'default',
+    capable: false,
+    title: 'SA Member',
   },
 };
 

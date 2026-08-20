@@ -1,7 +1,7 @@
 {
   "name": "SA Member",
   "short_name": "Member",
-  "description": "Personal wallet: shop sale and hire, book Advisors, check in, and review brands.",
+  "description": "Personal wallet: shop sale and hire, book Advisors, classes, and review brands.",
   "start_url": "/me?source=pwa",
   "scope": "/",
   "id": "/me",
@@ -41,10 +41,10 @@
       "description": "For sale, hire and Advisors"
     },
     {
-      "name": "Check in",
-      "short_name": "Check-in",
-      "url": "/me?tab=checkin",
-      "description": "Gym door check-in"
+      "name": "Diary",
+      "short_name": "Diary",
+      "url": "/me?tab=calendar",
+      "description": "Hires, classes and visits"
     },
     {
       "name": "Brands",

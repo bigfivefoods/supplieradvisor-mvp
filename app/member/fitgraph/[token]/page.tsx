@@ -1266,7 +1266,7 @@ export default function MemberFitgraphPortalPage() {
             )}
             <details className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
               <summary className="cursor-pointer text-sm font-black text-slate-900 dark:text-white">
-                Gym door pass
+                I&apos;m at the gym
               </summary>
               <div className="mt-3">
                 <GymCheckinPass
@@ -1280,11 +1280,6 @@ export default function MemberFitgraphPortalPage() {
                   onScan={setCheckinScan}
                   onCheckin={() => void doCheckIn()}
                   busy={checkinBusy}
-                  doorHref={
-                    portal.gym_checkin?.path
-                      ? `${portal.gym_checkin.path}?member=${encodeURIComponent(token)}`
-                      : null
-                  }
                   color={color}
                 />
               </div>

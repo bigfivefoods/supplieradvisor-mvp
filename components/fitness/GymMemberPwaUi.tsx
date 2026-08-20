@@ -168,7 +168,6 @@ export function GymCheckinPass({
   onScan,
   onCheckin,
   busy,
-  doorHref,
   color,
 }: {
   brand: string;
@@ -181,7 +180,6 @@ export function GymCheckinPass({
   onScan: (v: string) => void;
   onCheckin: () => void;
   busy: boolean;
-  doorHref?: string | null;
   color: string;
 }) {
   const ink = advisorBrandInk(color);
@@ -201,7 +199,7 @@ export function GymCheckinPass({
         <div className="mt-4 flex items-center justify-between gap-3">
           <QrCode className="h-10 w-10 opacity-80" />
           <p className="max-w-[12rem] text-right text-[11px] font-semibold leading-snug opacity-70">
-            Show this at the door, or check in with the gym QR.
+            Show this at reception, or check in here when you arrive.
           </p>
         </div>
       </div>
@@ -247,14 +245,6 @@ export function GymCheckinPass({
         )}
         I&apos;m at the gym — check in
       </button>
-      {doorHref ? (
-        <a
-          href={doorHref}
-          className="block text-center text-xs font-bold text-slate-600 underline dark:text-slate-300"
-        >
-          Open gym door page (scan-friendly)
-        </a>
-      ) : null}
     </div>
   );
 }
