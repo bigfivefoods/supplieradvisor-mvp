@@ -305,6 +305,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Connect', href: '/dashboard/suppliers/connect', desc: 'Connect / shortlist partners', section: 'Source' },
       { name: 'Book', href: '/dashboard/suppliers/network', desc: 'Your supplier book', section: 'Source' },
       { name: 'Invite', href: '/dashboard/suppliers/invites', desc: 'Invite off-platform suppliers', section: 'Source' },
+      {
+        name: 'Portal',
+        href: '/dashboard/suppliers/portal',
+        desc: 'Guest portal for suppliers who have not joined',
+        section: 'Source',
+      },
       { name: 'Order', href: '/dashboard/suppliers/po', desc: 'All POs — raise, receive, settle', section: 'Trade' },
       {
         name: 'Escrow',
@@ -336,6 +342,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Source', href: '/dashboard/customers/leads', desc: 'Leads & pipeline', section: 'Source' },
       { name: 'Book', href: '/dashboard/customers/profiles', desc: 'Customer accounts', section: 'Source' },
       { name: 'Invite', href: '/dashboard/customers/invites', desc: 'Invite buyers to platform', section: 'Source' },
+      {
+        name: 'Portal',
+        href: '/dashboard/customers/portal',
+        desc: 'Guest portal for buyers who have not joined',
+        section: 'Source',
+      },
       { name: 'Quote', href: '/dashboard/customers/quotes', desc: 'Quotes', section: 'Trade' },
       { name: 'Order', href: '/dashboard/customers/orders', desc: 'Sales orders & inbound POs', section: 'Trade' },
       { name: 'Invoice', href: '/dashboard/customers/invoices', desc: 'Bill customers', section: 'Trade' },

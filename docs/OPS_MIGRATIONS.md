@@ -23,6 +23,12 @@ supabase/migrations/20260820_module_store_secure.sql
 supabase/migrations/20260820_store_hardening.sql
 ```
 
+**Guest customer / supplier portals** (share quotes, invoices, POs with people who have not joined):
+
+```text
+supabase/migrations/20260822_trade_portals.sql
+```
+
 After deploying, if `/api/system/health` shows `schemaOptionalMissing` or missing profile columns, run these **in order**:
 
 ```text

@@ -200,6 +200,14 @@ function HubInner() {
       accent: 'from-teal-50 to-white border-teal-100',
     },
     {
+      href: '/dashboard/suppliers/portal',
+      icon: Globe,
+      code: '06b',
+      title: 'Guest portal',
+      desc: 'Share POs and documents with suppliers who have not joined yet.',
+      accent: 'from-cyan-50 to-white border-cyan-100',
+    },
+    {
       href: '/dashboard/suppliers/po',
       icon: Truck,
       code: '07',

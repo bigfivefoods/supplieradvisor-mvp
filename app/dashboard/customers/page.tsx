@@ -135,6 +135,14 @@ function HubInner() {
       metricLabel: 'pending',
     },
     {
+      href: '/dashboard/customers/portal',
+      icon: Globe,
+      code: '04c',
+      title: 'Guest portal',
+      desc: 'Share quotes and invoices with buyers who have not joined yet.',
+      accent: 'from-cyan-50 to-white border-cyan-100',
+    },
+    {
       href: '/dashboard/messages?from=customers&channel=customer',
       icon: MessageSquare,
       code: '04b',
