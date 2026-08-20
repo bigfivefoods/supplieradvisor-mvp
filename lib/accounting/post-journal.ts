@@ -325,3 +325,99 @@ export async function postBalancedJournal(opts: {
     entryNumber: String(entry.entry_number || entryNumber),
   };
 }
+
+function asMeta(raw: unknown): Record<string, unknown> {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    return { ...(raw as Record<string, unknown>) };
+  }
+  return {};
+}
+
+/**
+ * Reverse a posted journal (keeps history). No-op if already reversed.
+ */
+export async function reversePostedJournal(opts: {
+  profileId: number;
+  journalId: number;
+  createdBy?: string | null;
+  memo?: string;
+  metadata?: Record<string, unknown>;
+  entryDate?: string;
+}): Promise<PostJournalResult | { ok: true; journalId: number; entryNumber: string; skipped: true }> {
+  const supabase = getSupabaseServer();
+  const { data: je } = await supabase
+    .from('journal_entries')
+    .select('id, status, entry_date, memo, entry_number, metadata, currency')
+    .eq('id', opts.journalId)
+    .eq('profile_id', opts.profileId)
+    .maybeSingle();
+  if (!je) return { ok: false, error: 'Journal not found' };
+  if (String(je.status) !== 'posted') {
+    return { ok: false, error: 'Only posted journals can be reversed' };
+  }
+  const meta = asMeta(je.metadata);
+  if (meta.reversed_by_journal_id) {
+    return {
+      ok: true,
+      skipped: true,
+      journalId: Number(meta.reversed_by_journal_id),
+      entryNumber: '',
+    };
+  }
+
+  const { data: oldLines } = await supabase
+    .from('journal_lines')
+    .select('account_id, debit, credit, memo, counterparty')
+    .eq('journal_entry_id', opts.journalId);
+  if (!oldLines?.length) return { ok: false, error: 'No lines to reverse' };
+
+  let entryDate =
+    String(opts.entryDate || je.entry_date || new Date().toISOString()).slice(0, 10);
+  const lock = await isPeriodLocked(opts.profileId, entryDate);
+  if (lock.locked) {
+    const today = new Date().toISOString().slice(0, 10);
+    const todayLock = await isPeriodLocked(opts.profileId, today);
+    if (!todayLock.locked) entryDate = today;
+  }
+
+  const posted = await postBalancedJournal({
+    profileId: opts.profileId,
+    entryDate,
+    memo:
+      opts.memo ||
+      `Reversal of ${je.entry_number || opts.journalId}${je.memo ? `: ${je.memo}` : ''}`,
+    source: 'reversal',
+    sourceId: String(opts.journalId),
+    currency: String(je.currency || 'ZAR'),
+    createdBy: opts.createdBy || null,
+    metadata: {
+      reverses_journal_id: opts.journalId,
+      reverses_entry_number: je.entry_number,
+      ...(opts.metadata || {}),
+    },
+    lines: oldLines.map((l) => ({
+      accountId: Number(l.account_id),
+      debit: round2(Number(l.credit || 0)),
+      credit: round2(Number(l.debit || 0)),
+      memo: l.memo,
+      counterparty: l.counterparty,
+    })),
+  });
+  if (!posted.ok) return posted;
+
+  const stamped = {
+    ...meta,
+    reversed_by_journal_id: posted.journalId,
+    reversed_at: new Date().toISOString(),
+  };
+  let { error: stampErr } = await supabase
+    .from('journal_entries')
+    .update({ metadata: stamped })
+    .eq('id', opts.journalId)
+    .eq('profile_id', opts.profileId);
+  if (stampErr) {
+    console.warn('[reversePostedJournal] stamp', stampErr.message);
+  }
+
+  return posted;
+}

@@ -1,7 +1,7 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { round2 } from '@/lib/accounting/server';
 import { isPeriodLocked } from '@/lib/accounting/period-lock';
-import { postBalancedJournal } from '@/lib/accounting/post-journal';
+import { postBalancedJournal, reversePostedJournal } from '@/lib/accounting/post-journal';
 
 /**
  * Resolve the GL cash/bank account for a bank account.
@@ -293,52 +293,21 @@ export async function unallocateBankTransaction(params: {
       .maybeSingle();
 
     if (je && String(je.status) === 'posted') {
-      const { data: jeFull } = await supabase
-        .from('journal_entries')
-        .select('id, entry_date, memo')
-        .eq('id', journalId)
-        .maybeSingle();
-      const entryDate = String(
-        jeFull?.entry_date || new Date().toISOString().slice(0, 10)
-      );
-      const lock = await isPeriodLocked(params.profileId, entryDate);
-      if (lock.locked) {
+      const reversed = await reversePostedJournal({
+        profileId: params.profileId,
+        journalId,
+        createdBy: params.privyUserId || null,
+        memo: `Reversal of bank allocation ${journalId}`,
+        metadata: { unallocate: true },
+      });
+      if (!reversed.ok) {
         return {
           ok: false,
-          error: `Period ${lock.period_key} is locked — reverse in an open period instead of unallocating`,
-          status: 409,
+          error: reversed.error || 'Could not reverse allocation journal',
+          status: /lock/i.test(reversed.error || '') ? 409 : 400,
         };
       }
-      const { data: oldLines } = await supabase
-        .from('journal_lines')
-        .select('account_id, debit, credit, memo, counterparty')
-        .eq('journal_entry_id', journalId);
-      if (oldLines?.length) {
-        const reversed = await postBalancedJournal({
-          profileId: params.profileId,
-          entryDate,
-          memo: `Reversal of bank allocation ${jeFull?.memo || journalId}`,
-          source: 'reversal',
-          sourceId: String(journalId),
-          createdBy: params.privyUserId || null,
-          metadata: { reverses_journal_id: journalId, unallocate: true },
-          lines: oldLines.map((l) => ({
-            accountId: Number(l.account_id),
-            debit: round2(Number(l.credit || 0)),
-            credit: round2(Number(l.debit || 0)),
-            memo: l.memo,
-            counterparty: l.counterparty,
-          })),
-        });
-        if (!reversed.ok) {
-          return {
-            ok: false,
-            error: reversed.error || 'Could not reverse allocation journal',
-            status: 400,
-          };
-        }
-        voidedJournalId = reversed.journalId;
-      }
+      voidedJournalId = reversed.journalId;
     }
   }
 

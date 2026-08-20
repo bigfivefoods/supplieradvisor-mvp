@@ -177,6 +177,29 @@ export async function recognizeInvoiceIfNeeded(opts: {
     };
   }
 
+  const supabase = getSupabaseServer();
+  const invId = Number(inv.id);
+  if (Number.isFinite(invId) && invId > 0) {
+    const { data: existing } = await supabase
+      .from('journal_entries')
+      .select('id, metadata, status, source_id')
+      .eq('profile_id', opts.profileId)
+      .eq('source', 'invoice_recognition')
+      .eq('source_id', String(invId))
+      .eq('status', 'posted');
+    const live = (existing || []).filter(
+      (j) => !asMeta(j.metadata).reversed_by_journal_id
+    );
+    if (live.length) {
+      const keeper = Number(live[0].id);
+      await stampInvoiceMeta(invId, opts.profileId, meta, {
+        recognition_journal_id: keeper,
+        recognized_at: new Date().toISOString(),
+      });
+      return { ok: true, skipped: true, journalId: keeper };
+    }
+  }
+
   const total = round2(Number(inv.total_amount || 0));
   const tax = round2(Number(inv.tax_amount || 0));
   const net = round2(
