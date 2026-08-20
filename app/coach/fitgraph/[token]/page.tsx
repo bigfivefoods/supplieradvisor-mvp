@@ -1332,14 +1332,16 @@ export default function CoachFitgraphPortalPage() {
                         (s) =>
                           !openCard.roster.some((r) => r.client_id === s.client_id)
                       )
-                      .map((s) => ({
-                        booking_id: `alloc_${openCard.session.id}_${s.client_id}`,
-                        client_id: s.client_id,
-                        status: 'booked',
-                        plan: true,
-                        actual: 'pending' as const,
-                        name: s.name,
-                      })),
+                      .map(
+                        (s): RosterRow => ({
+                          booking_id: `alloc_${openCard.session.id}_${s.client_id}`,
+                          client_id: s.client_id,
+                          status: 'booked',
+                          plan: true,
+                          actual: 'pending',
+                          name: s.name,
+                        })
+                      ),
                   ].map((r) => {
                     const member = portal.members.find(
                       (m) => m.id === r.client_id
