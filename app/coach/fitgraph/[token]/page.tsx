@@ -1320,11 +1320,27 @@ export default function CoachFitgraphPortalPage() {
               <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1">
                 <Users className="w-3.5 h-3.5" /> Who is coming · update actual
               </h4>
-              {openCard.roster.length === 0 ? (
+              {openCard.roster.length === 0 &&
+              !(openCard.subscribed || []).length ? (
                 <p className="text-sm text-slate-500">Nobody on the plan yet.</p>
               ) : (
                 <ul className="space-y-2">
-                  {openCard.roster.map((r) => {
+                  {[
+                    ...openCard.roster,
+                    ...(openCard.subscribed || [])
+                      .filter(
+                        (s) =>
+                          !openCard.roster.some((r) => r.client_id === s.client_id)
+                      )
+                      .map((s) => ({
+                        booking_id: `alloc_${openCard.session.id}_${s.client_id}`,
+                        client_id: s.client_id,
+                        status: 'booked',
+                        plan: true,
+                        actual: 'pending' as const,
+                        name: s.name,
+                      })),
+                  ].map((r) => {
                     const member = portal.members.find(
                       (m) => m.id === r.client_id
                     );
@@ -1405,13 +1421,14 @@ export default function CoachFitgraphPortalPage() {
                               : 'border-slate-600'
                           }`}
                           title="Attended"
-                          onClick={() =>
+                          onClick={() => {
+                            if (String(r.booking_id).startsWith('alloc_')) return;
                             void post({
                               action: 'mark_attendance',
                               booking_id: r.booking_id,
                               status: 'attended',
-                            })
-                          }
+                            });
+                          }}
                         >
                           <Check className="w-3.5 h-3.5" />
                         </button>
@@ -1424,13 +1441,14 @@ export default function CoachFitgraphPortalPage() {
                               : 'border-slate-600'
                           }`}
                           title="No-show"
-                          onClick={() =>
+                          onClick={() => {
+                            if (String(r.booking_id).startsWith('alloc_')) return;
                             void post({
                               action: 'mark_attendance',
                               booking_id: r.booking_id,
                               status: 'no_show',
-                            })
-                          }
+                            });
+                          }}
                         >
                           <UserX className="w-3.5 h-3.5" />
                         </button>

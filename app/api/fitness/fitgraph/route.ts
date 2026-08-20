@@ -97,8 +97,10 @@ import { persistVukaCatalogIfNeeded } from '@/lib/fitness/vuka-class-catalog';
 import { applyMemberDebitBank } from '@/lib/fitness/member-debit-bank';
 import {
   allocateMemberToClass,
+  mergeSubscribersIntoCoachSessions,
   scheduleClassOnCalendar,
   setClassMembers,
+  stampCatalogSeriesAndBookSubscribers,
   updateClassDesk,
 } from '@/lib/fitness/class-allocate';
 import { appendJoinEvent } from '@/lib/fitness/member-profile';
@@ -728,9 +730,11 @@ export async function POST(request: NextRequest) {
       }
       const from = body.from ? String(body.from) : undefined;
       const to = body.to ? String(body.to) : undefined;
+      const portal = buildCoachPortalPayload(store, coach, from, to);
+      portal.sessions = mergeSubscribersIntoCoachSessions(store, portal.sessions);
       return NextResponse.json({
         success: true,
-        portal: buildCoachPortalPayload(store, coach, from, to),
+        portal,
         store,
         summary: summariseFitgraph(store),
       });
@@ -857,6 +861,7 @@ export async function POST(request: NextRequest) {
         now
       );
       store.sessions.push(...created);
+      stampCatalogSeriesAndBookSubscribers(store, created, now);
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,

@@ -716,21 +716,100 @@ export function activeClassSubscriptions(
     );
 }
 
+export type SessionCoverageInput = Pick<FitSession, 'class_type_id'> & {
+  series_id?: string | null;
+  start_time?: string;
+  date?: string;
+  session_kind?: FitSession['session_kind'];
+};
+
+/** Map an owner/coach diary row onto the VUKA timetable slot it belongs to. */
+export function catalogSlotForSession(
+  session: SessionCoverageInput
+): VukaSlot | null {
+  const ser = String(session.series_id || '');
+  if (ser) {
+    const byId = VUKA_TIMETABLE.find((s) => s.series_id === ser);
+    if (byId) return byId;
+  }
+  const start = String(session.start_time || '').slice(0, 5);
+  const typeHits = VUKA_TIMETABLE.filter(
+    (s) => s.class_type_id === session.class_type_id
+  );
+  if (!typeHits.length) return null;
+  const timed = start
+    ? typeHits.filter((s) => s.start_time.slice(0, 5) === start)
+    : [];
+  if (timed.length === 1) return timed[0];
+  if (timed.length > 1 && session.date) {
+    const dow = weekdayOf(session.date);
+    const dayHits = timed.filter((s) => s.weekdays.includes(dow));
+    if (dayHits.length) return dayHits[0];
+  }
+  if (timed.length > 1) return timed[0];
+  if (typeHits.length === 1) return typeHits[0];
+  return null;
+}
+
+function classTypeSharedWithOtherSlots(
+  planSlots: VukaSlot[],
+  classTypeId: string
+): boolean {
+  return VUKA_TIMETABLE.some(
+    (t) =>
+      t.class_type_id === classTypeId &&
+      !planSlots.some((s) => s.series_id === t.series_id)
+  );
+}
+
+function isSystemSession(session: SessionCoverageInput, store?: FitgraphStore) {
+  const kind = session.session_kind;
+  if (kind && kind !== 'class') return true;
+  const ct = store?.class_types.find((c) => c.id === session.class_type_id);
+  const code = String(ct?.code || '');
+  return code === SYS_PT_CODE || code === SYS_COACH_TIME_CODE;
+}
+
 export function planCoversSession(
   plan: FitMembershipPlan,
-  session: Pick<FitSession, 'class_type_id' | 'series_id'>,
+  session: SessionCoverageInput,
   store?: FitgraphStore
 ): boolean {
   if (plan.active === false) return false;
+  if (isSystemSession(session, store)) return false;
   if (plan.unlocks_all_classes) {
     const excluded = plan.excluded_class_type_ids || [];
     return !excluded.includes(session.class_type_id);
   }
   if (plan.series_ids && plan.series_ids.length) {
-    return Boolean(session.series_id && plan.series_ids.includes(session.series_id));
+    if (session.series_id && plan.series_ids.includes(session.series_id)) {
+      return true;
+    }
+    const slot = catalogSlotForSession(session);
+    if (slot && plan.series_ids.includes(slot.series_id)) return true;
+    const slots = timetableSlotsForPlan(plan);
+    const start = String(session.start_time || '').slice(0, 5);
+    if (
+      start &&
+      slots.some(
+        (s) =>
+          s.class_type_id === session.class_type_id &&
+          s.start_time.slice(0, 5) === start
+      )
+    ) {
+      return true;
+    }
   }
   if (plan.class_type_ids && plan.class_type_ids.length) {
-    return plan.class_type_ids.includes(session.class_type_id);
+    if (!plan.class_type_ids.includes(session.class_type_id)) return false;
+    const slots = timetableSlotsForPlan(plan);
+    if (
+      slots.length &&
+      classTypeSharedWithOtherSlots(slots, session.class_type_id)
+    ) {
+      return false;
+    }
+    return true;
   }
   if (store && gymHasClassSpecificPlans(store)) return false;
   return true;
@@ -790,7 +869,7 @@ export function memberMayBookSession(
   store: FitgraphStore,
   client: FitClient | null | undefined,
   session: FitSession,
-  opts?: { ignoreDebitBank?: boolean }
+  opts?: { ignoreDebitBank?: boolean; ignoreWeeklyLimit?: boolean }
 ): ClassBookDecision {
   if (!client || client.active === false) {
     return {
@@ -821,7 +900,7 @@ export function memberMayBookSession(
     .map((x) => x.plan)
     .filter((p) => p.weekly_class_limit != null && p.weekly_class_limit > 0)
     .sort((a, b) => (b.weekly_class_limit || 0) - (a.weekly_class_limit || 0))[0];
-  if (limited?.weekly_class_limit) {
+  if (!opts?.ignoreWeeklyLimit && limited?.weekly_class_limit) {
     const used = weekBookingsOnClass(
       store,
       client.id,
@@ -866,6 +945,7 @@ export function subscribersForSession(
   booked: boolean;
   booking?: FitBooking;
 }> {
+  if (isSystemSession(session, store)) return [];
   const bookedBy = new Map(
     (store.bookings || [])
       .filter((b) => b.session_id === session.id && b.status !== 'cancelled')

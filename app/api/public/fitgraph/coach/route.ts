@@ -37,6 +37,10 @@ import {
   subscribersForSession,
 } from '@/lib/fitness/vuka-class-catalog';
 import {
+  mergeSubscribersIntoCoachSessions,
+  stampCatalogSeriesAndBookSubscribers,
+} from '@/lib/fitness/class-allocate';
+import {
   applyMessageAction,
   threadsForParticipant,
   totalUnread,
@@ -59,7 +63,8 @@ function buildCoachPortalPayload(
   to?: string
 ) {
   const portal = buildCoachPortalPayloadBase(store, coach, from, to);
-  const sessions = (portal.sessions || []).map((card) => {
+  const merged = mergeSubscribersIntoCoachSessions(store, portal.sessions || []);
+  const sessions = merged.map((card) => {
     const session = store.sessions.find((s) => s.id === card.session.id);
     if (!session) return { ...card, subscribed: [], subscribed_not_booked: [] };
     const subscribed = subscribersForSession(store, session).map((r) => ({
@@ -1328,6 +1333,7 @@ export async function POST(request: NextRequest) {
         now
       );
       store.sessions.push(...created);
+      stampCatalogSeriesAndBookSubscribers(store, created, now);
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,

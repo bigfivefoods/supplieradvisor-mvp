@@ -13,6 +13,7 @@ import {
   resolveAllocatedCharge,
   scheduleClassOnCalendar,
   sessionRosterNames,
+  stampCatalogSeriesAndBookSubscribers,
   suggestClassSchedule,
   updateClassDesk,
 } from './class-allocate';
@@ -145,6 +146,10 @@ assert.equal(switched.cancelled, 1);
 assert.equal(
   store.subscriptions.find((s) => s.plan_id === fsf.id)?.status,
   'cancelled'
+);
+assert.equal(
+  sessionRosterNames(store, scheduled.sessions[0].id).includes('Ada'),
+  false
 );
 
 const multi = allocateMemberToClass(store, {
@@ -386,5 +391,85 @@ const bevOn = store.clients.find((c) => c.id === 'cli_bev')!;
 assert.equal(bevOn.active, true);
 assert.equal(bevOn.membership_status, 'active');
 assert.equal(bevOn.membership_plan_id, boot.id);
+
+const diary = emptyFitgraphStore();
+ensureVukaClassCatalog(diary, {
+  companyId: VUKA_COMPANY_ID,
+  now: '2026-08-17T10:00:00.000Z',
+});
+const diaryFsf = diary.membership_plans.find((p) => p.code === 'VUKA_FSF_5AM')!;
+const diaryKb = diary.membership_plans.find((p) => p.code === 'VUKA_KB_1630')!;
+diary.clients.push({
+  id: 'cli_cam',
+  code: 'C1',
+  name: 'Cam',
+  membership_status: 'active',
+  active: true,
+  created_at: '2026-08-01T00:00:00.000Z',
+  updated_at: '2026-08-01T00:00:00.000Z',
+});
+diary.sessions.push({
+  id: 'ses_owner_fsf',
+  class_type_id: 'vuka_cls_fsf',
+  series_id: 'ser_random_owner',
+  date: '2026-08-24',
+  start_time: '05:00',
+  status: 'scheduled',
+  created_at: '2026-08-17T00:00:00.000Z',
+});
+diary.sessions.push({
+  id: 'ses_owner_kb',
+  class_type_id: 'vuka_cls_kb',
+  series_id: 'ser_random_kb',
+  date: '2026-08-24',
+  start_time: '16:30',
+  status: 'scheduled',
+  created_at: '2026-08-17T00:00:00.000Z',
+});
+const camOn = allocateMemberToClass(diary, {
+  clientId: 'cli_cam',
+  planId: diaryFsf.id,
+  now: '2026-08-17T10:00:00.000Z',
+});
+if ('error' in camOn) throw new Error(camOn.error);
+assert.ok(camOn.booked >= 1);
+assert.ok(sessionRosterNames(diary, 'ses_owner_fsf').includes('Cam'));
+assert.equal(sessionRosterNames(diary, 'ses_owner_kb').includes('Cam'), false);
+assert.equal(diary.sessions[0].series_id, 'ser_random_owner');
+
+diary.clients.push({
+  id: 'cli_dot',
+  code: 'D1',
+  name: 'Dot',
+  membership_status: 'active',
+  active: true,
+  created_at: '2026-08-01T00:00:00.000Z',
+  updated_at: '2026-08-01T00:00:00.000Z',
+});
+const dotOn = allocateMemberToClass(diary, {
+  clientId: 'cli_dot',
+  planId: diaryKb.id,
+  bookUpcoming: false,
+  now: '2026-08-17T10:00:00.000Z',
+});
+if ('error' in dotOn) throw new Error(dotOn.error);
+assert.equal(dotOn.booked, 0);
+assert.ok(sessionRosterNames(diary, 'ses_owner_kb').includes('Dot'));
+const stamped = stampCatalogSeriesAndBookSubscribers(
+  diary,
+  [diary.sessions[0], diary.sessions[1]],
+  '2026-08-17T10:00:00.000Z'
+);
+assert.equal(diary.sessions[0].series_id, 'vuka_ser_fsf_5am');
+assert.equal(diary.sessions[1].series_id, 'vuka_ser_kb_1630');
+assert.ok(stamped >= 1);
+assert.ok(
+  diary.bookings.some(
+    (b) =>
+      b.client_id === 'cli_dot' &&
+      b.session_id === 'ses_owner_kb' &&
+      b.status !== 'cancelled'
+  )
+);
 
 console.log('class-allocate.test.ts ok');

@@ -7,6 +7,8 @@ import {
   readHiregraphFromMetadata,
 } from '@/lib/hire/hiregraph';
 import { readFitgraphFromMetadata } from '@/lib/fitness/fitgraph';
+import { memberAllocatedUpcomingSessions } from '@/lib/fitness/class-allocate';
+import { loadWalletCompany } from '@/lib/b2c/load-company';
 import { readPhysiographFromMetadata } from '@/lib/clinic/physiograph';
 import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
 import { readMedicalgraphFromMetadata } from '@/lib/clinic/medicalgraph';
@@ -35,6 +37,11 @@ export async function buildMemberCalendar(
 
   async function meta(companyId: number) {
     if (cache.has(companyId)) return cache.get(companyId)!;
+    const company = await loadWalletCompany(companyId);
+    if (company?.meta) {
+      cache.set(companyId, company.meta);
+      return company.meta;
+    }
     const supabase = getSupabaseServer();
     const { data } = await supabase
       .from('profiles')
@@ -96,6 +103,7 @@ export async function buildMemberCalendar(
         const store = readFitgraphFromMetadata(raw);
         const client = store.clients.find((c) => c.id === mem.ref_id);
         if (client) {
+          const seen = new Set<string>();
           for (const b of store.bookings || []) {
             if (b.client_id !== client.id) continue;
             if (
@@ -114,6 +122,7 @@ export async function buildMemberCalendar(
             const [hh, mm] = start.split(':').map(Number);
             const endMin = (hh || 0) * 60 + (mm || 0) + dur;
             const end = `${String(Math.floor(endMin / 60) % 24).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+            seen.add(ses.id);
             events.push({
               id: `gym-${b.id}`,
               source: 'gym',
@@ -126,6 +135,33 @@ export async function buildMemberCalendar(
               href: mem.portal_path,
               status: b.status === 'waitlist' ? 'Waitlist' : 'Booked',
               description: `${brand} class. ${b.status === 'waitlist' ? 'On the waitlist.' : 'You are booked.'}`,
+            });
+          }
+          for (const ses of memberAllocatedUpcomingSessions(
+            store,
+            client.id,
+            today,
+            until
+          )) {
+            if (seen.has(ses.id)) continue;
+            const ct = store.class_types.find((t) => t.id === ses.class_type_id);
+            const start = String(ses.start_time || '09:00').slice(0, 5);
+            const dur = Number(ses.duration_min) || 45;
+            const [hh, mm] = start.split(':').map(Number);
+            const endMin = (hh || 0) * 60 + (mm || 0) + dur;
+            const end = `${String(Math.floor(endMin / 60) % 24).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+            events.push({
+              id: `gym-alloc-${ses.id}`,
+              source: 'gym',
+              brand,
+              title: ct?.name || 'Class',
+              date: ses.date,
+              start_time: start,
+              end_time: ses.end_time?.slice(0, 5) || end,
+              location: ses.location || brand,
+              href: mem.portal_path,
+              status: 'On your class',
+              description: `${brand} class. Saved to this class.`,
             });
           }
         }

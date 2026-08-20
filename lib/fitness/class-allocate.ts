@@ -8,6 +8,7 @@ import {
   newId,
   sessionBookingCount,
   weekdayOf,
+  type CoachSessionCard,
   type FitClient,
   type FitgraphStore,
   type FitMembershipPlan,
@@ -20,8 +21,11 @@ import {
   resolveSessionTimes,
 } from '@/lib/fitness/session-times';
 import {
+  activeClassSubscriptions,
+  catalogSlotForSession,
   memberMayBookSession,
   planCoversSession,
+  subscribersForSession,
   timetableSlotsForPlan,
 } from '@/lib/fitness/vuka-class-catalog';
 
@@ -200,22 +204,60 @@ export function suggestClassSchedule(
   };
 }
 
+export type SessionRosterRow = {
+  booking_id: string;
+  client_id: string;
+  name: string;
+  status: string;
+  rsvp: 'coming' | 'not_coming' | null;
+  coach_feedback: string | null;
+};
+
+/** Names on a class: booked people plus members saved to that class. */
+export function sessionRosterRows(
+  store: FitgraphStore,
+  sessionId: string
+): SessionRosterRow[] {
+  const session = store.sessions.find((s) => s.id === sessionId);
+  const rows: SessionRosterRow[] = [];
+  const seen = new Set<string>();
+  for (const b of store.bookings || []) {
+    if (b.session_id !== sessionId || b.status === 'cancelled') continue;
+    const cl = store.clients.find((c) => c.id === b.client_id);
+    const name = b.family_member_name || cl?.name || b.guest_name || '';
+    if (!name) continue;
+    seen.add(b.client_id);
+    rows.push({
+      booking_id: b.id,
+      client_id: b.client_id,
+      name,
+      status: b.status,
+      rsvp: b.rsvp || null,
+      coach_feedback: b.coach_feedback || null,
+    });
+  }
+  if (session) {
+    for (const row of subscribersForSession(store, session)) {
+      if (seen.has(row.client.id)) continue;
+      seen.add(row.client.id);
+      rows.push({
+        booking_id: row.booking?.id || `alloc_${session.id}_${row.client.id}`,
+        client_id: row.client.id,
+        name: row.client.name,
+        status: row.booking?.status || 'booked',
+        rsvp: row.booking?.rsvp || null,
+        coach_feedback: row.booking?.coach_feedback || null,
+      });
+    }
+  }
+  return rows.sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export function sessionRosterNames(
   store: FitgraphStore,
   sessionId: string
 ): string[] {
-  return (store.bookings || [])
-    .filter(
-      (b) =>
-        b.session_id === sessionId &&
-        b.status !== 'cancelled'
-    )
-    .map((b) => {
-      const cl = store.clients.find((c) => c.id === b.client_id);
-      return b.family_member_name || cl?.name || b.guest_name || '';
-    })
-    .filter(Boolean)
-    .sort((a, b) => a.localeCompare(b));
+  return sessionRosterRows(store, sessionId).map((r) => r.name);
 }
 
 export function upcomingSessionsForPlan(
@@ -228,6 +270,7 @@ export function upcomingSessionsForPlan(
       (s) =>
         s.status === 'scheduled' &&
         s.date >= fromIso &&
+        (!s.session_kind || s.session_kind === 'class') &&
         planCoversSession(plan, s, store)
     )
     .sort(
@@ -264,11 +307,10 @@ export function memberAllocatedUpcomingSessions(
   return (store.sessions || [])
     .filter((s) => {
       if (s.status !== 'scheduled') return false;
+      if (s.session_kind && s.session_kind !== 'class') return false;
       if (s.date < fromIso || s.date > toIso) return false;
       if (booked.has(s.id)) return false;
-      return plans.some(
-        (p) => p.unlocks_all_classes || planCoversSession(p, s, store)
-      );
+      return plans.some((p) => planCoversSession(p, s, store));
     })
     .sort(
       (a, b) =>
@@ -358,13 +400,131 @@ function bookMemberOntoUpcoming(
   fromIso: string,
   now: string
 ): number {
-  if (plan.unlocks_all_classes) return 0;
   let n = 0;
   for (const session of upcomingSessionsForPlan(store, plan, fromIso)) {
     const result = bookDeskMemberOntoSession(store, session, client, now);
     if (result === 'booked' || result === 'waitlist') n += 1;
   }
   return n;
+}
+
+function cancelUncoveredFutureBookings(
+  store: FitgraphStore,
+  client: FitClient,
+  today: string
+): number {
+  let n = 0;
+  for (const b of store.bookings || []) {
+    if (b.client_id !== client.id) continue;
+    if (
+      b.status === 'cancelled' ||
+      b.status === 'attended' ||
+      b.status === 'no_show'
+    ) {
+      continue;
+    }
+    const session = store.sessions.find((s) => s.id === b.session_id);
+    if (!session || session.status === 'cancelled') continue;
+    if (session.date < today) continue;
+    const covering = activeClassSubscriptions(store, client.id).some((x) =>
+      planCoversSession(x.plan, session, store)
+    );
+    if (covering) continue;
+    b.status = 'cancelled';
+    n += 1;
+  }
+  return n;
+}
+
+function syncMemberClassBookings(
+  store: FitgraphStore,
+  client: FitClient,
+  today: string,
+  now: string,
+  bookUpcoming: boolean
+): number {
+  cancelUncoveredFutureBookings(store, client, today);
+  if (!bookUpcoming || client.active === false) return 0;
+  let n = 0;
+  const seen = new Set<string>();
+  for (const x of activeClassSubscriptions(store, client.id)) {
+    if (seen.has(x.plan.id)) continue;
+    seen.add(x.plan.id);
+    n += bookMemberOntoUpcoming(store, client, x.plan, today, now);
+  }
+  return n;
+}
+
+/** When a class is put on the diary, stamp the catalog series and book members already saved to it. */
+export function stampCatalogSeriesAndBookSubscribers(
+  store: FitgraphStore,
+  sessions: FitSession[],
+  now: string
+): number {
+  let booked = 0;
+  for (const session of sessions) {
+    if (session.session_kind && session.session_kind !== 'class') continue;
+    const ser = String(session.series_id || '');
+    if (!ser.startsWith('vuka_ser_')) {
+      const slot = catalogSlotForSession(session);
+      if (slot) session.series_id = slot.series_id;
+    }
+    for (const row of subscribersForSession(store, session)) {
+      const result = bookDeskMemberOntoSession(store, session, row.client, now);
+      if (result === 'booked' || result === 'waitlist') booked += 1;
+    }
+  }
+  return booked;
+}
+
+export function mergeSubscribersIntoCoachSessions(
+  store: FitgraphStore,
+  sessions: CoachSessionCard[]
+): CoachSessionCard[] {
+  return sessions.map((card) => {
+    const session =
+      store.sessions.find((s) => s.id === card.session.id) || card.session;
+    const roster = [...(card.roster || [])];
+    const seen = new Set(roster.map((r) => r.client_id));
+    const subscribed = subscribersForSession(store, session).map((r) => ({
+      client_id: r.client.id,
+      name: r.client.name,
+      code: r.client.code,
+      plan_name: r.plan_name,
+      booked: r.booked,
+      email: r.client.email,
+      phone: r.client.phone,
+    }));
+    for (const row of subscribed) {
+      if (seen.has(row.client_id)) continue;
+      seen.add(row.client_id);
+      roster.push({
+        booking_id: `alloc_${session.id}_${row.client_id}`,
+        client_id: row.client_id,
+        status: 'booked',
+        plan: true,
+        actual: 'pending',
+        name: row.name,
+        email: row.email,
+        phone: row.phone,
+      });
+    }
+    const planned = roster.filter(
+      (r) =>
+        r.status === 'booked' ||
+        r.status === 'attended' ||
+        r.status === 'no_show'
+    ).length;
+    return {
+      ...card,
+      roster,
+      planned,
+      waitlist: roster.filter((r) => r.status === 'waitlist').length,
+      pending: roster.filter(
+        (r) => r.actual === 'pending' && r.status === 'booked'
+      ).length,
+    };
+  });
 }
 
 /** Actual billed amount for one class: per-class override, else list price. */
@@ -585,6 +745,7 @@ export function allocateMemberToClass(
       cancelled += 1;
     }
     client.membership_plan_id = null;
+    cancelUncoveredFutureBookings(store, client, today);
     return { subscription: null, booked: 0, cancelled };
   }
   if (!plan) {
@@ -660,10 +821,6 @@ export function allocateMemberToClass(
   client.updated_at = now;
 
   const live = status === 'active' || status === 'trialing';
-  let booked =
-    opts.bookUpcoming === false || !live
-      ? 0
-      : bookMemberOntoUpcoming(store, client, plan, today, now);
 
   for (const extraId of planIds.slice(1)) {
     const extraPlan = store.membership_plans.find((p) => p.id === extraId);
@@ -693,10 +850,15 @@ export function allocateMemberToClass(
       };
       store.subscriptions.push(extra);
     }
-    if (opts.bookUpcoming !== false && live) {
-      booked += bookMemberOntoUpcoming(store, client, extraPlan, today, now);
-    }
   }
+
+  const booked = syncMemberClassBookings(
+    store,
+    client,
+    today,
+    now,
+    opts.bookUpcoming !== false && live
+  );
 
   client.notes = applyChargedNote(client.notes, totalCharge);
   client.agreed_rate_zar = totalCharge;

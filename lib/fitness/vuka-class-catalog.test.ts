@@ -12,6 +12,7 @@ import {
   storeUsesClassSubscribe,
   memberMayBookSession,
   planCoversSession,
+  catalogSlotForSession,
   VUKA_COMPANY_ID,
   VUKA_MEMBERSHIP_PLANS,
 } from './vuka-class-catalog';
@@ -158,6 +159,28 @@ assert.equal(planCoversSession(fsfPlan, fsfSession, vuka), true);
 assert.equal(planCoversSession(fsfPlan, kbEvening, vuka), false);
 assert.equal(planCoversSession(kb6, kbEvening, vuka), false);
 assert.equal(planCoversSession(kb1630, kbEvening, vuka), true);
+assert.equal(
+  planCoversSession(
+    unlim,
+    { ...fsfSession, session_kind: 'coach_personal' },
+    vuka
+  ),
+  false
+);
+
+const ownerFsf = { ...fsfSession, series_id: 'ser_owner_fsf' };
+assert.equal(planCoversSession(fsfPlan, ownerFsf, vuka), true);
+assert.equal(planCoversSession(kb6, ownerFsf, vuka), false);
+assert.equal(catalogSlotForSession(ownerFsf)?.series_id, 'vuka_ser_fsf_5am');
+
+const ownerKbEve = {
+  ...kbEvening,
+  series_id: 'ser_owner_kb',
+  start_time: '16:30',
+};
+assert.equal(planCoversSession(kb6, ownerKbEve, vuka), false);
+assert.equal(planCoversSession(kb1630, ownerKbEve, vuka), true);
+assert.equal(catalogSlotForSession(ownerKbEve)?.series_id, 'vuka_ser_kb_1630');
 
 const client = {
   id: 'cli_1',

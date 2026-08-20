@@ -18,7 +18,10 @@ import {
   toneLinkClass,
 } from '@/components/fitness/FitForm';
 import { sessionBookingCount } from '@/lib/fitness/fitgraph';
-import { sessionRosterNames } from '@/lib/fitness/class-allocate';
+import {
+  sessionRosterNames,
+  sessionRosterRows,
+} from '@/lib/fitness/class-allocate';
 import { ClassBookedRoster } from '@/components/fitness/ClassBookedRoster';
 import { ProgrammeView } from '@/components/fitness/ProgrammeView';
 import {
@@ -609,19 +612,7 @@ export default function CalendarPage() {
 
   const rosterFor = (sessionId: string) => {
     if (!store) return [];
-    return store.bookings
-      .filter((b) => b.session_id === sessionId && b.status !== 'cancelled')
-      .map((b) => {
-        const cl = store.clients.find((c) => c.id === b.client_id);
-        return {
-          booking_id: b.id,
-          client_id: b.client_id,
-          name: b.family_member_name || cl?.name || b.guest_name || b.client_id,
-          status: b.status,
-          rsvp: b.rsvp || null,
-          coach_feedback: b.coach_feedback || null,
-        };
-      });
+    return sessionRosterRows(store, sessionId);
   };
 
   const markRoster = async (
@@ -1409,12 +1400,15 @@ export default function CalendarPage() {
                       selectedIds={addMemberIds}
                       onToggleAdd={toggleAddMember}
                       onBook={() => void saveMembersOnSession(s.id)}
-                      onMark={(id, status) => void markRoster(id, status)}
+                      onMark={(id, status) => {
+                        if (id.startsWith('alloc_')) return;
+                        void markRoster(id, status);
+                      }}
                       saving={saving}
                     />
                     <p className="text-[11px] text-slate-500">
-                      Only members booked on this class appear here — not the
-                      whole gym.{' '}
+                      Members saved to this class appear here — not the whole
+                      gym.{' '}
                       <Link
                         href="/dashboard/fitgraph/accounts"
                         className="font-bold text-yellow-800 underline"
@@ -1631,7 +1625,10 @@ export default function CalendarPage() {
                           selectedIds={addMemberIds}
                           onToggleAdd={toggleAddMember}
                           onBook={() => void saveMembersOnSession(s.id)}
-                          onMark={(id, status) => void markRoster(id, status)}
+                          onMark={(id, status) => {
+                            if (id.startsWith('alloc_')) return;
+                            void markRoster(id, status);
+                          }}
                           saving={saving}
                         />
                       ) : (
