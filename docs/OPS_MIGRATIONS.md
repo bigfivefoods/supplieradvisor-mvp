@@ -43,8 +43,9 @@ supabase/migrations/20260824_trade_projects.sql
 **Reliability** (Paystack webhook idempotency, serialize gym/clinic store writes, extra token indexes):
 
 ```text
+RUN_THIS_RELIABILITY_IN_SUPABASE.sql
 RUN_SAAS_RELIABILITY.sql
-docs/RUN_SAAS_RELIABILITY.sql
+docs/RUN_THIS_RELIABILITY_IN_SUPABASE.sql
 supabase/migrations/20260825_saas_reliability.sql
 ```
 
