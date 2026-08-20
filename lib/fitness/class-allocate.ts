@@ -236,6 +236,46 @@ export function upcomingSessionsForPlan(
     );
 }
 
+/** Sessions this member is allocated to, including those without a booking row. */
+export function memberAllocatedUpcomingSessions(
+  store: FitgraphStore,
+  clientId: string,
+  fromIso: string,
+  toIso: string
+): FitSession[] {
+  const plans = (store.subscriptions || [])
+    .filter(
+      (s) =>
+        s.client_id === clientId &&
+        (s.status === 'active' || s.status === 'trialing')
+    )
+    .map((s) => store.membership_plans.find((p) => p.id === s.plan_id))
+    .filter((p): p is FitMembershipPlan => Boolean(p && p.active !== false));
+  if (!plans.length) return [];
+  const booked = new Set(
+    (store.bookings || [])
+      .filter(
+        (b) =>
+          b.client_id === clientId &&
+          b.status !== 'cancelled'
+      )
+      .map((b) => b.session_id)
+  );
+  return (store.sessions || [])
+    .filter((s) => {
+      if (s.status !== 'scheduled') return false;
+      if (s.date < fromIso || s.date > toIso) return false;
+      if (booked.has(s.id)) return false;
+      return plans.some(
+        (p) => p.unlocks_all_classes || planCoversSession(p, s, store)
+      );
+    })
+    .sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time)
+    );
+}
+
 export function calendarCoverage(
   store: FitgraphStore,
   plan: FitMembershipPlan,

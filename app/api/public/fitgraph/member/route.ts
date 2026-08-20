@@ -10,6 +10,7 @@ import {
   FITGRAPH_CLIENT_TOKENS_KEY,
   buildMemberPortalPayload as buildMemberPortalPayloadBase,
   classTypeById,
+  coachById,
   evaluateMemberAccess,
   newId,
   parseCompanyIdFromToken,
@@ -22,6 +23,9 @@ import {
   type FitClient,
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
+import { memberAllocatedUpcomingSessions } from '@/lib/fitness/class-allocate';
+import { addDaysIso } from '@/lib/schedule/recurrence';
+import { isoDateInZone } from '@/lib/fitness/gym-local-time';
 import { applyMemberClassRsvp } from '@/lib/fitness/member-class-rsvp';
 import { notifyPatientBookingPush } from '@/lib/b2c/member-push';
 import { portalInvoicesForPerson } from '@/lib/b2c/member-account-portal';
@@ -164,6 +168,43 @@ function decorateMemberPortal(
     status: x.sub.status,
     current_period_end: x.sub.current_period_end || null,
   }));
+  const from = String(portal.from || '');
+  const horizon = addDaysIso(from || isoDateInZone(), 180);
+  const already = new Set(
+    (portal.my_bookings || []).map((b) => String(b.session_id || ''))
+  );
+  const allocated = memberAllocatedUpcomingSessions(
+    store,
+    client.id,
+    from,
+    horizon
+  )
+    .filter((s) => !already.has(s.id))
+    .map((s) => {
+      const ct = classTypeById(store, s.class_type_id);
+      const coach = coachById(store, s.coach_id);
+      return {
+        booking_id: `alloc_${s.id}`,
+        status: 'booked' as const,
+        session_id: s.id,
+        date: s.date,
+        start_time: s.start_time,
+        class_name: ct?.name || 'Class',
+        coach_name: coach?.name,
+        location: s.location,
+        upcoming: true,
+        feedback_token: null as string | null,
+        feedback_submitted_at: null as string | null,
+        rsvp: null as null,
+      };
+    });
+  const my_bookings = [...(portal.my_bookings || []), ...allocated].sort(
+    (a, b) =>
+      a.date === b.date
+        ? String(a.start_time).localeCompare(String(b.start_time))
+        : a.date.localeCompare(b.date)
+  );
+
   const open_classes = (portal.open_classes || []).map((c) => {
     const session = store.sessions.find((s) => s.id === c.id);
     const gate = session
@@ -179,6 +220,8 @@ function decorateMemberPortal(
   });
   return {
     ...portal,
+    my_bookings,
+    upcoming_count: my_bookings.filter((b) => b.upcoming !== false).length,
     open_classes,
     vacancies: open_classes.filter((c) => !c.full && !c.my_status),
     shop: gymShopCatalog(store),

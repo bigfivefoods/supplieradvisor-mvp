@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { GymShopPay } from '@/components/fitness/GymShopPay';
 import { AdvisorPayAccepted } from '@/components/billing/ApplePayAccepted';
-import { ClassSubscriptionReport } from '@/components/fitness/ClassSubscriptionReport';
+
 import {
   emptyDebitBankForm,
   MemberDebitBankFields,
@@ -32,6 +32,7 @@ import {
 import type { GymShopItem } from '@/lib/fitness/gym-shop';
 import type { GymInventoryShopItem } from '@/lib/fitness/gym-inventory-shop';
 import { sessionHasEnded } from '@/lib/services/booking-feedback';
+import { sessionIsUpcoming } from '@/lib/fitness/gym-local-time';
 import { MemberRelationshipSection } from '@/components/services/MemberRelationshipSection';
 import { MemberGoalsPanel } from '@/components/fitness/MemberGoalsPanel';
 import { MemberOpenDiaryWeek } from '@/components/fitness/MemberOpenDiaryWeek';
@@ -750,12 +751,13 @@ export default function MemberFitgraphPortalPage() {
 
   const formatDay = gymFormatDay;
   const needBank = Boolean(portal.require_debit_bank && !portal.bank?.complete);
+  const gymTz = portal.timezone || 'Africa/Johannesburg';
   const bookedUpcoming = (portal.my_bookings || [])
     .filter(
       (b) =>
         b.status !== 'cancelled' &&
         b.rsvp !== 'not_coming' &&
-        !sessionHasEnded(b.date, b.start_time)
+        sessionIsUpcoming(b.date, b.start_time, { timeZone: gymTz })
     )
     .slice()
     .sort((a, b) =>
@@ -829,7 +831,7 @@ export default function MemberFitgraphPortalPage() {
             brand={portal.brand}
             eyebrow="Member · GymAdvisor®"
           />
-          <div className="mt-4 flex items-center gap-3">
+          <div className="mt-4 flex items-end gap-3">
             {portal.client.photo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -881,7 +883,6 @@ export default function MemberFitgraphPortalPage() {
         </div>
       }
     >
-        <PopiaConsentNotice brand={portal.brand} />
         {needBank ? (
           <button
             type="button"
@@ -891,46 +892,46 @@ export default function MemberFitgraphPortalPage() {
             Complete membership — add bank details for the gym debit order.
           </button>
         ) : null}
-        {tab === 'open' || tab === 'checkin' || youTab ? (
-          <MemberAnnouncementsFeed
-            items={portal.announcements}
-            brand={portal.brand}
-            tone="yellow"
-          />
-        ) : null}
-        {tab === 'profile' ? (
-          <MemberPortalInvoices invoices={portal.invoices} />
+        <GymFlash error={error} msg={msg} />
+
+        {youTab ? (
+          <div className="space-y-3">
+            <MemberAnnouncementsFeed
+              items={portal.announcements}
+              brand={portal.brand}
+              tone="yellow"
+            />
+            <div className="flex gap-1 rounded-2xl border border-slate-200 bg-white p-1 dark:border-white/10 dark:bg-neutral-900">
+              {(
+                [
+                  ['profile', 'Profile'],
+                  ['messages', 'Inbox'],
+                  ['checkin', 'Check in'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => selectTab(id)}
+                  className="min-h-9 flex-1 rounded-xl px-2 text-[11px] font-black"
+                  style={
+                    tab === id ? { backgroundColor: color, color: ink } : undefined
+                  }
+                >
+                  {label}
+                  {id === 'messages' && portal.messages_unread
+                    ? ` (${portal.messages_unread})`
+                    : ''}
+                </button>
+              ))}
+            </div>
+          </div>
         ) : null}
         {tab === 'profile' ? (
           <B2cAutoLinkBanner token={token} tone="yellow" />
         ) : null}
-        <GymFlash error={error} msg={msg} />
-
-        {youTab ? (
-          <div className="flex gap-1 rounded-2xl border border-slate-200 bg-white p-1 dark:border-white/10 dark:bg-neutral-900 md:hidden">
-            {(
-              [
-                ['profile', 'Profile'],
-                ['messages', 'Inbox'],
-                ['checkin', 'Check in'],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => selectTab(id)}
-                className="min-h-9 flex-1 rounded-xl px-2 text-[11px] font-black"
-                style={
-                  tab === id ? { backgroundColor: color, color: ink } : undefined
-                }
-              >
-                {label}
-                {id === 'messages' && portal.messages_unread
-                  ? ` (${portal.messages_unread})`
-                  : ''}
-              </button>
-            ))}
-          </div>
+        {tab === 'profile' ? (
+          <MemberPortalInvoices invoices={portal.invoices} />
         ) : null}
 
         {tab === 'share' && (
@@ -1095,14 +1096,6 @@ export default function MemberFitgraphPortalPage() {
                 ))}
               </ul>
             ) : null}
-            {portal.class_report ? (
-              <ClassSubscriptionReport
-                report={portal.class_report}
-                tone="member"
-                title="My attendance this period"
-              />
-            ) : null}
-
             <div className="space-y-2">
               <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
                 History
@@ -1499,7 +1492,9 @@ export default function MemberFitgraphPortalPage() {
                           ? 'Coming'
                           : b.status === 'waitlist'
                             ? 'Waitlist'
-                            : b.status}
+                            : String(b.booking_id).startsWith('alloc_')
+                              ? 'On your class'
+                              : b.status}
                       </span>
                       <div className="mt-1.5">
                         <GymCalendarLink
@@ -1514,7 +1509,8 @@ export default function MemberFitgraphPortalPage() {
                         </div>
                       ) : null}
                     </div>
-                    {b.status === 'booked' || b.status === 'waitlist' ? (
+                    {(b.status === 'booked' || b.status === 'waitlist') &&
+                    !String(b.booking_id).startsWith('alloc_') ? (
                       <div className="flex shrink-0 flex-col gap-1">
                         <button
                           type="button"
@@ -2018,6 +2014,7 @@ export default function MemberFitgraphPortalPage() {
           </div>
         )}
 
+        <PopiaConsentNotice brand={portal.brand} />
         <p className="pb-4 text-center text-[10px] text-slate-400">
           Powered by GymAdvisor® · SupplierAdvisor
         </p>

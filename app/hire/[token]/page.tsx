@@ -502,7 +502,7 @@ export default function HireCustomerPortalPage() {
               {portal.bio}
             </p>
           ) : null}
-          <div className="mt-4 flex items-center gap-3">
+          <div className="mt-4 flex items-end gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/20">
               <User className="h-5 w-5" />
             </div>
@@ -540,7 +540,6 @@ export default function HireCustomerPortalPage() {
         </div>
       }
     >
-        <PopiaConsentNotice brand={portal.brand} />
         <B2cAutoLinkBanner token={token} tone="cyan" />
         <AdvisorAnnouncementFeed items={portal.announcements} />
 
@@ -1181,6 +1180,8 @@ export default function HireCustomerPortalPage() {
             </p>
           </div>
         )}
+
+        <PopiaConsentNotice brand={portal.brand} />
 
       {/* ── Request hire sheet ─────────────────────────────────── */}
       {selectedItem ? (

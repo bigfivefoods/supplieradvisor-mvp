@@ -160,9 +160,9 @@ export function MemberAdvisorShell<T extends string = string>({
         }}
       >
         <div className="mx-auto max-w-6xl px-4 py-5 md:px-8 md:py-10">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-stretch justify-between gap-3">
             <div className="min-w-0 flex-1">{header}</div>
-            <PortalHeaderTools appHref={appHref} />
+            <PortalHeaderTools appHref={appHref} spread />
           </div>
         </div>
       </header>

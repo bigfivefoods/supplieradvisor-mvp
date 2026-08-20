@@ -128,7 +128,7 @@ export function ClinicYouSubnav({
     ...(showHistory ? ([['history', 'History']] as Array<[ClinicMemberTabId, string]>) : []),
   ];
   return (
-    <div className="flex gap-1 rounded-2xl border border-slate-200 bg-white p-1 dark:border-white/10 dark:bg-neutral-900 md:hidden">
+    <div className="flex gap-1 rounded-2xl border border-slate-200 bg-white p-1 dark:border-white/10 dark:bg-neutral-900">
       {chips.map(([id, label]) => (
         <button
           key={id}

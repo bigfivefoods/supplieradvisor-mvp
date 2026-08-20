@@ -22,6 +22,7 @@ import { buildRelationshipSummary } from '@/lib/fitness/fitgraph-relationship';
 import { publishedAnnouncements } from '@/lib/services/member-announcements';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { bookingEligibleForClientRating } from '@/lib/services/booking-feedback';
+import { isoDateInZone } from '@/lib/fitness/gym-local-time';
 import { compactWorkingHours } from '@/lib/schedule/working-hours';
 import {
   SYS_COACH_TIME_CODE,
@@ -1666,9 +1667,10 @@ export function buildMemberPortalPayload(
   from?: string,
   to?: string
 ) {
-  const start = from || new Date().toISOString().slice(0, 10);
+  const tz = store.settings?.timezone || 'Africa/Johannesburg';
+  const start = from || isoDateInZone(tz);
   const endDate = new Date(start + 'T12:00:00');
-  endDate.setDate(endDate.getDate() + 28);
+  endDate.setDate(endDate.getDate() + 90);
   const end = to || endDate.toISOString().slice(0, 10);
 
   const shareSchedule = client.share_schedule !== false;

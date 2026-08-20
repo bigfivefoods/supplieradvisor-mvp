@@ -345,7 +345,7 @@ export default function MemberMedicalgraphPortalPage() {
             brand={portal.brand}
             eyebrow="Patient portal · MedicalAdvisor®"
           />
-          <div className="mt-4 flex items-center gap-3">
+          <div className="mt-4 flex items-end gap-3">
             {portal.patient.photo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -375,24 +375,23 @@ export default function MemberMedicalgraphPortalPage() {
         </div>
       }
     >
-        <PopiaConsentNotice brand={portal.brand} />
         {youTab ? <B2cAutoLinkBanner token={token} tone="indigo" /> : null}
-        {tab === 'open' || tab === 'mine' || youTab ? (
-          <MemberAnnouncementsFeed
-            items={portal.announcements}
-            brand={portal.brand}
-            tone="indigo"
-          />
-        ) : null}
         <ClinicFlash error={error} msg={msg} />
         {youTab ? (
-          <ClinicYouSubnav
-            tab={tab}
-            onTab={selectTab}
-            color={color}
-            messagesUnread={portal.messages_unread}
-            showHistory
-          />
+          <div className="space-y-3">
+            <MemberAnnouncementsFeed
+              items={portal.announcements}
+              brand={portal.brand}
+              tone="indigo"
+            />
+            <ClinicYouSubnav
+              tab={tab}
+              onTab={selectTab}
+              color={color}
+              messagesUnread={portal.messages_unread}
+              showHistory
+            />
+          </div>
         ) : null}
 
         {tab === 'share' && (
@@ -776,6 +775,7 @@ export default function MemberMedicalgraphPortalPage() {
           </div>
         )}
 
+        <PopiaConsentNotice brand={portal.brand} />
         <p className="text-center text-[10px] text-slate-400 pb-8">
           Powered by MedicalAdvisor® · SupplierAdvisor
         </p>

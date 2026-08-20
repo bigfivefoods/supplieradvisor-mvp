@@ -14,10 +14,12 @@ import { advisorBrandInk } from '@/lib/advisors/brand-ink';
 export function gymFormatDay(date: string, time: string) {
   try {
     const d = new Date(`${date}T12:00:00`);
+    const sameYear = d.getFullYear() === new Date().getFullYear();
     return `${d.toLocaleDateString(undefined, {
       weekday: 'short',
       day: 'numeric',
       month: 'short',
+      ...(sameYear ? {} : { year: 'numeric' }),
     })} · ${String(time).slice(0, 5)}`;
   } catch {
     return `${date} · ${String(time).slice(0, 5)}`;
