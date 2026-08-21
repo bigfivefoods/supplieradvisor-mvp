@@ -79,6 +79,22 @@ export function advisorPwaStartPath(module: AdvisorPwaModule, token: string): st
   return `/pwa/${module}/${encodeURIComponent(token)}`;
 }
 
+/** Stay on the company PWA to create an account and join — not the public website. */
+export function advisorPwaJoinPath(module: AdvisorPwaModule, token: string): string {
+  return `${advisorPwaStartPath(module, token)}?join=1`;
+}
+
+export function advisorModuleFromJoinKind(
+  kind: string | null | undefined
+): AdvisorPwaModule | null {
+  const k = String(kind || '').trim().toLowerCase();
+  if (isAdvisorPwaModule(k)) return k;
+  const hit = (Object.keys(JOIN_KIND) as AdvisorPwaModule[]).find(
+    (mod) => JOIN_KIND[mod] === k
+  );
+  return hit || null;
+}
+
 export function advisorPwaManifestPath(module: AdvisorPwaModule, token: string): string {
   return `/api/public/advisor-pwa/manifest?module=${encodeURIComponent(module)}&token=${encodeURIComponent(token)}`;
 }
@@ -92,9 +108,9 @@ export function advisorPwaIconPath(
   return `/api/public/advisor-pwa/icon?module=${encodeURIComponent(module)}&token=${encodeURIComponent(token)}&size=${size}`;
 }
 
-/** 1200×630 share card — company logo, not SupplierAdvisor. */
+/** 1200×630 share card — company logo, not SupplierAdvisor. `v=` busts stale OG. */
 export function advisorPwaOgPath(module: AdvisorPwaModule, token: string): string {
-  return `/api/public/advisor-pwa/og?module=${encodeURIComponent(module)}&token=${encodeURIComponent(token)}`;
+  return `/api/public/advisor-pwa/og?module=${encodeURIComponent(module)}&token=${encodeURIComponent(token)}&v=2`;
 }
 
 export function advisorPwaShareCopy(brand: AdvisorPwaBrand, url: string): {
@@ -104,19 +120,14 @@ export function advisorPwaShareCopy(brand: AdvisorPwaBrand, url: string): {
 } {
   return {
     title: brand.brandName,
-    text: `Install ${brand.brandName} — ${brand.advisorLabel} member app`,
+    text: brand.brandName,
     url,
   };
 }
 
-/** WhatsApp body: company brand first, then module, then install URL (OG unfurl). */
-export function advisorPwaWhatsAppBody(brand: AdvisorPwaBrand, url: string): string {
-  return [
-    `Add ${brand.brandName} to your phone.`,
-    `${brand.advisorLabel} member app for ${brand.audience}.`,
-    '',
-    url,
-  ].join('\n');
+/** WhatsApp body is the join URL only — logo comes from the OG unfurl. */
+export function advisorPwaWhatsAppBody(_brand: AdvisorPwaBrand, url: string): string {
+  return String(url || '').trim();
 }
 
 export const ADVISOR_PWA_ASSET_CORS = {
@@ -160,6 +171,17 @@ export function normalizeHexColor(raw: string | null | undefined, fallback: stri
   return fallback;
 }
 
+/** Native `<input type="color">` paints #000000 unless the value is lowercase #rrggbb. */
+export function htmlColorValue(
+  raw: string | null | undefined,
+  fallback: string
+): string {
+  const v = normalizeHexColor(raw, fallback);
+  if (/^#[0-9a-f]{6}$/.test(v)) return v;
+  const fb = normalizeHexColor(fallback, '#0c4a6e');
+  return /^#[0-9a-f]{6}$/.test(fb) ? fb : '#0c4a6e';
+}
+
 export function pwaShortName(name: string, max = 12): string {
   const t = name.trim();
   if (t.length <= max) return t;
@@ -199,11 +221,12 @@ function memberBasePath(module: AdvisorPwaModule): string {
 }
 
 function joinPath(module: AdvisorPwaModule, token: string): string {
+  return advisorPwaJoinPath(module, token);
+}
+
+function joinGymApplicationPath(module: AdvisorPwaModule, token: string): string {
   if (module === 'fitgraph') return gymJoinMemberPath(token, 'group');
-  const t = encodeURIComponent(token);
-  if (module === 'hiregraph') return `/hire/${t}`;
-  if (module === 'retailgraph') return `/embed/retail/${t}`;
-  return `/embed/advisor/${module}/${t}`;
+  return '';
 }
 
 function joinPrivatePath(module: AdvisorPwaModule, token: string): string {
@@ -270,7 +293,7 @@ export function buildAdvisorPwaBrand(opts: {
     startPath: advisorPwaStartPath(opts.module, opts.publicToken),
     memberBasePath: memberBasePath(opts.module),
     joinPath: joinPath(opts.module, opts.publicToken),
-    joinGymPath: joinPath(opts.module, opts.publicToken),
+    joinGymPath: joinGymApplicationPath(opts.module, opts.publicToken),
     joinPrivatePath: joinPrivatePath(opts.module, opts.publicToken),
     joinKind: JOIN_KIND[opts.module],
     enabled,

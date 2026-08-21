@@ -88,8 +88,10 @@ const LEGACY_GYM_PURPLE = '#7c3aed';
 
 export function gymBrandColor(raw?: string | null): string {
   const c = String(raw || '').trim();
-  if (!c || c.toLowerCase() === LEGACY_GYM_PURPLE) return GYM_BRAND_YELLOW;
-  return c;
+  if (!c || c.toLowerCase() === LEGACY_GYM_PURPLE) return GYM_BRAND_YELLOW.toLowerCase();
+  if (/^#[0-9a-fA-F]{6}$/.test(c)) return c.toLowerCase();
+  if (/^[0-9a-fA-F]{6}$/.test(c)) return `#${c.toLowerCase()}`;
+  return GYM_BRAND_YELLOW.toLowerCase();
 }
 
 export const COACH_SPECIALTIES = [

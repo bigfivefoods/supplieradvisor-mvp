@@ -2,7 +2,11 @@
  * Run: npx --yes tsx lib/auth/oauth-return.test.ts
  */
 import assert from 'node:assert/strict';
-import { isInAppBrowserOauthError, isPrivyOauthCallback } from './oauth-return';
+import {
+  isInAppBrowserOauthError,
+  isPrivyOauthCallback,
+  standaloneOauthContinueMessage,
+} from './oauth-return';
 
 assert.equal(
   isPrivyOauthCallback('privy_oauth_code=abc&privy_oauth_state=xyz'),
@@ -22,5 +26,14 @@ assert.equal(
   true
 );
 assert.equal(isInAppBrowserOauthError(new Error('network down')), false);
+assert.match(
+  standaloneOauthContinueMessage('google', 'Balance'),
+  /come back to Balance/i
+);
+assert.ok(!/gym/i.test(standaloneOauthContinueMessage('google', 'Balance')));
+assert.match(
+  standaloneOauthContinueMessage('google'),
+  /this app/
+);
 
 console.log('oauth-return tests ok');

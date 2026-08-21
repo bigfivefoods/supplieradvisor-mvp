@@ -10,6 +10,7 @@ import {
   advisorPwaShareCopy,
   advisorPwaWhatsAppBody,
   buildAdvisorPwaBrand,
+  htmlColorValue,
   pwaSettingsPatch,
   readPwaSettings,
   type AdvisorPwaModule,
@@ -21,6 +22,9 @@ import { MEMBER_APP_QR_PRINT_SIZE, memberAppQrSrc } from '@/lib/b2c/member-app';
 
 const inp =
   'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/15 dark:bg-neutral-950';
+
+const colorSwatch =
+  'mt-1 h-10 w-14 cursor-pointer appearance-none rounded-xl border border-slate-200 bg-white p-0.5 dark:border-white/15 [&::-moz-color-swatch]:rounded-[10px] [&::-moz-color-swatch]:border-0 [&::-webkit-color-swatch]:rounded-[10px] [&::-webkit-color-swatch]:border-0 [&::-webkit-color-swatch-wrapper]:p-0';
 
 export function AdvisorMemberPwaCard({
   module,
@@ -226,12 +230,8 @@ export function AdvisorMemberPwaCard({
             Theme colour
             <input
               type="color"
-              className="mt-1 h-10 w-full cursor-pointer rounded-xl border border-slate-200 bg-white dark:border-white/15"
-              value={
-                draft.pwa_theme_color && /^#[0-9a-fA-F]{6}$/.test(draft.pwa_theme_color)
-                  ? draft.pwa_theme_color
-                  : preview.themeColor
-              }
+              className={colorSwatch}
+              value={htmlColorValue(draft.pwa_theme_color, preview.themeColor)}
               onChange={(e) =>
                 setDraft((d) => ({ ...d, pwa_theme_color: e.target.value }))
               }
@@ -241,13 +241,11 @@ export function AdvisorMemberPwaCard({
             Splash background
             <input
               type="color"
-              className="mt-1 h-10 w-full cursor-pointer rounded-xl border border-slate-200 bg-white dark:border-white/15"
-              value={
-                draft.pwa_background_color &&
-                /^#[0-9a-fA-F]{6}$/.test(draft.pwa_background_color)
-                  ? draft.pwa_background_color
-                  : preview.backgroundColor
-              }
+              className={colorSwatch}
+              value={htmlColorValue(
+                draft.pwa_background_color,
+                preview.backgroundColor
+              )}
               onChange={(e) =>
                 setDraft((d) => ({
                   ...d,

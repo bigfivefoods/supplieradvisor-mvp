@@ -12,18 +12,39 @@ import {
   normalizeHexColor,
   advisorPwaIconPath,
   advisorPwaOgPath,
+  advisorModuleFromJoinKind,
+  advisorPwaJoinPath,
   advisorPwaShareCopy,
   advisorPwaWhatsAppBody,
+  htmlColorValue,
   pwaSettingsPatch,
   pwaShortName,
   readPwaSettings,
 } from './member-pwa';
 import { supabaseRenderIconUrl } from './pwa-icon';
 import { preferPngLogoUrl } from '@/lib/business/company-logo';
+import {
+  isPlaceholderPhone,
+  normalizeWhatsAppNumber,
+  whatsAppUrl,
+} from '@/lib/services/advisor-whatsapp';
 
 assert.equal(normalizeHexColor('#E8E830', '#000000'), '#e8e830');
 assert.equal(normalizeHexColor('0077b6', '#000'), '#0077b6');
 assert.equal(normalizeHexColor('nope', '#0c4a6e'), '#0c4a6e');
+assert.equal(htmlColorValue('#E8E830', '#0c4a6e'), '#e8e830');
+assert.equal(htmlColorValue('not-a-color', '#E8E830'), '#e8e830');
+assert.equal(htmlColorValue('', '#0f172a'), '#0f172a');
+assert.equal(normalizeWhatsAppNumber('000000000000'), null);
+assert.equal(isPlaceholderPhone('000 000 0000'), true);
+assert.equal(isPlaceholderPhone('000000000000'), true);
+assert.equal(isPlaceholderPhone('0'), false);
+assert.equal(isPlaceholderPhone('0821234567'), false);
+assert.equal(isPlaceholderPhone(''), false);
+assert.match(
+  whatsAppUrl('000000000000', 'https://example.com/pwa'),
+  /^https:\/\/wa\.me\/\?text=/
+);
 assert.equal(pwaShortName('VUKA Fitness'), 'VUKA Fitness');
 assert.equal(pwaShortName('VUKA Fitness Studio West'), 'VUKA Fitness');
 assert.equal(advisorPwaStartPath('fitgraph', 'fg_110_abc'), '/pwa/fitgraph/fg_110_abc');
@@ -53,7 +74,10 @@ assert.equal(brand.brandName, 'VUKA Fitness');
 assert.equal(brand.themeColor, '#e8e830');
 assert.equal(brand.iconUrl, 'https://cdn.example/vuka.png');
 assert.equal(brand.joinKind, 'gym');
-assert.equal(brand.joinPath, '/join/fitgraph/fg_110_abc?kind=group');
+assert.equal(brand.joinPath, '/pwa/fitgraph/fg_110_abc?join=1');
+assert.equal(advisorPwaJoinPath('physiograph', 'pg_1'), '/pwa/physiograph/pg_1?join=1');
+assert.equal(advisorModuleFromJoinKind('physio'), 'physiograph');
+assert.equal(advisorModuleFromJoinKind('gym'), 'fitgraph');
 assert.equal(brand.joinGymPath, '/join/fitgraph/fg_110_abc?kind=group');
 assert.equal(brand.joinPrivatePath, '/join/fitgraph/fg_110_abc?kind=private');
 assert.equal(brand.enabled, true);
@@ -80,21 +104,21 @@ assert.equal(
 );
 assert.equal(
   advisorPwaOgPath('fitgraph', 'fg_110_abc'),
-  '/api/public/advisor-pwa/og?module=fitgraph&token=fg_110_abc'
+  '/api/public/advisor-pwa/og?module=fitgraph&token=fg_110_abc&v=2'
 );
 const share = advisorPwaShareCopy(brand, 'https://www.supplieradvisor.com/pwa/fitgraph/fg_110_abc');
 assert.equal(share.title, 'VUKA Fitness');
-assert.match(share.text, /GymAdvisor/);
+assert.equal(share.text, 'VUKA Fitness');
 assert.ok(!/SupplierAdvisor/i.test(share.text));
+assert.ok(!/GymAdvisor/i.test(share.text));
 const wa = advisorPwaWhatsAppBody(
   brand,
   'https://www.supplieradvisor.com/pwa/fitgraph/fg_110_abc'
 );
-assert.match(wa, /VUKA Fitness/);
-assert.match(wa, /GymAdvisor/);
-assert.match(wa, /\/pwa\/fitgraph\/fg_110_abc/);
-assert.ok(!/^SupplierAdvisor/im.test(wa.split('\n')[0]));
-assert.ok(!/Install SupplierAdvisor/i.test(wa));
+assert.equal(wa, 'https://www.supplieradvisor.com/pwa/fitgraph/fg_110_abc');
+assert.ok(!/GymAdvisor/i.test(wa));
+assert.ok(!/Add /i.test(wa));
+assert.ok(!/000000000000/.test(wa));
 
 assert.equal(
   supabaseRenderIconUrl(
@@ -118,6 +142,9 @@ const other = buildAdvisorPwaBrand({
   companyId: 9,
   settings: { brand_name: 'Cape Physio', pwa_enabled: false },
 });
+assert.equal(other.joinPath, '/pwa/physiograph/pg_9_xyz?join=1');
+assert.equal(other.joinGymPath, '');
+assert.ok(!other.joinPath.includes('/embed/'));
 assert.equal(other.enabled, false);
 assert.notEqual(advisorPwaWebManifest(other).id, manifest.id);
 

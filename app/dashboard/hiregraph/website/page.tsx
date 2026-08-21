@@ -126,6 +126,10 @@ export default function HiregraphWebsitePage() {
             }
             onSave={() => void save()}
             saving={saving}
+            settings={store.settings as Record<string, unknown>}
+            onSavePwa={async (pwa) => {
+              await post({ action: 'update_settings', settings: pwa });
+            }}
             portalPath={token ? hirePublicEmbedPath(token) : ''}
             bookingLabel="Allow hire requests from the portal"
           />

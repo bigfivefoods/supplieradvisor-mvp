@@ -222,10 +222,10 @@ export function advisorPwaPageMetadata(brand: AdvisorPwaBrand | null): Metadata 
   const appleIcon = advisorPwaIconPath(brand.module, brand.publicToken, 180);
   const appIcon = advisorPwaIconPath(brand.module, brand.publicToken, 192);
   const og = advisorPwaOgPath(brand.module, brand.publicToken);
-  const shareTitle = `${brand.brandName} · ${brand.advisorLabel}`;
+  const shareTitle = brand.brandName;
   return {
     title: { absolute: shareTitle },
-    description: brand.description,
+    description: brand.brandName,
     applicationName: brand.shortName,
     robots: 'noindex',
     appleWebApp: {
@@ -242,8 +242,8 @@ export function advisorPwaPageMetadata(brand: AdvisorPwaBrand | null): Metadata 
     openGraph: {
       type: 'website',
       title: brand.brandName,
-      description: brand.description,
-      siteName: brand.advisorLabel,
+      description: brand.brandName,
+      siteName: brand.brandName,
       url: brand.startPath,
       images: [
         {
@@ -258,7 +258,7 @@ export function advisorPwaPageMetadata(brand: AdvisorPwaBrand | null): Metadata 
     twitter: {
       card: 'summary_large_image',
       title: brand.brandName,
-      description: brand.description,
+      description: brand.brandName,
       images: [og],
     },
     other: {

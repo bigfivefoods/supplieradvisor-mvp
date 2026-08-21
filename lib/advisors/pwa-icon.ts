@@ -5,7 +5,6 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { AdvisorPwaBrand } from '@/lib/advisors/member-pwa';
-import { advisorBrandInk } from '@/lib/advisors/brand-ink';
 import { preferPngLogoUrl } from '@/lib/business/company-logo';
 import { ttlGet, ttlSet } from '@/lib/system/memory-ttl';
 
@@ -292,31 +291,20 @@ export async function renderAdvisorPwaIconPng(
   return png;
 }
 
-function xmlEscape(s: string): string {
-  return String(s).replace(/[&<>"']/g, (ch) => {
-    if (ch === '&') return '&amp;';
-    if (ch === '<') return '&lt;';
-    if (ch === '>') return '&gt;';
-    if (ch === '"') return '&quot;';
-    return '&apos;';
-  });
-}
-
-/** WhatsApp / iMessage / Slack card: company mark on brand colour, not SA. */
+/** WhatsApp / iMessage card: company mark only — no captions. */
 export async function renderAdvisorPwaOgPng(
   brand: AdvisorPwaBrand
 ): Promise<Buffer> {
   const sharp = (await import('sharp')).default;
   const W = 1200;
   const H = 630;
-  const cacheKey = `pwa-og:${brand.module}:${brand.publicToken}:${brand.iconUrl}:${brand.brandName}:${brand.backgroundColor}`;
+  const cacheKey = `pwa-og-logo:${brand.module}:${brand.publicToken}:${brand.iconUrl}:${brand.backgroundColor}:${brand.themeColor}`;
   const hit = ttlGet<Buffer>(cacheKey);
   if (hit) return hit;
 
   const fill = brand.backgroundColor || brand.themeColor || '#0c4a6e';
-  const ink = advisorBrandInk(fill);
   const mark = await renderAdvisorPwaIconPng(brand, 512);
-  const logoSize = 280;
+  const logoSize = 380;
   const logo = Buffer.from(
     await sharp(mark)
       .resize(logoSize, logoSize, {
@@ -326,20 +314,19 @@ export async function renderAdvisorPwaOgPng(
       .png()
       .toBuffer()
   );
-  const svg = Buffer.from(
-    `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="${W}" height="${H}" fill="${xmlEscape(fill)}"/>
-      <text x="600" y="448" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="44" font-weight="700" fill="${ink}">${xmlEscape(brand.brandName.slice(0, 36))}</text>
-      <text x="600" y="498" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="22" fill="${ink}" fill-opacity="0.75">${xmlEscape(`${brand.advisorLabel} member app`.slice(0, 48))}</text>
-    </svg>`
-  );
   const png = Buffer.from(
-    await sharp(svg)
-      .png()
+    await sharp({
+      create: {
+        width: W,
+        height: H,
+        channels: 4,
+        background: hexRgb(fill),
+      },
+    })
       .composite([
         {
           input: logo,
-          top: 86,
+          top: Math.round((H - logoSize) / 2),
           left: Math.round((W - logoSize) / 2),
         },
       ])

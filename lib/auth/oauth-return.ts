@@ -15,6 +15,8 @@ const STASH_KEYS = [
   'company',
   'kind',
   'tab',
+  'module',
+  'pwa',
 ] as const;
 
 export function isPrivyOauthCallback(search?: string | null): boolean {
@@ -76,6 +78,42 @@ export function stripUrlForOauthRedirect(): void {
   const url = new URL(window.location.href);
   if (!url.search && !url.hash) return;
   window.history.replaceState({}, '', url.pathname);
+}
+
+/** Path + stashed join/link params so Chrome continues the same advisor app flow. */
+export function oauthContinuePath(): string {
+  if (typeof window === 'undefined') return '/me';
+  const stash = peekOauthReturnParams();
+  const url = new URL(window.location.href);
+  for (const [k, v] of Object.entries(stash)) {
+    if (v) url.searchParams.set(k, v);
+  }
+  return `${url.pathname}${url.search}` || '/me';
+}
+
+/** Put stashed query back after a failed OAuth attempt so join=1 is not lost. */
+export function restoreStashedOauthSearch(): string {
+  if (typeof window === 'undefined') return '';
+  const next = oauthContinuePath();
+  const now = `${window.location.pathname}${window.location.search}`;
+  if (next && next !== now) {
+    window.history.replaceState({}, '', next);
+  }
+  return next;
+}
+
+export function standaloneOauthContinueMessage(
+  provider: 'google' | 'apple' | string,
+  appName?: string | null
+): string {
+  const label = provider === 'apple' ? 'Apple' : 'Google';
+  const who = String(appName || '').trim() || 'this app';
+  const ios =
+    typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (ios) {
+    return `${label} isn’t available inside the installed ${who} app. Use email on this screen.`;
+  }
+  return `${label} needs Chrome from the installed app. We opened it — come back to ${who} after you sign in. Email also works on this screen.`;
 }
 
 export function isStandaloneDisplay(): boolean {

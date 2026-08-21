@@ -6,10 +6,16 @@
 export function normalizeWhatsAppNumber(raw?: string | null): string | null {
   if (!raw) return null;
   let d = String(raw).replace(/\D/g, '');
-  if (!d) return null;
+  if (!d || /^0+$/.test(d)) return null;
   // SA local 0xx → 27xx
   if (d.startsWith('0') && d.length === 10) d = `27${d.slice(1)}`;
+  if (/^0+$/.test(d)) return null;
   return d;
+}
+
+export function isPlaceholderPhone(raw?: string | null): boolean {
+  const d = String(raw || '').replace(/\D/g, '');
+  return d.length >= 6 && /^0+$/.test(d);
 }
 
 export function whatsAppUrl(phone: string, text: string): string {

@@ -142,6 +142,27 @@ export default function RetailgraphWebsitePage() {
               }
               onSave={() => void save()}
               saving={saving}
+              settings={(store.settings || {}) as Record<string, unknown>}
+              onSavePwa={async (pwa) => {
+                if (!companyId) return;
+                setSaving(true);
+                try {
+                  const data = await withAuthJson<{ store?: RetailgraphStore }>(
+                    '/api/retail/retailgraph',
+                    {
+                      method: 'POST',
+                      jsonBody: {
+                        companyId,
+                        action: 'update_settings',
+                        settings: { ...(store.settings || {}), ...pwa },
+                      },
+                    }
+                  );
+                  if (data.store) setStore(data.store);
+                } finally {
+                  setSaving(false);
+                }
+              }}
               portalPath={
                 token ? `/embed/retail/${encodeURIComponent(token)}` : ''
               }

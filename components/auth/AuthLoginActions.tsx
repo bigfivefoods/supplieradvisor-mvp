@@ -6,7 +6,10 @@ import { Loader2, Mail } from 'lucide-react';
 import {
   isInAppBrowserOauthError,
   isStandaloneDisplay,
+  oauthContinuePath,
   openInSystemBrowser,
+  restoreStashedOauthSearch,
+  standaloneOauthContinueMessage,
   stripUrlForOauthRedirect,
 } from '@/lib/auth/oauth-return';
 
@@ -15,6 +18,8 @@ type AuthLoginActionsProps = {
   /** Compact stack for marketing / member-app cards */
   variant?: 'default' | 'onBrand';
   emailLabel?: string;
+  /** Company app name (Balance, VUKA, …) — never say “gym app”. */
+  appName?: string | null;
 };
 
 /**
@@ -26,6 +31,7 @@ export function AuthLoginActions({
   prefillEmail,
   variant = 'default',
   emailLabel = 'Continue with email',
+  appName,
 }: AuthLoginActionsProps) {
   const { login, ready } = usePrivy();
   const { initOAuth, loading: oauthLoading } = useLoginWithOAuth();
@@ -41,12 +47,12 @@ export function AuthLoginActions({
       await initOAuth({ provider });
     } catch (e: unknown) {
       console.error('Privy OAuth error:', e);
+      restoreStashedOauthSearch();
       if (isInAppBrowserOauthError(e) && isStandaloneDisplay()) {
-        const dest = `${window.location.pathname}${window.location.search || ''}`;
-        openInSystemBrowser(dest || '/me');
-        setError(
-          'Google sign-in is blocked inside the installed gym app. Continue in Chrome or Safari — we opened it for you.'
-        );
+        if (/Android/i.test(navigator.userAgent)) {
+          openInSystemBrowser(oauthContinuePath());
+        }
+        setError(standaloneOauthContinueMessage(provider, appName));
         setBusy(null);
         return;
       }
@@ -101,18 +107,15 @@ export function AuthLoginActions({
           }`}
         >
           <p>{error}</p>
-          {/Chrome|Safari|browser|not allowed|in-app/i.test(error) ? (
+          {/Chrome|Safari|browser|not allowed|in-app|installed/i.test(error) ? (
             <button
               type="button"
               className="mt-2 text-xs font-black underline"
               onClick={() =>
-                openInSystemBrowser(
-                  `${window.location.pathname}${window.location.search || ''}` ||
-                    '/me'
-                )
+                openInSystemBrowser(oauthContinuePath() || '/me')
               }
             >
-              Open in Chrome or Safari
+              Continue in Chrome or Safari
             </button>
           ) : null}
         </div>

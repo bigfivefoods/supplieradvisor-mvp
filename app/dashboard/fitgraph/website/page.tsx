@@ -41,7 +41,7 @@ export default function FitgraphWebsitePage() {
     has_front_desk: true,
     contact_email: '',
     contact_phone: '',
-    embed_primary_color: '#E8E830',
+    embed_primary_color: '#e8e830',
     timezone: 'Africa/Johannesburg',
     require_paid_membership: true,
     collect_debit_bank: false,
@@ -189,6 +189,10 @@ export default function FitgraphWebsitePage() {
             }
             onSave={() => void save()}
             saving={saving}
+            settings={store.settings as Record<string, unknown>}
+            onSavePwa={async (pwa) => {
+              await post({ action: 'update_settings', settings: pwa });
+            }}
             portalPath={
               token ? `/embed/fitgraph/${encodeURIComponent(token)}` : ''
             }
@@ -544,9 +548,13 @@ export default function FitgraphWebsitePage() {
               }
             />
             <input
-              className={fc()}
+              className={fc() + ' h-10 w-14 cursor-pointer appearance-none p-0.5'}
               type="color"
-              value={form.embed_primary_color}
+              value={
+                /^#[0-9a-f]{6}$/.test(form.embed_primary_color)
+                  ? form.embed_primary_color
+                  : '#e8e830'
+              }
               onChange={(e) =>
                 setForm((f) => ({
                   ...f,

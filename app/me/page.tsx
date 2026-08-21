@@ -36,6 +36,10 @@ import {
   getCanonicalUserId,
 } from '@/lib/auth/identity';
 import { takeOauthReturnParams } from '@/lib/auth/oauth-return';
+import {
+  advisorModuleFromJoinKind,
+  rememberAdvisorPwaMember,
+} from '@/lib/advisors/member-pwa';
 import { AuthLoginActions } from '@/components/auth/AuthLoginActions';
 import { SaOfficialLogo } from '@/components/brand/SaOfficialLogo';
 import {
@@ -490,6 +494,20 @@ function MeAppInner() {
       setJoinPreviewBrand(data.brand || joinBrand);
       if (Array.isArray(data.modules)) setJoinModules(data.modules.map(String));
       toast.success(data.message || `Joined ${data.brand || joinBrand}`);
+      const portalPath = String(data.membership?.portal_path || '');
+      const portalToken = String(data.membership?.portal_token || '');
+      const pwaModule = advisorModuleFromJoinKind(
+        data.membership?.kind || joinKind
+      );
+      if (portalPath && portalToken && pwaModule) {
+        rememberAdvisorPwaMember({
+          module: pwaModule,
+          memberToken: portalToken,
+          publicToken: search?.get('token') || null,
+        });
+        window.location.assign(portalPath);
+        return;
+      }
       if (search?.get('book') === '1' || search?.get('tab') === 'book') {
         const params = new URLSearchParams();
         params.set('tab', 'book');

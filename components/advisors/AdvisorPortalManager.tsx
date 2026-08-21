@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Check,
   Copy,
@@ -10,6 +10,7 @@ import {
   Loader2,
   Mail,
   MapPin,
+  MessageCircle,
   Phone,
   QrCode,
 } from 'lucide-react';
@@ -18,7 +19,17 @@ import { WorkingHoursEditor } from '@/components/schedule/WorkingHoursEditor';
 import type { WorkingHours } from '@/lib/schedule/working-hours';
 import { AdvisorPayAccepted } from '@/components/billing/ApplePayAccepted';
 import { AdvisorGrowPreviews } from '@/components/advisors/AdvisorGrowPreviews';
+import { AdvisorMemberPwaCard } from '@/components/advisors/AdvisorMemberPwaCard';
 import type { AdvisorPortalModule } from '@/lib/advisors/portal-sections';
+import {
+  htmlColorValue,
+  isAdvisorPwaModule,
+  type AdvisorPwaSettings,
+} from '@/lib/advisors/member-pwa';
+import {
+  isPlaceholderPhone,
+  whatsAppUrl,
+} from '@/lib/services/advisor-whatsapp';
 
 export type AdvisorPortalValues = {
   enabled: boolean;
@@ -48,6 +59,8 @@ export function AdvisorPortalManager({
   showBooking = true,
   module,
   logoUrl,
+  settings,
+  onSavePwa,
 }: {
   eyebrow: string;
   values: AdvisorPortalValues;
@@ -66,6 +79,8 @@ export function AdvisorPortalManager({
   bookingLabel?: string;
   showCity?: boolean;
   showBooking?: boolean;
+  settings?: Record<string, unknown> | null;
+  onSavePwa?: (patch: AdvisorPwaSettings) => void | Promise<void>;
 }) {
   const [copied, setCopied] = useState(false);
   const origin =
@@ -74,6 +89,26 @@ export function AdvisorPortalManager({
       : 'https://www.supplieradvisor.com';
   const live = Boolean(portalPath);
   const href = live ? `${origin}${portalPath}` : '';
+  const brand = values.brand_name.trim() || 'Your brand';
+  const publicToken = String(
+    (settings && typeof settings.public_token === 'string'
+      ? settings.public_token
+      : '') ||
+      decodeURIComponent(
+        String(portalPath || '').split('/').filter(Boolean).pop() || ''
+      )
+  ).trim();
+  const pwaSettings: Record<string, unknown> = {
+    ...(settings || {}),
+    brand_name: values.brand_name || settings?.brand_name,
+    public_bio: values.public_bio || settings?.public_bio,
+    embed_primary_color: values.color,
+    company_logo_url: logoUrl || settings?.company_logo_url,
+    public_token: publicToken || settings?.public_token,
+  };
+  const showPwa =
+    Boolean(module && isAdvisorPwaModule(module) && onSavePwa);
+  const waPortal = href ? whatsAppUrl('', href) : '';
   const qrSrc = useMemo(
     () =>
       href
@@ -82,15 +117,18 @@ export function AdvisorPortalManager({
     [href]
   );
 
-  const brand = values.brand_name.trim() || 'Your brand';
-  const color = values.color || '#0f172a';
+  const color = htmlColorValue(values.color, '#0f172a');
+  const phoneValue = isPlaceholderPhone(values.contact_phone)
+    ? ''
+    : values.contact_phone;
+
   const checks = [
     { id: 'brand', label: 'Brand name', done: Boolean(values.brand_name.trim()) },
     { id: 'bio', label: 'Public bio', done: Boolean(values.public_bio.trim()) },
     {
       id: 'contact',
       label: 'Phone or email',
-      done: Boolean(values.contact_phone.trim() || values.contact_email.trim()),
+      done: Boolean(phoneValue.trim() || values.contact_email.trim()),
     },
     { id: 'color', label: 'Brand colour', done: Boolean(values.color) },
     { id: 'live', label: 'Portal link issued', done: live },
@@ -99,6 +137,13 @@ export function AdvisorPortalManager({
   const doneCount = checks.filter((c) => c.done).length;
 
   const patch = (p: Partial<AdvisorPortalValues>) => onChange({ ...values, ...p });
+
+  useEffect(() => {
+    if (!values.contact_phone || !isPlaceholderPhone(values.contact_phone)) return;
+    patch({ contact_phone: '' });
+    // Parent `values` is a new object each render — only react to the phone string.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values.contact_phone]);
 
   const copy = async () => {
     if (!href) return;
@@ -114,7 +159,7 @@ export function AdvisorPortalManager({
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
           <div className="min-w-0">
             <p className="text-[9px] font-black uppercase tracking-[0.18em] text-white/70">
-              SupplierAdvisor® portal · {eyebrow}
+              {eyebrow}
             </p>
             <h2 className="truncate text-lg font-black">{brand}</h2>
           </div>
@@ -140,6 +185,15 @@ export function AdvisorPortalManager({
       </div>
 
       <div className="space-y-5 p-4 sm:p-5">
+        {showPwa && module && onSavePwa ? (
+          <AdvisorMemberPwaCard
+            module={module}
+            publicToken={publicToken}
+            settings={pwaSettings}
+            onSave={onSavePwa}
+            saving={saving}
+          />
+        ) : null}
         <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
           {qrSrc ? (
             <div className="shrink-0 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
@@ -193,6 +247,15 @@ export function AdvisorPortalManager({
                     style={{ backgroundColor: color }}
                   >
                     <ExternalLink className="h-3.5 w-3.5" /> Open portal
+                  </a>
+                  <a
+                    href={waPortal}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    WhatsApp
                   </a>
                   <button
                     type="button"
@@ -268,7 +331,7 @@ export function AdvisorPortalManager({
             Brand colour
             <input
               type="color"
-              className="mt-1 h-10 w-full cursor-pointer rounded-xl border border-slate-200 bg-white p-1"
+              className="mt-1 h-10 w-14 cursor-pointer appearance-none rounded-xl border border-slate-200 bg-white p-0.5 [&::-moz-color-swatch]:rounded-[10px] [&::-moz-color-swatch]:border-0 [&::-webkit-color-swatch]:rounded-[10px] [&::-webkit-color-swatch]:border-0 [&::-webkit-color-swatch-wrapper]:p-0"
               value={color}
               onChange={(e) => patch({ color: e.target.value })}
             />
@@ -279,7 +342,7 @@ export function AdvisorPortalManager({
             </span>
             <input
               className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-              value={values.contact_phone}
+              value={phoneValue}
               onChange={(e) => patch({ contact_phone: e.target.value })}
               placeholder="Call button on the portal"
             />

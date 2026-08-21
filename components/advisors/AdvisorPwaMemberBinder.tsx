@@ -11,7 +11,7 @@ import { applyAdvisorPwaDocumentHead } from '@/components/advisors/apply-advisor
 
 /**
  * Remembers this member/patient token against the business public token
- * so the installed company PWA opens their portal next time.
+ * so the installed company PWA opens their in-app home next time.
  */
 export function AdvisorPwaMemberBinder({
   module,
