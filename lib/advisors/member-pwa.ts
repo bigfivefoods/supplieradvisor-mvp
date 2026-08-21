@@ -110,7 +110,7 @@ export function advisorPwaIconPath(
 
 /** 1200×630 share card — company logo, not SupplierAdvisor. `v=` busts stale OG. */
 export function advisorPwaOgPath(module: AdvisorPwaModule, token: string): string {
-  return `/api/public/advisor-pwa/og?module=${encodeURIComponent(module)}&token=${encodeURIComponent(token)}&v=3`;
+  return `/api/public/advisor-pwa/og?module=${encodeURIComponent(module)}&token=${encodeURIComponent(token)}&v=4`;
 }
 
 export function advisorPwaShareCopy(brand: AdvisorPwaBrand, url: string): {

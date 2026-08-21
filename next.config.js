@@ -68,7 +68,7 @@ const nextConfig = {
       {
         source: '/api/public/advisor-pwa/og',
         headers: [
-          { key: 'Cache-Control', value: 'public, max-age=21600, stale-while-revalidate=86400' },
+          { key: 'Cache-Control', value: 'public, max-age=60, stale-while-revalidate=600' },
           { key: 'Content-Type', value: 'image/png' },
         ],
       },

@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
 import {
+  keepPrimaryLogoMark,
   knockOutLogoBoard,
   renderAdvisorPwaOgPng,
   stripSvgCaptions,
@@ -87,6 +88,56 @@ async function main() {
   assert.equal(ogMeta.format, 'png');
   assert.equal(ogMeta.width, 1200);
   assert.equal(ogMeta.height, 630);
+
+  const glyphSq = await sharp({
+    create: {
+      width: 10,
+      height: 12,
+      channels: 4,
+      background: { r: 20, g: 20, b: 20, alpha: 255 },
+    },
+  })
+    .png()
+    .toBuffer();
+  const glyphBoard = await sharp({
+    create: {
+      width: 200,
+      height: 160,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .composite([
+      {
+        input: await sharp({
+          create: {
+            width: 90,
+            height: 90,
+            channels: 4,
+            background: { r: 232, g: 232, b: 48, alpha: 255 },
+          },
+        })
+          .png()
+          .toBuffer(),
+        left: 55,
+        top: 8,
+      },
+      ...Array.from({ length: 8 }, (_, i) => ({
+        input: glyphSq,
+        left: 20 + i * 22,
+        top: 140,
+      })),
+    ])
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const cropped = keepPrimaryLogoMark(
+    glyphBoard.data,
+    glyphBoard.info.width,
+    glyphBoard.info.height,
+    glyphBoard.info.channels
+  );
+  assert.ok(cropped.height < 120, 'caption boxes under the mark must be cropped');
+  assert.ok(cropped.width < 140, 'only the primary mark remains');
 
   const svgWithCaption = Buffer.from(
     `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="#e8e830"/><text y="9">000000000000</text></svg>`

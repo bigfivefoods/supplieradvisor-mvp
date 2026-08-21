@@ -9,6 +9,7 @@ import { isAdvisorModuleKey } from '@/lib/business/company-data';
 import { resolveAdvisorCompanyId } from '@/lib/business/advisor-store-resolve';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { ttlGet, ttlSet } from '@/lib/system/memory-ttl';
+import { SITE_URL } from '@/lib/seo/site';
 import {
   ADVISOR_PWA_INDEX_KEYS,
   ADVISOR_PWA_PORTAL_INDEX_KEYS,
@@ -221,7 +222,8 @@ export function advisorPwaPageMetadata(brand: AdvisorPwaBrand | null): Metadata 
   }
   const appleIcon = advisorPwaIconPath(brand.module, brand.publicToken, 180);
   const appIcon = advisorPwaIconPath(brand.module, brand.publicToken, 192);
-  const og = advisorPwaOgPath(brand.module, brand.publicToken);
+  const ogPath = advisorPwaOgPath(brand.module, brand.publicToken);
+  const og = `${SITE_URL}${ogPath}`;
   const shareTitle = brand.brandName;
   return {
     title: { absolute: shareTitle },

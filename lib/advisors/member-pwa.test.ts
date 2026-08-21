@@ -104,7 +104,7 @@ assert.equal(
 );
 assert.equal(
   advisorPwaOgPath('fitgraph', 'fg_110_abc'),
-  '/api/public/advisor-pwa/og?module=fitgraph&token=fg_110_abc&v=3'
+  '/api/public/advisor-pwa/og?module=fitgraph&token=fg_110_abc&v=4'
 );
 const share = advisorPwaShareCopy(brand, 'https://www.supplieradvisor.com/pwa/fitgraph/fg_110_abc');
 assert.equal(share.title, 'VUKA Fitness');

@@ -162,6 +162,120 @@ function rgbDist(a: Corner, b: Corner): number {
 }
 
 /**
+ * Keep the largest opaque blob (the brand mark) and drop the tofu / 0000
+ * caption row that missing fonts rasterize underneath it.
+ */
+export function keepPrimaryLogoMark(
+  data: Uint8Array,
+  width: number,
+  height: number,
+  channels: number
+): { data: Uint8Array; width: number; height: number } {
+  if (channels < 4 || width < 4 || height < 4) {
+    return { data, width, height };
+  }
+  const opaque = 24;
+  const seen = new Uint8Array(width * height);
+  let bestArea = 0;
+  let bestSeed = -1;
+  const stack = new Int32Array(width * height);
+  const dirs = [1, 0, -1, 0, 1];
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = y * width + x;
+      if (seen[i]) continue;
+      if (data[i * channels + 3] < opaque) {
+        seen[i] = 1;
+        continue;
+      }
+      let area = 0;
+      let top = 0;
+      stack[top++] = i;
+      seen[i] = 1;
+      const seed = i;
+      while (top > 0) {
+        const p = stack[--top];
+        area++;
+        const px = p % width;
+        const py = (p / width) | 0;
+        for (let d = 0; d < 4; d++) {
+          const nx = px + dirs[d];
+          const ny = py + dirs[d + 1];
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+          const ni = ny * width + nx;
+          if (seen[ni]) continue;
+          if (data[ni * channels + 3] < opaque) {
+            seen[ni] = 1;
+            continue;
+          }
+          seen[ni] = 1;
+          stack[top++] = ni;
+        }
+      }
+      if (area > bestArea) {
+        bestArea = area;
+        bestSeed = seed;
+      }
+    }
+  }
+  if (bestSeed < 0 || bestArea < 16) return { data, width, height };
+
+  seen.fill(0);
+  let minX = width;
+  let minY = height;
+  let maxX = 0;
+  let maxY = 0;
+  let top = 0;
+  stack[top++] = bestSeed;
+  seen[bestSeed] = 1;
+  const kept: number[] = [];
+  while (top > 0) {
+    const p = stack[--top];
+    kept.push(p);
+    const px = p % width;
+    const py = (p / width) | 0;
+    if (px < minX) minX = px;
+    if (py < minY) minY = py;
+    if (px > maxX) maxX = px;
+    if (py > maxY) maxY = py;
+    for (let d = 0; d < 4; d++) {
+      const nx = px + dirs[d];
+      const ny = py + dirs[d + 1];
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+      const ni = ny * width + nx;
+      if (seen[ni]) continue;
+      if (data[ni * channels + 3] < opaque) {
+        seen[ni] = 1;
+        continue;
+      }
+      seen[ni] = 1;
+      stack[top++] = ni;
+    }
+  }
+
+  const pad = 2;
+  const x0 = Math.max(0, minX - pad);
+  const y0 = Math.max(0, minY - pad);
+  const x1 = Math.min(width - 1, maxX + pad);
+  const y1 = Math.min(height - 1, maxY + pad);
+  const nw = x1 - x0 + 1;
+  const nh = y1 - y0 + 1;
+  const out = new Uint8Array(nw * nh * 4);
+  for (const p of kept) {
+    const px = p % width;
+    const py = (p / width) | 0;
+    const si = p * channels;
+    const di = ((py - y0) * nw + (px - x0)) * 4;
+    out[di] = data[si];
+    out[di + 1] = data[si + 1];
+    out[di + 2] = data[si + 2];
+    out[di + 3] = data[si + 3];
+  }
+  return { data: out, width: nw, height: nh };
+}
+
+/**
  * Knock a uniform exported board (white / grey / solid) to alpha 0.
  * Returns a new buffer, or the original when the mark is already transparent
  * or is full-bleed (corners do not agree).
@@ -315,9 +429,19 @@ async function transparentShareMarkPng(source: Buffer): Promise<Buffer> {
     .raw()
     .toBuffer({ resolveWithObject: true });
   const keyed = knockOutLogoBoard(data, info.width, info.height, info.channels);
+  const primary = keepPrimaryLogoMark(
+    keyed,
+    info.width,
+    info.height,
+    info.channels
+  );
   let trimmed: Buffer = Buffer.from(
-    await sharp(keyed, {
-      raw: { width: info.width, height: info.height, channels: 4 },
+    await sharp(primary.data, {
+      raw: {
+        width: primary.width,
+        height: primary.height,
+        channels: 4,
+      },
     })
       .png()
       .toBuffer()
@@ -342,7 +466,7 @@ export async function renderAdvisorPwaOgPng(
   const sharp = (await import('sharp')).default;
   const W = 1200;
   const H = 630;
-  const cacheKey = `pwa-og-mark-v3:${brand.module}:${brand.publicToken}:${brand.iconUrl}:${brand.themeColor}`;
+  const cacheKey = `pwa-og-mark-v4:${brand.module}:${brand.publicToken}:${brand.iconUrl}:${brand.themeColor}`;
   const hit = ttlGet<Buffer>(cacheKey);
   if (hit) return hit;
 
