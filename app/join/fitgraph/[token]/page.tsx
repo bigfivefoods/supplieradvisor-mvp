@@ -109,7 +109,7 @@ export default function GymOnboardPage() {
       return;
     }
     if (!wantMember && !wantPrivate) {
-      toast.error('Choose member, private client, or both');
+      toast.error('Choose gym membership, private coaching, or both');
       return;
     }
     const kinds = [
@@ -168,10 +168,22 @@ export default function GymOnboardPage() {
       <p className="text-[11px] font-black uppercase tracking-wide text-yellow-800">
         {brand} · GymAdvisor
       </p>
-      <h1 className="text-2xl font-black">Membership application</h1>
+      <a
+        href={`/pwa/fitgraph/${encodeURIComponent(token)}`}
+        className="mt-1 inline-block text-xs font-bold text-yellow-800 underline"
+      >
+        Already a member? Sign in
+      </a>
+      <h1 className="text-2xl font-black">
+        {wantMember && wantPrivate
+          ? 'Gym membership and private coaching'
+          : wantPrivate
+            ? 'Private coaching application'
+            : 'Gym membership application'}
+      </h1>
       <p className="mt-1 text-sm text-slate-600 dark:text-yellow-100/80">
-        Join as a member, a private client, or both. Health answers, bank
-        details and signatures stay on your gym profile for the owner.
+        Apply for a gym membership, private coaching, or both. Health answers,
+        bank details and signatures stay on your gym profile for the owner.
       </p>
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -184,7 +196,7 @@ export default function GymOnboardPage() {
               : 'border-slate-200 bg-white'
           }`}
         >
-          Member
+          Gym membership
         </button>
         <button
           type="button"
@@ -195,7 +207,7 @@ export default function GymOnboardPage() {
               : 'border-slate-200 bg-white'
           }`}
         >
-          Private client
+          Private coaching
         </button>
       </div>
 

@@ -81,6 +81,8 @@ export function AdvisorPwaMemberBinder({
       startPath: `/pwa/${module}/${encodeURIComponent(pub)}`,
       memberBasePath: `/member/${module}`,
       joinPath: '',
+      joinGymPath: '',
+      joinPrivatePath: '',
       joinKind: '',
       enabled: true,
     } satisfies AdvisorPwaBrand;

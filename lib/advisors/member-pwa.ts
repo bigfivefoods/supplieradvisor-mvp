@@ -6,6 +6,7 @@
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { growPreviewCopy } from '@/lib/advisors/grow-preview';
 import type { AdvisorPortalModule } from '@/lib/advisors/portal-sections';
+import { gymJoinMemberPath } from '@/lib/fitness/gym-grow-share';
 
 export const ADVISOR_PWA_MODULES = [
   'fitgraph',
@@ -128,6 +129,8 @@ export type AdvisorPwaBrand = {
   startPath: string;
   memberBasePath: string;
   joinPath: string;
+  joinGymPath: string;
+  joinPrivatePath: string;
   joinKind: string;
   enabled: boolean;
 };
@@ -143,11 +146,16 @@ function memberBasePath(module: AdvisorPwaModule): string {
 }
 
 function joinPath(module: AdvisorPwaModule, token: string): string {
+  if (module === 'fitgraph') return gymJoinMemberPath(token, 'group');
   const t = encodeURIComponent(token);
-  if (module === 'fitgraph') return `/join/fitgraph/${t}`;
   if (module === 'hiregraph') return `/hire/${t}`;
   if (module === 'retailgraph') return `/embed/retail/${t}`;
   return `/embed/advisor/${module}/${t}`;
+}
+
+function joinPrivatePath(module: AdvisorPwaModule, token: string): string {
+  if (module === 'fitgraph') return gymJoinMemberPath(token, 'private');
+  return '';
 }
 
 export function settingsFromAdvisorMeta(
@@ -209,6 +217,8 @@ export function buildAdvisorPwaBrand(opts: {
     startPath: advisorPwaStartPath(opts.module, opts.publicToken),
     memberBasePath: memberBasePath(opts.module),
     joinPath: joinPath(opts.module, opts.publicToken),
+    joinGymPath: joinPath(opts.module, opts.publicToken),
+    joinPrivatePath: joinPrivatePath(opts.module, opts.publicToken),
     joinKind: JOIN_KIND[opts.module],
     enabled,
   };

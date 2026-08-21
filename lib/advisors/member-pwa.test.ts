@@ -44,7 +44,9 @@ assert.equal(brand.brandName, 'VUKA Fitness');
 assert.equal(brand.themeColor, '#e8e830');
 assert.equal(brand.iconUrl, 'https://cdn.example/vuka.png');
 assert.equal(brand.joinKind, 'gym');
-assert.equal(brand.joinPath, '/join/fitgraph/fg_110_abc');
+assert.equal(brand.joinPath, '/join/fitgraph/fg_110_abc?kind=group');
+assert.equal(brand.joinGymPath, '/join/fitgraph/fg_110_abc?kind=group');
+assert.equal(brand.joinPrivatePath, '/join/fitgraph/fg_110_abc?kind=private');
 assert.equal(brand.enabled, true);
 assert.equal(brand.shortName, 'VUKA Fitness');
 
