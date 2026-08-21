@@ -498,7 +498,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     steps: [
       { name: 'Overview', href: '/dashboard/accounting', exact: true, desc: 'Books · Advisor fees', section: 'Home' },
       { name: 'Chart', href: '/dashboard/accounting/chart-of-accounts', desc: 'Chart of accounts', section: 'Books' },
-      { name: 'Journals', href: '/dashboard/accounting/journal-entries', section: 'Books' },
+      {
+        name: 'Journals',
+        href: '/dashboard/accounting/journal-entries',
+        desc: 'Post · review likely mis-posts',
+        section: 'Books',
+      },
       { name: 'Ledger', href: '/dashboard/accounting/general-ledger', desc: 'General ledger', section: 'Books' },
       { name: 'AR', href: '/dashboard/accounting/accounts-receivable', desc: 'Collect', section: 'Trade' },
       {

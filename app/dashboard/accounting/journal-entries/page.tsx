@@ -11,6 +11,7 @@ import {
   Undo2,
   Pencil,
   Search,
+  Sparkles,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -39,6 +40,7 @@ import {
   saveFinanceWorkspace,
   type JournalScope,
 } from '@/lib/accounting/user-workspace';
+import type { JournalReviewFlag } from '@/lib/accounting/journal-review';
 
 type LineForm = {
   account_id: string;
@@ -95,6 +97,9 @@ function Inner() {
   const [postNow, setPostNow] = useState(false);
   const [lines, setLines] = useState<LineForm[]>([emptyLine(), emptyLine()]);
   const [accountFilter, setAccountFilter] = useState('');
+  const [reviewFlags, setReviewFlags] = useState<JournalReviewFlag[]>([]);
+  const [reviewScanned, setReviewScanned] = useState(0);
+  const [reviewBusy, setReviewBusy] = useState(false);
   /** create | edit_draft | edit_posted (reclassify via reverse + new) */
   const [editMode, setEditMode] = useState<{
     type: 'create' | 'edit_draft' | 'edit_posted';
@@ -137,6 +142,32 @@ function Inner() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const loadReview = useCallback(async () => {
+    setReviewBusy(true);
+    try {
+      const params = new URLSearchParams({ companyId: String(companyId) });
+      if (privyUserId) params.set('privyUserId', privyUserId);
+      params.set('from', period.from);
+      params.set('to', period.to);
+      const res = await fetch(`/api/accounting/journals/review?${params}`, {
+        cache: 'no-store',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Review failed');
+      setReviewFlags(Array.isArray(data.flags) ? data.flags : []);
+      setReviewScanned(Number(data.scanned) || 0);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Could not review journals');
+      setReviewFlags([]);
+    } finally {
+      setReviewBusy(false);
+    }
+  }, [companyId, privyUserId, period.from, period.to]);
+
+  useEffect(() => {
+    void loadReview();
+  }, [loadReview]);
 
   useEffect(() => {
     saveFinanceWorkspace(privyUserId, companyId, { journalScope });
@@ -217,6 +248,38 @@ function Inner() {
       return;
     }
     toast.error('Void journals cannot be edited');
+  }
+
+  function openReclassifyFromReview(flag: JournalReviewFlag) {
+    const je = entries.find((e) => Number(e.id) === Number(flag.journal_id));
+    if (!je || String(je.status) !== 'posted') {
+      toast.error('Load that journal in this period, then use Edit');
+      return;
+    }
+    let applied = false;
+    const formLines = linesFromJournal(je).map((l) => {
+      const sameAccount = String(l.account_id) === String(flag.posted_account_id);
+      const sameSide =
+        flag.side === 'debit' ? Number(l.debit) > 0 : Number(l.credit) > 0;
+      if (!applied && sameAccount && sameSide) {
+        applied = true;
+        return { ...l, account_id: String(flag.suggested_account_id) };
+      }
+      return l;
+    });
+    setEditMode({
+      type: 'edit_posted',
+      id: je.id,
+      label: je.entry_number || `JE-${je.id}`,
+    });
+    setMemo(je.memo || '');
+    setEntryDate(
+      String(je.entry_date || new Date().toISOString().slice(0, 10)).slice(0, 10)
+    );
+    setPostNow(true);
+    setLines(formLines);
+    setAccountFilter('');
+    setShowModal(true);
   }
 
   async function saveJournal(e: React.FormEvent) {
@@ -314,6 +377,7 @@ function Inner() {
       setLines([emptyLine(), emptyLine()]);
       setAccountFilter('');
       void load();
+      void loadReview();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed');
     } finally {
@@ -345,6 +409,7 @@ function Inner() {
             : 'Reversed — offsetting entry posted'
       );
       void load();
+      void loadReview();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed');
     }
@@ -368,7 +433,7 @@ function Inner() {
       <AccountingHeader
         title="Journal"
         titleAccent="entries"
-        description="Create journals, edit drafts, or reclassify posted entries to different chart-of-accounts codes. Posted edits reverse the original and post a corrected entry so the audit trail stays intact."
+        description="Create journals, edit drafts, or reclassify posted entries. The review below learns from past allocations and keywords to flag lines that may have gone to the wrong account."
         action={
           <button
             type="button"
@@ -408,6 +473,108 @@ function Inner() {
         </select>
       </div>
       <FinanceWorkspaceNote className="mb-4" />
+
+      <div className="mb-4 rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50/80 to-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-violet-800">
+              <Sparkles className="h-3.5 w-3.5" />
+              Allocation review
+            </p>
+            <p className="mt-1 text-sm text-slate-600">
+              Posted lines are scored against similar journals, bank allocations,
+              and description keywords. Nothing is changed until you reclassify.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadReview()}
+            disabled={reviewBusy}
+            className="btn-secondary !py-2 !px-3 text-sm inline-flex items-center gap-1.5"
+          >
+            {reviewBusy ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            {reviewBusy ? 'Scoring…' : 'Re-run review'}
+          </button>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="rounded-xl border border-violet-100 bg-white px-3 py-2">
+            <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+              Lines scanned
+            </p>
+            <p className="text-lg font-black tabular-nums text-slate-900">
+              {reviewBusy ? '—' : reviewScanned}
+            </p>
+          </div>
+          <div className="rounded-xl border border-violet-100 bg-white px-3 py-2">
+            <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+              Suggested checks
+            </p>
+            <p className="text-lg font-black tabular-nums text-slate-900">
+              {reviewBusy ? '—' : reviewFlags.length}
+            </p>
+          </div>
+        </div>
+        {reviewBusy ? (
+          <p className="mt-3 text-xs text-slate-500">
+            Learning from posted journals and bank allocations…
+          </p>
+        ) : reviewFlags.length === 0 ? (
+          <p className="mt-3 text-xs text-emerald-800">
+            No likely mis-posts in this period. Keep posting — the review gets
+            sharper as similar descriptions repeat.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {reviewFlags.map((flag) => (
+              <li
+                key={`${flag.journal_id}-${flag.line_id || flag.posted_account_id}`}
+                className="rounded-xl border border-violet-100 bg-white px-3 py-2.5"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-slate-900">
+                      {flag.journal_number || `JE-${flag.journal_id}`}
+                      <span className="ml-2 text-xs font-semibold text-slate-500">
+                        {flag.entry_date}
+                      </span>
+                      <span className="ml-2 rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-violet-800">
+                        {flag.confidence}%
+                      </span>
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-600">
+                      {flag.description || flag.memo || 'Posted line'}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-700">
+                      <span className="font-semibold">{flag.posted_account_label}</span>
+                      {' → '}
+                      <span className="font-black text-[#0077b6]">
+                        {flag.suggested_account_label}
+                      </span>
+                      <span className="text-slate-400">
+                        {' '}
+                        · {formatMoney(flag.amount)} {flag.side}
+                      </span>
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-slate-500">{flag.reason}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openReclassifyFromReview(flag)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-[#00b4d8]/40 bg-sky-50 px-2.5 py-1.5 text-xs font-bold text-[#0077b6] hover:bg-sky-100"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Reclassify
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-xs text-slate-600 leading-relaxed">
         <strong className="text-slate-800">Edit / reclassify · </strong>
