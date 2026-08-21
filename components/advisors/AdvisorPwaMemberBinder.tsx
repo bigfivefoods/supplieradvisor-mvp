@@ -88,5 +88,5 @@ export function AdvisorPwaMemberBinder({
 
   const live = brand || fallback;
   if (!live || live.enabled === false) return null;
-  return <AdvisorPwaInstallPrompt brand={live} mode="chip" />;
+  return <AdvisorPwaInstallPrompt brand={live} mode="chip" autoOpen />;
 }

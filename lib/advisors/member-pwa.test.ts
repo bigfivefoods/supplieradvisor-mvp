@@ -9,6 +9,7 @@ import {
   buildAdvisorPwaBrand,
   memberTokenStorageKey,
   normalizeHexColor,
+  pwaManifestIconUrl,
   pwaSettingsPatch,
   pwaShortName,
   readPwaSettings,
@@ -54,6 +55,14 @@ assert.equal(manifest.scope, '/');
 assert.equal(manifest.name, 'VUKA Fitness');
 assert.notEqual(manifest.id, '/me');
 assert.notEqual(manifest.id, '/');
+assert.equal(
+  pwaManifestIconUrl('https://cdn.example/vuka.avif'),
+  '/sa-icon-512.png'
+);
+assert.equal(
+  pwaManifestIconUrl('https://cdn.example/vuka.png'),
+  'https://cdn.example/vuka.png'
+);
 
 const other = buildAdvisorPwaBrand({
   module: 'physiograph',

@@ -64,8 +64,14 @@ export default function InstallAppBanner() {
     }
 
     const onOpen = () => {
-      // SA Member owns its own first-open sheet — do not leave /me
-      if (window.location.pathname.startsWith('/me')) return;
+      const path = window.location.pathname || '';
+      // Company-branded / SA Member install chrome owns these routes
+      if (path.startsWith('/me')) return;
+      if (path.startsWith('/pwa')) return;
+      if (path.startsWith('/member')) return;
+      if (path.startsWith('/hire/')) return;
+      if (path.startsWith('/join/')) return;
+      if (path.startsWith('/coach')) return;
       try {
         localStorage.removeItem(DISMISS_KEY);
       } catch {

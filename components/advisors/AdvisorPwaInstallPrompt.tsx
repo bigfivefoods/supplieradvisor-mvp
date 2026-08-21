@@ -85,9 +85,11 @@ function BrandMark({
 export function AdvisorPwaInstallPrompt({
   brand,
   mode = 'sheet',
+  autoOpen = true,
 }: {
   brand: AdvisorPwaBrand;
   mode?: 'sheet' | 'chip';
+  autoOpen?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [chip, setChip] = useState(false);
@@ -119,7 +121,7 @@ export function AdvisorPwaInstallPrompt({
     }
 
     const t = window.setTimeout(() => {
-      if (isStandalone() || wasDismissed(brand.startPath)) return;
+      if (!autoOpen || isStandalone() || wasDismissed(brand.startPath)) return;
       if (mode === 'sheet') setOpen(true);
       else setChip(true);
     }, mode === 'sheet' ? 280 : 900);
@@ -129,7 +131,7 @@ export function AdvisorPwaInstallPrompt({
       window.removeEventListener('beforeinstallprompt', onBip);
       window.removeEventListener('sa-open-install', onOpen);
     };
-  }, [brand.enabled, brand.startPath, mode]);
+  }, [autoOpen, brand.enabled, brand.startPath, mode]);
 
   const close = useCallback(() => {
     markDismissed(brand.startPath);

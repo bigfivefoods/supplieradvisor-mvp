@@ -214,19 +214,29 @@ export function buildAdvisorPwaBrand(opts: {
   };
 }
 
+/** Chrome install needs PNG/JPEG; company logos are often AVIF/SVG. */
+export function pwaManifestIconUrl(url: string): string {
+  const u = String(url || '').toLowerCase();
+  if (!u) return '/sa-icon-512.png';
+  if (u.startsWith('/sa-icon')) return url;
+  if (/\.(png|jpe?g|webp)(\?|#|$)/.test(u)) return url;
+  return '/sa-icon-512.png';
+}
+
 export function advisorPwaWebManifest(brand: AdvisorPwaBrand): Record<string, unknown> {
   const start = `${brand.startPath}?source=pwa`;
+  const icon = pwaManifestIconUrl(brand.iconUrl);
   const icons = [
     {
-      src: brand.iconUrl,
+      src: icon,
       sizes: '192x192',
-      type: iconMime(brand.iconUrl),
+      type: iconMime(icon),
       purpose: 'any',
     },
     {
-      src: brand.iconUrl,
+      src: icon,
       sizes: '512x512',
-      type: iconMime(brand.iconUrl),
+      type: iconMime(icon),
       purpose: 'any',
     },
     {
@@ -255,7 +265,7 @@ export function advisorPwaWebManifest(brand: AdvisorPwaBrand): Record<string, un
         name: `Open ${brand.shortName}`,
         short_name: 'Open',
         url: start,
-        icons: [{ src: brand.iconUrl, sizes: '192x192' }],
+        icons: [{ src: icon, sizes: '192x192' }],
       },
     ],
   };
@@ -321,12 +331,14 @@ export function rememberAdvisorPwaMember(opts: {
 
 export function recallAdvisorPwaMember(
   module: AdvisorPwaModule,
-  publicToken: string
+  publicToken: string,
+  mappedOnly = false
 ): string | null {
   if (typeof window === 'undefined') return null;
   try {
     const mapped = localStorage.getItem(pwaMemberMapKey(module, publicToken));
     if (mapped && mapped.trim().length >= 8) return mapped.trim();
+    if (mappedOnly) return null;
     const last = localStorage.getItem(memberTokenStorageKey(module));
     if (last && last.trim().length >= 8) return last.trim();
   } catch {

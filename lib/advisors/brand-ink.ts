@@ -1,6 +1,6 @@
 /** Ink colour on a brand fill — dark text on pale yellow, white on deep hues. */
 export function isLightBrand(color: string): boolean {
-  const hex = color.replace('#', '').trim();
+  const hex = String(color || '').replace('#', '').trim();
   if (hex.length !== 6) return false;
   const r = parseInt(hex.slice(0, 2), 16);
   const g = parseInt(hex.slice(2, 4), 16);
