@@ -1299,6 +1299,16 @@ html.dark img.sa-logo-base {
 .sa-official-logo.h-20 {
   height: 5rem;
 }
+.sa-official-logo.max-w-full {
+  max-width: 100%;
+}
+.sa-official-logo.max-w-full .sa-logo-base {
+  max-width: 100%;
+  object-fit: contain;
+}
+.sa-place-logo-well .sa-official-logo {
+  max-width: 100%;
+}
 .sa-official-logo.sa-logo-on-dark .sa-logo-base,
 .sa-official-logo.sa-logo-member-header .sa-logo-base,
 .sa-official-logo.sa-logo-member-login .sa-logo-base {

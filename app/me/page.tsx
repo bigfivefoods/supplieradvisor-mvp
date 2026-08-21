@@ -5,7 +5,7 @@
  * Bottom dock: Home · Places · You · Shop · Share
  * PWA — hire / sale marketplace, gym book/classes, reviews.
  */
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
@@ -246,7 +246,7 @@ function MeAppInner() {
       setTab('memberships');
     }
     if (search?.get('account') || search?.get('pay') === 'open') {
-      setTab('memberships');
+      setTab('you');
     }
   }, [search]);
 
@@ -518,6 +518,14 @@ function MeAppInner() {
       setBusy(false);
     }
   };
+
+  const autoLinkedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const link = (search?.get('link') || search?.get('token') || '').trim();
+    if (!authenticated || !link || autoLinkedRef.current === link) return;
+    autoLinkedRef.current = link;
+    void doLink(link);
+  }, [authenticated, search]);
 
   const saveProfile = async () => {
     setBusy(true);
@@ -1293,55 +1301,11 @@ function MeAppInner() {
       {/* ── BRANDS / MEMBERSHIPS ─────────────────────────────── */}
       {tab === 'memberships' && (
         <div className="space-y-3">
-          <p className="rounded-2xl bg-sky-50 px-3 py-2 text-[12px] text-sky-950">
-            Places you use as a member — book, classes, records. Shops you
-            operate stay under the building icon. SupplierAdvisor stays on top
-            so you can open the business OS demo any time.
-          </p>
           <SaOsPlaceCard />
           <B2cLinkBusiness
             linkedCompanyIds={linkedCompanyIds}
             onLinked={() => void load()}
           />
-          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-slate-900">
-              <Link2 className="h-5 w-5 text-[#0077b6]" />
-              <h2 className="text-sm font-black">Have a portal link?</h2>
-            </div>
-            <p className="mt-1 text-xs text-slate-500">
-              Paste the link from your email or WhatsApp.
-            </p>
-            <input
-              className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-mono"
-              placeholder="https://…/member/fitgraph/… or /hire/…"
-              value={linkToken}
-              onChange={(e) => setLinkToken(e.target.value)}
-            />
-            <button
-              type="button"
-              disabled={busy || !linkToken.trim()}
-              onClick={() => void doLink()}
-              className="mt-2 w-full rounded-2xl bg-[#0077b6] py-3.5 text-sm font-black text-white disabled:opacity-50 active:scale-[0.99]"
-            >
-              {busy ? 'Linking…' : 'Add to my app'}
-            </button>
-          </section>
-          <div>
-            <p className="mb-2 px-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
-              Amounts due
-            </p>
-            <B2cMemberAccounts
-              focusCompanyId={focusAccount}
-              onLoaded={(list) => {
-                const map: Record<number, number> = {};
-                for (const row of list) {
-                  map[row.company_id] =
-                    (map[row.company_id] || 0) + (row.summary.open_zar || 0);
-                }
-                setAccountDueByCompany(map);
-              }}
-            />
-          </div>
           {accounts.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-sky-300 bg-white px-5 py-12 text-center">
               <p className="text-sm font-black text-slate-800">
@@ -1422,7 +1386,7 @@ function MeAppInner() {
                         type="button"
                         onClick={() => {
                           const u = new URL(window.location.href);
-                          u.searchParams.set('tab', 'memberships');
+                          u.searchParams.set('tab', 'you');
                           u.searchParams.set('account', String(a.company_id));
                           router.replace(`${u.pathname}${u.search}`);
                         }}
