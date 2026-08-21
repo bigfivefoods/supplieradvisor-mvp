@@ -118,14 +118,18 @@ async function findFinanceTwin(
   }
   const number = String(crm.invoice_number || '').trim();
   if (!number) return null;
+  // limit(1) — maybeSingle() errors when two finance twins already exist,
+  // which used to insert a third invoice and post sales twice.
   const { data } = await supabase
     .from('invoices')
     .select('*')
     .eq('profile_id', profileId)
     .eq('invoice_number', number)
     .eq('direction', 'receivable')
-    .maybeSingle();
-  return (data as Record<string, unknown>) || null;
+    .order('id', { ascending: true })
+    .limit(1);
+  const row = Array.isArray(data) ? data[0] : data;
+  return (row as Record<string, unknown>) || null;
 }
 
 export async function syncCrmInvoiceToBooks(opts: {

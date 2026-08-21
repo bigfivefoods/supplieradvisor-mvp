@@ -171,6 +171,35 @@ export async function GET(request: NextRequest) {
         crmBooksNote = e instanceof Error ? e.message : 'Invoice books sync failed';
       }
 
+      let invoiceRepair: {
+        count: number;
+        results: string[];
+        errors: string[];
+      } | undefined;
+      try {
+        const { applyInvoiceDedupe } = await import(
+          '@/lib/accounting/dedupe-invoice-books'
+        );
+        const repair = await applyInvoiceDedupe({
+          profileId: companyId,
+          createdBy: _gate.userId,
+          apply: true,
+        });
+        if (repair.actions.length || repair.results.length || repair.errors.length) {
+          invoiceRepair = {
+            count: repair.actions.length,
+            results: repair.results,
+            errors: repair.errors,
+          };
+          if (repair.results.length && !crmBooksNote) {
+            crmBooksNote = repair.results[0];
+          }
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Invoice dedupe failed';
+        invoiceRepair = { count: 0, results: [], errors: [msg] };
+      }
+
       // P&L from posted journals + bank allocation pulse
       // Prefer active accounts; fall back if is_active column filter is empty/mis-set
       let accounts: Array<Record<string, unknown>> = [];
@@ -585,6 +614,7 @@ export async function GET(request: NextRequest) {
           recentAllocated,
         },
         budgetVsActual,
+        invoiceRepair,
       });
     }
 

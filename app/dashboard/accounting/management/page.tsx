@@ -220,6 +220,19 @@ function Inner() {
           toast.message(data.warning);
         }
       }
+      const repair = data.invoiceRepair as
+        | { results?: string[]; errors?: string[] }
+        | undefined;
+      if (repair?.results?.length) {
+        toast.success(
+          repair.results.length === 1
+            ? repair.results[0]
+            : `Corrected ${repair.results.length} duplicate invoice books`
+        );
+      }
+      if (repair?.errors?.length) {
+        toast.error(repair.errors[0]);
+      }
 
       if (trendRes.ok) {
         const t = await trendRes.json();

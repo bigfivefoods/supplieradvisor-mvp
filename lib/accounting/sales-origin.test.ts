@@ -66,6 +66,42 @@ const bank = pack.buckets.find((b) => b.kind === 'bank');
 assert.equal(inv?.amount, 100);
 assert.equal(bank?.amount, 50);
 
+const doubled = buildSalesOrigin({
+  entries: [
+    {
+      id: 1,
+      entry_date: '2026-08-17',
+      source: 'invoice_recognition',
+      memo: 'Recognise AR INV-20260817-HB0L',
+      metadata: { invoice_number: 'INV-20260817-HB0L' },
+    },
+    {
+      id: 2,
+      entry_date: '2026-08-18',
+      source: 'bank_allocation',
+      memo: 'FNB APP PAYMENT FROM   INV-20260817-HB0L',
+    },
+    {
+      id: 3,
+      entry_date: '2026-08-18',
+      source: 'invoice_recognition',
+      memo: 'Recognise AR INV-DUP',
+      metadata: { invoice_number: 'INV-DUP', reversed_by_journal_id: 9 },
+    },
+  ],
+  lines: [
+    { account_id: 4100, debit: 0, credit: 1850, journal_entry_id: 1 },
+    { account_id: 4100, debit: 0, credit: 1850, journal_entry_id: 2 },
+    { account_id: 4100, debit: 0, credit: 500, journal_entry_id: 3 },
+  ],
+  accounts: [
+    { id: 4100, code: '4100', name: 'Sales', account_type: 'revenue' },
+  ],
+});
+assert.equal(doubled.total, 1850);
+assert.equal(doubled.lines.length, 1);
+assert.equal(doubled.lines[0].kind, 'invoice');
+
 const posts = collectAccountPostings({
   accountId: 4100,
   polarity: 'revenue',

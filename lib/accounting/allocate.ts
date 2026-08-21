@@ -8,6 +8,7 @@ import { postBalancedJournal, reversePostedJournal } from '@/lib/accounting/post
  * Resolve the GL cash/bank account for a bank account.
  * Prefer bank_accounts.gl_account_id, else first active asset account with subtype bank/cash or code 1110.
  */
+
 export async function resolveBankGlAccountId(
   profileId: number,
   bankAccountId: number
@@ -39,6 +40,76 @@ export async function resolveBankGlAccountId(
   if (bySubtype) return Number(bySubtype.id);
   const anyAsset = rows.find((a) => a.account_type === 'asset');
   return anyAsset ? Number(anyAsset.id) : null;
+}
+
+/**
+ * Receipts for issued invoices must settle AR (Dr bank · Cr AR), not post
+ * a second sale (Dr bank · Cr income).
+ */
+async function allocateInflowToInvoiceIfRecognised(opts: {
+  profileId: number;
+  bankTxnId: number | string;
+  glAccountId: number;
+  amount: number;
+  memo: string;
+  date: string;
+  privyUserId?: string | null;
+}): Promise<{ ok: true; journalId: number; entryNumber: string } | null> {
+  const supabase = getSupabaseServer();
+  const { data: acct } = await supabase
+    .from('chart_of_accounts')
+    .select('id, code, account_type')
+    .eq('id', opts.glAccountId)
+    .eq('profile_id', opts.profileId)
+    .maybeSingle();
+  const type = String(acct?.account_type || '').toLowerCase();
+  const code = String(acct?.code || '');
+  const isRevenue =
+    type === 'revenue' || type === 'income' || type === 'sales' || code.startsWith('4');
+  if (!isRevenue) return null;
+
+  const { bankIncomeMatchesInvoice } = await import(
+    '@/lib/accounting/dedupe-invoice-books'
+  );
+  const { data: invoices } = await supabase
+    .from('invoices')
+    .select('id, invoice_number, total_amount, issue_date, status, metadata')
+    .eq('profile_id', opts.profileId)
+    .eq('direction', 'receivable')
+    .not('status', 'in', '("draft","void","cancelled","canceled")')
+    .limit(400);
+  const hit = (invoices || []).find((inv) =>
+    bankIncomeMatchesInvoice({
+      memo: opts.memo,
+      amount: opts.amount,
+      date: opts.date,
+      invoice: {
+        invoice_number: inv.invoice_number != null ? String(inv.invoice_number) : null,
+        total_amount: Number(inv.total_amount || 0),
+        issue_date: inv.issue_date != null ? String(inv.issue_date) : null,
+      },
+    })
+  );
+  if (!hit) return null;
+
+  const matched = await matchBankToInvoice({
+    profileId: opts.profileId,
+    bankTxnId: opts.bankTxnId,
+    invoiceId: Number(hit.id),
+    privyUserId: opts.privyUserId,
+  });
+  if (!matched.ok) return null;
+  const { data: txn } = await supabase
+    .from('bank_transactions')
+    .select('matched_journal_id')
+    .eq('id', opts.bankTxnId)
+    .eq('profile_id', opts.profileId)
+    .maybeSingle();
+  return {
+    ok: true,
+    journalId: Number(txn?.matched_journal_id || 0),
+    entryNumber: 'AR-SETTLE',
+  };
 }
 
 export type AllocateParams = {
@@ -117,6 +188,22 @@ export async function allocateBankTransaction(params: AllocateParams): Promise<
       error: 'Choose an income/expense account, not the bank account itself',
       status: 400,
     };
+  }
+
+  if (amount > 0) {
+    const matched = await allocateInflowToInvoiceIfRecognised({
+      profileId: params.profileId,
+      bankTxnId: params.bankTxnId,
+      glAccountId: Number(params.glAccountId),
+      amount,
+      memo: String(params.memo || txn.description || ''),
+      date:
+        (txn.txn_date as string | null) ||
+        (txn.tx_date ? String(txn.tx_date).slice(0, 10) : null) ||
+        new Date().toISOString().slice(0, 10),
+      privyUserId: params.privyUserId,
+    });
+    if (matched) return matched;
   }
 
   const entryDate =

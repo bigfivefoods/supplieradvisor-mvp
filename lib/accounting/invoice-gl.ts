@@ -11,6 +11,7 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
   postBalancedJournal,
+  reversePostedJournal,
   resolveCoaAccountId,
   resolveCoaAccountIdByCode,
   type JournalLineInput,
@@ -182,14 +183,46 @@ export async function recognizeInvoiceIfNeeded(opts: {
   if (Number.isFinite(invId) && invId > 0) {
     const { data: existing } = await supabase
       .from('journal_entries')
-      .select('id, metadata, status, source_id')
+      .select('id, metadata, status, source, source_id')
       .eq('profile_id', opts.profileId)
       .eq('source', 'invoice_recognition')
       .eq('source_id', String(invId))
       .eq('status', 'posted');
-    const live = (existing || []).filter(
-      (j) => !asMeta(j.metadata).reversed_by_journal_id
-    );
+    const ids = (existing || []).map((j) => Number(j.id));
+    const reversed = new Set<number>();
+    if (ids.length) {
+      const { data: revs } = await supabase
+        .from('journal_entries')
+        .select('source_id, metadata')
+        .eq('profile_id', opts.profileId)
+        .eq('source', 'reversal')
+        .in('source_id', ids.map(String));
+      for (const r of revs || []) {
+        const rid = Number(r.source_id || asMeta(r.metadata).reverses_journal_id);
+        if (rid > 0) reversed.add(rid);
+      }
+    }
+    const live = (existing || []).filter((j) => {
+      const id = Number(j.id);
+      return !asMeta(j.metadata).reversed_by_journal_id && !reversed.has(id);
+    });
+    if (live.length > 1) {
+      const keep = Number(live[0].id);
+      for (const j of live.slice(1)) {
+        await reversePostedJournal({
+          profileId: opts.profileId,
+          journalId: Number(j.id),
+          createdBy: opts.createdBy,
+          memo: `Reverse duplicate recognition ${inv.invoice_number || invId}`,
+          metadata: { invoice_id: invId, dedupe: true },
+        });
+      }
+      await stampInvoiceMeta(invId, opts.profileId, meta, {
+        recognition_journal_id: keep,
+        recognized_at: new Date().toISOString(),
+      });
+      return { ok: true, skipped: true, journalId: keep };
+    }
     if (live.length) {
       const keeper = Number(live[0].id);
       await stampInvoiceMeta(invId, opts.profileId, meta, {
@@ -448,7 +481,6 @@ export async function reverseInvoiceBooks(opts: {
   invoice: Record<string, unknown>;
   createdBy?: string | null;
 }): Promise<{ ok: boolean; error?: string }> {
-  const supabase = getSupabaseServer();
   const meta = asMeta(opts.invoice.metadata);
   const journalIds: number[] = [];
   if (meta.recognition_journal_id) {
@@ -464,46 +496,17 @@ export async function reverseInvoiceBooks(opts: {
     }
   }
   const unique = [...new Set(journalIds.filter((n) => Number.isFinite(n) && n > 0))];
-  const today = new Date().toISOString().slice(0, 10);
 
   for (const jid of unique) {
-    const { data: je } = await supabase
-      .from('journal_entries')
-      .select('id, status, entry_date, memo, entry_number')
-      .eq('id', jid)
-      .eq('profile_id', opts.profileId)
-      .maybeSingle();
-    if (!je || String(je.status) !== 'posted') continue;
-
-    const { data: oldLines } = await supabase
-      .from('journal_lines')
-      .select('account_id, debit, credit, memo, counterparty')
-      .eq('journal_entry_id', jid);
-    if (!oldLines?.length) continue;
-
-    const entryDate = await pickOpenEntryDate(
-      opts.profileId,
-      String(je.entry_date || today)
-    );
-    const reversed = await postBalancedJournal({
+    const reversed = await reversePostedJournal({
       profileId: opts.profileId,
-      entryDate,
-      memo: `Reversal of ${je.entry_number || jid} (invoice ${opts.invoice.invoice_number || opts.invoice.id} voided)`,
-      source: 'reversal',
-      sourceId: String(jid),
-      createdBy: opts.createdBy || null,
+      journalId: jid,
+      createdBy: opts.createdBy,
+      memo: `Reversal of invoice ${opts.invoice.invoice_number || opts.invoice.id} voided`,
       metadata: {
-        reverses_journal_id: jid,
         invoice_id: opts.invoice.id,
         invoice_void: true,
       },
-      lines: oldLines.map((l) => ({
-        accountId: Number(l.account_id),
-        debit: round2(Number(l.credit || 0)),
-        credit: round2(Number(l.debit || 0)),
-        memo: l.memo,
-        counterparty: l.counterparty,
-      })),
     });
     if (!reversed.ok) return { ok: false, error: reversed.error };
   }

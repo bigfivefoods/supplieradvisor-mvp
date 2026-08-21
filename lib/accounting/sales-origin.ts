@@ -39,6 +39,13 @@ export function salesOriginBucketLabel(kind: SalesOriginKind): string {
   return 'Other journals';
 }
 
+export function isLiveSalesJournal(je: Record<string, unknown>): boolean {
+  const source = String(je.source || '').toLowerCase();
+  if (source === 'year_end_close' || source === 'reversal') return false;
+  if (asMeta(je.metadata).reversed_by_journal_id) return false;
+  return true;
+}
+
 export function classifySalesSource(
   source: string | null | undefined
 ): SalesOriginKind {
@@ -146,7 +153,7 @@ export function buildSalesOrigin(opts: {
     const jid = Number(l.journal_entry_id);
     const je = byId.get(jid);
     if (!je) continue;
-    if (String(je.source || '') === 'year_end_close') continue;
+    if (!isLiveSalesJournal(je)) continue;
     const amount = round2(Number(l.credit || 0) - Number(l.debit || 0));
     if (Math.abs(amount) < 0.005) continue;
     const source = String(je.source || 'manual');
@@ -194,7 +201,49 @@ export function buildSalesOrigin(opts: {
   });
   const total = round2(buckets.reduce((s, b) => s + b.amount, 0));
 
-  return { total, buckets, lines };
+  return dropBankSalesAlreadyInvoiced({ total, buckets, lines });
+}
+
+/** Bank coded to income for an invoice that is already recognised is not a second sale. */
+export function dropBankSalesAlreadyInvoiced(origin: SalesOrigin): SalesOrigin {
+  const invoiceRefs = new Set(
+    origin.lines
+      .filter((l) => l.kind === 'invoice')
+      .map((l) => l.label.trim().toUpperCase())
+      .filter((s) => s.startsWith('INV'))
+  );
+  if (!invoiceRefs.size) return origin;
+  const lines = origin.lines.filter((l) => {
+    if (l.kind !== 'bank') return true;
+    const label = l.label.trim().toUpperCase();
+    if (invoiceRefs.has(label)) return false;
+    for (const ref of invoiceRefs) {
+      if (label.includes(ref)) return false;
+    }
+    return true;
+  });
+  if (lines.length === origin.lines.length) return origin;
+  const bucketMap = new Map<SalesOriginKind, { amount: number; count: number }>();
+  for (const k of KIND_ORDER) bucketMap.set(k, { amount: 0, count: 0 });
+  for (const l of lines) {
+    const b = bucketMap.get(l.kind)!;
+    b.amount = round2(b.amount + l.amount);
+    b.count += 1;
+  }
+  const buckets = KIND_ORDER.map((kind) => {
+    const b = bucketMap.get(kind)!;
+    return {
+      kind,
+      label: salesOriginBucketLabel(kind),
+      amount: round2(b.amount),
+      count: b.count,
+    };
+  });
+  return {
+    total: round2(buckets.reduce((s, b) => s + b.amount, 0)),
+    buckets,
+    lines,
+  };
 }
 
 export type AccountPosting = {
@@ -232,7 +281,7 @@ export function collectAccountPostings(opts: {
     const jid = Number(l.journal_entry_id);
     const je = byId.get(jid);
     if (!je) continue;
-    if (String(je.source || '') === 'year_end_close') continue;
+    if (!isLiveSalesJournal(je)) continue;
     const raw = round2(Number(l.credit || 0) - Number(l.debit || 0));
     const amount = opts.polarity === 'revenue' ? raw : round2(-raw);
     if (Math.abs(amount) < 0.005) continue;
