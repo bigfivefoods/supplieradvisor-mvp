@@ -82,17 +82,10 @@ export async function GET(request: NextRequest) {
     const ids = (entries || []).map((e) => e.id);
     let lines: Array<Record<string, unknown>> = [];
     if (ids.length) {
-      const lined = detail
-        ? await supabase
-            .from('journal_lines')
-            .select(
-              'id, journal_entry_id, account_id, debit, credit, memo, counterparty, tax_code'
-            )
-            .in('journal_entry_id', ids)
-        : await supabase
-            .from('journal_lines')
-            .select('id, journal_entry_id, account_id, debit, credit, memo')
-            .in('journal_entry_id', ids);
+      const lined = await supabase
+        .from('journal_lines')
+        .select('*')
+        .in('journal_entry_id', ids);
       lines = (lined.data || []) as Array<Record<string, unknown>>;
     }
 
