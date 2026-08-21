@@ -354,14 +354,33 @@ function MeAppInner() {
     }
   }, [authenticated, user]);
 
+  const loadFeed = useCallback(async () => {
+    if (!authenticated) return;
+    try {
+      const q = new URLSearchParams({ include: 'feed' });
+      const em = extractEmailFromPrivyUser(user);
+      if (em) q.set('email', em);
+      const res = await fetch(`/api/b2c/me?${q}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (!res.ok) return;
+      if (Array.isArray(data.activity)) setActivity(data.activity);
+      if (Array.isArray(data.journeys)) setJourneys(data.journeys);
+      if (data.verification) setVerification(data.verification);
+    } catch {
+      /* wallet already rendered */
+    }
+  }, [authenticated, user]);
+
   useEffect(() => {
     if (!ready) return;
     if (!authenticated) {
       setLoading(false);
       return;
     }
-    void load();
-  }, [ready, authenticated, load]);
+    void load().then(() => {
+      void loadFeed();
+    });
+  }, [ready, authenticated, load, loadFeed]);
 
   useEffect(() => {
     if (!isJoin || !joinCompany || joinCompany <= 0) return;

@@ -181,6 +181,10 @@ export async function confirmAllocationKeeps(
     .eq('profile_id', companyId);
   if (error) throw new Error(error.message);
   invalidateLearnedPatterns(companyId);
+  const { invalidateAccountingReads } = await import(
+    '@/lib/accounting/read-cache'
+  );
+  invalidateAccountingReads(companyId);
   return keeps;
 }
 

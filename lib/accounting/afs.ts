@@ -11,11 +11,13 @@
  * These are compiled AFS from the ledger — not an audit opinion.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { getOrCreateSettings, round2 } from '@/lib/accounting/server';
+import { round2 } from '@/lib/accounting/server';
 import {
-  fetchJournalLinesByEntryIds,
-  fetchPostedJournals,
-} from '@/lib/accounting/journal-query';
+  dayBeforeIso,
+  fetchAccountTotals,
+  totalsMap,
+} from '@/lib/accounting/account-totals';
+import { getCachedSettings, getCachedCoa } from '@/lib/accounting/read-cache';
 import {
   classifyBsSection,
   BS_SECTION_LABELS,
@@ -45,18 +47,6 @@ type Buckets = {
   periodCurrent: Map<number, { debit: number; credit: number }>;
   periodPrior: Map<number, { debit: number; credit: number }>;
 };
-
-function addTo(
-  map: Map<number, { debit: number; credit: number }>,
-  id: number,
-  debit: number,
-  credit: number
-) {
-  const cur = map.get(id) || { debit: 0, credit: 0 };
-  cur.debit += debit;
-  cur.credit += credit;
-  map.set(id, cur);
-}
 
 function signed(type: string, debit: number, credit: number): number {
   const t = String(type || '').toLowerCase();
@@ -193,7 +183,7 @@ export async function buildAfsPack(opts: {
 }): Promise<AfsPack> {
   const from = String(opts.from).slice(0, 10);
   const to = String(opts.to).slice(0, 10);
-  const settings = await getOrCreateSettings(opts.profileId);
+  const settings = await getCachedSettings(opts.profileId);
   const fyStart = Number(settings.fiscal_year_start_month || 3);
   const prior = priorComparablePeriod(from, to, fyStart);
   const currency = String(settings.base_currency || 'ZAR');
@@ -227,11 +217,7 @@ export async function buildAfsPack(opts: {
     }
   }
 
-  const { data: accountsRaw } = await supabase
-    .from('chart_of_accounts')
-    .select('id, code, name, account_type, subtype, is_header')
-    .eq('profile_id', opts.profileId)
-    .order('code');
+  const accountsRaw = await getCachedCoa(opts.profileId);
   const accounts: CoaRow[] = (accountsRaw || [])
     .filter((a) => !a.is_header)
     .map((a) => ({
@@ -242,45 +228,43 @@ export async function buildAfsPack(opts: {
       subtype: a.subtype || null,
     }));
 
-  const { rows: journals, warning } = await fetchPostedJournals({
-    profileId: opts.profileId,
-    to,
-  });
-  const byId = new Map(journals.map((j) => [j.id, j]));
-  const { lines: rawLines, warning: lineWarn } = await fetchJournalLinesByEntryIds(
-    journals.map((j) => j.id),
-    'journal_entry_id, account_id, debit, credit'
-  );
+  const priorOpenTo = dayBeforeIso(prior.from);
+  const [
+    asAtCurrentT,
+    asAtPriorT,
+    asAtPriorOpenT,
+    periodCurrentT,
+    periodPriorT,
+  ] = await Promise.all([
+    fetchAccountTotals({ profileId: opts.profileId, to }),
+    fetchAccountTotals({ profileId: opts.profileId, to: prior.to }),
+    fetchAccountTotals({ profileId: opts.profileId, to: priorOpenTo }),
+    fetchAccountTotals({
+      profileId: opts.profileId,
+      from,
+      to,
+      excludeSources: ['year_end_close', 'year-end'],
+    }),
+    fetchAccountTotals({
+      profileId: opts.profileId,
+      from: prior.from,
+      to: prior.to,
+      excludeSources: ['year_end_close', 'year-end'],
+    }),
+  ]);
+  const warning = [asAtCurrentT, asAtPriorT, periodCurrentT]
+    .map((t) => t.warning)
+    .filter(Boolean)
+    .join(' ') || undefined;
+  const lineWarn = undefined;
 
   const buckets: Buckets = {
-    asAtCurrent: new Map(),
-    asAtPrior: new Map(),
-    asAtPriorOpen: new Map(),
-    periodCurrent: new Map(),
-    periodPrior: new Map(),
+    asAtCurrent: totalsMap(asAtCurrentT.rows),
+    asAtPrior: totalsMap(asAtPriorT.rows),
+    asAtPriorOpen: totalsMap(asAtPriorOpenT.rows),
+    periodCurrent: totalsMap(periodCurrentT.rows),
+    periodPrior: totalsMap(periodPriorT.rows),
   };
-
-  for (const l of rawLines) {
-    const jid = Number(l.journal_entry_id);
-    const je = byId.get(jid);
-    if (!je) continue;
-    const date = je.entry_date;
-    const aid = Number(l.account_id);
-    const d = Number(l.debit || 0);
-    const c = Number(l.credit || 0);
-    if (!Number.isFinite(aid)) continue;
-    const isClose = String(je.source || '') === 'year_end_close';
-
-    if (date <= to) addTo(buckets.asAtCurrent, aid, d, c);
-    if (date <= prior.to) addTo(buckets.asAtPrior, aid, d, c);
-    if (date < prior.from) addTo(buckets.asAtPriorOpen, aid, d, c);
-    if (!isClose && date >= from && date <= to) {
-      addTo(buckets.periodCurrent, aid, d, c);
-    }
-    if (!isClose && date >= prior.from && date <= prior.to) {
-      addTo(buckets.periodPrior, aid, d, c);
-    }
-  }
 
   const companyName =
     profile?.legal_name ||

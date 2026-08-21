@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { logActivity } from '@/lib/customers/access';
-import { assertCanManageTeam, getCompanyMembership } from '@/lib/business/access';
+import {
+  assertCanManageTeam,
+  getCompanyMembership,
+  invalidateCompanyMembershipMemo,
+} from '@/lib/business/access';
 import { canView, normalizeTeamRole } from '@/lib/business/permissions';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import {
@@ -192,6 +196,10 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    invalidateCompanyMembershipMemo({
+      companyId,
+      userId: data?.user_id != null ? String(data.user_id) : undefined,
+    });
 
     await logActivity({
       profile_id: companyId,
@@ -271,6 +279,10 @@ export async function DELETE(request: NextRequest) {
       .eq('profile_id', companyId);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    invalidateCompanyMembershipMemo({
+      companyId,
+      userId: target.user_id != null ? String(target.user_id) : undefined,
+    });
 
     await logActivity({
       profile_id: companyId,

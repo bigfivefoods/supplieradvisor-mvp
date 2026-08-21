@@ -3,6 +3,10 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertAccountingAccess } from '@/lib/accounting/access';
 import { getOrCreateSettings, parseCompanyId } from '@/lib/accounting/server';
 import {
+  getCachedSettings,
+  invalidateAccountingReads,
+} from '@/lib/accounting/read-cache';
+import {
   requireCompanyAccess,
   requireCompanyRoles,
   ROLES_FINANCE_CRITICAL,
@@ -22,7 +26,7 @@ export async function GET(request: NextRequest) {
     const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
     if (!_gate.ok) return _gate.response;
 
-    const settings = await getOrCreateSettings(companyId);
+    const settings = await getCachedSettings(companyId);
 
     const supabase = getSupabaseServer();
     const { data: periods } = await supabase
@@ -101,6 +105,7 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    invalidateAccountingReads(companyId);
     return NextResponse.json({ success: true, settings: data });
   } catch (e: unknown) {
     return NextResponse.json(

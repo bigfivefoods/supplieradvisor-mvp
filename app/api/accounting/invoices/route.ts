@@ -29,7 +29,9 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseServer();
     let query = supabase
       .from('invoices')
-      .select('*')
+      .select(
+        'id, direction, counterparty_name, customer_id, supplier_id, invoice_number, status, issue_date, due_date, currency, subtotal, tax_rate, tax_amount, total_amount, amount_paid, notes, items, entity_id, paid_at, created_at'
+      )
       .eq('profile_id', companyId)
       .order('issue_date', { ascending: false })
       .order('id', { ascending: false })

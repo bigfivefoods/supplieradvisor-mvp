@@ -157,15 +157,26 @@ export async function GET(request: NextRequest) {
         you_operate: ownedSet.has(m.company_id),
       }));
 
-    const [activity, journeys] = await Promise.all([
-      buildB2cActivity(memberships, {
-        email: profile.email,
-        userId: profile.user_id,
-      }).catch(() => [] as Awaited<ReturnType<typeof buildB2cActivity>>),
-      buildHireJourneys(memberships).catch(
-        () => [] as Awaited<ReturnType<typeof buildHireJourneys>>
-      ),
-    ]);
+    const include = String(
+      request.nextUrl.searchParams.get('include') || ''
+    ).toLowerCase();
+    const wantFeed =
+      include === 'feed' || include === 'activity' || include === 'all';
+
+    const [activity, journeys] = wantFeed
+      ? await Promise.all([
+          buildB2cActivity(memberships, {
+            email: profile.email,
+            userId: profile.user_id,
+          }).catch(() => [] as Awaited<ReturnType<typeof buildB2cActivity>>),
+          buildHireJourneys(memberships).catch(
+            () => [] as Awaited<ReturnType<typeof buildHireJourneys>>
+          ),
+        ])
+      : [
+          [] as Awaited<ReturnType<typeof buildB2cActivity>>,
+          [] as Awaited<ReturnType<typeof buildHireJourneys>>,
+        ];
 
     const docs = activity.filter((a) => a.tone === 'docs' || a.tone === 'alert');
 

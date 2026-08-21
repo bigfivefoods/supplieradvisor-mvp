@@ -8,6 +8,7 @@ import {
   fetchJournalLinesByEntryIds,
   fetchPostedJournals,
 } from '@/lib/accounting/journal-query';
+import { dayBeforeIso, fetchAccountTotals } from '@/lib/accounting/account-totals';
 import type {
   CashFlowClass,
   CashFlowJournal,
@@ -199,6 +200,7 @@ export async function buildIas7CashFlow(opts: {
 
   const { rows: journals, warning } = await fetchPostedJournals({
     profileId: opts.profileId,
+    from,
     to,
   });
   const { lines: rawLines, warning: lineWarn } = await fetchJournalLinesByEntryIds(
@@ -272,8 +274,16 @@ export async function buildIas7CashFlow(opts: {
 
   const memos = await fetchJournalMemos(journals.map((j) => j.id));
 
+  const openingTotals = await fetchAccountTotals({
+    profileId: opts.profileId,
+    to: dayBeforeIso(from),
+  });
   let openingCash = 0;
-  let closingCash = 0;
+  for (const row of openingTotals.rows) {
+    if (cashIds.has(row.account_id)) openingCash += row.debit - row.credit;
+  }
+  openingCash = round2(openingCash);
+  let closingCash = openingCash;
   let journalCount = 0;
 
   for (const je of journals) {
@@ -292,8 +302,7 @@ export async function buildIas7CashFlow(opts: {
     }
     const netCash = round2(cashDr - cashCr);
     const date = je.entry_date;
-    if (date < from) openingCash += netCash;
-    if (date <= to) closingCash += netCash;
+    if (date <= to) closingCash = round2(closingCash + netCash);
 
     if (date < from || date > to) continue;
     if (String(je.source || '') === 'year_end_close') continue;

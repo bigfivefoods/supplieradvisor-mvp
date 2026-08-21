@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertAccountingAccess } from '@/lib/accounting/access';
 import { ensureDefaultCoa, parseCompanyId } from '@/lib/accounting/server';
+import { fetchAccountTotals } from '@/lib/accounting/account-totals';
+import {
+  getCachedCoa,
+  invalidateAccountingReads,
+} from '@/lib/accounting/read-cache';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /** GET ?companyId=&seed=1&q= — list CoA; optional seed of defaults when empty */
@@ -26,28 +31,13 @@ export async function GET(request: NextRequest) {
       const r = await ensureDefaultCoa(companyId);
       seeded = r.seeded;
       seedWarning = r.warning;
+      if (seeded) invalidateAccountingReads(companyId);
     }
 
-    const supabase = getSupabaseServer();
-    let query = supabase
-      .from('chart_of_accounts')
-      .select('*')
-      .eq('profile_id', companyId)
-      .order('code');
-
-    if (type && type !== 'all') query = query.eq('account_type', type);
-
-    const { data, error } = await query;
-    if (error) {
-      return NextResponse.json({
-        success: true,
-        accounts: [],
-        warning: error.message,
-        hint: 'Run supabase/migrations/20260709_world_class_schema.sql and 20260710_accounting_module.sql',
-      });
+    let accounts = await getCachedCoa(companyId);
+    if (type && type !== 'all') {
+      accounts = accounts.filter((a) => a.account_type === type);
     }
-
-    let accounts = data || [];
     if (q) {
       const n = q.toLowerCase();
       accounts = accounts.filter(
@@ -58,24 +48,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Compute simple balances from journal lines
-    const { data: lines } = await supabase
-      .from('journal_lines')
-      .select('account_id, debit, credit, journal_entry_id');
-
-    const { data: posted } = await supabase
-      .from('journal_entries')
-      .select('id, status')
-      .eq('profile_id', companyId)
-      .eq('status', 'posted');
-
-    const postedIds = new Set((posted || []).map((j) => j.id));
+    const wantBalances =
+      request.nextUrl.searchParams.get('balances') !== '0';
     const bal: Record<number, number> = {};
-    for (const l of lines || []) {
-      if (!postedIds.has(l.journal_entry_id)) continue;
-      const id = Number(l.account_id);
-      if (!Number.isFinite(id)) continue;
-      bal[id] = (bal[id] || 0) + Number(l.debit || 0) - Number(l.credit || 0);
+    if (wantBalances) {
+      const totals = await fetchAccountTotals({ profileId: companyId });
+      for (const row of totals.rows) {
+        bal[row.account_id] = row.debit - row.credit;
+      }
     }
 
     const enriched = accounts.map((a) => {
@@ -116,6 +96,7 @@ export async function POST(request: NextRequest) {
 
     if (body.seed) {
       const r = await ensureDefaultCoa(companyId);
+      invalidateAccountingReads(companyId);
       return NextResponse.json({ success: true, ...r });
     }
 
@@ -152,6 +133,7 @@ export async function POST(request: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
+    invalidateAccountingReads(companyId);
     return NextResponse.json({ success: true, account: data });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -205,6 +187,7 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    invalidateAccountingReads(companyId);
     return NextResponse.json({ success: true, account: data });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -245,6 +228,7 @@ export async function DELETE(request: NextRequest) {
         .eq('profile_id', companyId);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     }
+    invalidateAccountingReads(companyId);
     return NextResponse.json({ success: true });
   } catch (e: unknown) {
     return NextResponse.json(

@@ -27,11 +27,38 @@ export type MembershipFail = {
   status: number;
 };
 
-const MEMBERSHIP_TTL_MS = 4_000;
+const MEMBERSHIP_TTL_MS = 45_000;
 const membershipMemo = new Map<
   string,
   { at: number; value: Promise<MembershipOk | MembershipFail> }
 >();
+
+export function invalidateCompanyMembershipMemo(opts?: {
+  companyId?: number;
+  userId?: string | null;
+}): void {
+  const companyId = opts?.companyId;
+  const userId = opts?.userId ? getCanonicalUserId(opts.userId) : '';
+  if (userId && companyId && Number.isFinite(companyId)) {
+    membershipMemo.delete(`${userId}:${companyId}`);
+    return;
+  }
+  if (companyId && Number.isFinite(companyId)) {
+    const suffix = `:${companyId}`;
+    for (const k of membershipMemo.keys()) {
+      if (k.endsWith(suffix)) membershipMemo.delete(k);
+    }
+    return;
+  }
+  if (userId) {
+    const prefix = `${userId}:`;
+    for (const k of membershipMemo.keys()) {
+      if (k.startsWith(prefix)) membershipMemo.delete(k);
+    }
+    return;
+  }
+  membershipMemo.clear();
+}
 
 /**
  * Active company membership with role (for permission checks).
@@ -55,6 +82,9 @@ export async function getCompanyMembership(
   }
   const value = loadCompanyMembership(userId, companyId);
   membershipMemo.set(memoKey, { at: Date.now(), value });
+  void value.then((res) => {
+    if (!res.ok) membershipMemo.delete(memoKey);
+  });
   return value;
 }
 

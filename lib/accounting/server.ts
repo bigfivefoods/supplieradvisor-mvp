@@ -98,31 +98,32 @@ export async function nextDocumentNumber(
   }
 
   const settings = await getOrCreateSettings(profileId);
+  const bump = async (patch: Record<string, unknown>) => {
+    await supabase
+      .from('accounting_settings')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('profile_id', profileId);
+    const { invalidateAccountingReads } = await import(
+      '@/lib/accounting/read-cache'
+    );
+    invalidateAccountingReads(profileId);
+  };
 
   if (kind === 'ar') {
     const n = Number(settings.next_ar_number || 1001);
     const prefix = settings.invoice_prefix_ar || 'INV';
-    await supabase
-      .from('accounting_settings')
-      .update({ next_ar_number: n + 1, updated_at: new Date().toISOString() })
-      .eq('profile_id', profileId);
+    await bump({ next_ar_number: n + 1 });
     return formatDocumentNumber(prefix, n);
   }
   if (kind === 'ap') {
     const n = Number(settings.next_ap_number || 1001);
     const prefix = settings.invoice_prefix_ap || 'BILL';
-    await supabase
-      .from('accounting_settings')
-      .update({ next_ap_number: n + 1, updated_at: new Date().toISOString() })
-      .eq('profile_id', profileId);
+    await bump({ next_ap_number: n + 1 });
     return formatDocumentNumber(prefix, n);
   }
   const n = Number(settings.next_journal_number || 1);
   const prefix = settings.journal_prefix || 'JE';
-  await supabase
-    .from('accounting_settings')
-    .update({ next_journal_number: n + 1, updated_at: new Date().toISOString() })
-    .eq('profile_id', profileId);
+  await bump({ next_journal_number: n + 1 });
   return formatDocumentNumber(prefix, n);
 }
 

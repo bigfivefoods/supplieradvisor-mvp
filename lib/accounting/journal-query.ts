@@ -139,18 +139,28 @@ export async function fetchJournalLinesByEntryIds(
   const supabase = getSupabaseServer();
   const lines: Array<Record<string, unknown>> = [];
   const chunkSize = 150;
+  const chunks: number[][] = [];
   for (let i = 0; i < entryIds.length; i += chunkSize) {
-    const chunk = entryIds.slice(i, i + chunkSize);
-    const { data, error } = await supabase
-      .from('journal_lines')
-      .select(select)
-      .in('journal_entry_id', chunk);
-    if (error) {
-      return { lines, warning: error.message };
-    }
-    const page = (data || []) as unknown as Array<Record<string, unknown>>;
-    for (const row of page) {
-      if (row && typeof row === 'object') lines.push(row);
+    chunks.push(entryIds.slice(i, i + chunkSize));
+  }
+  for (let i = 0; i < chunks.length; i += 4) {
+    const batch = chunks.slice(i, i + 4);
+    const pages = await Promise.all(
+      batch.map((chunk) =>
+        supabase
+          .from('journal_lines')
+          .select(select)
+          .in('journal_entry_id', chunk)
+      )
+    );
+    for (const page of pages) {
+      if (page.error) {
+        return { lines, warning: page.error.message };
+      }
+      const rows = (page.data || []) as unknown as Array<Record<string, unknown>>;
+      for (const row of rows) {
+        if (row && typeof row === 'object') lines.push(row);
+      }
     }
   }
   return { lines };

@@ -36,18 +36,19 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const { data: unrec } = await supabase
-      .from('bank_transactions')
-      .select('bank_account_id')
-      .eq('profile_id', companyId)
-      .eq('status', 'unreconciled')
-      .limit(4000);
-
+    const unrecPairs = await Promise.all(
+      (accounts || []).map(async (a) => {
+        const { count } = await supabase
+          .from('bank_transactions')
+          .select('id', { count: 'exact', head: true })
+          .eq('profile_id', companyId)
+          .eq('bank_account_id', a.id)
+          .eq('status', 'unreconciled');
+        return [Number(a.id), count ?? 0] as const;
+      })
+    );
     const unrecCount: Record<number, number> = {};
-    for (const t of unrec || []) {
-      const id = Number(t.bank_account_id);
-      unrecCount[id] = (unrecCount[id] || 0) + 1;
-    }
+    for (const [id, n] of unrecPairs) unrecCount[id] = n;
 
     const enriched = (accounts || []).map((a) => ({
       ...a,
@@ -59,9 +60,11 @@ export async function GET(request: NextRequest) {
 
     let transactions: unknown[] = [];
     if (include === 'transactions' || accountId || allocationStatus) {
+      const txnCols =
+        'id, bank_account_id, txn_date, amount, currency, description, counterparty_name, reference, status, allocation_status, gl_account_id';
       let tq = supabase
         .from('bank_transactions')
-        .select('*')
+        .select(txnCols)
         .eq('profile_id', companyId)
         .order('txn_date', { ascending: false })
         .order('id', { ascending: false })
@@ -127,24 +130,28 @@ export async function GET(request: NextRequest) {
         .eq('allocation_status', status);
       return count ?? 0;
     };
-    const [allocatedN, matchedN, excludedN, unallocRows] = await Promise.all([
+    const [allocatedN, matchedN, excludedN, unallocN] = await Promise.all([
       countStatus('allocated'),
       countStatus('matched_invoice'),
       countStatus('excluded'),
       supabase
         .from('bank_transactions')
-        .select('amount')
+        .select('id', { count: 'exact', head: true })
         .eq('profile_id', companyId)
-        .or('allocation_status.eq.unallocated,allocation_status.is.null')
-        .limit(4000),
+        .or('allocation_status.eq.unallocated,allocation_status.is.null'),
     ]);
     const pulse = { ...pulseBase };
     pulse.allocated = allocatedN;
     pulse.matched_invoice = matchedN;
     pulse.excluded = excludedN;
-    for (const r of unallocRows.data || []) {
-      pulse.unallocated++;
-      const amt = Number(r.amount || 0);
+    pulse.unallocated = unallocN.count ?? 0;
+    for (const t of transactions as Array<{
+      allocation_status?: string | null;
+      amount?: number;
+    }>) {
+      const st = String(t.allocation_status || 'unallocated');
+      if (st !== 'unallocated') continue;
+      const amt = Number(t.amount || 0);
       if (amt > 0) pulse.unallocatedIn += amt;
       else pulse.unallocatedOut += Math.abs(amt);
     }

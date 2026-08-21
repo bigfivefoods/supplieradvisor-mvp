@@ -2,7 +2,7 @@
  * Period management-accounts pack used by the on-screen view and the one-pager PDF.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { getOrCreateSettings, round2 } from '@/lib/accounting/server';
+import { round2 } from '@/lib/accounting/server';
 import {
   fetchJournalLinesByEntryIds,
   fetchPostedJournals,
@@ -119,7 +119,8 @@ export async function buildManagementPack(opts: {
 }): Promise<ManagementPack> {
   const from = String(opts.from).slice(0, 10);
   const to = String(opts.to).slice(0, 10);
-  const settings = await getOrCreateSettings(opts.profileId);
+  const { getCachedSettings } = await import('@/lib/accounting/read-cache');
+  const settings = await getCachedSettings(opts.profileId);
   const currency = String(settings.base_currency || 'ZAR');
   const supabase = getSupabaseServer();
 

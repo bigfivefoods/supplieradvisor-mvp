@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertAccountingAccess } from '@/lib/accounting/access';
-import { parseCompanyId, monthBounds, getOrCreateSettings } from '@/lib/accounting/server';
+import { parseCompanyId, monthBounds } from '@/lib/accounting/server';
 import { invoiceBalance, isOverdue } from '@/lib/accounting/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
@@ -65,7 +65,9 @@ export async function GET(request: NextRequest) {
           .from('fixed_assets')
           .select('id, book_value, purchase_cost, accumulated_depreciation, status')
           .eq('profile_id', companyId),
-        getOrCreateSettings(companyId),
+        (await import('@/lib/accounting/read-cache')).getCachedSettings(
+          companyId
+        ),
       ]);
 
     const warnings = [

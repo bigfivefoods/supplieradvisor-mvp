@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCompanyMembership } from '@/lib/business/access';
+import {
+  getCompanyMembership,
+  invalidateCompanyMembershipMemo,
+} from '@/lib/business/access';
 import {
   ALL_RESOURCES,
   accessLabel,
@@ -188,6 +191,10 @@ export async function PATCH(request: NextRequest) {
     if (memErr) {
       return NextResponse.json({ error: memErr.message }, { status: 500 });
     }
+    invalidateCompanyMembershipMemo({
+      companyId,
+      userId: mem.userId,
+    });
 
     const chrome = await loadCompanyProfileChrome(companyId);
     const nextChrome = mergeUserSidebarOrderIntoCompanyMeta(

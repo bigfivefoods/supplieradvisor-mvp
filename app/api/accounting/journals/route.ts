@@ -21,6 +21,7 @@ import {
   journalIsReversed,
   resolveLivePostedJournal,
 } from '@/lib/accounting/journal-status';
+import { invalidateAccountingReads } from '@/lib/accounting/read-cache';
 
 /** GET ?companyId=&status= */
 export async function GET(request: NextRequest) {
@@ -47,13 +48,16 @@ export async function GET(request: NextRequest) {
     if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();
+    const detail = byId || byIds;
     let query = supabase
       .from('journal_entries')
-      .select('*')
+      .select(
+        'id, entry_number, entry_date, memo, status, source, source_id, created_by, currency, metadata'
+      )
       .eq('profile_id', companyId)
       .order('entry_date', { ascending: false })
       .order('id', { ascending: false })
-      .limit(byId || byIds ? 50 : 500);
+      .limit(detail ? 50 : 200);
 
     if (status && status !== 'all') query = query.eq('status', status);
     if (byId) {
@@ -78,9 +82,12 @@ export async function GET(request: NextRequest) {
     const ids = (entries || []).map((e) => e.id);
     let lines: Array<Record<string, unknown>> = [];
     if (ids.length) {
+      const lineSelect = detail
+        ? 'id, journal_entry_id, account_id, debit, credit, memo, counterparty, tax_code'
+        : 'id, journal_entry_id, account_id, debit, credit, memo';
       const { data: lineRows } = await supabase
         .from('journal_lines')
-        .select('*')
+        .select(lineSelect)
         .in('journal_entry_id', ids);
       lines = lineRows || [];
     }
@@ -304,7 +311,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: lineErr.message }, { status: 400 });
     }
 
-    if (status === 'posted') invalidateLearnedPatterns(companyId);
+    if (status === 'posted') {
+      invalidateLearnedPatterns(companyId);
+      invalidateAccountingReads(companyId);
+    }
 
     void auditLog({
       companyId,
@@ -447,6 +457,7 @@ export async function PATCH(request: NextRequest) {
         .single();
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
       invalidateLearnedPatterns(companyId);
+      invalidateAccountingReads(companyId);
       return NextResponse.json({ success: true, entry: data });
     }
 
@@ -575,6 +586,7 @@ export async function PATCH(request: NextRequest) {
         .eq('id', id)
         .eq('profile_id', companyId);
 
+      invalidateAccountingReads(companyId);
       return NextResponse.json({
         success: true,
         reversed: true,
@@ -912,6 +924,7 @@ export async function PATCH(request: NextRequest) {
       }
 
       invalidateLearnedPatterns(companyId);
+      invalidateAccountingReads(companyId);
       return NextResponse.json({
         success: true,
         corrected: true,

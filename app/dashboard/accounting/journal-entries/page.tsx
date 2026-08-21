@@ -130,7 +130,7 @@ function Inner() {
       const [jeRes, coaRes] = await Promise.all([
         fetch(`/api/accounting/journals?${params}`),
         fetch(
-          `/api/accounting/chart-of-accounts?companyId=${companyId}${
+          `/api/accounting/chart-of-accounts?companyId=${companyId}&balances=0${
             privyUserId ? `&privyUserId=${encodeURIComponent(privyUserId)}` : ''
           }`
         ),
@@ -224,8 +224,9 @@ function Inner() {
   }, [companyId, privyUserId, period.from, period.to]);
 
   useEffect(() => {
+    if (!reviewOpen) return;
     void loadReview();
-  }, [loadReview]);
+  }, [reviewOpen, loadReview]);
 
   useEffect(() => {
     saveFinanceWorkspace(privyUserId, companyId, { journalScope });

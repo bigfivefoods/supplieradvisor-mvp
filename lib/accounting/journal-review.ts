@@ -19,6 +19,7 @@ import {
   loadAllocationKeeps,
 } from '@/lib/accounting/allocation-keep';
 import { journalEligibleForReview } from '@/lib/accounting/journal-status';
+import { getCachedCoa } from '@/lib/accounting/read-cache';
 
 export type JournalReviewFlag = {
   journal_id: number;
@@ -284,12 +285,9 @@ export async function reviewPostedJournals(opts: {
   const supabase = getSupabaseServer();
   const companyId = opts.companyId;
 
-  const { data: accounts, error: coaErr } = await supabase
-    .from('chart_of_accounts')
-    .select('id, code, name, account_type, subtype, is_header, is_active')
-    .eq('profile_id', companyId);
-  if (coaErr || !accounts?.length) return empty;
-  const coa = (accounts || []) as CoaAccount[];
+  const accounts = await getCachedCoa(companyId);
+  if (!accounts.length) return empty;
+  const coa = accounts as CoaAccount[];
   const skipIds = new Set(
     coa.filter((a) => skipAccount(a)).map((a) => Number(a.id))
   );

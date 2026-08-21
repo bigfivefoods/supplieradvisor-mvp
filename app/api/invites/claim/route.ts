@@ -9,6 +9,7 @@ import { isCustomerInvitesEnabled, logActivity } from '@/lib/customers/access';
 import { upsertSupplierConnection } from '@/lib/suppliers/access';
 import { syncBooksOnAccept } from '@/lib/connections/sync';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { invalidateCompanyMembershipMemo } from '@/lib/business/access';
 import {
   assignReferrerIfEmpty,
   referredByInsertField,
@@ -233,6 +234,10 @@ export async function POST(request: NextRequest) {
         name: name || profile.contact_name,
         email: normalizedEmail || profile.email,
         joined_at: now,
+      });
+      invalidateCompanyMembershipMemo({
+        companyId: Number(profile.id),
+        userId,
       });
 
       if (membershipError) {

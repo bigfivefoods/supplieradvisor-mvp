@@ -10,7 +10,6 @@ import {
   resolveCoaAccountId,
   resolveCoaAccountIdByCode,
 } from '@/lib/accounting/post-journal';
-import { fetchJournalLinesByEntryIds, fetchPostedJournals } from '@/lib/accounting/journal-query';
 import {
   DEFAULT_ECL_RATES,
   ECL_BUCKETS,
@@ -146,19 +145,10 @@ async function creditBalanceOf(
       accountTypes: ['asset'],
     }));
   if (!id) return 0;
-  const { rows } = await fetchPostedJournals({ profileId });
-  const { lines } = await fetchJournalLinesByEntryIds(
-    rows.map((r) => r.id),
-    'account_id, debit, credit'
-  );
-  let dr = 0;
-  let cr = 0;
-  for (const l of lines) {
-    if (Number(l.account_id) !== id) continue;
-    dr += Number(l.debit || 0);
-    cr += Number(l.credit || 0);
-  }
-  return round2(cr - dr);
+  const { fetchAccountTotals } = await import('@/lib/accounting/account-totals');
+  const totals = await fetchAccountTotals({ profileId });
+  const row = totals.rows.find((r) => Number(r.account_id) === id);
+  return round2((row?.credit || 0) - (row?.debit || 0));
 }
 
 export async function postEclAllowance(opts: {

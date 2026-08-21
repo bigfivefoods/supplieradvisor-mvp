@@ -9,6 +9,8 @@ import {
   fetchJournalLinesByEntryIds,
   fetchPostedJournals,
 } from '@/lib/accounting/journal-query';
+import { dayBeforeIso, fetchAccountTotals } from '@/lib/accounting/account-totals';
+import { getCachedCoa } from '@/lib/accounting/read-cache';
 import type {
   GeneralLedger,
   LedgerAccount,
@@ -114,13 +116,8 @@ export async function buildGeneralLedger(opts: {
 }): Promise<GeneralLedger> {
   const from = String(opts.from).slice(0, 10);
   const to = String(opts.to).slice(0, 10);
-  const supabase = getSupabaseServer();
 
-  const { data: accountsRaw } = await supabase
-    .from('chart_of_accounts')
-    .select('id, code, name, account_type, subtype, normal_balance, is_header')
-    .eq('profile_id', opts.profileId)
-    .order('code', { ascending: true });
+  const accountsRaw = await getCachedCoa(opts.profileId);
 
   const accounts = (accountsRaw || [])
     .filter((a) => !a.is_header)
@@ -136,10 +133,19 @@ export async function buildGeneralLedger(opts: {
     }));
   const byId = new Map(accounts.map((a) => [a.id, a]));
 
-  const { rows: journals, warning } = await fetchPostedJournals({
-    profileId: opts.profileId,
-    to,
-  });
+  const [openingTotals, periodJournals] = await Promise.all([
+    fetchAccountTotals({
+      profileId: opts.profileId,
+      to: dayBeforeIso(from),
+    }),
+    fetchPostedJournals({
+      profileId: opts.profileId,
+      from,
+      to,
+    }),
+  ]);
+  const journals = periodJournals.rows;
+  const warning = periodJournals.warning;
   const jeById = new Map(journals.map((j) => [j.id, j]));
 
   const extra = await fetchJournalMemos(journals.map((j) => j.id));
@@ -150,6 +156,12 @@ export async function buildGeneralLedger(opts: {
   );
 
   const openingByAcct = new Map<number, { debit: number; credit: number }>();
+  for (const row of openingTotals.rows) {
+    openingByAcct.set(row.account_id, {
+      debit: row.debit,
+      credit: row.credit,
+    });
+  }
   const periodByAcct = new Map<
     number,
     Array<{
