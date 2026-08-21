@@ -10,6 +10,7 @@ import {
   AdvisorPublicSite,
   AdvisorPublicStatus,
 } from '@/components/advisors/AdvisorPublicSite';
+import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
 
 type CatalogueItem = {
   id: string;
@@ -54,6 +55,7 @@ type Site = {
     cta_href?: string | null;
   }>;
   catalogue?: CatalogueItem[];
+  hours?: Array<{ days: string; hours: string }>;
 };
 
 export default function HirePublicEmbedPage() {
@@ -119,6 +121,9 @@ export default function HirePublicEmbedPage() {
     ...(sec.catalogue !== false
       ? [{ id: 'catalogue', label: 'Catalogue' }]
       : []),
+    ...(sec.hours !== false && site.hours?.length
+      ? [{ id: 'hours', label: 'Hours' }]
+      : []),
     ...(sec.contact !== false &&
     (site.city || site.contact_phone || site.contact_email)
       ? [{ id: 'contact', label: 'Contact' }]
@@ -126,6 +131,17 @@ export default function HirePublicEmbedPage() {
   ];
 
   return (
+    <>
+    {token ? (
+      <AdvisorPwaMemberBinder
+        module="hiregraph"
+        memberToken={token}
+        publicToken={token}
+        brandName={site.brand}
+        themeColor={color}
+        iconUrl={site.logo_url}
+      />
+    ) : null}
     <AdvisorPublicSite
       eyebrow="HireAdvisor®"
       brand={site.brand}
@@ -138,6 +154,7 @@ export default function HirePublicEmbedPage() {
       color={color}
       payoutReady={payoutReady}
       nav={nav}
+      hours={sec.hours === false ? [] : site.hours}
       cta={{ href: '#catalogue', label: 'Browse hire' }}
       footerNote="Powered by HireAdvisor® · SupplierAdvisor"
     >
@@ -369,5 +386,6 @@ export default function HirePublicEmbedPage() {
         </AdvisorPublicSection>
       ) : null}
     </AdvisorPublicSite>
+    </>
   );
 }

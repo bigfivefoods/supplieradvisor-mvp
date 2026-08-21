@@ -9,7 +9,8 @@ import { renderAdvisorPwaOgPng } from '@/lib/advisors/pwa-icon';
 import { ADVISOR_PWA_ASSET_CORS } from '@/lib/advisors/member-pwa';
 
 export const runtime = 'nodejs';
-export const revalidate = 21600;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: { ...ADVISOR_PWA_ASSET_CORS } });

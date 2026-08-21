@@ -84,27 +84,45 @@ async function fetchBytes(url: string): Promise<Buffer | null> {
   return buf;
 }
 
-/** Drop SVG <text> so missing fonts cannot rasterize as □ / 0000 under the mark. */
+function looksLikeSvg(source: Buffer): boolean {
+  const head = source.subarray(0, Math.min(source.length, 512)).toString('utf8');
+  return /<svg[\s>]/i.test(head) || (head.includes('<?xml') && /<svg[\s>]/i.test(source.toString('utf8').slice(0, 2000)));
+}
+
+function isSvgLogoUrl(url: string): boolean {
+  try {
+    const u = new URL(url, 'https://example.invalid');
+    return /\.svg$/i.test(u.pathname);
+  } catch {
+    return /\.svg(\?|#|$)/i.test(url);
+  }
+}
+
+/** Drop SVG captions so missing fonts cannot rasterize as □ / 0000 under the mark. */
 export function stripSvgCaptions(source: Buffer): Buffer {
-  const head = source.subarray(0, Math.min(source.length, 256)).toString('utf8');
-  if (!/<svg[\s>]/i.test(head) && !head.includes('<?xml')) return source;
+  if (!looksLikeSvg(source)) return source;
   const xml = source.toString('utf8');
   if (!/<svg[\s>]/i.test(xml)) return source;
   const cleaned = xml
-    .replace(/<text\b[\s\S]*?<\/text>/gi, '')
-    .replace(/<text\b[^>]*\/>/gi, '');
+    .replace(/<(text|textPath|tspan|flowRoot|flowPara|flowSpan)\b[\s\S]*?<\/\1>/gi, '')
+    .replace(/<(text|textPath|tspan|flowRoot|flowPara|flowSpan)\b[^>]*\/>/gi, '');
   return Buffer.from(cleaned);
 }
 
 async function loadLogoBytes(iconUrl: string): Promise<Buffer | null> {
   const raw = String(iconUrl || '').trim();
   if (!raw) return null;
-  const cacheKey = `pwa-logo:${raw}`;
+  const cacheKey = `pwa-logo-v2:${raw}`;
   const hit = ttlGet<Buffer>(cacheKey);
   if (hit) return hit;
   let bytes: Buffer | null = null;
-  const rendered = supabaseRenderIconUrl(raw, 1024);
-  if (rendered) bytes = await fetchBytes(rendered);
+  // Rasterizing SVG via Supabase bakes missing-font tofu. Fetch the SVG and
+  // strip captions before sharp draws it.
+  if (isSvgLogoUrl(raw) && raw.startsWith('https://')) {
+    bytes = await fetchBytes(raw);
+  }
+  const rendered = !bytes && !isSvgLogoUrl(raw) ? supabaseRenderIconUrl(raw, 1024) : null;
+  if (!bytes && rendered) bytes = await fetchBytes(rendered);
   if (!bytes && raw.startsWith('/') && !raw.startsWith('//')) {
     const rel = raw.replace(/^\/+/, '').replace(/\.\./g, '');
     const file = path.join(process.cwd(), 'public', rel);
@@ -114,7 +132,7 @@ async function loadLogoBytes(iconUrl: string): Promise<Buffer | null> {
       bytes = null;
     }
   }
-  if (!bytes && !rendered) bytes = await fetchBytes(raw);
+  if (!bytes && raw.startsWith('https://')) bytes = await fetchBytes(raw);
   if (bytes) {
     bytes = Buffer.from(stripSvgCaptions(bytes));
     ttlSet(cacheKey, bytes, LOGO_TTL_MS);
@@ -161,9 +179,102 @@ function rgbDist(a: Corner, b: Corner): number {
   return Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
 }
 
+type LogoBlob = {
+  seed: number;
+  area: number;
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+};
+
+function erodeOpaqueMask(
+  data: Uint8Array,
+  width: number,
+  height: number,
+  channels: number,
+  opaque: number
+): Uint8Array {
+  const mask = new Uint8Array(width * height);
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const i = y * width + x;
+      if (data[i * channels + 3] < opaque) continue;
+      if (
+        data[((y - 1) * width + x) * channels + 3] < opaque ||
+        data[((y + 1) * width + x) * channels + 3] < opaque ||
+        data[(i - 1) * channels + 3] < opaque ||
+        data[(i + 1) * channels + 3] < opaque
+      ) {
+        continue;
+      }
+      mask[i] = 1;
+    }
+  }
+  return mask;
+}
+
+function collectOpaqueBlobs(
+  mask: Uint8Array,
+  width: number,
+  height: number
+): LogoBlob[] {
+  const seen = new Uint8Array(width * height);
+  const stack = new Int32Array(width * height);
+  const dirs = [1, 0, -1, 0, 1];
+  const blobs: LogoBlob[] = [];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = y * width + x;
+      if (seen[i] || !mask[i]) continue;
+      let area = 0;
+      let top = 0;
+      let minX = x;
+      let minY = y;
+      let maxX = x;
+      let maxY = y;
+      stack[top++] = i;
+      seen[i] = 1;
+      const seed = i;
+      while (top > 0) {
+        const p = stack[--top];
+        area++;
+        const px = p % width;
+        const py = (p / width) | 0;
+        if (px < minX) minX = px;
+        if (py < minY) minY = py;
+        if (px > maxX) maxX = px;
+        if (py > maxY) maxY = py;
+        for (let d = 0; d < 4; d++) {
+          const nx = px + dirs[d];
+          const ny = py + dirs[d + 1];
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+          const ni = ny * width + nx;
+          if (seen[ni] || !mask[ni]) continue;
+          seen[ni] = 1;
+          stack[top++] = ni;
+        }
+      }
+      if (area >= 8) {
+        blobs.push({ seed, area, minX, minY, maxX, maxY });
+      }
+    }
+  }
+  return blobs;
+}
+
+function blobScore(b: LogoBlob): number {
+  const w = b.maxX - b.minX + 1;
+  const h = b.maxY - b.minY + 1;
+  const aspect = h / Math.max(1, w);
+  // Captions / tofu are a short wide strip. Prefer the taller mark.
+  const stripPenalty = aspect < 0.28 ? 0.25 : 1;
+  return b.area * (8 + h) * stripPenalty;
+}
+
 /**
- * Keep the largest opaque blob (the brand mark) and drop the tofu / 0000
- * caption row that missing fonts rasterize underneath it.
+ * Keep the brand mark and drop the tofu / 0000 caption row that missing
+ * fonts rasterize underneath it. Wordmark letters on the same row stay.
  */
 export function keepPrimaryLogoMark(
   data: Uint8Array,
@@ -175,84 +286,84 @@ export function keepPrimaryLogoMark(
     return { data, width, height };
   }
   const opaque = 24;
-  const seen = new Uint8Array(width * height);
-  let bestArea = 0;
-  let bestSeed = -1;
+  let mask = erodeOpaqueMask(data, width, height, channels, opaque);
+  let blobs = collectOpaqueBlobs(mask, width, height);
+  if (!blobs.length) {
+    mask = new Uint8Array(width * height);
+    for (let i = 0; i < width * height; i++) {
+      if (data[i * channels + 3] >= opaque) mask[i] = 1;
+    }
+    blobs = collectOpaqueBlobs(mask, width, height);
+  }
+  if (!blobs.length) return { data, width, height };
+
+  blobs.sort((a, b) => blobScore(b) - blobScore(a));
+  const primary = blobs[0];
+  const pH = primary.maxY - primary.minY + 1;
+  const yTol = Math.max(6, Math.round(pH * 0.4));
+  const keep = blobs.filter((b) => {
+    const cy = (b.minY + b.maxY) / 2;
+    if (cy < primary.minY - yTol) return false;
+    if (cy > primary.maxY + yTol) return false;
+    return b.minY <= primary.maxY + yTol && b.maxY >= primary.minY - yTol;
+  });
+
+  const keepMask = new Uint8Array(width * height);
   const stack = new Int32Array(width * height);
   const dirs = [1, 0, -1, 0, 1];
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const i = y * width + x;
-      if (seen[i]) continue;
-      if (data[i * channels + 3] < opaque) {
-        seen[i] = 1;
-        continue;
-      }
-      let area = 0;
-      let top = 0;
-      stack[top++] = i;
-      seen[i] = 1;
-      const seed = i;
-      while (top > 0) {
-        const p = stack[--top];
-        area++;
-        const px = p % width;
-        const py = (p / width) | 0;
-        for (let d = 0; d < 4; d++) {
-          const nx = px + dirs[d];
-          const ny = py + dirs[d + 1];
-          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-          const ni = ny * width + nx;
-          if (seen[ni]) continue;
-          if (data[ni * channels + 3] < opaque) {
-            seen[ni] = 1;
-            continue;
-          }
-          seen[ni] = 1;
-          stack[top++] = ni;
-        }
-      }
-      if (area > bestArea) {
-        bestArea = area;
-        bestSeed = seed;
+  for (const b of keep) {
+    let top = 0;
+    stack[top++] = b.seed;
+    keepMask[b.seed] = 1;
+    while (top > 0) {
+      const p = stack[--top];
+      const px = p % width;
+      const py = (p / width) | 0;
+      for (let d = 0; d < 4; d++) {
+        const nx = px + dirs[d];
+        const ny = py + dirs[d + 1];
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        const ni = ny * width + nx;
+        if (keepMask[ni] || !mask[ni]) continue;
+        keepMask[ni] = 1;
+        stack[top++] = ni;
       }
     }
   }
-  if (bestSeed < 0 || bestArea < 16) return { data, width, height };
 
-  seen.fill(0);
+  // Dilate 2px so erosion does not nibble the mark, then copy original pixels.
+  const dilate = new Uint8Array(keepMask);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (!keepMask[y * width + x]) continue;
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+          dilate[ny * width + nx] = 1;
+        }
+      }
+    }
+  }
+
   let minX = width;
   let minY = height;
   let maxX = 0;
   let maxY = 0;
-  let top = 0;
-  stack[top++] = bestSeed;
-  seen[bestSeed] = 1;
   const kept: number[] = [];
-  while (top > 0) {
-    const p = stack[--top];
-    kept.push(p);
-    const px = p % width;
-    const py = (p / width) | 0;
+  for (let i = 0; i < dilate.length; i++) {
+    if (!dilate[i]) continue;
+    if (data[i * channels + 3] < opaque) continue;
+    kept.push(i);
+    const px = i % width;
+    const py = (i / width) | 0;
     if (px < minX) minX = px;
     if (py < minY) minY = py;
     if (px > maxX) maxX = px;
     if (py > maxY) maxY = py;
-    for (let d = 0; d < 4; d++) {
-      const nx = px + dirs[d];
-      const ny = py + dirs[d + 1];
-      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-      const ni = ny * width + nx;
-      if (seen[ni]) continue;
-      if (data[ni * channels + 3] < opaque) {
-        seen[ni] = 1;
-        continue;
-      }
-      seen[ni] = 1;
-      stack[top++] = ni;
-    }
   }
+  if (!kept.length) return { data, width, height };
 
   const pad = 2;
   const x0 = Math.max(0, minX - pad);
@@ -466,7 +577,7 @@ export async function renderAdvisorPwaOgPng(
   const sharp = (await import('sharp')).default;
   const W = 1200;
   const H = 630;
-  const cacheKey = `pwa-og-mark-v4:${brand.module}:${brand.publicToken}:${brand.iconUrl}:${brand.themeColor}`;
+  const cacheKey = `pwa-og-mark-v5:${brand.module}:${brand.publicToken}:${brand.iconUrl}:${brand.themeColor}`;
   const hit = ttlGet<Buffer>(cacheKey);
   if (hit) return hit;
 

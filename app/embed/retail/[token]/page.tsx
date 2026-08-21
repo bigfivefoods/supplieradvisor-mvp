@@ -31,6 +31,7 @@ type Site = {
     cta_href?: string | null;
   }>;
   skus?: Array<{ id: string; name: string; sku?: string; price_zar: number }>;
+  hours?: Array<{ days: string; hours: string }>;
 };
 
 export default function RetailPublicEmbedPage() {
@@ -75,6 +76,9 @@ export default function RetailPublicEmbedPage() {
       ? [{ id: 'news', label: 'News' }]
       : []),
     ...(sec.shop !== false ? [{ id: 'shop', label: 'Shop' }] : []),
+    ...(sec.hours !== false && site.hours?.length
+      ? [{ id: 'hours', label: 'Hours' }]
+      : []),
     ...(sec.contact !== false && (site.contact_phone || site.contact_email)
       ? [{ id: 'contact', label: 'Contact' }]
       : []),
@@ -103,6 +107,7 @@ export default function RetailPublicEmbedPage() {
       color={color}
       payoutReady={payoutReady}
       nav={nav}
+      hours={sec.hours === false ? [] : site.hours}
       cta={{ href: '#shop', label: 'Shop' }}
       footerNote="Powered by RetailAdvisor® · SupplierAdvisor"
     >

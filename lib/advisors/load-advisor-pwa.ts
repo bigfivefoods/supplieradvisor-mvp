@@ -7,6 +7,7 @@ import type { Metadata, Viewport } from 'next';
 import { unstable_cache } from 'next/cache';
 import { isAdvisorModuleKey } from '@/lib/business/company-data';
 import { resolveAdvisorCompanyId } from '@/lib/business/advisor-store-resolve';
+import { pickCompanyLogoUrl } from '@/lib/business/company-logo';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { ttlGet, ttlSet } from '@/lib/system/memory-ttl';
 import { SITE_URL } from '@/lib/seo/site';
@@ -93,18 +94,38 @@ async function loadSlimPwaSettings(opts: {
   };
 }
 
-function brandFromSlim(
+async function loadProfileLogoUrl(companyId: number): Promise<string | null> {
+  const key = `pwa-profile-logo:${companyId}`;
+  const hit = ttlGet<string | false>(key);
+  if (hit === false) return null;
+  if (hit) return hit;
+  const supabase = getSupabaseServer();
+  const { data } = await supabase
+    .from('profiles')
+    .select('logo_url')
+    .eq('id', companyId)
+    .maybeSingle();
+  const url = pickCompanyLogoUrl(data);
+  ttlSet(key, url || false, url ? BRAND_TTL_MS : MISS_TTL_MS);
+  return url;
+}
+
+async function brandFromSlim(
   moduleRaw: AdvisorPwaModule,
   slim: SlimPwaRow,
   publicTokenFallback: string
-): AdvisorPwaBrand | null {
+): Promise<AdvisorPwaBrand | null> {
   const publicToken = slim.publicToken || publicTokenFallback;
   if (!publicToken) return null;
+  const identityLogo = await loadProfileLogoUrl(slim.companyId);
+  const settings = identityLogo
+    ? { ...slim.settings, company_logo_url: identityLogo }
+    : slim.settings;
   return buildAdvisorPwaBrand({
     module: moduleRaw,
     publicToken,
     companyId: slim.companyId,
-    settings: slim.settings,
+    settings,
   });
 }
 
@@ -121,7 +142,7 @@ async function loadAdvisorPwaBrandUncached(
     publicToken: token,
   });
   if (byToken?.publicToken === token) {
-    return brandFromSlim(moduleRaw, byToken, token);
+    return await brandFromSlim(moduleRaw, byToken, token);
   }
 
   const companyId = await resolveAdvisorCompanyId({
@@ -135,7 +156,7 @@ async function loadAdvisorPwaBrandUncached(
     companyId,
   });
   if (!slim) return null;
-  const brand = brandFromSlim(moduleRaw, slim, token);
+  const brand = await brandFromSlim(moduleRaw, slim, token);
   if (!brand) return null;
   if (brand.publicToken && brand.publicToken !== token) return null;
   return brand;
@@ -152,6 +173,28 @@ async function loadAdvisorPwaBrandFromPortalTokenUncached(
   if (moduleRaw === 'fitgraph') {
     const fit = await import('@/lib/fitness/fitgraph');
     parseCompanyId = fit.parseCompanyIdFromToken;
+  } else if (moduleRaw === 'hiregraph') {
+    const hire = await import('@/lib/hire/hiregraph');
+    parseCompanyId = (t) =>
+      hire.parseCompanyIdFromHireCustomerToken(t) ||
+      hire.parseCompanyIdFromHirePublicToken(t);
+  } else if (moduleRaw === 'retailgraph') {
+    const retail = await import('@/lib/retail/retailgraph');
+    parseCompanyId = (t) =>
+      retail.parseCompanyIdFromRetailCustomerToken(t) ||
+      retail.parseCompanyIdFromRetailPublicToken(t);
+  } else if (moduleRaw === 'physiograph') {
+    parseCompanyId = (await import('@/lib/clinic/physiograph'))
+      .parsePhysioCompanyIdFromToken;
+  } else if (moduleRaw === 'dentalgraph') {
+    parseCompanyId = (await import('@/lib/dental/dentalgraph'))
+      .parseDentalCompanyIdFromToken;
+  } else if (moduleRaw === 'medicalgraph') {
+    parseCompanyId = (await import('@/lib/clinic/medicalgraph'))
+      .parseMedicalCompanyIdFromToken;
+  } else if (moduleRaw === 'psychiatrygraph') {
+    parseCompanyId = (await import('@/lib/clinic/psychiatrygraph'))
+      .parsePsychiatryCompanyIdFromToken;
   }
   const companyId = await resolveAdvisorCompanyId({
     token,
@@ -184,14 +227,14 @@ function ttlBrand(
 const loadAdvisorPwaBrandData = unstable_cache(
   async (moduleKey: string, token: string) =>
     loadAdvisorPwaBrandUncached(moduleKey, token),
-  ['advisor-pwa-brand-v1'],
+  ['advisor-pwa-brand-v2'],
   { revalidate: 60 }
 );
 
 const loadAdvisorPwaBrandFromPortalData = unstable_cache(
   async (moduleKey: string, token: string) =>
     loadAdvisorPwaBrandFromPortalTokenUncached(moduleKey, token),
-  ['advisor-pwa-brand-portal-v1'],
+  ['advisor-pwa-brand-portal-v2'],
   { revalidate: 60 }
 );
 
@@ -277,4 +320,30 @@ export function advisorPwaPageViewport(brand: AdvisorPwaBrand | null): Viewport 
     initialScale: 1,
     viewportFit: 'cover',
   };
+}
+
+async function readTokenParam(
+  params: { token: string } | Promise<{ token: string }>
+): Promise<string> {
+  const { token } = await params;
+  return String(token || '').trim();
+}
+
+/** Branded PWA chrome for /member, /hire, and retail embed token routes. */
+export async function generateAdvisorPortalTokenMetadata(
+  module: AdvisorPwaModule,
+  params: { token: string } | Promise<{ token: string }>
+): Promise<Metadata> {
+  const token = await readTokenParam(params);
+  const brand = await loadAdvisorPwaBrandFromPortalToken(module, token);
+  return advisorPwaPageMetadata(brand);
+}
+
+export async function generateAdvisorPortalTokenViewport(
+  module: AdvisorPwaModule,
+  params: { token: string } | Promise<{ token: string }>
+): Promise<Viewport> {
+  const token = await readTokenParam(params);
+  const brand = await loadAdvisorPwaBrandFromPortalToken(module, token);
+  return advisorPwaPageViewport(brand);
 }

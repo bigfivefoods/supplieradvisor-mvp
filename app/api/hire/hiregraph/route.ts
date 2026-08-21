@@ -44,7 +44,11 @@ import {
   hireCustomerInviteEmailText,
 } from '@/lib/b2c/hire-invite-email';
 import { getAppUrl, getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
-import { logoUrlFromSettings } from '@/lib/business/company-logo';
+import {
+  applyCompanyLogoToSettings,
+  logoUrlFromSettings,
+  pickCompanyLogoUrl,
+} from '@/lib/business/company-logo';
 import { listInventoryProductForHire } from '@/lib/hire/list-from-inventory';
 import {
   applyAnnouncementAction,
@@ -71,10 +75,11 @@ async function loadStore(companyId: number, opts?: { fresh?: boolean }) {
     ),
     supabase
       .from('profiles')
-      .select('trading_name, legal_name')
+      .select('trading_name, legal_name, logo_url')
       .eq('id', companyId)
       .maybeSingle(),
   ]);
+  applyCompanyLogoToSettings(store, pickCompanyLogoUrl(prof));
   const companyName = String(
     prof?.trading_name || prof?.legal_name || `Company #${companyId}`
   );

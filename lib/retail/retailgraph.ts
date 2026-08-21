@@ -10,6 +10,7 @@ import {
 import type { MemberAnnouncement } from '@/lib/services/member-announcements';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { isPortalSectionOn } from '@/lib/advisors/portal-sections';
+import { compactWorkingHours } from '@/lib/schedule/working-hours';
 import { retailCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
 
 export const RETAILGRAPH_MODULE_ID = 'retailgraph' as const;
@@ -28,6 +29,9 @@ export type RetailCustomer = {
   name: string;
   email?: string | null;
   phone?: string | null;
+  photo_url?: string | null;
+  portal_token?: string | null;
+  updated_at?: string;
 };
 
 export type RetailSale = {
@@ -49,6 +53,7 @@ export type RetailPublicSettings = {
   website_url?: string;
   contact_email?: string;
   contact_phone?: string;
+  city?: string;
   embed_primary_color?: string;
   portal_sections?: Record<string, boolean>;
   show_pricing?: boolean;
@@ -67,6 +72,7 @@ export type RetailPublicSettings = {
   pwa_theme_color?: string;
   pwa_background_color?: string;
   pwa_icon_url?: string | null;
+  working_hours?: import('@/lib/schedule/working-hours').WorkingHours;
 };
 
 export type RetailgraphStore = {
@@ -107,11 +113,17 @@ export function readRetailgraphFromMetadata(
 }
 
 export const RETAILGRAPH_PUBLIC_TOKEN_KEY = 'retailgraph_public_token';
+export const RETAILGRAPH_CUSTOMER_TOKENS_KEY = 'retailgraph_customer_tokens';
 
 export function writeRetailgraphToMetadata(
   meta: Record<string, unknown>,
   store: RetailgraphStore
 ): Record<string, unknown> {
+  const customerTokens: Record<string, string> = {};
+  for (const c of store.customers || []) {
+    const token = String(c.portal_token || '').trim();
+    if (token) customerTokens[token] = c.id;
+  }
   return {
     ...meta,
     [RETAILGRAPH_META_KEY]: {
@@ -119,6 +131,7 @@ export function writeRetailgraphToMetadata(
       announcements: normalizeAnnouncements(store.announcements),
     },
     [RETAILGRAPH_PUBLIC_TOKEN_KEY]: store.settings?.public_token || null,
+    [RETAILGRAPH_CUSTOMER_TOKENS_KEY]: customerTokens,
   };
 }
 
@@ -179,9 +192,13 @@ export function buildRetailPublicWebsitePayload(
         price_zar: Number(s.price_zar) || 0,
       }))
       : [],
+    hours: isPortalSectionOn(store.settings, 'hours')
+      ? compactWorkingHours(store.settings.working_hours)
+      : [],
     sections: {
       news: isPortalSectionOn(store.settings, 'news'),
       shop: isPortalSectionOn(store.settings, 'shop'),
+      hours: isPortalSectionOn(store.settings, 'hours'),
       contact: isPortalSectionOn(store.settings, 'contact'),
     },
   };
@@ -189,6 +206,105 @@ export function buildRetailPublicWebsitePayload(
 
 export function newRetailId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function issueRetailCustomerPortalToken(companyId: number): string {
+  return `rtl_cus_${companyId}_${Date.now().toString(36)}_${Math.random()
+    .toString(36)
+    .slice(2, 12)}`;
+}
+
+export function parseCompanyIdFromRetailCustomerToken(
+  token: string
+): number | null {
+  const m = /^rtl_cus_(\d+)_/.exec(String(token || '').trim());
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+export function retailCustomerPortalPath(portalToken: string): string {
+  return `/member/retailgraph/${encodeURIComponent(portalToken)}`;
+}
+
+export function findRetailCustomerByPortalToken(
+  store: RetailgraphStore,
+  token: string
+): RetailCustomer | null {
+  const t = String(token || '').trim();
+  if (!t) return null;
+  return (
+    (store.customers || []).find(
+      (c) => String(c.portal_token || '').trim() === t
+    ) || null
+  );
+}
+
+/** Issue or reuse a member-app portal token for a shop customer. */
+export function issueRetailCustomerPortal(
+  store: RetailgraphStore,
+  customerId: string,
+  opts: { companyId: number }
+): { store: RetailgraphStore; customer: RetailCustomer } {
+  const customers = [...(store.customers || [])];
+  const idx = customers.findIndex((c) => c.id === customerId);
+  if (idx < 0) {
+    throw new Error('Customer not found');
+  }
+  const prev = customers[idx];
+  const token =
+    String(prev.portal_token || '').trim() ||
+    issueRetailCustomerPortalToken(opts.companyId);
+  const customer: RetailCustomer = {
+    ...prev,
+    portal_token: token,
+    updated_at: new Date().toISOString(),
+  };
+  customers[idx] = customer;
+  return { store: { ...store, customers }, customer };
+}
+
+export function buildRetailCustomerPortalPayload(
+  store: RetailgraphStore,
+  customer: RetailCustomer,
+  opts?: { companyName?: string | null }
+) {
+  const site = buildRetailPublicWebsitePayload(store, opts);
+  const orders = (store.sales || []).filter(
+    (s) => s.customer_id === customer.id && s.status !== 'void'
+  );
+  return {
+    brand: site.brand,
+    public_token: store.settings.public_token || '',
+    bio: site.bio,
+    contact_email: site.contact_email,
+    contact_phone: site.contact_phone,
+    website_url: site.website_url,
+    logo_url: site.logo_url,
+    primary_color: site.primary_color,
+    enabled: site.enabled,
+    announcements: site.announcements,
+    skus: site.skus,
+    sections: site.sections,
+    customer: {
+      id: customer.id,
+      name: customer.name,
+      email: customer.email || null,
+      phone: customer.phone || null,
+      photo_url: customer.photo_url || null,
+    },
+    orders: orders.map((s) => ({
+      id: s.id,
+      created_at: s.created_at,
+      total_zar: Number(s.total_zar) || 0,
+      status: s.status,
+      lines: (s.lines || []).map((l) => ({
+        name: l.name,
+        qty: l.qty,
+        unit_zar: l.unit_zar,
+      })),
+    })),
+  };
 }
 
 export function summariseRetailgraph(

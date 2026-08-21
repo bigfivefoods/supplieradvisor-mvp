@@ -49,8 +49,10 @@ import {
   writeHiregraphToMetadata,
 } from '@/lib/hire/hiregraph';
 import {
+  issueRetailCustomerPortal,
   newRetailId,
   readRetailgraphFromMetadata,
+  retailCustomerPortalPath,
   writeRetailgraphToMetadata,
 } from '@/lib/retail/retailgraph';
 import {
@@ -889,11 +891,15 @@ async function joinRetail(opts: {
       ...store,
       customers: [customer, ...store.customers],
     };
-    await saveMeta(
-      opts.company.id,
-      writeRetailgraphToMetadata(opts.company.meta, store)
-    );
   }
+  const issued = issueRetailCustomerPortal(store, customer.id, {
+    companyId: opts.company.id,
+  });
+  store = issued.store;
+  await saveMeta(
+    opts.company.id,
+    writeRetailgraphToMetadata(opts.company.meta, store)
+  );
   const brand = store.settings?.brand_name || opts.company.name;
   const caps: B2cCapability[] = ['order', 'review'];
   const membership = {
@@ -901,19 +907,32 @@ async function joinRetail(opts: {
     company_id: opts.company.id,
     company_name: opts.company.name,
     brand,
-    portal_token: store.settings?.public_token || null,
-    portal_path: store.settings?.public_token
-      ? `/embed/retail/${encodeURIComponent(store.settings.public_token)}`
+    portal_token: issued.customer.portal_token || null,
+    portal_path: issued.customer.portal_token
+      ? retailCustomerPortalPath(issued.customer.portal_token)
       : '/me',
     checkin_path: null,
-    ref_id: customer.id,
-    ref_label: opts.displayName,
-    email: opts.email,
+    ref_id: issued.customer.id,
+    ref_label: issued.customer.name || opts.displayName,
+    email: issued.customer.email || opts.email,
     capabilities: caps,
     active: true,
   };
   const next = upsertMembership(opts.profile, membership);
   await saveB2cProfile(next);
+  void indexBrandPerson({
+    kind: 'retail',
+    companyId: opts.company.id,
+    companyName: opts.company.name,
+    brand,
+    refId: issued.customer.id,
+    refLabel: issued.customer.name || opts.displayName,
+    email: issued.customer.email || opts.email,
+    phone: issued.customer.phone || opts.phone,
+    portalToken: issued.customer.portal_token || null,
+    portalPath: membership.portal_path,
+    capabilities: caps,
+  });
   return {
     membership:
       next.memberships.find(

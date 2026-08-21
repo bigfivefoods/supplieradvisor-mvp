@@ -9,7 +9,7 @@ import { renderAdvisorPwaIconPng } from '@/lib/advisors/pwa-icon';
 import { ADVISOR_PWA_ASSET_CORS } from '@/lib/advisors/member-pwa';
 
 export const runtime = 'nodejs';
-export const revalidate = 21600;
+export const revalidate = 60;
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: { ...ADVISOR_PWA_ASSET_CORS } });
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': 'image/png',
-        'Cache-Control': 'public, max-age=21600, stale-while-revalidate=86400',
+        'Cache-Control': 'public, max-age=300, stale-while-revalidate=3600',
         ...ADVISOR_PWA_ASSET_CORS,
       },
     });

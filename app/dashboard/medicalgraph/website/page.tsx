@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   LoadingBlock,
@@ -78,6 +79,29 @@ export default function WebsitePage() {
       settings: { working_hours },
     });
     toast.success('Portal hours saved');
+  };
+
+  const rotate = async () => {
+    if (
+      !confirm(
+        'Rotate public token? Existing embed links on your website will stop working until you update them.'
+      )
+    ) {
+      return;
+    }
+    const { city, ...settings } = form;
+    await post({
+      action: 'update_settings',
+      settings: {
+        ...settings,
+        marketplace: {
+          ...(store?.settings?.marketplace || {}),
+          city,
+        },
+      },
+      rotate_token: true,
+    });
+    toast.success('Public token rotated');
   };
 
   const token = store?.settings?.public_token || '';
@@ -173,10 +197,20 @@ export default function WebsitePage() {
             }}
           />
           {token ? (
-            <AdvisorEmbedSnippet
-              embedPath={`/embed/advisor/medicalgraph/${encodeURIComponent(token)}`}
-              title="Public booking embed"
-            />
+            <div className="space-y-2">
+              <AdvisorEmbedSnippet
+                embedPath={`/embed/advisor/medicalgraph/${encodeURIComponent(token)}`}
+                title="Public booking embed"
+              />
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void rotate()}
+                className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600"
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> Rotate public token
+              </button>
+            </div>
           ) : null}
           <div className="flex flex-wrap items-center gap-2">
             <PracticeProfilePdfButton

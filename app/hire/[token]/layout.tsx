@@ -1,27 +1,30 @@
 import type { Metadata, Viewport } from 'next';
+import type { ReactNode } from 'react';
+import {
+  generateAdvisorPortalTokenMetadata,
+  generateAdvisorPortalTokenViewport,
+} from '@/lib/advisors/load-advisor-pwa';
 
-export const metadata: Metadata = {
-  title: 'My hire portal · HireAdvisor',
-  description:
-    'Browse gear, request hires, complete requirements, and track bookings.',
-  appleWebApp: {
-    capable: true,
-    title: 'Hire portal',
-    statusBarStyle: 'default',
-  },
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: { token: string } | Promise<{ token: string }>;
+}): Promise<Metadata> {
+  return generateAdvisorPortalTokenMetadata('hiregraph', params);
+}
 
-export const viewport: Viewport = {
-  themeColor: '#0891b2',
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 1,
-};
+export async function generateViewport({
+  params,
+}: {
+  params: { token: string } | Promise<{ token: string }>;
+}): Promise<Viewport> {
+  return generateAdvisorPortalTokenViewport('hiregraph', params);
+}
 
 export default function HireCustomerPortalLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return children;
 }

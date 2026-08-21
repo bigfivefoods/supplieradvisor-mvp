@@ -16,9 +16,16 @@ type RosterPerson = {
   id: string;
   name?: string;
   email?: string;
+  invite_email?: string | null;
   active?: boolean;
   portal_token?: string | null;
 };
+
+function rosterEmails(person: RosterPerson): string[] {
+  return [person.email, person.invite_email]
+    .map((v) => String(v || '').trim().toLowerCase())
+    .filter((v) => v.includes('@'));
+}
 
 export function findRosterPersonForSignIn<T extends RosterPerson>(
   people: T[],
@@ -31,7 +38,7 @@ export function findRosterPersonForSignIn<T extends RosterPerson>(
     (people || []).find(
       (p) =>
         p.active !== false &&
-        String(p.email || '').trim().toLowerCase() === email &&
+        rosterEmails(p).includes(email) &&
         namesMatchForPortalSignIn(p.name, name)
     ) || null
   );

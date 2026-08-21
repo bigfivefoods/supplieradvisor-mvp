@@ -2,7 +2,7 @@
  * Resolve a portal / invite token into a B2C membership card and
  * stamp platform_user_id on the company-side person record.
  *
- * Advisors: Hire · Gym · Physio · Dental · Medical · Psychiatry
+ * Advisors: Hire · Gym · Physio · Dental · Medical · Psychiatry · Retail
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
@@ -12,6 +12,13 @@ import {
   readHiregraphFromMetadata,
   writeHiregraphToMetadata,
 } from '@/lib/hire/hiregraph';
+import {
+  findRetailCustomerByPortalToken,
+  parseCompanyIdFromRetailCustomerToken,
+  readRetailgraphFromMetadata,
+  retailCustomerPortalPath,
+  writeRetailgraphToMetadata,
+} from '@/lib/retail/retailgraph';
 import {
   clientMatchesPortalToken,
   parseCompanyIdFromToken,
@@ -73,6 +80,7 @@ function extractTokenFromUrl(raw: string): string {
     /\/member\/dentalgraph\/([^/?#]+)/i,
     /\/member\/medicalgraph\/([^/?#]+)/i,
     /\/member\/psychiatrygraph\/([^/?#]+)/i,
+    /\/member\/retailgraph\/([^/?#]+)/i,
     /\/join\/member\/[^/]+\/([^/?#]+)/i,
   ];
   for (const re of patterns) {
@@ -285,6 +293,60 @@ export async function resolveAndLinkPortalToken(
     };
   }
 
+  // ── RetailAdvisor ────────────────────────────────────────────────
+  if (
+    token.startsWith('rtl_cus_') ||
+    parseCompanyIdFromRetailCustomerToken(token)
+  ) {
+    const companyId = parseCompanyIdFromRetailCustomerToken(token);
+    if (!companyId) return { ok: false, error: 'Invalid retail portal token' };
+    const company = await loadCompany(companyId);
+    if (!company) return { ok: false, error: 'Company not found' };
+    const store = readRetailgraphFromMetadata(company.meta);
+    const customer = findRetailCustomerByPortalToken(store, token);
+    if (!customer) {
+      return { ok: false, error: 'Retail portal not found or revoked' };
+    }
+    const brand = store.settings?.brand_name || company.name;
+    const customers = (store.customers || []).map((c) =>
+      c.id === customer.id
+        ? { ...c, updated_at: new Date().toISOString() }
+        : c
+    );
+    await saveMeta(
+      companyId,
+      writeRetailgraphToMetadata(company.meta, { ...store, customers })
+    );
+    const membership = {
+      kind: 'retail' as const,
+      company_id: companyId,
+      company_name: company.name,
+      brand,
+      portal_token: token,
+      portal_path: retailCustomerPortalPath(token),
+      checkin_path: null,
+      ref_id: customer.id,
+      ref_label: customer.name,
+      email: customer.email || null,
+      capabilities: ['order', 'review'] as B2cCapability[],
+      active: true,
+    };
+    void indexBrandPerson({
+      kind: 'retail',
+      companyId,
+      companyName: company.name,
+      brand,
+      refId: customer.id,
+      refLabel: customer.name,
+      email: customer.email || null,
+      phone: customer.phone || null,
+      portalToken: token,
+      portalPath: membership.portal_path,
+      capabilities: ['order', 'review'],
+    });
+    return { ok: true, brand, membership };
+  }
+
   // ── PhysioAdvisor ────────────────────────────────────────────────
   if (token.startsWith('ppat_') || token.startsWith('pg_')) {
     const companyId = parsePhysioCompanyIdFromToken(token);
@@ -467,7 +529,7 @@ export async function resolveAndLinkPortalToken(
   return {
     ok: false,
     error:
-      'Unrecognised link. Paste a Hire, Gym, Physio, Dental, Medical or Psychiatry patient/member portal URL.',
+      'Unrecognised link. Paste a Hire, Gym, Physio, Dental, Medical, Psychiatry or Retail patient/member portal URL.',
   };
 }
 
@@ -475,6 +537,8 @@ export function kindLabel(kind: B2cMembershipKind | string): string {
   switch (kind) {
     case 'hire':
       return 'Hire';
+    case 'retail':
+      return 'Retail';
     case 'gym':
       return 'Gym';
     case 'physio':
@@ -499,4 +563,5 @@ export const B2C_ADVISOR_KINDS: B2cMembershipKind[] = [
   'dental',
   'medical',
   'psychiatry',
+  'retail',
 ];

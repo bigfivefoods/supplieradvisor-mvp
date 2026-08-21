@@ -53,4 +53,23 @@ assert.equal(
   null
 );
 
+const invited = {
+  clients: [
+    {
+      id: 'cli_inv',
+      name: 'Pat Member',
+      invite_email: 'pat@gym.example',
+      active: true,
+      portal_token: 'member_inv',
+    } as FitClient,
+  ],
+} as FitgraphStore;
+assert.equal(
+  findClientForPortalSignIn(invited, {
+    name: 'Pat Member',
+    email: 'pat@gym.example',
+  })?.id,
+  'cli_inv'
+);
+
 console.log('portal-signin tests ok');

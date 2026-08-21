@@ -14,6 +14,12 @@ import {
   writeHiregraphToMetadata,
 } from '@/lib/hire/hiregraph';
 import {
+  issueRetailCustomerPortal,
+  readRetailgraphFromMetadata,
+  retailCustomerPortalPath,
+  writeRetailgraphToMetadata,
+} from '@/lib/retail/retailgraph';
+import {
   gymCheckinPath,
   readFitgraphFromMetadata,
   writeFitgraphToMetadata,
@@ -226,6 +232,58 @@ export async function discoverAndAttachMemberships(
     }
     if (hireDirty && hireStore) {
       company.meta = writeHiregraphToMetadata(company.meta, hireStore);
+    }
+
+    const hasRetail = hasMetaModule(company.meta, 'retailgraph');
+    if (hasRetail && !theyOperate) {
+      let retailStore = readRetailgraphFromMetadata(company.meta);
+      const match = (retailStore.customers || []).find((c) =>
+        personMatch(c, email, phone)
+      );
+      if (match) {
+        let customer = match;
+        if (!String(customer.portal_token || '').trim()) {
+          const issued = issueRetailCustomerPortal(retailStore, customer.id, {
+            companyId,
+          });
+          retailStore = issued.store;
+          customer = issued.customer;
+          company.meta = writeRetailgraphToMetadata(company.meta, retailStore);
+        }
+        const token = String(customer.portal_token || '').trim();
+        if (token) {
+          const brand = retailStore.settings?.brand_name || company.name;
+          const before = next.memberships.length;
+          next = upsertMembership(next, {
+            kind: 'retail',
+            company_id: companyId,
+            company_name: company.name,
+            brand,
+            portal_token: token,
+            portal_path: retailCustomerPortalPath(token),
+            checkin_path: null,
+            ref_id: customer.id,
+            ref_label: customer.name,
+            email: customer.email || email,
+            capabilities: ['order', 'review'],
+            active: true,
+          });
+          if (next.memberships.length > before) attached += 1;
+          void indexBrandPerson({
+            kind: 'retail',
+            companyId,
+            companyName: company.name,
+            brand,
+            refId: customer.id,
+            refLabel: customer.name,
+            email: customer.email || email,
+            phone: customer.phone || phone,
+            portalToken: token,
+            portalPath: retailCustomerPortalPath(token),
+            capabilities: ['order', 'review'],
+          });
+        }
+      }
     }
 
     // Gym

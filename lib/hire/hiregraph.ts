@@ -23,6 +23,7 @@ import {
 import type { MemberAnnouncement } from '@/lib/services/member-announcements';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { isPortalSectionOn } from '@/lib/advisors/portal-sections';
+import { compactWorkingHours } from '@/lib/schedule/working-hours';
 import { hireCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
 
 export const HIREGRAPH_MODULE_ID = 'hiregraph' as const;
@@ -543,6 +544,8 @@ export type HirePublicSettings = {
   pwa_theme_color?: string;
   pwa_background_color?: string;
   pwa_icon_url?: string | null;
+  company_logo_url?: string | null;
+  working_hours?: import('@/lib/schedule/working-hours').WorkingHours;
 };
 
 export type HiregraphStore = {
@@ -1403,9 +1406,13 @@ export function buildHirePublicWebsitePayload(
       ? publishedAnnouncements(store.announcements)
       : [],
     catalogue: isPortalSectionOn(settings, 'catalogue') ? catalogue : [],
+    hours: isPortalSectionOn(settings, 'hours')
+      ? compactWorkingHours(settings.working_hours)
+      : [],
     sections: {
       news: isPortalSectionOn(settings, 'news'),
       catalogue: isPortalSectionOn(settings, 'catalogue'),
+      hours: isPortalSectionOn(settings, 'hours'),
       contact: isPortalSectionOn(settings, 'contact'),
     },
   };

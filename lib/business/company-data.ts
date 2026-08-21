@@ -77,6 +77,7 @@ export const ADVISOR_TOKEN_INDEX_KEYS = [
   'hiregraph_customer_tokens',
   'hiregraph_public_token',
   'retailgraph_public_token',
+  'retailgraph_customer_tokens',
 ] as const;
 
 export type AdvisorTokenIndexKey = (typeof ADVISOR_TOKEN_INDEX_KEYS)[number];

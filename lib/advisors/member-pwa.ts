@@ -58,7 +58,7 @@ export const ADVISOR_PWA_PORTAL_INDEX_KEYS: Record<AdvisorPwaModule, string[]> =
   medicalgraph: ['medicalgraph_patient_tokens', 'medicalgraph_public_token'],
   psychiatrygraph: ['psychiatrygraph_patient_tokens', 'psychiatrygraph_public_token'],
   hiregraph: ['hiregraph_customer_tokens', 'hiregraph_public_token'],
-  retailgraph: ['retailgraph_public_token'],
+  retailgraph: ['retailgraph_customer_tokens', 'retailgraph_public_token'],
 };
 
 const JOIN_KIND: Record<AdvisorPwaModule, string> = {
@@ -110,7 +110,7 @@ export function advisorPwaIconPath(
 
 /** 1200×630 share card — company logo, not SupplierAdvisor. `v=` busts stale OG. */
 export function advisorPwaOgPath(module: AdvisorPwaModule, token: string): string {
-  return `/api/public/advisor-pwa/og?module=${encodeURIComponent(module)}&token=${encodeURIComponent(token)}&v=4`;
+  return `/api/public/advisor-pwa/og?module=${encodeURIComponent(module)}&token=${encodeURIComponent(token)}&v=5`;
 }
 
 export function advisorPwaShareCopy(brand: AdvisorPwaBrand, url: string): {
@@ -160,7 +160,6 @@ export function advisorPwaMemberOpenPath(
 ): string {
   const t = encodeURIComponent(memberToken);
   if (module === 'hiregraph') return `/hire/${t}`;
-  if (module === 'retailgraph') return `/embed/retail/${t}`;
   return `/member/${module}/${t}`;
 }
 
@@ -216,7 +215,6 @@ function defaultTheme(module: AdvisorPwaModule): string {
 
 function memberBasePath(module: AdvisorPwaModule): string {
   if (module === 'hiregraph') return '/hire';
-  if (module === 'retailgraph') return '/embed/retail';
   return `/member/${module}`;
 }
 
@@ -420,7 +418,9 @@ export function recallAdvisorPwaMember(
   if (typeof window === 'undefined') return null;
   try {
     const mapped = localStorage.getItem(pwaMemberMapKey(module, publicToken));
-    if (mapped && mapped.trim().length >= 8) return mapped.trim();
+    const member = mapped && mapped.trim().length >= 8 ? mapped.trim() : '';
+    // Public shop/catalogue tokens are not member portals.
+    if (member && member !== String(publicToken || '').trim()) return member;
     if (mappedOnly) return null;
     const last = localStorage.getItem(memberTokenStorageKey(module));
     if (last && last.trim().length >= 8) return last.trim();

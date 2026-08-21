@@ -15,6 +15,7 @@ import { AdvisorEmbedSnippet } from '@/components/services/AdvisorEmbedSnippet';
 import { AdvisorPortalManager } from '@/components/advisors/AdvisorPortalManager';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import type { RetailgraphStore } from '@/lib/retail/retailgraph';
+import type { WorkingHours } from '@/lib/schedule/working-hours';
 
 export default function RetailgraphWebsitePage() {
   const { companyId, withAuthJson } = useApiAuth();
@@ -29,6 +30,7 @@ export default function RetailgraphWebsitePage() {
     public_bio: '',
     contact_email: '',
     contact_phone: '',
+    city: '',
     embed_primary_color: '#ea580c',
   });
 
@@ -48,6 +50,7 @@ export default function RetailgraphWebsitePage() {
         public_bio: s.public_bio || '',
         contact_email: s.contact_email || '',
         contact_phone: s.contact_phone || '',
+        city: s.city || '',
         embed_primary_color: s.embed_primary_color || '#ea580c',
       });
     }
@@ -80,6 +83,30 @@ export default function RetailgraphWebsitePage() {
       );
       if (data.store) setStore(data.store);
       toast.success(rotate ? 'Public token rotated' : 'Website settings saved');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveHours = async (working_hours: WorkingHours) => {
+    if (!companyId) return;
+    setSaving(true);
+    try {
+      const data = await withAuthJson<{ store?: RetailgraphStore }>(
+        '/api/retail/retailgraph',
+        {
+          method: 'POST',
+          jsonBody: {
+            companyId,
+            action: 'update_settings',
+            settings: { ...(store?.settings || {}), working_hours },
+          },
+        }
+      );
+      if (data.store) setStore(data.store);
+      toast.success('Portal hours saved');
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Save failed');
     } finally {
@@ -126,6 +153,7 @@ export default function RetailgraphWebsitePage() {
                 website_url: form.website_url,
                 contact_email: form.contact_email,
                 contact_phone: form.contact_phone,
+                city: form.city,
                 color: form.embed_primary_color,
               }}
               onChange={(next) =>
@@ -137,6 +165,7 @@ export default function RetailgraphWebsitePage() {
                   website_url: next.website_url,
                   contact_email: next.contact_email,
                   contact_phone: next.contact_phone,
+                  city: next.city || '',
                   embed_primary_color: next.color,
                 }))
               }
@@ -166,7 +195,9 @@ export default function RetailgraphWebsitePage() {
               portalPath={
                 token ? `/embed/retail/${encodeURIComponent(token)}` : ''
               }
-              showCity={false}
+              hours={store.settings?.working_hours}
+              onHoursSave={saveHours}
+              hoursSaving={saving}
               showBooking={false}
             />
             <AdvisorMemberAppInvite

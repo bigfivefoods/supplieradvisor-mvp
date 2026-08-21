@@ -1417,12 +1417,16 @@ export function findClientForPortalSignIn(
   const name = String(lookup.name || '').trim();
   if (!email || !email.includes('@') || !name) return null;
   return (
-    (store.clients || []).find(
-      (c) =>
+    (store.clients || []).find((c) => {
+      const emails = [c.email, c.invite_email]
+        .map((v) => String(v || '').trim().toLowerCase())
+        .filter((v) => v.includes('@'));
+      return (
         c.active !== false &&
-        String(c.email || '').trim().toLowerCase() === email &&
+        emails.includes(email) &&
         namesMatchForPortalSignIn(c.name, name)
-    ) || null
+      );
+    }) || null
   );
 }
 

@@ -33,6 +33,11 @@ export function AdvisorPwaMemberBinder({
   const [brand, setBrand] = useState<AdvisorPwaBrand | null>(null);
 
   useEffect(() => {
+    const member = String(memberToken || '').trim();
+    const pub = String(publicToken || '').trim();
+    // Public shop/catalogue visits share the public token — don't clobber
+    // a real member/patient mapping from a previous join.
+    if (pub && member === pub) return;
     rememberAdvisorPwaMember({
       module,
       memberToken,

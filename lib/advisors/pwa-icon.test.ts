@@ -139,6 +139,47 @@ async function main() {
   assert.ok(cropped.height < 120, 'caption boxes under the mark must be cropped');
   assert.ok(cropped.width < 140, 'only the primary mark remains');
 
+  const letter = await sharp({
+    create: {
+      width: 28,
+      height: 36,
+      channels: 4,
+      background: { r: 232, g: 232, b: 48, alpha: 255 },
+    },
+  })
+    .png()
+    .toBuffer();
+  const wordmarkBoard = await sharp({
+    create: {
+      width: 220,
+      height: 170,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .composite([
+      ...[0, 1, 2, 3].map((i) => ({
+        input: letter,
+        left: 16 + i * 48,
+        top: 18,
+      })),
+      ...Array.from({ length: 8 }, (_, i) => ({
+        input: glyphSq,
+        left: 24 + i * 22,
+        top: 150,
+      })),
+    ])
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const wordCrop = keepPrimaryLogoMark(
+    wordmarkBoard.data,
+    wordmarkBoard.info.width,
+    wordmarkBoard.info.height,
+    wordmarkBoard.info.channels
+  );
+  assert.ok(wordCrop.height < 80, 'wordmark caption row must be dropped');
+  assert.ok(wordCrop.width > 120, 'all wordmark letters stay');
+
   const svgWithCaption = Buffer.from(
     `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="#e8e830"/><text y="9">000000000000</text></svg>`
   );
@@ -146,6 +187,12 @@ async function main() {
   assert.ok(!stripped.includes('000000000000'));
   assert.ok(!/<text/i.test(stripped));
   assert.ok(/<rect/i.test(stripped));
+  const svgTspan = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="#e8e830"/><text><tspan>□□□□</tspan></text></svg>`
+  );
+  const strippedTspan = stripSvgCaptions(svgTspan).toString('utf8');
+  assert.ok(!strippedTspan.includes('□□'));
+  assert.ok(!/<tspan/i.test(strippedTspan));
 
   const ogRaw = await sharp(og).ensureAlpha().raw().toBuffer({
     resolveWithObject: true,

@@ -63,11 +63,18 @@ export async function GET(request: NextRequest) {
     if (!hit) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
-    return NextResponse.json({
-      success: true,
-      payout_ready: isAdvisorCardPayReady(readAdvisorPayout(hit.meta)),
-      site: buildRetailPublicWebsitePayload(hit.store, { companyName: hit.name }),
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        payout_ready: isAdvisorCardPayReady(readAdvisorPayout(hit.meta)),
+        site: buildRetailPublicWebsitePayload(hit.store, { companyName: hit.name }),
+      },
+      {
+        headers: {
+          'Cache-Control': 'public, max-age=15, stale-while-revalidate=60',
+        },
+      }
+    );
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Load failed' },

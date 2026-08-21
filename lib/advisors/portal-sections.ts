@@ -61,11 +61,13 @@ export const PORTAL_SECTIONS: Record<AdvisorPortalModule, PortalSectionDef[]> = 
   hiregraph: [
     { id: 'news', label: 'News' },
     { id: 'catalogue', label: 'Catalogue' },
+    { id: 'hours', label: 'Hours & visit' },
     { id: 'contact', label: 'Contact' },
   ],
   retailgraph: [
     { id: 'news', label: 'News' },
     { id: 'shop', label: 'Shop' },
+    { id: 'hours', label: 'Hours & visit' },
     { id: 'contact', label: 'Contact' },
   ],
 };

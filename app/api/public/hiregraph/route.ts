@@ -17,6 +17,10 @@ import {
   isAdvisorCardPayReady,
   readAdvisorPayout,
 } from '@/lib/billing/advisor-payout';
+import {
+  applyCompanyLogoToSettings,
+  pickCompanyLogoUrl,
+} from '@/lib/business/company-logo';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -39,9 +43,10 @@ async function resolve(token: string) {
   const supabase = getSupabaseServer();
   const { data: prof } = await supabase
     .from('profiles')
-    .select('trading_name, legal_name')
+    .select('trading_name, legal_name, logo_url')
     .eq('id', loaded.companyId)
     .maybeSingle();
+  applyCompanyLogoToSettings(loaded.store, pickCompanyLogoUrl(prof));
   return {
     store: loaded.store,
     meta: loaded.meta,
@@ -63,11 +68,18 @@ export async function GET(request: NextRequest) {
     if (!hit) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
-    return NextResponse.json({
-      success: true,
-      payout_ready: isAdvisorCardPayReady(readAdvisorPayout(hit.meta)),
-      site: buildHirePublicWebsitePayload(hit.store, { companyName: hit.name }),
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        payout_ready: isAdvisorCardPayReady(readAdvisorPayout(hit.meta)),
+        site: buildHirePublicWebsitePayload(hit.store, { companyName: hit.name }),
+      },
+      {
+        headers: {
+          'Cache-Control': 'public, max-age=15, stale-while-revalidate=60',
+        },
+      }
+    );
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Load failed' },

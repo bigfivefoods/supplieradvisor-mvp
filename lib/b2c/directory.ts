@@ -50,6 +50,7 @@ export function defaultCapabilitiesForKind(
 ): B2cCapability[] {
   if (kind === 'hire') return ['order', 'book', 'track', 'kyc', 'review'];
   if (kind === 'gym') return ['book', 'checkin', 'messages', 'review', 'track'];
+  if (kind === 'retail') return ['order', 'review'];
   if (kind === 'account') return ['order', 'review', 'track'];
   return ['book', 'track', 'messages', 'review', 'kyc'];
 }

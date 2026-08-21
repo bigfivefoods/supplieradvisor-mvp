@@ -22,7 +22,9 @@ assert.deepEqual(growWebsiteNav('fitgraph').slice(0, 2), [
 ]);
 assert.ok(growWebsiteNav('medicalgraph').includes('Open diary'));
 assert.ok(growWebsiteNav('hiregraph').includes('Catalogue'));
+assert.ok(growWebsiteNav('hiregraph').includes('Hours & visit'));
 assert.ok(growWebsiteNav('retailgraph').includes('Shop'));
+assert.ok(growWebsiteNav('retailgraph').includes('Hours & visit'));
 assert.equal(growPreviewCopy('fitgraph').showWeekDiary, true);
 assert.equal(growPreviewCopy('hiregraph').showWeekDiary, false);
 assert.equal(growPreviewCopy('hiregraph').color, '#0891b2');

@@ -10,7 +10,7 @@ export async function generateMetadata({
 }: {
   params: { token: string } | Promise<{ token: string }>;
 }): Promise<Metadata> {
-  return generateAdvisorPortalTokenMetadata('fitgraph', params);
+  return generateAdvisorPortalTokenMetadata('medicalgraph', params);
 }
 
 export async function generateViewport({
@@ -18,9 +18,13 @@ export async function generateViewport({
 }: {
   params: { token: string } | Promise<{ token: string }>;
 }): Promise<Viewport> {
-  return generateAdvisorPortalTokenViewport('fitgraph', params);
+  return generateAdvisorPortalTokenViewport('medicalgraph', params);
 }
 
-export default function GymMemberPwaLayout({ children }: { children: ReactNode }) {
+export default function MedicalMemberPwaLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   return children;
 }

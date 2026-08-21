@@ -43,4 +43,20 @@ assert.equal(
   null
 );
 
+const invited = [
+  {
+    id: 'p3',
+    name: 'Jordan Invite',
+    invite_email: 'jordan@practice.com',
+    portal_token: 'ppat_3',
+  },
+];
+assert.equal(
+  findRosterPersonForSignIn(invited, {
+    name: 'Jordan Invite',
+    email: 'jordan@practice.com',
+  })?.id,
+  'p3'
+);
+
 console.log('pwa-signin tests ok');

@@ -16,6 +16,7 @@ import { AdvisorEmbedSnippet } from '@/components/services/AdvisorEmbedSnippet';
 import { hirePublicEmbedPath } from '@/lib/hire/hiregraph';
 import { AdvisorPortalManager } from '@/components/advisors/AdvisorPortalManager';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
+import type { WorkingHours } from '@/lib/schedule/working-hours';
 
 export default function HiregraphWebsitePage() {
   const { companyId, store, loading, saving, post, summary } = useHiregraph();
@@ -77,6 +78,14 @@ export default function HiregraphWebsitePage() {
     toast.success(rotate ? 'Public token rotated' : 'Website settings saved');
   };
 
+  const saveHours = async (working_hours: WorkingHours) => {
+    await post({
+      action: 'update_settings',
+      settings: { working_hours },
+    });
+    toast.success('Portal hours saved');
+  };
+
   const copy = async () => {
     if (!page) return;
     await navigator.clipboard.writeText(page);
@@ -131,6 +140,9 @@ export default function HiregraphWebsitePage() {
               await post({ action: 'update_settings', settings: pwa });
             }}
             portalPath={token ? hirePublicEmbedPath(token) : ''}
+            hours={store.settings?.working_hours}
+            onHoursSave={saveHours}
+            hoursSaving={saving}
             bookingLabel="Allow hire requests from the portal"
           />
 

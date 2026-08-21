@@ -77,7 +77,11 @@ function storeFromMeta(
   return readPsychiatrygraphFromMetadata(meta);
 }
 
-async function resolveClinic(module: ModuleKey, token: string) {
+async function resolveClinic(
+  module: ModuleKey,
+  token: string,
+  fresh = false
+) {
   const clean = token.trim();
   if (!clean || clean.length < 8) return null;
   const { loadAdvisorStoreForPublicToken } = await import(
@@ -92,6 +96,7 @@ async function resolveClinic(module: ModuleKey, token: string) {
     read: (m) => m,
     parseCompanyId: (t) => parseClinicCompanyId(module, t),
     extraKeys: [ADVISOR_PAYOUT_META_KEY],
+    fresh,
   });
   if (!loaded) return null;
   const store = storeFromMeta(module, loaded.meta);
@@ -183,16 +188,23 @@ export async function GET(req: NextRequest) {
   if (!resolved.store.settings?.enabled && !calendar.slots.length) {
     // still return calendar if enabled false but token valid — website may be draft
   }
-  return NextResponse.json({
-    success: true,
-    payout_ready: isAdvisorCardPayReady(readAdvisorPayout(resolved.meta)),
-    calendar: {
-      ...calendar,
-      brand:
-        calendar.brand ||
-        String(resolved.companyName || 'Clinic'),
+  return NextResponse.json(
+    {
+      success: true,
+      payout_ready: isAdvisorCardPayReady(readAdvisorPayout(resolved.meta)),
+      calendar: {
+        ...calendar,
+        brand:
+          calendar.brand ||
+          String(resolved.companyName || 'Clinic'),
+      },
     },
-  });
+    {
+      headers: {
+        'Cache-Control': 'public, max-age=15, stale-while-revalidate=60',
+      },
+    }
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -216,7 +228,7 @@ export async function POST(req: NextRequest) {
     );
   }
   const action = String(body.action || 'book');
-  const resolved = await resolveClinic(module, token);
+  const resolved = await resolveClinic(module, token, true);
   if (!resolved) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }

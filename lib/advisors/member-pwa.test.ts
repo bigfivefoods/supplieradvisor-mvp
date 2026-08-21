@@ -3,6 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import {
+  ADVISOR_PWA_MODULES,
   ADVISOR_PWA_PORTAL_INDEX_KEYS,
   advisorPwaMemberOpenPath,
   advisorPwaStartPath,
@@ -53,7 +54,15 @@ assert.equal(
   '/member/fitgraph/mem_1'
 );
 assert.equal(advisorPwaMemberOpenPath('hiregraph', 'hc_1'), '/hire/hc_1');
+assert.equal(
+  advisorPwaMemberOpenPath('retailgraph', 'rtl_cus_1_abc'),
+  '/member/retailgraph/rtl_cus_1_abc'
+);
+assert.ok(!advisorPwaMemberOpenPath('retailgraph', 'rtl_cus_1_abc').includes('/embed/'));
 assert.equal(memberTokenStorageKey('hiregraph'), 'sa_hiregraph_customer_token');
+assert.ok(
+  ADVISOR_PWA_PORTAL_INDEX_KEYS.retailgraph.includes('retailgraph_customer_tokens')
+);
 assert.equal(memberTokenStorageKey('fitgraph'), 'sa_fitgraph_member_token');
 assert.ok(
   ADVISOR_PWA_PORTAL_INDEX_KEYS.fitgraph.includes('fitgraph_client_tokens')
@@ -73,6 +82,17 @@ const brand = buildAdvisorPwaBrand({
 assert.equal(brand.brandName, 'VUKA Fitness');
 assert.equal(brand.themeColor, '#e8e830');
 assert.equal(brand.iconUrl, 'https://cdn.example/vuka.png');
+const hireBrand = buildAdvisorPwaBrand({
+  module: 'hiregraph',
+  publicToken: 'hire_pub_1_abc',
+  companyId: 1,
+  settings: {
+    brand_name: 'Acme Hire',
+    company_logo_url: 'https://cdn.example/hire-logo.png',
+  },
+});
+assert.equal(hireBrand.iconUrl, 'https://cdn.example/hire-logo.png');
+assert.ok(!hireBrand.iconUrl.includes('sa-icon'));
 assert.equal(brand.joinKind, 'gym');
 assert.equal(brand.joinPath, '/pwa/fitgraph/fg_110_abc?join=1');
 assert.equal(advisorPwaJoinPath('physiograph', 'pg_1'), '/pwa/physiograph/pg_1?join=1');
@@ -104,7 +124,7 @@ assert.equal(
 );
 assert.equal(
   advisorPwaOgPath('fitgraph', 'fg_110_abc'),
-  '/api/public/advisor-pwa/og?module=fitgraph&token=fg_110_abc&v=4'
+  '/api/public/advisor-pwa/og?module=fitgraph&token=fg_110_abc&v=5'
 );
 const share = advisorPwaShareCopy(brand, 'https://www.supplieradvisor.com/pwa/fitgraph/fg_110_abc');
 assert.equal(share.title, 'VUKA Fitness');
@@ -145,6 +165,25 @@ const other = buildAdvisorPwaBrand({
 assert.equal(other.joinPath, '/pwa/physiograph/pg_9_xyz?join=1');
 assert.equal(other.joinGymPath, '');
 assert.ok(!other.joinPath.includes('/embed/'));
+for (const mod of ADVISOR_PWA_MODULES) {
+  const b = buildAdvisorPwaBrand({
+    module: mod,
+    publicToken: 'tok_parity',
+    companyId: 1,
+    settings: { brand_name: 'Parity Co' },
+  });
+  assert.equal(b.joinPath, `/pwa/${mod}/tok_parity?join=1`);
+  assert.ok(!b.joinPath.includes('/embed/'));
+  assert.match(advisorPwaOgPath(mod, 'tok_parity'), /\/og\?/);
+  const open = advisorPwaMemberOpenPath(mod, 'mem_1');
+  assert.ok(open);
+  assert.ok(!open.includes('/embed/'));
+  if (mod === 'hiregraph') {
+    assert.equal(open, '/hire/mem_1');
+  } else {
+    assert.equal(open, `/member/${mod}/mem_1`);
+  }
+}
 assert.equal(other.enabled, false);
 assert.notEqual(advisorPwaWebManifest(other).id, manifest.id);
 
