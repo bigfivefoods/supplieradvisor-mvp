@@ -568,20 +568,35 @@ export async function PATCH(request: NextRequest) {
       }
 
       // Keep original posted — voiding it AND posting a reverse would invert the books.
-      await supabase
-        .from('journal_entries')
-        .update({
-          updated_at: new Date().toISOString(),
-          metadata: {
-            ...(existing.metadata && typeof existing.metadata === 'object'
-              ? (existing.metadata as object)
-              : {}),
-            reversed_by_journal_id: revEntry.id,
-            reversed_at: new Date().toISOString(),
-          },
-        })
-        .eq('id', id)
-        .eq('profile_id', companyId);
+      // journal_entries may not have updated_at (world-class base table).
+      {
+        const prevMeta =
+          existing.metadata &&
+          typeof existing.metadata === 'object' &&
+          !Array.isArray(existing.metadata)
+            ? (existing.metadata as Record<string, unknown>)
+            : {};
+        const stampMeta = {
+          ...prevMeta,
+          reversed_by_journal_id: revEntry.id,
+          reversed_at: new Date().toISOString(),
+        };
+        const { error: stampErr } = await supabase
+          .from('journal_entries')
+          .update({ metadata: stampMeta })
+          .eq('id', id)
+          .eq('profile_id', companyId);
+        if (stampErr) {
+          await supabase
+            .from('journal_entries')
+            .update({
+              metadata: stampMeta,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', id)
+            .eq('profile_id', companyId);
+        }
+      }
 
       invalidateAccountingReads(companyId);
       return NextResponse.json({
@@ -887,36 +902,49 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: lineErr.message }, { status: 400 });
       }
 
+      let stampWarning: string | undefined;
       if (!correctionOnly && revEntry) {
-        const stampMeta = {
-          ...(target.metadata && typeof target.metadata === 'object'
+        const prevMeta =
+          target.metadata &&
+          typeof target.metadata === 'object' &&
+          !Array.isArray(target.metadata)
             ? (target.metadata as Record<string, unknown>)
-            : {}),
-          reversed_by_journal_id: revEntry.id,
-          reversed_at: new Date().toISOString(),
-        };
+            : {};
+        const stampMeta = JSON.parse(
+          JSON.stringify({
+            ...prevMeta,
+            reversed_by_journal_id: revEntry.id,
+            reversed_at: new Date().toISOString(),
+          })
+        ) as Record<string, unknown>;
+        const patches: Record<string, unknown>[] = [
+          { metadata: stampMeta },
+          { metadata: stampMeta, updated_at: new Date().toISOString() },
+          {
+            metadata: {
+              reversed_by_journal_id: revEntry.id,
+              reversed_at: new Date().toISOString(),
+            },
+          },
+        ];
         let stamped = false;
-        for (let i = 0; i < 3 && !stamped; i += 1) {
+        for (const patch of patches) {
           const { error: stampErr } = await supabase
             .from('journal_entries')
-            .update({
-              updated_at: new Date().toISOString(),
-              metadata: stampMeta,
-            })
+            .update(patch)
             .eq('id', targetId)
             .eq('profile_id', companyId);
-          if (!stampErr) stamped = true;
+          if (!stampErr) {
+            stamped = true;
+            break;
+          }
+          stampWarning = stampErr.message;
         }
         if (!stamped) {
-          await dropJournal(Number(corrEntry.id));
-          await dropJournal(Number(revEntry.id));
-          return NextResponse.json(
-            {
-              error:
-                'Could not mark the original as reversed. Nothing was posted — try again.',
-            },
-            { status: 500 }
-          );
+          console.warn('[journals] reverse stamp failed', stampWarning, {
+            targetId,
+            companyId,
+          });
         }
       }
 
@@ -928,6 +956,7 @@ export async function PATCH(request: NextRequest) {
         reverseEntry: revEntry,
         superseded: originLabel,
         followed_journal_id: targetId !== id ? targetId : undefined,
+        warning: stampWarning,
         entry: {
           ...corrEntry,
           lines: insertedLines,
