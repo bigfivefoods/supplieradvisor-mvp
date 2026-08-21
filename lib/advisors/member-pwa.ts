@@ -4,7 +4,8 @@
  * Keep this file free of server-only imports so the member app can use it.
  */
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
-import { growPreviewCopy, type AdvisorPortalModule } from '@/lib/advisors/grow-preview';
+import { growPreviewCopy } from '@/lib/advisors/grow-preview';
+import type { AdvisorPortalModule } from '@/lib/advisors/portal-sections';
 
 export const ADVISOR_PWA_MODULES = [
   'fitgraph',
