@@ -59,13 +59,15 @@ function isEntity(v: unknown): v is HireEntity {
   return typeof v === 'string' && (ENTITIES as string[]).includes(v);
 }
 
-async function loadStore(companyId: number) {
+async function loadStore(companyId: number, opts?: { fresh?: boolean }) {
   const supabase = getSupabaseServer();
   const [{ meta, store }, { data: prof }] = await Promise.all([
     loadAdvisorModuleStore(
       companyId,
       HIREGRAPH_META_KEY,
-      readHiregraphFromMetadata
+      readHiregraphFromMetadata,
+      [],
+      opts
     ),
     supabase
       .from('profiles')
@@ -238,7 +240,9 @@ export async function POST(req: NextRequest) {
     }
 
     const action = String(body.action || 'upsert');
-    const { meta, store, companyName } = await loadStore(companyId);
+    const { meta, store, companyName } = await loadStore(companyId, {
+      fresh: true,
+    });
     const { coreSuppliers, coreCustomers } = await loadCoreBooks(companyId);
     let next: HiregraphStore = store;
 

@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import {
   COMPANY_CHROME_META_KEYS,
+  invalidateModuleStoreCache,
   isAdvisorModuleKey,
   isAdvisorTokenIndexKey,
   isMissingRelation,
@@ -68,5 +69,8 @@ const noToken = splitModuleWriteSlice('medicalgraph', {
   medicalgraph: { settings: {} },
 });
 assert.equal(noToken.publicToken, null);
+
+invalidateModuleStoreCache(110, 'fitgraph');
+invalidateModuleStoreCache(110);
 
 console.log('company-data.test.ts ok');

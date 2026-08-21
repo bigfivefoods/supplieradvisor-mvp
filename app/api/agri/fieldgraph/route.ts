@@ -59,14 +59,19 @@ function analysisPayload(store: FieldgraphStore, season: string) {
   };
 }
 
-async function loadStore(companyId: number): Promise<{
+async function loadStore(
+  companyId: number,
+  opts?: { fresh?: boolean }
+): Promise<{
   meta: Record<string, unknown>;
   store: FieldgraphStore;
 }> {
   return loadAdvisorModuleStore(
     companyId,
     FIELDGRAPH_META_KEY,
-    readFieldgraphFromMetadata
+    readFieldgraphFromMetadata,
+    [],
+    opts
   );
 }
 
@@ -130,7 +135,7 @@ export async function POST(request: NextRequest) {
 
     const action = String(body.action || 'upsert');
     const entity = String(body.entity || '') as Entity;
-    const { meta, store } = await loadStore(companyId);
+    const { meta, store } = await loadStore(companyId, { fresh: true });
     const now = new Date().toISOString();
 
     if (action === 'seed_demo') {

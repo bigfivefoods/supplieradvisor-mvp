@@ -17,6 +17,7 @@ import {
   getSupabaseServer,
   hasServiceRole,
 } from '@/lib/supabase/server-client';
+import { ttlDel, ttlGet, ttlSet } from '@/lib/system/memory-ttl';
 
 export const COMPANY_CHROME_META_KEYS = [
   'enabled_modules',
@@ -276,14 +277,67 @@ export async function mergeProfileMetadata(
   if (upErr) throw new Error(upErr.message);
 }
 
+const MODULE_STORE_TTL_MS = 12_000;
+const moduleStoreInflight = new Map<string, Promise<Record<string, unknown>>>();
+
+function moduleStoreCacheKey(
+  companyId: number,
+  moduleKey: string,
+  extraKeys: string[]
+): string {
+  const extra = extraKeys.length ? `:${[...extraKeys].sort().join(',')}` : '';
+  return `modstore:${companyId}:${moduleKey}${extra}`;
+}
+
+export function invalidateModuleStoreCache(
+  companyId: number,
+  moduleKey?: string
+): void {
+  if (!Number.isFinite(companyId) || companyId <= 0) return;
+  if (moduleKey) {
+    ttlDel(`modstore:${companyId}:${moduleKey}`);
+    return;
+  }
+  ttlDel(`modstore:${companyId}:`);
+}
+
 export async function loadModuleMeta(
   companyId: number,
   moduleKey: string,
-  extraKeys: string[] = []
+  extraKeys: string[] = [],
+  opts?: { fresh?: boolean }
 ): Promise<Record<string, unknown>> {
   if (!isAdvisorModuleKey(moduleKey)) {
     throw new Error('unknown advisor module');
   }
+  const key = moduleStoreCacheKey(companyId, moduleKey, extraKeys);
+  if (!opts?.fresh) {
+    const hit = ttlGet<Record<string, unknown>>(key);
+    if (hit) return structuredClone(hit);
+    const pending = moduleStoreInflight.get(key);
+    if (pending) return pending.then((m) => structuredClone(m));
+  }
+
+  const run = loadModuleMetaUncached(companyId, moduleKey, extraKeys).then(
+    (meta) => {
+      ttlSet(key, meta, MODULE_STORE_TTL_MS);
+      return meta;
+    }
+  );
+  if (!opts?.fresh) moduleStoreInflight.set(key, run);
+  try {
+    const meta = await run;
+    return structuredClone(meta);
+  } finally {
+    if (moduleStoreInflight.get(key) === run) moduleStoreInflight.delete(key);
+  }
+}
+
+async function loadModuleMetaUncached(
+  companyId: number,
+  moduleKey: string,
+  extraKeys: string[]
+): Promise<Record<string, unknown>> {
   const supabase = getSupabaseServer();
   const wanted = [moduleKey, ...extraKeys];
 
@@ -357,6 +411,7 @@ export async function saveModuleSlice(
     );
   }
   const { data, indexes, publicToken } = splitModuleWriteSlice(moduleKey, slice);
+  invalidateModuleStoreCache(companyId, moduleKey);
   const supabase = getSupabaseServer();
   const args = {
     p_company_id: companyId,
@@ -370,6 +425,7 @@ export async function saveModuleSlice(
     await tryEnsureSystemSchema();
     rpc = await supabase.rpc('sa_put_module_store', args);
   }
+  invalidateModuleStoreCache(companyId, moduleKey);
   if (!rpc.error) return;
   throw new Error(
     isMissingRelation(rpc.error)
@@ -382,9 +438,10 @@ export async function loadAdvisorModuleStore<T>(
   companyId: number,
   moduleKey: string,
   read: (meta: Record<string, unknown>) => T,
-  extraKeys: string[] = []
+  extraKeys: string[] = [],
+  opts?: { fresh?: boolean }
 ): Promise<{ meta: Record<string, unknown>; store: T }> {
-  const meta = await loadModuleMeta(companyId, moduleKey, extraKeys);
+  const meta = await loadModuleMeta(companyId, moduleKey, extraKeys, opts);
   return { meta, store: read(meta) };
 }
 

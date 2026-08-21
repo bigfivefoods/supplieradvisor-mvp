@@ -31,14 +31,15 @@ import { expireSession, readTillSessions } from '@/lib/till/sessions';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-async function load(companyId: number) {
+async function load(companyId: number, opts?: { fresh?: boolean }) {
   const supabase = getSupabaseServer();
   const [{ meta, store: raw }, { data: prof }] = await Promise.all([
     loadAdvisorModuleStore(
       companyId,
       RETAILGRAPH_META_KEY,
       readRetailgraphFromMetadata,
-      ['till_sessions']
+      ['till_sessions'],
+      opts
     ),
     supabase
       .from('profiles')
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
       legacyPrivyUserId: legacyPrivyFrom(request),
     });
     if (!gate.ok) return gate.response;
-    const { supabase, meta, store } = await load(companyId);
+    const { supabase, meta, store } = await load(companyId, { fresh: true });
     const action = String(body.action || '');
     let message = 'Saved';
 

@@ -129,12 +129,15 @@ type Entity =
   | 'programme_enrollments'
   | 'programme_logs';
 
-async function loadStore(companyId: number) {
+async function loadStore(companyId: number, opts?: { fresh?: boolean }) {
   const loaded = await loadAdvisorModuleStore(
     companyId,
     FITGRAPH_META_KEY,
-    readFitgraphFromMetadata
+    readFitgraphFromMetadata,
+    [],
+    opts
   );
+  if (!opts?.fresh) return loaded;
   const store = await persistVukaCatalogIfNeeded(
     companyId,
     loaded.store,
@@ -241,7 +244,7 @@ export async function POST(request: NextRequest) {
 
     const action = String(body.action || 'upsert');
     const entity = String(body.entity || '') as Entity;
-    const { meta, store } = await loadStore(companyId);
+    const { meta, store } = await loadStore(companyId, { fresh: true });
     const now = new Date().toISOString();
 
     if (action === 'seed_demo') {

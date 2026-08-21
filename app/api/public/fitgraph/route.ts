@@ -58,7 +58,8 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 async function resolveByToken(
-  token: string
+  token: string,
+  fresh = false
 ): Promise<{ companyId: number; meta: Record<string, unknown>; store: FitgraphStore } | null> {
   const clean = token.trim();
   if (!clean || clean.length < 8) return null;
@@ -68,6 +69,7 @@ async function resolveByToken(
     read: readFitgraphFromMetadata,
     parseCompanyId: parseCompanyIdFromToken,
     indexKeys: [FITGRAPH_PUBLIC_TOKEN_KEY],
+    fresh,
   });
   if (!loaded) return null;
   // Accept token even if website toggle is off — join links still work
@@ -185,13 +187,20 @@ export async function GET(request: NextRequest) {
       coachId: coachId || undefined,
     });
 
-    return NextResponse.json({
-      success: true,
-      calendar,
-      shop: gymShopCatalog(resolved.store),
-      payout_ready: isAdvisorCardPayReady(readAdvisorPayout(resolved.meta)),
-      companyId: resolved.companyId,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        calendar,
+        shop: gymShopCatalog(resolved.store),
+        payout_ready: isAdvisorCardPayReady(readAdvisorPayout(resolved.meta)),
+        companyId: resolved.companyId,
+      },
+      {
+        headers: {
+          'Cache-Control': 'public, max-age=15, stale-while-revalidate=60',
+        },
+      }
+    );
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },
@@ -225,7 +234,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'token required' }, { status: 400 });
     }
 
-    const resolved = await resolveByToken(token);
+    const resolved = await resolveByToken(token, true);
     if (!resolved) {
       return NextResponse.json(
         { error: 'Calendar not found or not published' },

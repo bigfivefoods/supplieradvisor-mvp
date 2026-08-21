@@ -69,6 +69,7 @@ export async function loadAdvisorStoreForPublicToken<T>(opts: {
   parseCompanyId?: (token: string) => number | null;
   indexKeys?: string[];
   extraKeys?: string[];
+  fresh?: boolean;
 }): Promise<{
   companyId: number;
   meta: Record<string, unknown>;
@@ -80,7 +81,8 @@ export async function loadAdvisorStoreForPublicToken<T>(opts: {
     companyId,
     opts.moduleKey,
     opts.read,
-    opts.extraKeys
+    opts.extraKeys,
+    opts.fresh ? { fresh: true } : undefined
   );
   return { companyId, meta: loaded.meta, store: loaded.store };
 }
