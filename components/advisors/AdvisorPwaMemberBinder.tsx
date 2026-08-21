@@ -7,6 +7,7 @@ import {
   type AdvisorPwaModule,
 } from '@/lib/advisors/member-pwa';
 import { AdvisorPwaInstallPrompt } from '@/components/advisors/AdvisorPwaInstallPrompt';
+import { applyAdvisorPwaDocumentHead } from '@/components/advisors/apply-advisor-pwa-head';
 
 /**
  * Remembers this member/patient token against the business public token
@@ -89,6 +90,11 @@ export function AdvisorPwaMemberBinder({
   }, [backgroundColor, brand, brandName, iconUrl, module, pub, themeColor]);
 
   const live = brand || fallback;
+  useEffect(() => {
+    if (!live || live.enabled === false) return;
+    applyAdvisorPwaDocumentHead(live);
+  }, [live]);
+
   if (!live || live.enabled === false) return null;
   return <AdvisorPwaInstallPrompt brand={live} mode="chip" autoOpen />;
 }

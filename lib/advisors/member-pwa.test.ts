@@ -3,6 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import {
+  ADVISOR_PWA_PORTAL_INDEX_KEYS,
   advisorPwaMemberOpenPath,
   advisorPwaStartPath,
   advisorPwaWebManifest,
@@ -30,6 +31,9 @@ assert.equal(
 assert.equal(advisorPwaMemberOpenPath('hiregraph', 'hc_1'), '/hire/hc_1');
 assert.equal(memberTokenStorageKey('hiregraph'), 'sa_hiregraph_customer_token');
 assert.equal(memberTokenStorageKey('fitgraph'), 'sa_fitgraph_member_token');
+assert.ok(
+  ADVISOR_PWA_PORTAL_INDEX_KEYS.fitgraph.includes('fitgraph_client_tokens')
+);
 
 const brand = buildAdvisorPwaBrand({
   module: 'fitgraph',

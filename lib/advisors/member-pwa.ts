@@ -50,6 +50,17 @@ export const ADVISOR_PWA_INDEX_KEYS: Record<AdvisorPwaModule, string[]> = {
   retailgraph: ['retailgraph_public_token'],
 };
 
+/** Public + member/patient tokens so /member/... pages can brand the install. */
+export const ADVISOR_PWA_PORTAL_INDEX_KEYS: Record<AdvisorPwaModule, string[]> = {
+  fitgraph: ['fitgraph_client_tokens', 'fitgraph_public_token'],
+  physiograph: ['physiograph_patient_tokens', 'physiograph_public_token'],
+  dentalgraph: ['dentalgraph_patient_tokens', 'dentalgraph_public_token'],
+  medicalgraph: ['medicalgraph_patient_tokens', 'medicalgraph_public_token'],
+  psychiatrygraph: ['psychiatrygraph_patient_tokens', 'psychiatrygraph_public_token'],
+  hiregraph: ['hiregraph_customer_tokens', 'hiregraph_public_token'],
+  retailgraph: ['retailgraph_public_token'],
+};
+
 const JOIN_KIND: Record<AdvisorPwaModule, string> = {
   fitgraph: 'gym',
   physiograph: 'physio',

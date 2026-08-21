@@ -3,7 +3,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { Dumbbell, Smartphone, UserRound } from 'lucide-react';
 import {
-  advisorPwaIconPath,
   advisorPwaMemberOpenPath,
   recallAdvisorPwaMember,
   rememberAdvisorPwaMember,
@@ -11,32 +10,7 @@ import {
 } from '@/lib/advisors/member-pwa';
 import { advisorBrandInk } from '@/lib/advisors/brand-ink';
 import { AdvisorPwaInstallPrompt } from '@/components/advisors/AdvisorPwaInstallPrompt';
-
-function applyAppleHead(brand: AdvisorPwaBrand) {
-  if (typeof document === 'undefined') return;
-  const appleIcon = advisorPwaIconPath(brand.module, brand.publicToken, 180);
-  const setMeta = (name: string, content: string) => {
-    let el = document.querySelector(`meta[name="${name}"]`);
-    if (!el) {
-      el = document.createElement('meta');
-      el.setAttribute('name', name);
-      document.head.appendChild(el);
-    }
-    el.setAttribute('content', content);
-  };
-  setMeta('apple-mobile-web-app-title', brand.shortName);
-  setMeta('application-name', brand.shortName);
-  setMeta('theme-color', brand.themeColor);
-  const links = document.querySelectorAll('link[rel="apple-touch-icon"]');
-  if (links.length) {
-    links.forEach((l) => l.setAttribute('href', appleIcon));
-  } else {
-    const l = document.createElement('link');
-    l.setAttribute('rel', 'apple-touch-icon');
-    l.setAttribute('href', appleIcon);
-    document.head.appendChild(l);
-  }
-}
+import { applyAdvisorPwaDocumentHead } from '@/components/advisors/apply-advisor-pwa-head';
 
 function ghostBtn(pageInk: string): CSSProperties {
   const light = pageInk === '#ffffff';
@@ -60,7 +34,7 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
   const gym = brand.module === 'fitgraph';
 
   useEffect(() => {
-    applyAppleHead(brand);
+    applyAdvisorPwaDocumentHead(brand);
     if ('serviceWorker' in navigator) {
       void navigator.serviceWorker
         .register('/sw.js', { scope: '/', updateViaCache: 'none' })
