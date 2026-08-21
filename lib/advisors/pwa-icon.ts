@@ -105,7 +105,8 @@ export async function renderAdvisorPwaIconPng(
   size: number
 ): Promise<Buffer> {
   const sharp = (await import('sharp')).default;
-  const dim = size === 180 || size === 192 ? size : 512;
+  const dim =
+    size === 144 || size === 180 || size === 192 ? size : 512;
   const bg = hexRgb(brand.themeColor || brand.backgroundColor);
   const source = await loadLogoBytes(brand.iconUrl, dim);
   if (!source) {

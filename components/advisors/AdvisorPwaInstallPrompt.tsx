@@ -26,6 +26,11 @@ function isIos(): boolean {
   );
 }
 
+function isSamsungInternet(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /SamsungBrowser/i.test(navigator.userAgent);
+}
+
 function dismissKey(id: string) {
   return `sa_advisor_pwa_install:${id}`;
 }
@@ -283,6 +288,13 @@ function InstallSheet({
             Install once — this is the {brand.brandName} {brand.audienceSingular}{' '}
             app, not a generic SupplierAdvisor icon.
           </p>
+          {isSamsungInternet() ? (
+            <p className="mt-2 rounded-xl bg-black/10 px-3 py-2 text-xs font-bold">
+              On Galaxy phones, install from <span className="underline">Chrome</span>{' '}
+              — not Samsung Internet. Samsung can block the install with an
+              “older version of Android” warning.
+            </p>
+          ) : null}
         </div>
 
         <div className="space-y-3 px-5 py-4">

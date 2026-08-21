@@ -31,9 +31,11 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [samsung, setSamsung] = useState(false);
   const gym = brand.module === 'fitgraph';
 
   useEffect(() => {
+    setSamsung(/SamsungBrowser/i.test(navigator.userAgent));
     applyAdvisorPwaDocumentHead(brand);
     if ('serviceWorker' in navigator) {
       void navigator.serviceWorker
@@ -259,6 +261,12 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
                 <Smartphone className="h-4 w-4" />
                 Add {brand.shortName} to Home Screen
               </button>
+            ) : null}
+            {samsung ? (
+              <p className="pt-1 text-[11px] font-bold opacity-80" style={{ color: pageInk }}>
+                Galaxy: install from Chrome, not Samsung Internet — otherwise Android
+                may warn that the app is built for an older version.
+              </p>
             ) : null}
           </div>
         )}

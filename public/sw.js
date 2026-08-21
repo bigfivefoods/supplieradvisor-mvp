@@ -4,9 +4,9 @@
  * IMPORTANT: Do NOT cache /_next/static/* or HTML app shells.
  * Caching hashed JS after deploy is a common cause of “site broken in Safari/Chrome”.
  *
- * v4 — network-only for app code; precache only offline page + icons.
+ * v5 — network-only for app code; precache only offline page + icons.
  */
-const CACHE = 'sa-offline-v4';
+const CACHE = 'sa-offline-v5';
 const OFFLINE_URL = '/offline.html';
 const PRECACHE = [
   OFFLINE_URL,

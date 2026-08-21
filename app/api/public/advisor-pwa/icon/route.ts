@@ -6,9 +6,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { publicReadLimit } from '@/lib/security/rate-limit';
 import { loadAdvisorPwaBrand } from '@/lib/advisors/load-advisor-pwa';
 import { renderAdvisorPwaIconPng } from '@/lib/advisors/pwa-icon';
+import { ADVISOR_PWA_ASSET_CORS } from '@/lib/advisors/member-pwa';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: { ...ADVISOR_PWA_ASSET_CORS } });
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,7 +27,8 @@ export async function GET(request: NextRequest) {
     const moduleKey = request.nextUrl.searchParams.get('module') || '';
     const token = request.nextUrl.searchParams.get('token') || '';
     const sizeRaw = Number(request.nextUrl.searchParams.get('size') || 512);
-    const size = sizeRaw === 180 || sizeRaw === 192 ? sizeRaw : 512;
+    const size =
+      sizeRaw === 144 || sizeRaw === 180 || sizeRaw === 192 ? sizeRaw : 512;
     const brand = await loadAdvisorPwaBrand(moduleKey, token);
     if (!brand) {
       return new NextResponse('Not found', { status: 404 });
@@ -33,6 +39,7 @@ export async function GET(request: NextRequest) {
       headers: {
         'Content-Type': 'image/png',
         'Cache-Control': 'public, max-age=3600, must-revalidate',
+        ...ADVISOR_PWA_ASSET_CORS,
       },
     });
   } catch (e: unknown) {

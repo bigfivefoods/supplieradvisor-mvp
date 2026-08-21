@@ -87,10 +87,16 @@ export function advisorPwaManifestPath(module: AdvisorPwaModule, token: string):
 export function advisorPwaIconPath(
   module: AdvisorPwaModule,
   token: string,
-  size: 180 | 192 | 512 = 512
+  size: 144 | 180 | 192 | 512 = 512
 ): string {
   return `/api/public/advisor-pwa/icon?module=${encodeURIComponent(module)}&token=${encodeURIComponent(token)}&size=${size}`;
 }
+
+export const ADVISOR_PWA_ASSET_CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Cross-Origin-Resource-Policy': 'cross-origin',
+} as const;
 
 export function advisorPwaAbsoluteUrl(
   origin: string,
@@ -246,9 +252,16 @@ export function buildAdvisorPwaBrand(opts: {
 
 export function advisorPwaWebManifest(brand: AdvisorPwaBrand): Record<string, unknown> {
   const start = `${brand.startPath}?source=pwa`;
+  const icon144 = advisorPwaIconPath(brand.module, brand.publicToken, 144);
   const icon192 = advisorPwaIconPath(brand.module, brand.publicToken, 192);
   const icon512 = advisorPwaIconPath(brand.module, brand.publicToken, 512);
   const icons = [
+    {
+      src: icon144,
+      sizes: '144x144',
+      type: 'image/png',
+      purpose: 'any',
+    },
     {
       src: icon192,
       sizes: '192x192',
@@ -277,10 +290,14 @@ export function advisorPwaWebManifest(brand: AdvisorPwaBrand): Record<string, un
     id: brand.startPath,
     display: 'standalone',
     display_override: ['standalone', 'minimal-ui', 'browser'],
+    orientation: 'portrait-primary',
     background_color: brand.backgroundColor,
     theme_color: brand.themeColor,
     lang: 'en',
     prefer_related_applications: false,
+    categories: ['fitness', 'lifestyle', 'health'],
+    launch_handler: { client_mode: ['navigate-existing', 'auto'] },
+    handle_links: 'preferred',
     icons,
     shortcuts: [
       {

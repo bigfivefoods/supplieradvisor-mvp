@@ -14,10 +14,18 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: '/',
     id: '/',
     display: 'standalone',
+    display_override: ['standalone', 'minimal-ui', 'browser'],
     background_color: '#f8fafc',
     theme_color: '#00b4d8',
     lang: 'en',
+    prefer_related_applications: false,
     icons: [
+      {
+        src: '/sa-icon-192.png',
+        sizes: '144x144',
+        type: 'image/png',
+        purpose: 'any',
+      },
       {
         src: '/sa-icon-192.png',
         sizes: '192x192',
