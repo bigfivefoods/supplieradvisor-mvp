@@ -343,7 +343,7 @@ function Inner() {
         eyebrow={`Platform · ${ctx.label}`}
         title="Messages"
         titleAccent={ctx.titleAccent}
-        description={`${ctx.description} Messages are delivered by your system user id across every company workspace you belong to.`}
+        description={`${ctx.description} You only see conversations you are on — not the whole company inbox.`}
         action={
           <button
             type="button"

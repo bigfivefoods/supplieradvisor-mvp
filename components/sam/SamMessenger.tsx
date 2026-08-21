@@ -231,7 +231,11 @@ export default function SamMessenger() {
       const companyId = getSelectedCompanyId();
       const qs = new URLSearchParams({ limit: '25' });
       if (companyId) qs.set('companyId', String(companyId));
-      const res = await fetch(`/api/sam/history?${qs.toString()}`);
+      if (privyUserId) qs.set('privyUserId', privyUserId);
+      const res = await fetch(`/api/sam/history?${qs.toString()}`, {
+        cache: 'no-store',
+        headers: privyUserId ? { 'x-privy-user-id': privyUserId } : {},
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(
@@ -254,7 +258,7 @@ export default function SamMessenger() {
     } finally {
       setHistoryLoading(false);
     }
-  }, [authenticated, ready]);
+  }, [authenticated, ready, privyUserId]);
 
   useEffect(() => {
     if (open && view === 'history') {
@@ -483,7 +487,7 @@ export default function SamMessenger() {
             <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2 bg-[#f8fafc]">
               <div className="flex items-center justify-between gap-2 px-1 pb-1">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                  Recent company chats
+                  Your chats
                 </p>
                 <button
                   type="button"

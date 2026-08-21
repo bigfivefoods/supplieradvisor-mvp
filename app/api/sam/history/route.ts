@@ -5,10 +5,15 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import {
+  getCanonicalUserId,
+  userIdMatchVariants,
+} from '@/lib/auth/identity';
 
 /**
  * GET /api/sam/history?companyId=&limit=
- * Recent SAM conversation turns for the company (or current user if no company).
+ * Recent SAM turns for the signed-in user only (never the whole company).
+ * companyId, when present, further limits to chats from that workspace.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -24,6 +29,11 @@ export async function GET(request: NextRequest) {
     });
     if (!auth.ok) return auth.response;
 
+    const userId = getCanonicalUserId(auth.userId);
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     if (Number.isFinite(companyId) && companyId > 0) {
       const gate = await requireCompanyAccess(request, companyId, {
         legacyPrivyUserId: legacyPrivyFrom(request),
@@ -31,19 +41,19 @@ export async function GET(request: NextRequest) {
       if (!gate.ok) return gate.response;
     }
 
+    const variants = userIdMatchVariants(userId);
     const supabase = getSupabaseServer();
     let q = supabase
       .from('sam_conversations')
       .select(
         'id, profile_id, user_id, pathname, model, api, user_message, assistant_message, error, metadata, created_at'
       )
+      .in('user_id', variants)
       .order('created_at', { ascending: false })
       .limit(limit);
 
     if (Number.isFinite(companyId) && companyId > 0) {
       q = q.eq('profile_id', companyId);
-    } else {
-      q = q.eq('user_id', auth.userId);
     }
 
     const { data, error } = await q;

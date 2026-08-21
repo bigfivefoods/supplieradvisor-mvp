@@ -252,6 +252,54 @@ export function mergeInboxThreads(
   );
 }
 
+function userRefMatches(
+  refId: string | null | undefined,
+  variants: Set<string>
+): boolean {
+  const raw = String(refId || '').trim();
+  if (!raw) return false;
+  if (variants.has(raw) || variants.has(raw.toLowerCase())) return true;
+  const canon = normalizePlatformUserId(raw);
+  if (canon && (variants.has(canon) || variants.has(canon.toLowerCase()))) {
+    return true;
+  }
+  for (const v of userIdMatchVariants(raw)) {
+    if (variants.has(v) || variants.has(v.toLowerCase())) return true;
+  }
+  return false;
+}
+
+/** True when this person is on the thread (participant or author). */
+export function threadVisibleToPlatformUser(
+  thread: CompanyThread,
+  userId: string | null | undefined
+): boolean {
+  const uid = normalizePlatformUserId(userId);
+  if (!uid) return false;
+  const variants = new Set<string>();
+  for (const v of userIdMatchVariants(uid)) {
+    variants.add(v);
+    variants.add(v.toLowerCase());
+  }
+  const people = [
+    ...(thread.participants || []),
+    ...(thread.messages || []).map((m) => m.author),
+  ];
+  return people.some(
+    (p) => p && p.kind === 'user' && userRefMatches(p.ref_id, variants)
+  );
+}
+
+/** Drop company-wide threads the signed-in user is not on. */
+export function threadsForPlatformUser(
+  threads: CompanyThread[],
+  userId: string | null | undefined
+): CompanyThread[] {
+  return normalizeThreads(threads).filter((t) =>
+    threadVisibleToPlatformUser(t, userId)
+  );
+}
+
 /**
  * Collect platform user ids that should receive a company thread copy.
  */

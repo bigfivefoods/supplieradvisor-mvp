@@ -24,14 +24,13 @@ import {
   type CompanyMsgParticipant,
   type CompanyThread,
 } from '@/lib/messaging/company-inbox';
-import {
-  deliverThreadToPlatformUsers,
-  resolvePlatformUserIdsForCompany,
-} from '@/lib/messaging/service-to-company';
+import { deliverThreadToPlatformUsers } from '@/lib/messaging/service-to-company';
 import {
   mergeInboxThreads,
   readUserInbox,
   targetUserIdsFromThread,
+  threadVisibleToPlatformUser,
+  threadsForPlatformUser,
   writeUserInboxThreads,
 } from '@/lib/messaging/user-inbox';
 import { loadMergedInboxForUser } from '@/lib/messaging/sync-inbound-care';
@@ -243,43 +242,11 @@ function viewerForUser(
  */
 async function collectDeliveryUserIds(
   thread: CompanyThread,
-  companyId: number,
   actorUserId: string | null
 ): Promise<string[]> {
   const ids = new Set(targetUserIdsFromThread(thread));
-
-  // Colleague: with_user on participants already covered; also fan to
-  // all company members when thread is company-wide colleague (no specific user).
-  if (thread.channel === 'colleague') {
-    const hasSpecificUser = (thread.participants || []).some(
-      (p) => p.kind === 'user'
-    );
-    if (!hasSpecificUser) {
-      for (const u of await resolvePlatformUserIdsForCompany(companyId)) {
-        ids.add(u);
-      }
-    }
-  }
-
-  // Trade: deliver to users on the peer company
-  if (
-    thread.peer_company_id &&
-    thread.peer_company_id !== companyId &&
-    (thread.channel === 'supplier' ||
-      thread.channel === 'customer' ||
-      thread.channel === 'connection')
-  ) {
-    for (const u of await resolvePlatformUserIdsForCompany(
-      thread.peer_company_id
-    )) {
-      ids.add(u);
-    }
-  }
-
-  // Always include sender so their personal inbox stays in sync
   const actor = getCanonicalUserId(actorUserId);
   if (actor) ids.add(actor);
-
   return [...ids];
 }
 
@@ -325,6 +292,9 @@ export async function GET(request: NextRequest) {
         }
       }
     }
+
+    threads = threadsForPlatformUser(threads, userId);
+    personalThreads = threadsForPlatformUser(personalThreads, userId);
 
     const viewer = viewerForUser(userId, companyId);
     const summaryUser = summariseCompanyInbox(threads, viewer);
@@ -378,6 +348,8 @@ export async function POST(request: NextRequest) {
     const userId = getCanonicalUserId(gate.userId);
     const { meta, store, tradingName } = await loadMeta(companyId);
     const now = new Date().toISOString();
+    const scopedThreads = (list: CompanyThread[]) =>
+      threadsForPlatformUser(list, userId);
 
     // Prefer real platform user as author so recipients address a person id
     const author: CompanyMsgParticipant = {
@@ -425,6 +397,9 @@ export async function POST(request: NextRequest) {
       if (idx < 0) {
         return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
       }
+      if (!threadVisibleToPlatformUser(merged[idx], userId)) {
+        return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
+      }
       const updated = markThreadRead(merged[idx], author, now);
       // Save into company if present there
       const companyHas = (store.threads || []).some((t) => t.id === threadId);
@@ -448,10 +423,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         thread: updated,
-        threads: all,
-        summary: summariseCompanyInbox(all, author),
+        threads: scopedThreads(all),
+        summary: summariseCompanyInbox(scopedThreads(all), author),
         message: 'Marked read',
       });
+    }
+
+    if (
+      (action === 'message_post' ||
+        action === 'post_message' ||
+        action === 'message_reply' ||
+        action === 'message_archive' ||
+        action === 'archive_thread') &&
+      userId
+    ) {
+      const threadId = String(body.thread_id || body.id || '');
+      const personal = await readUserInbox(userId);
+      const merged = mergeInboxThreads(
+        store.threads || [],
+        personal?.threads || []
+      );
+      const existing = merged.find((t) => t.id === threadId);
+      if (!existing || !threadVisibleToPlatformUser(existing, userId)) {
+        return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
+      }
+      workingThreads = upsertThread(store.threads || [], existing);
     }
 
     const result = applyCompanyMessageAction(workingThreads, body, {
@@ -490,11 +486,7 @@ export async function POST(request: NextRequest) {
         action === 'message_reply')
     ) {
       try {
-        const userIds = await collectDeliveryUserIds(
-          result.thread,
-          companyId,
-          userId
-        );
+        const userIds = await collectDeliveryUserIds(result.thread, userId);
         fanOut = await deliverThreadToPlatformUsers({
           thread: result.thread,
           userIds,
@@ -517,7 +509,9 @@ export async function POST(request: NextRequest) {
         /* soft */
       }
     }
-    const open = mergeInboxThreads(result.threads, personalThreads);
+    const open = scopedThreads(
+      mergeInboxThreads(result.threads, personalThreads)
+    );
 
     return NextResponse.json({
       success: true,

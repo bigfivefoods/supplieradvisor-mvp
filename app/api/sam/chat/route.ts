@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireVerifiedUser, legacyPrivyFrom } from '@/lib/auth/api-auth';
+import { getCanonicalUserId } from '@/lib/auth/identity';
 import { getCompanyMembership } from '@/lib/business/access';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getXaiApiKey, samComplete } from '@/lib/sam/client';
@@ -38,6 +39,7 @@ export async function POST(request: NextRequest) {
         body.privyUserId || legacyPrivyFrom(request) || null,
     });
     if (!auth.ok) return auth.response;
+    const actorUserId = getCanonicalUserId(auth.userId) || auth.userId;
 
     const rawMessages = Array.isArray(body.messages)
       ? (body.messages as IncomingMsg[])
@@ -165,7 +167,7 @@ export async function POST(request: NextRequest) {
         const lastUser = history[history.length - 1]?.content || '';
         await getSupabaseServer().from('sam_conversations').insert({
           profile_id: Number.isFinite(companyId) && companyId > 0 ? companyId : null,
-          user_id: auth.userId,
+          user_id: actorUserId,
           pathname: body.pathname ? String(body.pathname).slice(0, 200) : null,
           model: SAM_MODEL,
           api: result.api,
@@ -207,7 +209,7 @@ export async function POST(request: NextRequest) {
       const lastUser = history[history.length - 1]?.content || '';
       await getSupabaseServer().from('sam_conversations').insert({
         profile_id: Number.isFinite(companyId) && companyId > 0 ? companyId : null,
-        user_id: auth.userId,
+        user_id: actorUserId,
         pathname: body.pathname ? String(body.pathname).slice(0, 200) : null,
         model: SAM_MODEL,
         api: result.api,
