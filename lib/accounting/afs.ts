@@ -702,7 +702,7 @@ export async function buildAfsPack(opts: {
     compilation: {
       basis: GAAP_DISCLAIMER_SHORT,
       unaudited: true,
-      journalCount: journals.length,
+      journalCount: asAtCurrentT.entry_count,
       warning: warning || lineWarn,
     },
   };
