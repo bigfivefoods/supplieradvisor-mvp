@@ -3,6 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import { scorePostedLine } from './journal-review';
+import { keepBlocksFlag, emptyAllocationKeeps } from './allocation-keep';
 import type { CoaAccount } from './types';
 
 const coa: CoaAccount[] = [
@@ -72,5 +73,47 @@ const okRent = scorePostedLine({
   otherGlVotes: new Map([[3, 5]]),
 });
 assert.equal(okRent, null, 'correct rent posting is not flagged');
+
+const keeps = emptyAllocationKeeps();
+keeps.lines['12:8'] = {
+  journal_id: 12,
+  line_id: 8,
+  gl_account_id: 2,
+  merchant_key: 'landlord storage',
+  sample: 'landlord storage',
+  at: '2026-08-20T00:00:00.000Z',
+};
+assert.equal(
+  keepBlocksFlag(keeps, {
+    journalId: 12,
+    lineId: 8,
+    merchantKey: 'landlord storage',
+    postedAccountId: 2,
+  }),
+  true
+);
+keeps.patterns['office space rent'] = {
+  gl_account_id: 3,
+  hits: 1,
+  sample: 'Office space rent',
+};
+assert.equal(
+  keepBlocksFlag(keeps, {
+    journalId: 99,
+    lineId: 1,
+    merchantKey: 'office space rent',
+    postedAccountId: 3,
+  }),
+  true
+);
+assert.equal(
+  keepBlocksFlag(keeps, {
+    journalId: 99,
+    lineId: 1,
+    merchantKey: 'office space rent',
+    postedAccountId: 2,
+  }),
+  false
+);
 
 console.log('journal-review tests ok');

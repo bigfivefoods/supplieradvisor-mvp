@@ -100,6 +100,7 @@ function Inner() {
   const [reviewFlags, setReviewFlags] = useState<JournalReviewFlag[]>([]);
   const [reviewScanned, setReviewScanned] = useState(0);
   const [reviewBusy, setReviewBusy] = useState(false);
+  const [keepBusy, setKeepBusy] = useState<string | null>(null);
   /** create | edit_draft | edit_posted (reclassify via reverse + new) */
   const [editMode, setEditMode] = useState<{
     type: 'create' | 'edit_draft' | 'edit_posted';
@@ -280,6 +281,47 @@ function Inner() {
     setLines(formLines);
     setAccountFilter('');
     setShowModal(true);
+  }
+
+  async function keepPostedAccount(flag: JournalReviewFlag) {
+    const key = `${flag.journal_id}-${flag.line_id || flag.posted_account_id}`;
+    setKeepBusy(key);
+    try {
+      const res = await fetch('/api/accounting/journals/review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          action: 'keep',
+          journal_id: flag.journal_id,
+          line_id: flag.line_id,
+          posted_account_id: flag.posted_account_id,
+          description: flag.description || flag.memo || flag.merchant_key,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not keep');
+      toast.success(
+        data.message ||
+          'Kept — similar lines will stay on this account'
+      );
+      setReviewFlags((prev) =>
+        prev.filter(
+          (f) =>
+            !(
+              f.journal_id === flag.journal_id &&
+              (f.line_id || f.posted_account_id) ===
+                (flag.line_id || flag.posted_account_id)
+            )
+        )
+      );
+      void loadReview();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Could not keep');
+    } finally {
+      setKeepBusy(null);
+    }
   }
 
   async function saveJournal(e: React.FormEvent) {
@@ -483,7 +525,8 @@ function Inner() {
             </p>
             <p className="mt-1 text-sm text-slate-600">
               Posted lines are scored against similar journals, bank allocations,
-              and description keywords. Nothing is changed until you reclassify.
+              and description keywords. Reclassify to correct a line, or Keep
+              account so the OS learns this posting is right.
             </p>
           </div>
           <button
@@ -561,14 +604,30 @@ function Inner() {
                     </p>
                     <p className="mt-0.5 text-[11px] text-slate-500">{flag.reason}</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => openReclassifyFromReview(flag)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-[#00b4d8]/40 bg-sky-50 px-2.5 py-1.5 text-xs font-bold text-[#0077b6] hover:bg-sky-100"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Reclassify
-                  </button>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => void keepPostedAccount(flag)}
+                      disabled={keepBusy === `${flag.journal_id}-${flag.line_id || flag.posted_account_id}`}
+                      className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+                    >
+                      {keepBusy ===
+                      `${flag.journal_id}-${flag.line_id || flag.posted_account_id}` ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                      )}
+                      Keep account
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openReclassifyFromReview(flag)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-[#00b4d8]/40 bg-sky-50 px-2.5 py-1.5 text-xs font-bold text-[#0077b6] hover:bg-sky-100"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Reclassify
+                    </button>
+                  </div>
                 </div>
               </li>
             ))}

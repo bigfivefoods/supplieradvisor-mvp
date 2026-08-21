@@ -86,6 +86,7 @@ function bump(
     amount?: number;
     sample?: string;
     source: LearnedPattern['source'];
+    weight?: number;
   }
 ) {
   if (!key || key === 'other') return;
@@ -101,8 +102,9 @@ function bump(
     };
     map.set(key, b);
   }
+  const weight = Math.max(1, Math.floor(Number(opts.weight) || 1));
   if (opts.gl && Number.isFinite(opts.gl)) {
-    b.glVotes.set(opts.gl, (b.glVotes.get(opts.gl) || 0) + 1);
+    b.glVotes.set(opts.gl, (b.glVotes.get(opts.gl) || 0) + weight);
   }
   const tax = String(opts.tax || '').trim().toUpperCase();
   if (tax) b.taxVotes.set(tax, (b.taxVotes.get(tax) || 0) + 1);
@@ -186,6 +188,23 @@ export async function loadLearnedPatterns(
     await learnFromPostedJournals(companyId, buckets);
   } catch {
     /* journal columns may differ — bank history still counts */
+  }
+
+  try {
+    const { loadAllocationKeeps } = await import(
+      '@/lib/accounting/allocation-keep'
+    );
+    const keeps = await loadAllocationKeeps(companyId);
+    for (const [key, p] of Object.entries(keeps.patterns)) {
+      bump(buckets, key, {
+        gl: p.gl_account_id,
+        sample: p.sample || key,
+        source: 'journal',
+        weight: Math.max(5, p.hits * 3),
+      });
+    }
+  } catch {
+    /* keeps are optional */
   }
 
   const frozen = freeze(buckets);

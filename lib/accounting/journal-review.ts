@@ -14,6 +14,10 @@ import {
   winningVote,
   type LearnedPattern,
 } from '@/lib/banking/learning';
+import {
+  keepBlocksFlag,
+  loadAllocationKeeps,
+} from '@/lib/accounting/allocation-keep';
 
 export type JournalReviewFlag = {
   journal_id: number;
@@ -34,6 +38,7 @@ export type JournalReviewFlag = {
   confidence: number;
   reason: string;
   signal: 'learned' | 'keyword' | 'both' | 'type';
+  merchant_key: string;
 };
 
 export type JournalReviewReport = {
@@ -339,6 +344,13 @@ export async function reviewPostedJournals(opts: {
     /* bank history optional */
   }
 
+  let keeps = { lines: {}, patterns: {} };
+  try {
+    keeps = await loadAllocationKeeps(companyId);
+  } catch {
+    /* optional */
+  }
+
   const flags: JournalReviewFlag[] = [];
   const seenLine = new Set<string>();
 
@@ -346,6 +358,16 @@ export async function reviewPostedJournals(opts: {
     const unique = `${row.journalId}:${row.lineId || row.accountId}:${row.debit}:${row.credit}`;
     if (seenLine.has(unique)) continue;
     seenLine.add(unique);
+    if (
+      keepBlocksFlag(keeps, {
+        journalId: row.journalId,
+        lineId: row.lineId,
+        merchantKey: row.key,
+        postedAccountId: row.accountId,
+      })
+    ) {
+      continue;
+    }
 
     const other = new Map<number, number>();
     for (const v of votes.get(row.key) || []) {
@@ -387,6 +409,7 @@ export async function reviewPostedJournals(opts: {
       confidence: scored.confidence,
       reason: scored.reason,
       signal: scored.signal,
+      merchant_key: row.key,
     });
   }
 
