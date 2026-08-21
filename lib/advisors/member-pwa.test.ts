@@ -13,6 +13,7 @@ import {
   advisorPwaIconPath,
   advisorPwaOgPath,
   advisorPwaShareCopy,
+  advisorPwaWhatsAppBody,
   pwaSettingsPatch,
   pwaShortName,
   readPwaSettings,
@@ -85,6 +86,15 @@ const share = advisorPwaShareCopy(brand, 'https://www.supplieradvisor.com/pwa/fi
 assert.equal(share.title, 'VUKA Fitness');
 assert.match(share.text, /GymAdvisor/);
 assert.ok(!/SupplierAdvisor/i.test(share.text));
+const wa = advisorPwaWhatsAppBody(
+  brand,
+  'https://www.supplieradvisor.com/pwa/fitgraph/fg_110_abc'
+);
+assert.match(wa, /VUKA Fitness/);
+assert.match(wa, /GymAdvisor/);
+assert.match(wa, /\/pwa\/fitgraph\/fg_110_abc/);
+assert.ok(!/^SupplierAdvisor/im.test(wa.split('\n')[0]));
+assert.ok(!/Install SupplierAdvisor/i.test(wa));
 
 assert.equal(
   supabaseRenderIconUrl(

@@ -109,6 +109,16 @@ export function advisorPwaShareCopy(brand: AdvisorPwaBrand, url: string): {
   };
 }
 
+/** WhatsApp body: company brand first, then module, then install URL (OG unfurl). */
+export function advisorPwaWhatsAppBody(brand: AdvisorPwaBrand, url: string): string {
+  return [
+    `Add ${brand.brandName} to your phone.`,
+    `${brand.advisorLabel} member app for ${brand.audience}.`,
+    '',
+    url,
+  ].join('\n');
+}
+
 export const ADVISOR_PWA_ASSET_CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',

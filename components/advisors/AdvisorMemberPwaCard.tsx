@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Copy, Download, Smartphone } from 'lucide-react';
+import { Check, Copy, Download, MessageCircle, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   advisorPwaAbsoluteUrl,
   advisorPwaIconPath,
   advisorPwaOgPath,
   advisorPwaShareCopy,
+  advisorPwaWhatsAppBody,
   buildAdvisorPwaBrand,
   pwaSettingsPatch,
   readPwaSettings,
@@ -15,6 +16,7 @@ import {
   type AdvisorPwaSettings,
 } from '@/lib/advisors/member-pwa';
 import { advisorBrandInk } from '@/lib/advisors/brand-ink';
+import { whatsAppUrl } from '@/lib/services/advisor-whatsapp';
 import { MEMBER_APP_QR_PRINT_SIZE, memberAppQrSrc } from '@/lib/b2c/member-app';
 
 const inp =
@@ -310,6 +312,15 @@ export function AdvisorMemberPwaCard({
         </button>
         {installUrl ? (
           <>
+            <a
+              href={whatsAppUrl('', advisorPwaWhatsAppBody(preview, installUrl))}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white"
+            >
+              <MessageCircle className="h-3.5 w-3.5" />
+              WhatsApp
+            </a>
             <button
               type="button"
               onClick={() => void copy()}
