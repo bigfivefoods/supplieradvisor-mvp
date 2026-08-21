@@ -72,6 +72,7 @@ import {
   GymStat,
   gymFormatDay,
 } from '@/components/fitness/GymMemberPwaUi';
+import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
 
 const MEMBER_TOKEN_KEY = 'sa_fitgraph_member_token';
 
@@ -514,7 +515,7 @@ export default function MemberFitgraphPortalPage() {
     }
   };
 
-  // Remember portal token for gym QR check-in page + PWA
+  // Remember portal token for gym QR check-in page + branded PWA
   useEffect(() => {
     if (!token) return;
     try {
@@ -807,6 +808,15 @@ export default function MemberFitgraphPortalPage() {
   const youTab = tab === 'messages' || tab === 'profile' || tab === 'checkin';
 
   return (
+    <>
+    <AdvisorPwaMemberBinder
+      module="fitgraph"
+      memberToken={token}
+      publicToken={portal.grow?.public_token}
+      brandName={portal.brand}
+      themeColor={color}
+      iconUrl={portal.logo_url}
+    />
     <MemberAdvisorShell
       color={color}
       fromClass="from-yellow-50"
@@ -2090,5 +2100,6 @@ export default function MemberFitgraphPortalPage() {
           Powered by GymAdvisor® · SupplierAdvisor
         </p>
     </MemberAdvisorShell>
+    </>
   );
 }

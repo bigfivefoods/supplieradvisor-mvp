@@ -20,7 +20,7 @@ export default function FitgraphPortalPage() {
     <FitgraphWorkbench
       title="View portal"
       titleAccent="member · coach · programme"
-      description="See the member app (Class · Progress · You · Shop · Share), the coach PWA, a programme follow calendar, and the optional public website. Tick which sections appear on the site."
+      description="Publish a branded home-screen app for members (your gym name and logo), then preview the member app, coach PWA, programme follow, and optional public website."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -43,6 +43,12 @@ export default function FitgraphPortalPage() {
               },
             });
             toast.success('Portal sections saved');
+          }}
+          onSavePwa={async (pwa) => {
+            await post({
+              action: 'update_settings',
+              settings: pwa,
+            });
           }}
         />
       )}

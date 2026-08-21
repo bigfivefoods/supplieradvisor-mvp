@@ -475,6 +475,13 @@ export type PhysioPublicSettings = {
   desk_invite_accepted_at?: string | null;
   desk_team_member_id?: number | null;
   desk_last_invited_email?: string | null;
+  pwa_enabled?: boolean;
+  pwa_name?: string;
+  pwa_short_name?: string;
+  pwa_description?: string;
+  pwa_theme_color?: string;
+  pwa_background_color?: string;
+  pwa_icon_url?: string | null;
 };
 
 export type PhysiographStore = {
@@ -699,6 +706,7 @@ export function buildPatientPortalPayload(
       store.settings as { company_logo_url?: string | null } | undefined
     ),
     brand: store.settings?.brand_name || 'Clinic',
+    public_token: store.settings?.public_token || null,
     bio: store.settings?.public_bio,
     timezone: store.settings?.timezone || 'Africa/Johannesburg',
     allow_booking: store.settings?.allow_public_booking !== false,

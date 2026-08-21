@@ -20,7 +20,7 @@ export default function HiregraphPortalPage() {
     <HiregraphWorkbench
       title="View portal"
       titleAccent="hirer app · website"
-      description="See the hirer PWA and the optional public website. Choose which sections appear on the site."
+      description="Publish a branded home-screen app for hirers, then preview the customer PWA and optional public website."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -43,6 +43,12 @@ export default function HiregraphPortalPage() {
               },
             });
             toast.success('Portal sections saved');
+          }}
+          onSavePwa={async (pwa) => {
+            await post({
+              action: 'update_settings',
+              settings: pwa,
+            });
           }}
         />
       )}

@@ -536,6 +536,13 @@ export type HirePublicSettings = {
   desk_invite_accepted_at?: string | null;
   desk_team_member_id?: number | null;
   desk_last_invited_email?: string | null;
+  pwa_enabled?: boolean;
+  pwa_name?: string;
+  pwa_short_name?: string;
+  pwa_description?: string;
+  pwa_theme_color?: string;
+  pwa_background_color?: string;
+  pwa_icon_url?: string | null;
 };
 
 export type HiregraphStore = {
@@ -981,6 +988,7 @@ export function buildHireCustomerPortalPayload(
 
   return {
     brand,
+    public_token: settings.public_token || null,
     bio: settings.public_bio || '',
     contact_email: settings.contact_email || customer.email || null,
     contact_phone: settings.contact_phone || customer.phone || null,

@@ -826,6 +826,14 @@ export type FitPublicSettings = {
   };
   /** Studios / courts / rooms for multi-resource diary */
   rooms?: string[];
+  /** Company-branded member PWA (home-screen app named after the gym). */
+  pwa_enabled?: boolean;
+  pwa_name?: string;
+  pwa_short_name?: string;
+  pwa_description?: string;
+  pwa_theme_color?: string;
+  pwa_background_color?: string;
+  pwa_icon_url?: string | null;
 };
 
 /** Front desk enabled unless owner explicitly turns it off */

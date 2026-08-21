@@ -27,6 +27,7 @@ import { AdvisorAnnouncementFeed } from '@/components/services/AdvisorAnnounceme
 import { B2cHireHowItWorks } from '@/components/b2c/B2cHireJourney';
 import { B2cDiaryView, type MemberCalEvent } from '@/components/b2c/B2cMemberCalendar';
 import { MemberAdvisorShell } from '@/components/advisors/MemberAdvisorShell';
+import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
 import {
   downloadMemberEventIcs,
   googleCalendarUrl,
@@ -114,6 +115,7 @@ type MyBooking = {
 
 type Portal = {
   brand: string;
+  public_token?: string;
   bio?: string;
   contact_email?: string | null;
   contact_phone?: string | null;
@@ -466,6 +468,14 @@ export default function HireCustomerPortalPage() {
   if (!portal) return null;
 
   return (
+    <>
+    <AdvisorPwaMemberBinder
+      module="hiregraph"
+      memberToken={token}
+      publicToken={portal.public_token}
+      brandName={portal.brand}
+      themeColor={color}
+    />
     <MemberAdvisorShell
       color={color}
       appHref={`/me?link=${encodeURIComponent(token)}`}
@@ -1511,5 +1521,6 @@ export default function HireCustomerPortalPage() {
         </div>
       ) : null}
     </MemberAdvisorShell>
+    </>
   );
 }

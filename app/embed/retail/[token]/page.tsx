@@ -11,6 +11,7 @@ import {
   AdvisorPublicStatus,
 } from '@/components/advisors/AdvisorPublicSite';
 import { AdvisorPayAccepted } from '@/components/billing/ApplePayAccepted';
+import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
 
 type Site = {
   brand: string;
@@ -80,6 +81,17 @@ export default function RetailPublicEmbedPage() {
   ];
 
   return (
+    <>
+    {token ? (
+      <AdvisorPwaMemberBinder
+        module="retailgraph"
+        memberToken={token}
+        publicToken={token}
+        brandName={site.brand}
+        themeColor={color}
+        iconUrl={site.logo_url}
+      />
+    ) : null}
     <AdvisorPublicSite
       eyebrow="RetailAdvisor®"
       brand={site.brand}
@@ -172,5 +184,6 @@ export default function RetailPublicEmbedPage() {
         </AdvisorPublicSection>
       ) : null}
     </AdvisorPublicSite>
+    </>
   );
 }

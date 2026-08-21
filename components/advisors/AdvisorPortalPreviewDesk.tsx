@@ -13,6 +13,8 @@ import {
   type AdvisorPortalModule,
   type PortalSectionSettings,
 } from '@/lib/advisors/portal-sections';
+import { AdvisorMemberPwaCard } from '@/components/advisors/AdvisorMemberPwaCard';
+import type { AdvisorPwaSettings } from '@/lib/advisors/member-pwa';
 
 export function AdvisorPortalPreviewDesk({
   module,
@@ -20,6 +22,7 @@ export function AdvisorPortalPreviewDesk({
   embedPath,
   settings,
   onSave,
+  onSavePwa,
   saving,
   websiteHref,
 }: {
@@ -28,6 +31,7 @@ export function AdvisorPortalPreviewDesk({
   embedPath: string;
   settings?: (PortalSectionSettings & GrowPreviewSettings) | null;
   onSave: (sections: Record<string, boolean>) => void | Promise<void>;
+  onSavePwa: (patch: AdvisorPwaSettings) => void | Promise<void>;
   saving?: boolean;
   websiteHref: string;
 }) {
@@ -57,12 +61,24 @@ export function AdvisorPortalPreviewDesk({
     setFrameKey((n) => n + 1);
   };
 
+  const publicToken = String(
+    (settings as { public_token?: string } | null | undefined)?.public_token ||
+      ''
+  );
+
   return (
     <div className="space-y-5">
+      <AdvisorMemberPwaCard
+        module={module}
+        publicToken={publicToken}
+        settings={(settings || {}) as Record<string, unknown>}
+        saving={saving}
+        onSave={onSavePwa}
+      />
       <p className="text-xs text-slate-600 dark:text-slate-300">
         {module === 'fitgraph'
-          ? 'Four surfaces the owner sees here: member app, coach app, programme follow, and the optional public website. Tick what to show on the website, save, then the live preview refreshes if you have published it.'
-          : `Two surfaces: the ${copy.audienceSingular} app on their phone, and an optional public website. Tick what to show on the website, save, then the live preview refreshes if you have published it.`}
+          ? 'Members install your gym’s own home-screen app (your brand, not generic SA Member). You also see the in-app member/coach/programme previews and the optional public website. Tick what to show on the website, save, then the live preview refreshes if you have published it.'
+          : `${copy.audience.charAt(0).toUpperCase()}${copy.audience.slice(1)} install your branded home-screen app — not generic SA Member. Tick what to show on the website, save, then the live preview refreshes if you have published it.`}
       </p>
 
       <AdvisorGrowPreviews

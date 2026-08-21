@@ -20,7 +20,7 @@ export default function MedicalgraphPortalPage() {
     <MedicalgraphWorkbench
       title="View portal"
       titleAccent="patient app · website"
-      description="See the patient PWA and the optional public website. Choose which sections appear on the site."
+      description="Publish a branded home-screen app for patients, then preview the patient PWA and optional public website."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -43,6 +43,12 @@ export default function MedicalgraphPortalPage() {
               },
             });
             toast.success('Portal sections saved');
+          }}
+          onSavePwa={async (pwa) => {
+            await post({
+              action: 'update_settings',
+              settings: pwa,
+            });
           }}
         />
       )}

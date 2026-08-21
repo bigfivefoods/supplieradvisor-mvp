@@ -21,6 +21,7 @@ import { B2cAutoLinkBanner } from '@/components/b2c/B2cAutoLinkBanner';
 import { MemberAnnouncementsFeed } from '@/components/services/MemberAnnouncementsFeed';
 import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
 import { MemberAdvisorShell } from '@/components/advisors/MemberAdvisorShell';
+import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
 import { ClinicMemberDiary } from '@/components/clinic/ClinicMemberDiary';
 import {
   MemberPortalInvoices,
@@ -73,6 +74,7 @@ type Slot = {
 
 type Portal = {
   brand: string;
+  public_token?: string;
   allow_booking: boolean;
   primary_color?: string;
   logo_url?: string | null;
@@ -328,6 +330,15 @@ export default function MemberPsychiatrygraphPortalPage() {
   const youTab = isClinicYouTab(tab);
 
   return (
+    <>
+    <AdvisorPwaMemberBinder
+      module="psychiatrygraph"
+      memberToken={token}
+      publicToken={portal.public_token}
+      brandName={portal.brand}
+      themeColor={color}
+      iconUrl={portal.logo_url}
+    />
     <MemberAdvisorShell
       color={color}
       appHref={`/me?link=${encodeURIComponent(token)}`}
@@ -763,5 +774,6 @@ export default function MemberPsychiatrygraphPortalPage() {
           Powered by PsychiatryAdvisor® · SupplierAdvisor
         </p>
     </MemberAdvisorShell>
+    </>
   );
 }

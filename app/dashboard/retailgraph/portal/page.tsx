@@ -41,7 +41,7 @@ export default function RetailgraphPortalPage() {
     <RetailgraphRequired>
       <RetailgraphPage
         title="View portal"
-        description="See the shopper PWA and the optional public website. Choose which sections appear on the site."
+        description="Publish a branded home-screen app for shoppers, then preview the shop PWA and optional public website."
       >
         {loading || !store || !companyId ? (
           <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
@@ -77,6 +77,31 @@ export default function RetailgraphPortalPage() {
                 toast.success('Portal sections saved');
               } catch (e: unknown) {
                 toast.error(e instanceof Error ? e.message : 'Save failed');
+              } finally {
+                setSaving(false);
+              }
+            }}
+            onSavePwa={async (pwa) => {
+              setSaving(true);
+              try {
+                const data = await withAuthJson<{ store?: RetailgraphStore }>(
+                  '/api/retail/retailgraph',
+                  {
+                    method: 'POST',
+                    jsonBody: {
+                      companyId,
+                      action: 'update_settings',
+                      settings: {
+                        ...(store.settings || {}),
+                        ...pwa,
+                      },
+                    },
+                  }
+                );
+                if (data.store) setStore(data.store);
+              } catch (e: unknown) {
+                toast.error(e instanceof Error ? e.message : 'Save failed');
+                throw e;
               } finally {
                 setSaving(false);
               }

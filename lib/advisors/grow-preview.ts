@@ -11,6 +11,14 @@ export type GrowPreviewSettings = {
   embed_primary_color?: string;
   primary_color?: string;
   company_logo_url?: string | null;
+  public_token?: string;
+  pwa_enabled?: boolean;
+  pwa_name?: string;
+  pwa_short_name?: string;
+  pwa_description?: string;
+  pwa_theme_color?: string;
+  pwa_background_color?: string;
+  pwa_icon_url?: string | null;
 };
 
 export type GrowPreviewCopy = {

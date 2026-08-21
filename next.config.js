@@ -49,6 +49,16 @@ const nextConfig = {
         ],
       },
       {
+        source: '/api/public/advisor-pwa/manifest',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
+          {
+            key: 'Content-Type',
+            value: 'application/manifest+json; charset=utf-8',
+          },
+        ],
+      },
+      {
         // Paystack Apple Pay: domain verification file must be application/text
         // https://paystack.com/docs/payments/apple-pay/
         source: '/.well-known/apple-developer-merchantid-domain-association',

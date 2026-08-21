@@ -116,6 +116,12 @@ export default function InstallAppBanner() {
 
   // SA Member has its own install chrome — avoid a second floating bar
   if (pathname.startsWith('/me')) return null;
+  // Company-branded member/patient/hire apps have their own install chrome
+  if (pathname.startsWith('/pwa')) return null;
+  if (pathname.startsWith('/member')) return null;
+  if (pathname.startsWith('/hire/')) return null;
+  if (pathname.startsWith('/join/')) return null;
+  if (pathname.startsWith('/coach')) return null;
   // Public business websites should not look like an SA app install
   if (pathname.startsWith('/embed')) return null;
   if (!chip || (typeof window !== 'undefined' && isStandalone())) return null;
