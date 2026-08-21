@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { loadAdvisorPwaBrand } from '@/lib/advisors/load-advisor-pwa';
 import {
+  advisorPwaIconPath,
   advisorPwaManifestPath,
-  pwaManifestIconUrl,
 } from '@/lib/advisors/member-pwa';
 
 async function readParams(
@@ -26,7 +26,8 @@ export async function generateMetadata({
   if (!brand) {
     return { title: 'Member app', robots: 'noindex' };
   }
-  const appleIcon = pwaManifestIconUrl(brand.iconUrl);
+  const appleIcon = advisorPwaIconPath(brand.module, brand.publicToken, 180);
+  const appIcon = advisorPwaIconPath(brand.module, brand.publicToken, 192);
   return {
     title: brand.brandName,
     description: brand.description,
@@ -39,8 +40,8 @@ export async function generateMetadata({
       startupImage: [appleIcon],
     },
     icons: {
-      apple: [{ url: appleIcon }],
-      icon: [{ url: appleIcon }],
+      apple: [{ url: appleIcon, sizes: '180x180', type: 'image/png' }],
+      icon: [{ url: appIcon, sizes: '192x192', type: 'image/png' }],
     },
     manifest: advisorPwaManifestPath(brand.module, brand.publicToken),
     other: {

@@ -72,6 +72,15 @@ export function advisorPwaManifestPath(module: AdvisorPwaModule, token: string):
   return `/api/public/advisor-pwa/manifest?module=${encodeURIComponent(module)}&token=${encodeURIComponent(token)}`;
 }
 
+/** Square PNG of the company logo for home-screen / desktop install. */
+export function advisorPwaIconPath(
+  module: AdvisorPwaModule,
+  token: string,
+  size: 180 | 192 | 512 = 512
+): string {
+  return `/api/public/advisor-pwa/icon?module=${encodeURIComponent(module)}&token=${encodeURIComponent(token)}&size=${size}`;
+}
+
 export function advisorPwaAbsoluteUrl(
   origin: string,
   module: AdvisorPwaModule,
@@ -224,33 +233,25 @@ export function buildAdvisorPwaBrand(opts: {
   };
 }
 
-/** Chrome install needs PNG/JPEG; company logos are often AVIF/SVG. */
-export function pwaManifestIconUrl(url: string): string {
-  const u = String(url || '').toLowerCase();
-  if (!u) return '/sa-icon-512.png';
-  if (u.startsWith('/sa-icon')) return url;
-  if (/\.(png|jpe?g|webp)(\?|#|$)/.test(u)) return url;
-  return '/sa-icon-512.png';
-}
-
 export function advisorPwaWebManifest(brand: AdvisorPwaBrand): Record<string, unknown> {
   const start = `${brand.startPath}?source=pwa`;
-  const icon = pwaManifestIconUrl(brand.iconUrl);
+  const icon192 = advisorPwaIconPath(brand.module, brand.publicToken, 192);
+  const icon512 = advisorPwaIconPath(brand.module, brand.publicToken, 512);
   const icons = [
     {
-      src: icon,
+      src: icon192,
       sizes: '192x192',
-      type: iconMime(icon),
+      type: 'image/png',
       purpose: 'any',
     },
     {
-      src: icon,
+      src: icon512,
       sizes: '512x512',
-      type: iconMime(icon),
+      type: 'image/png',
       purpose: 'any',
     },
     {
-      src: '/sa-icon-512.png',
+      src: icon512,
       sizes: '512x512',
       type: 'image/png',
       purpose: 'maskable',
@@ -275,18 +276,10 @@ export function advisorPwaWebManifest(brand: AdvisorPwaBrand): Record<string, un
         name: `Open ${brand.shortName}`,
         short_name: 'Open',
         url: start,
-        icons: [{ src: icon, sizes: '192x192' }],
+        icons: [{ src: icon192, sizes: '192x192', type: 'image/png' }],
       },
     ],
   };
-}
-
-function iconMime(url: string): string {
-  const u = url.toLowerCase();
-  if (u.endsWith('.svg') || u.includes('image/svg')) return 'image/svg+xml';
-  if (u.endsWith('.jpg') || u.endsWith('.jpeg')) return 'image/jpeg';
-  if (u.endsWith('.webp')) return 'image/webp';
-  return 'image/png';
 }
 
 export function readPwaSettings(settings?: Record<string, unknown> | null): AdvisorPwaSettings {

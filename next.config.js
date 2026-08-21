@@ -2,7 +2,7 @@
 const nextConfig = {
   // Keep PDF extractors out of the Turbopack/webpack bundle so their
   // CJS/worker layout resolves correctly on the server.
-  serverExternalPackages: ['unpdf', 'pdf-parse', 'pdfkit', 'xlsx'],
+  serverExternalPackages: ['unpdf', 'pdf-parse', 'pdfkit', 'xlsx', 'sharp'],
   images: {
     remotePatterns: [
       {
@@ -56,6 +56,13 @@ const nextConfig = {
             key: 'Content-Type',
             value: 'application/manifest+json; charset=utf-8',
           },
+        ],
+      },
+      {
+        source: '/api/public/advisor-pwa/icon',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=3600, must-revalidate' },
+          { key: 'Content-Type', value: 'image/png' },
         ],
       },
       {

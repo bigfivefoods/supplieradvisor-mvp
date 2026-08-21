@@ -9,11 +9,12 @@ import {
   buildAdvisorPwaBrand,
   memberTokenStorageKey,
   normalizeHexColor,
-  pwaManifestIconUrl,
+  advisorPwaIconPath,
   pwaSettingsPatch,
   pwaShortName,
   readPwaSettings,
 } from './member-pwa';
+import { supabaseRenderIconUrl } from './pwa-icon';
 
 assert.equal(normalizeHexColor('#E8E830', '#000000'), '#e8e830');
 assert.equal(normalizeHexColor('0077b6', '#000'), '#0077b6');
@@ -57,13 +58,24 @@ assert.equal(manifest.scope, '/');
 assert.equal(manifest.name, 'VUKA Fitness');
 assert.notEqual(manifest.id, '/me');
 assert.notEqual(manifest.id, '/');
-assert.equal(
-  pwaManifestIconUrl('https://cdn.example/vuka.avif'),
-  '/sa-icon-512.png'
+const icons = (manifest.icons || []) as Array<{ src: string; purpose?: string }>;
+assert.equal(icons.length >= 2, true);
+assert.ok(
+  icons.every((i) => i.src.includes('/api/public/advisor-pwa/icon')),
+  'install icons must be the company PNG endpoint, not SA'
 );
+assert.ok(!icons.some((i) => i.src.includes('sa-icon')));
 assert.equal(
-  pwaManifestIconUrl('https://cdn.example/vuka.png'),
-  'https://cdn.example/vuka.png'
+  advisorPwaIconPath('fitgraph', 'fg_110_abc', 512),
+  '/api/public/advisor-pwa/icon?module=fitgraph&token=fg_110_abc&size=512'
+);
+
+assert.equal(
+  supabaseRenderIconUrl(
+    'https://onkklullmgrdqoertngp.supabase.co/storage/v1/object/public/company-documents/110/profile/logo.avif',
+    512
+  ),
+  'https://onkklullmgrdqoertngp.supabase.co/storage/v1/render/image/public/company-documents/110/profile/logo.avif?width=512&height=512&resize=contain'
 );
 
 const other = buildAdvisorPwaBrand({

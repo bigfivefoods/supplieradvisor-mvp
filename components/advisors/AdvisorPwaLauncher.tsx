@@ -3,8 +3,8 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { Dumbbell, Smartphone, UserRound } from 'lucide-react';
 import {
+  advisorPwaIconPath,
   advisorPwaMemberOpenPath,
-  pwaManifestIconUrl,
   recallAdvisorPwaMember,
   rememberAdvisorPwaMember,
   type AdvisorPwaBrand,
@@ -14,7 +14,7 @@ import { AdvisorPwaInstallPrompt } from '@/components/advisors/AdvisorPwaInstall
 
 function applyAppleHead(brand: AdvisorPwaBrand) {
   if (typeof document === 'undefined') return;
-  const appleIcon = pwaManifestIconUrl(brand.iconUrl);
+  const appleIcon = advisorPwaIconPath(brand.module, brand.publicToken, 180);
   const setMeta = (name: string, content: string) => {
     let el = document.querySelector(`meta[name="${name}"]`);
     if (!el) {
