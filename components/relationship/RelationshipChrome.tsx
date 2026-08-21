@@ -160,8 +160,8 @@ export function RelationshipHeader({
     <div
       className={
         band
-          ? 'sa-hero mb-5 min-w-0 sm:mb-6 md:mb-8'
-          : 'mb-5 sm:mb-6 md:mb-8 min-w-0'
+          ? 'sa-hero mb-5 min-w-0 w-full sm:mb-6 md:mb-8'
+          : 'mb-5 sm:mb-6 md:mb-8 min-w-0 w-full'
       }
     >
       <ModuleCrumbs />
@@ -173,14 +173,14 @@ export function RelationshipHeader({
           {backLabel || 'Back'}
         </Link>
       ) : null}
-      <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-end lg:justify-between min-w-0">
-        <div className="max-w-3xl min-w-0">
+      <div className="flex min-w-0 w-full flex-col gap-4">
+        <div className="min-w-0 w-full">
           {eyebrow && (
             <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400 sm:text-xs">
               {eyebrow}
             </p>
           )}
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black leading-[1.12] tracking-tight text-slate-900 sm:tracking-[-1.5px] break-words">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black leading-[1.15] tracking-tight text-slate-900 sm:tracking-[-1.5px] text-pretty">
             {titleAccent ? (
               <>
                 <span className="text-slate-800">{title}</span>{' '}
@@ -191,13 +191,13 @@ export function RelationshipHeader({
             )}
           </h1>
           {description && (
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-600 sm:text-[15px]">
+            <p className="mt-2 max-w-4xl text-sm leading-relaxed text-neutral-600 sm:text-[15px]">
               {description}
             </p>
           )}
         </div>
         {action && (
-          <div className="flex shrink-0 flex-wrap gap-2 w-full sm:w-auto sa-actions">
+          <div className="flex min-w-0 w-full flex-wrap gap-2 sa-actions">
             {action}
           </div>
         )}

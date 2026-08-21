@@ -64,7 +64,7 @@ function Inner() {
       <AccountingHeader
         title="Debit"
         titleAccent="orders"
-        description="VUKA-style member debit file. Amounts are VAT-inclusive. Export CSV, then match the same reference on bank rec."
+        description="Member debit-order file. Amounts are VAT-inclusive. Export CSV, then match the same reference on bank rec."
         action={
           <div className="flex gap-2">
             <button
