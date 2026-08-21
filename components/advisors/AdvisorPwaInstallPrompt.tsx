@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Download, Share, Smartphone, SquarePlus, X } from 'lucide-react';
-import type { AdvisorPwaBrand } from '@/lib/advisors/member-pwa';
+import { advisorPwaIconPath, type AdvisorPwaBrand } from '@/lib/advisors/member-pwa';
 import { advisorBrandInk } from '@/lib/advisors/brand-ink';
 
 type BeforeInstallPromptEvent = Event & {
@@ -58,27 +58,22 @@ function BrandMark({
   brand,
   size = 56,
 }: {
-  brand: Pick<AdvisorPwaBrand, 'brandName' | 'iconUrl' | 'themeColor'>;
+  brand: Pick<AdvisorPwaBrand, 'module' | 'publicToken' | 'iconUrl'>;
   size?: number;
 }) {
-  const ink = advisorBrandInk(brand.themeColor);
+  const src = brand.publicToken
+    ? advisorPwaIconPath(brand.module, brand.publicToken, size >= 48 ? 192 : 144)
+    : brand.iconUrl;
   return (
-    <span
-      className="flex shrink-0 items-center justify-center overflow-hidden rounded-2xl shadow-sm"
-      style={{
-        width: size,
-        height: size,
-        background: brand.themeColor,
-        color: ink,
-      }}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={brand.iconUrl}
-        alt=""
-        className="h-full w-full object-contain p-1"
-      />
-    </span>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt=""
+      width={size}
+      height={size}
+      className="shrink-0 object-contain"
+      style={{ width: size, height: size, background: 'transparent' }}
+    />
   );
 }
 

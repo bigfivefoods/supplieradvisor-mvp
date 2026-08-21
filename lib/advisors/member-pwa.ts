@@ -92,6 +92,23 @@ export function advisorPwaIconPath(
   return `/api/public/advisor-pwa/icon?module=${encodeURIComponent(module)}&token=${encodeURIComponent(token)}&size=${size}`;
 }
 
+/** 1200×630 share card — company logo, not SupplierAdvisor. */
+export function advisorPwaOgPath(module: AdvisorPwaModule, token: string): string {
+  return `/api/public/advisor-pwa/og?module=${encodeURIComponent(module)}&token=${encodeURIComponent(token)}`;
+}
+
+export function advisorPwaShareCopy(brand: AdvisorPwaBrand, url: string): {
+  title: string;
+  text: string;
+  url: string;
+} {
+  return {
+    title: brand.brandName,
+    text: `Install ${brand.brandName} — ${brand.advisorLabel} member app`,
+    url,
+  };
+}
+
 export const ADVISOR_PWA_ASSET_CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
@@ -297,7 +314,9 @@ export function advisorPwaWebManifest(brand: AdvisorPwaBrand): Record<string, un
     prefer_related_applications: false,
     categories: ['fitness', 'lifestyle', 'health'],
     launch_handler: { client_mode: ['navigate-existing', 'auto'] },
-    handle_links: 'preferred',
+    // Do not capture /me or OAuth returns — that blocked Google login
+    // ("return to SA Member" then "not allowed").
+    handle_links: 'not-preferred',
     icons,
     shortcuts: [
       {

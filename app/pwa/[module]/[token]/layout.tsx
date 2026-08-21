@@ -6,6 +6,8 @@ import {
   loadAdvisorPwaBrand,
 } from '@/lib/advisors/load-advisor-pwa';
 
+export const revalidate = 60;
+
 async function readParams(
   params:
     | { module: string; token: string }

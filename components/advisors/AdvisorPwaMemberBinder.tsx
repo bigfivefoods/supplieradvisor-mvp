@@ -48,8 +48,7 @@ export function AdvisorPwaMemberBinder({
     void (async () => {
       try {
         const res = await fetch(
-          `/api/public/advisor-pwa?module=${encodeURIComponent(module)}&token=${encodeURIComponent(pub)}`,
-          { cache: 'no-store' }
+          `/api/public/advisor-pwa?module=${encodeURIComponent(module)}&token=${encodeURIComponent(pub)}`
         );
         const data = await res.json();
         if (!res.ok || cancelled) return;

@@ -3,6 +3,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { Dumbbell, Smartphone, UserRound } from 'lucide-react';
 import {
+  advisorPwaIconPath,
   advisorPwaMemberOpenPath,
   recallAdvisorPwaMember,
   rememberAdvisorPwaMember,
@@ -104,17 +105,15 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
       style={{ background: brand.backgroundColor, color: pageInk }}
     >
       <div className="flex w-full max-w-sm flex-col items-center text-center">
-        <span
-          className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-[1.75rem] shadow-2xl"
-          style={{ background: brand.themeColor }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={brand.iconUrl}
-            alt=""
-            className="h-full w-full object-contain p-2"
-          />
-        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={advisorPwaIconPath(brand.module, brand.publicToken, 192)}
+          alt={brand.brandName}
+          width={112}
+          height={112}
+          className="h-28 w-28 object-contain"
+          style={{ background: 'transparent' }}
+        />
         <p
           className="mt-5 text-[11px] font-black uppercase tracking-[0.18em] opacity-70"
           style={{ color: pageInk }}

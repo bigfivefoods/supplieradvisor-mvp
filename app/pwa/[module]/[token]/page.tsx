@@ -2,8 +2,7 @@ import { notFound } from 'next/navigation';
 import { loadAdvisorPwaBrand } from '@/lib/advisors/load-advisor-pwa';
 import { AdvisorPwaLauncher } from '@/components/advisors/AdvisorPwaLauncher';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+export const revalidate = 60;
 
 async function readParams(
   params:

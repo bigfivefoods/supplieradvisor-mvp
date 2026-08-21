@@ -13,8 +13,7 @@ import {
 } from '@/lib/advisors/member-pwa';
 
 export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+export const revalidate = 60;
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,11 +30,18 @@ export async function GET(request: NextRequest) {
     if (!brand) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
-    return NextResponse.json({
-      success: true,
-      brand,
-      manifest_path: advisorPwaManifestPath(brand.module, brand.publicToken),
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        brand,
+        manifest_path: advisorPwaManifestPath(brand.module, brand.publicToken),
+      },
+      {
+        headers: {
+          'Cache-Control': 'public, max-age=60, stale-while-revalidate=600',
+        },
+      }
+    );
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Load failed' },

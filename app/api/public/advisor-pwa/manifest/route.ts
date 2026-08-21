@@ -11,8 +11,7 @@ import {
 } from '@/lib/advisors/member-pwa';
 
 export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+export const revalidate = 60;
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: { ...ADVISOR_PWA_ASSET_CORS } });
@@ -36,7 +35,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(advisorPwaWebManifest(brand), {
       headers: {
         'Content-Type': 'application/manifest+json; charset=utf-8',
-        'Cache-Control': 'public, max-age=0, must-revalidate',
+        'Cache-Control': 'public, max-age=60, stale-while-revalidate=600',
         ...ADVISOR_PWA_ASSET_CORS,
       },
     });

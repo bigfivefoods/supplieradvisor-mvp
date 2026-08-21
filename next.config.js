@@ -51,7 +51,7 @@ const nextConfig = {
       {
         source: '/api/public/advisor-pwa/manifest',
         headers: [
-          { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
+          { key: 'Cache-Control', value: 'public, max-age=60, stale-while-revalidate=600' },
           {
             key: 'Content-Type',
             value: 'application/manifest+json; charset=utf-8',
@@ -61,7 +61,14 @@ const nextConfig = {
       {
         source: '/api/public/advisor-pwa/icon',
         headers: [
-          { key: 'Cache-Control', value: 'public, max-age=3600, must-revalidate' },
+          { key: 'Cache-Control', value: 'public, max-age=21600, stale-while-revalidate=86400' },
+          { key: 'Content-Type', value: 'image/png' },
+        ],
+      },
+      {
+        source: '/api/public/advisor-pwa/og',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=21600, stale-while-revalidate=86400' },
           { key: 'Content-Type', value: 'image/png' },
         ],
       },

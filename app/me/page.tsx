@@ -35,6 +35,7 @@ import {
   extractEmailFromPrivyUser,
   getCanonicalUserId,
 } from '@/lib/auth/identity';
+import { takeOauthReturnParams } from '@/lib/auth/oauth-return';
 import { AuthLoginActions } from '@/components/auth/AuthLoginActions';
 import { SaOfficialLogo } from '@/components/brand/SaOfficialLogo';
 import {
@@ -240,7 +241,9 @@ function MeAppInner() {
     if (t) {
       setTab(t);
     }
-    const link = search?.get('link') || search?.get('token') || '';
+    const fromSearch = search?.get('link') || search?.get('token') || '';
+    const stashed = fromSearch ? {} : takeOauthReturnParams();
+    const link = fromSearch || stashed.link || stashed.token || '';
     if (link) {
       setLinkToken(link);
       setTab('memberships');

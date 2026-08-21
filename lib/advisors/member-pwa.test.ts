@@ -11,6 +11,8 @@ import {
   memberTokenStorageKey,
   normalizeHexColor,
   advisorPwaIconPath,
+  advisorPwaOgPath,
+  advisorPwaShareCopy,
   pwaSettingsPatch,
   pwaShortName,
   readPwaSettings,
@@ -60,6 +62,7 @@ const manifest = advisorPwaWebManifest(brand);
 assert.equal(manifest.id, '/pwa/fitgraph/fg_110_abc');
 assert.equal(manifest.start_url, '/pwa/fitgraph/fg_110_abc?source=pwa');
 assert.equal(manifest.scope, '/');
+assert.equal(manifest.handle_links, 'not-preferred');
 assert.equal(manifest.name, 'VUKA Fitness');
 assert.notEqual(manifest.id, '/me');
 assert.notEqual(manifest.id, '/');
@@ -74,13 +77,21 @@ assert.equal(
   advisorPwaIconPath('fitgraph', 'fg_110_abc', 512),
   '/api/public/advisor-pwa/icon?module=fitgraph&token=fg_110_abc&size=512'
 );
+assert.equal(
+  advisorPwaOgPath('fitgraph', 'fg_110_abc'),
+  '/api/public/advisor-pwa/og?module=fitgraph&token=fg_110_abc'
+);
+const share = advisorPwaShareCopy(brand, 'https://www.supplieradvisor.com/pwa/fitgraph/fg_110_abc');
+assert.equal(share.title, 'VUKA Fitness');
+assert.match(share.text, /GymAdvisor/);
+assert.ok(!/SupplierAdvisor/i.test(share.text));
 
 assert.equal(
   supabaseRenderIconUrl(
     'https://onkklullmgrdqoertngp.supabase.co/storage/v1/object/public/company-documents/110/profile/logo.avif',
     512
   ),
-  'https://onkklullmgrdqoertngp.supabase.co/storage/v1/render/image/public/company-documents/110/profile/logo.avif?width=512&height=512&resize=contain'
+  'https://onkklullmgrdqoertngp.supabase.co/storage/v1/render/image/public/company-documents/110/profile/logo.avif?width=512'
 );
 assert.match(
   String(
@@ -88,7 +99,7 @@ assert.match(
       'https://onkklullmgrdqoertngp.supabase.co/storage/v1/object/public/company-documents/110/profile/logo.avif'
     )
   ),
-  /render\/image\/public\/.+logo\.avif\?width=1024/
+  /render\/image\/public\/.+logo\.avif\?width=1024$/
 );
 
 const other = buildAdvisorPwaBrand({

@@ -5,6 +5,9 @@ import { Check, Copy, Download, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   advisorPwaAbsoluteUrl,
+  advisorPwaIconPath,
+  advisorPwaOgPath,
+  advisorPwaShareCopy,
   buildAdvisorPwaBrand,
   pwaSettingsPatch,
   readPwaSettings,
@@ -75,7 +78,40 @@ export function AdvisorMemberPwaCard({
 
   const copy = async () => {
     if (!installUrl) return;
-    await navigator.clipboard.writeText(installUrl);
+    const share = advisorPwaShareCopy(preview, installUrl);
+    const payload = `${share.text}\n${share.url}`;
+    try {
+      const ogPath = token
+        ? advisorPwaOgPath(preview.module, token)
+        : '';
+      if (ogPath && typeof navigator.share === 'function') {
+        const res = await fetch(ogPath);
+        if (res.ok) {
+          const blob = await res.blob();
+          const file = new File(
+            [blob],
+            `${(preview.shortName || 'member-app').replace(/\s+/g, '-').toLowerCase()}-install.png`,
+            { type: 'image/png' }
+          );
+          const withFile = { title: share.title, text: share.text, url: share.url, files: [file] };
+          if (navigator.canShare?.(withFile)) {
+            await navigator.share(withFile);
+            toast.success('Install card shared');
+            return;
+          }
+        }
+        await navigator.share({
+          title: share.title,
+          text: share.text,
+          url: share.url,
+        });
+        toast.success('Install link shared');
+        return;
+      }
+    } catch {
+      /* cancelled or share unsupported — copy instead */
+    }
+    await navigator.clipboard.writeText(payload);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     toast.success('Install link copied');
@@ -225,17 +261,17 @@ export function AdvisorMemberPwaCard({
             className="flex w-[160px] flex-col items-center rounded-[1.6rem] px-3 pb-4 pt-5 text-center shadow-lg"
             style={{ background: preview.backgroundColor, color: ink }}
           >
-            <span
-              className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl"
-              style={{ background: preview.themeColor }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={preview.iconUrl}
-                alt=""
-                className="h-full w-full object-contain p-1"
-              />
-            </span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={
+                preview.publicToken
+                  ? advisorPwaIconPath(preview.module, preview.publicToken, 192)
+                  : preview.iconUrl
+              }
+              alt=""
+              className="h-14 w-14 object-contain"
+              style={{ background: 'transparent' }}
+            />
             <p className="mt-2 text-[11px] font-black text-white">
               {preview.shortName}
             </p>

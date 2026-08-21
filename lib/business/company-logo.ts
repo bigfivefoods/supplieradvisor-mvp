@@ -10,7 +10,7 @@ export function preferPngLogoUrl(url: string | null | undefined): string | null 
     if (!u.hostname.endsWith('.supabase.co')) return s;
     const m = u.pathname.match(/^\/storage\/v1\/object\/public\/(.+)$/);
     if (!m) return s;
-    return `${u.origin}/storage/v1/render/image/public/${m[1]}?width=1024&height=1024&resize=contain`;
+    return `${u.origin}/storage/v1/render/image/public/${m[1]}?width=1024`;
   } catch {
     return s;
   }

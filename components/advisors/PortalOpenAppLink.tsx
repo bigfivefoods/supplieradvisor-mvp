@@ -2,6 +2,11 @@
 
 import { Smartphone } from 'lucide-react';
 import { AdvisorPortalThemeToggle } from '@/components/advisors/AdvisorPortalThemeToggle';
+import {
+  isStandaloneDisplay,
+  openInSystemBrowser,
+  stashOauthReturnParams,
+} from '@/lib/auth/oauth-return';
 
 /** Theme chips plus a one-tap return to SA Member. */
 export function PortalHeaderTools({
@@ -30,6 +35,18 @@ export function PortalHeaderTools({
       <AdvisorPortalThemeToggle onLightBrand={onLightBrand} />
       <a
         href={appHref}
+        onClick={(e) => {
+          try {
+            const u = new URL(appHref, window.location.origin);
+            stashOauthReturnParams(u.search);
+            if (isStandaloneDisplay() && /Android/i.test(navigator.userAgent)) {
+              e.preventDefault();
+              openInSystemBrowser(`${u.pathname}${u.search}`);
+            }
+          } catch {
+            /* keep default navigation */
+          }
+        }}
         className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-black ${chip}`}
       >
         <Smartphone className="h-3.5 w-3.5" />

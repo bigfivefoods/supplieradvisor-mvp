@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import { Loader2, ShieldCheck, Smartphone, Sparkles } from 'lucide-react';
 import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
+import { peekOauthReturnParams } from '@/lib/auth/oauth-return';
 import { fetchLoginRole } from '@/lib/auth/login-role';
 import ThemeToggle from '@/components/theme/ThemeToggle';
 import { AuthLoginActions } from '@/components/auth/AuthLoginActions';
@@ -15,12 +16,18 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const claimed = searchParams.get('claimed');
-  const next = searchParams.get('next') || '';
+  const nextFromQuery = searchParams.get('next') || '';
+  const [stashedNext, setStashedNext] = useState('');
+  const next = nextFromQuery || stashedNext;
   const prefillEmail = searchParams.get('email') || '';
   const isContractorFlow =
     next.startsWith('/contractor') || next.includes('contractor');
   const { ready, authenticated, user } = usePrivy();
   const [navigating, setNavigating] = useState(false);
+
+  useEffect(() => {
+    setStashedNext(peekOauthReturnParams().next || '');
+  }, []);
 
   useEffect(() => {
     if (!ready || !authenticated || !user) return;

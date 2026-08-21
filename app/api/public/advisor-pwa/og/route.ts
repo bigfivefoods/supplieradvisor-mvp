@@ -1,11 +1,11 @@
 /**
- * Company-brand PNG for PWA install (home screen / desktop).
- * GET ?module=fitgraph&token=&size=192|512
+ * Company-brand 1200×630 share image for the PWA install link.
+ * GET ?module=fitgraph&token=
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { publicReadLimit } from '@/lib/security/rate-limit';
 import { loadAdvisorPwaBrand } from '@/lib/advisors/load-advisor-pwa';
-import { renderAdvisorPwaIconPng } from '@/lib/advisors/pwa-icon';
+import { renderAdvisorPwaOgPng } from '@/lib/advisors/pwa-icon';
 import { ADVISOR_PWA_ASSET_CORS } from '@/lib/advisors/member-pwa';
 
 export const runtime = 'nodejs';
@@ -17,7 +17,7 @@ export async function OPTIONS() {
 
 export async function GET(request: NextRequest) {
   try {
-    const rl = publicReadLimit(request, 'public-advisor-pwa-icon', 80);
+    const rl = publicReadLimit(request, 'public-advisor-pwa-og', 80);
     if (!rl.ok) {
       return new NextResponse('Too many requests', {
         status: 429,
@@ -26,14 +26,11 @@ export async function GET(request: NextRequest) {
     }
     const moduleKey = request.nextUrl.searchParams.get('module') || '';
     const token = request.nextUrl.searchParams.get('token') || '';
-    const sizeRaw = Number(request.nextUrl.searchParams.get('size') || 512);
-    const size =
-      sizeRaw === 144 || sizeRaw === 180 || sizeRaw === 192 ? sizeRaw : 512;
     const brand = await loadAdvisorPwaBrand(moduleKey, token);
     if (!brand) {
       return new NextResponse('Not found', { status: 404 });
     }
-    const png = await renderAdvisorPwaIconPng(brand, size);
+    const png = await renderAdvisorPwaOgPng(brand);
     return new NextResponse(new Uint8Array(png), {
       status: 200,
       headers: {
@@ -44,7 +41,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (e: unknown) {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Icon failed' },
+      { error: e instanceof Error ? e.message : 'Share image failed' },
       { status: 500 }
     );
   }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { PrivyProvider } from '@privy-io/react-auth';
+import { PrivyProvider, useLoginWithOAuth } from '@privy-io/react-auth';
 import { Toaster } from 'sonner';
 import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -57,6 +57,12 @@ function ThemedToaster() {
   );
 }
 
+/** Complete Google/Apple redirect on any path (gym PWA may land the callback). */
+function PrivyOauthCompleter() {
+  useLoginWithOAuth();
+  return null;
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
   const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID || '';
@@ -71,6 +77,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         appId={privyAppId}
         config={{
           loginMethods: LOGIN_METHODS as ('email' | 'google' | 'apple' | 'wallet')[],
+          // GymAdvisor / SA Member PWAs look like in-app browsers to Privy;
+          // Google is otherwise blocked with "not allowed".
+          allowOAuthInEmbeddedBrowsers: true,
           appearance: {
             // Keep Privy modal stable — app shell follows ThemeProvider dark/light
             theme: 'light',
@@ -98,6 +107,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 (landing header must stay viewport-fixed). Isolation is fine.
               */}
               <ApiAuthBridge>
+                <PrivyOauthCompleter />
                 <ServiceWorkerRegister />
                 <SchemaHealthBanner />
                 <div className="min-h-dvh pointer-events-auto isolate bg-sa-bg text-sa-text">

@@ -3,6 +3,12 @@
 import { useState } from 'react';
 import { useLoginWithOAuth, usePrivy } from '@privy-io/react-auth';
 import { Loader2, Mail } from 'lucide-react';
+import {
+  isInAppBrowserOauthError,
+  isStandaloneDisplay,
+  openInSystemBrowser,
+  stripUrlForOauthRedirect,
+} from '@/lib/auth/oauth-return';
 
 type AuthLoginActionsProps = {
   prefillEmail?: string;
@@ -31,9 +37,19 @@ export function AuthLoginActions({
     setError(null);
     setBusy(provider);
     try {
+      stripUrlForOauthRedirect();
       await initOAuth({ provider });
     } catch (e: unknown) {
       console.error('Privy OAuth error:', e);
+      if (isInAppBrowserOauthError(e) && isStandaloneDisplay()) {
+        const dest = `${window.location.pathname}${window.location.search || ''}`;
+        openInSystemBrowser(dest || '/me');
+        setError(
+          'Google sign-in is blocked inside the installed gym app. Continue in Chrome or Safari — we opened it for you.'
+        );
+        setBusy(null);
+        return;
+      }
       setError(
         e instanceof Error
           ? e.message
@@ -84,7 +100,21 @@ export function AuthLoginActions({
               : 'border-red-200 bg-red-50 text-red-700'
           }`}
         >
-          {error}
+          <p>{error}</p>
+          {/Chrome|Safari|browser|not allowed|in-app/i.test(error) ? (
+            <button
+              type="button"
+              className="mt-2 text-xs font-black underline"
+              onClick={() =>
+                openInSystemBrowser(
+                  `${window.location.pathname}${window.location.search || ''}` ||
+                    '/me'
+                )
+              }
+            >
+              Open in Chrome or Safari
+            </button>
+          ) : null}
         </div>
       ) : null}
 
