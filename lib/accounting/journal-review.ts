@@ -294,16 +294,31 @@ export async function reviewPostedJournals(opts: {
     coa.filter((a) => skipAccount(a)).map((a) => Number(a.id))
   );
 
-  let jq = supabase
-    .from('journal_entries')
-    .select('id, entry_number, entry_date, memo, source, status, metadata')
-    .eq('profile_id', companyId)
-    .eq('status', 'posted')
-    .order('entry_date', { ascending: false })
-    .limit(500);
-  if (opts.from) jq = jq.gte('entry_date', opts.from);
-  if (opts.to) jq = jq.lte('entry_date', opts.to);
-  let { data: journals, error: jErr } = await jq;
+  type ReviewJournalRow = {
+    id: number;
+    entry_number: string | null;
+    entry_date: string | null;
+    memo: string | null;
+    source: string | null;
+    status: string | null;
+    metadata?: unknown;
+  };
+  let journals: ReviewJournalRow[] | null = null;
+  let jErr: { message?: string } | null = null;
+  {
+    let jq = supabase
+      .from('journal_entries')
+      .select('id, entry_number, entry_date, memo, source, status, metadata')
+      .eq('profile_id', companyId)
+      .eq('status', 'posted')
+      .order('entry_date', { ascending: false })
+      .limit(500);
+    if (opts.from) jq = jq.gte('entry_date', opts.from);
+    if (opts.to) jq = jq.lte('entry_date', opts.to);
+    const first = await jq;
+    journals = (first.data || null) as ReviewJournalRow[] | null;
+    jErr = first.error;
+  }
   if (jErr) {
     let retry = supabase
       .from('journal_entries')
@@ -315,7 +330,7 @@ export async function reviewPostedJournals(opts: {
     if (opts.from) retry = retry.gte('entry_date', opts.from);
     if (opts.to) retry = retry.lte('entry_date', opts.to);
     const r2 = await retry;
-    journals = r2.data;
+    journals = (r2.data || null) as ReviewJournalRow[] | null;
     jErr = r2.error;
   }
   if (jErr || !journals?.length) return empty;
