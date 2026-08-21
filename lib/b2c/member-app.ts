@@ -63,8 +63,12 @@ export function memberAppJoinUrl(
 }
 
 export function memberAppQrSrc(absoluteUrl: string, size = 280): string {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${encodeURIComponent(absoluteUrl)}`;
+  const px = Math.min(1000, Math.max(80, Math.round(size)));
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${px}x${px}&margin=8&ecc=H&format=png&data=${encodeURIComponent(absoluteUrl)}`;
 }
+
+/** Print / poster size — qrserver max is 1000px. */
+export const MEMBER_APP_QR_PRINT_SIZE = 1000;
 
 export function memberAppJoinWhatsAppText(opts: {
   brand: string;

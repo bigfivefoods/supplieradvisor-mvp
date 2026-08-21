@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Copy, Smartphone } from 'lucide-react';
+import { Check, Copy, Download, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   advisorPwaAbsoluteUrl,
@@ -12,7 +12,7 @@ import {
   type AdvisorPwaSettings,
 } from '@/lib/advisors/member-pwa';
 import { advisorBrandInk } from '@/lib/advisors/brand-ink';
-import { memberAppQrSrc } from '@/lib/b2c/member-app';
+import { MEMBER_APP_QR_PRINT_SIZE, memberAppQrSrc } from '@/lib/b2c/member-app';
 
 const inp =
   'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/15 dark:bg-neutral-950';
@@ -62,7 +62,11 @@ export function AdvisorMemberPwaCard({
     ? advisorPwaAbsoluteUrl(origin, module, token)
     : '';
   const qrSrc = installUrl ? memberAppQrSrc(installUrl, 280) : '';
+  const qrPrintSrc = installUrl
+    ? memberAppQrSrc(installUrl, MEMBER_APP_QR_PRINT_SIZE)
+    : '';
   const ink = advisorBrandInk(preview.themeColor);
+  const [qrBusy, setQrBusy] = useState(false);
 
   const save = async () => {
     await onSave(pwaSettingsPatch(draft));
@@ -75,6 +79,35 @@ export function AdvisorMemberPwaCard({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     toast.success('Install link copied');
+  };
+
+  const downloadQr = async () => {
+    if (!qrPrintSrc) return;
+    setQrBusy(true);
+    const slug = (preview.shortName || preview.brandName || 'member-app')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 40);
+    const fileName = `${slug || 'member-app'}-pwa-qr.png`;
+    try {
+      const res = await fetch(qrPrintSrc);
+      if (!res.ok) throw new Error('QR download failed');
+      const blob = await res.blob();
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(href);
+      toast.success('QR image saved');
+    } catch {
+      window.open(qrPrintSrc, '_blank', 'noopener,noreferrer');
+    } finally {
+      setQrBusy(false);
+    }
   };
 
   return (
@@ -209,14 +242,19 @@ export function AdvisorMemberPwaCard({
             <p className="text-[9px] text-white/70">Home screen</p>
           </div>
           {qrSrc ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={qrSrc}
-              alt="Install QR"
-              width={140}
-              height={140}
-              className="h-[140px] w-[140px] rounded-xl border border-slate-200 bg-white p-1 dark:border-white/15"
-            />
+            <div className="flex flex-col items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={qrSrc}
+                alt="Install QR"
+                width={140}
+                height={140}
+                className="h-[140px] w-[140px] rounded-xl border border-slate-200 bg-white p-1 dark:border-white/15"
+              />
+              <p className="text-center text-[10px] text-slate-500">
+                Scan to open the member app
+              </p>
+            </div>
           ) : (
             <p className="text-center text-[11px] text-amber-700">
               Publish a portal token on Website first.
@@ -257,6 +295,15 @@ export function AdvisorMemberPwaCard({
               <Smartphone className="h-3.5 w-3.5" />
               Open installer
             </a>
+            <button
+              type="button"
+              disabled={qrBusy}
+              onClick={() => void downloadQr()}
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold dark:border-white/15 disabled:opacity-50"
+            >
+              <Download className="h-3.5 w-3.5" />
+              {qrBusy ? 'Preparing…' : 'Download high-res QR'}
+            </button>
           </>
         ) : null}
       </div>
