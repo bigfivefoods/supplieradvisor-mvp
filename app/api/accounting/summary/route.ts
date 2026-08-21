@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseServer();
     const { start, end } = monthBounds();
 
-    const [coa, journals, invoices, payments, banks, bankTxn, entities, assets, settings] =
+    const [coa, journalsPosted, journalsDraft, invoices, payments, banks, bankTxn, entities, assets, settings] =
       await Promise.all([
         supabase
           .from('chart_of_accounts')
@@ -28,8 +28,14 @@ export async function GET(request: NextRequest) {
           .eq('profile_id', companyId),
         supabase
           .from('journal_entries')
-          .select('id, status')
-          .eq('profile_id', companyId),
+          .select('id', { count: 'exact', head: true })
+          .eq('profile_id', companyId)
+          .eq('status', 'posted'),
+        supabase
+          .from('journal_entries')
+          .select('id', { count: 'exact', head: true })
+          .eq('profile_id', companyId)
+          .eq('status', 'draft'),
         supabase
           .from('invoices')
           .select(
@@ -64,7 +70,8 @@ export async function GET(request: NextRequest) {
 
     const warnings = [
       coa.error,
-      journals.error,
+      journalsPosted.error,
+      journalsDraft.error,
       invoices.error,
       payments.error,
       banks.error,
@@ -73,7 +80,6 @@ export async function GET(request: NextRequest) {
       .map((e) => (e as { message: string }).message);
 
     const coaRows = coa.data || [];
-    const jeRows = journals.data || [];
     const invRows = invoices.data || [];
     const payRows = payments.data || [];
     const bankRows = banks.data || [];
@@ -113,8 +119,8 @@ export async function GET(request: NextRequest) {
       summary: {
         coaCount: coaRows.length,
         coaActive: coaRows.filter((c) => c.is_active !== false).length,
-        journalsPosted: jeRows.filter((j) => j.status === 'posted').length,
-        journalsDraft: jeRows.filter((j) => j.status === 'draft').length,
+        journalsPosted: journalsPosted.count || 0,
+        journalsDraft: journalsDraft.count || 0,
         arOpen: openAr.length,
         arOpenAmount: sumBal(openAr),
         arOverdue: overdueAr.length,

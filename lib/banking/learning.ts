@@ -5,6 +5,7 @@
  */
 
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { ttlDel, ttlGet, ttlSet } from '@/lib/system/memory-ttl';
 import {
   normalizeMerchantKey,
   suggestGlForDescription,
@@ -140,12 +141,22 @@ function freeze(map: Map<string, Bucket>): Map<string, LearnedPattern> {
   return out;
 }
 
+const LEARN_TTL_MS = 90_000;
+
+export function invalidateLearnedPatterns(companyId: number): void {
+  ttlDel(`learn:${companyId}`);
+}
+
 /**
  * Build a map of merchant_key → preferred GL / VAT from history.
  */
 export async function loadLearnedPatterns(
   companyId: number
 ): Promise<Map<string, LearnedPattern>> {
+  const cacheKey = `learn:${companyId}`;
+  const cached = ttlGet<Map<string, LearnedPattern>>(cacheKey);
+  if (cached) return cached;
+
   const supabase = getSupabaseServer();
   const buckets = new Map<string, Bucket>();
 
@@ -177,7 +188,9 @@ export async function loadLearnedPatterns(
     /* journal columns may differ — bank history still counts */
   }
 
-  return freeze(buckets);
+  const frozen = freeze(buckets);
+  ttlSet(cacheKey, frozen, LEARN_TTL_MS);
+  return frozen;
 }
 
 async function learnFromPostedJournals(

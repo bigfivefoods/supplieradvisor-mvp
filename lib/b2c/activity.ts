@@ -60,7 +60,14 @@ export async function buildB2cActivity(
     return m;
   }
 
-  for (const mem of memberships.filter((m) => m.active !== false)) {
+  const activeMems = memberships.filter((m) => m.active !== false);
+  await Promise.all(
+    [...new Set(activeMems.map((m) => Number(m.company_id)).filter((n) => n > 0))].map(
+      (id) => meta(id)
+    )
+  );
+
+  for (const mem of activeMems) {
     const brand = mem.brand || mem.company_name;
     try {
       const raw = await meta(mem.company_id);

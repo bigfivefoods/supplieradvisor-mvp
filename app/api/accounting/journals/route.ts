@@ -16,6 +16,7 @@ import {
 import { auditLog } from '@/lib/audit/log';
 import { isPeriodLocked } from '@/lib/accounting/period-lock';
 import { validatePostableLines } from '@/lib/accounting/post-journal';
+import { invalidateLearnedPatterns } from '@/lib/banking/learning';
 
 /** GET ?companyId=&status= */
 export async function GET(request: NextRequest) {
@@ -285,6 +286,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: lineErr.message }, { status: 400 });
     }
 
+    if (status === 'posted') invalidateLearnedPatterns(companyId);
+
     void auditLog({
       companyId,
       actorUserId: _gate.userId,
@@ -425,6 +428,7 @@ export async function PATCH(request: NextRequest) {
         .select('*')
         .single();
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      invalidateLearnedPatterns(companyId);
       return NextResponse.json({ success: true, entry: data });
     }
 

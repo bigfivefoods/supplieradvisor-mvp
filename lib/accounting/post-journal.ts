@@ -2,6 +2,7 @@
  * Shared double-entry journal poster for operational modules (manufacturing, etc.).
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { invalidateLearnedPatterns } from '@/lib/banking/learning';
 import { ensureDefaultCoa, nextDocumentNumber, round2 } from '@/lib/accounting/server';
 import { isPeriodLocked } from '@/lib/accounting/period-lock';
 
@@ -317,6 +318,10 @@ export async function postBalancedJournal(opts: {
   if (lineErr) {
     await supabase.from('journal_entries').delete().eq('id', entry.id);
     return { ok: false, error: lineErr.message };
+  }
+
+  if (status === 'posted') {
+    invalidateLearnedPatterns(opts.profileId);
   }
 
   return {

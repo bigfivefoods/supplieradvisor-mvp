@@ -40,7 +40,8 @@ export async function GET(request: NextRequest) {
       .from('bank_transactions')
       .select('bank_account_id')
       .eq('profile_id', companyId)
-      .eq('status', 'unreconciled');
+      .eq('status', 'unreconciled')
+      .limit(4000);
 
     const unrecCount: Record<number, number> = {};
     for (const t of unrec || []) {
@@ -110,12 +111,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Allocation pulse
-    const { data: allocRows } = await supabase
-      .from('bank_transactions')
-      .select('allocation_status, amount')
-      .eq('profile_id', companyId);
-    const pulse = {
+    const pulseBase = {
       unallocated: 0,
       allocated: 0,
       matched_invoice: 0,
@@ -123,17 +119,34 @@ export async function GET(request: NextRequest) {
       unallocatedIn: 0,
       unallocatedOut: 0,
     };
-    for (const r of allocRows || []) {
-      const s = String(r.allocation_status || 'unallocated');
-      if (s === 'allocated') pulse.allocated++;
-      else if (s === 'matched_invoice') pulse.matched_invoice++;
-      else if (s === 'excluded') pulse.excluded++;
-      else {
-        pulse.unallocated++;
-        const amt = Number(r.amount || 0);
-        if (amt > 0) pulse.unallocatedIn += amt;
-        else pulse.unallocatedOut += Math.abs(amt);
-      }
+    const countStatus = async (status: string) => {
+      const { count } = await supabase
+        .from('bank_transactions')
+        .select('id', { count: 'exact', head: true })
+        .eq('profile_id', companyId)
+        .eq('allocation_status', status);
+      return count ?? 0;
+    };
+    const [allocatedN, matchedN, excludedN, unallocRows] = await Promise.all([
+      countStatus('allocated'),
+      countStatus('matched_invoice'),
+      countStatus('excluded'),
+      supabase
+        .from('bank_transactions')
+        .select('amount')
+        .eq('profile_id', companyId)
+        .or('allocation_status.eq.unallocated,allocation_status.is.null')
+        .limit(4000),
+    ]);
+    const pulse = { ...pulseBase };
+    pulse.allocated = allocatedN;
+    pulse.matched_invoice = matchedN;
+    pulse.excluded = excludedN;
+    for (const r of unallocRows.data || []) {
+      pulse.unallocated++;
+      const amt = Number(r.amount || 0);
+      if (amt > 0) pulse.unallocatedIn += amt;
+      else pulse.unallocatedOut += Math.abs(amt);
     }
 
     return NextResponse.json({

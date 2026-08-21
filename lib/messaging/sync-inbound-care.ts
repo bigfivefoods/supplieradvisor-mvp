@@ -6,6 +6,7 @@
  * staff→member threads into personal + selected company inboxes.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { ttlGet, ttlSet } from '@/lib/system/memory-ttl';
 import {
   getCanonicalUserId,
   userIdMatchVariants,
@@ -424,14 +425,19 @@ export async function loadMergedInboxForUser(opts: {
   const userId = getCanonicalUserId(opts.userId);
   let synced = 0;
   if (userId && opts.syncCare !== false) {
-    try {
-      const result = await syncInboundCareMessagesForUser({
-        userId,
-        activeCompanyId: opts.activeCompanyId,
-      });
-      synced = result.pulled;
-    } catch (e) {
-      console.warn('[loadMergedInbox] sync', e);
+    const syncKey = `care-sync:${userId}`;
+    const recently = ttlGet<number>(syncKey);
+    if (!recently) {
+      try {
+        const result = await syncInboundCareMessagesForUser({
+          userId,
+          activeCompanyId: opts.activeCompanyId,
+        });
+        synced = result.pulled;
+        ttlSet(syncKey, Date.now(), 90_000);
+      } catch (e) {
+        console.warn('[loadMergedInbox] sync', e);
+      }
     }
   }
 

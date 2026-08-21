@@ -1,4 +1,5 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { invalidateLearnedPatterns } from '@/lib/banking/learning';
 import { round2 } from '@/lib/accounting/server';
 import { isPeriodLocked } from '@/lib/accounting/period-lock';
 import { postBalancedJournal, reversePostedJournal } from '@/lib/accounting/post-journal';
@@ -239,6 +240,7 @@ export async function allocateBankTransaction(params: AllocateParams): Promise<
     return { ok: false, error: upErr.message, status: 400 };
   }
 
+  invalidateLearnedPatterns(params.profileId);
   return { ok: true, journalId: entry.id, entryNumber };
 }
 
@@ -337,6 +339,7 @@ export async function unallocateBankTransaction(params: {
     return { ok: false, error: upErr.message, status: 400 };
   }
 
+  invalidateLearnedPatterns(params.profileId);
   return { ok: true, voidedJournalId };
 }
 

@@ -133,16 +133,26 @@ export async function buildHireJourneys(
     (m) => m.kind === 'hire' && m.active !== false
   );
 
+  const metaByCompany = new Map<number, Record<string, unknown>>();
+  await Promise.all(
+    [...new Set(hireMems.map((m) => Number(m.company_id)).filter((n) => n > 0))].map(
+      async (id) => {
+        const { data } = await supabase
+          .from('profiles')
+          .select('metadata')
+          .eq('id', id)
+          .maybeSingle();
+        const meta =
+          data?.metadata && typeof data.metadata === 'object'
+            ? (data.metadata as Record<string, unknown>)
+            : {};
+        metaByCompany.set(id, meta);
+      }
+    )
+  );
+
   for (const mem of hireMems) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('metadata')
-      .eq('id', mem.company_id)
-      .maybeSingle();
-    const meta =
-      data?.metadata && typeof data.metadata === 'object'
-        ? (data.metadata as Record<string, unknown>)
-        : {};
+    const meta = metaByCompany.get(Number(mem.company_id)) || {};
     const store = readHiregraphFromMetadata(meta);
     const crmId = Number(mem.ref_id);
     const mine = (store.bookings || []).filter(
