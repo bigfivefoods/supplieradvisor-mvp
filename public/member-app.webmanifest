@@ -50,6 +50,12 @@
       "name": "Brands",
       "url": "/me?tab=memberships",
       "description": "Your linked brands"
+    },
+    {
+      "name": "SupplierAdvisor OS",
+      "short_name": "OS demo",
+      "url": "/me/supplieradvisor",
+      "description": "Try the business OS"
     }
   ]
 }

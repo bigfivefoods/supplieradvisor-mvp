@@ -64,6 +64,7 @@ import { toast } from 'sonner';
 import EnablePushButton from '@/components/pwa/EnablePushButton';
 import { B2cLinkBusiness } from '@/components/b2c/B2cLinkBusiness';
 import { B2cPresencePing } from '@/components/b2c/B2cPresencePing';
+import { SaOsPlaceCard } from '@/components/b2c/SaOsPlaceCard';
 import { setSelectedCompanyId } from '@/lib/containers/company';
 import { defaultHomePathForRole } from '@/lib/business/permissions';
 import {
@@ -940,6 +941,9 @@ function MeAppInner() {
           </section>
 
           <section>
+            <div className="mb-2">
+              <SaOsPlaceCard compact />
+            </div>
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-sm font-black text-slate-900">Wallet</h2>
               <button
@@ -1291,8 +1295,10 @@ function MeAppInner() {
         <div className="space-y-3">
           <p className="rounded-2xl bg-sky-50 px-3 py-2 text-[12px] text-sky-950">
             Places you use as a member — book, classes, records. Shops you
-            operate stay under the building icon.
+            operate stay under the building icon. SupplierAdvisor stays on top
+            so you can open the business OS demo any time.
           </p>
+          <SaOsPlaceCard />
           <B2cLinkBusiness
             linkedCompanyIds={linkedCompanyIds}
             onLinked={() => void load()}
