@@ -1383,6 +1383,47 @@ export function findClientForCheckIn(
   return null;
 }
 
+function normalizePersonName(raw: string): string {
+  return String(raw || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+export function namesMatchForPortalSignIn(
+  stored: string | null | undefined,
+  entered: string | null | undefined
+): boolean {
+  const a = normalizePersonName(String(stored || ''));
+  const b = normalizePersonName(String(entered || ''));
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const at = a.split(' ').filter(Boolean);
+  const bt = b.split(' ').filter(Boolean);
+  if (at.length < 2 || bt.length < 2) return false;
+  return at[0] === bt[0] && at[at.length - 1] === bt[bt.length - 1];
+}
+
+/** Existing member sign-in: name + email must both match the gym roster. */
+export function findClientForPortalSignIn(
+  store: FitgraphStore,
+  lookup: { name?: string | null; email?: string | null }
+): FitClient | null {
+  const email = String(lookup.email || '').trim().toLowerCase();
+  const name = String(lookup.name || '').trim();
+  if (!email || !email.includes('@') || !name) return null;
+  return (
+    (store.clients || []).find(
+      (c) =>
+        c.active !== false &&
+        String(c.email || '').trim().toLowerCase() === email &&
+        namesMatchForPortalSignIn(c.name, name)
+    ) || null
+  );
+}
+
 export type FitPtPack = {
   id: string;
   client_id: string;

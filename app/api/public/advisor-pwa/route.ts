@@ -1,7 +1,7 @@
 /**
  * Public branded member-PWA payload.
  * GET  ?module=fitgraph&token=
- * POST { module, token, action: 'sign_in', phone?, email?, code? }
+ * POST { module, token, action: 'sign_in', name, email }
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { clientIp, publicReadLimit, rateLimit } from '@/lib/security/rate-limit';
@@ -76,12 +76,11 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    const phone = String(body.phone || '').trim();
+    const name = String(body.name || '').trim();
     const email = String(body.email || '').trim();
-    const code = String(body.code || body.member_code || '').trim();
-    if (!phone && !email && !code) {
+    if (!name || !email) {
       return NextResponse.json(
-        { error: 'Enter the phone, email, or member code on your gym profile.' },
+        { error: 'Enter the name and email on your gym profile.' },
         { status: 400 }
       );
     }
@@ -92,7 +91,7 @@ export async function POST(request: NextRequest) {
     const {
       FITGRAPH_META_KEY,
       FITGRAPH_PUBLIC_TOKEN_KEY,
-      findClientForCheckIn,
+      findClientForPortalSignIn,
       issueClientPortalToken,
       parseCompanyIdFromToken,
       readFitgraphFromMetadata,
@@ -109,16 +108,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Gym not found' }, { status: 404 });
     }
 
-    const client = findClientForCheckIn(loaded.store, {
-      phone,
-      email,
-      code,
-    });
+    const client = findClientForPortalSignIn(loaded.store, { name, email });
     if (!client) {
       return NextResponse.json(
         {
           error:
-            'We could not find that member. Check the phone, email, or member code on your gym profile.',
+            'We could not find that member. Use the name and email on your gym profile.',
         },
         { status: 404 }
       );

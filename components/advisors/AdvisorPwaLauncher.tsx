@@ -53,9 +53,8 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
   const [memberHref, setMemberHref] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
   const [signIn, setSignIn] = useState(false);
-  const [phone, setPhone] = useState('');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const gym = brand.module === 'fitgraph';
@@ -97,9 +96,8 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
           action: 'sign_in',
           module: brand.module,
           token: brand.publicToken,
-          phone: phone.trim() || undefined,
-          email: email.trim() || undefined,
-          code: code.trim() || undefined,
+          name: name.trim(),
+          email: email.trim(),
         }),
       });
       const data = await res.json();
@@ -194,15 +192,14 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
                     }}
                   >
                     <p className="text-xs font-black" style={{ color: pageInk }}>
-                      Sign in with details on your gym profile
+                      Sign in with the name and email on your gym profile
                     </p>
                     <input
                       className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm text-slate-900"
-                      placeholder="Phone"
-                      inputMode="tel"
-                      autoComplete="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="Full name"
+                      autoComplete="name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
                     />
                     <input
                       className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm text-slate-900"
@@ -212,22 +209,16 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                     />
-                    <input
-                      className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm text-slate-900"
-                      placeholder="Member code"
-                      value={code}
-                      onChange={(e) => setCode(e.target.value)}
-                    />
                     {error ? (
                       <p className="text-xs font-bold text-rose-700">{error}</p>
                     ) : (
                       <p className="text-[11px] opacity-70" style={{ color: pageInk }}>
-                        Any one of these is enough.
+                        Use the same details already loaded at the gym.
                       </p>
                     )}
                     <button
                       type="submit"
-                      disabled={busy || (!phone.trim() && !email.trim() && !code.trim())}
+                      disabled={busy || !name.trim() || !email.trim()}
                       className="w-full rounded-xl py-3 text-sm font-black disabled:opacity-50"
                       style={fillBtn}
                     >
