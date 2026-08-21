@@ -71,11 +71,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const ext = file.name.split('.').pop()?.toLowerCase() || (isLogo ? 'png' : 'pdf');
-    const filePath = `${companyId}/profile/${safeName(kind)}-${Date.now()}.${ext}`;
+    let ext = file.name.split('.').pop()?.toLowerCase() || (isLogo ? 'png' : 'pdf');
     const buckets = isLogo ? [...COMPANY_IMAGE_BUCKETS] : [...COMPANY_DOC_BUCKETS];
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const contentType = file.type || 'application/octet-stream';
+    let buffer = Buffer.from(await file.arrayBuffer());
+    let contentType = file.type || 'application/octet-stream';
+    if (isLogo) {
+      try {
+        const sharp = (await import('sharp')).default;
+        buffer = await sharp(buffer).rotate().png({ compressionLevel: 8 }).toBuffer();
+        ext = 'png';
+        contentType = 'image/png';
+      } catch {
+        /* keep original bytes if this runtime cannot decode the upload */
+      }
+    }
+    const filePath = `${companyId}/profile/${safeName(kind)}-${Date.now()}.${ext}`;
 
     const supabase = getSupabaseServer();
     let publicUrl: string | null = null;

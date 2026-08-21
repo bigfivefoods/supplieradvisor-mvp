@@ -4,6 +4,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { AdvisorPwaBrand } from '@/lib/advisors/member-pwa';
+import { preferPngLogoUrl } from '@/lib/business/company-logo';
 
 const MAX_BYTES = 2_500_000;
 
@@ -32,18 +33,31 @@ function isPrivateHost(host: string): boolean {
 
 /** Supabase can transcode AVIF → PNG when sharp's HEIF decoder cannot. */
 export function supabaseRenderIconUrl(iconUrl: string, size: number): string | null {
-  let u: URL;
-  try {
-    u = new URL(String(iconUrl || '').trim());
-  } catch {
-    return null;
+  const png = preferPngLogoUrl(iconUrl);
+  if (!png || png === iconUrl) {
+    let u: URL;
+    try {
+      u = new URL(String(iconUrl || '').trim());
+    } catch {
+      return null;
+    }
+    if (u.protocol !== 'https:') return null;
+    if (!u.hostname.endsWith('.supabase.co')) return null;
+    const m = u.pathname.match(/^\/storage\/v1\/object\/public\/(.+)$/);
+    if (!m) return null;
+    const dim = size >= 512 ? 512 : size >= 192 ? 192 : 180;
+    return `${u.origin}/storage/v1/render/image/public/${m[1]}?width=${dim}&height=${dim}&resize=contain`;
   }
-  if (u.protocol !== 'https:') return null;
-  if (!u.hostname.endsWith('.supabase.co')) return null;
-  const m = u.pathname.match(/^\/storage\/v1\/object\/public\/(.+)$/);
-  if (!m) return null;
-  const dim = size >= 512 ? 512 : size >= 192 ? 192 : 180;
-  return `${u.origin}/storage/v1/render/image/public/${m[1]}?width=${dim}&height=${dim}&resize=contain`;
+  try {
+    const u = new URL(png);
+    const dim = size >= 512 ? 512 : size >= 192 ? 192 : 180;
+    u.searchParams.set('width', String(dim));
+    u.searchParams.set('height', String(dim));
+    u.searchParams.set('resize', 'contain');
+    return u.toString();
+  } catch {
+    return png;
+  }
 }
 
 async function fetchBytes(url: string): Promise<Buffer | null> {

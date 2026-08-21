@@ -3,7 +3,7 @@
  * Config lives on the module store settings. Members install one app per business.
  * Keep this file free of server-only imports so the member app can use it.
  */
-import { logoUrlFromSettings } from '@/lib/business/company-logo';
+import { logoUrlFromSettings, preferPngLogoUrl } from '@/lib/business/company-logo';
 import { growPreviewCopy } from '@/lib/advisors/grow-preview';
 import type { AdvisorPortalModule } from '@/lib/advisors/portal-sections';
 import { gymJoinMemberPath } from '@/lib/fitness/gym-grow-share';
@@ -203,7 +203,7 @@ export function buildAdvisorPwaBrand(opts: {
     String(opts.settings.pwa_description || opts.settings.public_bio || '').trim() ||
     `${brandName} — ${copy.audienceSingular} app on your phone.`;
   const icon =
-    String(opts.settings.pwa_icon_url || '').trim() ||
+    preferPngLogoUrl(String(opts.settings.pwa_icon_url || '').trim()) ||
     logoUrlFromSettings(opts.settings) ||
     '/sa-icon-512.png';
   const enabled = opts.settings.pwa_enabled !== false;

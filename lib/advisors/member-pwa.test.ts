@@ -15,6 +15,7 @@ import {
   readPwaSettings,
 } from './member-pwa';
 import { supabaseRenderIconUrl } from './pwa-icon';
+import { preferPngLogoUrl } from '@/lib/business/company-logo';
 
 assert.equal(normalizeHexColor('#E8E830', '#000000'), '#e8e830');
 assert.equal(normalizeHexColor('0077b6', '#000'), '#0077b6');
@@ -76,6 +77,14 @@ assert.equal(
     512
   ),
   'https://onkklullmgrdqoertngp.supabase.co/storage/v1/render/image/public/company-documents/110/profile/logo.avif?width=512&height=512&resize=contain'
+);
+assert.match(
+  String(
+    preferPngLogoUrl(
+      'https://onkklullmgrdqoertngp.supabase.co/storage/v1/object/public/company-documents/110/profile/logo.avif'
+    )
+  ),
+  /render\/image\/public\/.+logo\.avif\?width=1024/
 );
 
 const other = buildAdvisorPwaBrand({
