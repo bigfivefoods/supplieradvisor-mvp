@@ -3,7 +3,12 @@
  */
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
-import { knockOutLogoBoard, renderAdvisorPwaOgPng, transparentPwaIconPng } from './pwa-icon';
+import {
+  knockOutLogoBoard,
+  renderAdvisorPwaOgPng,
+  stripSvgCaptions,
+  transparentPwaIconPng,
+} from './pwa-icon';
 import { buildAdvisorPwaBrand } from './member-pwa';
 
 async function main() {
@@ -82,6 +87,36 @@ async function main() {
   assert.equal(ogMeta.format, 'png');
   assert.equal(ogMeta.width, 1200);
   assert.equal(ogMeta.height, 630);
+
+  const svgWithCaption = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="#e8e830"/><text y="9">000000000000</text></svg>`
+  );
+  const stripped = stripSvgCaptions(svgWithCaption).toString('utf8');
+  assert.ok(!stripped.includes('000000000000'));
+  assert.ok(!/<text/i.test(stripped));
+  assert.ok(/<rect/i.test(stripped));
+
+  const ogRaw = await sharp(og).ensureAlpha().raw().toBuffer({
+    resolveWithObject: true,
+  });
+  const { data, info } = ogRaw;
+  const sample = (x: number, y: number) => {
+    const i = (y * info.width + x) * info.channels;
+    return { r: data[i], g: data[i + 1], b: data[i + 2] };
+  };
+  const fillPx = sample(8, 8);
+  let captionish = 0;
+  for (let y = 560; y < 630; y += 2) {
+    for (let x = 40; x < 1160; x += 4) {
+      const p = sample(x, y);
+      const d = Math.hypot(p.r - fillPx.r, p.g - fillPx.g, p.b - fillPx.b);
+      if (d > 48) captionish++;
+    }
+  }
+  assert.ok(
+    captionish < 30,
+    `share card must not have caption/glyph boxes under the logo (got ${captionish})`
+  );
 
   console.log('pwa-icon tests ok');
 }

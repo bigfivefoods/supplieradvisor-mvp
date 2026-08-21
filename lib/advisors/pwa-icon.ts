@@ -84,6 +84,18 @@ async function fetchBytes(url: string): Promise<Buffer | null> {
   return buf;
 }
 
+/** Drop SVG <text> so missing fonts cannot rasterize as □ / 0000 under the mark. */
+export function stripSvgCaptions(source: Buffer): Buffer {
+  const head = source.subarray(0, Math.min(source.length, 256)).toString('utf8');
+  if (!/<svg[\s>]/i.test(head) && !head.includes('<?xml')) return source;
+  const xml = source.toString('utf8');
+  if (!/<svg[\s>]/i.test(xml)) return source;
+  const cleaned = xml
+    .replace(/<text\b[\s\S]*?<\/text>/gi, '')
+    .replace(/<text\b[^>]*\/>/gi, '');
+  return Buffer.from(cleaned);
+}
+
 async function loadLogoBytes(iconUrl: string): Promise<Buffer | null> {
   const raw = String(iconUrl || '').trim();
   if (!raw) return null;
@@ -103,7 +115,10 @@ async function loadLogoBytes(iconUrl: string): Promise<Buffer | null> {
     }
   }
   if (!bytes && !rendered) bytes = await fetchBytes(raw);
-  if (bytes) ttlSet(cacheKey, bytes, LOGO_TTL_MS);
+  if (bytes) {
+    bytes = Buffer.from(stripSvgCaptions(bytes));
+    ttlSet(cacheKey, bytes, LOGO_TTL_MS);
+  }
   return bytes;
 }
 
@@ -291,29 +306,89 @@ export async function renderAdvisorPwaIconPng(
   return png;
 }
 
-/** WhatsApp / iMessage card: company mark only — no captions. */
+/** Tight cropped mark for share cards — no home-screen pad, no captions. */
+async function transparentShareMarkPng(source: Buffer): Promise<Buffer> {
+  const sharp = (await import('sharp')).default;
+  const { data, info } = await sharp(stripSvgCaptions(source))
+    .rotate()
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const keyed = knockOutLogoBoard(data, info.width, info.height, info.channels);
+  let trimmed: Buffer = Buffer.from(
+    await sharp(keyed, {
+      raw: { width: info.width, height: info.height, channels: 4 },
+    })
+      .png()
+      .toBuffer()
+  );
+  try {
+    trimmed = Buffer.from(
+      await sharp(trimmed)
+        .trim({ background: TRANSPARENT, threshold: 16 })
+        .png()
+        .toBuffer()
+    );
+  } catch {
+    /* already tight */
+  }
+  return trimmed;
+}
+
+/** WhatsApp / iMessage card: company mark only — no captions, no glyph boxes. */
 export async function renderAdvisorPwaOgPng(
   brand: AdvisorPwaBrand
 ): Promise<Buffer> {
   const sharp = (await import('sharp')).default;
   const W = 1200;
   const H = 630;
-  const cacheKey = `pwa-og-logo:${brand.module}:${brand.publicToken}:${brand.iconUrl}:${brand.backgroundColor}:${brand.themeColor}`;
+  const cacheKey = `pwa-og-mark-v3:${brand.module}:${brand.publicToken}:${brand.iconUrl}:${brand.themeColor}`;
   const hit = ttlGet<Buffer>(cacheKey);
   if (hit) return hit;
 
-  const fill = brand.backgroundColor || brand.themeColor || '#0c4a6e';
-  const mark = await renderAdvisorPwaIconPng(brand, 512);
-  const logoSize = 380;
-  const logo = Buffer.from(
-    await sharp(mark)
-      .resize(logoSize, logoSize, {
-        fit: 'contain',
-        background: TRANSPARENT,
+  const fill = brand.themeColor || brand.backgroundColor || '#0c4a6e';
+  const source =
+    (await loadLogoBytes(brand.iconUrl)) ||
+    (await loadLogoBytes('/sa-icon-512.png'));
+  let logo: Buffer;
+  if (!source) {
+    logo = Buffer.from(
+      await sharp({
+        create: {
+          width: 360,
+          height: 360,
+          channels: 4,
+          background: TRANSPARENT,
+        },
       })
-      .png()
-      .toBuffer()
-  );
+        .png()
+        .toBuffer()
+    );
+  } else {
+    try {
+      const mark = await transparentShareMarkPng(source);
+      logo = Buffer.from(
+        await sharp(mark)
+          .resize(720, 420, {
+            fit: 'inside',
+            withoutEnlargement: false,
+            background: TRANSPARENT,
+          })
+          .png()
+          .toBuffer()
+      );
+    } catch {
+      logo = Buffer.from(
+        await sharp(source)
+          .resize(720, 420, { fit: 'inside', background: TRANSPARENT })
+          .png()
+          .toBuffer()
+      );
+    }
+  }
+  const meta = await sharp(logo).metadata();
+  const lw = meta.width || 720;
+  const lh = meta.height || 420;
   const png = Buffer.from(
     await sharp({
       create: {
@@ -326,8 +401,8 @@ export async function renderAdvisorPwaOgPng(
       .composite([
         {
           input: logo,
-          top: Math.round((H - logoSize) / 2),
-          left: Math.round((W - logoSize) / 2),
+          top: Math.max(0, Math.round((H - lh) / 2)),
+          left: Math.max(0, Math.round((W - lw) / 2)),
         },
       ])
       .png({ compressionLevel: 6 })
