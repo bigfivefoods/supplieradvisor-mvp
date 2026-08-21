@@ -1,6 +1,6 @@
 /**
  * GET  ?companyId=&from=&to= — review posted journals for likely wrong GL.
- * POST { companyId, action: 'keep', ... } — confirm posted account is correct.
+ * POST { companyId, action: 'keep' | 'keep_many', ... } — confirm posted account(s).
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { parseCompanyId } from '@/lib/accounting/server';
@@ -10,7 +10,25 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import { reviewPostedJournals } from '@/lib/accounting/journal-review';
-import { confirmAllocationKeep } from '@/lib/accounting/allocation-keep';
+import {
+  confirmAllocationKeep,
+  confirmAllocationKeeps,
+  type AllocationKeepInput,
+} from '@/lib/accounting/allocation-keep';
+
+const KEEP_MANY_CAP = 200;
+
+function keepItemFromBody(row: Record<string, unknown>): AllocationKeepInput {
+  return {
+    journal_id: Number(row.journal_id),
+    line_id: row.line_id != null ? Number(row.line_id) : null,
+    gl_account_id: Number(row.posted_account_id || row.gl_account_id),
+    description:
+      (row.description as string | null | undefined) ||
+      (row.merchant_key as string | null | undefined) ||
+      null,
+  };
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -61,16 +79,44 @@ export async function POST(request: NextRequest) {
     if (!gate.ok) return gate.response;
 
     const action = String(body.action || 'keep');
+    const rawItems = Array.isArray(body.items) ? body.items : null;
+    const isMany =
+      action === 'keep_many' ||
+      ((action === 'keep' || action === 'confirm') && rawItems);
+
+    if (isMany) {
+      const rows = (rawItems || []) as Record<string, unknown>[];
+      if (!rows.length) {
+        return NextResponse.json({ error: 'items required' }, { status: 400 });
+      }
+      if (rows.length > KEEP_MANY_CAP) {
+        return NextResponse.json(
+          { error: `At most ${KEEP_MANY_CAP} lines per keep` },
+          { status: 400 }
+        );
+      }
+      const items = rows.map(keepItemFromBody);
+      const keeps = await confirmAllocationKeeps(companyId, items);
+      const n = items.length;
+      return NextResponse.json({
+        success: true,
+        kept: n,
+        message:
+          n === 1
+            ? 'Kept — the OS will treat this account as correct for similar lines'
+            : `Kept ${n} classifications — similar lines will stay on these accounts`,
+        keeps,
+      });
+    }
+
     if (action !== 'keep' && action !== 'confirm') {
       return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
     }
 
-    const keeps = await confirmAllocationKeep(companyId, {
-      journal_id: Number(body.journal_id),
-      line_id: body.line_id != null ? Number(body.line_id) : null,
-      gl_account_id: Number(body.posted_account_id || body.gl_account_id),
-      description: body.description || body.merchant_key || null,
-    });
+    const keeps = await confirmAllocationKeep(
+      companyId,
+      keepItemFromBody(body as Record<string, unknown>)
+    );
 
     return NextResponse.json({
       success: true,

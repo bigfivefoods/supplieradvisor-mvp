@@ -18,6 +18,7 @@ import {
   keepBlocksFlag,
   loadAllocationKeeps,
 } from '@/lib/accounting/allocation-keep';
+import { journalEligibleForReview } from '@/lib/accounting/journal-status';
 
 export type JournalReviewFlag = {
   journal_id: number;
@@ -48,16 +49,69 @@ export type JournalReviewReport = {
   flags: JournalReviewFlag[];
 };
 
-const SKIP_SOURCES = new Set([
-  'reversal',
-  'reverse',
-  'year_end',
-  'year-end',
-  'close',
-  'ecl',
-  'depreciation',
-  'impairment',
-]);
+export function reviewFlagKey(flag: {
+  journal_id: number;
+  line_id: number | null;
+  posted_account_id: number;
+}): string {
+  return `${flag.journal_id}:${flag.line_id ?? 'x'}:${flag.posted_account_id}`;
+}
+
+/** Swap flagged lines onto the suggested GL (by line id, else account + side). */
+export function applySuggestedAccountsToLines(
+  lines: Array<{
+    id?: number | null;
+    account_id: number;
+    debit?: number | null;
+    credit?: number | null;
+    memo?: string | null;
+  }>,
+  flags: Array<{
+    line_id: number | null;
+    posted_account_id: number;
+    suggested_account_id: number;
+    side: 'debit' | 'credit';
+  }>
+): Array<{ account_id: number; debit: number; credit: number; memo?: string }> {
+  const remaining = flags.map((f) => ({ f, used: false }));
+  return lines.map((l) => {
+    const debit = Number(l.debit || 0);
+    const credit = Number(l.credit || 0);
+    const lineId = l.id != null ? Number(l.id) : null;
+    let hit = remaining.find(
+      (row) =>
+        !row.used &&
+        lineId != null &&
+        row.f.line_id != null &&
+        Number(row.f.line_id) === lineId
+    );
+    if (!hit) {
+      hit = remaining.find((row) => {
+        if (row.used) return false;
+        if (
+          lineId != null &&
+          row.f.line_id != null &&
+          Number(row.f.line_id) !== lineId
+        ) {
+          return false;
+        }
+        const sameAccount =
+          Number(row.f.posted_account_id) === Number(l.account_id);
+        const sameSide = row.f.side === 'debit' ? debit > 0 : credit > 0;
+        return sameAccount && sameSide;
+      });
+    }
+    if (hit) hit.used = true;
+    return {
+      account_id: hit
+        ? Number(hit.f.suggested_account_id)
+        : Number(l.account_id),
+      debit,
+      credit,
+      memo: l.memo || undefined,
+    };
+  });
+}
 
 function skipAccount(a: {
   code?: string | null;
@@ -242,22 +296,31 @@ export async function reviewPostedJournals(opts: {
 
   let jq = supabase
     .from('journal_entries')
-    .select('id, entry_number, entry_date, memo, source, status')
+    .select('id, entry_number, entry_date, memo, source, status, metadata')
     .eq('profile_id', companyId)
     .eq('status', 'posted')
     .order('entry_date', { ascending: false })
     .limit(500);
   if (opts.from) jq = jq.gte('entry_date', opts.from);
   if (opts.to) jq = jq.lte('entry_date', opts.to);
-  const { data: journals, error: jErr } = await jq;
+  let { data: journals, error: jErr } = await jq;
+  if (jErr) {
+    let retry = supabase
+      .from('journal_entries')
+      .select('id, entry_number, entry_date, memo, source, status')
+      .eq('profile_id', companyId)
+      .eq('status', 'posted')
+      .order('entry_date', { ascending: false })
+      .limit(500);
+    if (opts.from) retry = retry.gte('entry_date', opts.from);
+    if (opts.to) retry = retry.lte('entry_date', opts.to);
+    const r2 = await retry;
+    journals = r2.data;
+    jErr = r2.error;
+  }
   if (jErr || !journals?.length) return empty;
 
-  const usable = journals.filter((j) => {
-    const src = String(j.source || '').toLowerCase();
-    if (SKIP_SOURCES.has(src)) return false;
-    if (/^revers/i.test(String(j.memo || ''))) return false;
-    return true;
-  });
+  const usable = journals.filter((j) => journalEligibleForReview(j));
   const ids = usable.map((j) => Number(j.id)).filter((n) => Number.isFinite(n));
   if (!ids.length) return empty;
 

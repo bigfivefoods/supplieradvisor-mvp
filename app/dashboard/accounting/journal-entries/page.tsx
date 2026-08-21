@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Loader2,
   Plus,
@@ -12,6 +12,8 @@ import {
   Pencil,
   Search,
   Sparkles,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -40,7 +42,12 @@ import {
   saveFinanceWorkspace,
   type JournalScope,
 } from '@/lib/accounting/user-workspace';
-import type { JournalReviewFlag } from '@/lib/accounting/journal-review';
+import {
+  applySuggestedAccountsToLines,
+  reviewFlagKey,
+  type JournalReviewFlag,
+} from '@/lib/accounting/journal-review';
+import { journalIsReversed } from '@/lib/accounting/journal-status';
 
 type LineForm = {
   account_id: string;
@@ -101,6 +108,10 @@ function Inner() {
   const [reviewScanned, setReviewScanned] = useState(0);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [keepBusy, setKeepBusy] = useState<string | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set());
+  const [bulkBusy, setBulkBusy] = useState<'keep' | 'reclassify' | null>(null);
+  const selectAllRef = useRef<HTMLInputElement>(null);
   /** create | edit_draft | edit_posted (reclassify via reverse + new) */
   const [editMode, setEditMode] = useState<{
     type: 'create' | 'edit_draft' | 'edit_posted';
@@ -156,8 +167,54 @@ function Inner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Review failed');
-      setReviewFlags(Array.isArray(data.flags) ? data.flags : []);
+      const flags = Array.isArray(data.flags) ? data.flags : [];
+      setReviewFlags(flags);
       setReviewScanned(Number(data.scanned) || 0);
+      const missingIds = [
+        ...new Set(
+          flags
+            .map((f: JournalReviewFlag) => Number(f.journal_id))
+            .filter((n: number) => Number.isFinite(n) && n > 0)
+        ),
+      ].slice(0, 40);
+      if (missingIds.length) {
+        const extraParams = new URLSearchParams({
+          companyId: String(companyId),
+          ids: missingIds.join(','),
+        });
+        if (privyUserId) extraParams.set('privyUserId', privyUserId);
+        const extraRes = await fetch(
+          `/api/accounting/journals?${extraParams}`,
+          { cache: 'no-store' }
+        );
+        const extraData = await extraRes.json();
+        const extraRows = Array.isArray(extraData.entries)
+          ? (extraData.entries as JournalEntry[])
+          : [];
+        if (extraRows.length) {
+          setEntries((prev) => {
+            const byId = new Map(prev.map((e) => [Number(e.id), e]));
+            for (const row of extraRows) {
+              if (!byId.has(Number(row.id))) byId.set(Number(row.id), row);
+            }
+            return Array.from(byId.values());
+          });
+          const reversed = new Set(
+            extraRows.filter(journalIsReversed).map((e) => Number(e.id))
+          );
+          if (reversed.size) {
+            setReviewFlags((prev) =>
+              prev.filter((f) => !reversed.has(Number(f.journal_id)))
+            );
+          }
+        }
+      }
+      setSelectedKeys((prev) => {
+        const live = new Set(flags.map(reviewFlagKey));
+        const next = new Set<string>();
+        for (const k of prev) if (live.has(k)) next.add(k);
+        return next;
+      });
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Could not review journals');
       setReviewFlags([]);
@@ -215,6 +272,18 @@ function Inner() {
     );
   }, [accounts, accountFilter]);
 
+  const selectedFlags = useMemo(
+    () => reviewFlags.filter((f) => selectedKeys.has(reviewFlagKey(f))),
+    [reviewFlags, selectedKeys]
+  );
+
+  useEffect(() => {
+    const el = selectAllRef.current;
+    if (!el) return;
+    el.indeterminate =
+      selectedKeys.size > 0 && selectedKeys.size < reviewFlags.length;
+  }, [selectedKeys, reviewFlags.length, reviewOpen]);
+
   function openCreate() {
     setEditMode({ type: 'create' });
     setMemo('');
@@ -225,9 +294,46 @@ function Inner() {
     setShowModal(true);
   }
 
+  const mergeEntries = useCallback((extra: JournalEntry[]) => {
+    if (!extra.length) return;
+    setEntries((prev) => {
+      const byId = new Map(prev.map((e) => [Number(e.id), e]));
+      for (const row of extra) byId.set(Number(row.id), row);
+      return Array.from(byId.values());
+    });
+  }, []);
+
+  const ensureJournal = useCallback(
+    async (journalId: number): Promise<JournalEntry | null> => {
+      const local = entries.find((e) => Number(e.id) === Number(journalId));
+      if (local) return local;
+      const params = new URLSearchParams({
+        companyId: String(companyId),
+        id: String(journalId),
+      });
+      if (privyUserId) params.set('privyUserId', privyUserId);
+      const res = await fetch(`/api/accounting/journals?${params}`, {
+        cache: 'no-store',
+      });
+      const data = await res.json();
+      const je = Array.isArray(data.entries)
+        ? (data.entries[0] as JournalEntry | undefined)
+        : undefined;
+      if (je) mergeEntries([je]);
+      return je || null;
+    },
+    [companyId, entries, mergeEntries, privyUserId]
+  );
+
   /** Edit draft in place, or reclassify a posted entry (change COA / amounts). */
   function openEdit(je: JournalEntry) {
     const label = je.entry_number || `JE-${je.id}`;
+    if (journalIsReversed(je)) {
+      toast.error(
+        `${label} was already reversed. Use the replacement journal (source: correction) to reclassify.`
+      );
+      return;
+    }
     if (String(je.status) === 'draft') {
       setEditMode({ type: 'edit_draft', id: je.id, label });
       setMemo(je.memo || '');
@@ -251,23 +357,32 @@ function Inner() {
     toast.error('Void journals cannot be edited');
   }
 
-  function openReclassifyFromReview(flag: JournalReviewFlag) {
-    const je = entries.find((e) => Number(e.id) === Number(flag.journal_id));
+  function formLinesFromPayload(
+    payload: Array<{
+      account_id: number;
+      debit: number;
+      credit: number;
+      memo?: string;
+    }>
+  ): LineForm[] {
+    const formLines = payload.map((l) => ({
+      account_id: String(l.account_id),
+      debit: l.debit > 0 ? String(l.debit) : '',
+      credit: l.credit > 0 ? String(l.credit) : '',
+      memo: l.memo || '',
+    }));
+    return formLines.length >= 2 ? formLines : [emptyLine(), emptyLine()];
+  }
+
+  async function openReclassifyFromReview(flag: JournalReviewFlag) {
+    const je = await ensureJournal(flag.journal_id);
     if (!je || String(je.status) !== 'posted') {
-      toast.error('Load that journal in this period, then use Edit');
+      toast.error('Could not load that journal to reclassify');
       return;
     }
-    let applied = false;
-    const formLines = linesFromJournal(je).map((l) => {
-      const sameAccount = String(l.account_id) === String(flag.posted_account_id);
-      const sameSide =
-        flag.side === 'debit' ? Number(l.debit) > 0 : Number(l.credit) > 0;
-      if (!applied && sameAccount && sameSide) {
-        applied = true;
-        return { ...l, account_id: String(flag.suggested_account_id) };
-      }
-      return l;
-    });
+    const formLines = formLinesFromPayload(
+      applySuggestedAccountsToLines(je.lines || [], [flag])
+    );
     setEditMode({
       type: 'edit_posted',
       id: je.id,
@@ -283,8 +398,26 @@ function Inner() {
     setShowModal(true);
   }
 
+  function toggleReviewKey(key: string) {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function toggleSelectAllReview() {
+    setSelectedKeys((prev) => {
+      if (prev.size === reviewFlags.length && reviewFlags.length > 0) {
+        return new Set();
+      }
+      return new Set(reviewFlags.map(reviewFlagKey));
+    });
+  }
+
   async function keepPostedAccount(flag: JournalReviewFlag) {
-    const key = `${flag.journal_id}-${flag.line_id || flag.posted_account_id}`;
+    const key = reviewFlagKey(flag);
     setKeepBusy(key);
     try {
       const res = await fetch('/api/accounting/journals/review', {
@@ -306,21 +439,146 @@ function Inner() {
         data.message ||
           'Kept — similar lines will stay on this account'
       );
-      setReviewFlags((prev) =>
-        prev.filter(
-          (f) =>
-            !(
-              f.journal_id === flag.journal_id &&
-              (f.line_id || f.posted_account_id) ===
-                (flag.line_id || flag.posted_account_id)
-            )
-        )
-      );
+      setReviewFlags((prev) => prev.filter((f) => reviewFlagKey(f) !== key));
+      setSelectedKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
       void loadReview();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Could not keep');
     } finally {
       setKeepBusy(null);
+    }
+  }
+
+  async function keepSelectedClassifications() {
+    if (!selectedFlags.length) {
+      toast.error('Tick the lines to keep');
+      return;
+    }
+    setBulkBusy('keep');
+    try {
+      const res = await fetch('/api/accounting/journals/review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          action: 'keep_many',
+          items: selectedFlags.map((flag) => ({
+            journal_id: flag.journal_id,
+            line_id: flag.line_id,
+            posted_account_id: flag.posted_account_id,
+            description: flag.description || flag.memo || flag.merchant_key,
+          })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not keep');
+      const drop = new Set(selectedFlags.map(reviewFlagKey));
+      setReviewFlags((prev) => prev.filter((f) => !drop.has(reviewFlagKey(f))));
+      setSelectedKeys(new Set());
+      toast.success(
+        data.message ||
+          `Kept ${selectedFlags.length} classification(s)`
+      );
+      void loadReview();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Could not keep');
+    } finally {
+      setBulkBusy(null);
+    }
+  }
+
+  async function reclassifySelected() {
+    if (!selectedFlags.length) {
+      toast.error('Tick the lines to reclassify');
+      return;
+    }
+    const byJournal = new Map<number, JournalReviewFlag[]>();
+    for (const flag of selectedFlags) {
+      const list = byJournal.get(flag.journal_id) || [];
+      list.push(flag);
+      byJournal.set(flag.journal_id, list);
+    }
+    if (
+      !window.confirm(
+        `Reclassify ${selectedFlags.length} line(s) on ${byJournal.size} journal(s) to the suggested accounts? Each journal is reversed and a corrected entry is posted.`
+      )
+    ) {
+      return;
+    }
+    setBulkBusy('reclassify');
+    let ok = 0;
+    let fail = 0;
+    const notes: string[] = [];
+    try {
+      for (const [journalId, flags] of byJournal) {
+        const je = await ensureJournal(journalId);
+        if (!je || String(je.status) !== 'posted') {
+          fail += 1;
+          notes.push(`JE-${journalId} not loaded as posted`);
+          continue;
+        }
+        const payloadLines = applySuggestedAccountsToLines(
+          je.lines || [],
+          flags
+        ).filter((l) => l.debit > 0 || l.credit > 0);
+        if (payloadLines.length < 2) {
+          fail += 1;
+          notes.push(
+            `${je.entry_number || `JE-${journalId}`} needs two lines`
+          );
+          continue;
+        }
+        try {
+          const res = await fetch('/api/accounting/journals', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              companyId,
+              privyUserId,
+              id: je.id,
+              action: 'reclassify',
+              entry_date: String(je.entry_date || '').slice(0, 10),
+              memo: je.memo,
+              lines: payloadLines,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            fail += 1;
+            notes.push(
+              `${je.entry_number || `JE-${journalId}`}: ${data.error || 'failed'}`
+            );
+            continue;
+          }
+          ok += 1;
+        } catch (e: unknown) {
+          fail += 1;
+          notes.push(
+            `${je.entry_number || `JE-${journalId}`}: ${
+              e instanceof Error ? e.message : 'failed'
+            }`
+          );
+        }
+      }
+      if (ok && !fail) {
+        toast.success(
+          `Reclassified ${ok} journal${ok === 1 ? '' : 's'} to suggested accounts`
+        );
+      } else if (ok) {
+        toast.message(`Reclassified ${ok}, ${fail} could not be posted`);
+      } else {
+        toast.error(notes[0] || 'Could not reclassify the selection');
+      }
+      setSelectedKeys(new Set());
+      void load();
+      void loadReview();
+    } finally {
+      setBulkBusy(null);
     }
   }
 
@@ -394,7 +652,9 @@ function Inner() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed');
         toast.success(
-          `Reclassified — original reversed, new entry ${data.entry?.entry_number || ''} posted`
+          `Reclassified ${data.superseded || editMode.label || ''} → ${
+            data.entry?.entry_number || 'new entry'
+          } posted with the new accounts`
         );
       } else {
         const res = await fetch('/api/accounting/journals', {
@@ -516,24 +776,56 @@ function Inner() {
       </div>
       <FinanceWorkspaceNote className="mb-4" />
 
-      <div className="mb-4 rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50/80 to-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-violet-800">
-              <Sparkles className="h-3.5 w-3.5" />
-              Allocation review
-            </p>
-            <p className="mt-1 text-sm text-slate-600">
-              Posted lines are scored against similar journals, bank allocations,
-              and description keywords. Reclassify to correct a line, or Keep
-              account so the OS learns this posting is right.
-            </p>
-          </div>
+      <div className="mb-4 overflow-hidden rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50/80 to-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
           <button
             type="button"
-            onClick={() => void loadReview()}
+            onClick={() => setReviewOpen((o) => !o)}
+            className="inline-flex min-w-0 flex-1 items-center gap-2 text-left group"
+            aria-expanded={reviewOpen}
+          >
+            {reviewOpen ? (
+              <ChevronDown className="h-4 w-4 shrink-0 text-violet-700" />
+            ) : (
+              <ChevronRight className="h-4 w-4 shrink-0 text-violet-400 group-hover:text-violet-700" />
+            )}
+            <Sparkles className="h-3.5 w-3.5 shrink-0 text-violet-800" />
+            <span className="text-[10px] font-black uppercase tracking-wider text-violet-800">
+              Allocation review
+            </span>
+            <span className="rounded-full border border-violet-200 bg-white px-2 py-0.5 text-[11px] font-bold tabular-nums text-slate-600">
+              {reviewBusy ? '…' : reviewScanned} scanned
+            </span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums ${
+                reviewFlags.length
+                  ? 'border border-violet-300 bg-violet-100 text-violet-900'
+                  : 'border border-emerald-200 bg-emerald-50 text-emerald-800'
+              }`}
+            >
+              {reviewBusy
+                ? 'Scoring'
+                : reviewFlags.length
+                  ? `${reviewFlags.length} to check`
+                  : 'Clear'}
+            </span>
+            {selectedKeys.size > 0 ? (
+              <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-bold tabular-nums text-[#0077b6]">
+                {selectedKeys.size} selected
+              </span>
+            ) : null}
+            <span className="hidden text-[11px] text-slate-500 sm:inline">
+              {reviewOpen ? 'Click to collapse' : 'Click to expand'}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              void loadReview();
+            }}
             disabled={reviewBusy}
-            className="btn-secondary !py-2 !px-3 text-sm inline-flex items-center gap-1.5"
+            className="btn-secondary !py-2 !px-3 text-sm inline-flex items-center gap-1.5 shrink-0"
           >
             {reviewBusy ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -543,95 +835,190 @@ function Inner() {
             {reviewBusy ? 'Scoring…' : 'Re-run review'}
           </button>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <div className="rounded-xl border border-violet-100 bg-white px-3 py-2">
-            <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
-              Lines scanned
+
+        {reviewOpen ? (
+          <div className="border-t border-violet-100 px-4 pb-4 pt-3">
+            <p className="text-sm text-slate-600">
+              Posted lines are scored against similar journals, bank allocations,
+              and description keywords. Tick lines for a mass Keep or Reclassify,
+              or act on one row. Keep teaches the OS this posting is right.
             </p>
-            <p className="text-lg font-black tabular-nums text-slate-900">
-              {reviewBusy ? '—' : reviewScanned}
-            </p>
-          </div>
-          <div className="rounded-xl border border-violet-100 bg-white px-3 py-2">
-            <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
-              Suggested checks
-            </p>
-            <p className="text-lg font-black tabular-nums text-slate-900">
-              {reviewBusy ? '—' : reviewFlags.length}
-            </p>
-          </div>
-        </div>
-        {reviewBusy ? (
-          <p className="mt-3 text-xs text-slate-500">
-            Learning from posted journals and bank allocations…
-          </p>
-        ) : reviewFlags.length === 0 ? (
-          <p className="mt-3 text-xs text-emerald-800">
-            No likely mis-posts in this period. Keep posting — the review gets
-            sharper as similar descriptions repeat.
-          </p>
-        ) : (
-          <ul className="mt-3 space-y-2">
-            {reviewFlags.map((flag) => (
-              <li
-                key={`${flag.journal_id}-${flag.line_id || flag.posted_account_id}`}
-                className="rounded-xl border border-violet-100 bg-white px-3 py-2.5"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-black text-slate-900">
-                      {flag.journal_number || `JE-${flag.journal_id}`}
-                      <span className="ml-2 text-xs font-semibold text-slate-500">
-                        {flag.entry_date}
-                      </span>
-                      <span className="ml-2 rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-violet-800">
-                        {flag.confidence}%
-                      </span>
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-600">
-                      {flag.description || flag.memo || 'Posted line'}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-700">
-                      <span className="font-semibold">{flag.posted_account_label}</span>
-                      {' → '}
-                      <span className="font-black text-[#0077b6]">
-                        {flag.suggested_account_label}
-                      </span>
-                      <span className="text-slate-400">
-                        {' '}
-                        · {formatMoney(flag.amount)} {flag.side}
-                      </span>
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-slate-500">{flag.reason}</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5">
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="rounded-xl border border-violet-100 bg-white px-3 py-2">
+                <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                  Lines scanned
+                </p>
+                <p className="text-lg font-black tabular-nums text-slate-900">
+                  {reviewBusy ? '—' : reviewScanned}
+                </p>
+              </div>
+              <div className="rounded-xl border border-violet-100 bg-white px-3 py-2">
+                <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                  Suggested checks
+                </p>
+                <p className="text-lg font-black tabular-nums text-slate-900">
+                  {reviewBusy ? '—' : reviewFlags.length}
+                </p>
+              </div>
+            </div>
+            {reviewBusy ? (
+              <p className="mt-3 text-xs text-slate-500">
+                Learning from posted journals and bank allocations…
+              </p>
+            ) : reviewFlags.length === 0 ? (
+              <p className="mt-3 text-xs text-emerald-800">
+                No likely mis-posts in this period. Keep posting — the review gets
+                sharper as similar descriptions repeat.
+              </p>
+            ) : (
+              <>
+                <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-violet-100 bg-white px-3 py-2">
+                  <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-700">
+                    <input
+                      ref={selectAllRef}
+                      type="checkbox"
+                      checked={
+                        reviewFlags.length > 0 &&
+                        selectedKeys.size === reviewFlags.length
+                      }
+                      onChange={toggleSelectAllReview}
+                      disabled={!!bulkBusy}
+                      aria-label="Select all suggested checks"
+                    />
+                    Select all
+                  </label>
+                  <span className="text-[11px] text-slate-500">
+                    {selectedKeys.size
+                      ? `${selectedKeys.size} selected`
+                      : 'Tick lines, then keep or reclassify'}
+                  </span>
+                  <div className="ml-auto flex flex-wrap items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => void keepPostedAccount(flag)}
-                      disabled={keepBusy === `${flag.journal_id}-${flag.line_id || flag.posted_account_id}`}
+                      onClick={() => void keepSelectedClassifications()}
+                      disabled={!selectedKeys.size || !!bulkBusy}
                       className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
                     >
-                      {keepBusy ===
-                      `${flag.journal_id}-${flag.line_id || flag.posted_account_id}` ? (
+                      {bulkBusy === 'keep' ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
                         <CheckCircle2 className="h-3.5 w-3.5" />
                       )}
-                      Keep account
+                      Keep classification
                     </button>
                     <button
                       type="button"
-                      onClick={() => openReclassifyFromReview(flag)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-[#00b4d8]/40 bg-sky-50 px-2.5 py-1.5 text-xs font-bold text-[#0077b6] hover:bg-sky-100"
+                      onClick={() => void reclassifySelected()}
+                      disabled={!selectedKeys.size || !!bulkBusy}
+                      className="inline-flex items-center gap-1 rounded-lg border border-[#00b4d8]/40 bg-sky-50 px-2.5 py-1.5 text-xs font-bold text-[#0077b6] hover:bg-sky-100 disabled:opacity-50"
                     >
-                      <Pencil className="h-3.5 w-3.5" />
-                      Reclassify
+                      {bulkBusy === 'reclassify' ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Pencil className="h-3.5 w-3.5" />
+                      )}
+                      Reclassify to suggested
                     </button>
                   </div>
                 </div>
-              </li>
-            ))}
-          </ul>
+                <ul className="mt-3 space-y-2">
+                  {reviewFlags.map((flag) => {
+                    const key = reviewFlagKey(flag);
+                    const selected = selectedKeys.has(key);
+                    const rowBusy = keepBusy === key || !!bulkBusy;
+                    return (
+                      <li
+                        key={key}
+                        className={`rounded-xl border bg-white px-3 py-2.5 ${
+                          selected
+                            ? 'border-violet-300 ring-1 ring-violet-200'
+                            : 'border-violet-100'
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <label className="mt-0.5 shrink-0">
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              onChange={() => toggleReviewKey(key)}
+                              disabled={!!bulkBusy}
+                              aria-label={`Select ${flag.journal_number || `JE-${flag.journal_id}`}`}
+                            />
+                          </label>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-black text-slate-900">
+                              {flag.journal_number || `JE-${flag.journal_id}`}
+                              <span className="ml-2 text-xs font-semibold text-slate-500">
+                                {flag.entry_date}
+                              </span>
+                              <span className="ml-2 rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-violet-800">
+                                {flag.confidence}%
+                              </span>
+                            </p>
+                            <p className="mt-0.5 text-xs text-slate-600">
+                              {flag.description || flag.memo || 'Posted line'}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-700">
+                              <span className="font-semibold">
+                                {flag.posted_account_label}
+                              </span>
+                              {' → '}
+                              <span className="font-black text-[#0077b6]">
+                                {flag.suggested_account_label}
+                              </span>
+                              <span className="text-slate-400">
+                                {' '}
+                                · {formatMoney(flag.amount)} {flag.side}
+                              </span>
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-slate-500">
+                              {flag.reason}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => void keepPostedAccount(flag)}
+                              disabled={rowBusy}
+                              className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+                            >
+                              {keepBusy === key ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                              )}
+                              Keep account
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void openReclassifyFromReview(flag)}
+                              disabled={!!bulkBusy}
+                              className="inline-flex items-center gap-1 rounded-lg border border-[#00b4d8]/40 bg-sky-50 px-2.5 py-1.5 text-xs font-bold text-[#0077b6] hover:bg-sky-100 disabled:opacity-50"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              Reclassify
+                            </button>
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setReviewOpen(true)}
+            className="w-full border-t border-violet-100 px-4 py-2.5 text-left text-xs text-slate-600 hover:bg-violet-50/60"
+          >
+            {reviewBusy
+              ? 'Scoring posted journals…'
+              : reviewFlags.length === 0
+                ? 'No likely mis-posts in this period — expand for detail'
+                : 'Tick lines for a mass Keep classification or Reclassify to suggested'}
+          </button>
         )}
       </div>
 
@@ -639,8 +1026,10 @@ function Inner() {
         <strong className="text-slate-800">Edit / reclassify · </strong>
         <strong>Draft</strong> → Edit (change COA accounts, amounts, memo) then save or post.{' '}
         <strong>Posted</strong> → Edit to push lines to a new COA account (system reverses the
-        original and posts your corrected journal). <strong>Reverse</strong> undoes without a
-        replacement. <strong>Bank/VAT</strong> → Bank recon → Unallocate → re-allocate if the
+        original and posts your corrected journal). The original stays on the
+        audit trail as <strong>Reversed</strong> — the new correction JE is the live
+        posting. <strong>Reverse</strong> undoes without a replacement.{' '}
+        <strong>Bank/VAT</strong> → Bank recon → Unallocate → re-allocate if the
         source bank line is wrong.
       </div>
 
@@ -718,6 +1107,11 @@ function Inner() {
                       >
                         {je.status}
                       </span>
+                      {journalIsReversed(je) ? (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-amber-200 bg-amber-50 text-amber-900">
+                          Reversed
+                        </span>
+                      ) : null}
                       {je.source && je.source !== 'manual' && (
                         <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                           {je.source}
@@ -738,7 +1132,8 @@ function Inner() {
                         C {formatMoney(je.total_credit)}
                       </div>
                     </div>
-                    {(je.status === 'draft' || je.status === 'posted') && (
+                    {(je.status === 'draft' ||
+                      (je.status === 'posted' && !journalIsReversed(je))) && (
                       <button
                         type="button"
                         title={
@@ -764,7 +1159,7 @@ function Inner() {
                         Post
                       </button>
                     )}
-                    {je.status === 'posted' && (
+                    {je.status === 'posted' && !journalIsReversed(je) && (
                       <button
                         type="button"
                         title="Reverse only (undo without replacement)"

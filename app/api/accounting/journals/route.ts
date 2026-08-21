@@ -17,6 +17,10 @@ import { auditLog } from '@/lib/audit/log';
 import { isPeriodLocked } from '@/lib/accounting/period-lock';
 import { validatePostableLines } from '@/lib/accounting/post-journal';
 import { invalidateLearnedPatterns } from '@/lib/banking/learning';
+import {
+  journalIsReversed,
+  resolveLivePostedJournal,
+} from '@/lib/accounting/journal-status';
 
 /** GET ?companyId=&status= */
 export async function GET(request: NextRequest) {
@@ -26,6 +30,14 @@ export async function GET(request: NextRequest) {
     const status = request.nextUrl.searchParams.get('status');
     const from = request.nextUrl.searchParams.get('from');
     const to = request.nextUrl.searchParams.get('to');
+    const idParam = Number(request.nextUrl.searchParams.get('id') || 0);
+    const idsParam = String(request.nextUrl.searchParams.get('ids') || '')
+      .split(',')
+      .map((n) => Number(n.trim()))
+      .filter((n) => Number.isFinite(n) && n > 0)
+      .slice(0, 50);
+    const byId = Number.isFinite(idParam) && idParam > 0;
+    const byIds = idsParam.length > 0;
 
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
@@ -41,11 +53,17 @@ export async function GET(request: NextRequest) {
       .eq('profile_id', companyId)
       .order('entry_date', { ascending: false })
       .order('id', { ascending: false })
-      .limit(200);
+      .limit(byId || byIds ? 50 : 500);
 
     if (status && status !== 'all') query = query.eq('status', status);
-    if (from) query = query.gte('entry_date', from);
-    if (to) query = query.lte('entry_date', to);
+    if (byId) {
+      query = query.eq('id', idParam);
+    } else if (byIds) {
+      query = query.in('id', idsParam);
+    } else {
+      if (from) query = query.gte('entry_date', from);
+      if (to) query = query.lte('entry_date', to);
+    }
 
     const { data: entries, error } = await query;
     if (error) {
@@ -645,6 +663,8 @@ export async function PATCH(request: NextRequest) {
     /**
      * Correct a posted journal: reverse original, then post new lines.
      * body: { action: 'correct', lines, memo?, entry_date? }
+     * If the original was already reversed, follow the live correction (or
+     * post the missing correction when a reverse exists with no replacement).
      */
     if (action === 'correct' || action === 'reclassify' || action === 'edit_posted') {
       if (String(existing.status) !== 'posted') {
@@ -653,20 +673,25 @@ export async function PATCH(request: NextRequest) {
           { status: 400 }
         );
       }
-      const corrMeta =
-        existing.metadata && typeof existing.metadata === 'object'
-          ? (existing.metadata as Record<string, unknown>)
-          : {};
-      if (corrMeta.reversed_by_journal_id) {
-        return NextResponse.json(
-          {
-            error:
-              'This journal was already reversed. Reclassify the replacement entry instead.',
-            code: 'ALREADY_REVERSED',
-          },
-          { status: 409 }
-        );
+
+      let target = existing as typeof existing & { id: number };
+      let targetId = id;
+      let correctionOnly = false;
+      if (journalIsReversed(existing)) {
+        const resolved = await resolveLivePostedJournal(companyId, {
+          id,
+          status: existing.status,
+          source: existing.source,
+          metadata: existing.metadata,
+        });
+        if (resolved.live && Number(resolved.live.id) !== Number(id)) {
+          target = resolved.live as typeof target;
+          targetId = Number(target.id);
+        } else {
+          correctionOnly = true;
+        }
       }
+
       const newLines = Array.isArray(body.lines) ? body.lines : [];
       if (newLines.length < 2) {
         return NextResponse.json({ error: 'New lines required for correction' }, { status: 400 });
@@ -680,9 +705,25 @@ export async function PATCH(request: NextRequest) {
           { status: 400 }
         );
       }
+      const checked = await validatePostableLines(
+        companyId,
+        newLines.map(
+          (l: { account_id: number; debit?: number; credit?: number }) => ({
+            account_id: Number(l.account_id),
+            debit: round2(Number(l.debit || 0)),
+            credit: round2(Number(l.credit || 0)),
+          })
+        )
+      );
+      if (!checked.ok) {
+        return NextResponse.json({ error: checked.error }, { status: 400 });
+      }
 
       const revDate =
-        body.entry_date || existing.entry_date || new Date().toISOString().slice(0, 10);
+        body.entry_date ||
+        target.entry_date ||
+        existing.entry_date ||
+        new Date().toISOString().slice(0, 10);
       const corrLock = await isPeriodLocked(companyId, String(revDate));
       if (corrLock.locked) {
         return NextResponse.json(
@@ -695,99 +736,111 @@ export async function PATCH(request: NextRequest) {
         );
       }
 
-      const { data: oldLines } = await supabase
-        .from('journal_lines')
-        .select('account_id, debit, credit, memo, counterparty, tax_code')
-        .eq('journal_entry_id', id);
+      const dropJournal = async (journalId: number) => {
+        await supabase.from('journal_lines').delete().eq('journal_entry_id', journalId);
+        await supabase.from('journal_entries').delete().eq('id', journalId);
+      };
 
-      if (!oldLines?.length) {
-        return NextResponse.json({ error: 'No lines to reverse' }, { status: 400 });
-      }
+      let revEntry: typeof existing | null = null;
+      if (!correctionOnly) {
+        const { data: oldLines } = await supabase
+          .from('journal_lines')
+          .select('account_id, debit, credit, memo, counterparty, tax_code')
+          .eq('journal_entry_id', targetId);
 
-      const reverseLines = oldLines.map((l) => ({
-        account_id: Number(l.account_id),
-        debit: round2(Number(l.credit || 0)),
-        credit: round2(Number(l.debit || 0)),
-        memo: l.memo ? `Reversal: ${l.memo}` : 'Reversal',
-        counterparty: l.counterparty || null,
-        tax_code: l.tax_code || null,
-      }));
-      const revNumber = await nextDocumentNumber(companyId, 'journal');
-      const { data: revEntry, error: revErr } = await supabase
-        .from('journal_entries')
-        .insert({
-          profile_id: companyId,
-          entry_number: revNumber,
-          entry_date: revDate,
-          memo: `Reversal before correction of ${existing.entry_number || `JE-${id}`}`,
-          status: 'posted',
-          source: 'reversal',
-          source_id: String(id),
-          currency: existing.currency || 'ZAR',
-          created_by: privyUserId || null,
-          posted_at: new Date().toISOString(),
-          metadata: { reverses_journal_id: id, part_of_correction: true },
-        })
-        .select('*')
-        .single();
+        if (!oldLines?.length) {
+          return NextResponse.json({ error: 'No lines to reverse' }, { status: 400 });
+        }
 
-      if (revErr || !revEntry) {
-        return NextResponse.json(
-          { error: revErr?.message || 'Failed to reverse original' },
-          { status: 400 }
+        const reverseLines = oldLines.map((l) => ({
+          account_id: Number(l.account_id),
+          debit: round2(Number(l.credit || 0)),
+          credit: round2(Number(l.debit || 0)),
+          memo: l.memo ? `Reversal: ${l.memo}` : 'Reversal',
+          counterparty: l.counterparty || null,
+          tax_code: l.tax_code || null,
+        }));
+        const revNumber = await nextDocumentNumber(companyId, 'journal');
+        const insertedRev = await supabase
+          .from('journal_entries')
+          .insert({
+            profile_id: companyId,
+            entry_number: revNumber,
+            entry_date: revDate,
+            memo: `Reversal before correction of ${target.entry_number || `JE-${targetId}`}`,
+            status: 'posted',
+            source: 'reversal',
+            source_id: String(targetId),
+            currency: target.currency || existing.currency || 'ZAR',
+            created_by: privyUserId || null,
+            posted_at: new Date().toISOString(),
+            metadata: { reverses_journal_id: targetId, part_of_correction: true },
+          })
+          .select('*')
+          .single();
+
+        if (insertedRev.error || !insertedRev.data) {
+          return NextResponse.json(
+            { error: insertedRev.error?.message || 'Failed to reverse original' },
+            { status: 400 }
+          );
+        }
+        revEntry = insertedRev.data;
+
+        const { error: revLineErr } = await supabase.from('journal_lines').insert(
+          reverseLines.map((l) => ({
+            journal_entry_id: revEntry!.id,
+            profile_id: companyId,
+            ...l,
+          }))
         );
+        if (revLineErr) {
+          await dropJournal(Number(revEntry.id));
+          return NextResponse.json({ error: revLineErr.message }, { status: 400 });
+        }
+      } else {
+        const existingRevId = Number(
+          (existing.metadata && typeof existing.metadata === 'object'
+            ? (existing.metadata as Record<string, unknown>).reversed_by_journal_id
+            : 0) || 0
+        );
+        if (Number.isFinite(existingRevId) && existingRevId > 0) {
+          const { data: existingRev } = await supabase
+            .from('journal_entries')
+            .select('*')
+            .eq('id', existingRevId)
+            .eq('profile_id', companyId)
+            .maybeSingle();
+          revEntry = existingRev || null;
+        }
       }
-
-      const { error: revLineErr } = await supabase.from('journal_lines').insert(
-        reverseLines.map((l) => ({
-          journal_entry_id: revEntry.id,
-          profile_id: companyId,
-          ...l,
-        }))
-      );
-      if (revLineErr) {
-        await supabase.from('journal_entries').delete().eq('id', revEntry.id);
-        return NextResponse.json({ error: revLineErr.message }, { status: 400 });
-      }
-
-      await supabase
-        .from('journal_entries')
-        .update({
-          updated_at: new Date().toISOString(),
-          metadata: {
-            ...(existing.metadata && typeof existing.metadata === 'object'
-              ? (existing.metadata as Record<string, unknown>)
-              : {}),
-            reversed_by_journal_id: revEntry.id,
-            reversed_at: new Date().toISOString(),
-          },
-        })
-        .eq('id', id)
-        .eq('profile_id', companyId);
 
       const corrNumber = await nextDocumentNumber(companyId, 'journal');
+      const originLabel = existing.entry_number || `JE-${id}`;
       const { data: corrEntry, error: corrErr } = await supabase
         .from('journal_entries')
         .insert({
           profile_id: companyId,
           entry_number: corrNumber,
           entry_date: revDate,
-          memo: body.memo || `Correction of ${existing.entry_number || `JE-${id}`}`,
+          memo: body.memo || `Correction of ${originLabel}`,
           status: 'posted',
           source: 'correction',
-          source_id: String(id),
-          currency: existing.currency || 'ZAR',
+          source_id: String(targetId),
+          currency: target.currency || existing.currency || 'ZAR',
           created_by: privyUserId || null,
           posted_at: new Date().toISOString(),
           metadata: {
-            corrects_journal_id: id,
-            reverse_journal_id: revEntry.id,
+            corrects_journal_id: targetId,
+            reverse_journal_id: revEntry?.id || null,
+            originally_journal_id: id,
           },
         })
         .select('*')
         .single();
 
       if (corrErr || !corrEntry) {
+        if (revEntry && !correctionOnly) await dropJournal(Number(revEntry.id));
         return NextResponse.json(
           { error: corrErr?.message || 'Failed to post correction' },
           { status: 400 }
@@ -820,14 +873,51 @@ export async function PATCH(request: NextRequest) {
         .select('*');
 
       if (lineErr) {
-        await supabase.from('journal_entries').delete().eq('id', corrEntry.id);
+        await dropJournal(Number(corrEntry.id));
+        if (revEntry && !correctionOnly) await dropJournal(Number(revEntry.id));
         return NextResponse.json({ error: lineErr.message }, { status: 400 });
       }
 
+      if (!correctionOnly && revEntry) {
+        const stampMeta = {
+          ...(target.metadata && typeof target.metadata === 'object'
+            ? (target.metadata as Record<string, unknown>)
+            : {}),
+          reversed_by_journal_id: revEntry.id,
+          reversed_at: new Date().toISOString(),
+        };
+        let stamped = false;
+        for (let i = 0; i < 3 && !stamped; i += 1) {
+          const { error: stampErr } = await supabase
+            .from('journal_entries')
+            .update({
+              updated_at: new Date().toISOString(),
+              metadata: stampMeta,
+            })
+            .eq('id', targetId)
+            .eq('profile_id', companyId);
+          if (!stampErr) stamped = true;
+        }
+        if (!stamped) {
+          await dropJournal(Number(corrEntry.id));
+          await dropJournal(Number(revEntry.id));
+          return NextResponse.json(
+            {
+              error:
+                'Could not mark the original as reversed. Nothing was posted — try again.',
+            },
+            { status: 500 }
+          );
+        }
+      }
+
+      invalidateLearnedPatterns(companyId);
       return NextResponse.json({
         success: true,
         corrected: true,
         reverseEntry: revEntry,
+        superseded: originLabel,
+        followed_journal_id: targetId !== id ? targetId : undefined,
         entry: {
           ...corrEntry,
           lines: insertedLines,

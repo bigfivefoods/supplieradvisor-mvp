@@ -109,16 +109,19 @@ export async function loadAllocationKeeps(
   return parseAllocationKeeps(settings.metadata);
 }
 
-export async function confirmAllocationKeep(
-  companyId: number,
-  input: {
-    journal_id: number;
-    line_id?: number | null;
-    gl_account_id: number;
-    description?: string | null;
-    counterparty?: string | null;
-  }
-): Promise<AllocationKeepStore> {
+export type AllocationKeepInput = {
+  journal_id: number;
+  line_id?: number | null;
+  gl_account_id: number;
+  description?: string | null;
+  counterparty?: string | null;
+};
+
+export function applyAllocationKeep(
+  keeps: AllocationKeepStore,
+  input: AllocationKeepInput,
+  at = new Date().toISOString()
+): void {
   const journalId = Number(input.journal_id);
   const gl = Number(input.gl_account_id);
   if (!Number.isFinite(journalId) || journalId <= 0) {
@@ -132,8 +135,6 @@ export async function confirmAllocationKeep(
     input.counterparty && String(input.counterparty).trim().length > 2
       ? normalizeMerchantKey(String(input.counterparty))
       : normalizeMerchantKey(sample);
-  const settings = await getOrCreateSettings(companyId);
-  const keeps = parseAllocationKeeps(settings.metadata);
   const id = lineKeepId(journalId, input.line_id ?? null);
   keeps.lines[id] = {
     journal_id: journalId,
@@ -141,7 +142,7 @@ export async function confirmAllocationKeep(
     gl_account_id: gl,
     merchant_key: key,
     sample,
-    at: new Date().toISOString(),
+    at,
   };
   if (key && key !== 'other') {
     const prev = keeps.patterns[key];
@@ -151,7 +152,19 @@ export async function confirmAllocationKeep(
       sample: sample || prev?.sample || key,
     };
   }
+}
 
+export async function confirmAllocationKeeps(
+  companyId: number,
+  items: AllocationKeepInput[]
+): Promise<AllocationKeepStore> {
+  if (!items.length) return loadAllocationKeeps(companyId);
+  const settings = await getOrCreateSettings(companyId);
+  const keeps = parseAllocationKeeps(settings.metadata);
+  const at = new Date().toISOString();
+  for (const item of items) {
+    applyAllocationKeep(keeps, item, at);
+  }
   const supabase = getSupabaseServer();
   const nextMeta = {
     ...(settings.metadata && typeof settings.metadata === 'object'
@@ -169,4 +182,11 @@ export async function confirmAllocationKeep(
   if (error) throw new Error(error.message);
   invalidateLearnedPatterns(companyId);
   return keeps;
+}
+
+export async function confirmAllocationKeep(
+  companyId: number,
+  input: AllocationKeepInput
+): Promise<AllocationKeepStore> {
+  return confirmAllocationKeeps(companyId, [input]);
 }
