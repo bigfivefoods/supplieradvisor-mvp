@@ -78,7 +78,9 @@ export async function POST(request: NextRequest) {
     if (isLogo) {
       try {
         const sharp = (await import('sharp')).default;
-        buffer = await sharp(buffer).rotate().png({ compressionLevel: 8 }).toBuffer();
+        buffer = Buffer.from(
+          await sharp(buffer).rotate().png({ compressionLevel: 8 }).toBuffer()
+        );
         ext = 'png';
         contentType = 'image/png';
       } catch {

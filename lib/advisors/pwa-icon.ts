@@ -111,16 +111,18 @@ export async function renderAdvisorPwaIconPng(
   if (!source) {
     const fallback = await loadLogoBytes('/sa-icon-512.png', dim);
     if (!fallback) {
-      return sharp({
-        create: {
-          width: dim,
-          height: dim,
-          channels: 4,
-          background: bg,
-        },
-      })
-        .png()
-        .toBuffer();
+      return Buffer.from(
+        await sharp({
+          create: {
+            width: dim,
+            height: dim,
+            channels: 4,
+            background: bg,
+          },
+        })
+          .png()
+          .toBuffer()
+      );
     }
     return squarePng(sharp, fallback, dim, bg);
   }
@@ -136,17 +138,19 @@ async function squarePng(
   const pad = Math.round(dim * 0.1);
   const inner = Math.max(32, dim - pad * 2);
   try {
-    return await sharp(source)
-      .resize(inner, inner, { fit: 'contain', background: bg })
-      .extend({
-        top: pad,
-        bottom: pad,
-        left: pad,
-        right: pad,
-        background: bg,
-      })
-      .png()
-      .toBuffer();
+    return Buffer.from(
+      await sharp(source)
+        .resize(inner, inner, { fit: 'contain', background: bg })
+        .extend({
+          top: pad,
+          bottom: pad,
+          left: pad,
+          right: pad,
+          background: bg,
+        })
+        .png()
+        .toBuffer()
+    );
   } catch {
     return source;
   }
