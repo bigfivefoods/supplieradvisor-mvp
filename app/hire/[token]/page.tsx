@@ -13,9 +13,14 @@ import {
   ChevronRight,
   ClipboardList,
   Loader2,
+  Mail,
   MapPin,
+  MessageCircle,
+  Navigation,
   Package,
   Percent,
+  Phone,
+  Search,
   Shield,
   Truck,
   User,
@@ -36,6 +41,53 @@ import {
 } from '@/lib/b2c/calendar-links';
 
 const PORTAL_TOKEN_KEY = 'sa_hiregraph_customer_token';
+
+function comingHeadline(b: {
+  status: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  delivery_address?: string;
+}): string {
+  const day = b.start_date ? String(b.start_date).slice(0, 10) : 'date TBC';
+  const dest = b.delivery_address ? ` · ${b.delivery_address}` : '';
+  switch (String(b.status)) {
+    case 'requested':
+      return `Requested for ${day}${dest}`;
+    case 'awaiting_requirements':
+      return `Needs documents for ${day}`;
+    case 'approved':
+      return `Confirmed ${day} — pay at the desk to lock it in`;
+    case 'paid':
+      return `Coming ${day}${dest}`;
+    case 'out':
+      return `Out on hire until ${String(b.end_date || b.start_date || day).slice(0, 10)}`;
+    default:
+      return `Coming ${day}${dest}`;
+  }
+}
+
+function waHref(phone?: string | null): string | null {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length < 9) return null;
+  return `https://wa.me/${digits}`;
+}
+
+function mapsHref(address?: string | null): string | null {
+  const q = String(address || '').trim();
+  if (!q) return null;
+  return `https://maps.google.com/?q=${encodeURIComponent(q)}`;
+}
+
+type NearbyMarketItem = {
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  price_label?: string | null;
+  href: string;
+  city?: string | null;
+  brand?: string | null;
+  image_url?: string | null;
+};
 
 type ReqChip = { key: string; label: string; met?: boolean };
 
@@ -75,6 +127,7 @@ type CatalogueItem = {
   condition_notes?: string;
   delivery_radius_km?: number | null;
   setup_minutes?: number | null;
+  photo_url?: string | null;
 };
 
 type MyBooking = {
@@ -101,6 +154,7 @@ type MyBooking = {
   deposit_zar?: number | null;
   customer_commission_zar?: number | null;
   customer_pays_zar?: number | null;
+  delivery_fee_zar?: number | null;
   delivery_address?: string;
   requirements_pending: ReqChip[];
   handovers: Array<{
@@ -124,6 +178,9 @@ type Portal = {
   city?: string | null;
   primary_color?: string;
   allow_booking?: boolean;
+  depot_address?: string | null;
+  service_radius_km?: number | null;
+  cancellation_policy?: string | null;
   commercial: {
     customer_commission_pct: number;
     supplier_commission_pct: number;
@@ -182,7 +239,9 @@ type Quote = {
     customerCommissionZar: number;
     customerPaysZar: number;
     customerCommissionPct: number;
+    deliveryZar?: number;
   };
+  delivery_zar?: number;
   pending: ReqChip[];
   ready: boolean;
 };
@@ -195,12 +254,22 @@ export default function HireCustomerPortalPage() {
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<
-    'browse' | 'hires' | 'calendar' | 'requirements' | 'account'
-  >('browse');
+  type HireTab =
+    | 'shop'
+    | 'coming'
+    | 'you'
+    | 'history'
+    | 'nearby'
+    | 'calendar'
+    | 'browse'
+    | 'hires'
+    | 'requirements'
+    | 'account';
+  const [tab, setTab] = useState<HireTab>('shop');
   const [extendEnd, setExtendEnd] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [search, setSearch] = useState('');
+  const [areaFilter, setAreaFilter] = useState('');
   const [selectedItem, setSelectedItem] = useState<CatalogueItem | null>(null);
   const [bookForm, setBookForm] = useState({
     start_date: '',
@@ -218,6 +287,7 @@ export default function HireCustomerPortalPage() {
     delivery_default: '',
   });
   const [detailBooking, setDetailBooking] = useState<MyBooking | null>(null);
+  const [nearbyMarket, setNearbyMarket] = useState<NearbyMarketItem[]>([]);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -272,15 +342,42 @@ export default function HireCustomerPortalPage() {
   useEffect(() => {
     const t = searchParams.get('tab');
     if (
+      t === 'shop' ||
+      t === 'coming' ||
+      t === 'you' ||
+      t === 'history' ||
+      t === 'nearby' ||
+      t === 'calendar' ||
       t === 'browse' ||
       t === 'hires' ||
-      t === 'calendar' ||
       t === 'requirements' ||
       t === 'account'
     ) {
-      setTab(t);
+      setTab(t === 'browse' ? 'shop' : t === 'hires' ? 'coming' : t === 'account' || t === 'requirements' ? 'you' : t);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (tab !== 'nearby') return;
+    const q = areaFilter.trim() || search.trim();
+    const city = areaFilter.trim() || portal?.city || '';
+    const params = new URLSearchParams({ channel: 'hire', limit: '24' });
+    if (q) params.set('q', q);
+    if (city) params.set('city', city);
+    let cancelled = false;
+    void fetch(`/api/public/b2c/marketplace?${params}`, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        setNearbyMarket(Array.isArray(data.items) ? data.items : []);
+      })
+      .catch(() => {
+        if (!cancelled) setNearbyMarket([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, areaFilter, search, portal?.city]);
 
   const post = async (body: Record<string, unknown>) => {
     const res = await fetch('/api/public/hiregraph/customer', {
@@ -306,7 +403,8 @@ export default function HireCustomerPortalPage() {
       units: string,
       qty: string,
       start?: string,
-      end?: string
+      end?: string,
+      delivery?: string
     ) => {
       try {
         const res = await fetch('/api/public/hiregraph/customer', {
@@ -320,6 +418,7 @@ export default function HireCustomerPortalPage() {
             qty: Number(qty) || 1,
             start_date: start || null,
             end_date: end || null,
+            delivery_address: delivery || null,
           }),
         });
         const data = await res.json();
@@ -341,7 +440,8 @@ export default function HireCustomerPortalPage() {
       bookForm.units,
       bookForm.qty,
       bookForm.start_date,
-      bookForm.end_date
+      bookForm.end_date,
+      bookForm.delivery_address
     );
   }, [
     selectedItem,
@@ -349,23 +449,76 @@ export default function HireCustomerPortalPage() {
     bookForm.qty,
     bookForm.start_date,
     bookForm.end_date,
+    bookForm.delivery_address,
     refreshQuote,
   ]);
+
+  const areaOptions = useMemo(() => {
+    if (!portal) return [];
+    const set = new Set<string>();
+    for (const i of portal.catalogue) {
+      const loc = String(i.location || '').trim();
+      if (loc) set.add(loc);
+    }
+    const city = String(portal.city || '').trim();
+    if (city) set.add(city);
+    const depot = String(portal.depot_address || '').trim();
+    if (depot) set.add(depot);
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [portal]);
 
   const filteredCatalogue = useMemo(() => {
     if (!portal) return [];
     const q = search.trim().toLowerCase();
+    const area = areaFilter.trim().toLowerCase();
     return portal.catalogue.filter((i) => {
       if (categoryFilter && i.category_id !== categoryFilter) return false;
+      const loc =
+        `${i.location || ''} ${portal.city || ''} ${portal.depot_address || ''}`.toLowerCase();
+      if (area && !loc.includes(area)) return false;
       if (!q) return true;
       return (
         i.title.toLowerCase().includes(q) ||
         i.code.toLowerCase().includes(q) ||
         i.category_name.toLowerCase().includes(q) ||
-        (i.description || '').toLowerCase().includes(q)
+        (i.description || '').toLowerCase().includes(q) ||
+        loc.includes(q)
       );
     });
-  }, [portal, categoryFilter, search]);
+  }, [portal, categoryFilter, search, areaFilter]);
+
+  const upcomingHires = useMemo(() => {
+    if (!portal) return [];
+    return portal.my_bookings
+      .filter((b) =>
+        ['requested', 'awaiting_requirements', 'approved', 'paid', 'out'].includes(
+          String(b.status)
+        )
+      )
+      .slice()
+      .sort((a, b) =>
+        String(a.start_date || '9999').localeCompare(String(b.start_date || '9999'))
+      );
+  }, [portal]);
+
+  const hirePlaces = useMemo(() => {
+    if (!portal) return [];
+    const map = new Map<string, CatalogueItem[]>();
+    for (const i of filteredCatalogue) {
+      const loc = String(i.location || portal.city || 'Area TBC').trim();
+      const list = map.get(loc) || [];
+      list.push(i);
+      map.set(loc, list);
+    }
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filteredCatalogue, portal]);
+
+  const pastHires = useMemo(() => {
+    if (!portal) return [];
+    return portal.my_bookings.filter((b) =>
+      ['returned', 'completed', 'cancelled'].includes(String(b.status))
+    );
+  }, [portal]);
 
   const requestHire = async () => {
     if (!selectedItem) return;
@@ -385,7 +538,7 @@ export default function HireCustomerPortalPage() {
       });
       setMsg(data.message || 'Hire requested');
       setSelectedItem(null);
-      setTab('hires');
+      setTab('coming');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Request failed');
     } finally {
@@ -497,19 +650,46 @@ export default function HireCustomerPortalPage() {
       }}
       mobileNav="bottom"
       tabs={[
-        { id: 'browse', label: 'Browse' },
+        { id: 'shop', label: 'Shop', icon: <Package /> },
         {
-          id: 'hires',
-          label: 'My hires',
-          badge: portal.stats.open || undefined,
+          id: 'coming',
+          label: 'Coming',
+          icon: <Truck />,
+          badge: upcomingHires.length || undefined,
         },
-        { id: 'calendar', label: 'Calendar' },
         {
-          id: 'requirements',
-          label: 'Docs',
+          id: 'you',
+          label: 'You',
+          icon: <User />,
+          covers: ['you', 'account', 'requirements', 'calendar'],
           badge: portal.stats.needs_docs || undefined,
         },
-        { id: 'account', label: 'Account' },
+        { id: 'history', label: 'History', icon: <ClipboardList /> },
+        { id: 'nearby', label: 'Nearby', icon: <MapPin /> },
+        { id: 'calendar', label: 'Calendar', icon: <CalendarDays /> },
+      ]}
+      mobileTabs={[
+        { id: 'shop', label: 'Shop', icon: <Package /> },
+        {
+          id: 'coming',
+          label: 'Coming',
+          icon: <Truck />,
+          badge: upcomingHires.length || undefined,
+        },
+        {
+          id: 'you',
+          label: 'You',
+          icon: (
+            <span className="flex h-full w-full items-center justify-center text-lg font-black">
+              {(portal.customer.name || 'Y').trim().charAt(0).toUpperCase()}
+            </span>
+          ),
+          covers: ['you', 'account', 'requirements', 'calendar'],
+          badge: portal.stats.needs_docs || undefined,
+          emphasis: true,
+        },
+        { id: 'history', label: 'History', icon: <ClipboardList /> },
+        { id: 'nearby', label: 'Nearby', icon: <MapPin /> },
       ]}
       header={
         <div>
@@ -576,8 +756,7 @@ export default function HireCustomerPortalPage() {
           </div>
         )}
 
-        {/* ── Browse ───────────────────────────────────────────── */}
-        {tab === 'browse' && (
+        {(tab === 'shop' || tab === 'browse') && (
           <div className="space-y-3">
             <B2cHireHowItWorks compact />
             <div className="rounded-2xl border border-cyan-100 bg-white p-3">
@@ -587,12 +766,49 @@ export default function HireCustomerPortalPage() {
               </p>
             </div>
 
-            <input
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
-              placeholder="Search gear…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+            <p className="text-sm text-slate-600">
+              Search kit, open a product, then hire it for your dates.
+            </p>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm"
+                placeholder="Search jumping castles, plant, tools…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            {areaOptions.length ? (
+              <div className="flex gap-1.5 overflow-x-auto pb-1">
+                <button
+                  type="button"
+                  onClick={() => setAreaFilter('')}
+                  className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold ${
+                    !areaFilter
+                      ? 'bg-cyan-700 text-white'
+                      : 'bg-white text-slate-600 border border-slate-200'
+                  }`}
+                >
+                  Any area
+                </button>
+                {areaOptions.map((a) => (
+                  <button
+                    key={a}
+                    type="button"
+                    onClick={() =>
+                      setAreaFilter((prev) => (prev === a ? '' : a))
+                    }
+                    className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold ${
+                      areaFilter === a
+                        ? 'bg-cyan-700 text-white'
+                        : 'bg-white text-slate-600 border border-slate-200'
+                    }`}
+                  >
+                    {a}
+                  </button>
+                ))}
+              </div>
+            ) : null}
 
             {portal.categories.length > 0 ? (
               <div className="flex gap-1.5 overflow-x-auto pb-1">
@@ -643,8 +859,17 @@ export default function HireCustomerPortalPage() {
                         setMsg(null);
                         setError(null);
                       }}
-                      className="w-full rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-cyan-300"
+                      className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition hover:border-cyan-300"
                     >
+                      {item.photo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={item.photo_url}
+                          alt=""
+                          className="h-36 w-full object-cover"
+                        />
+                      ) : null}
+                      <div className="p-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-[10px] font-black uppercase tracking-wider text-cyan-700">
@@ -706,8 +931,9 @@ export default function HireCustomerPortalPage() {
                           </span>
                         ) : null}
                         <span className="ml-auto text-[10px] font-bold text-cyan-700">
-                          Request <ChevronRight className="inline h-3 w-3" />
+                          View details <ChevronRight className="inline h-3 w-3" />
                         </span>
+                      </div>
                       </div>
                     </button>
                   </li>
@@ -717,29 +943,230 @@ export default function HireCustomerPortalPage() {
           </div>
         )}
 
-        {/* ── My hires ─────────────────────────────────────────── */}
-        {tab === 'hires' && (
+        {tab === 'nearby' && (
           <div className="space-y-3">
-            {portal.my_bookings.length === 0 ? (
+            <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-3">
+              <p className="text-sm font-black text-cyan-950">
+                Search by area · connect · hire
+              </p>
+              <p className="mt-1 text-[12px] text-cyan-900/80">
+                Find this desk&apos;s kit near your party or site, then open a
+                product to hire. Other hire places in the area are listed below.
+              </p>
+            </div>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm"
+                placeholder="Area, suburb, city…"
+                value={areaFilter}
+                onChange={(e) => setAreaFilter(e.target.value)}
+              />
+            </div>
+            {areaOptions.length ? (
+              <div className="flex gap-1.5 overflow-x-auto pb-1">
+                <button
+                  type="button"
+                  onClick={() => setAreaFilter('')}
+                  className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold ${
+                    !areaFilter
+                      ? 'bg-cyan-700 text-white'
+                      : 'bg-white text-slate-600 border border-slate-200'
+                  }`}
+                >
+                  Any area
+                </button>
+                {areaOptions.map((a) => (
+                  <button
+                    key={a}
+                    type="button"
+                    onClick={() =>
+                      setAreaFilter((prev) => (prev === a ? '' : a))
+                    }
+                    className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold ${
+                      areaFilter === a
+                        ? 'bg-cyan-700 text-white'
+                        : 'bg-white text-slate-600 border border-slate-200'
+                    }`}
+                  >
+                    {a}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-sm font-black text-slate-900">
+                Connect with {portal.brand}
+              </p>
+              <p className="mt-1 text-[12px] text-slate-600">
+                {[portal.depot_address, portal.city]
+                  .filter(Boolean)
+                  .join(' · ') || 'Hire desk'}
+                {portal.service_radius_km
+                  ? ` · ${portal.service_radius_km} km radius`
+                  : ''}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {portal.contact_phone ? (
+                  <a
+                    href={`tel:${portal.contact_phone}`}
+                    className="inline-flex items-center gap-1 rounded-full bg-cyan-700 px-3 py-1.5 text-[11px] font-bold text-white"
+                  >
+                    <Phone className="h-3 w-3" /> Call
+                  </a>
+                ) : null}
+                {waHref(portal.contact_phone) ? (
+                  <a
+                    href={waHref(portal.contact_phone)!}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-1.5 text-[11px] font-bold text-white"
+                  >
+                    <MessageCircle className="h-3 w-3" /> WhatsApp
+                  </a>
+                ) : null}
+                {portal.contact_email ? (
+                  <a
+                    href={`mailto:${portal.contact_email}`}
+                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1.5 text-[11px] font-bold text-slate-700"
+                  >
+                    <Mail className="h-3 w-3" /> Email
+                  </a>
+                ) : null}
+                {mapsHref(portal.depot_address || portal.city) ? (
+                  <a
+                    href={mapsHref(portal.depot_address || portal.city)!}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1.5 text-[11px] font-bold text-slate-700"
+                  >
+                    <Navigation className="h-3 w-3" /> Map
+                  </a>
+                ) : null}
+              </div>
+            </div>
+
+            <p className="text-xs font-black uppercase tracking-wider text-slate-500">
+              Places to hire
+            </p>
+            {hirePlaces.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+                No kit in this area yet. Try another suburb or open Shop.
+              </div>
+            ) : (
+              <ul className="space-y-3">
+                {hirePlaces.map(([place, items]) => (
+                  <li
+                    key={place}
+                    className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
+                  >
+                    <p className="flex items-center gap-1.5 text-sm font-black text-slate-900">
+                      <MapPin className="h-4 w-4 text-cyan-700" />
+                      {place}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                      {items.length} item{items.length === 1 ? '' : 's'} to hire
+                    </p>
+                    <ul className="mt-2 space-y-1.5">
+                      {items.slice(0, 6).map((item) => (
+                        <li key={item.id}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedItem(item);
+                              setMsg(null);
+                              setError(null);
+                            }}
+                            className="flex w-full items-center justify-between gap-2 rounded-xl bg-slate-50 px-2.5 py-2 text-left"
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-bold text-slate-900">
+                                {item.title}
+                              </span>
+                              <span className="block truncate text-[11px] text-slate-500">
+                                {item.fulfillment_label || item.category_short}
+                              </span>
+                            </span>
+                            <span className="shrink-0 text-xs font-black text-cyan-800">
+                              {zar(item.rate_zar)}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {nearbyMarket.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-xs font-black uppercase tracking-wider text-slate-500">
+                  Other hire in the area
+                </p>
+                <ul className="space-y-2">
+                  {nearbyMarket.map((item) => (
+                    <li key={item.id}>
+                      <a
+                        href={item.href}
+                        className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
+                      >
+                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-600 text-[10px] font-black text-white">
+                          Hire
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-black text-slate-900">
+                            {item.title}
+                          </span>
+                          <span className="block truncate text-[11px] text-slate-500">
+                            {[item.brand, item.city, item.price_label]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </span>
+                        </span>
+                        <ChevronRight className="h-4 w-4 text-slate-400" />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {(tab === 'coming' || tab === 'history' || tab === 'hires') && (
+          <div className="space-y-3">
+            {tab !== 'history' ? (
+              <p className="text-sm text-slate-600">
+                Track when kit is coming for your hire date, and follow delivery
+                or collection.
+              </p>
+            ) : (
+              <p className="text-sm text-slate-600">
+                Past hires — returned, completed or cancelled.
+              </p>
+            )}
+            {(tab === 'history' ? pastHires : upcomingHires).length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
                 <ClipboardList className="mx-auto h-8 w-8 text-slate-300" />
                 <p className="mt-2 text-sm font-bold text-slate-700">
-                  No hires yet
+                  {tab === 'history' ? 'No hire history yet' : 'Nothing coming yet'}
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
-                  Browse the catalogue and request gear for your dates.
+                  Search the shop, open a product, and hire it for your dates.
                 </p>
                 <button
                   type="button"
-                  onClick={() => setTab('browse')}
+                  onClick={() => setTab('shop')}
                   className="mt-4 rounded-full bg-cyan-700 px-4 py-2 text-xs font-bold text-white"
                 >
-                  Browse gear
+                  Shop hire
                 </button>
               </div>
             ) : (
               <ul className="space-y-3">
-                {portal.my_bookings.map((b) => (
+                {(tab === 'history' ? pastHires : upcomingHires).map((b) => (
                   <li
                     key={b.id}
                     className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
@@ -768,6 +1195,11 @@ export default function HireCustomerPortalPage() {
                                 .join(' → ') ||
                               'Dates TBC'}
                           </p>
+                          {tab !== 'history' ? (
+                            <p className="mt-1 text-sm font-black text-cyan-800">
+                              {comingHeadline(b)}
+                            </p>
+                          ) : null}
                         </div>
                         <p className="shrink-0 text-sm font-black text-cyan-800">
                           {zar(b.customer_pays_zar)}
@@ -816,6 +1248,14 @@ export default function HireCustomerPortalPage() {
                           <span className="text-right font-bold">
                             {zar(b.deposit_zar)}
                           </span>
+                          {Number(b.delivery_fee_zar) > 0 ? (
+                            <>
+                              <span>Delivery</span>
+                              <span className="text-right font-bold">
+                                {zar(b.delivery_fee_zar)}
+                              </span>
+                            </>
+                          ) : null}
                           <span className="font-black">You pay</span>
                           <span className="text-right font-black text-cyan-800">
                             {zar(b.customer_pays_zar)}
@@ -998,10 +1438,30 @@ export default function HireCustomerPortalPage() {
 
         {tab === 'calendar' && (
           <div className="space-y-3">
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+              <button
+                type="button"
+                onClick={() => setTab('you')}
+                className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600"
+              >
+                Profile
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab('requirements')}
+                className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600"
+              >
+                Docs
+              </button>
+              <button
+                type="button"
+                className="shrink-0 rounded-full bg-cyan-700 px-3 py-1.5 text-[11px] font-bold text-white"
+              >
+                Calendar
+              </button>
+            </div>
             <p className="text-xs text-slate-600">
               Your hire dates. Add them to Google, Outlook or Apple Calendar.
-              Filter by category, then open My hires to extend if the extra days
-              are free.
             </p>
             <div className="flex flex-wrap gap-1.5">
               <button
@@ -1048,7 +1508,7 @@ export default function HireCustomerPortalPage() {
                     end_date: String(b.end_date || b.start_date).slice(0, 10),
                     all_day: true,
                     location: b.delivery_address || portal.city || portal.brand,
-                    href: `?tab=hires`,
+                    href: `?tab=coming`,
                     status: b.status_label,
                     description: `${portal.brand} · ${b.status_label}`,
                   };
@@ -1062,8 +1522,45 @@ export default function HireCustomerPortalPage() {
           </div>
         )}
 
-        {/* ── Requirements ─────────────────────────────────────── */}
-        {tab === 'requirements' && (
+        {/* ── You: profile · docs · calendar ───────────────────── */}
+        {(tab === 'you' || tab === 'account' || tab === 'requirements') && (
+          <div className="space-y-3">
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+              <button
+                type="button"
+                onClick={() => setTab('you')}
+                className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold ${
+                  tab !== 'requirements'
+                    ? 'bg-cyan-700 text-white'
+                    : 'border border-slate-200 bg-white text-slate-600'
+                }`}
+              >
+                Profile
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab('requirements')}
+                className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold ${
+                  tab === 'requirements'
+                    ? 'bg-cyan-700 text-white'
+                    : 'border border-slate-200 bg-white text-slate-600'
+                }`}
+              >
+                Docs{portal.stats.needs_docs ? ` · ${portal.stats.needs_docs}` : ''}
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab('calendar')}
+                className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold ${
+                  tab === 'calendar'
+                    ? 'bg-cyan-700 text-white'
+                    : 'border border-slate-200 bg-white text-slate-600'
+                }`}
+              >
+                Calendar
+              </button>
+            </div>
+        {tab === 'requirements' ? (
           <div className="space-y-3">
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <div className="flex items-center gap-2 text-cyan-900">
@@ -1113,10 +1610,7 @@ export default function HireCustomerPortalPage() {
               </button>
             </div>
           </div>
-        )}
-
-        {/* ── Account ──────────────────────────────────────────── */}
-        {tab === 'account' && (
+        ) : (
           <div className="space-y-3">
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <h2 className="text-sm font-black text-slate-900">
@@ -1195,10 +1689,35 @@ export default function HireCustomerPortalPage() {
                 ) : null}
               </div>
             )}
+            {upcomingHires[0] ? (
+              <button
+                type="button"
+                onClick={() => setTab('coming')}
+                className="w-full rounded-2xl border border-cyan-200 bg-cyan-50 p-3 text-left"
+              >
+                <p className="text-[10px] font-black uppercase tracking-wider text-cyan-800">
+                  Next hire
+                </p>
+                <p className="mt-0.5 text-sm font-black text-cyan-950">
+                  {upcomingHires[0].item_title}
+                </p>
+                <p className="text-[12px] text-cyan-900/80">
+                  {comingHeadline(upcomingHires[0])}
+                </p>
+              </button>
+            ) : null}
+            {portal.cancellation_policy ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 text-xs text-slate-600">
+                <p className="font-bold text-slate-900">Cancellation</p>
+                <p className="mt-1">{portal.cancellation_policy}</p>
+              </div>
+            ) : null}
             <p className="text-center text-[10px] text-slate-400">
               Tip: add this page to your home screen for quick re-booking.
               Powered by HireAdvisor® · SupplierAdvisor
             </p>
+          </div>
+        )}
           </div>
         )}
 
@@ -1207,7 +1726,16 @@ export default function HireCustomerPortalPage() {
       {/* ── Request hire sheet ─────────────────────────────────── */}
       {selectedItem ? (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
-          <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl">
+          <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
+            {selectedItem.photo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={selectedItem.photo_url}
+                alt=""
+                className="h-48 w-full object-cover"
+              />
+            ) : null}
+            <div className="p-5">
             <div className="mb-3 flex items-start justify-between gap-2">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-wider text-cyan-700">
@@ -1479,6 +2007,15 @@ export default function HireCustomerPortalPage() {
                       <span className="text-right font-bold">
                         {zar(quote.fees.depositZar)}
                       </span>
+                      {Number(quote.fees.deliveryZar || quote.delivery_zar) >
+                      0 ? (
+                        <>
+                          <span>Delivery</span>
+                          <span className="text-right font-bold">
+                            {zar(quote.fees.deliveryZar || quote.delivery_zar)}
+                          </span>
+                        </>
+                      ) : null}
                       <span className="font-black">You pay</span>
                       <span className="text-right font-black">
                         {zar(quote.fees.customerPaysZar)}
@@ -1528,6 +2065,7 @@ export default function HireCustomerPortalPage() {
                 </button>
               </>
             )}
+            </div>
           </div>
         </div>
       ) : null}

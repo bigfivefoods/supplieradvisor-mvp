@@ -2,20 +2,19 @@
  * HireAdvisor® commercial model — distinct from other Advisor packs.
  *
  * Other Advisors: platform bills a company subscription (+ optional industry pack).
- * HireAdvisor: take-rate is on the listing business only.
+ * HireAdvisor: marketplace take-rate (not a gym/clinic subscription).
  *   • 2.5% charged to the supplier (owner listing the item)
- *   • 0% charged to the customer / member (B2C is free)
+ *   • 2.5% charged to the customer on the rental (deposits excluded)
  *
  * Deposit / damage bonds are held separately and are not commissionable.
+ * Gym / clinic B2C remains free — this file is Hire-only.
  */
-
-import { B2C_CUSTOMER_TAKE_RATE_PCT } from '@/lib/b2c/pricing';
 
 /** Supplier-side platform commission on hire rental value (ex-VAT if applicable) */
 export const HIRE_SUPPLIER_COMMISSION_PCT = 2.5;
 
-/** Customer-side platform commission — always 0. B2C members are free. */
-export const HIRE_CUSTOMER_COMMISSION_PCT = B2C_CUSTOMER_TAKE_RATE_PCT;
+/** Customer-side platform commission on marketplace hire (not gym/clinic). */
+export const HIRE_CUSTOMER_COMMISSION_PCT = 2.5;
 
 /** Combined platform take-rate */
 export const HIRE_PLATFORM_COMMISSION_PCT =
@@ -44,8 +43,8 @@ function round2(n: number) {
 }
 
 /**
- * Split hire GMV. Customer take-rate is 0 (B2C free).
- * Deposit is pass-through (held/refunded) and never takes commission.
+ * Split hire GMV. Deposits are pass-through (held/refunded) and never take commission.
+ * Delivery fees sit on top of this breakdown and are not commissionable.
  */
 export function computeHireCommissions(opts: {
   rentalZar: number;
@@ -92,12 +91,12 @@ export function formatPct(n: number) {
 }
 
 export const HIRE_COMMERCIAL_COPY = {
-  modelLabel: 'Supplier commission · members free',
+  modelLabel: '2.5% + 2.5% on marketplace hire',
   supplierLine: `${HIRE_SUPPLIER_COMMISSION_PCT}% commission to the supplier on hire rental value`,
-  customerLine: 'Members and renters pay no platform fee (B2C is free)',
-  totalLine: `${HIRE_SUPPLIER_COMMISSION_PCT}% platform take-rate on the listing business only`,
+  customerLine: `${HIRE_CUSTOMER_COMMISSION_PCT}% platform fee on the rental (deposits excluded)`,
+  totalLine: `${HIRE_PLATFORM_COMMISSION_PCT}% platform take on marketplace hire GMV`,
   depositLine:
     'Refundable deposits / damage bonds are held separately and are not commissionable',
   vsOtherAdvisors:
-    'HireAdvisor® bills the listing business a take-rate on completed hires. Gym / clinic Advisors are subscription-led, with a 1% admin fee on card / Apple Pay collections. End customers never pay SupplierAdvisor®.',
+    'HireAdvisor® takes 2.5% from the customer and 2.5% from the listing business on rental GMV (deposits excluded). Gym / clinic Advisors stay subscription-led; those members never pay a platform take-rate.',
 } as const;

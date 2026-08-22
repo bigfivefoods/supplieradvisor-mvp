@@ -57,7 +57,7 @@ import {
 
 export const runtime = 'nodejs';
 
-const ENTITIES: HireEntity[] = ['items', 'bookings', 'handovers'];
+const ENTITIES: HireEntity[] = ['items', 'bookings', 'handovers', 'units'];
 
 function isEntity(v: unknown): v is HireEntity {
   return typeof v === 'string' && (ENTITIES as string[]).includes(v);

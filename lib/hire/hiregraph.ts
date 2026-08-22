@@ -425,6 +425,8 @@ export type HireItem = {
   age_or_weight_limit?: string;
   operator_included?: boolean;
   cancellation_note?: string;
+  packup_minutes?: number | null;
+  cleaning_minutes?: number | null;
   /** Core inventory product this hire SKU is drawn from */
   inventory_product_id?: number | null;
   /** marketplace_listings.id when published for hire */
@@ -472,7 +474,28 @@ export type HireBooking = {
   requirements_pending?: HireRequirementKey[];
   requirements_met?: HireRequirementKey[];
   delivery_address?: string;
+  /** Delivery / travel fee added on top of rental + deposit. */
+  delivery_fee_zar?: number | null;
   notes?: string;
+  /** Physical unit assigned (when the listing has units). */
+  unit_id?: string | null;
+  source?: 'marketplace' | 'off_platform' | 'customer_portal' | string;
+  occupy_start_at?: string | null;
+  occupy_end_at?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** One physical asset of a hire product (Castle #2). */
+export type HireUnit = {
+  id: string;
+  item_id: string;
+  label: string;
+  serial?: string | null;
+  active?: boolean;
+  setup_minutes?: number | null;
+  packup_minutes?: number | null;
+  cleaning_minutes?: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -546,6 +569,16 @@ export type HirePublicSettings = {
   pwa_icon_url?: string | null;
   company_logo_url?: string | null;
   working_hours?: import('@/lib/schedule/working-hours').WorkingHours;
+  depot_address?: string;
+  depot_lat?: number | null;
+  depot_lng?: number | null;
+  service_radius_km?: number | null;
+  free_radius_km?: number | null;
+  per_km_zar?: number | null;
+  default_setup_minutes?: number | null;
+  default_packup_minutes?: number | null;
+  default_cleaning_minutes?: number | null;
+  cancellation_policy?: string;
 };
 
 export type HiregraphStore = {
@@ -564,6 +597,7 @@ export type HiregraphStore = {
   settings?: HirePublicSettings;
   announcements?: MemberAnnouncement[];
   items: HireItem[];
+  units?: HireUnit[];
   bookings: HireBooking[];
   handovers: HireHandover[];
 };
@@ -577,6 +611,7 @@ export function emptyHiregraphStore(): HiregraphStore {
     settings: defaultHirePublicSettings(),
     announcements: [],
     items: [],
+    units: [],
     bookings: [],
     handovers: [],
   };
@@ -631,6 +666,7 @@ export function readHiregraphFromMetadata(
     settings,
     announcements: normalizeAnnouncements(s.announcements),
     items: Array.isArray(s.items) ? (s.items as HireItem[]) : [],
+    units: Array.isArray(s.units) ? (s.units as HireUnit[]) : [],
     bookings: Array.isArray(s.bookings) ? (s.bookings as HireBooking[]) : [],
     handovers: Array.isArray(s.handovers) ? (s.handovers as HireHandover[]) : [],
   };
@@ -662,6 +698,7 @@ export function writeHiregraphToMetadata(
       settings: store.settings || defaultHirePublicSettings(),
       announcements: normalizeAnnouncements(store.announcements),
       items: store.items,
+      units: store.units || [],
       bookings: store.bookings,
       handovers: store.handovers,
       commercial: {
@@ -950,7 +987,10 @@ export function buildHireCustomerPortalPayload(
         customer_commission_zar: b.customer_commission_zar ?? null,
         customer_pays_zar: b.customer_pays_zar ?? null,
         delivery_address: b.delivery_address || '',
+        delivery_fee_zar: b.delivery_fee_zar ?? null,
         notes: b.notes || '',
+        unit_id: b.unit_id || null,
+        source: b.source || '',
         requirements_pending: pending.map((r) => ({
           key: r,
           label: HIRE_REQUIREMENT_LABELS[r] || r,
@@ -1006,6 +1046,12 @@ export function buildHireCustomerPortalPayload(
     primary_color: settings.primary_color || '#0891b2',
     timezone: settings.timezone || 'Africa/Johannesburg',
     allow_booking: settings.allow_portal_booking !== false,
+    depot_address: settings.depot_address || '',
+    service_radius_km:
+      settings.service_radius_km != null
+        ? Number(settings.service_radius_km)
+        : null,
+    cancellation_policy: settings.cancellation_policy || '',
     commercial: {
       customer_commission_pct: HIRE_CUSTOMER_COMMISSION_PCT,
       supplier_commission_pct: HIRE_SUPPLIER_COMMISSION_PCT,
@@ -1079,6 +1125,7 @@ export function quoteHireBooking(
     crm_customer_id?: number;
     start_date?: string | null;
     end_date?: string | null;
+    delivery_address?: string | null;
   }
 ) {
   const item = store.items.find((i) => i.id === opts.item_id);
@@ -1102,6 +1149,14 @@ export function quoteHireBooking(
       ? Math.round((rental * cat.defaultDepositPct) / 100)
       : 0);
   const fees = computeHireCommissions({ rentalZar: rental, depositZar: deposit });
+  const fulfillment =
+    item.fulfillment || (cat?.needsDelivery ? 'delivery' : 'collect');
+  const wantsDelivery =
+    Boolean(String(opts.delivery_address || '').trim()) &&
+    String(fulfillment).toLowerCase() !== 'collect';
+  const deliveryZar = wantsDelivery ? Number(item.delivery_fee_zar) || 0 : 0;
+  const customerPaysZar =
+    Math.round((fees.customerPaysZar + deliveryZar) * 100) / 100;
   const reqs = itemRequirements(item);
   const kycKey =
     opts.crm_customer_id != null ? String(opts.crm_customer_id) : '';
@@ -1117,7 +1172,12 @@ export function quoteHireBooking(
     start_date: dated.start_date,
     end_date: dated.end_date,
     duration_label: `${units} ${item.rate_unit || 'day'}${units === 1 ? '' : 's'}`,
-    fees,
+    delivery_zar: deliveryZar,
+    fees: {
+      ...fees,
+      deliveryZar,
+      customerPaysZar,
+    },
     requirements: reqs.map((r) => ({
       key: r,
       label: HIRE_REQUIREMENT_LABELS[r] || r,
@@ -1131,7 +1191,7 @@ export function quoteHireBooking(
   };
 }
 
-export type HireEntity = 'items' | 'bookings' | 'handovers';
+export type HireEntity = 'items' | 'bookings' | 'handovers' | 'units';
 
 export function listForEntity(
   store: HiregraphStore,
@@ -1228,6 +1288,15 @@ function enrichBooking(
     customerPct:
       Number(raw.customer_commission_pct) || HIRE_CUSTOMER_COMMISSION_PCT,
   });
+  const fulfillment = String(
+    item?.fulfillment || (cat?.needsDelivery ? 'delivery' : 'collect')
+  ).toLowerCase();
+  const wantsDelivery =
+    Boolean(String(raw.delivery_address || '').trim()) &&
+    fulfillment !== 'collect';
+  const deliveryZar = wantsDelivery
+    ? Number(raw.delivery_fee_zar ?? item?.delivery_fee_zar) || 0
+    : 0;
 
   const required = [
     ...requirementsForCategory(categoryId),
@@ -1275,7 +1344,9 @@ function enrichBooking(
     customer_commission_zar: fees.customerCommissionZar,
     platform_total_zar: fees.platformTotalZar,
     supplier_net_zar: fees.supplierNetZar,
-    customer_pays_zar: fees.customerPaysZar,
+    delivery_fee_zar: deliveryZar,
+    customer_pays_zar:
+      Math.round((fees.customerPaysZar + deliveryZar) * 100) / 100,
     requirements_met: met,
     requirements_pending: pending,
   };

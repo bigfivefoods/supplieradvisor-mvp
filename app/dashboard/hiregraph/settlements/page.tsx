@@ -25,7 +25,7 @@ export default function HireSettlementsPage() {
   return (
     <HiregraphWorkbench
       title="Settlements"
-      titleAccent="supplier commission · members free"
+      titleAccent="2.5% + 2.5% on hire GMV"
       description={HIRE_COMMERCIAL_COPY.vsOtherAdvisors}
     >
       {loading || !store ? (

@@ -24,7 +24,16 @@ export default function HireHandoverPage() {
     signed_by: '',
     damage_zar: '',
     deposit_released: false,
+    close_rental: false,
   });
+
+  const driverChips = Array.from(
+    new Set(
+      (store?.handovers || [])
+        .map((h) => String(h.signed_by || '').trim())
+        .filter(Boolean)
+    )
+  ).slice(0, 8);
 
   const add = async () => {
     if (!form.booking_id) {
@@ -36,33 +45,46 @@ export default function HireHandoverPage() {
       entity: 'handovers',
       action: 'upsert',
       record: {
-        ...form,
+        booking_id: form.booking_id,
+        type: form.type,
+        condition_notes: form.condition_notes,
+        signed_by: form.signed_by,
+        deposit_released: form.deposit_released,
         booking_code: booking?.code || '',
         at: form.at || new Date().toISOString(),
         damage_zar: form.damage_zar ? Number(form.damage_zar) : null,
       },
     });
-    // Advance booking status lightly
     if (booking) {
       const nextStatus =
         form.type === 'out'
           ? 'out'
           : form.type === 'return'
-            ? 'returned'
+            ? form.close_rental
+              ? 'completed'
+              : 'returned'
             : booking.status;
       await post({
         entity: 'bookings',
         action: 'upsert',
-        record: { ...booking, status: nextStatus },
+        record: {
+          ...booking,
+          status: nextStatus,
+        },
       });
     }
-    toast.success('Handover recorded');
+    toast.success(
+      form.close_rental && form.type === 'return'
+        ? 'Return recorded — rental closed'
+        : 'Handover recorded'
+    );
     setForm((f) => ({
       ...f,
       condition_notes: '',
       signed_by: '',
       damage_zar: '',
       deposit_released: false,
+      close_rental: false,
     }));
   };
 
@@ -135,15 +157,39 @@ export default function HireHandoverPage() {
                 />
               </label>
               <label className="text-xs font-bold">
-                Signed by
+                Driver / signed by
                 <input
                   className={fieldClass()}
                   value={form.signed_by}
                   onChange={(e) =>
                     setForm({ ...form, signed_by: e.target.value })
                   }
+                  placeholder="Name on the run sheet"
                 />
               </label>
+              {driverChips.length ? (
+                <div className="flex flex-wrap gap-1.5 sm:col-span-2">
+                  {driverChips.map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                        form.signed_by === name
+                          ? 'bg-cyan-700 text-white'
+                          : 'border border-slate-200 bg-white text-slate-600'
+                      }`}
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          signed_by: form.signed_by === name ? '' : name,
+                        })
+                      }
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               <label className="text-xs font-bold">
                 Damage (R)
                 <input
@@ -174,6 +220,23 @@ export default function HireHandoverPage() {
                 />
                 Release refundable deposit (not commissionable)
               </label>
+              {form.type === 'return' ? (
+                <label className="flex items-center gap-2 text-xs font-bold sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={form.close_rental}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        close_rental: e.target.checked,
+                        deposit_released:
+                          e.target.checked || form.deposit_released,
+                      })
+                    }
+                  />
+                  Close rental — mark completed after this return
+                </label>
+              ) : null}
             </div>
           </FormCard>
           <DataTable

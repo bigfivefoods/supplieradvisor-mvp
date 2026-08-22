@@ -31,6 +31,9 @@ export default function HiregraphWebsitePage() {
     allow_portal_booking: true,
     primary_color: '#0891b2',
     timezone: 'Africa/Johannesburg',
+    depot_address: '',
+    service_radius_km: '',
+    cancellation_policy: '',
   });
   const [copied, setCopied] = useState(false);
 
@@ -48,6 +51,10 @@ export default function HiregraphWebsitePage() {
       allow_portal_booking: s.allow_portal_booking !== false,
       primary_color: s.primary_color || '#0891b2',
       timezone: s.timezone || 'Africa/Johannesburg',
+      depot_address: s.depot_address || '',
+      service_radius_km:
+        s.service_radius_km != null ? String(s.service_radius_km) : '',
+      cancellation_policy: s.cancellation_policy || '',
     });
   }, [store]);
 
@@ -70,9 +77,18 @@ export default function HiregraphWebsitePage() {
     if (rotate && !confirm('Rotate the public catalogue link? Existing embeds will break until you update them.')) {
       return;
     }
+    if (form.enabled && !form.cancellation_policy.trim()) {
+      toast.error('Add a cancellation policy before publishing the catalogue');
+      return;
+    }
     await post({
       action: 'update_settings',
-      settings: form,
+      settings: {
+        ...form,
+        service_radius_km: form.service_radius_km
+          ? Number(form.service_radius_km)
+          : null,
+      },
       rotate_token: rotate,
     });
     toast.success(rotate ? 'Public token rotated' : 'Website settings saved');
@@ -318,6 +334,30 @@ export default function HiregraphWebsitePage() {
               value={form.public_bio}
               onChange={(e) =>
                 setForm((f) => ({ ...f, public_bio: e.target.value }))
+              }
+            />
+            <input
+              className={fieldClass()}
+              placeholder="Depot / collection address"
+              value={form.depot_address}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, depot_address: e.target.value }))
+              }
+            />
+            <input
+              className={fieldClass()}
+              placeholder="Service radius (km)"
+              value={form.service_radius_km}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, service_radius_km: e.target.value }))
+              }
+            />
+            <textarea
+              className={fieldClass() + ' min-h-[4rem] sm:col-span-2'}
+              placeholder="Cancellation policy (required to publish)"
+              value={form.cancellation_policy}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, cancellation_policy: e.target.value }))
               }
             />
           </FormCard>

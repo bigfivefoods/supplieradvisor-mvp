@@ -900,7 +900,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Bookings', href: '/dashboard/hiregraph/bookings', desc: 'Duration · extend if free', section: 'Demand' },
       { name: 'Calendar', href: '/dashboard/hiregraph/calendar', desc: 'Hired items · category views', section: 'Demand' },
       { name: 'Handover', href: '/dashboard/hiregraph/handover', desc: 'Out · return · condition', section: 'Ops' },
-      { name: 'Settlements', href: '/dashboard/hiregraph/settlements', desc: '2.5% on the business · members free', section: 'Money' },
+      { name: 'Settlements', href: '/dashboard/hiregraph/settlements', desc: '2.5% + 2.5% on marketplace hire', section: 'Money' },
       { name: 'Accounts', href: '/dashboard/hiregraph/accounts', desc: 'Hirer fees · pay · proof', section: 'Money' },
       { name: 'Comms', href: '/dashboard/hiregraph/comms', desc: 'Ads · notices to all hirers', section: 'Grow' },
       { name: 'View portal', href: '/dashboard/hiregraph/portal', desc: 'Hirer PWA · website preview · pick sections', section: 'Grow' },

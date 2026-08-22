@@ -6,6 +6,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
   getHireCategory,
   upsertEntity,
+  type HireUnit,
   type HiregraphStore,
 } from '@/lib/hire/hiregraph';
 
@@ -103,6 +104,20 @@ export async function listInventoryProductForHire(
     (i) => Number(i.inventory_product_id) === input.productId
   );
   if (!item) throw new Error('Could not save hire catalogue item');
+  const haveUnits = (next.units || []).some((u) => u.item_id === item.id);
+  if (!haveUnits) {
+    const n = Math.max(1, Number(stockQty) || 1);
+    const now = new Date().toISOString();
+    const seeded: HireUnit[] = Array.from({ length: Math.min(n, 20) }, (_, i) => ({
+      id: `un_${item.id}_${i + 1}`,
+      item_id: item.id,
+      label: n === 1 ? item.title : `${item.title} #${i + 1}`,
+      active: true,
+      created_at: now,
+      updated_at: now,
+    }));
+    next = { ...next, units: [...seeded, ...(next.units || [])] };
+  }
 
   if (!next.settings?.brand_name) {
     next = {

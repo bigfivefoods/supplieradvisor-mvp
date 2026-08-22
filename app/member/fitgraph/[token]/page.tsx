@@ -1012,48 +1012,8 @@ export default function MemberFitgraphPortalPage() {
                   : 'Buy a membership for a partner, kid or friend. Add them under You, then pick a plan below.'}
               </p>
             </div>
-            <div className="space-y-2">
-              <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
-                Products
-              </p>
-              {(portal.inventory_products || []).length ? (
-                <ul className="space-y-2">
-                  {(portal.inventory_products || []).map((p) => (
-                    <li
-                      key={p.id}
-                      className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900"
-                    >
-                      <div className="min-w-0">
-                        <p className="font-black text-slate-900 dark:text-white">
-                          {p.name}
-                        </p>
-                        {p.description ? (
-                          <p className="text-xs text-slate-500">{p.description}</p>
-                        ) : null}
-                        <p className="mt-1 text-sm font-black">R{p.price_zar}</p>
-                      </div>
-                      <button
-                        type="button"
-                        disabled={
-                          buyingId === `${p.kind}:${p.id}` ||
-                          portal.payout_ready === false
-                        }
-                        onClick={() => void buy(p)}
-                        className="shrink-0 rounded-xl bg-slate-900 px-3 py-2 text-[11px] font-black text-white disabled:opacity-50"
-                      >
-                        Buy
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-slate-500">
-                  No retail products listed yet.
-                </p>
-              )}
-            </div>
             <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
-              Services
+              Shop
             </p>
             {portal.class_subscribe && (portal.subscriptions || []).length ? (
               <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">
@@ -1087,6 +1047,17 @@ export default function MemberFitgraphPortalPage() {
             ) : null}
             <GymShopPay
               items={[
+                ...((portal.inventory_products || []).map((p) => ({
+                  kind: 'product' as const,
+                  id: p.id,
+                  name: p.name,
+                  description: p.description,
+                  price_zar: p.price_zar,
+                  billing: 'once',
+                  image_url: p.image_url,
+                  group: 'goods' as const,
+                  code: p.sku || undefined,
+                })) || []),
                 ...(portal.shop || []),
                 ...((portal.inventory_services || []).map((p) => ({
                   kind: 'product' as const,
@@ -1097,6 +1068,7 @@ export default function MemberFitgraphPortalPage() {
                   billing: 'once',
                   image_url: p.image_url,
                   group: 'service' as const,
+                  code: p.sku || undefined,
                 })) || []),
               ]}
               color={color}

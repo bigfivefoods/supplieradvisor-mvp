@@ -224,8 +224,8 @@ export default function HireCataloguePage() {
   return (
     <HiregraphWorkbench
       title="Catalogue"
-      titleAccent="items for hire"
-      description="List gear against a Core Suppliers (SRM) row. Category rules (licence, deposit, castle safety…) apply automatically when a person from Core Customers books."
+      titleAccent="hire out Core Inventory"
+      description="List products from Core Inventory for hire. HireAdvisor adds rates, units and availability — the product master stays in Inventory."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -753,6 +753,52 @@ export default function HireCataloguePage() {
               </label>
             </div>
           </FormCard>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-sm font-black text-slate-900">Physical units</p>
+            <p className="mt-1 text-[12px] text-slate-600">
+              Each unit (Castle #1, Castle #2) has its own calendar. Listing from
+              Inventory seeds one unit per item on hand.
+            </p>
+            <ul className="mt-3 space-y-2 text-sm">
+              {store.items.map((item) => {
+                const units = (store.units || []).filter(
+                  (u) => u.item_id === item.id && u.active !== false
+                );
+                return (
+                  <li
+                    key={item.id}
+                    className="rounded-xl border border-slate-100 px-3 py-2"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-bold">{item.title}</p>
+                      <button
+                        type="button"
+                        className="text-xs font-bold text-cyan-800"
+                        onClick={() =>
+                          void post({
+                            entity: 'units',
+                            action: 'upsert',
+                            record: {
+                              item_id: item.id,
+                              label: `${item.title} #${units.length + 1}`,
+                              active: true,
+                            },
+                          })
+                        }
+                      >
+                        Add unit
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      {units.length
+                        ? units.map((u) => u.label).join(' · ')
+                        : 'No units yet — availability uses quantity only'}
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
           <DataTable
             tone="hg-client"
             headers={[

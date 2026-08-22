@@ -45,6 +45,7 @@ export default function HireBookingsPage() {
     units: '1',
     qty: '1',
     status: 'requested',
+    source: 'off_platform',
     delivery_address: '',
     notes: '',
   });
@@ -155,6 +156,15 @@ export default function HireBookingsPage() {
         qty: Number(form.qty) || 1,
         delivery_address: form.delivery_address,
         notes: form.notes,
+        source: form.source || 'off_platform',
+        occupy_start_at: dated?.start_date
+          ? `${dated.start_date}T08:00:00`
+          : null,
+        occupy_end_at: dated?.end_date
+          ? `${dated.end_date}T18:00:00`
+          : dated?.start_date
+            ? `${dated.start_date}T18:00:00`
+            : null,
         status:
           preview && preview.pending.length
             ? 'awaiting_requirements'
@@ -342,6 +352,18 @@ export default function HireBookingsPage() {
                   onChange={(e) => setForm({ ...form, qty: e.target.value })}
                 />
               </label>
+              <label className="text-xs font-bold">
+                Source
+                <select
+                  className={fieldClass()}
+                  value={form.source}
+                  onChange={(e) => setForm({ ...form, source: e.target.value })}
+                >
+                  <option value="off_platform">Off-platform (phone / walk-in)</option>
+                  <option value="customer_portal">Customer PWA</option>
+                  <option value="marketplace">Marketplace</option>
+                </select>
+              </label>
               <label className="text-xs font-bold sm:col-span-2">
                 Delivery / site address
                 <input
@@ -481,6 +503,7 @@ export default function HireBookingsPage() {
               'Item',
               'Customer',
               'Duration',
+              'Source',
               'Status',
               'Pays',
             ]}
@@ -502,6 +525,13 @@ export default function HireBookingsPage() {
                     b.units,
                     item?.rate_unit
                   ),
+                  b.source === 'off_platform'
+                    ? 'Off-platform'
+                    : b.source === 'marketplace'
+                      ? 'Marketplace'
+                      : b.source === 'customer_portal'
+                        ? 'PWA'
+                        : b.source || '—',
                   b.status || 'requested',
                   b.customer_pays_zar != null
                     ? `R${Number(b.customer_pays_zar).toLocaleString('en-ZA')}`

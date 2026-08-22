@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
 
     const sp = request.nextUrl.searchParams;
     const q = (sp.get('q') || '').toLowerCase().trim();
+    const city = (sp.get('city') || '').toLowerCase().trim();
     const rawChannel = (sp.get('channel') || 'all').toLowerCase();
     const channel: B2cMarketChannel | 'all' = CHANNELS.has(
       rawChannel as B2cMarketChannel
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
     const [sale, rest] = await Promise.all([
       wantSale ? loadSale(q, limit) : Promise.resolve([] as B2cMarketItem[]),
       wantHire || wantAdvisor
-        ? loadHireAndAdvisors({ q, wantHire, wantAdvisor, limit })
+        ? loadHireAndAdvisors({ q, city, wantHire, wantAdvisor, limit })
         : Promise.resolve({ hire: [] as B2cMarketItem[], advisor: [] as B2cMarketItem[] }),
     ]);
 
@@ -170,6 +171,7 @@ async function loadSale(q: string, limit: number): Promise<B2cMarketItem[]> {
 
 async function loadHireAndAdvisors(opts: {
   q: string;
+  city?: string;
   wantHire: boolean;
   wantAdvisor: boolean;
   limit: number;
@@ -215,8 +217,10 @@ async function loadHireAndAdvisors(opts: {
           continue;
         }
         if (hire.length >= opts.limit) break;
-        const hay = `${item.title} ${item.category_name || ''} ${brand} ${item.location || ''} ${city || ''}`.toLowerCase();
+        const locHay = `${item.location || ''} ${city || ''} ${pub?.city || ''} ${pub?.depot_address || ''}`.toLowerCase();
+        const hay = `${item.title} ${item.category_name || ''} ${brand} ${locHay}`.toLowerCase();
         if (opts.q && !hay.includes(opts.q)) continue;
+        if (opts.city && !locHay.includes(opts.city)) continue;
         const price = formatMoney(item.rate_zar);
         hire.push({
           id: `hire_${companyId}_${item.id}`,

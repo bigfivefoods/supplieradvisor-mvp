@@ -274,6 +274,9 @@ export async function POST(request: NextRequest) {
         crm_customer_id: crmId,
         start_date: body.start_date ? String(body.start_date) : null,
         end_date: body.end_date ? String(body.end_date) : null,
+        delivery_address: body.delivery_address
+          ? String(body.delivery_address)
+          : null,
       });
       if (!q) {
         return NextResponse.json({ error: 'Item not found' }, { status: 404 });
@@ -440,6 +443,9 @@ export async function POST(request: NextRequest) {
       const { applyDateUnits, itemConflict } = await import(
         '@/lib/hire/availability'
       );
+      const { findAvailableUnits } = await import(
+        '@/lib/hire/true-availability'
+      );
       const dated = applyDateUnits(
         {
           start_date: start,
@@ -449,7 +455,25 @@ export async function POST(request: NextRequest) {
         item.rate_unit
       );
       const units = dated.units;
+      let assignedUnitId: string | null = null;
       if (dated.start_date) {
+        const startDay = new Date(`${dated.start_date}T08:00:00`);
+        const endDay = new Date(
+          `${dated.end_date || dated.start_date}T18:00:00`
+        );
+        const unitsHit = findAvailableUnits(store, {
+          itemId,
+          rentalStart: startDay,
+          rentalEnd: endDay,
+          qty,
+        });
+        if ((store.units || []).some((u) => u.item_id === itemId && u.active !== false) && !unitsHit.ok) {
+          return NextResponse.json(
+            { error: unitsHit.reason || 'That unit is not free for those times' },
+            { status: 409 }
+          );
+        }
+        assignedUnitId = unitsHit.units[0]?.id || null;
         const clash = itemConflict(store, {
           itemId: itemId,
           start: dated.start_date,
@@ -481,6 +505,9 @@ export async function POST(request: NextRequest) {
         units,
         qty,
         crm_customer_id: crmId,
+        start_date: dated.start_date,
+        end_date: dated.end_date,
+        delivery_address: delivery,
       });
       const status =
         quote && quote.pending.length > 0
@@ -490,15 +517,25 @@ export async function POST(request: NextRequest) {
       store = upsertEntity(store, 'bookings', {
         code,
         item_id: itemId,
+        unit_id: assignedUnitId,
         crm_customer_id: crmId,
         customer_name: customer.name,
         srm_supplier_id: item.srm_supplier_id ?? null,
         supplier_name: item.supplier_name || '',
         start_date: dated.start_date,
         end_date: dated.end_date,
+        occupy_start_at: dated.start_date
+          ? `${dated.start_date}T08:00:00`
+          : null,
+        occupy_end_at: dated.end_date
+          ? `${dated.end_date}T18:00:00`
+          : dated.start_date
+            ? `${dated.start_date}T18:00:00`
+            : null,
         units,
         qty,
         delivery_address: delivery,
+        delivery_fee_zar: quote?.delivery_zar ?? 0,
         notes: notes ? `Portal: ${notes}` : 'Customer portal hire request',
         status,
         source: 'customer_portal',
@@ -511,8 +548,8 @@ export async function POST(request: NextRequest) {
         booking_id: created?.id,
         message:
           status === 'awaiting_requirements'
-            ? 'Hire requested — complete outstanding requirements in the Requirements tab'
-            : 'Hire requested — the marketplace will confirm shortly',
+            ? 'Hire requested — finish documents under You, then track it on Coming'
+            : 'Hire requested — track when it is coming on the Coming tab',
       });
     }
 

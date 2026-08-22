@@ -18,6 +18,7 @@ assert.ok(physio.pwaTabs.includes('Open diary'));
 const hire = growPreviewCopy('hiregraph');
 assert.equal(hire.audienceSingular, 'customer');
 assert.equal(hire.pwaEyebrow, 'Customer portal · HireAdvisor®');
+assert.deepEqual(hire.pwaTabs, ['Shop', 'Coming', 'You', 'History', 'Nearby']);
 
 assert.deepEqual(growWebsiteNav('fitgraph').slice(0, 2), [
   'Class timetable',
