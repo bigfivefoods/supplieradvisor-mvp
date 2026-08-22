@@ -19,8 +19,8 @@ export default function HiregraphPortalPage() {
   return (
     <HiregraphWorkbench
       title="View portal"
-      titleAccent="hirer app · website"
-      description="Publish a branded home-screen app for hirers, then preview the customer PWA and optional public website."
+      titleAccent="customer app · website"
+      description="Publish a branded home-screen app for customers, then preview the customer PWA and optional public website."
     >
       {loading || !store ? (
         <LoadingBlock />

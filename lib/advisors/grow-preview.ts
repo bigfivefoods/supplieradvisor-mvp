@@ -146,9 +146,9 @@ export function growPreviewCopy(module: AdvisorPortalModule): GrowPreviewCopy {
       };
     case 'hiregraph':
       return {
-        audience: 'hirers',
-        audienceSingular: 'hirer',
-        pwaEyebrow: 'HireAdvisor® · customer portal',
+        audience: 'customers',
+        audienceSingular: 'customer',
+        pwaEyebrow: 'Customer portal · HireAdvisor®',
         pwaTabs: ['Browse', 'My hires', 'Calendar', 'Docs', 'Account'],
         pwaActiveTab: 'Browse',
         sampleTitle: 'Mini excavator',

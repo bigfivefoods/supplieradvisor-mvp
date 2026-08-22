@@ -745,9 +745,13 @@ export function issueCustomerPortal(
   const now = new Date().toISOString();
   const companyId = opts?.companyId ?? 0;
   const prev = store.customer_portals?.[key];
+  const existing = String(prev?.portal_token || '').trim();
   const portal: HireCustomerPortal = {
     crm_customer_id: crmCustomerId,
-    portal_token: issueHireCustomerPortalToken(companyId || crmCustomerId),
+    portal_token:
+      prev?.active !== false && existing
+        ? existing
+        : issueHireCustomerPortalToken(companyId || crmCustomerId),
     issued_at: now,
     last_seen_at: prev?.last_seen_at || null,
     invite_email: opts?.invite_email ?? prev?.invite_email ?? null,
@@ -992,6 +996,9 @@ export function buildHireCustomerPortalPayload(
   return {
     brand,
     public_token: settings.public_token || null,
+    logo_url: logoUrlFromSettings(
+      settings as { company_logo_url?: string | null }
+    ),
     bio: settings.public_bio || '',
     contact_email: settings.contact_email || customer.email || null,
     contact_phone: settings.contact_phone || customer.phone || null,

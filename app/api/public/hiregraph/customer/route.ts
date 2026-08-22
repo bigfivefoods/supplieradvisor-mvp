@@ -16,6 +16,7 @@ import {
   buildHireCustomerPortalPayload,
   findPortalByToken,
   parseCompanyIdFromHireCustomerToken,
+  parseCompanyIdFromHirePublicToken,
   quoteHireBooking,
   readHiregraphFromMetadata,
   upsertEntity,
@@ -25,6 +26,10 @@ import {
   type HireRequirementKey,
   type HiregraphStore,
 } from '@/lib/hire/hiregraph';
+import {
+  applyCompanyLogoToSettings,
+  pickCompanyLogoUrl,
+} from '@/lib/business/company-logo';
 import {
   HIRE_CUSTOMER_COMMISSION_PCT,
   HIRE_SUPPLIER_COMMISSION_PCT,
@@ -39,15 +44,13 @@ async function loadCoreCustomer(
   crmId: number
 ): Promise<HireCorePartyRef | null> {
   const supabase = getSupabaseServer();
-  const { data: c } = await supabase
+  const { data: c, error } = await supabase
     .from('customers')
-    .select(
-      'id, trading_name, legal_name, email, phone, contact_name, city, status, linked_profile_id'
-    )
+    .select('id, trading_name, legal_name, email, phone, contact_name, city, status')
     .eq('profile_id', companyId)
     .eq('id', crmId)
     .maybeSingle();
-  if (!c) return null;
+  if (error || !c) return null;
   return {
     id: Number(c.id),
     name: String(
@@ -57,9 +60,7 @@ async function loadCoreCustomer(
     phone: c.phone,
     city: c.city,
     status: c.status,
-    linked_profile_id: c.linked_profile_id
-      ? Number(c.linked_profile_id)
-      : null,
+    linked_profile_id: null,
   };
 }
 
@@ -74,7 +75,10 @@ async function resolveCustomer(
   companyName: string | null;
 } | null> {
   const clean = String(token || '').trim();
-  if (!clean || clean.length < 12) return null;
+  if (!clean || clean.length < 8) return null;
+  if (parseCompanyIdFromHirePublicToken(clean) && !parseCompanyIdFromHireCustomerToken(clean)) {
+    return null;
+  }
 
   const loaded = await loadAdvisorStoreForPublicToken({
     token: clean,
@@ -82,32 +86,42 @@ async function resolveCustomer(
     read: readHiregraphFromMetadata,
     parseCompanyId: parseCompanyIdFromHireCustomerToken,
     indexKeys: [HIREGRAPH_CUSTOMER_TOKENS_KEY],
+    fresh: true,
   });
   if (!loaded) return null;
-
-  const supabase = getSupabaseServer();
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('id, company_name, trading_name, name')
-    .eq('id', loaded.companyId)
-    .maybeSingle();
-  if (!prof) return null;
 
   const { meta, store } = loaded;
   const portal = findPortalByToken(store, clean);
   if (!portal) return null;
 
-  const customer = await loadCoreCustomer(
+  const supabase = getSupabaseServer();
+  const { data: prof } = await supabase
+    .from('profiles')
+    .select('id, trading_name, legal_name, logo_url')
+    .eq('id', loaded.companyId)
+    .maybeSingle();
+  applyCompanyLogoToSettings(store, pickCompanyLogoUrl(prof));
+
+  const fromCrm = await loadCoreCustomer(
     loaded.companyId,
     portal.crm_customer_id
   );
-  if (!customer) return null;
+  const customer: HireCorePartyRef = fromCrm || {
+    id: portal.crm_customer_id,
+    name:
+      String(portal.preferred_email || '').split('@')[0] ||
+      `Customer #${portal.crm_customer_id}`,
+    email: portal.preferred_email || null,
+    phone: portal.preferred_phone || null,
+    city: null,
+    status: 'active',
+    linked_profile_id: null,
+  };
 
   const companyName = String(
     store.settings?.brand_name ||
-      (prof as { trading_name?: string }).trading_name ||
-      (prof as { company_name?: string }).company_name ||
-      (prof as { name?: string }).name ||
+      prof?.trading_name ||
+      prof?.legal_name ||
       ''
   ).trim() || null;
 

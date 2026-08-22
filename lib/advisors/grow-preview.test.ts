@@ -15,6 +15,9 @@ assert.ok(gym.programmeName);
 const physio = growPreviewCopy('physiograph');
 assert.equal(physio.audienceSingular, 'patient');
 assert.ok(physio.pwaTabs.includes('Open diary'));
+const hire = growPreviewCopy('hiregraph');
+assert.equal(hire.audienceSingular, 'customer');
+assert.equal(hire.pwaEyebrow, 'Customer portal · HireAdvisor®');
 
 assert.deepEqual(growWebsiteNav('fitgraph').slice(0, 2), [
   'Class timetable',

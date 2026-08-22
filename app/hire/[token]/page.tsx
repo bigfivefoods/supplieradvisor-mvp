@@ -28,6 +28,7 @@ import { B2cHireHowItWorks } from '@/components/b2c/B2cHireJourney';
 import { B2cDiaryView, type MemberCalEvent } from '@/components/b2c/B2cMemberCalendar';
 import { MemberAdvisorShell } from '@/components/advisors/MemberAdvisorShell';
 import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
+import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
 import {
   downloadMemberEventIcs,
   googleCalendarUrl,
@@ -116,6 +117,7 @@ type MyBooking = {
 type Portal = {
   brand: string;
   public_token?: string;
+  logo_url?: string | null;
   bio?: string;
   contact_email?: string | null;
   contact_phone?: string | null;
@@ -219,6 +221,12 @@ export default function HireCustomerPortalPage() {
 
   const load = useCallback(async () => {
     if (!token) return;
+    if (String(token).startsWith('hire_pub_')) {
+      window.location.replace(
+        `/pwa/hiregraph/${encodeURIComponent(token)}?join=1`
+      );
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -475,6 +483,7 @@ export default function HireCustomerPortalPage() {
       publicToken={portal.public_token}
       brandName={portal.brand}
       themeColor={color}
+      iconUrl={portal.logo_url}
     />
     <MemberAdvisorShell
       color={color}
@@ -486,6 +495,7 @@ export default function HireCustomerPortalPage() {
         setError(null);
         setMsg(null);
       }}
+      mobileNav="bottom"
       tabs={[
         { id: 'browse', label: 'Browse' },
         {
@@ -503,10 +513,11 @@ export default function HireCustomerPortalPage() {
       ]}
       header={
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">
-            HireAdvisor® · customer portal
-          </p>
-          <h1 className="mt-1 text-xl font-black md:text-3xl">{portal.brand}</h1>
+          <MemberPortalBrandLockup
+            logoUrl={portal.logo_url}
+            brand={portal.brand}
+            eyebrow="Customer portal · HireAdvisor®"
+          />
           {portal.bio ? (
             <p className="mt-1 max-w-2xl text-sm text-white/90 md:line-clamp-3 line-clamp-2">
               {portal.bio}
