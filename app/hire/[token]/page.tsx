@@ -1551,11 +1551,7 @@ export default function HireCustomerPortalPage() {
               <button
                 type="button"
                 onClick={() => setTab('calendar')}
-                className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold ${
-                  tab === 'calendar'
-                    ? 'bg-cyan-700 text-white'
-                    : 'border border-slate-200 bg-white text-slate-600'
-                }`}
+                className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600"
               >
                 Calendar
               </button>
