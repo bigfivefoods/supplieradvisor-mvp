@@ -1517,6 +1517,27 @@ function MeAppInner() {
             </p>
           </section>
 
+          {!verification?.is_verified ? (
+            <div className="rounded-3xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
+              <p className="text-sm font-black text-sky-950">
+                Verify yourself with VerifyNow
+              </p>
+              <p className="mt-1 text-[12px] text-sky-900/80">
+                SA ID via VerifyNow (free). Gyms, clinics and hire desks use
+                this so they do not recapture your identity.
+              </p>
+            </div>
+          ) : null}
+
+          <B2cIdentityCard
+            initial={verification}
+            idNumber={idNumber}
+            onIdNumberChange={setIdNumber}
+            onChange={(v) =>
+              setVerification((prev) => ({ ...(prev || {}), ...v }))
+            }
+          />
+
           <section className="rounded-3xl border border-amber-200 bg-white p-4 shadow-sm">
             <h2 className="text-sm font-black text-slate-900">
               Invoices from your Advisors
@@ -1578,15 +1599,6 @@ function MeAppInner() {
               </p>
             </div>
           </div>
-
-          <B2cIdentityCard
-            initial={verification}
-            idNumber={idNumber}
-            onIdNumberChange={setIdNumber}
-            onChange={(v) =>
-              setVerification((prev) => ({ ...(prev || {}), ...v }))
-            }
-          />
 
           <B2cWorkspaceSwitch
             hasBusiness={hasBusiness}

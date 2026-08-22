@@ -59,4 +59,28 @@ assert.equal(
   'p3'
 );
 
+const hireCustomers = [
+  {
+    id: '88',
+    name: 'Craig Customer',
+    email: 'craig@example.com',
+    invite_email: 'craig.hire@example.com',
+    portal_token: 'hire_cust_1',
+  },
+];
+assert.equal(
+  findRosterPersonForSignIn(hireCustomers, {
+    name: 'Craig Customer',
+    email: 'craig@example.com',
+  })?.id,
+  '88'
+);
+assert.equal(
+  findRosterPersonForSignIn(hireCustomers, {
+    name: 'Craig Customer',
+    email: 'craig.hire@example.com',
+  })?.id,
+  '88'
+);
+
 console.log('pwa-signin tests ok');

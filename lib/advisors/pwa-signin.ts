@@ -1,5 +1,5 @@
 /**
- * Roster sign-in for a company PWA: name + email on the gym/clinic file.
+ * Roster sign-in for a company PWA: name + email on the gym/clinic/hire file.
  * New people create an account on the PWA launcher and join via /api/b2c/join.
  */
 import { loadAdvisorStoreForPublicToken } from '@/lib/business/advisor-store-resolve';
@@ -77,18 +77,123 @@ export async function signInAdvisorPwaMember(opts: {
       error: 'Enter the name and email on your profile at this business.',
     };
   }
-  if (moduleKey === 'hiregraph' || moduleKey === 'retailgraph') {
+  if (moduleKey === 'retailgraph') {
     return {
       ok: false,
       status: 400,
-      error: 'Create an account on this app to join — roster sign-in is for gym and clinic members.',
+      error:
+        'Create an account on this app to join — roster sign-in is for gym, clinic and hire customers.',
     };
   }
 
+  if (moduleKey === 'hiregraph') {
+    return signInHire({ token, name, email });
+  }
   if (moduleKey === 'fitgraph') {
     return signInGym({ token, name, email });
   }
   return signInClinic({ module: moduleKey, token, name, email });
+}
+
+async function signInHire(opts: {
+  token: string;
+  name: string;
+  email: string;
+}): Promise<AdvisorPwaSignInOk | AdvisorPwaSignInErr> {
+  const {
+    HIREGRAPH_META_KEY,
+    HIREGRAPH_PUBLIC_TOKEN_KEY,
+    issueCustomerPortal,
+    parseCompanyIdFromHirePublicToken,
+    readHiregraphFromMetadata,
+    writeHiregraphToMetadata,
+  } = await import('@/lib/hire/hiregraph');
+  const { getSupabaseServer } = await import('@/lib/supabase/server-client');
+
+  const loaded = await loadAdvisorStoreForPublicToken({
+    token: opts.token,
+    moduleKey: HIREGRAPH_META_KEY,
+    read: readHiregraphFromMetadata,
+    parseCompanyId: parseCompanyIdFromHirePublicToken,
+    indexKeys: [HIREGRAPH_PUBLIC_TOKEN_KEY],
+  });
+  if (!loaded || loaded.store.settings?.public_token !== opts.token) {
+    return { ok: false, status: 404, error: 'Hire desk not found' };
+  }
+
+  const supabase = getSupabaseServer();
+  const { data: rows } = await supabase
+    .from('customers')
+    .select('id, trading_name, legal_name, contact_name, email, status')
+    .eq('profile_id', loaded.companyId)
+    .limit(500);
+
+  const people: RosterPerson[] = [];
+  for (const c of rows || []) {
+    const portal = loaded.store.customer_portals?.[String(c.id)];
+    const emails = {
+      email: c.email ? String(c.email) : '',
+      invite_email: portal?.invite_email || portal?.preferred_email || null,
+      active: String(c.status || 'active').toLowerCase() !== 'blocked',
+      portal_token: portal?.portal_token || null,
+    };
+    const names = [
+      c.contact_name,
+      c.trading_name,
+      c.legal_name,
+    ]
+      .map((v) => String(v || '').trim())
+      .filter(Boolean);
+    const unique = [...new Set(names)];
+    for (const name of unique.length ? unique : ['']) {
+      people.push({
+        id: String(c.id),
+        name,
+        ...emails,
+      });
+    }
+  }
+
+  const person = findRosterPersonForSignIn(people, {
+    name: opts.name,
+    email: opts.email,
+  });
+  if (!person) {
+    return {
+      ok: false,
+      status: 404,
+      error:
+        'We could not find that customer. Use the name and email on your hire file, or create an account to join this app.',
+    };
+  }
+
+  const crmId = Number(person.id);
+  if (!Number.isFinite(crmId) || crmId <= 0) {
+    return { ok: false, status: 404, error: 'Customer record is incomplete' };
+  }
+  let store = loaded.store;
+  let portalToken = String(person.portal_token || '').trim();
+  if (!portalToken) {
+    const issued = issueCustomerPortal(store, crmId, {
+      companyId: loaded.companyId,
+      invite_email: opts.email,
+    });
+    store = issued.store;
+    portalToken = issued.portal.portal_token;
+    await saveAdvisorModuleStore(
+      loaded.companyId,
+      HIREGRAPH_META_KEY,
+      store,
+      writeHiregraphToMetadata
+    );
+  }
+
+  return {
+    ok: true,
+    name: String(person.name || 'Customer').trim().split(/\s+/)[0],
+    portal_token: portalToken,
+    path: advisorPwaMemberOpenPath('hiregraph', portalToken),
+  };
 }
 
 async function signInGym(opts: {

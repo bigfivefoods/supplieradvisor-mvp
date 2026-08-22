@@ -13,6 +13,7 @@ import {
   HIREGRAPH_CUSTOMER_TOKENS_KEY,
   HIREGRAPH_META_KEY,
   HIRE_REQUIREMENT_LABELS,
+  applyWalletToHirePortal,
   buildHireCustomerPortalPayload,
   findPortalByToken,
   parseCompanyIdFromHireCustomerToken,
@@ -30,6 +31,10 @@ import {
   applyCompanyLogoToSettings,
   pickCompanyLogoUrl,
 } from '@/lib/business/company-logo';
+import { identityFromProfile } from '@/lib/b2c/identity';
+import { loadB2cProfile } from '@/lib/b2c/profile-store';
+import { requireVerifiedUser, legacyPrivyFrom } from '@/lib/auth/api-auth';
+import { getCanonicalUserId } from '@/lib/auth/identity';
 import {
   HIRE_CUSTOMER_COMMISSION_PCT,
   HIRE_SUPPLIER_COMMISSION_PCT,
@@ -199,14 +204,58 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Touch last_seen
+    // Touch last_seen and, if this visitor is an SA Member, stamp wallet details.
     const key = String(resolved.portal.crm_customer_id);
-    const portals = { ...(resolved.store.customer_portals || {}) };
-    portals[key] = {
+    let store = resolved.store;
+    let portal = {
       ...resolved.portal,
       last_seen_at: new Date().toISOString(),
     };
-    const store = { ...resolved.store, customer_portals: portals };
+    store = {
+      ...store,
+      customer_portals: {
+        ...(store.customer_portals || {}),
+        [key]: portal,
+      },
+    };
+    try {
+      const auth = await requireVerifiedUser(request, {
+        legacyPrivyUserId: legacyPrivyFrom(request),
+      });
+      if (auth.ok) {
+        const userId = getCanonicalUserId(auth.userId);
+        const wallet = userId ? await loadB2cProfile(userId) : null;
+        if (wallet) {
+          const stamped = applyWalletToHirePortal(
+            store,
+            resolved.portal.crm_customer_id,
+            {
+              user_id: wallet.user_id,
+              full_name: wallet.full_name,
+              email: wallet.email,
+              phone: wallet.phone,
+              photo_url: wallet.photo_url,
+              city: wallet.city,
+              id_number: wallet.id_number,
+              identity: identityFromProfile(wallet),
+            }
+          );
+          store = stamped.store;
+          portal = { ...stamped.portal, last_seen_at: portal.last_seen_at };
+          if (wallet.full_name) {
+            resolved.customer = {
+              ...resolved.customer,
+              name: wallet.full_name,
+              email: wallet.email || resolved.customer.email,
+              phone: wallet.phone || resolved.customer.phone,
+              city: wallet.city || resolved.customer.city,
+            };
+          }
+        }
+      }
+    } catch {
+      /* portal works without a wallet session */
+    }
     try {
       await saveStore(resolved.companyId, resolved.meta, store);
     } catch {
@@ -216,7 +265,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       portalJson(
         store,
-        portals[key],
+        portal,
         resolved.customer,
         resolved.companyName,
         resolved.companyId

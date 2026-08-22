@@ -41,10 +41,16 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [samsung, setSamsung] = useState(false);
+  const [wallet, setWallet] = useState<{
+    name: string;
+    email: string;
+    phone: string;
+    membershipPath: string | null;
+  } | null>(null);
   const joining = useRef(false);
   const gym = brand.module === 'fitgraph';
-  const rosterSignIn =
-    brand.module !== 'hiregraph' && brand.module !== 'retailgraph';
+  const hire = brand.module === 'hiregraph';
+  const rosterSignIn = brand.module !== 'retailgraph';
 
   useEffect(() => {
     setSamsung(/SamsungBrowser/i.test(navigator.userAgent));
@@ -56,18 +62,19 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
     }
     const q = new URLSearchParams(window.location.search);
     const stashed = peekOauthReturnParams();
-    if (q.get('join') === '1' || stashed.join === '1') {
-      setStep('join');
-    }
+    const wantJoin = q.get('join') === '1' || stashed.join === '1';
     const mapped = recallAdvisorPwaMember(
       brand.module,
       brand.publicToken,
       true
     );
-    if (!mapped) return;
+    if (!mapped) {
+      if (wantJoin && brand.module !== 'hiregraph') setStep('join');
+      return;
+    }
     const href = advisorPwaMemberOpenPath(brand.module, mapped);
     setMemberHref(href);
-    if (q.get('join') === '1' || stashed.join === '1') return;
+    if (wantJoin && brand.module !== 'hiregraph') return;
     setOpening(true);
     const go = window.setTimeout(() => {
       window.location.replace(href);
@@ -78,6 +85,62 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
       window.clearTimeout(unlock);
     };
   }, [brand.module, brand.publicToken, brand.shortName, brand.themeColor, brand.iconUrl]);
+
+  useEffect(() => {
+    if (!ready || !authenticated) return;
+    let cancelled = false;
+    void fetch('/api/b2c/me', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled || !data?.profile) return;
+        const p = data.profile as {
+          full_name?: string | null;
+          email?: string | null;
+          phone?: string | null;
+          memberships?: Array<{
+            kind?: string;
+            company_id?: number;
+            portal_path?: string | null;
+            portal_token?: string | null;
+            active?: boolean;
+          }>;
+        };
+        const walletName = String(p.full_name || '').trim();
+        const walletEmail =
+          String(p.email || extractEmailFromPrivyUser(user) || '').trim();
+        const walletPhone = String(p.phone || '').trim();
+        if (walletName && !name) setName(walletName);
+        if (walletEmail && !email) setEmail(walletEmail);
+        const linked = (p.memberships || []).find(
+          (m) =>
+            m.active !== false &&
+            Number(m.company_id) === brand.companyId &&
+            String(m.kind || '') === brand.joinKind &&
+            (m.portal_path || m.portal_token)
+        );
+        const membershipPath = linked
+          ? String(
+              linked.portal_path ||
+                advisorPwaMemberOpenPath(
+                  brand.module,
+                  String(linked.portal_token || '')
+                )
+            )
+          : null;
+        setWallet({
+          name: walletName,
+          email: walletEmail,
+          phone: walletPhone,
+          membershipPath,
+        });
+        if (membershipPath) setMemberHref(membershipPath);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, authenticated, brand.companyId, brand.joinKind, brand.module]);
 
   const openMemberApp = (path: string, portal: string) => {
     rememberAdvisorPwaMember({
@@ -131,8 +194,10 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
         body: JSON.stringify({
           company: brand.companyId,
           kind: brand.joinKind,
-          email: extractEmailFromPrivyUser(user),
-          full_name: name.trim() || undefined,
+          email:
+            wallet?.email || extractEmailFromPrivyUser(user) || email.trim(),
+          full_name: wallet?.name || name.trim() || undefined,
+          phone: wallet?.phone || undefined,
           privyUserId: getCanonicalUserId(user?.id),
         }),
       });
@@ -221,8 +286,9 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
                   Create your {brand.brandName} account
                 </p>
                 <p className="text-[11px] opacity-80" style={{ color: pageInk }}>
-                  Sign in, then you join this app — profile, bookings and the rest
-                  live here, not on a separate website.
+                  {hire
+                    ? 'New here? Create an account to search, hire kit and track when it is coming. Already a customer? Sign in with the name and email on your file.'
+                    : 'Sign in, then you join this app — profile, bookings and the rest live here, not on a separate website.'}
                 </p>
                 {authenticated ? (
                   <p className="text-sm font-bold" style={{ color: pageInk }}>
@@ -236,6 +302,19 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
                 )}
                 {error ? (
                   <p className="text-xs font-bold text-rose-200">{error}</p>
+                ) : null}
+                {rosterSignIn ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep('signIn');
+                      setError(null);
+                    }}
+                    className="w-full py-1 text-xs font-bold opacity-80"
+                    style={{ color: pageInk }}
+                  >
+                    Already a {brand.audienceSingular}? Sign in
+                  </button>
                 ) : null}
                 <button
                   type="button"
@@ -281,8 +360,8 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
                   <p className="text-xs font-bold text-rose-700">{error}</p>
                 ) : (
                   <p className="text-[11px] opacity-70" style={{ color: pageInk }}>
-                    Already on the {gym ? 'gym' : 'practice'} list? Use those
-                    details. New here — create an account instead.
+                    Already a {brand.audienceSingular} here? Use the name and
+                    email on your file. New here — create an account instead.
                   </p>
                 )}
                 <button
@@ -292,6 +371,17 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
                   style={fillBtn}
                 >
                   {busy ? 'Signing in…' : 'Continue'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep('join');
+                    setError(null);
+                  }}
+                  className="w-full py-1 text-xs font-bold opacity-80"
+                  style={{ color: pageInk }}
+                >
+                  New here? Create an account
                 </button>
                 <button
                   type="button"
@@ -307,18 +397,36 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
               </form>
             ) : (
               <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setError(null);
-                    setStep('join');
-                  }}
-                  className="rounded-2xl px-4 py-3.5 text-sm font-black"
-                  style={fillBtn}
-                >
-                  Create account — join as a {brand.audienceSingular}
-                </button>
-                {rosterSignIn ? (
+                {authenticated && wallet ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError(null);
+                      if (wallet.membershipPath) {
+                        window.location.assign(wallet.membershipPath);
+                        return;
+                      }
+                      setStep('join');
+                    }}
+                    className="rounded-2xl px-4 py-3.5 text-sm font-black"
+                    style={fillBtn}
+                  >
+                    Continue as {wallet.name || 'SA Member'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError(null);
+                      setStep('join');
+                    }}
+                    className="rounded-2xl px-4 py-3.5 text-sm font-black"
+                    style={fillBtn}
+                  >
+                    Create account — join as a {brand.audienceSingular}
+                  </button>
+                )}
+                {rosterSignIn && !(authenticated && wallet) ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -330,6 +438,15 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
                   >
                     Sign in — I am a {brand.audienceSingular}
                   </button>
+                ) : null}
+                {authenticated && wallet ? (
+                  <p
+                    className="text-[11px] font-medium opacity-75"
+                    style={{ color: pageInk }}
+                  >
+                    Using your SA Member profile
+                    {wallet.email ? ` · ${wallet.email}` : ''}.
+                  </p>
                 ) : null}
                 {gym && brand.joinGymPath ? (
                   <>

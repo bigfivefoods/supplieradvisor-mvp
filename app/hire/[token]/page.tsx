@@ -34,6 +34,8 @@ import { B2cDiaryView, type MemberCalEvent } from '@/components/b2c/B2cMemberCal
 import { MemberAdvisorShell } from '@/components/advisors/MemberAdvisorShell';
 import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
 import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
+import { VerifiedBadge } from '@/components/services/VerifiedBadge';
+import { B2cIdentityCard } from '@/components/b2c/B2cIdentityCard';
 import {
   downloadMemberEventIcs,
   googleCalendarUrl,
@@ -192,7 +194,16 @@ type Portal = {
     email?: string | null;
     phone?: string | null;
     city?: string | null;
+    photo_url?: string | null;
     delivery_default?: string | null;
+    identity?: {
+      status?: string;
+      provider?: string | null;
+      verified_at?: string | null;
+      verified_name?: string | null;
+      is_verified?: boolean;
+    } | null;
+    id_number?: string | null;
   };
   kyc: {
     met: ReqChip[];
@@ -288,6 +299,7 @@ export default function HireCustomerPortalPage() {
   });
   const [detailBooking, setDetailBooking] = useState<MyBooking | null>(null);
   const [nearbyMarket, setNearbyMarket] = useState<NearbyMarketItem[]>([]);
+  const [idNumber, setIdNumber] = useState('');
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -318,6 +330,7 @@ export default function HireCustomerPortalPage() {
           phone: c.phone || '',
           delivery_default: c.delivery_default || '',
         });
+        setIdNumber(String(c.id_number || ''));
         setBookForm((f) => ({
           ...f,
           delivery_address: f.delivery_address || c.delivery_default || '',
@@ -679,7 +692,14 @@ export default function HireCustomerPortalPage() {
         {
           id: 'you',
           label: 'You',
-          icon: (
+          icon: portal.customer.photo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={portal.customer.photo_url}
+              alt=""
+              className="h-14 w-14 rounded-full object-cover"
+            />
+          ) : (
             <span className="flex h-full w-full items-center justify-center text-lg font-black">
               {(portal.customer.name || 'Y').trim().charAt(0).toUpperCase()}
             </span>
@@ -704,11 +724,28 @@ export default function HireCustomerPortalPage() {
             </p>
           ) : null}
           <div className="mt-4 flex items-end gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/20">
-              <User className="h-5 w-5" />
-            </div>
+            {portal.customer.photo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={portal.customer.photo_url}
+                alt=""
+                className="h-11 w-11 rounded-full object-cover ring-2 ring-white/50"
+              />
+            ) : (
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/20">
+                <User className="h-5 w-5" />
+              </div>
+            )}
             <div>
-              <p className="font-bold">{portal.customer.name}</p>
+              <p className="inline-flex flex-wrap items-center gap-2 font-bold">
+                {portal.customer.name}
+                <VerifiedBadge
+                  verified={portal.customer.identity?.is_verified}
+                  provider={portal.customer.identity?.provider}
+                  name={portal.customer.identity?.verified_name}
+                  className="!bg-white/20 !text-white !border-white/30"
+                />
+              </p>
               <p className="text-xs text-white/85">
                 {[portal.customer.city, portal.customer.phone]
                   .filter(Boolean)
@@ -1608,6 +1645,34 @@ export default function HireCustomerPortalPage() {
           </div>
         ) : (
           <div className="space-y-3">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <h2 className="text-sm font-black text-slate-900">
+                Your SA Member profile
+              </h2>
+              <p className="mt-1 text-xs text-slate-500">
+                HireAdvisor uses the name, email and phone on your SA Member
+                wallet. Verify with VerifyNow so the hire desk can trust you.
+              </p>
+            </div>
+            <B2cIdentityCard
+              initial={portal.customer.identity}
+              idNumber={idNumber}
+              onIdNumberChange={setIdNumber}
+              onChange={(v) => {
+                setPortal((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        customer: {
+                          ...prev.customer,
+                          identity: { ...prev.customer.identity, ...v },
+                        },
+                      }
+                    : prev
+                );
+                if (v.is_verified) void load();
+              }}
+            />
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <h2 className="text-sm font-black text-slate-900">
                 Contact preferences

@@ -25,6 +25,11 @@ import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { isPortalSectionOn } from '@/lib/advisors/portal-sections';
 import { compactWorkingHours } from '@/lib/schedule/working-hours';
 import { hireCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
+import {
+  portalIdentityView,
+  readIdentity,
+  type PersonIdentityVerification,
+} from '@/lib/identity/person-verification';
 
 export const HIREGRAPH_MODULE_ID = 'hiregraph' as const;
 export const HIREGRAPH_META_KEY = 'hiregraph';
@@ -533,6 +538,13 @@ export type HireCustomerPortal = {
   delivery_default?: string | null;
   notes?: string | null;
   active?: boolean;
+  /** Linked SA Member wallet */
+  platform_user_id?: string | null;
+  display_name?: string | null;
+  photo_url?: string | null;
+  city?: string | null;
+  id_number?: string | null;
+  identity?: PersonIdentityVerification | null;
 };
 
 /** Marketplace brand / portal settings for the hire company */
@@ -798,6 +810,12 @@ export function issueCustomerPortal(
     delivery_default: prev?.delivery_default || null,
     notes: prev?.notes || null,
     active: true,
+    platform_user_id: prev?.platform_user_id || null,
+    display_name: prev?.display_name || null,
+    photo_url: prev?.photo_url || null,
+    city: prev?.city || null,
+    id_number: prev?.id_number || null,
+    identity: prev?.identity || null,
   };
   return {
     store: {
@@ -821,6 +839,77 @@ export function findPortalByToken(
     if (p?.portal_token === clean && p.active !== false) return p;
   }
   return null;
+}
+
+/** Copy the SA Member wallet onto this hire customer portal (no recapture). */
+export function applyWalletToHirePortal(
+  store: HiregraphStore,
+  crmCustomerId: number,
+  wallet: {
+    user_id?: string | null;
+    full_name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    photo_url?: string | null;
+    city?: string | null;
+    id_number?: string | null;
+    identity?: PersonIdentityVerification | null;
+  }
+): { store: HiregraphStore; portal: HireCustomerPortal; changed: boolean } {
+  const key = String(crmCustomerId);
+  const prev = store.customer_portals?.[key];
+  const identity = wallet.identity
+    ? readIdentity(wallet.identity)
+    : prev?.identity
+      ? readIdentity(prev.identity)
+      : null;
+  const verified = identity?.status === 'verified';
+  const portal: HireCustomerPortal = {
+    ...(prev || {
+      crm_customer_id: crmCustomerId,
+      portal_token: '',
+      issued_at: new Date().toISOString(),
+    }),
+    preferred_email:
+      wallet.email || prev?.preferred_email || prev?.invite_email || null,
+    preferred_phone: wallet.phone || prev?.preferred_phone || null,
+    platform_user_id: wallet.user_id || prev?.platform_user_id || null,
+    display_name: wallet.full_name || prev?.display_name || null,
+    photo_url: wallet.photo_url || prev?.photo_url || null,
+    city: wallet.city || prev?.city || null,
+    id_number: wallet.id_number || identity?.id_number || prev?.id_number || null,
+    identity: identity || prev?.identity || null,
+    active: prev?.active !== false,
+  };
+  let kyc = [...(store.customer_kyc?.[key] || [])];
+  if (verified && !kyc.includes('id_document')) kyc = [...kyc, 'id_document'];
+  if (verified && !kyc.includes('age_18_plus')) kyc = [...kyc, 'age_18_plus'];
+  const kycChanged =
+    kyc.join('|') !== (store.customer_kyc?.[key] || []).join('|');
+  const changed =
+    kycChanged ||
+    portal.preferred_email !== prev?.preferred_email ||
+    portal.preferred_phone !== prev?.preferred_phone ||
+    portal.platform_user_id !== prev?.platform_user_id ||
+    portal.display_name !== prev?.display_name ||
+    portal.photo_url !== prev?.photo_url ||
+    portal.city !== prev?.city ||
+    portal.id_number !== prev?.id_number ||
+    (identity?.status || '') !== (prev?.identity?.status || '');
+  return {
+    store: {
+      ...store,
+      customer_portals: {
+        ...(store.customer_portals || {}),
+        [key]: portal,
+      },
+      customer_kyc: kycChanged
+        ? { ...(store.customer_kyc || {}), [key]: kyc }
+        : store.customer_kyc,
+    },
+    portal,
+    changed,
+  };
 }
 
 export function bookingStatusLabel(status: string | null | undefined): string {
@@ -1061,12 +1150,15 @@ export function buildHireCustomerPortalPayload(
     },
     customer: {
       id: customer.id,
-      name: customer.name,
+      name: portal.display_name || customer.name,
       email: portal.preferred_email || customer.email || null,
       phone: portal.preferred_phone || customer.phone || null,
-      city: customer.city || null,
+      city: portal.city || customer.city || null,
+      photo_url: portal.photo_url || null,
       delivery_default: portal.delivery_default || null,
       crm_id: crmId,
+      identity: portalIdentityView(portal.identity),
+      id_number: portal.id_number || null,
     },
     kyc: {
       met: kyc.map((r) => ({

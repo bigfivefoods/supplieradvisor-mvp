@@ -43,11 +43,13 @@ import {
 } from '@/lib/fitness/fitgraph';
 import { appendJoinEvent } from '@/lib/fitness/member-profile';
 import {
+  applyWalletToHirePortal,
   hireCustomerPortalPath,
   issueCustomerPortal,
   readHiregraphFromMetadata,
   writeHiregraphToMetadata,
 } from '@/lib/hire/hiregraph';
+import { identityFromProfile } from '@/lib/b2c/identity';
 import {
   issueRetailCustomerPortal,
   newRetailId,
@@ -771,6 +773,13 @@ async function joinHire(opts: {
 }) {
   const supabase = getSupabaseServer();
   let crmId: number | null = null;
+  let existingCrm: {
+    id: number;
+    email?: string | null;
+    phone?: string | null;
+    contact_name?: string | null;
+    trading_name?: string | null;
+  } | null = null;
   if (opts.email) {
     const { data } = await supabase
       .from('customers')
@@ -778,7 +787,16 @@ async function joinHire(opts: {
       .eq('profile_id', opts.company.id)
       .ilike('email', opts.email)
       .maybeSingle();
-    if (data?.id) crmId = Number(data.id);
+    if (data?.id) {
+      crmId = Number(data.id);
+      existingCrm = {
+        id: crmId,
+        email: data.email,
+        phone: data.phone,
+        contact_name: data.contact_name,
+        trading_name: data.trading_name,
+      };
+    }
   }
   if (!crmId) {
     const payload = {
@@ -811,6 +829,22 @@ async function joinHire(opts: {
     } else {
       crmId = Number(ins.data.id);
     }
+  } else if (existingCrm) {
+    const patch: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (opts.displayName && !String(existingCrm.contact_name || '').trim()) {
+      patch.contact_name = opts.displayName;
+    }
+    if (opts.phone && !String(existingCrm.phone || '').trim()) {
+      patch.phone = opts.phone;
+    }
+    if (opts.email && !String(existingCrm.email || '').trim()) {
+      patch.email = opts.email;
+    }
+    if (Object.keys(patch).length > 1) {
+      await supabase.from('customers').update(patch).eq('id', crmId);
+    }
   }
 
   let store = readHiregraphFromMetadata(opts.company.meta);
@@ -819,6 +853,17 @@ async function joinHire(opts: {
     invite_email: opts.email,
   });
   store = issued.store;
+  const stamped = applyWalletToHirePortal(store, crmId, {
+    user_id: opts.userId,
+    full_name: opts.displayName,
+    email: opts.email,
+    phone: opts.phone,
+    photo_url: opts.profile.photo_url,
+    city: opts.profile.city,
+    id_number: opts.profile.id_number,
+    identity: identityFromProfile(opts.profile),
+  });
+  store = stamped.store;
   await saveMeta(
     opts.company.id,
     writeHiregraphToMetadata(opts.company.meta, store)
