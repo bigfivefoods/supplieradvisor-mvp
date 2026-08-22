@@ -10,7 +10,9 @@ import {
   advisorPwaWebManifest,
 } from '@/lib/advisors/member-pwa';
 
-export const runtime = 'edge';
+// Node — this route loads the service-role Supabase client. Edge would pull
+// node:util/types (undici) into a shared chunk and fail Vercel _middleware.
+export const runtime = 'nodejs';
 export const revalidate = 60;
 
 export async function OPTIONS() {
