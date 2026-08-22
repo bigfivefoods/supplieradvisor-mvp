@@ -2,7 +2,12 @@
  * Run: npx --yes tsx lib/fitness/gym-shop.test.ts
  */
 import assert from 'node:assert/strict';
-import { emptyFitgraphStore, newId } from './fitgraph';
+import {
+  emptyFitgraphStore,
+  mergeFitgraphLibrary,
+  newId,
+  splitFitgraphLibrary,
+} from './fitgraph';
 import { parseGymSaleKind } from './gym-shop';
 import {
   applyPaidGymSale,
@@ -53,6 +58,20 @@ const classCard = shop.find((i) => i.id === 'pln_1');
 assert.equal(classCard?.description, 'Morning engine work. Bring a towel.');
 assert.equal(classCard?.image_url, 'https://cdn.example/class.jpg');
 assert.equal(classCard?.video_url, 'https://youtu.be/abc1234');
+
+store.movements = [
+  {
+    id: 'mov_1',
+    name: 'Squat',
+    category: 'Lower',
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  },
+];
+const split = splitFitgraphLibrary(store);
+assert.equal(split.core.movements.length, 0);
+assert.equal(split.lib.movements.length, 1);
+assert.equal(mergeFitgraphLibrary(split.core, split.lib).movements[0]?.name, 'Squat');
 
 const hidden = emptyFitgraphStore();
 assert.equal(gymRequiresPaidMembership(hidden), false);

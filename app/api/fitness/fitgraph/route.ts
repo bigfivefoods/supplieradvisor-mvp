@@ -40,8 +40,7 @@ import {
   removeCoachSpecialty,
   renameCoachSpecialty,
   getCoachSpecialtyOptions,
-  writeFitgraphToMetadata,
-  FITGRAPH_META_KEY,
+
   gymCheckinPath,
   type FitBooking,
   type FitCheckIn,
@@ -94,10 +93,7 @@ import {
   serviceMemberInviteEmailHtml,
   serviceMemberInviteEmailText,
 } from '@/lib/services/member-invite';
-import {
-  loadAdvisorModuleStore,
-  saveAdvisorModuleStore,
-} from '@/lib/business/company-data';
+import { loadFitgraphMerged, saveFitgraphMerged } from '@/lib/fitness/fitgraph-io';
 import { persistVukaCatalogIfNeeded } from '@/lib/fitness/vuka-class-catalog';
 import { applyMemberDebitBank } from '@/lib/fitness/member-debit-bank';
 import {
@@ -130,18 +126,10 @@ type Entity =
   | 'programme_logs';
 
 async function loadStore(companyId: number, opts?: { fresh?: boolean }) {
-  const loaded = await loadAdvisorModuleStore(
-    companyId,
-    FITGRAPH_META_KEY,
-    readFitgraphFromMetadata,
-    [],
-    opts
-  );
+  const loaded = await loadFitgraphMerged(companyId, opts);
   if (!opts?.fresh) return loaded;
-  const store = await persistVukaCatalogIfNeeded(
-    companyId,
-    loaded.store,
-    (next) => saveStore(companyId, loaded.meta, next)
+  const store = await persistVukaCatalogIfNeeded(companyId, loaded.store, (s) =>
+    saveStore(companyId, loaded.meta, s)
   );
   return { ...loaded, store };
 }
@@ -151,12 +139,7 @@ async function saveStore(
   _meta: Record<string, unknown>,
   store: FitgraphStore
 ) {
-  await saveAdvisorModuleStore(
-    companyId,
-    FITGRAPH_META_KEY,
-    store,
-    writeFitgraphToMetadata
-  );
+  await saveFitgraphMerged(companyId, store);
 }
 
 function analysis(store: FitgraphStore) {
@@ -192,6 +175,8 @@ export async function GET(request: NextRequest) {
     });
     if (!gate.ok) return gate.response;
     const { store } = await loadStore(companyId);
+    const wantLibrary =
+      request.nextUrl.searchParams.get('include') === 'library';
 
     const exportKind = request.nextUrl.searchParams.get('export');
     if (exportKind === 'clients' || exportKind === 'clients_template') {
@@ -217,11 +202,20 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({
-      success: true,
-      store,
-      summary: summariseFitgraph(store),
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        store: wantLibrary
+          ? store
+          : { ...store, movements: [], watch_sessions: [] },
+        summary: summariseFitgraph(store),
+      },
+      {
+        headers: {
+          'Cache-Control': 'private, max-age=8, stale-while-revalidate=30',
+        },
+      }
+    );
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

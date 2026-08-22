@@ -65,7 +65,7 @@ import { buildDeskSlotWaitlist } from '@/lib/services/advisor-waitlist-desk';
 
 export default function CalendarPage() {
   const { companyId, store, loading, saving, post, summary, load } =
-    useFitgraph();
+    useFitgraph({ library: true });
   const classSubscribe = store ? storeUsesClassSubscribe(store) : false;
   const classCatalogueHref = classSubscribe
     ? '/dashboard/fitgraph/memberships'

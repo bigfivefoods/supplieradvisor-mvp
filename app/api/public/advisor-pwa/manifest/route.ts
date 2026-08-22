@@ -10,7 +10,7 @@ import {
   advisorPwaWebManifest,
 } from '@/lib/advisors/member-pwa';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 export const revalidate = 60;
 
 export async function OPTIONS() {

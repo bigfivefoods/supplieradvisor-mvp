@@ -5,14 +5,19 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
+  hydrateAdvisorDesk,
+  rememberAdvisorDeskCache,
+} from '@/lib/client/advisor-desk-cache';
+import {
   FitgraphPage,
   FitgraphRequired,
 } from '@/components/fitness/FitgraphShell';
 import type { FitgraphStore } from '@/lib/fitness/fitgraph';
 import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 
-export function useFitgraph() {
+export function useFitgraph(opts?: { library?: boolean }) {
   const companyId = getSelectedCompanyId()!;
+  const library = opts?.library === true;
   const [store, setStore] = useState<FitgraphStore | null>(null);
   const [summary, setSummary] = useState<Record<string, unknown> | null>(null);
   const [analysis, setAnalysis] = useState<Record<string, unknown> | null>(
@@ -22,22 +27,27 @@ export function useFitgraph() {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
-      const res = await fetch(`/api/fitness/fitgraph?companyId=${companyId}`, {
-        cache: 'no-store',
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Load failed');
-      setStore(data.store);
-      setSummary(data.summary || null);
-      setAnalysis(data.analysis || null);
+      await hydrateAdvisorDesk(
+        library ? 'fitgraph:library' : 'fitgraph',
+        companyId,
+        `/api/fitness/fitgraph?companyId=${companyId}${library ? '&include=library' : ''}`,
+        (data: {
+          store?: FitgraphStore;
+          summary?: Record<string, unknown> | null;
+          analysis?: Record<string, unknown> | null;
+        }) => {
+          if (data.store) setStore(data.store);
+          setSummary(data.summary || null);
+          if (data.analysis) setAnalysis(data.analysis);
+        },
+        setLoading
+      );
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
-    } finally {
       setLoading(false);
     }
-  }, [companyId]);
+  }, [companyId, library]);
 
   useEffect(() => {
     void load();
@@ -53,6 +63,11 @@ export function useFitgraph() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Save failed');
+      rememberAdvisorDeskCache(
+        library ? 'fitgraph:library' : 'fitgraph',
+        companyId,
+        data
+      );
       setStore(data.store);
       setSummary(data.summary || null);
       if (data.analysis) setAnalysis(data.analysis);

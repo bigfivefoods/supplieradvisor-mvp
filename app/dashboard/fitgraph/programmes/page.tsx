@@ -63,7 +63,9 @@ function nextMondayIso(from = new Date().toISOString().slice(0, 10)) {
 }
 
 export default function ProgrammesPage() {
-  const { store, loading, saving, post, summary } = useFitgraph();
+  const { store, loading, saving, post, summary } = useFitgraph({
+    library: true,
+  });
   const formAnchorRef = useRef<HTMLDivElement>(null);
   const [tab, setTab] = useState<'build' | 'follow'>('build');
   const [editingId, setEditingId] = useState<string | null>(null);

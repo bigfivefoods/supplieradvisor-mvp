@@ -5,6 +5,10 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
+  hydrateAdvisorDesk,
+  rememberAdvisorDeskCache,
+} from '@/lib/client/advisor-desk-cache';
+import {
   MedicalgraphPage,
   MedicalgraphRequired,
 } from '@/components/clinic/MedicalgraphShell';
@@ -22,20 +26,24 @@ export function useMedicalgraph() {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
-      const res = await fetch(
+      await hydrateAdvisorDesk(
+        'medicalgraph',
+        companyId,
         `/api/clinic/medicalgraph?companyId=${companyId}`,
-        { cache: 'no-store' }
+        (data: {
+          store?: MedicalgraphStore;
+          summary?: Record<string, unknown> | null;
+          analysis?: Record<string, unknown> | null;
+        }) => {
+          if (data.store) setStore(data.store);
+          setSummary(data.summary || null);
+          if (data.analysis) setAnalysis(data.analysis);
+        },
+        setLoading
       );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Load failed');
-      setStore(data.store);
-      setSummary(data.summary || null);
-      setAnalysis(data.analysis || null);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
-    } finally {
       setLoading(false);
     }
   }, [companyId]);
@@ -54,6 +62,7 @@ export function useMedicalgraph() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Save failed');
+      rememberAdvisorDeskCache('medicalgraph', companyId, data);
       setStore(data.store);
       setSummary(data.summary || null);
       if (data.analysis) setAnalysis(data.analysis);

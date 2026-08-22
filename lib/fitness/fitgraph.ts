@@ -80,6 +80,8 @@ export { addDaysIso, addMonthsIso, expandRecurrenceDates, weekdayOf };
 
 export const FITGRAPH_MODULE_ID = 'fitgraph' as const;
 export const FITGRAPH_META_KEY = 'fitgraph';
+/** Movement library lives in its own module-store row so desk GET stays small. */
+export const FITGRAPH_LIB_KEY = 'fitgraph_lib';
 
 /** VUKA Fitness wordmark yellow (sampled from vukafitness.com logo). */
 export const GYM_BRAND_YELLOW = '#E8E830';
@@ -1741,6 +1743,46 @@ export function readFitgraphFromMetadata(
 export const FITGRAPH_PUBLIC_TOKEN_KEY = 'fitgraph_public_token';
 export const FITGRAPH_COACH_TOKENS_KEY = 'fitgraph_coach_tokens';
 export const FITGRAPH_CLIENT_TOKENS_KEY = 'fitgraph_client_tokens';
+
+export type FitgraphLibrary = {
+  movements: FitgraphStore['movements'];
+};
+
+export function splitFitgraphLibrary(store: FitgraphStore): {
+  core: FitgraphStore;
+  lib: FitgraphLibrary;
+} {
+  return {
+    core: { ...store, movements: [] },
+    lib: { movements: store.movements || [] },
+  };
+}
+
+export function mergeFitgraphLibrary(
+  core: FitgraphStore,
+  lib: FitgraphLibrary | null | undefined
+): FitgraphStore {
+  const movements = lib?.movements?.length ? lib.movements : core.movements || [];
+  return { ...core, movements };
+}
+
+export function readFitgraphLibFromMetadata(
+  meta: Record<string, unknown> | null | undefined
+): FitgraphLibrary {
+  const raw = meta && typeof meta === 'object' ? meta[FITGRAPH_LIB_KEY] : null;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { movements: [] };
+  }
+  const movements = (raw as { movements?: unknown }).movements;
+  return { movements: Array.isArray(movements) ? (movements as FitgraphStore['movements']) : [] };
+}
+
+export function writeFitgraphLibToMetadata(
+  meta: Record<string, unknown>,
+  lib: FitgraphLibrary
+): Record<string, unknown> {
+  return { ...meta, [FITGRAPH_LIB_KEY]: { movements: lib.movements || [] } };
+}
 
 export function writeFitgraphToMetadata(
   meta: Record<string, unknown>,

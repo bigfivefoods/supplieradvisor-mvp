@@ -1,37 +1,18 @@
 'use client';
 
-import { useState } from 'react';
 import { PrivyProvider, useLoginWithOAuth } from '@privy-io/react-auth';
 import { Toaster } from 'sonner';
-import { WagmiProvider } from 'wagmi';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { RainbowKitProvider, getDefaultConfig } from '@rainbow-me/rainbowkit';
-import { base, baseSepolia, sepolia } from 'wagmi/chains';
 import ApiAuthBridge from '@/components/auth/ApiAuthBridge';
 import SchemaHealthBanner from '@/components/system/SchemaHealthBanner';
 
 import InstallAppBanner from '@/components/pwa/InstallAppBanner';
 import ServiceWorkerRegister from '@/components/pwa/ServiceWorkerRegister';
 import { ThemeProvider, useTheme } from '@/components/theme/ThemeProvider';
-import '@rainbow-me/rainbowkit/styles.css';
-
-const walletConnectProjectId =
-  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '00000000000000000000000000000000';
 
 const hasRealWalletConnect =
   Boolean(process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID) &&
-  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID !== '00000000000000000000000000000000';
-
-/**
- * Chains: Base (inventory passport) + Ethereum Sepolia (POEscrowV2 default).
- * Escrow chain must match NEXT_PUBLIC_PO_ESCROW_CHAIN_ID (default 11155111).
- */
-const wagmiConfig = getDefaultConfig({
-  appName: 'SupplierAdvisor — Onchain Trust Layer for African Food Security',
-  projectId: walletConnectProjectId,
-  chains: [sepolia, baseSepolia, base],
-  ssr: true,
-});
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID !==
+    '00000000000000000000000000000000';
 
 /**
  * Privy login methods. Prefer email/social for contractors & mobile.
@@ -64,11 +45,12 @@ function PrivyOauthCompleter() {
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient());
   const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID || '';
 
   if (!privyAppId) {
-    console.error('NEXT_PUBLIC_PRIVY_APP_ID is missing — authentication will fail');
+    console.error(
+      'NEXT_PUBLIC_PRIVY_APP_ID is missing — authentication will fail'
+    );
   }
 
   return (
@@ -76,12 +58,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <PrivyProvider
         appId={privyAppId}
         config={{
-          loginMethods: LOGIN_METHODS as ('email' | 'google' | 'apple' | 'wallet')[],
-          // GymAdvisor / SA Member PWAs look like in-app browsers to Privy;
-          // Google is otherwise blocked with "not allowed".
+          loginMethods: LOGIN_METHODS as (
+            | 'email'
+            | 'google'
+            | 'apple'
+            | 'wallet'
+          )[],
           allowOAuthInEmbeddedBrowsers: true,
           appearance: {
-            // Keep Privy modal stable — app shell follows ThemeProvider dark/light
             theme: 'light',
             accentColor: '#00b4d8',
             logo: '/sa-logo.png',
@@ -89,9 +73,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
             landingHeader: 'Sign in to SupplierAdvisor',
             loginMessage: 'Google, Apple, or the email on your invitation.',
           },
-          // Do NOT auto-create embedded wallets on email login.
-          // Wallet creation failures surface as "Something went wrong / Try again later"
-          // and block contractor email OTP sign-in. Business users can link wallets later.
           embeddedWallets: {
             ethereum: {
               createOnLogin: 'off',
@@ -99,26 +80,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
           },
         }}
       >
-        <WagmiProvider config={wagmiConfig}>
-          <QueryClientProvider client={queryClient}>
-            <RainbowKitProvider>
-              {/*
-                Do not use overflow/transform/z-0 wrappers that trap position:fixed
-                (landing header must stay viewport-fixed). Isolation is fine.
-              */}
-              <ApiAuthBridge>
-                <PrivyOauthCompleter />
-                <ServiceWorkerRegister />
-                <SchemaHealthBanner />
-                <div className="min-h-dvh pointer-events-auto isolate bg-sa-bg text-sa-text">
-                  {children}
-                </div>
-                <InstallAppBanner />
-              </ApiAuthBridge>
-              <ThemedToaster />
-            </RainbowKitProvider>
-          </QueryClientProvider>
-        </WagmiProvider>
+        <ApiAuthBridge>
+          <PrivyOauthCompleter />
+          <ServiceWorkerRegister />
+          <SchemaHealthBanner />
+          <div className="min-h-dvh pointer-events-auto isolate bg-sa-bg text-sa-text">
+            {children}
+          </div>
+          <InstallAppBanner />
+        </ApiAuthBridge>
+        <ThemedToaster />
       </PrivyProvider>
     </ThemeProvider>
   );

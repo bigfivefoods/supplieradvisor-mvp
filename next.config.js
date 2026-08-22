@@ -3,6 +3,9 @@ const nextConfig = {
   // Keep PDF extractors out of the Turbopack/webpack bundle so their
   // CJS/worker layout resolves correctly on the server.
   serverExternalPackages: ['unpdf', 'pdf-parse', 'pdfkit', 'xlsx', 'sharp'],
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'framer-motion'],
+  },
   images: {
     remotePatterns: [
       {

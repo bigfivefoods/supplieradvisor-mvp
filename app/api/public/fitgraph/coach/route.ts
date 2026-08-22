@@ -123,13 +123,17 @@ async function resolveCoach(
     indexKeys: [FITGRAPH_COACH_TOKENS_KEY],
   });
   if (!loaded) return null;
-  const coach = loaded.store.coaches.find((c) => c.portal_token === clean);
+  const { loadFitgraphLibraryRow } = await import('@/lib/fitness/fitgraph-io');
+  const { mergeFitgraphLibrary } = await import('@/lib/fitness/fitgraph');
+  const lib = await loadFitgraphLibraryRow(loaded.companyId);
+  const store = mergeFitgraphLibrary(loaded.store, lib);
+  const coach = store.coaches.find((c) => c.portal_token === clean);
   if (!coach || coach.active === false) return null;
 
   return {
     companyId: loaded.companyId,
     meta: loaded.meta,
-    store: loaded.store,
+    store,
     coach,
   };
 }
@@ -139,16 +143,8 @@ async function saveStore(
   _meta: Record<string, unknown>,
   store: FitgraphStore
 ) {
-  const { saveAdvisorModuleStore } = await import('@/lib/business/company-data');
-  const { FITGRAPH_META_KEY, writeFitgraphToMetadata } = await import(
-    '@/lib/fitness/fitgraph'
-  );
-  await saveAdvisorModuleStore(
-    companyId,
-    FITGRAPH_META_KEY,
-    store,
-    writeFitgraphToMetadata
-  );
+  const { saveFitgraphMerged } = await import('@/lib/fitness/fitgraph-io');
+  await saveFitgraphMerged(companyId, store);
 }
 
 export async function GET(request: NextRequest) {

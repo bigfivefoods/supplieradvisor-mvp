@@ -116,6 +116,11 @@ async function resolveMember(
   });
   if (!loaded) return null;
 
+  const { loadFitgraphLibraryRow } = await import('@/lib/fitness/fitgraph-io');
+  const { mergeFitgraphLibrary } = await import('@/lib/fitness/fitgraph');
+  const lib = await loadFitgraphLibraryRow(loaded.companyId);
+  loaded.store = mergeFitgraphLibrary(loaded.store, lib);
+
   const supabase = getSupabaseServer();
   const { data: prof } = await supabase
     .from('profiles')

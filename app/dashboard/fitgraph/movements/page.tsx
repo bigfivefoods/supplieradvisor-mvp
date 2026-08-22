@@ -34,7 +34,9 @@ const blank = () => ({
 });
 
 export default function MovementsPage() {
-  const { companyId, store, loading, saving, post, summary } = useFitgraph();
+  const { companyId, store, loading, saving, post, summary } = useFitgraph({
+    library: true,
+  });
   const formAnchorRef = useRef<HTMLDivElement>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(blank);

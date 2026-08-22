@@ -50,6 +50,7 @@ export function mergeCompanyChromeLayers(
 
 export const ADVISOR_MODULE_KEYS = [
   'fitgraph',
+  'fitgraph_lib',
   'physiograph',
   'medicalgraph',
   'psychiatrygraph',

@@ -10,6 +10,7 @@ import {
 } from '@/lib/business/company-data';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { ttlGet, ttlSet } from '@/lib/system/memory-ttl';
+import { hotGet, hotSet } from '@/lib/system/hot-kv';
 
 const MIN_TOKEN_LEN = 8;
 const TOKEN_COMPANY_TTL_MS = 90_000;
@@ -32,7 +33,7 @@ export async function resolveAdvisorCompanyId(opts: {
   if (parsed != null && Number.isFinite(parsed) && parsed > 0) return parsed;
 
   const cacheKey = tokenCompanyCacheKey(opts.moduleKey, clean);
-  const cached = ttlGet<number>(cacheKey);
+  const cached = ttlGet<number>(cacheKey) ?? (await hotGet<number>(cacheKey));
   if (cached && cached > 0) return cached;
 
   const supabase = getSupabaseServer();
@@ -46,6 +47,7 @@ export async function resolveAdvisorCompanyId(opts: {
     const id = Number(byStore.data.company_id);
     if (Number.isFinite(id) && id > 0) {
       ttlSet(cacheKey, id, TOKEN_COMPANY_TTL_MS);
+      void hotSet(cacheKey, id, TOKEN_COMPANY_TTL_MS);
       return id;
     }
   }
@@ -60,6 +62,7 @@ export async function resolveAdvisorCompanyId(opts: {
       const id = Number(rpc.data);
       if (Number.isFinite(id) && id > 0) {
         ttlSet(cacheKey, id, TOKEN_COMPANY_TTL_MS);
+        void hotSet(cacheKey, id, TOKEN_COMPANY_TTL_MS);
         return id;
       }
     }
@@ -73,6 +76,7 @@ export async function resolveAdvisorCompanyId(opts: {
       const id = Number(row.data.id);
       if (Number.isFinite(id) && id > 0) {
         ttlSet(cacheKey, id, TOKEN_COMPANY_TTL_MS);
+        void hotSet(cacheKey, id, TOKEN_COMPANY_TTL_MS);
         return id;
       }
     }

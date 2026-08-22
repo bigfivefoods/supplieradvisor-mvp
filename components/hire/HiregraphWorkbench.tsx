@@ -5,6 +5,10 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
+  hydrateAdvisorDesk,
+  rememberAdvisorDeskCache,
+} from '@/lib/client/advisor-desk-cache';
+import {
   HiregraphPage,
   HiregraphRequired,
 } from '@/components/hire/HiregraphShell';
@@ -36,18 +40,21 @@ export function useHiregraph() {
   };
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
-      const res = await fetch(
+      await hydrateAdvisorDesk(
+        'hiregraph',
+        companyId,
         `/api/hire/hiregraph?companyId=${companyId}`,
-        { cache: 'no-store' }
+        (data: {
+          store?: HiregraphStore;
+          summary?: Record<string, unknown> | null;
+          coreSuppliers?: HireCorePartyRef[];
+          coreCustomers?: HireCorePartyRef[];
+        }) => applyPayload(data),
+        setLoading
       );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Load failed');
-      applyPayload(data);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
-    } finally {
       setLoading(false);
     }
   }, [companyId]);
@@ -66,6 +73,7 @@ export function useHiregraph() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Save failed');
+      rememberAdvisorDeskCache('hiregraph', companyId, data);
       applyPayload(data);
       return data;
     } catch (e: unknown) {

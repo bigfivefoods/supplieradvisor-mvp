@@ -5,6 +5,10 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
+  hydrateAdvisorDesk,
+  rememberAdvisorDeskCache,
+} from '@/lib/client/advisor-desk-cache';
+import {
   FieldgraphPage,
   FieldgraphRequired,
 } from '@/components/agri/FieldgraphShell';
@@ -26,23 +30,28 @@ export function useFieldgraph(opts?: { season?: string }) {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const q = new URLSearchParams({
+      companyId: String(companyId),
+      season,
+    });
     try {
-      const q = new URLSearchParams({
-        companyId: String(companyId),
-        season,
-      });
-      const res = await fetch(`/api/agri/fieldgraph?${q}`, {
-        cache: 'no-store',
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Load failed');
-      setStore(data.store);
-      setSummary(data.summary || null);
-      setAnalysis(data.analysis || null);
+      await hydrateAdvisorDesk(
+        `fieldgraph:${season}`,
+        companyId,
+        `/api/agri/fieldgraph?${q}`,
+        (data: {
+          store?: FieldgraphStore;
+          summary?: Record<string, unknown> | null;
+          analysis?: Record<string, unknown> | null;
+        }) => {
+          if (data.store) setStore(data.store);
+          setSummary(data.summary || null);
+          if (data.analysis) setAnalysis(data.analysis);
+        },
+        setLoading
+      );
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
-    } finally {
       setLoading(false);
     }
   }, [companyId, season]);
@@ -61,6 +70,7 @@ export function useFieldgraph(opts?: { season?: string }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Save failed');
+      rememberAdvisorDeskCache(`fieldgraph:${season}`, companyId, data);
       setStore(data.store);
       setSummary(data.summary || null);
       if (data.analysis) setAnalysis(data.analysis);

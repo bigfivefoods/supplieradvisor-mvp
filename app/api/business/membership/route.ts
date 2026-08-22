@@ -118,7 +118,8 @@ export async function GET(request: NextRequest) {
     );
     const sidebarModuleOrder = fromMember.length ? fromMember : fromProfile;
 
-    return NextResponse.json({
+    return NextResponse.json(
+      {
       success: true,
       companyId,
       membership: {
@@ -149,7 +150,13 @@ export async function GET(request: NextRequest) {
       companyName,
       moduleOptions: listCompanyModuleOptions(),
       sidebarModuleOrder,
-    });
+    },
+      {
+        headers: {
+          'Cache-Control': 'private, max-age=15, stale-while-revalidate=60',
+        },
+      }
+    );
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },
