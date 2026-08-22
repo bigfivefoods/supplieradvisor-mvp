@@ -1063,6 +1063,8 @@ export function updateClassDesk(
       billing?: FitMembershipPlan['billing'];
       schedule_label?: string;
       description?: string;
+      image_url?: string | null;
+      video_url?: string | null;
       public?: boolean;
       location?: string;
       class_credits?: number | null;
@@ -1101,6 +1103,12 @@ export function updateClassDesk(
     if (patch.billing) plan.billing = patch.billing;
     if (patch.schedule_label != null) plan.schedule_label = patch.schedule_label;
     if (patch.description != null) plan.description = patch.description;
+    if (patch.image_url !== undefined) {
+      plan.image_url = patch.image_url ? String(patch.image_url) : null;
+    }
+    if (patch.video_url !== undefined) {
+      plan.video_url = patch.video_url ? String(patch.video_url) : null;
+    }
     if (patch.public != null) plan.public = patch.public;
     if (patch.location != null) plan.location = patch.location;
     if (patch.class_credits !== undefined) {

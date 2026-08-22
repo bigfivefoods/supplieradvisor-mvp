@@ -16,6 +16,7 @@ import {
   isPlatformOwnerEmail,
   PLATFORM_OWNER_EMAILS,
 } from '@/lib/system/platform-company';
+import { canAppearInCompanySwitcher } from '@/lib/business/permissions';
 import {
   isPlatformOperatorEmail,
   isPlatformOperatorUserId,
@@ -306,9 +307,14 @@ export async function POST(request: NextRequest) {
         return !del;
       })
       .map((profile) => {
-        const bu = memberships.find(
+        const candidates = memberships.filter(
           (b) => String(b.profile_id) === String(profile.id)
         );
+        const bu =
+          candidates.find((b) =>
+            canAppearInCompanySwitcher(b.role ? String(b.role) : null)
+          ) || candidates[0];
+        if (!canAppearInCompanySwitcher(bu?.role || null)) return null;
         const p = profile as {
           id: number;
           trading_name?: string;
@@ -354,7 +360,8 @@ export async function POST(request: NextRequest) {
             : advisorHome || homePathForEntity(p.business_type, p.org_type),
           role: bu?.role || 'member',
         };
-      });
+      })
+      .filter((c): c is NonNullable<typeof c> => Boolean(c));
 
     // Soft-deleted companies this user deleted (restore window)
     let deletedCompanies: Array<{

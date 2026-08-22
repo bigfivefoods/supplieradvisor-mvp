@@ -37,8 +37,8 @@ export function AdvisorEngagementField({
           <span>
             <span className="block font-bold">Contract</span>
             <span className="mt-0.5 block text-[11px] text-slate-500">
-              Independent contractor. They use the phone work app to run
-              their diary, see booked slots, and book members with them.
+              Independent contractor. They use the phone work app for diary
+              and clients — not the company workspace.
             </span>
           </span>
         </label>
@@ -59,8 +59,8 @@ export function AdvisorEngagementField({
           <span>
             <span className="block font-bold">Permanent</span>
             <span className="mt-0.5 block text-[11px] text-slate-500">
-              Permanent / employed staff. They join the company desktop (B2B)
-              and People.
+              Employed. They use the same work app. Payroll and leave sit in
+              People. Only the owner opens SupplierAdvisor.
             </span>
           </span>
         </label>

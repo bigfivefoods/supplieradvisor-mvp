@@ -575,7 +575,12 @@ export type FitMembershipPlan = {
   billing: 'monthly' | 'weekly' | 'annual' | 'pack' | 'drop_in';
   class_credits?: number | null;
   pt_credits?: number | null;
+  /** Shop bio — shown when a member opens the class to learn more */
   description?: string;
+  /** Marketing still for the shop card and detail sheet */
+  image_url?: string | null;
+  /** YouTube / Vimeo / uploaded clip shown on the shop detail sheet */
+  video_url?: string | null;
   /** Show on public website pricing */
   public?: boolean;
   /** What buying this plan unlocks */
@@ -1406,6 +1411,30 @@ export function namesMatchForPortalSignIn(
   const bt = b.split(' ').filter(Boolean);
   if (at.length < 2 || bt.length < 2) return false;
   return at[0] === bt[0] && at[at.length - 1] === bt[bt.length - 1];
+}
+
+/** Active coach on the gym file — email is the access key. */
+export function findCoachForPortalSignIn(
+  store: FitgraphStore,
+  lookup: { name?: string | null; email?: string | null }
+): FitCoach | null {
+  const email = String(lookup.email || '').trim().toLowerCase();
+  if (!email || !email.includes('@')) return null;
+  const name = String(lookup.name || '').trim();
+  return (
+    (store.coaches || []).find((c) => {
+      if (c.active === false || c.end_date) return false;
+      const emails = [c.email]
+        .map((v) => String(v || '').trim().toLowerCase())
+        .filter((v) => v.includes('@'));
+      if (!emails.includes(email)) return false;
+      const parts = name.split(/\s+/).filter(Boolean);
+      if (parts.length >= 2 && c.name) {
+        return namesMatchForPortalSignIn(c.name, name);
+      }
+      return true;
+    }) || null
+  );
 }
 
 /** Existing member sign-in: name + email must both match the gym roster. */

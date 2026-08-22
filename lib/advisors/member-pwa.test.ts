@@ -6,6 +6,8 @@ import {
   ADVISOR_PWA_MODULES,
   ADVISOR_PWA_PORTAL_INDEX_KEYS,
   advisorPwaMemberOpenPath,
+  advisorPwaOpenPath,
+  isAdvisorStaffPortalPath,
   advisorPwaStartPath,
   advisorPwaWebManifest,
   buildAdvisorPwaBrand,
@@ -53,6 +55,33 @@ assert.equal(
   advisorPwaMemberOpenPath('fitgraph', 'mem_1'),
   '/member/fitgraph/mem_1'
 );
+assert.equal(
+  advisorPwaOpenPath('fitgraph', 'coach_110_abc'),
+  '/coach/fitgraph/coach_110_abc'
+);
+assert.equal(
+  advisorPwaOpenPath('fitgraph', 'member_110_abc'),
+  '/member/fitgraph/member_110_abc'
+);
+assert.equal(
+  advisorPwaOpenPath('physiograph', 'clin_9_phys_abc'),
+  '/clinician/physiograph/clin_9_phys_abc'
+);
+assert.equal(
+  advisorPwaOpenPath('dentalgraph', 'clin_9_dent_abc'),
+  '/clinician/dentalgraph/clin_9_dent_abc'
+);
+assert.equal(
+  advisorPwaOpenPath('physiograph', 'ppat_9_abc'),
+  '/member/physiograph/ppat_9_abc'
+);
+assert.equal(isAdvisorStaffPortalPath('/coach/fitgraph/coach_1'), true);
+assert.equal(
+  isAdvisorStaffPortalPath('/clinician/physiograph/clin_1'),
+  true
+);
+assert.equal(isAdvisorStaffPortalPath('/member/fitgraph/member_1'), false);
+assert.equal(isAdvisorStaffPortalPath('/hire/hc_1'), false);
 assert.equal(advisorPwaMemberOpenPath('hiregraph', 'hc_1'), '/hire/hc_1');
 assert.equal(
   advisorPwaMemberOpenPath('retailgraph', 'rtl_cus_1_abc'),

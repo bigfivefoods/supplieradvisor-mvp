@@ -65,11 +65,14 @@ export async function POST(request: NextRequest) {
     if (action !== 'sign_in') {
       return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
     }
+    const expectRaw = String(body.expect_role || body.expectRole || '').trim();
     const result = await signInAdvisorPwaMember({
       module: String(body.module || '').trim(),
       token: String(body.token || body.public_token || '').trim(),
       name: String(body.name || '').trim(),
       email: String(body.email || '').trim(),
+      expectRole:
+        expectRaw === 'staff' || expectRaw === 'member' ? expectRaw : null,
     });
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status });
@@ -79,6 +82,7 @@ export async function POST(request: NextRequest) {
       name: result.name,
       portal_token: result.portal_token,
       path: result.path,
+      role: result.role || null,
     });
   } catch (e: unknown) {
     return NextResponse.json(

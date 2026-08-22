@@ -158,7 +158,7 @@ export function AdvisorPersonInviteRow({
               });
               toast.success(
                 next === 'employed'
-                  ? 'Employed — B2B workspace'
+                  ? 'Employed — work app + People'
                   : 'Contractor — work app'
               );
               onChanged?.();
@@ -171,7 +171,7 @@ export function AdvisorPersonInviteRow({
         }}
       >
         <option value="contractor">Contractor · work app</option>
-        <option value="employed">Employed · workspace</option>
+        <option value="employed">Employed · work app</option>
       </select>
       <button
         type="button"

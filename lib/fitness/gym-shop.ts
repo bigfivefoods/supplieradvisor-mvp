@@ -55,6 +55,7 @@ export type GymShopItem = {
   price_zar: number;
   billing: string;
   image_url?: string | null;
+  video_url?: string | null;
   group?: 'goods' | 'service';
   class_credits?: number | null;
   programme_id?: string | null;
@@ -100,6 +101,8 @@ export function publicMembershipShop(
       description: p.description,
       price_zar: Number(p.price_zar) || 0,
       billing: p.billing,
+      image_url: p.image_url || null,
+      video_url: p.video_url || null,
       class_credits: p.class_credits,
       programme_id: p.programme_id || null,
       schedule_label: p.schedule_label,

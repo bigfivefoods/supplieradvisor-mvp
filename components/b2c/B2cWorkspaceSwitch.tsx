@@ -83,8 +83,8 @@ export function B2cWorkspaceSwitch({
             Switch to business
           </p>
           <p className="text-[11px] text-slate-500 dark:text-neutral-400">
-            Same login. Pick a company — it will not mix into this personal
-            wallet.
+            Same login. Owners open SupplierAdvisor here — it will not mix
+            into this personal wallet.
           </p>
         </div>
       </div>

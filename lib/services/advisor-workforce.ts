@@ -1,8 +1,10 @@
 /**
  * Advisor workforce access.
  *
- * Employed desk / full-time staff → B2B workspace (operations role).
- * Contracted coaches / clinicians → B2C work PWA (token portal).
+ * Coaches / clinicians (employed or contractor) → work PWA only.
+ * The company OS is for owners. An owner who also coaches uses both:
+ * Switch to business (workspace) and I work here (staff PWA).
+ * Front desk may still be invited to the B2B workspace separately.
  */
 import { getAppUrl, getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import { renderAdvisorNoticeEmail } from '@/lib/services/advisor-branded-email';
@@ -45,9 +47,9 @@ export function isAdvisorWorkforceModule(
 }
 
 export function accessLaneForEngagement(
-  engagement: AdvisorEngagement | string | null | undefined
+  _engagement?: AdvisorEngagement | string | null
 ): AdvisorAccessLane {
-  return engagement === 'employed' ? 'b2b' : 'b2c';
+  return 'b2c';
 }
 
 export function resolveAdvisorEngagement(person: {

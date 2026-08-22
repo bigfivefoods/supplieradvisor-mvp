@@ -3,6 +3,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getCanonicalUserId, userIdMatchVariants } from '@/lib/auth/identity';
 import { getContainerOperatorMetrics } from '@/lib/contractor/access';
 import { requireVerifiedUser } from '@/lib/auth/api-auth';
+import { canAppearInCompanySwitcher } from '@/lib/business/permissions';
 
 /**
  * POST /api/contractor/session
@@ -37,10 +38,10 @@ export async function POST(request: NextRequest) {
           .limit(8),
         supabase
           .from('business_users')
-          .select('id')
+          .select('id, role')
           .in('user_id', variants)
           .eq('status', 'active')
-          .limit(1),
+          .limit(40),
       ]);
       const isLiveContractor = (c: {
         contract_accepted_at?: string | null;
@@ -66,7 +67,9 @@ export async function POST(request: NextRequest) {
           .limit(1);
         isContractor = Boolean(byEmail?.length);
       }
-      const isBusinessUser = Boolean(memberships?.length);
+      const isBusinessUser = (memberships || []).some((m) =>
+        canAppearInCompanySwitcher(m.role ? String(m.role) : null)
+      );
       return NextResponse.json({
         success: true,
         lite: true,
@@ -119,12 +122,14 @@ export async function POST(request: NextRequest) {
 
     const { data: memberships } = await supabase
       .from('business_users')
-      .select('id')
+      .select('id, role')
       .in('user_id', variants)
       .eq('status', 'active')
-      .limit(1);
+      .limit(40);
 
-    const isBusinessUser = (memberships || []).length > 0;
+    const isBusinessUser = (memberships || []).some((m) =>
+      canAppearInCompanySwitcher(m.role ? String(m.role) : null)
+    );
 
     if (contractors.length === 0) {
       return NextResponse.json({

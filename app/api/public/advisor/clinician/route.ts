@@ -177,6 +177,7 @@ function portalJson(resolved: Resolved, from?: string, to?: string) {
   return {
     success: true,
     module: resolved.module,
+    company_id: resolved.companyId,
     brand:
       resolved.store.settings?.brand_name ||
       clinicianModuleLabel(resolved.module),

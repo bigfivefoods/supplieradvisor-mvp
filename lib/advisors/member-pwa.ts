@@ -163,6 +163,36 @@ export function advisorPwaMemberOpenPath(
   return `/member/${module}/${t}`;
 }
 
+const CLINIC_PWA_MODULES: AdvisorPwaModule[] = [
+  'physiograph',
+  'dentalgraph',
+  'medicalgraph',
+  'psychiatrygraph',
+];
+
+/** Member, coach, clinician, or hire portal — token prefix decides the view. */
+export function advisorPwaOpenPath(
+  module: AdvisorPwaModule,
+  token: string
+): string {
+  const raw = String(token || '').trim();
+  if (module === 'fitgraph' && raw.startsWith('coach_')) {
+    return `/coach/fitgraph/${encodeURIComponent(raw)}`;
+  }
+  if (
+    CLINIC_PWA_MODULES.includes(module) &&
+    raw.startsWith('clin_')
+  ) {
+    return `/clinician/${module}/${encodeURIComponent(raw)}`;
+  }
+  return advisorPwaMemberOpenPath(module, raw);
+}
+
+export function isAdvisorStaffPortalPath(path: string | null | undefined): boolean {
+  const p = String(path || '');
+  return p.includes('/coach/') || p.includes('/clinician/');
+}
+
 export function normalizeHexColor(raw: string | null | undefined, fallback: string): string {
   const s = String(raw || '').trim();
   if (/^#[0-9a-fA-F]{6}$/.test(s)) return s.toLowerCase();

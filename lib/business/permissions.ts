@@ -335,6 +335,28 @@ export function canManageTeam(role?: string | null) {
   return canAdmin(role, 'team') || canAdmin(role, 'invites');
 }
 
+/**
+ * Who may open the SupplierAdvisor company OS from SA Member / staff PWA.
+ * Owners only. Coaches and clinicians who work here use the work PWA.
+ */
+export function canOpenCompanyWorkspace(role?: string | null): boolean {
+  return normalizeTeamRole(role) === 'owner';
+}
+
+/**
+ * Company picker after login. Owners, plus Team-invited admin/finance, plus
+ * sales contractors (/sales). Operations (employed coaches, desk) stay off it.
+ */
+export function canAppearInCompanySwitcher(role?: string | null): boolean {
+  const r = normalizeTeamRole(role);
+  return (
+    r === 'owner' ||
+    r === 'admin' ||
+    r === 'finance' ||
+    r === 'sales_contractor'
+  );
+}
+
 /** Sidebar module id → permission resource (ids match lib/chrome/module-nav.ts) */
 export const SIDEBAR_MODULE_RESOURCE: Record<string, PermissionResource> = {
   home: 'dashboard',

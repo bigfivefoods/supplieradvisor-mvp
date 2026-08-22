@@ -18,6 +18,8 @@ type Props = {
     video_description?: string;
   }) => void;
   dark?: boolean;
+  /** Hide the coaching-cues textarea (class shop marketing only needs the clip). */
+  showVideoDescription?: boolean;
 };
 
 export function MovementMediaFields({
@@ -28,6 +30,7 @@ export function MovementMediaFields({
   videoDescription,
   onChange,
   dark,
+  showVideoDescription = true,
 }: Props) {
   const imgRef = useRef<HTMLInputElement>(null);
   const vidRef = useRef<HTMLInputElement>(null);
@@ -158,12 +161,14 @@ export function MovementMediaFields({
           value={videoUrl}
           onChange={(e) => onChange({ video_url: e.target.value })}
         />
-        <textarea
-          className={input + ' min-h-[3.5rem] resize-y'}
-          placeholder="Video description — what to watch for, cues, common faults"
-          value={videoDescription}
-          onChange={(e) => onChange({ video_description: e.target.value })}
-        />
+        {showVideoDescription ? (
+          <textarea
+            className={input + ' min-h-[3.5rem] resize-y'}
+            placeholder="Video description — what to watch for, cues, common faults"
+            value={videoDescription}
+            onChange={(e) => onChange({ video_description: e.target.value })}
+          />
+        ) : null}
         <div className="flex flex-wrap gap-1.5">
           <button
             type="button"

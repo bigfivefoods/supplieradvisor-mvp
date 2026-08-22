@@ -57,6 +57,7 @@ import {
 import { ProgrammeView } from '@/components/fitness/ProgrammeView';
 import { ClassSubscriptionReport } from '@/components/fitness/ClassSubscriptionReport';
 import { MemberPortalWeekCalendar } from '@/components/advisors/MemberPortalWeekCalendar';
+import { OwnerWorkspaceCta } from '@/components/advisors/OwnerWorkspaceCta';
 import type {
   FitHydratedProgramme,
   FitMovement,
@@ -302,6 +303,7 @@ function mondayOf(iso: string) {
 export default function CoachFitgraphPortalPage() {
   const { token } = useParams() as { token: string };
   const [portal, setPortal] = useState<Portal | null>(null);
+  const [companyId, setCompanyId] = useState<number | null>(null);
   const [brand, setBrand] = useState('Gym');
   const [publicToken, setPublicToken] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
@@ -432,6 +434,9 @@ export default function CoachFitgraphPortalPage() {
       if (!res.ok) throw new Error(data.error || 'Failed');
       setPortal(data.portal);
       setBrand(data.brand || 'Gym');
+      setCompanyId(
+        Number.isFinite(Number(data.company_id)) ? Number(data.company_id) : null
+      );
       setPublicToken(data.public_token);
       const c = data.portal?.coach;
       if (c) {
@@ -1851,9 +1856,10 @@ export default function CoachFitgraphPortalPage() {
             </p>
             <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
               {portal.coach.engagement === 'employed'
-                ? 'Employed — you also have the company workspace.'
+                ? 'Employed — this work app is your diary. Only the gym owner opens SupplierAdvisor.'
                 : 'Contractor — this work app is your diary. Gym-booked slots and your private PT live here.'}
             </p>
+            <OwnerWorkspaceCta companyId={companyId} brand={brand} />
             {(portal.coach.start_date ||
               portal.coach.end_date ||
               portal.coach.rate_zar != null ||

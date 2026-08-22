@@ -759,7 +759,7 @@ function MeAppInner() {
             </p>
             <p className="mt-4 text-center text-[11px] text-sky-100/70">
               Same login opens any company you operate. After sign-in, use
-              the building icon or You → Switch to business.{' '}
+              the building icon or You → Switch to business if you own the company.{' '}
               <Link href="/dashboard/select-company" className="font-bold underline">
                 Workspaces
               </Link>

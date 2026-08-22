@@ -15,7 +15,6 @@ import {
   ChevronRight,
   Loader2,
   Plus,
-  User,
   UserPlus,
   UserX,
   Users,
@@ -23,6 +22,11 @@ import {
 } from 'lucide-react';
 import { MemberPortalWeekCalendar } from '@/components/advisors/MemberPortalWeekCalendar';
 import { ClinicianPwaVisitCare } from '@/components/clinic/ClinicianPwaVisitCare';
+import {
+  AdvisorWorkPwaChrome,
+  type AdvisorWorkTab,
+} from '@/components/services/AdvisorWorkPwaChrome';
+import { OwnerWorkspaceCta } from '@/components/advisors/OwnerWorkspaceCta';
 
 type RosterRow = {
   booking_id: string;
@@ -121,6 +125,7 @@ export default function ClinicianPortalPage() {
   };
   const [portal, setPortal] = useState<Portal | null>(null);
   const [brand, setBrand] = useState('Practice');
+  const [companyId, setCompanyId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -130,7 +135,7 @@ export default function ClinicianPortalPage() {
   );
   const [openId, setOpenId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
+  const [workTab, setWorkTab] = useState<AdvisorWorkTab>('today');
   const [patientFor, setPatientFor] = useState('');
   const [edit, setEdit] = useState({
     service_id: '',
@@ -180,6 +185,9 @@ export default function ClinicianPortalPage() {
       if (!res.ok) throw new Error(data.error || 'Failed');
       setPortal(data.portal);
       setBrand(data.brand || 'Practice');
+      setCompanyId(
+        Number.isFinite(Number(data.company_id)) ? Number(data.company_id) : null
+      );
       setError(null);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed');
@@ -259,238 +267,267 @@ export default function ClinicianPortalPage() {
 
   if (!portal) return null;
 
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayCards = portal.appointments.filter(
+    (c) => c.appointment.date === todayIso
+  );
+  const workAccent =
+    mod === 'physiograph'
+      ? '#0d9488'
+      : mod === 'dentalgraph'
+        ? '#0284c7'
+        : mod === 'psychiatrygraph'
+          ? '#6366f1'
+          : '#059669';
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-24">
-      <header className="border-b border-slate-800 px-4 py-4 sm:px-6 sticky top-0 z-20 bg-slate-950/95 backdrop-blur">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-[10px] font-black uppercase tracking-widest text-sky-400">
-            Clinician diary · {brand}
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 mt-1">
-            <div className="flex items-center gap-2 min-w-0">
-              {portal.clinician.photo_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={portal.clinician.photo_url}
-                  alt=""
-                  className="w-10 h-10 rounded-full object-cover border border-sky-500/40 shrink-0"
-                />
-              ) : (
-                <div className="w-10 h-10 rounded-full bg-sky-500/20 border border-sky-500/40 flex items-center justify-center shrink-0">
-                  <User className="w-5 h-5 text-sky-400" />
-                </div>
-              )}
-              <div className="min-w-0">
-                <h1 className="text-xl font-black truncate">
-                  {portal.clinician.name}
-                </h1>
-                {(portal.clinician.roles || []).length > 0 && (
-                  <p className="text-[10px] text-sky-200/80 truncate">
-                    {(portal.clinician.roles || []).join(' · ')}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setShowProfile(true)}
-                className="inline-flex items-center gap-1 rounded-full border border-slate-600 px-3 py-1.5 text-xs font-black text-slate-100"
-              >
-                <User className="w-3.5 h-3.5" /> Bio
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowCreate(true)}
-                className="inline-flex items-center gap-1 rounded-full bg-sky-500 text-sky-950 px-3 py-1.5 text-xs font-black"
-              >
-                <Plus className="w-3.5 h-3.5" /> New appointment
-              </button>
-            </div>
-          </div>
-          <p className="text-[11px] text-slate-400 mt-1">
-            Edit and delete diary entries · book patients · mark attendance ·
-            waitlist promotes automatically
+    <AdvisorWorkPwaChrome
+      brand={brand}
+      name={portal.clinician.name}
+      photoUrl={portal.clinician.photo_url}
+      eyebrow={`Clinician · ${brand}`}
+      accent={workAccent}
+      tab={workTab}
+      onTab={setWorkTab}
+    >
+      {error ? (
+        <div className="mb-3 rounded-2xl border border-rose-900/50 bg-rose-950/40 px-4 py-3 text-sm text-rose-300">
+          {error}
+        </div>
+      ) : null}
+      {msg ? (
+        <div className="mb-3 rounded-2xl border border-emerald-900/40 bg-emerald-950/40 px-4 py-3 text-sm text-emerald-200">
+          {msg}
+        </div>
+      ) : null}
+
+      {workTab === 'today' ? (
+        <div className="space-y-3">
+          <p className="text-sm text-slate-400">
+            {todayCards.length
+              ? `${todayCards.length} appointment${todayCards.length === 1 ? '' : 's'} today`
+              : 'Nothing on your diary today. Open Diary or add an appointment.'}
           </p>
-          <div className="flex items-center gap-2 mt-3">
+          {todayCards.map((card) => (
+            <button
+              key={card.appointment.id}
+              type="button"
+              onClick={() => setOpenId(card.appointment.id)}
+              className="w-full rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-left"
+            >
+              <div className="text-lg font-black">
+                {String(card.appointment.start_time).slice(0, 5)} ·{' '}
+                {card.service_name || 'Appointment'}
+              </div>
+              <div className="mt-1 text-xs text-slate-400">
+                {card.appointment.location || '—'} · {card.planned}/
+                {card.capacity} booked
+                {card.waitlist ? ` · ${card.waitlist} waitlist` : ''}
+              </div>
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setShowCreate(true)}
+            className="inline-flex w-full items-center justify-center gap-1 rounded-2xl py-3 text-sm font-black text-slate-950"
+            style={{ background: workAccent }}
+          >
+            <Plus className="h-4 w-4" /> New appointment
+          </button>
+        </div>
+      ) : null}
+
+      {workTab === 'diary' ? (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              className="p-2 rounded-xl border border-slate-700"
+              className="rounded-xl border border-slate-700 p-2"
               onClick={() => setWeekStart(addDaysIso(weekStart, -7))}
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="text-xs font-bold tabular-nums flex items-center gap-1">
-              <CalendarDays className="w-3.5 h-3.5 text-sky-400" />
+            <span className="flex items-center gap-1 text-xs font-bold tabular-nums">
+              <CalendarDays className="h-3.5 w-3.5" style={{ color: workAccent }} />
               {weekStart} → {weekEnd}
             </span>
             <button
               type="button"
-              className="p-2 rounded-xl border border-slate-700"
+              className="rounded-xl border border-slate-700 p-2"
               onClick={() => setWeekStart(addDaysIso(weekStart, 7))}
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="h-4 w-4" />
             </button>
-          </div>
-        </div>
-      </header>
-
-      {showProfile && portal ? (
-        <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 p-4 sm:items-center">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-slate-700 bg-slate-900 p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-black">
-                Your email, ID, bio & qualifications
-              </h2>
-              <button
-                type="button"
-                onClick={() => setShowProfile(false)}
-                className="text-xs font-bold text-slate-400"
-              >
-                Close
-              </button>
-            </div>
-            <input
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              type="email"
-              placeholder="Login email"
-              defaultValue={portal.clinician.email || ''}
-              id="clinician-email"
-            />
-            <input
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              placeholder="SA ID / passport number"
-              defaultValue={portal.clinician.id_number || ''}
-              id="clinician-id-number"
-            />
-            <input
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              placeholder="Phone"
-              defaultValue={portal.clinician.phone || ''}
-              id="clinician-phone"
-            />
-            <textarea
-              className="w-full min-h-[4rem] resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              placeholder="Public bio patients see on the website"
-              defaultValue={portal.clinician.public_bio || ''}
-              id="clinician-public-bio"
-            />
-            <textarea
-              className="w-full min-h-[3rem] resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              placeholder="Internal notes / full bio"
-              defaultValue={portal.clinician.bio || ''}
-              id="clinician-bio"
-            />
             <button
               type="button"
-              disabled={busy}
-              className="w-full rounded-xl bg-sky-500 py-2 text-sm font-black text-sky-950 disabled:opacity-50"
-              onClick={() => {
-                const publicBio = (
-                  document.getElementById(
-                    'clinician-public-bio'
-                  ) as HTMLTextAreaElement | null
-                )?.value;
-                const bio = (
-                  document.getElementById('clinician-bio') as HTMLTextAreaElement | null
-                )?.value;
-                const email = (
-                  document.getElementById(
-                    'clinician-email'
-                  ) as HTMLInputElement | null
-                )?.value;
-                const idNumber = (
-                  document.getElementById(
-                    'clinician-id-number'
-                  ) as HTMLInputElement | null
-                )?.value;
-                const phone = (
-                  document.getElementById(
-                    'clinician-phone'
-                  ) as HTMLInputElement | null
-                )?.value;
-                void post({
-                  action: 'update_profile',
-                  email,
-                  id_number: idNumber,
-                  phone,
-                  public_bio: publicBio,
-                  bio,
-                }).then(() => setShowProfile(false));
-              }}
+              onClick={() => setShowCreate(true)}
+              className="ml-auto inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-black text-slate-950"
+              style={{ background: workAccent }}
             >
-              Save bio
+              <Plus className="h-3.5 w-3.5" /> New
             </button>
-            <PersonQualificationsEditor
-              qualifications={portal.clinician.qualifications || []}
-              onChange={async (next) => {
-                await post({ action: 'update_profile', qualifications: next });
-              }}
-              uploadFile={async (file) => {
-                const fd = new FormData();
-                fd.set('module', mod);
-                fd.set('token', token);
-                fd.set('action', 'upload_certificate');
-                fd.set('file', file);
-                const res = await fetch('/api/public/advisor/clinician', {
-                  method: 'POST',
-                  body: fd,
-                });
-                const data = await res.json();
-                if (!res.ok || !data.url) {
-                  throw new Error(data.error || 'Upload failed');
-                }
-                return {
-                  url: String(data.url),
-                  fileName: String(data.fileName || file.name),
-                };
-              }}
-              disabled={busy}
-              toneClass="border-slate-700 bg-slate-950/60"
-            />
           </div>
+          <MemberPortalWeekCalendar
+            theme="dark"
+            color={workAccent}
+            hideNav
+            weekStart={weekStart}
+            events={days.flatMap((d) =>
+              (portal.by_date?.[d] || []).map((card) => ({
+                id: card.appointment.id,
+                date: d,
+                start_time: String(card.appointment.start_time).slice(0, 5),
+                duration_min: card.appointment.duration_min,
+                title: card.service_name || 'Appointment',
+                person: `P${card.planned}/${card.capacity}`,
+                my_status: 'scheduled',
+              }))
+            )}
+            onSelect={(ev) => setOpenId(ev.id)}
+            emptyLabel="No appointments this week. Tap New to add one."
+          />
         </div>
       ) : null}
 
-      <main className="max-w-3xl mx-auto px-3 py-4 sm:px-6 space-y-3">
-        {error && (
-          <div className="rounded-2xl border border-rose-900/50 bg-rose-950/40 px-4 py-3 text-sm text-rose-300">
-            {error}
-          </div>
-        )}
-        {msg && (
-          <div className="rounded-2xl border border-emerald-900/40 bg-emerald-950/40 px-4 py-3 text-sm text-emerald-200">
-            {msg}
-          </div>
-        )}
-
-        <MemberPortalWeekCalendar
-          theme="dark"
-          color="#38bdf8"
-          hideNav
-          weekStart={weekStart}
-          events={days.flatMap((d) =>
-            (portal.by_date?.[d] || []).map((card) => ({
-              id: card.appointment.id,
-              date: d,
-              start_time: String(card.appointment.start_time).slice(0, 5),
-              duration_min: card.appointment.duration_min,
-              title: card.service_name || 'Appointment',
-              person: `P${card.planned}/${card.capacity}`,
-              my_status: 'scheduled',
-            }))
-          )}
-          onSelect={(ev) => setOpenId(ev.id)}
-          emptyLabel="No appointments this week. Tap New appointment to add one."
-        />
-
-        {portal.appointments.length === 0 && (
-          <p className="text-center text-slate-500 py-10 text-sm">
-            No appointments this week. Tap <strong>New appointment</strong> to
-            add one.
+      {workTab === 'people' ? (
+        <div className="space-y-2">
+          <p className="text-sm text-slate-400">
+            Patients on your file. Open an appointment from Today or Diary to
+            book them and mark attendance.
           </p>
-        )}
-      </main>
+          {portal.patients.map((p) => (
+            <div
+              key={p.id}
+              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+            >
+              <div className="font-bold">{p.name}</div>
+              <div className="text-[11px] text-slate-400">
+                {p.code ? `${p.code} · ` : ''}
+                {p.email || 'No email'}
+                {p.soft_block ? ' · ⚠ soft-block' : ''}
+                {p.no_show_count ? ` · ${p.no_show_count} no-show` : ''}
+              </div>
+            </div>
+          ))}
+          {!portal.patients.length ? (
+            <p className="text-sm text-slate-500">No patients on file yet.</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {workTab === 'inbox' ? (
+        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-8 text-center text-sm text-slate-400">
+          Messages with patients and the front desk will show here.
+        </div>
+      ) : null}
+
+      {workTab === 'me' ? (
+        <div className="space-y-3">
+          <OwnerWorkspaceCta companyId={companyId} brand={brand} />
+          <h2 className="text-sm font-black">
+            Your email, ID, bio & qualifications
+          </h2>
+          <input
+            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+            type="email"
+            placeholder="Login email"
+            defaultValue={portal.clinician.email || ''}
+            id="clinician-email"
+          />
+          <input
+            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+            placeholder="SA ID / passport number"
+            defaultValue={portal.clinician.id_number || ''}
+            id="clinician-id-number"
+          />
+          <input
+            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+            placeholder="Phone"
+            defaultValue={portal.clinician.phone || ''}
+            id="clinician-phone"
+          />
+          <textarea
+            className="w-full min-h-[4rem] resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+            placeholder="Public bio patients see on the website"
+            defaultValue={portal.clinician.public_bio || ''}
+            id="clinician-public-bio"
+          />
+          <textarea
+            className="w-full min-h-[3rem] resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+            placeholder="Internal notes / full bio"
+            defaultValue={portal.clinician.bio || ''}
+            id="clinician-bio"
+          />
+          <button
+            type="button"
+            disabled={busy}
+            className="w-full rounded-xl py-2 text-sm font-black text-slate-950 disabled:opacity-50"
+            style={{ background: workAccent }}
+            onClick={() => {
+              const publicBio = (
+                document.getElementById(
+                  'clinician-public-bio'
+                ) as HTMLTextAreaElement | null
+              )?.value;
+              const bio = (
+                document.getElementById('clinician-bio') as HTMLTextAreaElement | null
+              )?.value;
+              const email = (
+                document.getElementById(
+                  'clinician-email'
+                ) as HTMLInputElement | null
+              )?.value;
+              const idNumber = (
+                document.getElementById(
+                  'clinician-id-number'
+                ) as HTMLInputElement | null
+              )?.value;
+              const phone = (
+                document.getElementById(
+                  'clinician-phone'
+                ) as HTMLInputElement | null
+              )?.value;
+              void post({
+                action: 'update_profile',
+                email,
+                id_number: idNumber,
+                phone,
+                public_bio: publicBio,
+                bio,
+              });
+            }}
+          >
+            Save bio
+          </button>
+          <PersonQualificationsEditor
+            qualifications={portal.clinician.qualifications || []}
+            onChange={async (next) => {
+              await post({ action: 'update_profile', qualifications: next });
+            }}
+            uploadFile={async (file) => {
+              const fd = new FormData();
+              fd.set('module', mod);
+              fd.set('token', token);
+              fd.set('action', 'upload_certificate');
+              fd.set('file', file);
+              const res = await fetch('/api/public/advisor/clinician', {
+                method: 'POST',
+                body: fd,
+              });
+              const data = await res.json();
+              if (!res.ok || !data.url) {
+                throw new Error(data.error || 'Upload failed');
+              }
+              return {
+                url: String(data.url),
+                fileName: String(data.fileName || file.name),
+              };
+            }}
+            disabled={busy}
+            toneClass="border-slate-700 bg-slate-950/60"
+          />
+        </div>
+      ) : null}
 
       {openCard && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-3">
@@ -946,6 +983,6 @@ export default function ClinicianPortalPage() {
           </div>
         </div>
       )}
-    </div>
+    </AdvisorWorkPwaChrome>
   );
 }

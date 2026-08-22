@@ -195,6 +195,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       brand,
+      company_id: resolved.companyId,
       portal,
       website_enabled: resolved.store.settings?.enabled === true,
       public_token: resolved.store.settings?.enabled

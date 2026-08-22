@@ -58,6 +58,7 @@ export function clinicMemberDockTabs({
       icon: <User />,
       badge: unread,
       covers: ['profile', 'messages', 'history'] as ClinicMemberTabId[],
+      emphasis: true,
     },
     { id: 'care', label: 'Care', icon: <HeartPulse /> },
     { id: 'share', label: 'Share', icon: <Share2 /> },

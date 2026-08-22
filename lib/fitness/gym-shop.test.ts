@@ -45,6 +45,15 @@ assert.equal(gymRequiresPaidMembership(store), true);
 const plan = resolveShopItem(store, 'membership', 'pln_1');
 assert.equal(plan.ok, true);
 
+store.membership_plans[0].description = 'Morning engine work. Bring a towel.';
+store.membership_plans[0].image_url = 'https://cdn.example/class.jpg';
+store.membership_plans[0].video_url = 'https://youtu.be/abc1234';
+const shop = gymShopCatalog(store);
+const classCard = shop.find((i) => i.id === 'pln_1');
+assert.equal(classCard?.description, 'Morning engine work. Bring a towel.');
+assert.equal(classCard?.image_url, 'https://cdn.example/class.jpg');
+assert.equal(classCard?.video_url, 'https://youtu.be/abc1234');
+
 const hidden = emptyFitgraphStore();
 assert.equal(gymRequiresPaidMembership(hidden), false);
 hidden.settings = { ...hidden.settings!, require_paid_membership: true };

@@ -5,6 +5,7 @@ import { Loader2, X } from 'lucide-react';
 import type { GymShopItem } from '@/lib/fitness/gym-shop';
 import { AdvisorPayAccepted } from '@/components/billing/ApplePayAccepted';
 import { advisorBrandInk } from '@/lib/advisors/brand-ink';
+import { videoEmbedSrc } from '@/lib/fitness/movements';
 
 function itemKindLabel(item: GymShopItem, classMode: boolean): string {
   if (item.kind === 'programme') return 'Programme';
@@ -286,10 +287,35 @@ export function GymShopPay({
                         : openItem.audience}
                 </p>
               ) : null}
+              {(() => {
+                const embed = videoEmbedSrc(openItem.video_url);
+                if (!embed) return null;
+                return embed.iframe ? (
+                  <iframe
+                    title={`${openItem.name} video`}
+                    src={embed.src}
+                    className="aspect-video w-full rounded-2xl bg-black"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : (
+                  <video
+                    src={embed.src}
+                    className="aspect-video w-full rounded-2xl bg-black object-contain"
+                    controls
+                    playsInline
+                  />
+                );
+              })()}
               {openItem.description ? (
-                <p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">
-                  {openItem.description}
-                </p>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                    About this {itemKindLabel(openItem, classMode).toLowerCase()}
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">
+                    {openItem.description}
+                  </p>
+                </div>
               ) : (
                 <p className="text-sm text-slate-500">
                   Ask the desk if you need more about this{' '}

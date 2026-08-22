@@ -11,8 +11,12 @@ import {
   buildAdvisorWorkPortalPath,
   advisorWorkInviteShareText,
 } from './advisor-workforce';
+import {
+  canAppearInCompanySwitcher,
+  canOpenCompanyWorkspace,
+} from '@/lib/business/permissions';
 
-assert.equal(accessLaneForEngagement('employed'), 'b2b');
+assert.equal(accessLaneForEngagement('employed'), 'b2c');
 assert.equal(accessLaneForEngagement('contractor'), 'b2c');
 assert.equal(resolveAdvisorEngagement({}), 'contractor');
 assert.equal(resolveAdvisorEngagement({ hr_employee_id: 9 }), 'employed');
@@ -57,5 +61,15 @@ assert.match(wa, /Sam/);
 assert.match(wa, /Vuka/);
 assert.match(wa, /https:\/\/example.com\/join/);
 assert.match(wa, /work app/);
+
+assert.equal(canOpenCompanyWorkspace('owner'), true);
+assert.equal(canOpenCompanyWorkspace('admin'), false);
+assert.equal(canOpenCompanyWorkspace('operations'), false);
+assert.equal(canOpenCompanyWorkspace('member'), false);
+assert.equal(canAppearInCompanySwitcher('owner'), true);
+assert.equal(canAppearInCompanySwitcher('admin'), true);
+assert.equal(canAppearInCompanySwitcher('finance'), true);
+assert.equal(canAppearInCompanySwitcher('operations'), false);
+assert.equal(canAppearInCompanySwitcher('sales_contractor'), true);
 
 console.log('advisor-workforce.test.ts ok');

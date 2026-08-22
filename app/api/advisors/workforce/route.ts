@@ -244,7 +244,17 @@ export async function POST(request: NextRequest) {
           String(body.engagement || '') === 'employed'
             ? 'employed'
             : 'contractor';
-        bundle.applyPerson(personId, { engagement });
+        if (person.work_team_member_id) {
+          await revokeTeamWorkspaceInvite({
+            companyId,
+            memberId: person.work_team_member_id,
+            email: person.work_invite_email || person.email,
+          });
+        }
+        bundle.applyPerson(personId, {
+          engagement,
+          work_team_member_id: null,
+        });
         await bundle.persist();
         return NextResponse.json({
           success: true,
@@ -252,20 +262,17 @@ export async function POST(request: NextRequest) {
           lane: accessLaneForEngagement(engagement),
           message:
             engagement === 'employed'
-              ? 'Marked employed — they will join the B2B workspace'
-              : 'Marked contractor — they will use the work app',
+              ? 'Marked employed — they stay on the work app. Payroll and leave stay in People. Only the owner opens SupplierAdvisor.'
+              : 'Marked contractor — they use the work app for diary and clients.',
         });
       }
 
       if (action === 'revoke_person') {
-        const engagement = resolveAdvisorEngagement(person);
-        if (accessLaneForEngagement(engagement) === 'b2b') {
-          await revokeTeamWorkspaceInvite({
-            companyId,
-            memberId: person.work_team_member_id,
-            email: person.work_invite_email || person.email,
-          });
-        }
+        await revokeTeamWorkspaceInvite({
+          companyId,
+          memberId: person.work_team_member_id,
+          email: person.work_invite_email || person.email,
+        });
         bundle.applyPerson(personId, {
           work_invite_status: 'revoked',
           work_invite_token: null,
@@ -295,57 +302,11 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      if (accessLaneForEngagement(engagement) === 'b2b') {
-        const invited = await sendTeamWorkspaceInvite({
+      if (person.work_team_member_id) {
+        await revokeTeamWorkspaceInvite({
           companyId,
-          email,
-          name: person.name,
-          role: 'operations',
-          inviterUserId: gate.userId,
-          inviterName,
-          companyName: bundle.brand,
-          roleLabel: roleLabel(moduleRaw, 'staff'),
-          skipEmail: shareOnly,
-        });
-        if (!invited.ok) {
-          return NextResponse.json(
-            { error: invited.error },
-            { status: invited.status }
-          );
-        }
-        bundle.applyPerson(personId, {
-          engagement: 'employed',
-          email,
-          work_invite_email: email,
-          work_invite_status: invited.warning?.includes('already an active')
-            ? 'accepted'
-            : 'pending',
-          work_invite_sent_at: now,
-          work_invite_token: null,
-          work_team_member_id: invited.memberId,
-        });
-        await bundle.persist();
-        const staffRole = roleLabel(moduleRaw, 'staff');
-        return NextResponse.json({
-          success: true,
-          lane: 'b2b',
-          invite_link: invited.inviteLink,
-          share_text: invited.inviteLink
-            ? advisorWorkInviteShareText({
-                personName: person.name,
-                businessName: bundle.brand,
-                inviteLink: invited.inviteLink,
-                lane: 'b2b',
-                roleLabel: staffRole,
-              })
-            : '',
-          email_sent: invited.emailSent,
-          warning: invited.warning,
-          message: shareOnly
-            ? 'Workspace invite link ready to share'
-            : invited.emailSent
-              ? `Workspace invitation sent to ${email}`
-              : invited.warning || 'Workspace invitation saved',
+          memberId: person.work_team_member_id,
+          email: person.work_invite_email || person.email || email,
         });
       }
 
@@ -365,7 +326,10 @@ export async function POST(request: NextRequest) {
               );
       }
       const joinLink = buildAdvisorWorkJoinLink(moduleRaw, token);
-      const contractorRole = roleLabel(moduleRaw, 'contractor');
+      const inviteRole = roleLabel(
+        moduleRaw,
+        engagement === 'employed' ? 'staff' : 'contractor'
+      );
       let mailed: { sent: boolean; warning?: string } = {
         sent: false,
       };
@@ -377,11 +341,11 @@ export async function POST(request: NextRequest) {
           invitedBy: inviterName,
           inviteLink: joinLink,
           module: moduleRaw,
-          roleLabel: contractorRole,
+          roleLabel: inviteRole,
         });
       }
       bundle.applyPerson(personId, {
-        engagement: 'contractor',
+        engagement,
         email: email.includes('@') ? email : person.email,
         portal_token: portalToken,
         work_invite_token: token,
@@ -400,7 +364,7 @@ export async function POST(request: NextRequest) {
           businessName: bundle.brand,
           inviteLink: joinLink,
           lane: 'b2c',
-          roleLabel: contractorRole,
+          roleLabel: inviteRole,
         }),
         portal_path: buildAdvisorWorkPortalPath(moduleRaw, portalToken),
         email_sent: mailed.sent,

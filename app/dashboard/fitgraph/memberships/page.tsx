@@ -12,7 +12,7 @@ import { DataTable, FormCard, StatRow, fc } from '@/components/fitness/FitForm';
 import { storeUsesClassSubscribe } from '@/lib/fitness/vuka-class-catalog';
 
 export default function MembershipsPage() {
-  const { store, loading, saving, post, summary } = useFitgraph();
+  const { companyId, store, loading, saving, post, summary } = useFitgraph();
   const classSubscribe = store ? storeUsesClassSubscribe(store) : false;
   const [pt, setPt] = useState({
     client_id: '',
@@ -141,6 +141,7 @@ export default function MembershipsPage() {
             post={post}
             saving={saving}
             classSubscribe={classSubscribe}
+            companyId={companyId}
           />
 
           {!classSubscribe ? (

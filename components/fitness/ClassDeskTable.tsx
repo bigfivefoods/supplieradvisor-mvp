@@ -11,6 +11,7 @@ import {
   validateRecurrenceForm,
   type RecurrenceFormValue,
 } from '@/components/schedule/RecurrenceFields';
+import { MovementMediaFields } from '@/components/fitness/MovementMediaFields';
 import {
   calendarCoverage,
   nextDateForWeekdays,
@@ -34,6 +35,8 @@ type Draft = {
   billing: string;
   schedule_label: string;
   description: string;
+  image_url: string;
+  video_url: string;
   public: boolean;
   coach_id: string;
   location: string;
@@ -50,6 +53,8 @@ const blankDraft = (): Draft => ({
   billing: 'monthly',
   schedule_label: '',
   description: '',
+  image_url: '',
+  video_url: '',
   public: true,
   coach_id: '',
   location: '',
@@ -69,6 +74,8 @@ function draftFromPlan(p: FitMembershipPlan, store: FitgraphStore): Draft {
     billing: p.billing || 'monthly',
     schedule_label: p.schedule_label || '',
     description: p.description || '',
+    image_url: p.image_url || '',
+    video_url: p.video_url || '',
     public: p.public !== false,
     coach_id: p.default_coach_id || sessionCoach || '',
     location: p.location || '',
@@ -84,11 +91,13 @@ export function ClassDeskTable({
   post,
   saving,
   classSubscribe,
+  companyId,
 }: {
   store: FitgraphStore;
   post: PostFn;
   saving: boolean;
   classSubscribe: boolean;
+  companyId?: number;
 }) {
   const todayIso = new Date().toISOString().slice(0, 10);
   const [q, setQ] = useState('');
@@ -194,6 +203,8 @@ export function ClassDeskTable({
             billing: d.billing,
             schedule_label: d.schedule_label.trim() || undefined,
             description: d.description.trim() || undefined,
+            image_url: d.image_url.trim() || null,
+            video_url: d.video_url.trim() || null,
             public: d.public,
             location: d.location.trim() || undefined,
             default_coach_id: d.coach_id || null,
@@ -236,6 +247,8 @@ export function ClassDeskTable({
           billing: d.billing,
           schedule_label: d.schedule_label.trim(),
           description: d.description.trim(),
+          image_url: d.image_url.trim() || null,
+          video_url: d.video_url.trim() || null,
           public: d.public,
           location: d.location.trim(),
           class_credits: d.class_credits ? Number(d.class_credits) : null,
@@ -461,18 +474,47 @@ export function ClassDeskTable({
             onChange={(e) => onChange({ location: e.target.value })}
           />
           <textarea
-            className={fc() + ' min-h-[2.5rem] resize-y sm:col-span-2'}
-            placeholder="What this includes"
+            className={fc() + ' min-h-[4.5rem] resize-y sm:col-span-2 lg:col-span-4'}
+            placeholder={
+              classSubscribe
+                ? 'Shop bio — what this class is, who it is for, what to bring'
+                : 'Shop bio — what this membership includes'
+            }
             value={d.description}
             onChange={(e) => onChange({ description: e.target.value })}
           />
+          <div className="sm:col-span-2 lg:col-span-4">
+            <p className="mb-1.5 text-[10px] font-black uppercase tracking-wide text-slate-500">
+              Shop photo & video
+            </p>
+            <p className="mb-2 text-[11px] text-slate-500">
+              Members see this when they tap the class in the shop to learn more.
+            </p>
+            <MovementMediaFields
+              companyId={companyId}
+              imageUrl={d.image_url}
+              videoUrl={d.video_url}
+              videoDescription=""
+              showVideoDescription={false}
+              onChange={(patch) =>
+                onChange({
+                  ...(patch.image_url !== undefined
+                    ? { image_url: patch.image_url }
+                    : {}),
+                  ...(patch.video_url !== undefined
+                    ? { video_url: patch.video_url }
+                    : {}),
+                })
+              }
+            />
+          </div>
           <label className="inline-flex items-center gap-2 text-xs font-bold">
             <input
               type="checkbox"
               checked={d.public}
               onChange={(e) => onChange({ public: e.target.checked })}
             />
-            On website
+            On website / shop
           </label>
         </div>
 
@@ -705,6 +747,14 @@ export function ClassDeskTable({
                 className="overflow-hidden rounded-2xl border border-yellow-200 bg-white shadow-sm dark:border-yellow-700 dark:bg-yellow-950"
               >
                 <div className="flex flex-wrap items-center gap-3 px-3 py-3">
+                  {d.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={d.image_url}
+                      alt=""
+                      className="h-11 w-11 shrink-0 rounded-xl object-cover"
+                    />
+                  ) : null}
                   <button
                     type="button"
                     className="rounded-xl border border-yellow-200 p-1.5 text-yellow-800 dark:border-yellow-700 dark:text-yellow-200"

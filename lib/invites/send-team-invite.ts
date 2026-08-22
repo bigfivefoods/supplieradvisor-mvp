@@ -12,6 +12,7 @@ import {
 } from '@/lib/invites/email';
 import { INVITE_EXPIRY_DAYS } from '@/lib/auth/identity';
 import {
+  canAppearInCompanySwitcher,
   normalizeTeamRole,
   TEAM_ROLE_OPTIONS,
   type TeamRole,
@@ -211,6 +212,15 @@ export async function revokeTeamWorkspaceInvite(opts: {
     if (hit?.id) memberId = Number(hit.id);
   }
   if (!memberId) return { ok: true };
+  const { data: row } = await supabaseAdmin
+    .from('business_users')
+    .select('id, role')
+    .eq('id', memberId)
+    .eq('profile_id', opts.companyId)
+    .maybeSingle();
+  if (row && canAppearInCompanySwitcher(row.role ? String(row.role) : null)) {
+    return { ok: true, memberId };
+  }
   const { error } = await supabaseAdmin
     .from('business_users')
     .update({ status: 'removed', updated_at: new Date().toISOString() })

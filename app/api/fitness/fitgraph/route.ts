@@ -2895,6 +2895,18 @@ function upsert(
       pt_credits: rec.pt_credits != null ? Number(rec.pt_credits) : null,
       description:
         rec.description != null ? String(rec.description) : undefined,
+      image_url:
+        rec.image_url !== undefined
+          ? rec.image_url
+            ? String(rec.image_url)
+            : null
+          : store.membership_plans[i]?.image_url ?? null,
+      video_url:
+        rec.video_url !== undefined
+          ? rec.video_url
+            ? String(rec.video_url)
+            : null
+          : store.membership_plans[i]?.video_url ?? null,
       public: rec.public !== false,
       access:
         rec.access === 'programme' || rec.access === 'both'

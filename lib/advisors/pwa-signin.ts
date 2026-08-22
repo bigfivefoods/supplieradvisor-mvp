@@ -7,7 +7,7 @@ import { saveAdvisorModuleStore } from '@/lib/business/company-data';
 import { namesMatchForPortalSignIn } from '@/lib/fitness/fitgraph';
 import {
   ADVISOR_PWA_INDEX_KEYS,
-  advisorPwaMemberOpenPath,
+  advisorPwaOpenPath,
   isAdvisorPwaModule,
   type AdvisorPwaModule,
 } from '@/lib/advisors/member-pwa';
@@ -18,6 +18,7 @@ type RosterPerson = {
   email?: string;
   invite_email?: string | null;
   active?: boolean;
+  end_date?: string | null;
   portal_token?: string | null;
 };
 
@@ -38,10 +39,80 @@ export function findRosterPersonForSignIn<T extends RosterPerson>(
     (people || []).find(
       (p) =>
         p.active !== false &&
+        !p.end_date &&
         rosterEmails(p).includes(email) &&
         namesMatchForPortalSignIn(p.name, name)
     ) || null
   );
+}
+
+/** Staff/coach/practitioner access — email on the practice file is the key. */
+export function resolveAdvisorPwaLane(opts: {
+  expectRole?: 'staff' | 'member' | null;
+  hasStaff: boolean;
+  hasMember: boolean;
+  staffLabel: string;
+  staffListLabel: string;
+}): { ok: true; lane: 'staff' | 'member' } | { ok: false; error: string } {
+  const expect =
+    opts.expectRole === 'staff' || opts.expectRole === 'member'
+      ? opts.expectRole
+      : null;
+  const staffWord = opts.staffLabel.toLowerCase();
+  if (expect === 'staff') {
+    if (opts.hasStaff) return { ok: true, lane: 'staff' };
+    if (opts.hasMember) {
+      return {
+        ok: false,
+        error: 'That email is an SA Member. Use SA Member access.',
+      };
+    }
+    return {
+      ok: false,
+      error: `We could not find that ${staffWord}. Use the name and email on ${opts.staffListLabel} in this Advisor.`,
+    };
+  }
+  if (expect === 'member') {
+    if (opts.hasMember) return { ok: true, lane: 'member' };
+    if (opts.hasStaff) {
+      return {
+        ok: false,
+        error: `That email is a ${staffWord}. Use ${opts.staffLabel} access.`,
+      };
+    }
+    return {
+      ok: false,
+      error:
+        'We could not find that SA Member. Use the name and email on your file, or create an account to join.',
+    };
+  }
+  if (opts.hasStaff) return { ok: true, lane: 'staff' };
+  if (opts.hasMember) return { ok: true, lane: 'member' };
+  return {
+    ok: false,
+    error: `We could not find that ${staffWord} or SA Member. Use the name and email on your file, or create an account to join.`,
+  };
+}
+
+export function findStaffForPortalSignIn<T extends RosterPerson>(
+  people: T[],
+  lookup: { name?: string | null; email?: string | null }
+): T | null {
+  const email = String(lookup.email || '').trim().toLowerCase();
+  if (!email || !email.includes('@')) return null;
+  const name = String(lookup.name || '').trim();
+  const hits = (people || []).filter(
+    (p) =>
+      p.active !== false &&
+      !p.end_date &&
+      rosterEmails(p).includes(email)
+  );
+  if (!hits.length) return null;
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return hits.find((p) => namesMatchForPortalSignIn(p.name, name)) || null;
+  }
+  return hits[0];
 }
 
 export type AdvisorPwaSignInOk = {
@@ -49,6 +120,7 @@ export type AdvisorPwaSignInOk = {
   name: string;
   portal_token: string;
   path: string;
+  role?: 'member' | 'coach' | 'patient' | 'customer' | 'practitioner';
 };
 
 export type AdvisorPwaSignInErr = {
@@ -62,6 +134,7 @@ export async function signInAdvisorPwaMember(opts: {
   token: string;
   name: string;
   email: string;
+  expectRole?: 'staff' | 'member' | null;
 }): Promise<AdvisorPwaSignInOk | AdvisorPwaSignInErr> {
   const moduleKey = String(opts.module || '').trim();
   const token = String(opts.token || '').trim();
@@ -86,13 +159,17 @@ export async function signInAdvisorPwaMember(opts: {
     };
   }
 
+  const expectRole =
+    opts.expectRole === 'staff' || opts.expectRole === 'member'
+      ? opts.expectRole
+      : null;
   if (moduleKey === 'hiregraph') {
     return signInHire({ token, name, email });
   }
   if (moduleKey === 'fitgraph') {
-    return signInGym({ token, name, email });
+    return signInGym({ token, name, email, expectRole });
   }
-  return signInClinic({ module: moduleKey, token, name, email });
+  return signInClinic({ module: moduleKey, token, name, email, expectRole });
 }
 
 async function signInHire(opts: {
@@ -192,7 +269,8 @@ async function signInHire(opts: {
     ok: true,
     name: String(person.name || 'Customer').trim().split(/\s+/)[0],
     portal_token: portalToken,
-    path: advisorPwaMemberOpenPath('hiregraph', portalToken),
+    path: advisorPwaOpenPath('hiregraph', portalToken),
+    role: 'customer',
   };
 }
 
@@ -200,12 +278,15 @@ async function signInGym(opts: {
   token: string;
   name: string;
   email: string;
+  expectRole?: 'staff' | 'member' | null;
 }): Promise<AdvisorPwaSignInOk | AdvisorPwaSignInErr> {
   const {
     FITGRAPH_META_KEY,
     FITGRAPH_PUBLIC_TOKEN_KEY,
     findClientForPortalSignIn,
+    findCoachForPortalSignIn,
     issueClientPortalToken,
+    issueCoachPortalToken,
     parseCompanyIdFromToken,
     readFitgraphFromMetadata,
     writeFitgraphToMetadata,
@@ -220,16 +301,57 @@ async function signInGym(opts: {
   if (!loaded || loaded.store.settings?.public_token !== opts.token) {
     return { ok: false, status: 404, error: 'Gym not found' };
   }
+  const coach = findCoachForPortalSignIn(loaded.store, {
+    name: opts.name,
+    email: opts.email,
+  });
   const client = findClientForPortalSignIn(loaded.store, {
     name: opts.name,
     email: opts.email,
   });
+  const lane = resolveAdvisorPwaLane({
+    expectRole: opts.expectRole,
+    hasStaff: Boolean(coach),
+    hasMember: Boolean(client),
+    staffLabel: 'Coach',
+    staffListLabel: 'Coaches',
+  });
+  if (!lane.ok) {
+    return { ok: false, status: 404, error: lane.error };
+  }
+  if (lane.lane === 'staff' && coach) {
+    let portalToken = String(coach.portal_token || '').trim();
+    if (!portalToken) {
+      portalToken = issueCoachPortalToken(loaded.companyId);
+      const idx = loaded.store.coaches.findIndex((c) => c.id === coach.id);
+      if (idx >= 0) {
+        loaded.store.coaches[idx] = {
+          ...loaded.store.coaches[idx],
+          portal_token: portalToken,
+          can_manage_classes: true,
+        };
+        await saveAdvisorModuleStore(
+          loaded.companyId,
+          FITGRAPH_META_KEY,
+          loaded.store,
+          writeFitgraphToMetadata
+        );
+      }
+    }
+    return {
+      ok: true,
+      name: String(coach.name || 'Coach').trim().split(/\s+/)[0],
+      portal_token: portalToken,
+      path: advisorPwaOpenPath('fitgraph', portalToken),
+      role: 'coach',
+    };
+  }
   if (!client) {
     return {
       ok: false,
       status: 404,
       error:
-        'We could not find that member. Use the name and email on your gym profile, or create an account to join.',
+        'We could not find that SA Member. Use the name and email on your gym file, or create an account to join.',
     };
   }
   let portalToken = String(client.portal_token || '').trim();
@@ -253,7 +375,8 @@ async function signInGym(opts: {
     ok: true,
     name: String(client.name || 'Member').trim().split(/\s+/)[0],
     portal_token: portalToken,
-    path: advisorPwaMemberOpenPath('fitgraph', portalToken),
+    path: advisorPwaOpenPath('fitgraph', portalToken),
+    role: 'member',
   };
 }
 
@@ -262,21 +385,58 @@ async function signInClinic(opts: {
   token: string;
   name: string;
   email: string;
+  expectRole?: 'staff' | 'member' | null;
 }): Promise<AdvisorPwaSignInOk | AdvisorPwaSignInErr> {
   const loaded = await loadClinicStore(opts.module, opts.token);
   if (!loaded) {
     return { ok: false, status: 404, error: 'Practice not found' };
   }
+  const staff = findStaffForPortalSignIn(loaded.practitioners, {
+    name: opts.name,
+    email: opts.email,
+  });
   const person = findRosterPersonForSignIn(loaded.patients, {
     name: opts.name,
     email: opts.email,
   });
+  const staffLabel = opts.module === 'dentalgraph' ? 'Clinician' : 'Practitioner';
+  const lane = resolveAdvisorPwaLane({
+    expectRole: opts.expectRole,
+    hasStaff: Boolean(staff),
+    hasMember: Boolean(person),
+    staffLabel,
+    staffListLabel: opts.module === 'dentalgraph' ? 'Staff' : 'Practitioners',
+  });
+  if (!lane.ok) {
+    return { ok: false, status: 404, error: lane.error };
+  }
+  if (lane.lane === 'staff' && staff) {
+    let portalToken = String(staff.portal_token || '').trim();
+    if (!portalToken) {
+      portalToken = loaded.issueStaffToken(loaded.companyId);
+      const idx = loaded.practitioners.findIndex((p) => p.id === staff.id);
+      if (idx >= 0) {
+        loaded.practitioners[idx] = {
+          ...loaded.practitioners[idx],
+          portal_token: portalToken,
+        };
+        await loaded.saveStaff(portalToken, idx);
+      }
+    }
+    return {
+      ok: true,
+      name: String(staff.name || 'Practitioner').trim().split(/\s+/)[0],
+      portal_token: portalToken,
+      path: advisorPwaOpenPath(opts.module, portalToken),
+      role: 'practitioner',
+    };
+  }
   if (!person) {
     return {
       ok: false,
       status: 404,
       error:
-        'We could not find that patient. Use the name and email on your file, or create an account to join this app.',
+        'We could not find that SA Member. Use the name and email on your file, or create an account to join this app.',
     };
   }
   let portalToken = String(person.portal_token || '').trim();
@@ -292,7 +452,8 @@ async function signInClinic(opts: {
     ok: true,
     name: String(person.name || 'Patient').trim().split(/\s+/)[0],
     portal_token: portalToken,
-    path: advisorPwaMemberOpenPath(opts.module, portalToken),
+    path: advisorPwaOpenPath(opts.module, portalToken),
+    role: 'patient',
   };
 }
 
@@ -302,8 +463,11 @@ async function loadClinicStore(
 ): Promise<{
   companyId: number;
   patients: RosterPerson[];
+  practitioners: RosterPerson[];
   issueToken: (companyId: number) => string;
+  issueStaffToken: (companyId: number) => string;
   save: (portalToken: string, idx: number) => Promise<void>;
+  saveStaff: (portalToken: string, idx: number) => Promise<void>;
 } | null> {
   const indexKeys = ADVISOR_PWA_INDEX_KEYS[moduleKey];
 
@@ -320,11 +484,26 @@ async function loadClinicStore(
     return {
       companyId: loaded.companyId,
       patients: loaded.store.patients || [],
+      practitioners: loaded.store.practitioners || [],
       issueToken: m.issuePatientPortalToken,
+      issueStaffToken: m.issuePractitionerPortalToken,
       save: async (portalToken, idx) => {
         loaded.store.patients[idx] = {
           ...loaded.store.patients[idx],
           portal_token: portalToken,
+        };
+        await saveAdvisorModuleStore(
+          loaded.companyId,
+          m.PHYSIOGRAPH_META_KEY,
+          loaded.store,
+          m.writePhysiographToMetadata
+        );
+      },
+      saveStaff: async (portalToken, idx) => {
+        loaded.store.practitioners[idx] = {
+          ...loaded.store.practitioners[idx],
+          portal_token: portalToken,
+          can_manage: true,
         };
         await saveAdvisorModuleStore(
           loaded.companyId,
@@ -349,10 +528,24 @@ async function loadClinicStore(
     return {
       companyId: loaded.companyId,
       patients: loaded.store.patients || [],
+      practitioners: loaded.store.staff || [],
       issueToken: m.issueDentalPatientPortalToken,
+      issueStaffToken: m.issueDentalStaffPortalToken,
       save: async (portalToken, idx) => {
         loaded.store.patients[idx] = {
           ...loaded.store.patients[idx],
+          portal_token: portalToken,
+        };
+        await saveAdvisorModuleStore(
+          loaded.companyId,
+          m.DENTALGRAPH_META_KEY,
+          loaded.store,
+          m.writeDentalgraphToMetadata
+        );
+      },
+      saveStaff: async (portalToken, idx) => {
+        loaded.store.staff[idx] = {
+          ...loaded.store.staff[idx],
           portal_token: portalToken,
         };
         await saveAdvisorModuleStore(
@@ -378,11 +571,26 @@ async function loadClinicStore(
     return {
       companyId: loaded.companyId,
       patients: loaded.store.patients || [],
+      practitioners: loaded.store.practitioners || [],
       issueToken: m.issuePatientPortalToken,
+      issueStaffToken: m.issuePractitionerPortalToken,
       save: async (portalToken, idx) => {
         loaded.store.patients[idx] = {
           ...loaded.store.patients[idx],
           portal_token: portalToken,
+        };
+        await saveAdvisorModuleStore(
+          loaded.companyId,
+          m.MEDICALGRAPH_META_KEY,
+          loaded.store,
+          m.writeMedicalgraphToMetadata
+        );
+      },
+      saveStaff: async (portalToken, idx) => {
+        loaded.store.practitioners[idx] = {
+          ...loaded.store.practitioners[idx],
+          portal_token: portalToken,
+          can_manage: true,
         };
         await saveAdvisorModuleStore(
           loaded.companyId,
@@ -406,11 +614,26 @@ async function loadClinicStore(
   return {
     companyId: loaded.companyId,
     patients: loaded.store.patients || [],
+    practitioners: loaded.store.practitioners || [],
     issueToken: m.issuePatientPortalToken,
+    issueStaffToken: m.issuePractitionerPortalToken,
     save: async (portalToken, idx) => {
       loaded.store.patients[idx] = {
         ...loaded.store.patients[idx],
         portal_token: portalToken,
+      };
+      await saveAdvisorModuleStore(
+        loaded.companyId,
+        m.PSYCHIATRYGRAPH_META_KEY,
+        loaded.store,
+        m.writePsychiatrygraphToMetadata
+      );
+    },
+    saveStaff: async (portalToken, idx) => {
+      loaded.store.practitioners[idx] = {
+        ...loaded.store.practitioners[idx],
+        portal_token: portalToken,
+        can_manage: true,
       };
       await saveAdvisorModuleStore(
         loaded.companyId,

@@ -10,6 +10,7 @@
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getCanonicalUserId, userIdMatchVariants } from '@/lib/auth/identity';
+import { canOpenCompanyWorkspace } from '@/lib/business/permissions';
 
 export const PERSONAL_WORKSPACE_PATH = '/me';
 
@@ -53,6 +54,7 @@ export async function loadBusinessWorkspaceSummary(
 
     const byId = new Map<number, string | null>();
     for (const row of data || []) {
+      if (!canOpenCompanyWorkspace(row.role ? String(row.role) : null)) continue;
       const id = Number(row.profile_id);
       if (Number.isFinite(id) && id > 0) {
         byId.set(id, row.role ? String(row.role) : null);
