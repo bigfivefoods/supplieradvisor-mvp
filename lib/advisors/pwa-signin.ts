@@ -11,6 +11,7 @@ import {
   isAdvisorPwaModule,
   type AdvisorPwaModule,
 } from '@/lib/advisors/member-pwa';
+import { isSafeFilterEmail } from '@/lib/security/email-filter';
 
 type RosterPerson = {
   id: string;
@@ -198,12 +199,50 @@ async function signInHire(opts: {
     return { ok: false, status: 404, error: 'Hire desk not found' };
   }
 
+  const lookupEmail = opts.email.trim().toLowerCase();
+  if (!isSafeFilterEmail(lookupEmail)) {
+    return { ok: false, status: 400, error: 'Enter a valid email.' };
+  }
+
   const supabase = getSupabaseServer();
-  const { data: rows } = await supabase
+  const portalIds: number[] = [];
+  for (const [id, portal] of Object.entries(
+    loaded.store.customer_portals || {}
+  )) {
+    const emails = [portal?.invite_email, portal?.preferred_email]
+      .map((v) => String(v || '').trim().toLowerCase())
+      .filter((v) => v.includes('@'));
+    if (!emails.includes(lookupEmail)) continue;
+    const n = Number(id);
+    if (Number.isFinite(n) && n > 0) portalIds.push(n);
+  }
+
+  let byEmailQuery = supabase
     .from('customers')
     .select('id, trading_name, legal_name, contact_name, email, status')
-    .eq('profile_id', loaded.companyId)
-    .limit(500);
+    .eq('profile_id', loaded.companyId);
+  byEmailQuery = lookupEmail.includes('_')
+    ? byEmailQuery.in('email', [...new Set([lookupEmail, opts.email.trim()])])
+    : byEmailQuery.ilike('email', lookupEmail);
+  const { data: byEmail } = await byEmailQuery.limit(20);
+
+  let byPortal: typeof byEmail = [];
+  if (portalIds.length) {
+    const extra = await supabase
+      .from('customers')
+      .select('id, trading_name, legal_name, contact_name, email, status')
+      .eq('profile_id', loaded.companyId)
+      .in('id', portalIds.slice(0, 20));
+    byPortal = extra.data || [];
+  }
+
+  const seen = new Set<number>();
+  const rows = [...(byEmail || []), ...(byPortal || [])].filter((c) => {
+    const id = Number(c.id);
+    if (!Number.isFinite(id) || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
 
   const people: RosterPerson[] = [];
   for (const c of rows || []) {

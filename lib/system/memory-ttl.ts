@@ -6,7 +6,7 @@
 type Entry<T> = { value: T; exp: number };
 
 const store = new Map<string, Entry<unknown>>();
-const MAX = 400;
+const MAX = 600;
 
 function prune(now: number) {
   if (store.size <= MAX) return;

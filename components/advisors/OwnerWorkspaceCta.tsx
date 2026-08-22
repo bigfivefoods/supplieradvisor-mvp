@@ -25,7 +25,7 @@ export function OwnerWorkspaceCta({
   useEffect(() => {
     if (!ready || !authenticated || !companyId) return;
     let cancelled = false;
-    void fetch('/api/b2c/me', { cache: 'no-store' })
+    void fetch('/api/b2c/me?include=lite', { cache: 'no-store' })
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;

@@ -9,8 +9,14 @@ import {
   type AdvisorModuleKey,
 } from '@/lib/business/company-data';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { ttlGet, ttlSet } from '@/lib/system/memory-ttl';
 
 const MIN_TOKEN_LEN = 8;
+const TOKEN_COMPANY_TTL_MS = 90_000;
+
+function tokenCompanyCacheKey(moduleKey: string, token: string): string {
+  return `advtok:${moduleKey}:${token}`;
+}
 
 export async function resolveAdvisorCompanyId(opts: {
   token: string;
@@ -25,6 +31,10 @@ export async function resolveAdvisorCompanyId(opts: {
   const parsed = opts.parseCompanyId?.(clean);
   if (parsed != null && Number.isFinite(parsed) && parsed > 0) return parsed;
 
+  const cacheKey = tokenCompanyCacheKey(opts.moduleKey, clean);
+  const cached = ttlGet<number>(cacheKey);
+  if (cached && cached > 0) return cached;
+
   const supabase = getSupabaseServer();
   const byStore = await supabase
     .from('company_module_stores')
@@ -34,7 +44,10 @@ export async function resolveAdvisorCompanyId(opts: {
     .maybeSingle();
   if (!byStore.error && byStore.data?.company_id) {
     const id = Number(byStore.data.company_id);
-    if (Number.isFinite(id) && id > 0) return id;
+    if (Number.isFinite(id) && id > 0) {
+      ttlSet(cacheKey, id, TOKEN_COMPANY_TTL_MS);
+      return id;
+    }
   }
 
   for (const key of opts.indexKeys || []) {
@@ -45,7 +58,10 @@ export async function resolveAdvisorCompanyId(opts: {
     });
     if (!rpc.error && rpc.data != null) {
       const id = Number(rpc.data);
-      if (Number.isFinite(id) && id > 0) return id;
+      if (Number.isFinite(id) && id > 0) {
+        ttlSet(cacheKey, id, TOKEN_COMPANY_TTL_MS);
+        return id;
+      }
     }
     if (key.endsWith('_tokens')) continue;
     const row = await supabase
@@ -55,7 +71,10 @@ export async function resolveAdvisorCompanyId(opts: {
       .maybeSingle();
     if (!row.error && row.data?.id) {
       const id = Number(row.data.id);
-      if (Number.isFinite(id) && id > 0) return id;
+      if (Number.isFinite(id) && id > 0) {
+        ttlSet(cacheKey, id, TOKEN_COMPANY_TTL_MS);
+        return id;
+      }
     }
   }
 

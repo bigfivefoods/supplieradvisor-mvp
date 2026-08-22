@@ -278,7 +278,7 @@ export async function mergeProfileMetadata(
   if (upErr) throw new Error(upErr.message);
 }
 
-const MODULE_STORE_TTL_MS = 12_000;
+const MODULE_STORE_TTL_MS = 25_000;
 const moduleStoreInflight = new Map<string, Promise<Record<string, unknown>>>();
 
 function moduleStoreCacheKey(

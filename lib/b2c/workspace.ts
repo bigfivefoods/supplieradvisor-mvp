@@ -11,6 +11,9 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getCanonicalUserId, userIdMatchVariants } from '@/lib/auth/identity';
 import { canOpenCompanyWorkspace } from '@/lib/business/permissions';
+import { ttlGet, ttlSet } from '@/lib/system/memory-ttl';
+
+const WORKSPACE_TTL_MS = 20_000;
 
 export const PERSONAL_WORKSPACE_PATH = '/me';
 
@@ -38,6 +41,10 @@ export async function loadBusinessWorkspaceSummary(
   const canonical = getCanonicalUserId(userId);
   if (!canonical) return EMPTY;
 
+  const cacheKey = `bizws:${canonical}`;
+  const cached = ttlGet<BusinessWorkspaceSummary>(cacheKey);
+  if (cached) return cached;
+
   try {
     const supabase = getSupabaseServer();
     const variants = userIdMatchVariants(canonical);
@@ -60,7 +67,10 @@ export async function loadBusinessWorkspaceSummary(
         byId.set(id, row.role ? String(row.role) : null);
       }
     }
-    if (!byId.size) return EMPTY;
+    if (!byId.size) {
+      ttlSet(cacheKey, EMPTY, WORKSPACE_TTL_MS);
+      return EMPTY;
+    }
 
     const ids = Array.from(byId.keys());
     const { data: profiles } = await supabase
@@ -83,11 +93,13 @@ export async function loadBusinessWorkspaceSummary(
       role: byId.get(id) || null,
     }));
 
-    return {
+    const summary: BusinessWorkspaceSummary = {
       has_business: true,
       business_count: businesses.length,
       businesses,
     };
+    ttlSet(cacheKey, summary, WORKSPACE_TTL_MS);
+    return summary;
   } catch {
     return EMPTY;
   }

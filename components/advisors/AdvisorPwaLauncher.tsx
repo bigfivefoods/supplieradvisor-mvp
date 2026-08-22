@@ -110,7 +110,7 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
   useEffect(() => {
     if (!ready || !authenticated) return;
     let cancelled = false;
-    void fetch('/api/b2c/me', { cache: 'no-store' })
+    void fetch('/api/b2c/me?include=lite', { cache: 'no-store' })
       .then((r) => r.json())
       .then((data) => {
         if (cancelled || !data?.profile) return;

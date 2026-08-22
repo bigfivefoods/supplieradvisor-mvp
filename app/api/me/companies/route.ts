@@ -17,6 +17,7 @@ import {
   PLATFORM_OWNER_EMAILS,
 } from '@/lib/system/platform-company';
 import { canAppearInCompanySwitcher } from '@/lib/business/permissions';
+import { safeFilterEmails } from '@/lib/security/email-filter';
 import {
   isPlatformOperatorEmail,
   isPlatformOperatorUserId,
@@ -168,39 +169,30 @@ export async function POST(request: NextRequest) {
 
     // 2) Also match active memberships by any known email (covers legacy / id drift)
     if (knownEmails.size > 0) {
-      const emailList = [...knownEmails];
+      const emailList = safeFilterEmails([...knownEmails]);
       let emailMatches: typeof memberships = [];
 
-      for (const em of emailList) {
-        const { data: byEmailRows, error: emailError } = await supabase
-          .from('business_users')
-          .select(
-            'id, role, profile_id, status, user_id, email, invited_email, name, permissions'
-          )
-          .eq('status', 'active')
-          .or(`email.eq.${em},invited_email.eq.${em}`)
-          .limit(50);
-        if (!emailError && byEmailRows?.length) {
-          emailMatches = emailMatches.concat(byEmailRows as typeof memberships);
-        }
-      }
-
-      // Fallback scan if filters returned nothing for platform owners
-      if (emailMatches.length === 0 && isPlatformUser) {
-        const { data: allActive } = await supabase
-          .from('business_users')
-          .select(
-            'id, role, profile_id, status, user_id, email, invited_email, name, permissions'
-          )
-          .eq('status', 'active')
-          .limit(3000);
-        if (allActive) {
-          emailMatches = allActive.filter((row) => {
-            const e1 = (row.email || '').toLowerCase();
-            const e2 = (row.invited_email || '').toLowerCase();
-            return emailList.includes(e1) || emailList.includes(e2);
-          }) as typeof memberships;
-        }
+      if (emailList.length) {
+        const cols =
+          'id, role, profile_id, status, user_id, email, invited_email, name, permissions';
+        const [byEmail, byInvited] = await Promise.all([
+          supabase
+            .from('business_users')
+            .select(cols)
+            .eq('status', 'active')
+            .in('email', emailList)
+            .limit(80),
+          supabase
+            .from('business_users')
+            .select(cols)
+            .eq('status', 'active')
+            .in('invited_email', emailList)
+            .limit(80),
+        ]);
+        emailMatches = [
+          ...((byEmail.data || []) as typeof memberships),
+          ...((byInvited.data || []) as typeof memberships),
+        ];
       }
 
       const seen = new Set(memberships.map((m) => m.id));

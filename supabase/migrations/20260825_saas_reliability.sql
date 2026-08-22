@@ -144,7 +144,10 @@ BEGIN
     'CREATE INDEX IF NOT EXISTS idx_profiles_physiograph_public_token ON public.profiles ((metadata->>''physiograph_public_token'')) WHERE metadata ? ''physiograph_public_token''',
     'CREATE INDEX IF NOT EXISTS idx_profiles_medicalgraph_public_token ON public.profiles ((metadata->>''medicalgraph_public_token'')) WHERE metadata ? ''medicalgraph_public_token''',
     'CREATE INDEX IF NOT EXISTS idx_profiles_psychiatrygraph_public_token ON public.profiles ((metadata->>''psychiatrygraph_public_token'')) WHERE metadata ? ''psychiatrygraph_public_token''',
-    'CREATE INDEX IF NOT EXISTS idx_profiles_dentalgraph_public_token ON public.profiles ((metadata->>''dentalgraph_public_token'')) WHERE metadata ? ''dentalgraph_public_token'''
+    'CREATE INDEX IF NOT EXISTS idx_profiles_dentalgraph_public_token ON public.profiles ((metadata->>''dentalgraph_public_token'')) WHERE metadata ? ''dentalgraph_public_token''',
+    'CREATE INDEX IF NOT EXISTS idx_customers_profile_email ON public.customers (profile_id, lower(email)) WHERE email IS NOT NULL AND length(trim(email)) > 3',
+    'CREATE INDEX IF NOT EXISTS idx_business_users_active_email ON public.business_users (lower(email)) WHERE status = ''active'' AND email IS NOT NULL',
+    'CREATE INDEX IF NOT EXISTS idx_business_users_active_invited_email ON public.business_users (lower(invited_email)) WHERE status = ''active'' AND invited_email IS NOT NULL'
   ];
   FOREACH stmt IN ARRAY statements
   LOOP

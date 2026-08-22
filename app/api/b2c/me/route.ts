@@ -59,6 +59,11 @@ export async function GET(request: NextRequest) {
     const qPath = request.nextUrl.searchParams.get('path');
     const qDisplay = request.nextUrl.searchParams.get('display');
     const qSource = request.nextUrl.searchParams.get('source');
+    const include = String(
+      request.nextUrl.searchParams.get('include') || ''
+    ).toLowerCase();
+    const lite =
+      include === 'lite' || request.nextUrl.searchParams.get('lite') === '1';
 
     const [loadedProfile, businessSummary] = await Promise.all([
       (async () =>
@@ -90,7 +95,10 @@ export async function GET(request: NextRequest) {
 
     // First login only — skip the company-wide desk scan when the wallet
     // already has memberships (that scan overlays gym/clinic stores).
-    if (!(profile.memberships || []).some((m) => m.active !== false)) {
+    if (
+      !lite &&
+      !(profile.memberships || []).some((m) => m.active !== false)
+    ) {
       try {
         const found = await discoverAndAttachMemberships(profile, {
           email: profile.email || qEmail,
@@ -157,11 +165,9 @@ export async function GET(request: NextRequest) {
         you_operate: ownedSet.has(m.company_id),
       }));
 
-    const include = String(
-      request.nextUrl.searchParams.get('include') || ''
-    ).toLowerCase();
     const wantFeed =
-      include === 'feed' || include === 'activity' || include === 'all';
+      !lite &&
+      (include === 'feed' || include === 'activity' || include === 'all');
 
     const [activity, journeys] = wantFeed
       ? await Promise.all([

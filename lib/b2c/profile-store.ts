@@ -10,6 +10,7 @@ import {
 } from '@/lib/b2c/types';
 import { normalizeFamilyList } from '@/lib/services/family-members';
 import { parseMemberPassport } from '@/lib/b2c/member-passport';
+import { isSafeFilterEmail } from '@/lib/security/email-filter';
 
 function emptyProfile(userId: string, email?: string | null): B2cProfile {
   return {
@@ -55,24 +56,24 @@ export async function loadB2cProfile(
   const supabase = getSupabaseServer();
   const variants = userIdMatchVariants(canonical);
 
-  for (const id of variants) {
-    const { data, error } = await supabase
-      .from('platform_b2c_profiles')
-      .select('*')
-      .eq('user_id', id)
-      .maybeSingle();
-    if (error) {
-      if (
-        error.message?.includes('platform_b2c_profiles') ||
-        error.code === '42P01'
-      ) {
-        return null; // table not migrated yet
-      }
-      continue;
+  const { data, error } = await supabase
+    .from('platform_b2c_profiles')
+    .select('*')
+    .in('user_id', variants)
+    .limit(8);
+  if (error) {
+    if (
+      error.message?.includes('platform_b2c_profiles') ||
+      error.code === '42P01'
+    ) {
+      return null;
     }
-    if (data) return rowToProfile(data as Record<string, unknown>);
+    return null;
   }
-  return null;
+  const rows = data || [];
+  const row =
+    rows.find((r) => String(r.user_id) === canonical) || rows[0];
+  return row ? rowToProfile(row as Record<string, unknown>) : null;
 }
 
 export async function loadB2cProfileByEmail(
@@ -81,13 +82,11 @@ export async function loadB2cProfileByEmail(
   const key = String(email || '')
     .trim()
     .toLowerCase();
-  if (!key.includes('@')) return null;
+  if (!isSafeFilterEmail(key)) return null;
   const supabase = getSupabaseServer();
-  const { data, error } = await supabase
-    .from('platform_b2c_profiles')
-    .select('*')
-    .ilike('email', key)
-    .maybeSingle();
+  let q = supabase.from('platform_b2c_profiles').select('*').limit(1);
+  q = key.includes('_') ? q.eq('email', key) : q.ilike('email', key);
+  const { data, error } = await q.maybeSingle();
   if (error || !data) return null;
   return rowToProfile(data as Record<string, unknown>);
 }
