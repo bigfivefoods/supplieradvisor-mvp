@@ -2,21 +2,46 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCompanyMember, logActivity } from '@/lib/customers/access';
 
-/**
- * GET  /api/orders/supplier-payments?companyId=&poId=
- * POST /api/orders/supplier-payments
- *   Body: {
- *     companyId, privyUserId, poId,
- *     amount, currency?, payment_date?, reference?, method?,
- *     pop_url?, pop_document_id?, share_with_supplier?, notes?, status?
- *   }
- * Records a supplier payment, updates PO amount_paid + payment_status.
- */
-
 function paymentStatusFromTotals(total: number, paid: number): 'unpaid' | 'partial' | 'paid' {
   if (paid <= 0.009) return 'unpaid';
   if (total > 0 && paid >= total - 0.01) return 'paid';
   return 'partial';
+}
+
+async function recomputePoPayment(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  companyId: number,
+  poId: number
+) {
+  const { data: po } = await supabase
+    .from('purchase_orders')
+    .select('total_amount')
+    .eq('id', poId)
+    .eq('buyer_profile_id', companyId)
+    .maybeSingle();
+
+  const { data: allPays } = await supabase
+    .from('supplier_payments')
+    .select('amount, status')
+    .eq('po_id', poId)
+    .eq('company_id', companyId)
+    .neq('status', 'void');
+
+  const paidSum = (allPays || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const poTotal = Number(po?.total_amount) || 0;
+  const paymentStatus = paymentStatusFromTotals(poTotal, paidSum);
+
+  await supabase
+    .from('purchase_orders')
+    .update({
+      amount_paid: Math.round(paidSum * 100) / 100,
+      payment_status: paymentStatus,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', poId)
+    .eq('buyer_profile_id', companyId);
+
+  return { paidSum, poTotal, paymentStatus };
 }
 
 export async function GET(req: NextRequest) {
@@ -86,7 +111,9 @@ export async function POST(req: NextRequest) {
 
     const { data: po, error: poErr } = await supabase
       .from('purchase_orders')
-      .select('id, buyer_profile_id, total_amount, amount_paid, payment_status, currency, supplier_profile_id')
+      .select(
+        'id, buyer_profile_id, total_amount, amount_paid, payment_status, currency, supplier_profile_id'
+      )
       .eq('id', poId)
       .eq('buyer_profile_id', companyId)
       .maybeSingle();
@@ -132,30 +159,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Recompute paid total from all non-void payments
-    const { data: allPays } = await supabase
-      .from('supplier_payments')
-      .select('amount, status')
-      .eq('po_id', poId)
-      .eq('company_id', companyId)
-      .neq('status', 'void');
-
-    const paidSum = (allPays || []).reduce(
-      (s, p) => s + (Number(p.amount) || 0),
-      0
-    );
-    const poTotal = Number(po.total_amount) || 0;
-    const paymentStatus = paymentStatusFromTotals(poTotal, paidSum);
-
-    await supabase
-      .from('purchase_orders')
-      .update({
-        amount_paid: Math.round(paidSum * 100) / 100,
-        payment_status: paymentStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', poId)
-      .eq('buyer_profile_id', companyId);
+    const recomputed = await recomputePoPayment(supabase, companyId, poId);
 
     await logActivity({
       profile_id: companyId,
@@ -163,16 +167,15 @@ export async function POST(req: NextRequest) {
       action: 'po.supplier_payment.recorded',
       entity_type: 'purchase_order',
       entity_id: String(poId),
-      summary: `Supplier payment ${amount} ${currency} on PO #${poId} → ${paymentStatus}`,
+      summary: `Supplier payment ${amount} ${currency} on PO #${poId} → ${recomputed.paymentStatus}`,
       metadata: {
         payment_id: payment.id,
         amount,
-        payment_status: paymentStatus,
+        payment_status: recomputed.paymentStatus,
         share_with_supplier: body.share_with_supplier === true,
       },
     });
 
-    // Soft notify supplier when shared
     if (body.share_with_supplier === true && po.supplier_profile_id) {
       void supabase.from('notifications').insert({
         profile_id: Number(po.supplier_profile_id),
@@ -196,14 +199,107 @@ export async function POST(req: NextRequest) {
       {
         success: true,
         payment,
-        poPaymentStatus: paymentStatus,
-        amountPaid: paidSum,
-        poTotal,
+        poPaymentStatus: recomputed.paymentStatus,
+        amountPaid: recomputed.paidSum,
+        poTotal: recomputed.poTotal,
       },
       { status: 201 }
     );
   } catch (e: unknown) {
     console.error('[supplier-payments POST]', e);
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Server error' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH — void a payment (Phase D edge case).
+ * Body: { companyId, privyUserId, paymentId, action: 'void' }
+ */
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const companyId = Number(body.companyId);
+    const paymentId = Number(body.paymentId);
+    const privyUserId = body.privyUserId as string | undefined;
+    const action = String(body.action || '').toLowerCase();
+
+    if (!companyId || !paymentId || !privyUserId) {
+      return NextResponse.json(
+        { error: 'companyId, paymentId and privyUserId required' },
+        { status: 400 }
+      );
+    }
+
+    const mem = await assertCompanyMember(privyUserId, companyId);
+    if (!mem.ok) {
+      return NextResponse.json({ error: mem.error }, { status: mem.status });
+    }
+
+    if (action !== 'void') {
+      return NextResponse.json(
+        { error: 'Only action: "void" is supported' },
+        { status: 400 }
+      );
+    }
+
+    const supabase = getSupabaseServer();
+    const { data: payment, error } = await supabase
+      .from('supplier_payments')
+      .select('*')
+      .eq('id', paymentId)
+      .eq('company_id', companyId)
+      .maybeSingle();
+
+    if (error || !payment) {
+      return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
+    }
+    if (payment.status === 'void') {
+      return NextResponse.json({ success: true, payment, alreadyVoid: true });
+    }
+
+    const { data: voided, error: vErr } = await supabase
+      .from('supplier_payments')
+      .update({
+        status: 'void',
+        notes: payment.notes
+          ? `${payment.notes}\n[voided ${new Date().toISOString().slice(0, 10)}]`
+          : `[voided ${new Date().toISOString().slice(0, 10)}]`,
+      })
+      .eq('id', paymentId)
+      .eq('company_id', companyId)
+      .select('*')
+      .single();
+
+    if (vErr) {
+      return NextResponse.json({ error: vErr.message }, { status: 500 });
+    }
+
+    const recomputed = await recomputePoPayment(
+      supabase,
+      companyId,
+      Number(payment.po_id)
+    );
+
+    await logActivity({
+      profile_id: companyId,
+      actor_user_id: mem.userId,
+      action: 'po.supplier_payment.voided',
+      entity_type: 'purchase_order',
+      entity_id: String(payment.po_id),
+      summary: `Voided payment #${paymentId} on PO #${payment.po_id}`,
+      metadata: { payment_id: paymentId, ...recomputed },
+    });
+
+    return NextResponse.json({
+      success: true,
+      payment: voided,
+      poPaymentStatus: recomputed.paymentStatus,
+      amountPaid: recomputed.paidSum,
+    });
+  } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Server error' },
       { status: 500 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCompanyMember } from '@/lib/customers/access';
 import { cascadeFromPo } from '@/lib/orders/cascade';
+import { notifyProductionCascade } from '@/lib/orders/notify-chain';
 import {
   PRODUCTION_STATUS_OPTIONS,
   type ProductionStatus,
@@ -9,22 +10,7 @@ import {
 
 /**
  * POST /api/orders/production-status
- * Update production status on a PO (BFF or manufacturer side).
- * Optionally writes batches and cascades to linked SOs.
- *
- * Body: {
- *   companyId,           // company performing the update (BFF or Kelpack workspace)
- *   privyUserId,
- *   poId,
- *   buyerCompanyId?,     // when manufacturer updates: the BFF company that owns the link
- *   production_status,   // released | in_progress | completed | on_hold | cancelled
- *   confirmed_qty?,
- *   promised_date?,
- *   actual_completion_date?,
- *   batches?: [{ batch_number, qty, uom?, produced_at?, notes? }],
- *   notes?,
- *   cascade?: boolean    // default true when buyerCompanyId or company is buyer
- * }
+ * Update production status on a PO; cascade + notify (Phase D).
  */
 export async function POST(req: NextRequest) {
   try {
@@ -35,7 +21,10 @@ export async function POST(req: NextRequest) {
     const buyerCompanyId = body.buyerCompanyId
       ? Number(body.buyerCompanyId)
       : companyId;
-    const productionStatus = body.production_status as ProductionStatus | string | undefined;
+    const productionStatus = body.production_status as
+      | ProductionStatus
+      | string
+      | undefined;
     const doCascade = body.cascade !== false;
 
     if (!companyId || !poId || !privyUserId) {
@@ -66,7 +55,7 @@ export async function POST(req: NextRequest) {
 
     const { data: po, error: poErr } = await supabase
       .from('purchase_orders')
-      .select('id, buyer_profile_id, supplier_profile_id, status')
+      .select('id, buyer_profile_id, supplier_profile_id, status, metadata')
       .eq('id', poId)
       .maybeSingle();
 
@@ -84,21 +73,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Use actual buyer when supplier is updating
+    const cascadeOwnerId = isSupplier
+      ? Number(po.buyer_profile_id) || buyerCompanyId
+      : buyerCompanyId;
+
+    const prevMeta =
+      po.metadata && typeof po.metadata === 'object' && !Array.isArray(po.metadata)
+        ? (po.metadata as Record<string, unknown>)
+        : {};
+
     const poUpdate: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
       cascade_updated_at: new Date().toISOString(),
     };
     if (productionStatus) poUpdate.production_status = productionStatus;
     if (body.confirmed_qty !== undefined && body.confirmed_qty !== null) {
-      poUpdate.confirmed_qty = Number(body.confirmed_qty);
+      const qty = Number(body.confirmed_qty);
+      if (!Number.isFinite(qty) || qty < 0) {
+        return NextResponse.json({ error: 'Invalid confirmed_qty' }, { status: 400 });
+      }
+      poUpdate.confirmed_qty = qty;
     }
-    if (body.promised_date) poUpdate.promised_date = body.promised_date;
+    if (body.promised_date) poUpdate.promised_date = String(body.promised_date).slice(0, 10);
     if (body.actual_completion_date) {
-      poUpdate.actual_completion_date = body.actual_completion_date;
+      poUpdate.actual_completion_date = String(body.actual_completion_date).slice(0, 10);
     }
     if (body.notes) {
-      // merge into metadata.notes rather than overwriting description
-      poUpdate.metadata = { production_notes: String(body.notes) };
+      poUpdate.metadata = {
+        ...prevMeta,
+        production_notes: String(body.notes).slice(0, 2000),
+      };
     }
 
     const { data: updatedPo, error: upErr } = await supabase
@@ -113,7 +118,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: upErr.message }, { status: 500 });
     }
 
-    // Optional batches
     const batchesIn = Array.isArray(body.batches) ? body.batches : [];
     const insertedBatches: unknown[] = [];
     for (const b of batchesIn) {
@@ -121,15 +125,15 @@ export async function POST(req: NextRequest) {
       const { data: batchRow, error: bErr } = await supabase
         .from('order_batches')
         .insert({
-          company_id: buyerCompanyId,
+          company_id: cascadeOwnerId,
           order_id: poId,
           order_type: 'purchase_order',
-          batch_number: String(b.batch_number),
+          batch_number: String(b.batch_number).trim().slice(0, 120),
           qty: Number(b.qty) || 0,
           uom: b.uom || 'ea',
           produced_at: b.produced_at || null,
           manufacturer_profile_id: isSupplier ? companyId : po.supplier_profile_id,
-          notes: b.notes || null,
+          notes: b.notes ? String(b.notes).slice(0, 500) : null,
           created_by: privyUserId,
         })
         .select('*')
@@ -137,10 +141,9 @@ export async function POST(req: NextRequest) {
       if (!bErr && batchRow) insertedBatches.push(batchRow);
     }
 
-    // Cascade to linked SOs (owned by buyer company)
     let cascadeResult = null;
     if (doCascade) {
-      cascadeResult = await cascadeFromPo(supabase, buyerCompanyId, poId, {
+      cascadeResult = await cascadeFromPo(supabase, cascadeOwnerId, poId, {
         production_status: productionStatus ?? undefined,
         confirmed_qty:
           body.confirmed_qty !== undefined && body.confirmed_qty !== null
@@ -149,11 +152,20 @@ export async function POST(req: NextRequest) {
         promised_date: body.promised_date ?? undefined,
         actual_completion_date: body.actual_completion_date ?? undefined,
       });
+
+      void notifyProductionCascade(supabase, {
+        buyerCompanyId: cascadeOwnerId,
+        poId,
+        soIds: cascadeResult.linkedSoIds,
+        productionStatus: productionStatus ?? null,
+        actorCompanyId: companyId,
+        isSupplier,
+      });
     }
 
     try {
       await supabase.from('activity_log').insert({
-        profile_id: buyerCompanyId,
+        profile_id: cascadeOwnerId,
         action: 'order.production_status.updated',
         entity_type: 'purchase_order',
         entity_id: String(poId),
@@ -164,10 +176,11 @@ export async function POST(req: NextRequest) {
           batches: insertedBatches.length,
           actor_company_id: companyId,
           is_supplier: isSupplier,
+          cascaded: cascadeResult?.updated ?? 0,
         },
       });
     } catch {
-      // non-fatal
+      /* non-fatal */
     }
 
     return NextResponse.json({
@@ -176,8 +189,11 @@ export async function POST(req: NextRequest) {
       batches: insertedBatches,
       cascade: cascadeResult,
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('[orders/production-status POST]', e);
-    return NextResponse.json({ error: e?.message || 'Server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Server error' },
+      { status: 500 }
+    );
   }
 }

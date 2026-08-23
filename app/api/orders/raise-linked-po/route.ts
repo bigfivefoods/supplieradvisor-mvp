@@ -2,23 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCompanyMember, logActivity } from '@/lib/customers/access';
 import { mapSoItemsToPoItems } from '@/lib/orders/map-so-to-po-items';
+import { resolvePreferredSupplier } from '@/lib/orders/preferred-supplier';
+import { notifyLinkedPoCreated } from '@/lib/orders/notify-chain';
 
 /**
  * POST /api/orders/raise-linked-po
  * One-click: create a PO from a Sales Order and create an active order_link.
- *
- * Body: {
- *   companyId, privyUserId,
- *   salesOrderId,
- *   supplierProfileId? | srmSupplierId?,
- *   status?: 'draft' | 'sent' (default draft),
- *   copyPrices?: boolean,
- *   defaultUnitPrice?: number,
- *   promised_date?: string,
- *   description?: string,
- *   currency?: string,
- *   payment_terms?: string,
- * }
+ * Auto-resolves preferred manufacturer when supplier not provided (Phase D).
  */
 export async function POST(req: NextRequest) {
   try {
@@ -42,7 +32,6 @@ export async function POST(req: NextRequest) {
 
     const supabase = getSupabaseServer();
 
-    // Load SO
     const { data: so, error: soErr } = await supabase
       .from('sales_orders')
       .select('*')
@@ -57,13 +46,55 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Resolve supplier
+    // Guard: already has an active fulfillment link to a PO
+    if (body.allowMultipleLinks !== true) {
+      const { data: existingLink } = await supabase
+        .from('order_links')
+        .select('id, target_order_id')
+        .eq('company_id', companyId)
+        .eq('source_order_id', salesOrderId)
+        .eq('source_order_type', 'sales_order')
+        .eq('target_order_type', 'purchase_order')
+        .eq('status', 'active')
+        .limit(1)
+        .maybeSingle();
+      if (existingLink?.id) {
+        return NextResponse.json(
+          {
+            error: `SO already linked to PO #${existingLink.target_order_id}. Unlink first or pass allowMultipleLinks: true.`,
+            code: 'ALREADY_LINKED',
+            existingLink,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     let supplierProfileId = body.supplierProfileId
       ? Number(body.supplierProfileId)
       : null;
-    const srmSupplierId = body.srmSupplierId ? Number(body.srmSupplierId) : null;
+    let srmSupplierId = body.srmSupplierId ? Number(body.srmSupplierId) : null;
     let srmId: number | null = null;
     let bookOnlyName: string | null = null;
+    let preferredSource: string | null = null;
+
+    // Phase D: auto-resolve preferred supplier
+    if (
+      (!supplierProfileId || !Number.isFinite(supplierProfileId)) &&
+      (!srmSupplierId || !Number.isFinite(srmSupplierId))
+    ) {
+      const preferred = await resolvePreferredSupplier(
+        supabase,
+        companyId,
+        so as Record<string, unknown>
+      );
+      if (preferred.srmSupplierId || preferred.supplierProfileId) {
+        srmSupplierId = preferred.srmSupplierId;
+        supplierProfileId = preferred.supplierProfileId;
+        bookOnlyName = preferred.tradingName;
+        preferredSource = preferred.source;
+      }
+    }
 
     if (srmSupplierId && Number.isFinite(srmSupplierId)) {
       const { data: srm } = await supabase
@@ -83,20 +114,20 @@ export async function POST(req: NextRequest) {
       }
       srmId = Number(srm.id);
       if (srm.linked_profile_id) supplierProfileId = Number(srm.linked_profile_id);
-      bookOnlyName = srm.trading_name || null;
+      bookOnlyName = srm.trading_name || bookOnlyName;
     }
 
     if ((!supplierProfileId || !Number.isFinite(supplierProfileId)) && !srmId) {
       return NextResponse.json(
         {
           error:
-            'supplierProfileId or srmSupplierId is required — choose the manufacturer (e.g. Kelpack)',
+            'No manufacturer selected and no preferred supplier configured. Pass supplierProfileId / srmSupplierId, or set preferred manufacturer in company settings.',
+          code: 'SUPPLIER_REQUIRED',
         },
         { status: 400 }
       );
     }
 
-    // Map line items (do not copy customer prices by default)
     const mapped = mapSoItemsToPoItems(so.items, {
       copyPrices: body.copyPrices === true,
       defaultUnitPrice:
@@ -124,10 +155,7 @@ export async function POST(req: NextRequest) {
       items: mapped.items,
       status,
       payment_terms: body.payment_terms || null,
-      promised_date:
-        body.promised_date ||
-        so.promised_date ||
-        null,
+      promised_date: body.promised_date || so.promised_date || null,
       order_quantity: orderQty,
       source: 'linked_so',
       production_status: null,
@@ -140,6 +168,7 @@ export async function POST(req: NextRequest) {
         srm_supplier_id: srmId,
         book_only: !supplierProfileId,
         raise_linked_po: true,
+        preferred_source: preferredSource,
       },
       created_at: now,
       updated_at: now,
@@ -159,7 +188,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create order_link
     const { data: link, error: linkErr } = await supabase
       .from('order_links')
       .insert({
@@ -171,7 +199,7 @@ export async function POST(req: NextRequest) {
         link_type: 'fulfillment',
         status: 'active',
         created_by: privyUserId,
-        notes: `Auto-linked from raise-linked-po`,
+        notes: 'Auto-linked from raise-linked-po',
         metadata: { sales_order_number: so.order_number || null },
       })
       .select('*')
@@ -179,13 +207,13 @@ export async function POST(req: NextRequest) {
 
     if (linkErr) {
       console.error('[raise-linked-po] link', linkErr);
-      // PO was created — return it with warning
       return NextResponse.json(
         {
           success: true,
           purchaseOrder: po,
           link: null,
           warning: `PO created but link failed: ${linkErr.message}`,
+          preferredSource,
         },
         { status: 201 }
       );
@@ -202,11 +230,20 @@ export async function POST(req: NextRequest) {
         sales_order_id: salesOrderId,
         link_id: link?.id,
         supplier_profile_id: supplierProfileId,
+        preferred_source: preferredSource,
         status,
       },
     });
 
-    // Soft notify supplier if sent + platform-linked
+    void notifyLinkedPoCreated(supabase, {
+      companyId,
+      poId: Number(po.id),
+      salesOrderId,
+      orderNumber: so.order_number,
+      supplierProfileId,
+      sent: status === 'sent',
+    });
+
     if (status === 'sent' && supplierProfileId) {
       void (async () => {
         try {
@@ -240,6 +277,7 @@ export async function POST(req: NextRequest) {
         purchaseOrder: po,
         link,
         salesOrderId,
+        preferredSource,
       },
       { status: 201 }
     );
