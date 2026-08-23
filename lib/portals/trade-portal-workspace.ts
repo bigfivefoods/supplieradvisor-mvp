@@ -57,6 +57,19 @@ export function bookProfileGaps(p: BookProfile | null): string[] {
   );
 }
 
+/** Sellable line from host inventory — shown on customer portal Raise PO. */
+export type PortalCatalogueItem = {
+  id: number;
+  name: string;
+  sku: string | null;
+  product_type: string | null;
+  uom: string | null;
+  unit_price: number;
+  currency: string;
+  short_description: string | null;
+  primary_image_url: string | null;
+};
+
 export type PortalWorkspace = {
   onBooks: boolean;
   linkedProfileId: number | null;
@@ -70,6 +83,8 @@ export type PortalWorkspace = {
   purchase_orders: PublicDocRow[];
   inbound_pos: PublicDocRow[];
   projects: PortalProjectView[];
+  /** Host sellable products (customer portal only) for PO product picker */
+  catalogue: PortalCatalogueItem[];
 };
 
 function poToDoc(r: Record<string, unknown>, otifefInput: Parameters<typeof otifefForLine>[0]): PublicDocRow {
@@ -100,6 +115,49 @@ function poToDoc(r: Record<string, unknown>, otifefInput: Parameters<typeof otif
   };
 }
 
+async function loadHostCatalogue(companyId: number): Promise<PortalCatalogueItem[]> {
+  const supabase = getSupabaseServer();
+  const { data, error } = await supabase
+    .from('products')
+    .select(
+      'id, name, sku, product_type, uom, status, is_sellable, sell_price, cost_price, base_currency, short_description, primary_image_url'
+    )
+    .eq('profile_id', companyId)
+    .order('name');
+  if (error) {
+    if (!/relation|does not exist/i.test(error.message)) {
+      console.warn('portal catalogue products', error.message);
+    }
+    return [];
+  }
+  const out: PortalCatalogueItem[] = [];
+  for (const raw of data || []) {
+    const st = String(raw.status || 'active').toLowerCase();
+    if (st === 'archived' || st === 'inactive' || st === 'deleted') continue;
+    if (raw.is_sellable === false) continue;
+    const type = String(raw.product_type || 'finished_good').toLowerCase();
+    if (type === 'wip' || type === 'work_in_progress') continue;
+    const unit =
+      Number(raw.sell_price) > 0
+        ? Number(raw.sell_price)
+        : Number(raw.cost_price) || 0;
+    out.push({
+      id: Number(raw.id),
+      name: String(raw.name || 'Product'),
+      sku: raw.sku != null ? String(raw.sku) : null,
+      product_type: type,
+      uom: raw.uom != null ? String(raw.uom) : 'ea',
+      unit_price: unit,
+      currency: String(raw.base_currency || 'ZAR').toUpperCase(),
+      short_description:
+        raw.short_description != null ? String(raw.short_description) : null,
+      primary_image_url:
+        raw.primary_image_url != null ? String(raw.primary_image_url) : null,
+    });
+  }
+  return out;
+}
+
 export async function loadPortalWorkspace(opts: {
   portal: TradePortalRow;
   viewer: TradePortalViewer;
@@ -127,6 +185,7 @@ export async function loadPortalWorkspace(opts: {
     purchase_orders: [],
     inbound_pos: [],
     projects: [],
+    catalogue: [],
   };
 
   let linkedProfileId: number | null = null;
@@ -495,6 +554,10 @@ export async function loadPortalWorkspace(opts: {
     });
   }
 
+  // Customer portal: host's sellable catalogue (e.g. Boxer Soya finished goods)
+  const catalogue =
+    kind === 'customer' ? await loadHostCatalogue(companyId) : [];
+
   return {
     onBooks: true,
     linkedProfileId,
@@ -508,5 +571,6 @@ export async function loadPortalWorkspace(opts: {
     purchase_orders: pos.filter((p) => p.kind === 'purchase_order' || p.kind === 'order'),
     inbound_pos: inbound,
     projects,
+    catalogue,
   };
 }
