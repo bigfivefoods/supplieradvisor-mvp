@@ -392,6 +392,11 @@ export async function POST(request: NextRequest) {
             qty,
             quantity: qty,
             unit_price: Number(row.unit_price || 0),
+            product_id:
+              row.product_id != null && Number.isFinite(Number(row.product_id))
+                ? Number(row.product_id)
+                : null,
+            uom: row.uom != null ? String(row.uom).slice(0, 24) : null,
           };
         })
         .filter(Boolean);
