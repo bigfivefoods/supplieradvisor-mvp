@@ -11,6 +11,7 @@ import {
 
 export const OPERATIONS_NAV: readonly NavItem[] = [
   { href: '/dashboard/operations', label: 'Command', exact: true },
+  { href: '/dashboard/operations/chains', label: 'Chains' },
   { href: '/dashboard/operations/supplier-orders', label: 'Procure' },
   { href: '/dashboard/operations/inbound', label: 'Inbound' },
   { href: '/dashboard/operations/warehouse', label: 'Warehouse' },
