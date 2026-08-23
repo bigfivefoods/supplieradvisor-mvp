@@ -1,6 +1,6 @@
 # Multi-Party Order Chains + Commercial Close-the-Loop
 
-**Status:** Phase A foundation shipped on branch `feature/multi-party-order-chains`  
+**Status:** Phase A + Phase B on branch `feature/multi-party-order-chains`  
 **Date:** 23 August 2026  
 **Repo:** bigfivefoods/supplieradvisor-mvp
 
@@ -16,56 +16,90 @@ Enable Big Five Foods (middleman) to:
 
 Linking is **optional**. Independent POs and internal SOs are first-class.
 
-## Phase A (this commit)
+## Phase A (shipped)
 
 ### Schema (`supabase/migrations/20260828_order_links_and_cascade.sql`)
 
-- `order_links` — optional SO↔PO links (`link_type=fulfillment`, soft-unlink)
-- Cascade fields on `sales_orders` + `purchase_orders`:
-  - `production_status`, `confirmed_qty`, `actual_completion_date`, `cascade_updated_at`
-- `sales_orders.origin` (`customer_portal` | `internal` | `api` | `import`)
-- `purchase_orders.payment_status` + `amount_paid`
-- `order_batches` — multi-lot capture
-- `supplier_payments` — payment + POP skeleton
-- `manufacturing_production_orders.purchase_order_id` convenience link
-- `customer_invoices.source_order_id` (backfilled from `order_id`)
+- `order_links`, cascade columns, `origin`, `order_batches`, `supplier_payments`, etc.
 
-### Code
+### APIs
 
-- `lib/orders/order-links.ts` — types, cascade-safe field list, customer-visible status labels
-- `app/api/orders/links/route.ts` — GET / POST / DELETE for links (membership-checked)
+- `GET/POST/DELETE /api/orders/links`
+- `POST /api/orders/cascade`
+- `POST /api/orders/production-status`
 
-## Next phases
+### Lib
 
-| Phase | Scope |
-|-------|--------|
-| **B** | One-click “Raise linked PO”, supplier production status form + event cascade, realtime, batches UI |
-| **C** | Supplier payment + POP upload UI, “Raise Invoice from SO”, Operations chain commercial view |
-| **D** | Filters, notifications, polish, mobile |
+- `lib/orders/order-links.ts`, `lib/orders/cascade.ts`
+
+## Phase B (this commit)
+
+### APIs
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/orders/raise-linked-po` | One-click SO → PO (draft or sent) + `order_links` |
+| `GET/POST /api/orders/batches` | List / add batch numbers |
+
+### UI components (drop into existing detail pages)
+
+| Component | Use |
+|-----------|-----|
+| `components/orders/LinkedOrdersPanel.tsx` | SO/PO detail — show links, raise linked PO, link existing, unlink |
+| `components/orders/ProductionStatusForm.tsx` | Supplier portal or PO detail — status, qty, dates, multi-batch, cascade toggle |
+
+### Lib
+
+- `lib/orders/map-so-to-po-items.ts` — map CRM SO lines → SRM PO lines (prices not copied by default)
+
+### Wire-up examples
+
+**On sales order detail (BFF):**
+
+```tsx
+import LinkedOrdersPanel from '@/components/orders/LinkedOrdersPanel';
+
+<LinkedOrdersPanel
+  companyId={companyId}
+  privyUserId={privyUserId}
+  orderId={so.id}
+  orderType="sales_order"
+  defaultSrmSupplierId={preferredKelpackSrmId} // or defaultSupplierProfileId
+/>
+```
+
+**On PO detail / supplier portal:**
+
+```tsx
+import ProductionStatusForm from '@/components/orders/ProductionStatusForm';
+import LinkedOrdersPanel from '@/components/orders/LinkedOrdersPanel';
+
+<ProductionStatusForm
+  companyId={companyId}
+  privyUserId={privyUserId}
+  poId={po.id}
+  buyerCompanyId={po.buyer_profile_id} // when manufacturer is updating
+  initialStatus={po.production_status}
+/>
+
+<LinkedOrdersPanel
+  companyId={buyerCompanyId}
+  privyUserId={privyUserId}
+  orderId={po.id}
+  orderType="purchase_order"
+/>
+```
 
 ## Apply migration
 
-Paste `supabase/migrations/20260828_order_links_and_cascade.sql` into the Supabase SQL Editor and run. Safe to re-run.
+Paste `supabase/migrations/20260828_order_links_and_cascade.sql` into Supabase SQL Editor and run.
+
+## Phase C (next)
+
+- Supplier payment recording + POP upload UI
+- “Raise Invoice from SO” (already partly exists as `convert_to_invoice` on `/api/customers/docs`)
+- Operations tower chain commercial view + cost vs revenue
 
 ## Visibility rules (non-negotiable)
 
-| Data | BFF | Manufacturer | Customer |
-|------|-----|--------------|----------|
-| SO commercial | Full | None | Own only |
-| PO commercial | Full | Own only | None |
-| Production status + batches | Full | Full (own) | High-level + batches |
-| Supplier payment + POP | Full | Received + POP if shared | None |
-| Customer invoice | Full | None | Own only |
-
-Never cascade price, margin, or internal notes.
-
-## Acceptance (Phase A)
-
-- [x] `order_links` table + unique active pair index
-- [x] Cascade columns on SO/PO
-- [x] `origin` on sales_orders
-- [x] `supplier_payments` + `order_batches` tables
-- [x] Link / unlink API with membership check + activity_log
-- [ ] UI panels (Phase B+)
-- [ ] Production form + cascade events (Phase B)
-- [ ] Payment + invoice actions (Phase C)
+Never cascade price, margin, or internal notes. Customer sees high-level production status + batches only.
