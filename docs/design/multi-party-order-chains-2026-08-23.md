@@ -1,105 +1,71 @@
 # Multi-Party Order Chains + Commercial Close-the-Loop
 
-**Status:** Phase A + Phase B on branch `feature/multi-party-order-chains`  
+**Status:** Phase A + B + C on branch `feature/multi-party-order-chains`  
 **Date:** 23 August 2026  
 **Repo:** bigfivefoods/supplieradvisor-mvp
 
 ## Goal
 
-Enable Big Five Foods (middleman) to:
+BFF middleman loop: SO ↔ optional linked PO → production cascade → pay manufacturer (POP) → invoice customer, with Operations chain visibility.
 
-1. Create or receive Sales Orders (Boxer / other customers)
-2. Raise linked **or** independent Purchase Orders to Kelpack (or any manufacturer)
-3. Let the manufacturer update production status + batches via supplier portal
-4. Cascade non-commercial fields back to BFF and the customer
-5. Close the commercial loop: pay manufacturer (POP) + invoice customer
+## Phase A — Foundation
+- Migration `20260828_order_links_and_cascade.sql`
+- Links, cascade fields, batches, supplier_payments tables
+- `/api/orders/links`, `/cascade`, `/production-status`
 
-Linking is **optional**. Independent POs and internal SOs are first-class.
+## Phase B — Automation & production
+- `/api/orders/raise-linked-po`, `/api/orders/batches`
+- `LinkedOrdersPanel`, `ProductionStatusForm`
 
-## Phase A (shipped)
-
-### Schema (`supabase/migrations/20260828_order_links_and_cascade.sql`)
-
-- `order_links`, cascade columns, `origin`, `order_batches`, `supplier_payments`, etc.
+## Phase C — Commercial close (this commit)
 
 ### APIs
-
-- `GET/POST/DELETE /api/orders/links`
-- `POST /api/orders/cascade`
-- `POST /api/orders/production-status`
-
-### Lib
-
-- `lib/orders/order-links.ts`, `lib/orders/cascade.ts`
-
-## Phase B (this commit)
-
-### APIs
-
 | Endpoint | Purpose |
 |----------|---------|
-| `POST /api/orders/raise-linked-po` | One-click SO → PO (draft or sent) + `order_links` |
-| `GET/POST /api/orders/batches` | List / add batch numbers |
+| `GET/POST /api/orders/supplier-payments` | Record payment + update PO `payment_status` / `amount_paid` |
+| `POST /api/orders/raise-invoice-from-so` | Invoice from SO + `source_order_id` |
+| `GET /api/orders/chains` | Linked chains with cost vs revenue (BFF only) |
 
-### UI components (drop into existing detail pages)
+POP files reuse existing `POST /api/buyer/payment-proof`.
 
-| Component | Use |
-|-----------|-----|
-| `components/orders/LinkedOrdersPanel.tsx` | SO/PO detail — show links, raise linked PO, link existing, unlink |
-| `components/orders/ProductionStatusForm.tsx` | Supplier portal or PO detail — status, qty, dates, multi-batch, cascade toggle |
+### UI
+| Component / page | Role |
+|------------------|------|
+| `components/orders/SupplierPaymentForm.tsx` | Amount, ref, method, POP upload, share-with-supplier |
+| `components/orders/RaiseInvoiceFromSo.tsx` | One-click invoice from SO |
+| `components/orders/OrderChainCard.tsx` | Chain commercial snapshot card |
+| `app/dashboard/operations/chains/page.tsx` | Operations tower chains list |
 
-### Lib
-
-- `lib/orders/map-so-to-po-items.ts` — map CRM SO lines → SRM PO lines (prices not copied by default)
-
-### Wire-up examples
-
-**On sales order detail (BFF):**
-
+### Wire-up on PO detail (BFF)
 ```tsx
-import LinkedOrdersPanel from '@/components/orders/LinkedOrdersPanel';
-
-<LinkedOrdersPanel
-  companyId={companyId}
-  privyUserId={privyUserId}
-  orderId={so.id}
-  orderType="sales_order"
-  defaultSrmSupplierId={preferredKelpackSrmId} // or defaultSupplierProfileId
-/>
-```
-
-**On PO detail / supplier portal:**
-
-```tsx
-import ProductionStatusForm from '@/components/orders/ProductionStatusForm';
-import LinkedOrdersPanel from '@/components/orders/LinkedOrdersPanel';
-
-<ProductionStatusForm
+<SupplierPaymentForm
   companyId={companyId}
   privyUserId={privyUserId}
   poId={po.id}
-  buyerCompanyId={po.buyer_profile_id} // when manufacturer is updating
-  initialStatus={po.production_status}
+  poTotal={po.total_amount}
+  amountAlreadyPaid={po.amount_paid}
+  currency={po.currency}
 />
+```
 
-<LinkedOrdersPanel
-  companyId={buyerCompanyId}
+### Wire-up on SO detail
+```tsx
+<RaiseInvoiceFromSo
+  companyId={companyId}
   privyUserId={privyUserId}
-  orderId={po.id}
-  orderType="purchase_order"
+  salesOrderId={so.id}
+  orderNumber={so.order_number}
+  alreadyInvoiced={Boolean(so.invoice_id)}
 />
 ```
 
 ## Apply migration
+Run `supabase/migrations/20260828_order_links_and_cascade.sql` in SQL Editor before using Phase C tables.
 
-Paste `supabase/migrations/20260828_order_links_and_cascade.sql` into Supabase SQL Editor and run.
+## Visibility
+- Cost / margin / supplier payment details: **BFF only**
+- Customer never sees what was paid to Kelpack
+- POP shared with supplier only when `share_with_supplier: true`
 
-## Phase C (next)
-
-- Supplier payment recording + POP upload UI
-- “Raise Invoice from SO” (already partly exists as `convert_to_invoice` on `/api/customers/docs`)
-- Operations tower chain commercial view + cost vs revenue
-
-## Visibility rules (non-negotiable)
-
-Never cascade price, margin, or internal notes. Customer sees high-level production status + batches only.
+## Phase D (polish)
+Filters polish, notifications, empty states, mobile, edge cases, preferred-supplier auto-select on raise-linked-PO.
