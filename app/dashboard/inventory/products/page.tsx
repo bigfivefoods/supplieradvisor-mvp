@@ -72,6 +72,7 @@ const PRODUCT_TYPE_TABS = [
   { value: 'all', label: 'All' },
   { value: 'raw_material', label: 'Raw materials' },
   { value: 'finished_good', label: 'Finished goods' },
+  { value: 'service', label: 'Services' },
   { value: 'consumable', label: 'Consumables' },
   { value: 'kit', label: 'Kits' },
 ] as const;
@@ -929,6 +930,7 @@ function ProductsInner() {
                     >
                       <option value="finished_good">Finished good</option>
                       <option value="raw_material">Raw material</option>
+                      <option value="service">Service</option>
                       <option value="consumable">Consumable</option>
                       <option value="kit">Kit / bundle</option>
                     </select>

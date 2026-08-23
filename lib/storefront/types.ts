@@ -40,6 +40,9 @@ export type StoreProduct = {
   quoteFirst: boolean;
   active: boolean;
   category?: string | null;
+  /** Gym / Advisor shop — buy in the PWA instead of a trade quote */
+  ctaHref?: string | null;
+  ctaLabel?: string | null;
 };
 
 export type StoreCompany = {

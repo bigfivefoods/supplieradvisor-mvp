@@ -111,6 +111,7 @@ export function publicMembershipShop(
       location: p.location,
       weekly_class_limit: p.weekly_class_limit ?? null,
       unlocks_all: p.unlocks_all_classes === true,
+      group: 'service',
     }));
 }
 

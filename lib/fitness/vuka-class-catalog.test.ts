@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { emptyFitgraphStore, newId, type FitSession } from './fitgraph';
 import {
   ensureVukaClassCatalog,
+  ensureVukaShopOffers,
   gymHasClassSpecificPlans,
   isVukaFitnessCompany,
   listSubscribeClasses,
@@ -78,6 +79,19 @@ assert.ok(
 );
 const offer = listSubscribeClasses(vuka);
 assert.ok(offer.length >= 14);
+const hiddenShop = emptyFitgraphStore();
+ensureVukaClassCatalog(hiddenShop, { companyId: VUKA_COMPANY_ID });
+for (const p of hiddenShop.membership_plans) {
+  if (p.id.startsWith('vuka_pln_')) p.public = false;
+}
+assert.equal(
+  gymShopCatalog(hiddenShop).filter((i) => i.kind === 'membership').length,
+  0
+);
+assert.equal(ensureVukaShopOffers(hiddenShop), true);
+assert.ok(
+  gymShopCatalog(hiddenShop).filter((i) => i.kind === 'membership').length >= 14
+);
 assert.ok(offer.some((c) => c.price_zar === 910 && c.schedule_label.includes('5:00am')));
 assert.ok(offer.some((c) => c.unlocks_all && c.price_zar === 1140));
 assert.equal(listSubscribeClasses(other).length, 0);

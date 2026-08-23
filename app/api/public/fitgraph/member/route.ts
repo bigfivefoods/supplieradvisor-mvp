@@ -404,6 +404,15 @@ export async function GET(request: NextRequest) {
       await saveStore(resolved.companyId, resolved.meta, resolved.store);
     }
 
+    const { persistVukaCatalogIfNeeded } = await import(
+      '@/lib/fitness/vuka-class-catalog'
+    );
+    resolved.store = await persistVukaCatalogIfNeeded(
+      resolved.companyId,
+      resolved.store,
+      (s) => saveStore(resolved.companyId, resolved.meta, s)
+    );
+
     const portal = decorateMemberPortal(
       resolved.store,
       resolved.client,
@@ -416,7 +425,7 @@ export async function GET(request: NextRequest) {
       resolved.meta
     );
 
-    const { listGymInventoryShop } = await import(
+    const { listGymInventoryShop, mergeGymShopWithInventory } = await import(
       '@/lib/fitness/gym-inventory-shop'
     );
     const inventory = await listGymInventoryShop(resolved.companyId);
@@ -425,6 +434,7 @@ export async function GET(request: NextRequest) {
       success: true,
       portal: {
         ...portal,
+        shop: mergeGymShopWithInventory(portal.shop || [], inventory),
         inventory_products: inventory.filter((i) => i.group === 'goods'),
         inventory_services: inventory.filter((i) => i.group === 'service'),
       },

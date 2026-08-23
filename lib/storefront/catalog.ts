@@ -310,6 +310,10 @@ export async function listStoreProducts(
     products = seedDefsAsStoreProducts();
   }
 
+  if (company.id > 0) {
+    products = await appendGymShopToStoreProducts(company, products);
+  }
+
   if (opts?.channel) {
     const ch = String(opts.channel).toLowerCase();
     products = products.filter(
@@ -329,6 +333,74 @@ export async function listStoreProducts(
   }
 
   return products;
+}
+
+async function appendGymShopToStoreProducts(
+  company: StoreCompany,
+  products: StoreProduct[]
+): Promise<StoreProduct[]> {
+  try {
+    const { loadAdvisorModuleStore } = await import(
+      '@/lib/business/company-data'
+    );
+    const { readFitgraphFromMetadata } = await import(
+      '@/lib/fitness/fitgraph'
+    );
+    const { gymShopCatalog } = await import('@/lib/fitness/gym-shop');
+    const loaded = await loadAdvisorModuleStore(
+      company.id,
+      'fitgraph',
+      readFitgraphFromMetadata
+    );
+    const items = gymShopCatalog(loaded.store);
+    if (!items.length) return products;
+    const token = String(loaded.store.settings?.public_token || '').trim();
+    const shopHref = token
+      ? `/pwa/fitgraph/${encodeURIComponent(token)}`
+      : null;
+    const skus = new Set(
+      products
+        .map((p) => String(p.sku || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+    const names = new Set(products.map((p) => p.name.trim().toLowerCase()));
+    const extra: StoreProduct[] = [];
+    for (const item of items) {
+      const sku = String(item.code || '').trim().toLowerCase();
+      if (sku && skus.has(sku)) continue;
+      if (names.has(item.name.trim().toLowerCase())) continue;
+      extra.push({
+        id: `gym-${item.kind}-${item.id}`,
+        sku: item.code || null,
+        name: item.name,
+        shortName: item.name,
+        description: item.description || null,
+        packSize: item.billing || null,
+        pack: item.billing || null,
+        uom: item.billing || 'month',
+        imageUrl: item.image_url || null,
+        images: item.image_url ? [item.image_url] : [],
+        badges: ['Fitness'],
+        channels: ['retail'],
+        channelFlags: ['retail'],
+        channel: 'retail',
+        price: item.price_zar,
+        currency: 'ZAR',
+        priceOnRequest: false,
+        inStock: true,
+        externalRef: `gym-${item.kind}-${item.id}`,
+        quoteFirst: false,
+        active: true,
+        category:
+          item.kind === 'programme' ? 'Programmes' : 'Fitness services',
+        ctaHref: shopHref,
+        ctaLabel: 'Buy in the gym app',
+      });
+    }
+    return extra.length ? [...extra, ...products] : products;
+  } catch {
+    return products;
+  }
 }
 
 export async function getStoreProduct(

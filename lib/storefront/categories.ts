@@ -6,6 +6,8 @@ import type { StoreProduct } from './types';
 
 /** Preferred category order for Big Five Foods (and similar food catalogs). */
 export const STORE_CATEGORY_ORDER = [
+  'Fitness services',
+  'Programmes',
   'Porridges',
   'Soya',
   'One-pots',
@@ -14,6 +16,9 @@ export const STORE_CATEGORY_ORDER = [
 ] as const;
 
 export const CATEGORY_BLURBS: Record<string, string> = {
+  'Fitness services':
+    'Class subscriptions, personal training and other gym services.',
+  Programmes: 'Training programmes you can follow on your phone.',
   Porridges: 'Fortified instant porridge for home, catering, and foodservice.',
   Soya: 'Plant-based textured soya mince — retail and wholesale packs.',
   'One-pots': 'Complete one-pot meal mixes for kitchens that move fast.',

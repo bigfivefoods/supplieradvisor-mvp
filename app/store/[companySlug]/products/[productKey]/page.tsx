@@ -137,20 +137,31 @@ export default async function StoreProductPage({ params, searchParams }: Props) 
             </p>
           </div>
 
-          <TradeCtas
-            company={company}
-            product={product}
-            attr={attr}
-            returnPath={returnPath}
-          />
-
-          <div className="pt-2">
-            <QuoteRequestForm
-              companySlug={company.slug}
+          {product.ctaHref ? (
+            <a
+              href={product.ctaHref}
+              className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-[#0077b6] px-5 text-sm font-black text-white"
+            >
+              {product.ctaLabel || 'Open shop'}
+            </a>
+          ) : (
+            <TradeCtas
+              company={company}
               product={product}
               attr={attr}
+              returnPath={returnPath}
             />
-          </div>
+          )}
+
+          {product.ctaHref ? null : (
+            <div className="pt-2">
+              <QuoteRequestForm
+                companySlug={company.slug}
+                product={product}
+                attr={attr}
+              />
+            </div>
+          )}
         </div>
       </div>
 

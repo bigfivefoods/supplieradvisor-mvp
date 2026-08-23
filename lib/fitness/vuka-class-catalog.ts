@@ -1256,8 +1256,54 @@ export function ensureVukaClassCatalog(
   }
 
   if (ensureDemoShopProgramme(store, now)) changed = true;
+  if (ensureVukaShopOffers(store, now)) changed = true;
 
   return { store, changed, applied: true };
+}
+
+/**
+ * Keep VUKA class rates on the public shop. Does not rewrite bios/photos.
+ * If the catalog was never applied, missing plans are inserted. If every
+ * VUKA plan was taken off the shop, they are put back.
+ */
+export function ensureVukaShopOffers(
+  store: FitgraphStore,
+  now = new Date().toISOString()
+): boolean {
+  if (!Array.isArray(store.membership_plans)) store.membership_plans = [];
+  let changed = false;
+  const byId = new Set(store.membership_plans.map((p) => p.id));
+  const byCode = new Set(
+    store.membership_plans.map((p) => String(p.code || ''))
+  );
+  for (const draft of VUKA_MEMBERSHIP_PLANS) {
+    if (byId.has(draft.id) || byCode.has(draft.code)) continue;
+    store.membership_plans.push({ ...draft, created_at: now });
+    byId.add(draft.id);
+    byCode.add(draft.code);
+    changed = true;
+  }
+  const vukaPlans = store.membership_plans.filter(
+    (p) => p.id.startsWith('vuka_pln_') || String(p.catalog) === 'vuka'
+  );
+  const publicCount = vukaPlans.filter(
+    (p) =>
+      p.public !== false &&
+      p.active !== false &&
+      Number(p.price_zar) > 0
+  ).length;
+  if (vukaPlans.length && publicCount === 0) {
+    for (const p of vukaPlans) {
+      const draft = VUKA_MEMBERSHIP_PLANS.find(
+        (d) => d.id === p.id || d.code === p.code
+      );
+      p.public = true;
+      p.active = true;
+      if (!(Number(p.price_zar) > 0) && draft) p.price_zar = draft.price_zar;
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 export async function persistVukaCatalogIfNeeded(
@@ -1295,6 +1341,7 @@ export async function persistVukaCatalogIfNeeded(
     }
   }
   if (ensureDemoShopProgramme(next)) dirty = true;
+  if (ensureVukaShopOffers(next)) dirty = true;
   if (dirty) {
     await save(next);
   }

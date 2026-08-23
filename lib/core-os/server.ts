@@ -4,7 +4,7 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { loadWalletCompany } from '@/lib/b2c/load-company';
 import { readFitgraphFromMetadata } from '@/lib/fitness/fitgraph';
-import { publicMembershipShop } from '@/lib/fitness/gym-shop';
+import { gymShopCatalog } from '@/lib/fitness/gym-shop';
 import { readPhysiographFromMetadata } from '@/lib/clinic/physiograph';
 import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
 import { readMedicalgraphFromMetadata } from '@/lib/clinic/medicalgraph';
@@ -522,13 +522,29 @@ export async function loadSharedSkuBundle(companyId: number) {
   const supabase = getSupabaseServer();
   const { meta } = await loadCompanyMeta(companyId);
   const stores = advisorStoresFromMeta(meta);
+  let gym = stores.gym;
+  try {
+    const { loadAdvisorModuleStore } = await import(
+      '@/lib/business/company-data'
+    );
+    const loaded = await loadAdvisorModuleStore(
+      companyId,
+      'fitgraph',
+      readFitgraphFromMetadata
+    );
+    if ((loaded.store.membership_plans || []).length) {
+      gym = loaded.store;
+    }
+  } catch {
+    /* metadata fallback */
+  }
   const { data: products } = await supabase
     .from('products')
     .select('id, name, sku, sell_price, category, metadata')
     .eq('profile_id', companyId)
     .limit(500);
   const drafts = collectSharedSkuDrafts({
-    gymShop: publicMembershipShop(stores.gym),
+    gymShop: gymShopCatalog(gym),
     retail: stores.retail.skus || [],
     hire: (stores.hire.items || []).map((i) => ({
       id: i.id,

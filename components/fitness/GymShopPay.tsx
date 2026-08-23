@@ -70,11 +70,12 @@ export function GymShopPay({
     const goods = items.filter(
       (i) => i.kind === 'product' && i.group !== 'service'
     );
-    const inventoryServices = items.filter(
-      (i) => i.kind === 'product' && i.group === 'service'
+    const services = items.filter(
+      (i) =>
+        i.kind === 'membership' ||
+        (i.kind === 'product' && i.group === 'service')
     );
-    const memberships = items.filter((i) => i.kind === 'membership');
-    return { programmes, goods, inventoryServices, memberships };
+    return { programmes, goods, services };
   }, [items]);
 
   const openItem = items.find((i) => itemKey(i) === openKey) || null;
@@ -83,7 +84,7 @@ export function GymShopPay({
     return (
       <p className="text-sm text-slate-500 dark:text-slate-400">
         {classMode
-          ? 'No classes or programmes are for sale yet. Ask the gym to publish the timetable.'
+          ? 'No fitness services, classes or programmes are for sale yet. Ask the gym to publish the timetable.'
           : 'No memberships or programmes are for sale yet. Ask the gym to publish a priced plan.'}
       </p>
     );
@@ -160,8 +161,8 @@ export function GymShopPay({
       <div className="flex flex-wrap items-center justify-between gap-3">
         {classMode ? (
           <p className="text-sm text-slate-600 dark:text-slate-300">
-            Open a class, programme or product to read the details, then pay.
-            Card, Apple Pay (Safari / iPhone) or EFT.
+            Open a fitness service, class or programme to read the details,
+            then pay. Card, Apple Pay (Safari / iPhone) or EFT.
           </p>
         ) : requirePaid ? (
           <p className="text-sm text-slate-600 dark:text-slate-300">
@@ -215,13 +216,12 @@ export function GymShopPay({
         </div>
       ) : null}
 
-      {section('Products', groups.goods)}
-      {section('Programmes', groups.programmes)}
       {section(
-        classMode ? 'Classes & memberships' : 'Memberships',
-        groups.memberships
+        classMode ? 'Fitness services' : 'Memberships & services',
+        groups.services
       )}
-      {section('Services', groups.inventoryServices)}
+      {section('Programmes', groups.programmes)}
+      {section('Products', groups.goods)}
 
       {openItem ? (
         <div

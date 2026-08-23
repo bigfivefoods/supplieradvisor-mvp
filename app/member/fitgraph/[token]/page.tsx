@@ -991,7 +991,7 @@ export default function MemberFitgraphPortalPage() {
 
         {tab === 'join' && (
           <div className="space-y-5">
-            <GymSectionTitle hint="Products from the gym inventory, training programmes you can follow on your phone, then class subscriptions. Pay with card, Apple Pay or EFT.">
+            <GymSectionTitle hint="Fitness services and classes, training programmes, then shop products. Pay with card, Apple Pay or EFT.">
               Shop
             </GymSectionTitle>
             <div
@@ -1046,31 +1046,33 @@ export default function MemberFitgraphPortalPage() {
               </p>
             ) : null}
             <GymShopPay
-              items={[
-                ...((portal.inventory_products || []).map((p) => ({
+              items={(() => {
+                const shop = portal.shop || [];
+                const seen = new Set(shop.map((i) => i.id));
+                const asItem = (
+                  p: GymInventoryShopItem,
+                  group: 'goods' | 'service'
+                ) => ({
                   kind: 'product' as const,
                   id: p.id,
                   name: p.name,
                   description: p.description,
                   price_zar: p.price_zar,
-                  billing: 'once',
+                  billing: 'once' as const,
                   image_url: p.image_url,
-                  group: 'goods' as const,
+                  group,
                   code: p.sku || undefined,
-                })) || []),
-                ...(portal.shop || []),
-                ...((portal.inventory_services || []).map((p) => ({
-                  kind: 'product' as const,
-                  id: p.id,
-                  name: p.name,
-                  description: p.description,
-                  price_zar: p.price_zar,
-                  billing: 'once',
-                  image_url: p.image_url,
-                  group: 'service' as const,
-                  code: p.sku || undefined,
-                })) || []),
-              ]}
+                });
+                return [
+                  ...(portal.inventory_products || [])
+                    .filter((p) => !seen.has(p.id))
+                    .map((p) => asItem(p, 'goods')),
+                  ...shop,
+                  ...(portal.inventory_services || [])
+                    .filter((p) => !seen.has(p.id))
+                    .map((p) => asItem(p, 'service')),
+                ];
+              })()}
               color={color}
               payoutReady={portal.payout_ready !== false}
               requirePaid={portal.require_paid_membership}

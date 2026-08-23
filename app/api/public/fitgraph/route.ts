@@ -181,17 +181,34 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const { persistVukaCatalogIfNeeded } = await import(
+      '@/lib/fitness/vuka-class-catalog'
+    );
+    resolved.store = await persistVukaCatalogIfNeeded(
+      resolved.companyId,
+      resolved.store,
+      (s) => saveStore(resolved.companyId, resolved.meta, s)
+    );
+
     const calendar = buildPublicCalendarPayload(resolved.store, {
       from: from || undefined,
       to: to || undefined,
       coachId: coachId || undefined,
     });
 
+    const { listGymInventoryShop, mergeGymShopWithInventory } = await import(
+      '@/lib/fitness/gym-inventory-shop'
+    );
+    const inventory = await listGymInventoryShop(resolved.companyId);
+
     return NextResponse.json(
       {
         success: true,
         calendar,
-        shop: gymShopCatalog(resolved.store),
+        shop: mergeGymShopWithInventory(
+          gymShopCatalog(resolved.store),
+          inventory
+        ),
         payout_ready: isAdvisorCardPayReady(readAdvisorPayout(resolved.meta)),
         companyId: resolved.companyId,
       },

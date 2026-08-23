@@ -17,6 +17,10 @@ import {
   gymShopCatalog,
   resolveShopItem,
 } from './gym-shop';
+import {
+  inventoryGroupOf,
+  mergeGymShopWithInventory,
+} from './gym-inventory-shop';
 
 const store = emptyFitgraphStore();
 store.membership_plans.push({
@@ -45,7 +49,40 @@ store.programmes = [
 
 const catalog = gymShopCatalog(store);
 assert.equal(catalog.length, 2);
+assert.equal(catalog.find((i) => i.kind === 'membership')?.group, 'service');
+assert.equal(catalog.find((i) => i.kind === 'programme')?.group, 'service');
 assert.equal(gymRequiresPaidMembership(store), true);
+assert.equal(inventoryGroupOf('service'), 'service');
+assert.equal(inventoryGroupOf('finished_good', 'Fitness'), 'service');
+assert.equal(inventoryGroupOf('finished_good', 'Retail'), 'goods');
+assert.equal(
+  inventoryGroupOf('finished_good', null, {
+    shared_sku_key: 'core_sku:gym_shop:pln_1',
+  }),
+  'service'
+);
+const merged = mergeGymShopWithInventory(catalog, [
+  {
+    id: 'inv_9',
+    product_id: 9,
+    kind: 'product',
+    group: 'service',
+    name: 'Private PT 60 min',
+    price_zar: 450,
+    sku: 'PT-60',
+  },
+  {
+    id: 'inv_dup',
+    product_id: 10,
+    kind: 'product',
+    group: 'service',
+    name: 'Monthly',
+    price_zar: 699,
+    sku: 'MTH',
+  },
+]);
+assert.equal(merged.some((i) => i.id === 'inv_9'), true);
+assert.equal(merged.some((i) => i.id === 'inv_dup'), false);
 
 const plan = resolveShopItem(store, 'membership', 'pln_1');
 assert.equal(plan.ok, true);
